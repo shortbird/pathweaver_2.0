@@ -5,7 +5,9 @@ import { BookOpenIcon, PlusIcon } from '@heroicons/react/24/outline'
 import { useSisOrg } from '../useSisOrg'
 import {
   useSisQuestLibrary, useAddQuestToCurriculum, useAssignQuestToClass, useCreateLibraryQuest,
+  useGiveQuestToStudents,
 } from '../../../hooks/api/useSisQuestLibrary'
+import { useSisRoster } from '../../../hooks/api/useSisRoster'
 import QuestDraftForm, { blankTask } from '../../../components/sis/QuestDraftForm'
 import QuestAiDraftPanel from '../../../components/sis/QuestAiDraftPanel'
 import QuestResourcesPanel from '../../../components/sis/QuestResourcesPanel'
@@ -73,17 +75,46 @@ const Chips = ({ items, labelOf, hrefOf, empty }) => {
 }
 
 /**
- * The assign dialog for one quest: put it on a curriculum, or on a class.
- * Two small forms rather than one, because they are two different acts: a
- * curriculum is where the quest is kept for next term; a class is where
- * students get it today.
+ * The assign dialog for one quest: put it on a curriculum, on a class, or
+ * give it to students by name. Three small forms rather than one, because
+ * they are three different acts: a curriculum is where the quest is kept for
+ * next term; a class is where its students get it today; a named student is
+ * the one who needs it and is in no class that carries it (Dallin, iCreate,
+ * 2026-09-18: "Can we assign quests to individuals too?").
  */
 export function AssignQuestModal({ quest, curricula, classes, orgId, onClose }) {
   const [curriculumId, setCurriculumId] = useState('')
   const [classId, setClassId] = useState('')
   const [dueDate, setDueDate] = useState('')
+  const [studentPick, setStudentPick] = useState('')
+  const [studentIds, setStudentIds] = useState([])
   const addToCurriculumMutation = useAddQuestToCurriculum(orgId)
   const assignToClassMutation = useAssignQuestToClass(orgId)
+  const giveToStudentsMutation = useGiveQuestToStudents(orgId)
+  const { data: roster = [] } = useSisRoster(orgId)
+  const students = roster.filter((p) => p.is_student)
+  const studentOptions = students.filter((p) => !studentIds.includes(p.student_id))
+  const studentName = (id) => students.find((p) => p.student_id === id)?.name || 'Student'
+
+  const pickStudent = (id) => {
+    setStudentPick('')
+    if (id && !studentIds.includes(id)) setStudentIds((prev) => [...prev, id])
+  }
+
+  const giveToStudents = async () => {
+    if (!studentIds.length) return
+    try {
+      const data = await giveToStudentsMutation.mutateAsync({ questId: quest.id, studentIds })
+      const n = data?.enrolled ?? 0
+      const had = data?.already_had_it ?? 0
+      toast.success(n
+        ? `Given to ${n} ${n === 1 ? 'student' : 'students'}${had ? ` (${had} already had it)` : ''}`
+        : 'They already have it')
+      setStudentIds([])
+    } catch (e) {
+      toast.error(e?.response?.data?.error || 'Could not give it to those students')
+    }
+  }
 
   const onCurricula = new Set((quest.curricula || []).map((c) => c.id))
   const onClasses = new Set((quest.classes || []).map((c) => c.id))
@@ -173,6 +204,36 @@ export function AssignQuestModal({ quest, curricula, classes, orgId, onClose }) 
             <p className="text-xs text-neutral-500 mt-2">
               Already on: {quest.classes.map((c) => c.name).join(', ')}
             </p>
+          )}
+        </section>
+
+        <section>
+          <h3 className="text-sm font-semibold text-neutral-900">Give it to a student</h3>
+          <p className="text-xs text-neutral-500 mb-2">
+            For one student, or a few, with no class in between. It lands in their account like any other quest.
+          </p>
+          <div className="flex items-start gap-2">
+            <div className="flex-1">
+              <SearchSelect value={studentPick} onChange={pickStudent} options={studentOptions}
+                getId={(p) => p.student_id} getLabel={(p) => p.name}
+                placeholder={students.length ? 'Search students…' : 'No students yet'}
+                emptyLabel="No student matches" />
+            </div>
+            <Button size="xs" onClick={giveToStudents}
+              disabled={!studentIds.length || giveToStudentsMutation.isPending} className="shrink-0">
+              {giveToStudentsMutation.isPending ? 'Giving…' : 'Give'}
+            </Button>
+          </div>
+          {studentIds.length > 0 && (
+            <ul className="flex flex-wrap gap-1.5 mt-2" aria-label="Students to give it to">
+              {studentIds.map((id) => (
+                <li key={id} className="inline-flex items-center gap-1 rounded-full bg-optio-purple/10 text-optio-purple text-xs px-2.5 py-1">
+                  {studentName(id)}
+                  <button type="button" onClick={() => setStudentIds((prev) => prev.filter((s) => s !== id))}
+                    aria-label={`Remove ${studentName(id)}`} className="hover:text-red-600">×</button>
+                </li>
+              ))}
+            </ul>
           )}
         </section>
       </div>

@@ -537,7 +537,10 @@ BASELINES = {
     # points a whole platform family's rows at (or away from) the family
     # photo; the three direct users calls in routes/parent/family_cover.py
     # left routes/ for it and family_cover_pointers (which reuses find_by_ids).
-    'repositories': 588,
+    # 2026-09-20: 588 -> 589. SisQuestLibraryRepository.students_of_org, which
+    # of a picker's ids are accounts at this school, so the library's "give it
+    # to a student" door (ticket 293c4d99) refuses a stale id before enrolling.
+    'repositories': 589,
     # 2026-09-09: 135 -> 136. class_membership.children_in_classes, the inverse
     # of parents_of_students: which of a guardian's children sit in each of a
     # set of classes. It answers "whose class chat is this?" for the messaging

@@ -7,6 +7,7 @@ one is in use and a way to put it somewhere from there.
   POST /api/sis/quests                          author a new one (optionally
                                                 straight onto a curriculum)
   POST /api/sis/quests/<quest_id>/curricula     put one on a curriculum
+  POST /api/sis/quests/<quest_id>/students      give one to named students
 
 Why a page of its own. Quests were reachable only through the curriculum that
 carried them: open Curriculum, expand an entry, find the quest. A quest on no
@@ -25,6 +26,15 @@ POST /api/sis/classes/<id>/quests, which the library page calls directly, so a
 release date, a due date and an audience mean the same thing from either
 door. Editing stays where the quest lives: the row links to its curriculum.
 
+The third door, students by name, is Dallin's (iCreate, 293c4d99, 2026-09-18:
+"Can we assign quests to individuals too?"). A class quest can already be kept
+to some of its roster (the audience, 2026-09-11), but that needs a class, and
+the student who needs one quest is often the one in no class that carries it.
+This enrolls the named students directly, through the same
+enroll_students_in_quests the class assign and the publish sweep use, so the
+quest lands in each account like any other and the guardians get the same
+notice. No class_quests row: there is no class.
+
 ADMIN_ROLES throughout, like the curriculum library it sits beside. A teacher
 edits quests on the classes they teach; the school-wide list is the office's.
 Data access is repositories/sis_quest_library_repository.py.
@@ -34,6 +44,7 @@ from flask import Blueprint, request, jsonify
 
 from repositories.sis_quest_library_repository import SisQuestLibraryRepository
 from services import sis_service
+from services.class_quest_enrollment import enroll_students_in_quests
 from services.sis_curriculum_sync import attach_quest_to_curriculum
 from services.sis_quest_authoring import QuestAuthoringError, create_org_quest
 from utils.auth.decorators import require_role
@@ -219,3 +230,60 @@ def put_quest_on_curriculum(user_id, quest_id):
     result = attach_quest_to_curriculum(_admin(), org_id, curriculum_id, quest_id, user_id)
     return jsonify({'success': True, 'curriculum': {'id': curriculum['id'], 'title': curriculum['title']},
                     **result})
+
+
+# Enough for a whole school's students in one request, small enough that a
+# runaway client cannot enroll everyone in everything by accident.
+MAX_STUDENTS_PER_ASSIGN = 200
+
+
+@bp.route('/quests/<quest_id>/students', methods=['POST'])
+@require_role(*ADMIN_ROLES)
+def give_quest_to_students(user_id, quest_id):
+    """Give one of the school's quests (or an Optio library quest) to students by name.
+
+    Body: {student_ids: [...]}. Every id must be a student of this school;
+    one that is not fails the whole request, so a stale picker cannot enroll a
+    child who has left. Idempotent: a student already on the quest is skipped
+    and counted, never re-enrolled.
+    """
+    org_id, err = sis_service.org_or_error(user_id)
+    if err:
+        return err
+    if _bad_uuid(quest_id):
+        return jsonify({'success': False, 'error': 'Invalid id'}), 400
+    data = request.get_json(silent=True) or {}
+    raw_ids = data.get('student_ids')
+    if not isinstance(raw_ids, list) or not raw_ids:
+        return jsonify({'success': False, 'error': 'Pick at least one student.'}), 400
+    student_ids = list(dict.fromkeys(str(i).strip() for i in raw_ids if i))
+    if any(_bad_uuid(i) for i in student_ids):
+        return jsonify({'success': False, 'error': 'Invalid student id'}), 400
+    if len(student_ids) > MAX_STUDENTS_PER_ASSIGN:
+        return jsonify({'success': False,
+                        'error': f'At most {MAX_STUDENTS_PER_ASSIGN} students at a time.'}), 400
+
+    repo = _repo()
+    quest = repo.find_quest_for_assign(quest_id)
+    if not quest or not quest.get('is_active') or not (
+            quest.get('organization_id') == org_id
+            or (quest.get('organization_id') is None and quest.get('is_public'))):
+        return jsonify({'success': False, 'error': 'That quest is not available to assign.'}), 404
+
+    known = set(repo.students_of_org(org_id, student_ids))
+    missing = [i for i in student_ids if i not in known]
+    if missing:
+        return jsonify({'success': False,
+                        'error': 'One of those students is not at this school.'}), 404
+
+    # Not enroll_safe: on the class door the assignment is already written
+    # and the enrollment is a follow-on, so a failure there is swallowed. Here
+    # the enrollment IS the thing asked for, and a zero would be a lie.
+    try:
+        result = enroll_students_in_quests(_admin(), student_ids, [quest_id])
+    except Exception as e:  # noqa: BLE001
+        logger.error(f'Giving quest {quest_id} to students failed: {e}', exc_info=True)
+        return jsonify({'success': False, 'error': 'Could not assign the quest. Try again.'}), 500
+    return jsonify({'success': True, 'enrolled': result['enrolled'],
+                    'already_had_it': result.get('skipped_existing', 0),
+                    'student_ids': student_ids})

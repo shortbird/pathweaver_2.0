@@ -258,3 +258,68 @@ class TestAuthoringFromTheLibrary:
         with patch.object(library, 'create_org_quest', side_effect=QuestAuthoringError('A title is required', 400)):
             body, status, _ = _run(library.create_library_quest, (), body={'title': ''})
         assert status == 400 and body['error'] == 'A title is required'
+
+
+S1 = '88888888-8888-4888-8888-888888888881'
+S2 = '88888888-8888-4888-8888-888888888882'
+GONE = '88888888-8888-4888-8888-888888888883'
+
+
+class TestGivingAQuestToStudentsByName:
+    """Dallin (iCreate, 293c4d99, 2026-09-18): "Can we assign quests to
+    individuals too?" The library's third door. It enrolls through the same
+    function the class door and the publish sweep use, refuses a student who
+    is not at this school before anyone is enrolled, and never writes a
+    class_quests row because there is no class."""
+
+    def _run(self, body, tables=None, enroll=None):
+        tables = tables or {
+            'quests': [{'id': Q1, 'organization_id': ORG, 'is_public': False, 'is_active': True}],
+            'users': [{'id': S1, 'organization_id': ORG}, {'id': S2, 'organization_id': ORG}],
+        }
+        enroll = enroll or Mock(return_value={'enrolled': 2, 'tasks': 6, 'skipped_existing': 0})
+        with patch.object(library, 'enroll_students_in_quests', enroll):
+            out = _run(library.give_quest_to_students, (Q1,), body=body, tables=tables)
+        return (*out, enroll)
+
+    def test_named_students_are_enrolled_through_the_shared_enroller(self):
+        body, status, log, enroll = self._run({'student_ids': [S1, S2, S1]})
+        assert status == 200
+        assert body['enrolled'] == 2 and body['already_had_it'] == 0
+        assert body['student_ids'] == [S1, S2]
+        args = enroll.call_args.args
+        assert args[1] == [S1, S2] and args[2] == [Q1]
+        assert not [e for e in log if e[0] == 'insert']
+
+    def test_a_student_who_is_not_at_this_school_stops_the_whole_request(self):
+        # The users read is filtered to the org, so GONE never comes back.
+        body, status, _log, enroll = self._run({'student_ids': [S1, GONE]})
+        assert status == 404
+        assert 'not at this school' in body['error']
+        enroll.assert_not_called()
+
+    def test_another_schools_quest_is_not_available(self):
+        tables = {'quests': [{'id': Q1, 'organization_id': OTHER_ORG, 'is_public': False, 'is_active': True}],
+                  'users': [{'id': S1, 'organization_id': ORG}]}
+        body, status, _log, enroll = self._run({'student_ids': [S1]}, tables=tables)
+        assert status == 404
+        enroll.assert_not_called()
+
+    def test_the_optio_library_is_assignable(self):
+        tables = {'quests': [{'id': Q1, 'organization_id': None, 'is_public': True, 'is_active': True}],
+                  'users': [{'id': S1, 'organization_id': ORG}]}
+        _body, status, _log, enroll = self._run({'student_ids': [S1]}, tables=tables)
+        assert status == 200
+        enroll.assert_called_once()
+
+    def test_nobody_named_is_a_400(self):
+        for body in ({}, {'student_ids': []}, {'student_ids': 'not-a-list'}):
+            _b, status, _log, enroll = self._run(body)
+            assert status == 400
+            enroll.assert_not_called()
+
+    def test_a_failed_enrollment_is_reported_not_swallowed(self):
+        enroll = Mock(side_effect=RuntimeError('db down'))
+        body, status, _log, _ = self._run({'student_ids': [S1]}, enroll=enroll)
+        assert status == 500
+        assert body['success'] is False

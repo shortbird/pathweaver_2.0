@@ -70,4 +70,19 @@ export const useAssignQuestToClass = (orgId) => {
   })
 }
 
+// Give a quest to students by name. Dallin (iCreate, 293c4d99, 2026-09-18):
+// "Can we assign quests to individuals too?" The class door narrows to an
+// audience inside a class; this one needs no class at all.
+export const useGiveQuestToStudents = (orgId) => {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ questId, studentIds }) => {
+      const res = await api.post(withOrg(`/api/sis/quests/${questId}/students`, orgId),
+        { student_ids: studentIds })
+      return res.data
+    },
+    onSuccess: () => invalidateLibrary(queryClient, orgId),
+  })
+}
+
 export default useSisQuestLibrary

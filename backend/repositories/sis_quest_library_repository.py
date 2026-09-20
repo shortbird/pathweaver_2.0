@@ -109,6 +109,19 @@ class SisQuestLibraryRepository(BaseRepository):
             logger.error(f"Error reading curriculum {curriculum_id}: {e}")
             raise DatabaseError("Failed to read curriculum") from e
 
+    def students_of_org(self, org_id: str, user_ids: List[str]) -> List[str]:
+        """Which of these ids are accounts at this school. Bounded by the
+        caller's list, so no row cap applies."""
+        if not user_ids:
+            return []
+        try:
+            rows = (self.client.table('users').select('id, organization_id')
+                    .in_('id', user_ids).eq('organization_id', org_id).execute()).data or []
+            return [r['id'] for r in rows]
+        except APIError as e:
+            logger.error(f"Error reading students for org {org_id}: {e}")
+            raise DatabaseError("Failed to read students") from e
+
     def find_quest_for_assign(self, quest_id: str) -> Optional[Dict[str, Any]]:
         """The columns the assign rule needs: whose it is, and whether it is live."""
         try:

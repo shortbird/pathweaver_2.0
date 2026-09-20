@@ -58,15 +58,20 @@ const LIBRARY = {
 }
 
 const RESOURCES = { quest: [], by_task: {} }
+const ROSTER = { roster: [
+  { student_id: 's-ava', name: 'Ava Stone', is_student: true },
+  { student_id: 's-ben', name: 'Ben Stone', is_student: true },
+  { student_id: 'p-mum', name: 'Mum Stone', is_student: false },
+] }
 
 beforeEach(() => {
   vi.clearAllMocks()
   api.get.mockImplementation((url) => Promise.resolve({
-    data: url.includes('/resources') ? RESOURCES : LIBRARY,
+    data: url.includes('/resources') ? RESOURCES : url.includes('/roster') ? ROSTER : LIBRARY,
   }))
 })
 
-const libraryLoads = () => api.get.mock.calls.filter(([url]) => !url.includes('/resources'))
+const libraryLoads = () => api.get.mock.calls.filter(([url]) => !url.includes('/resources') && !url.includes('/roster'))
 
 describe('QuestsPanel (was QuestLibraryPage)', () => {
   it('lists the school\'s quests from the library endpoint, with where each is in use', async () => {
@@ -112,7 +117,9 @@ describe('QuestsPanel (was QuestLibraryPage)', () => {
 
     await waitFor(() => expect(api.post).toHaveBeenCalledWith(
       '/api/sis/quests/q2/curricula?organization_id=org-1', { curriculum_id: 'cur-stem' }))
-    await waitFor(() => expect(api.get).toHaveBeenCalledTimes(2))
+    // The library reloads; the roster the dialog reads for its student picker is
+    // a separate request and not counted.
+    await waitFor(() => expect(libraryLoads()).toHaveLength(2))
   })
 
   it('assigns a quest to a class through the class page\'s own route, with the due date', async () => {
@@ -131,6 +138,31 @@ describe('QuestsPanel (was QuestLibraryPage)', () => {
 
     await waitFor(() => expect(api.post).toHaveBeenCalledWith(
       '/api/sis/classes/cl-2/quests?organization_id=org-1', { quest_id: 'q2', due_date: '2026-11-01' }))
+  })
+
+  it('gives a quest to students by name, students only, through the quest-scoped route', async () => {
+    // Dallin (iCreate, 293c4d99): "Can we assign quests to individuals too?"
+    api.post.mockResolvedValue({ data: { success: true, enrolled: 2, already_had_it: 0 } })
+    render(<QuestsPanel />)
+    await screen.findByText('Bridge Building')
+    fireEvent.click(screen.getAllByRole('button', { name: 'Assign' })[1])
+
+    const dialog = await screen.findByRole('dialog')
+    const box = await within(dialog).findByPlaceholderText('Search students…')
+    fireEvent.focus(box)
+    fireEvent.change(box, { target: { value: 'Stone' } })
+    // A parent named Stone is on the roster too; only the children are offered.
+    expect(screen.queryByRole('button', { name: 'Mum Stone' })).toBeNull()
+    fireEvent.mouseDown(await screen.findByRole('button', { name: 'Ava Stone' }))
+    fireEvent.focus(box)
+    fireEvent.change(box, { target: { value: 'Ben' } })
+    fireEvent.mouseDown(await screen.findByRole('button', { name: 'Ben Stone' }))
+    expect(within(dialog).getByLabelText('Students to give it to')).toHaveTextContent('Ava Stone')
+    expect(within(dialog).getByLabelText('Students to give it to')).toHaveTextContent('Ben Stone')
+
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Give' }))
+    await waitFor(() => expect(api.post).toHaveBeenCalledWith(
+      '/api/sis/quests/q2/students?organization_id=org-1', { student_ids: ['s-ava', 's-ben'] }))
   })
 
   it('does not offer a curriculum or class the quest is already on', async () => {
