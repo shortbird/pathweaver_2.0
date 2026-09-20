@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { toast } from 'react-hot-toast'
 import {
@@ -173,6 +173,14 @@ const CurriculumPanel = () => {
   // is the trip that page exists to remove.
   const [searchParams] = useSearchParams()
   const [expanded, setExpanded] = useState(() => searchParams.get('curriculum') || null) // entry id whose detail row is open
+  // The editor sits above the table. Press Edit on a row far enough down and
+  // it opens out of sight, so nothing appears to happen (iCreate, 2026-09-18:
+  // "it opens at the top of the page, which you don't realize is up there").
+  // Bring it into view whenever it opens or switches to another entry.
+  const editorRef = useRef(null)
+  useEffect(() => {
+    if (editing) editorRef.current?.scrollIntoView?.({ behavior: 'smooth', block: 'start' })
+  }, [editing])
 
   const load = useCallback(() => {
     if (!orgId) { setLoading(false); return }
@@ -255,8 +263,12 @@ const CurriculumPanel = () => {
       </div>
 
       {editing && (
-        <div className="mb-6">
+        <div className="mb-6 scroll-mt-4" ref={editorRef}>
+          {/* Keyed by entry: the form's state is seeded on mount, so without a
+              key, pressing Edit on a second row kept the first row's fields --
+              "can't open a new one without saving the one already opened". */}
           <CurriculumEditor
+            key={editing === 'new' ? 'new' : editing.id}
             orgId={orgId}
             entry={editing === 'new' ? null : editing}
             classes={classes}

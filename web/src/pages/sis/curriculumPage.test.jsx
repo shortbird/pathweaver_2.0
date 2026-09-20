@@ -108,6 +108,27 @@ describe('CurriculumPage table', () => {
     expect(screen.queryByText(/Used by Reading A/)).not.toBeInTheDocument()
   })
 
+  // iCreate, 2026-09-18, two reports from the same afternoon: "when I click on
+  // edit on a curriculum, it opens at the top of the page, which you don't
+  // realize is up there" and "can't open a new class without saving the class
+  // already opened". The editor renders above the table and its form state is
+  // seeded on mount, so the second Edit kept the first entry's fields.
+  it('Edit on a second row opens that row, and the editor scrolls into view', async () => {
+    const scrollIntoView = vi.fn()
+    Element.prototype.scrollIntoView = scrollIntoView
+    render(<CurriculumPanel />)
+    await screen.findByText('Reading Workshop')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Edit Astronomy' }))
+    expect(screen.getByPlaceholderText(/^Title/)).toHaveValue('Astronomy')
+    expect(scrollIntoView).toHaveBeenCalledTimes(1)
+
+    // Straight to the other entry, nothing saved: the form is the other entry's.
+    fireEvent.click(screen.getByRole('button', { name: 'Edit Clay Basics' }))
+    expect(screen.getByPlaceholderText(/^Title/)).toHaveValue('Clay Basics')
+    expect(scrollIntoView).toHaveBeenCalledTimes(2)
+  })
+
   it('filters by search without losing the sort', async () => {
     render(<CurriculumPanel />)
     await screen.findByText('Reading Workshop')
