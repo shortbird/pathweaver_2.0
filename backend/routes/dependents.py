@@ -185,16 +185,27 @@ def create_dependent(user_id):
 def _existing_child_match(parent_id, first_name, last_name, dob_str):
     """An existing account that is almost certainly this same child.
 
-    Two signals, either one decides: a child already managed by THIS parent
-    with the same name, or an account in the parent's org matching name AND
-    birth date (a teen with their own login, or a funnel-created sibling).
-    Name matching is case-insensitive.
+    Three signals, any one decides: a child already managed by THIS parent
+    with the same full name; one of this parent's children with the same
+    first name and birth date; or an account in the parent's org matching
+    name AND birth date (a teen with their own login, or a funnel-created
+    sibling). Name matching is case-insensitive.
+
+    The first-name-plus-birthday signal is the one a re-add without a last
+    name needs. Lynette Thunstrom, iCreate, 2026-09-19: her app showed no
+    children (an old bundle calling a deleted route), so she typed "Daxton",
+    "Rivers", "Zayah" and their birthdays back in. "daxton" is not "daxton
+    evans", and the org probe filtered last_name to the empty string, so all
+    three went through and the family had six children. A parent's own child
+    with that first name born that day is the same child.
     """
     try:
         # admin client justified: read-only duplicate probe over the caller's own
         # children and org, before creating an account on their behalf
         admin = get_supabase_admin_client()
-        full = f'{first_name} {last_name}'.strip().lower()
+        first = (first_name or '').strip().lower()
+        last = (last_name or '').strip().lower()
+        full = f'{first} {last}'.strip()
 
         mine = (admin.table('users')
                 .select('id, display_name, first_name, last_name, date_of_birth')
@@ -204,17 +215,23 @@ def _existing_child_match(parent_id, first_name, last_name, dob_str):
                     or f"{u.get('first_name') or ''} {u.get('last_name') or ''}").strip().lower()
             if name == full:
                 return u
+            if (dob_str and first and u.get('date_of_birth') == dob_str
+                    and (u.get('first_name') or '').strip().lower() == first):
+                return u
 
         parent = (admin.table('users').select('organization_id')
                   .eq('id', parent_id).limit(1).execute()).data
         org_id = parent[0].get('organization_id') if parent else None
-        if org_id and dob_str:
-            rows = (admin.table('users')
-                    .select('id, display_name, first_name, last_name, is_dependent')
-                    .eq('organization_id', org_id)
-                    .eq('date_of_birth', dob_str)
-                    .ilike('first_name', first_name)
-                    .ilike('last_name', last_name).execute()).data or []
+        if org_id and dob_str and first:
+            probe = (admin.table('users')
+                     .select('id, display_name, first_name, last_name, is_dependent')
+                     .eq('organization_id', org_id)
+                     .eq('date_of_birth', dob_str)
+                     .ilike('first_name', first))
+            # A blank last name is "I did not type one", not "born without one".
+            if last:
+                probe = probe.ilike('last_name', last)
+            rows = probe.execute().data or []
             if rows:
                 return rows[0]
     except Exception as e:  # noqa: BLE001 — a failed probe must not block adding a child

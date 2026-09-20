@@ -251,7 +251,7 @@ MOMENT_STORAGE_PREFIX = 'learning_moments/{event_id}'
 # Columns read off users before deletion. Explicit rather than select('*'):
 # the users row also carries phone, full postal address, DOB, allergies and
 # medications, and none of that belongs in a deletion code path.
-USER_SNAPSHOT_COLUMNS = 'id, email, first_name, last_name, role, organization_id, created_at'
+USER_SNAPSHOT_COLUMNS = 'id, email, first_name, last_name, role, organization_id, created_at, managed_by_parent_id'
 
 _STORAGE_PAGE = 100
 
@@ -537,16 +537,24 @@ def purge_user(user_id: str, admin=None, reason: str = '',
     #    gone, so the log never claims a deletion that didn't happen. The
     #    user_id FK was dropped (see the 20260815 migration) precisely so this
     #    row can outlive the user.
+    #    account_deletion_log.email is NOT NULL and a dependent (a child under
+    #    13) has no email, so every dependent erasure lost its audit row to a
+    #    constraint error here until 2026-09-20. The empty string keeps the
+    #    row; the guardian's id in user_data is what identifies the child.
+    snapshot = snapshot or {}
+    user_data = {'deletion_type': deletion_type, 'counts': counts}
+    if snapshot.get('managed_by_parent_id'):
+        user_data['managed_by_parent_id'] = snapshot['managed_by_parent_id']
     try:
         client.table('account_deletion_log').insert({
             'user_id': user_id,
-            'email': (snapshot or {}).get('email'),
-            'first_name': (snapshot or {}).get('first_name'),
-            'last_name': (snapshot or {}).get('last_name'),
+            'email': snapshot.get('email') or '',
+            'first_name': snapshot.get('first_name'),
+            'last_name': snapshot.get('last_name'),
             'deletion_requested_at': datetime.now(timezone.utc).isoformat(),
             'deletion_completed_at': datetime.now(timezone.utc).isoformat(),
             'reason': reason or f'{deletion_type} deletion',
-            'user_data': {'deletion_type': deletion_type, 'counts': counts},
+            'user_data': user_data,
         }).execute()
     except Exception as e:  # noqa: BLE001 - the account IS deleted; don't undo it over the log
         logger.error(f"[ACCOUNT_DELETE] user={user_id} deleted but audit log insert failed: {e}")

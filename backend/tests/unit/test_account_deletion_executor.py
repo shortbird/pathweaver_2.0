@@ -448,6 +448,28 @@ def test_purge_writes_an_audit_row_only_on_success(fake_db):
     assert log[0]['deletion_completed_at']
 
 
+def test_a_dependents_audit_row_survives_having_no_email(fake_db):
+    """A child under 13 has no email. account_deletion_log.email is NOT NULL,
+    so every dependent erasure raised on the audit insert and the log was
+    silently short one row per child (found purging three duplicate children
+    on 2026-09-20). The row is written with an empty email and names the
+    guardian instead."""
+    fake_db.tables['users'].append({
+        'id': 'kid', 'email': None, 'first_name': 'Daxton', 'last_name': '',
+        'role': 'org_managed', 'organization_id': 'org-1',
+        'created_at': '2026-09-19T04:37:15Z', 'managed_by_parent_id': 'parent-1',
+        'deletion_status': 'none', 'deletion_scheduled_for': None, 'deletion_attempts': 0,
+    })
+    fake_db.auth_users.add('kid')
+
+    purge_user('kid', admin=fake_db, deletion_type='dependent')
+
+    rows = [r for r in fake_db.tables['account_deletion_log'] if r['user_id'] == 'kid']
+    assert len(rows) == 1
+    assert rows[0]['email'] == ''
+    assert rows[0]['user_data']['managed_by_parent_id'] == 'parent-1'
+
+
 def test_purge_raises_rather_than_reporting_a_partial_delete(fake_db):
     fake_db.fail_tables.add('user_quests')
 
