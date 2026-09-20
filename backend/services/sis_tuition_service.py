@@ -382,8 +382,7 @@ def schedule_quote(classes: List[Dict[str, Any]], *, time_blocks: Optional[List[
     elif tier and tier_cents <= per_class:
         tuition_cents = tier_cents
         note = f"{blocks}-block plan"
-        lines.append({'class_id': None, 'description': f"{blocks}-block plan ({len(classes)} classes)",
-                      'amount_cents': tier_cents, 'kind': 'tuition'})
+        lines.extend(block_plan_lines(classes, tier_cents, blocks))
     else:
         tuition_cents = per_class
         note = None
@@ -407,6 +406,45 @@ def schedule_quote(classes: List[Dict[str, Any]], *, time_blocks: Optional[List[
         'total_cents': total, 'note': note, 'blocks': blocks, 'class_count': len(classes),
         'tier': tier, 'installments': installments, 'ufa': ufa,
     }
+
+
+def split_cents(total: int, weights: List[int]) -> List[int]:
+    """PURE. Share `total` across `weights`, in whole cents that add back up to
+    `total`. Weights of zero (or all zero) share equally. Rounding remainders go
+    to the earliest shares, so the split is stable for the same input."""
+    n = len(weights)
+    if n == 0:
+        return []
+    total = int(total)
+    if not any(w > 0 for w in weights):
+        weights = [1] * n
+    denom = sum(weights)
+    floors = [total * w // denom for w in weights]
+    left = total - sum(floors)
+    return [f + (1 if i < left else 0) for i, f in enumerate(floors)]
+
+
+def block_plan_lines(classes: List[Dict[str, Any]], tier_cents: int,
+                     blocks: int) -> List[Dict[str, Any]]:
+    """PURE. A block-plan schedule as one tuition line PER CLASS, the tier price
+    shared across them in proportion to each class's own price.
+
+    The tier is one number for the week, and from 2026-09-17 (M5) the invoice
+    carried it as one line, "5-block plan (5 classes)". iCreate, 2026-09-20:
+    "What happened to having class names show up on invoices? Some families
+    need to show that for their reimbursements." A reimbursement wants the
+    class and what it cost, so each class is its own line, named, with a
+    class_id (which is also what reprice_for_class_change matches on), and the
+    sum is still exactly the tier. The plan itself rides in the quote's `note`
+    and in each description, so the family can see why five $365 classes came
+    to $1,500.
+    """
+    weights = [int(c.get('price_cents') or 0) for c in classes]
+    shares = split_cents(int(tier_cents or 0), weights)
+    return [{'class_id': c.get('class_id'),
+             'description': f"{class_label(c)} ({blocks}-block plan)",
+             'amount_cents': share, 'kind': 'tuition'}
+            for c, share in zip(classes, shares, strict=True)]
 
 
 def seed_line_items(classes: List[Dict[str, Any]], tuition_plan: Optional[str],

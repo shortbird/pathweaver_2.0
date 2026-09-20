@@ -596,6 +596,7 @@ def enroll_student(user_id, class_id):
             sync_class_group(class_id, actor_id=user_id)
             roster_alerts.notify_teachers_of_new_student(class_id, student_id, actor_id=user_id)
             sis_waitlist_service.clear_entry_for_enrollment(org_id, class_id, student_id)
+            _reprice_after_staff_change(org_id, student_id, user_id)
         return jsonify({'success': True, 'already_enrolled': True})
 
     supabase.table('class_enrollments').insert({
@@ -608,7 +609,28 @@ def enroll_student(user_id, class_id):
     # They're in the class now — don't leave them queued for it as well, or the
     # family keeps seeing "Waitlist #2" for a class their child already attends.
     sis_waitlist_service.clear_entry_for_enrollment(org_id, class_id, student_id)
-    return jsonify({'success': True}), 201
+    billed = _reprice_after_staff_change(org_id, student_id, user_id)
+    return jsonify({'success': True, 'billing': billed}), 201
+
+
+def _reprice_after_staff_change(org_id, student_id, actor_id):
+    """Keep the student's invoice in step with a class the office just added
+    or dropped, the way the family's own schedule changes already do
+    (sis_parent_service._reprice_after_change).
+
+    Only the parent's self-service path repriced until 2026-09-20; a class the
+    office added from the roster left the bill as it was, and iCreate asked
+    "is there a way to send a second invoice to a family if they add an
+    additional class after paying?" The answer is this: an unpaid invoice is
+    rewritten, a paid one gets the added class as its own charge
+    (sis_billing_service.reprice_for_class_change). Best-effort: the roster
+    change stands even if the bill could not be redrawn."""
+    try:
+        from services import sis_billing_service
+        return sis_billing_service.reprice_for_class_change(org_id, student_id, actor_id)
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f'Could not reprice {student_id} after a roster change: {e}')
+        return None
 
 
 @bp.route('/classes/<class_id>/enrollments/<student_id>', methods=['DELETE'])
@@ -644,7 +666,8 @@ def unenroll_student(user_id, class_id, student_id):
     # A drop may have opened a seat — alert admins so they can offer it to the
     # next waitlisted student (self-gates on there being waiters + an open seat).
     sis_waitlist_service.alert_admins_seat_opened(org_id, class_id)
-    return jsonify({'success': True})
+    billed = _reprice_after_staff_change(org_id, student_id, user_id)
+    return jsonify({'success': True, 'billing': billed})
 
 
 # ── Schedule settings (rooms + time blocks) ──────────────────────────────────

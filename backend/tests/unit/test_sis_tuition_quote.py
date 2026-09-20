@@ -60,8 +60,24 @@ class TestTiers:
         assert out['total_cents'] == 150000
         assert out['note'] == '5-block plan'
         assert out['installments'] == {'count': 10, 'fee_pct': 6, 'per_payment_cents': 15900}
-        assert [(l['kind'], l['amount_cents']) for l in out['lines']] == [('tuition', 150000)]
-        assert out['lines'][0]['description'] == '5-block plan (5 classes)'
+        # One line per class, the tier shared across them, so the invoice names
+        # what the family is paying for (2026-09-20: "Some families need to
+        # show that for their reimbursements") and still adds up to the tier.
+        assert [(l['kind'], l['amount_cents']) for l in out['lines']] == [('tuition', 30000)] * 5
+        assert [l['class_id'] for l in out['lines']] == ['c1', 'c2', 'c3', 'c4', 'c5']
+        assert out['lines'][0]['description'] == 'Class c1 (T) (5-block plan)'
+
+    def test_the_tier_is_shared_by_price_and_the_cents_add_back_up(self):
+        # A $1,225 four-block class beside a $365 one: the $1,500 tier splits
+        # 1225:365 and the rounding remainder lands on a line, never in the void.
+        exceptional = {'class_id': 'ek', 'name': 'Exceptional Kids (Tuesday)', 'price_cents': 122500,
+                       'supply_fee_cents': 0, 'billing_blocks': 4,
+                       'meetings': [{'day_of_week': 2, 'start_time': '13:00', 'end_time': '15:00'}]}
+        out = q([exceptional, one_block('c1', 4)])
+        amounts = [l['amount_cents'] for l in out['lines']]
+        assert sum(amounts) == 150000
+        assert amounts == [115567, 34433]
+        assert out['lines'][0]['description'] == 'Exceptional Kids (Tuesday) (5-block plan)'
 
     def test_stays_per_class_below_the_tiers_and_rolls_supplies_in(self):
         # 2 blocks = $730 per class + $35 supplies = $765; 10 payments of $81.09.
@@ -96,6 +112,21 @@ class TestTiers:
         out = q([])
         assert out['total_cents'] == 0
         assert out['lines'] == []
+
+
+@pytest.mark.unit
+class TestSplitCents:
+    def test_equal_weights_share_the_remainder_from_the_front(self):
+        assert tuition.split_cents(100, [1, 1, 1]) == [34, 33, 33]
+
+    def test_weights_of_zero_fall_back_to_an_equal_split(self):
+        assert tuition.split_cents(150000, [0, 0]) == [75000, 75000]
+
+    def test_a_free_class_beside_a_priced_one_takes_no_share(self):
+        assert tuition.split_cents(1000, [0, 500]) == [0, 1000]
+
+    def test_nothing_to_split(self):
+        assert tuition.split_cents(500, []) == []
 
 
 @pytest.mark.unit

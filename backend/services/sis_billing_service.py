@@ -538,8 +538,19 @@ def update_invoice(org_id: str, invoice_id: str, actor_user_id: Optional[str],
     Line items are replaced wholesale when given (the editor sends the full
     list). Totals and status are recomputed, so an edit that drops the total
     below what has been paid settles the invoice rather than leaving it 'sent'.
-    Paid and void invoices are refused — those are a refund or a new charge,
-    not an edit. Every change is audited with the before/after totals.
+    Only a void invoice is refused. Every change is audited with the
+    before/after totals.
+
+    A PAID invoice can be edited too. Until 2026-09-20 it was refused ("settled
+    money is not an edit"), and the office was told to add a separate charge
+    or record a credit. iCreate: "I need to have the ability to adjust invoices
+    that have been paid." The cases are real: a class added after the family
+    paid (edit it up; the balance reopens and the family pays the difference
+    on the one bill they already know), a class dropped (edit it down, then
+    record the refund), or a class named wrong on a bill a family is sending
+    in for reimbursement. The payments themselves are never touched here --
+    they stay as recorded, the status recomputes from the sum, and the family
+    is told what changed.
     """
     inv = (_admin().table('sis_invoices').select('*')
            .eq('id', invoice_id).eq('organization_id', org_id).limit(1).execute()).data
@@ -548,11 +559,6 @@ def update_invoice(org_id: str, invoice_id: str, actor_user_id: Optional[str],
     inv = inv[0]
     if inv.get('status') == 'void':
         return {'error': 'This invoice was voided and can no longer be edited'}
-    if inv.get('status') == 'paid':
-        # Not "void it instead" — void_invoice refuses an invoice with a payment
-        # on it, so that advice sends the caller into a second refusal.
-        return {'error': 'This invoice is paid in full — editing it would no longer match the '
-                         'money received. Add a separate charge or credit instead.'}
 
     clean = None
     if line_items is not None:
@@ -630,12 +636,18 @@ def reprice_for_class_change(org_id: str, student_user_id: str,
                 .execute()).data or []
     class_ids = {e['class_id'] for e in enrolled if e.get('class_id')}
 
-    # The one invoice this is about: their most recent that still owes money.
-    # A paid-off invoice from last term is not repriced by this term's move.
+    # The one invoice this is about: the student's most recent live one. A
+    # PAID invoice counts: "if the invoice has been paid and they switch
+    # classes, can we have it auto send them a new payment" was the request,
+    # and until 2026-09-20 the read stopped at 'partial', so the exact case the
+    # office asked for (paid in full, then a class added) did nothing at all.
+    # A student is invoiced once here -- the tuition queue drops anyone with a
+    # non-void invoice -- so there is no "last term's bill" to mistake for
+    # this one.
     open_invoices = (_admin().table('sis_invoices')
                      .select('*').eq('organization_id', org_id)
                      .eq('student_user_id', student_user_id)
-                     .in_('status', ['sent', 'partial', 'overdue'])
+                     .in_('status', ['sent', 'partial', 'overdue', 'paid'])
                      .order('created_at', desc=True).limit(1).execute()).data or []
     if not open_invoices:
         return {'changed': False, 'reason': 'no open invoice'}
@@ -678,6 +690,14 @@ def reprice_for_class_change(org_id: str, student_user_id: str,
             'added': sorted(added), 'amount_cents': extra,
             'charge_invoice_id': (charge.get('invoice') or {}).get('id'),
         })
+        # The family asked for the class; the bill for it should reach them
+        # the way the first one did, not wait in the portal to be found.
+        charge_id = (charge.get('invoice') or {}).get('id')
+        if charge_id:
+            try:
+                email_invoice_to_family(org_id, charge_id)
+            except Exception as e:  # noqa: BLE001 -- the charge stands without the email
+                logger.warning(f'class-change charge {charge_id}: family email failed: {e}')
         return {'changed': True, 'billed_separately': True, 'amount_cents': extra,
                 'invoice': charge.get('invoice')}
 
@@ -709,6 +729,10 @@ def void_invoice(org_id: str, invoice_id: str, actor_user_id: Optional[str],
 
     Refused once money has been recorded against it: voiding then would orphan a
     payment the school actually received. Record a refund or edit it instead.
+
+    An autopay plan on the invoice is cancelled with it. The sweep also skips a
+    void invoice on its own (charge_due_installments), but a plan left 'active'
+    on a cancelled bill is a wrong answer waiting in the family's portal.
     """
     inv = (_admin().table('sis_invoices').select('*')
            .eq('id', invoice_id).eq('organization_id', org_id).limit(1).execute()).data
@@ -725,7 +749,85 @@ def void_invoice(org_id: str, invoice_id: str, actor_user_id: Optional[str],
     _audit(org_id, invoice_id, actor_user_id, 'invoice_voided',
            {'total_cents': inv.get('total_cents') or 0,
             'reason': (reason or '').strip() or None})
+    _cancel_plans_for_invoice(org_id, invoice_id, actor_user_id, why='invoice voided')
     return {'invoice': (updated or [inv])[0]}
+
+
+# ── Stopping autopay ─────────────────────────────────────────────────────────
+#
+# iCreate, 2026-09-20 ("Stop auto-pay"): the Rose family withdrew before the
+# add/drop deadline, the office refunded them, and then the September
+# installment went through anyway, because nothing on the invoice could stop
+# the plan. The sweep read `sis_payment_plans.status = 'active'` and nothing
+# ever wrote anything else until the last installment was paid: not a void, not
+# a refund, not an edit. This is the off switch.
+
+def _cancel_plans_for_invoice(org_id: str, invoice_id: str, actor_user_id: Optional[str],
+                              why: Optional[str] = None,
+                              final_status: str = 'cancelled') -> Dict[str, Any]:
+    """End every active plan on the invoice and waive the installments that
+    have not been paid. Paid installments keep their record; the money already
+    moved and the ledger says so. `final_status` is 'cancelled' (somebody
+    stopped it) or 'completed' (the bill is settled, so there is nothing left
+    to collect). Returns what was stopped."""
+    plans = (_admin().table('sis_payment_plans').select('id')
+             .eq('invoice_id', invoice_id).eq('status', 'active').execute()).data or []
+    if not plans:
+        return {'cancelled': 0, 'waived': 0, 'waived_cents': 0}
+    plan_ids = [p['id'] for p in plans]
+    waived_rows = (_admin().table('sis_installments').select('id, amount_cents')
+                   .in_('payment_plan_id', plan_ids)
+                   .in_('status', ['scheduled', 'due', 'late']).execute()).data or []
+    now = _now()
+    if waived_rows:
+        _admin().table('sis_installments').update({'status': 'waived', 'updated_at': now}) \
+            .in_('id', [r['id'] for r in waived_rows]).execute()
+    _admin().table('sis_payment_plans').update({'status': final_status, 'auto_charge': False}) \
+        .in_('id', plan_ids).execute()
+    waived_cents = sum(int(r.get('amount_cents') or 0) for r in waived_rows)
+    _audit(org_id, invoice_id, actor_user_id, f'autopay_{final_status}', {
+        'plan_ids': plan_ids, 'waived_count': len(waived_rows),
+        'waived_cents': waived_cents, 'reason': (why or '').strip() or None})
+    return {'cancelled': len(plan_ids), 'waived': len(waived_rows), 'waived_cents': waived_cents}
+
+
+def cancel_autopay(org_id: str, invoice_id: str, actor_user_id: Optional[str],
+                   reason: Optional[str] = None) -> Dict[str, Any]:
+    """Staff stop the automatic payments on an invoice. The invoice itself is
+    left alone: whatever is still owed stays owed, to be edited down, refunded,
+    or paid another way. Returns {'stopped': {cancelled, waived, waived_cents},
+    'invoice': ...} or {'error': ...}; stopping an invoice with no active plan
+    is a no-op, not an error, so a double click does not read as a failure."""
+    inv = (_admin().table('sis_invoices').select('id')
+           .eq('id', invoice_id).eq('organization_id', org_id).limit(1).execute()).data
+    if not inv:
+        return {'error': 'Invoice not found'}
+    stopped = _cancel_plans_for_invoice(org_id, invoice_id, actor_user_id, why=reason)
+    return {'stopped': stopped, 'invoice': get_invoice(org_id, invoice_id)}
+
+
+def autopay_summary(invoice: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """PURE. The one line the office needs about an invoice's autopay: whether
+    it is running, how much is still scheduled, and when the next charge is.
+    `invoice` is get_invoice()'s shape (payment_plans with installments). None
+    when the invoice never had a plan."""
+    plans = invoice.get('payment_plans') or []
+    if not plans:
+        return None
+    active = [p for p in plans if p.get('status') == 'active']
+    plan = active[0] if active else plans[-1]
+    pending = sorted((i for i in (plan.get('installments') or [])
+                      if i.get('status') in ('scheduled', 'due', 'late')),
+                     key=lambda i: str(i.get('due_date') or ''))
+    return {
+        'status': plan.get('status'),
+        'auto_charge': bool(plan.get('auto_charge')),
+        'has_card': bool(plan.get('saved_payment_method_id')),
+        'installment_count': plan.get('installment_count'),
+        'remaining_count': len(pending),
+        'remaining_cents': sum(int(i.get('amount_cents') or 0) for i in pending),
+        'next_due_date': pending[0].get('due_date') if pending else None,
+    }
 
 
 def _household_primary_contact(household_id: Optional[str]) -> Optional[str]:
@@ -1719,6 +1821,7 @@ def invoice_document(org_id: str, invoice_id: str) -> Dict[str, Any]:
         'amount_due_cents': amount_due_cents(inv),
         'amount_paid_cents': paid,
         'payments': inv.get('payments', []),
+        'autopay': autopay_summary(inv),
     }}
 
 
@@ -2611,9 +2714,6 @@ def charge_due_installments(org_id: Optional[str] = None,
              .eq('auto_charge', True).eq('status', 'active').execute()).data or []
     charged = failed = 0
     for plan in plans:
-        saved = _saved_payment_method(plan)
-        if not saved:
-            continue
         inv_rows = (_admin().table('sis_invoices').select('*')
                     .eq('id', plan['invoice_id']).limit(1).execute()).data
         if not inv_rows:
@@ -2622,6 +2722,23 @@ def charge_due_installments(org_id: Optional[str] = None,
         if org_id and inv.get('organization_id') != org_id:
             continue
         oid = inv['organization_id']
+        # The plan follows the invoice, not the other way round. A voided
+        # invoice is cancelled money; an invoice with nothing left owing (paid
+        # off by card, or edited down to what was already paid) has nothing to
+        # collect. Both used to keep charging: the schedule was written once at
+        # setup and nothing after it ever looked at the bill (Rose family,
+        # 2026-09-15, charged $146 on a withdrawal the office had refunded).
+        if inv.get('status') == 'void':
+            _cancel_plans_for_invoice(oid, inv['id'], None, why='invoice voided')
+            continue
+        balance = amount_due_cents(inv)
+        if balance <= 0:
+            _cancel_plans_for_invoice(oid, inv['id'], None, why='invoice settled',
+                                      final_status='completed')
+            continue
+        saved = _saved_payment_method(plan)
+        if not saved:
+            continue
         secret = _org_stripe_secret(oid)
         if not secret:
             continue
@@ -2629,11 +2746,20 @@ def charge_due_installments(org_id: Optional[str] = None,
                .eq('payment_plan_id', plan['id']).in_('status', ['scheduled', 'due'])
                .lte('due_date', today).order('due_date').execute()).data or []
         for inst in due:
-            result = _charge_installment(oid, plan, inst, saved, secret,
+            if balance <= 0:
+                break
+            # Never collect more than the bill still says. An invoice edited
+            # down mid-plan keeps its old schedule; the last charge is the
+            # remainder, and the sweep after it completes the plan above.
+            amount = min(int(inst.get('amount_cents') or 0), balance)
+            if amount <= 0:
+                continue
+            result = _charge_installment(oid, plan, dict(inst, amount_cents=amount), saved, secret,
                                          recorded_by=saved.get('guardian_user_id'),
                                          invoice=inv)
             if result.get('status') == 'charged':
                 charged += 1
+                balance -= amount
             else:
                 failed += 1
         # Complete the plan once every installment is settled.

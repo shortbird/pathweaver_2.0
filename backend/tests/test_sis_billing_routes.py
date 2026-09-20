@@ -244,6 +244,28 @@ class TestInvoiceCorrections:
             resp = client.post('/api/sis/invoices/inv1/void', headers=auth_headers, json={})
         assert resp.status_code == 400
 
+    def test_stop_autopay_forbidden_for_student(self, client, auth_headers, mock_verify_token):
+        with patch('database.get_supabase_admin_client',
+                   return_value=_admin_client_for_role('student')):
+            resp = client.post('/api/sis/invoices/inv1/autopay/cancel', headers=auth_headers, json={})
+        assert resp.status_code == 403
+
+    def test_stop_autopay_passes_the_reason_and_reports_what_stopped(self, client, auth_headers, mock_verify_token):
+        stopped = {'cancelled': 1, 'waived': 8, 'waived_cents': 58400}
+        with staff(), patch('routes.sis.billing.billing.cancel_autopay',
+                            return_value={'stopped': stopped, 'invoice': {'id': 'inv1'}}) as stop:
+            resp = client.post('/api/sis/invoices/inv1/autopay/cancel', headers=auth_headers,
+                               json={'reason': 'Family withdrew'})
+        assert resp.status_code == 200
+        assert json.loads(resp.data)['stopped'] == stopped
+        assert stop.call_args.kwargs['reason'] == 'Family withdrew'
+
+    def test_stop_autopay_missing_invoice_is_404(self, client, auth_headers, mock_verify_token):
+        with staff(), patch('routes.sis.billing.billing.cancel_autopay',
+                            return_value={'error': 'Invoice not found'}):
+            resp = client.post('/api/sis/invoices/inv1/autopay/cancel', headers=auth_headers, json={})
+        assert resp.status_code == 404
+
 
 @pytest.mark.unit
 class TestBillingDetail:

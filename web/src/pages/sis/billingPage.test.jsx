@@ -14,7 +14,9 @@ vi.mock('react-hot-toast', () => ({
   default: { success: vi.fn(), error: vi.fn() },
 }))
 
-const { api } = vi.hoisted(() => {
+const { api, docState } = vi.hoisted(() => {
+  // The autopay summary the invoice document carries for inv1 in a test, if any.
+  const docState = { autopay: null }
   const apiData = (url) => {
     if (url.includes('/api/sis/billing/ledger')) {
       return { data: { ledger: [{
@@ -57,6 +59,7 @@ const { api } = vi.hoisted(() => {
           payments: [{ id: 'pay1', method: 'cash', amount_cents: 4000,
                        external_ref: null, recorded_at: '2026-08-10T00:00:00Z' }],
         } : {}),
+        ...(url.includes('inv1') && docState.autopay ? { autopay: docState.autopay } : {}),
       } } }
     }
     if (url.includes('/api/sis/billing/detail')) {
@@ -114,6 +117,7 @@ const { api } = vi.hoisted(() => {
       )),
       patch: vi.fn(() => Promise.resolve({ data: { success: true, invoice: { id: 'inv1' } } })),
     },
+    docState,
   }
 })
 vi.mock('../../services/api', () => ({ default: api }))
@@ -123,6 +127,7 @@ import BillingPage from './BillingPage'
 beforeEach(() => {
   authState = { user: { id: 'u1', role: 'org_admin' } }
   orgState = { organization: { id: 'org-1', name: 'Org' } }
+  docState.autopay = null
   vi.clearAllMocks()
 })
 
@@ -398,6 +403,77 @@ describe('correcting billing mistakes', () => {
     await waitFor(() =>
       expect(api.post).toHaveBeenCalledWith('/api/sis/invoices/inv1/void',
         { organization_id: 'org-1' }))
+  })
+
+  // iCreate, 2026-09-20: "I need to have the ability to adjust invoices that
+  // have been paid." A class added after payment, a class dropped before the
+  // refund, or a wrong class name on a bill going in for reimbursement.
+  it('offers Edit on a paid invoice, but never Void', async () => {
+    render(<BillingPage />)
+    fireEvent.click(await screen.findByText('Art supplies'))
+    await screen.findByText('INV-2026-4C1180')
+    expect(screen.getByRole('button', { name: 'Edit' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Void' })).toBeNull()
+  })
+})
+
+/**
+ * iCreate, 2026-09-20 ("Stop auto-pay"): the Rose family withdrew, the office
+ * refunded them, and the September installment went through anyway, because
+ * nothing on the invoice could stop the plan.
+ */
+describe('automatic payments on an invoice', () => {
+  const running = { status: 'active', auto_charge: true, has_card: true, installment_count: 10,
+                    remaining_count: 8, remaining_cents: 58400, next_due_date: '2026-10-15' }
+
+  it('says how much is still scheduled and when the next charge is', async () => {
+    docState.autopay = running
+    render(<BillingPage />)
+    fireEvent.click(await screen.findByText('Fall tuition'))
+    const line = await screen.findByTestId('invoice-autopay')
+    expect(line.textContent).toContain('8 left ($584.00), next 2026-10-15')
+  })
+
+  it('stops the plan after the office confirms', async () => {
+    docState.autopay = running
+    render(<BillingPage />)
+    fireEvent.click(await screen.findByText('Fall tuition'))
+    fireEvent.click(await screen.findByRole('button', { name: 'Stop autopay' }))
+    const title = await screen.findByText('Stop automatic payments?')
+    const dialog = title.closest('[role="dialog"]')
+    expect(within(dialog).getByText(/8 scheduled payments/)).toBeInTheDocument()
+    expect(api.post).not.toHaveBeenCalledWith('/api/sis/invoices/inv1/autopay/cancel', expect.anything())
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Stop autopay' }))
+    await waitFor(() =>
+      expect(api.post).toHaveBeenCalledWith('/api/sis/invoices/inv1/autopay/cancel',
+        { organization_id: 'org-1' }))
+  })
+
+  // The Larson family, 2026-09-19: the plan said "active" while the saved card
+  // was gone with the parent's deleted account, and nothing charged.
+  it('warns when the plan is active but has no card to charge', async () => {
+    docState.autopay = { ...running, has_card: false }
+    render(<BillingPage />)
+    fireEvent.click(await screen.findByText('Fall tuition'))
+    const line = await screen.findByTestId('invoice-autopay')
+    expect(line.textContent).toContain('no saved card')
+  })
+
+  it('shows a stopped plan as stopped, with no button', async () => {
+    docState.autopay = { ...running, status: 'cancelled', remaining_count: 0, remaining_cents: 0 }
+    render(<BillingPage />)
+    fireEvent.click(await screen.findByText('Fall tuition'))
+    const line = await screen.findByTestId('invoice-autopay')
+    expect(line.textContent).toContain('cancelled')
+    expect(screen.queryByRole('button', { name: 'Stop autopay' })).toBeNull()
+  })
+
+  it('has no autopay line on an invoice that never had a plan', async () => {
+    docState.autopay = null
+    render(<BillingPage />)
+    fireEvent.click(await screen.findByText('Fall tuition'))
+    await screen.findByText('INV-2026-3B3796')
+    expect(screen.queryByTestId('invoice-autopay')).toBeNull()
   })
 })
 

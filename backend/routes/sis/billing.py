@@ -188,6 +188,23 @@ def void_invoice(user_id, invoice_id):
     return jsonify({'success': True, **result})
 
 
+@bp.route('/invoices/<invoice_id>/autopay/cancel', methods=['POST'])
+@require_role(*FINANCE_ROLES)
+def cancel_autopay(user_id, invoice_id):
+    """Stop the automatic payments on an invoice. Unpaid installments are
+    waived and the plan is cancelled; the invoice and what it still says is
+    owed are left for the office to edit, refund or collect another way.
+    Body: {reason?}. Nothing to stop is a success, not an error."""
+    org_id, err = sis_service.org_or_error(user_id)
+    if err:
+        return err
+    result = billing.cancel_autopay(org_id, invoice_id, actor_user_id=user_id,
+                                    reason=(request.json or {}).get('reason'))
+    if result.get('error'):
+        return jsonify({'success': False, 'error': result['error']}), 404
+    return jsonify({'success': True, **result})
+
+
 @bp.route('/billing/detail', methods=['GET'])
 @require_role(*FINANCE_ROLES)
 def billing_detail(user_id):

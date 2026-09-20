@@ -14,16 +14,16 @@ import money from './money'
 import METHOD_LABEL from './METHOD_LABEL'
 import payLabel from './payLabel'
 import payAmountCls from './payAmountCls'
-import { Modal } from '../../../components/ui'
+import { ConfirmDialog, Modal } from '../../../components/ui'
 
 const InvoiceModal = ({ invoiceId, orgId, onClose, onPrint, onChanged }) => {
   const [doc, setDoc] = useState(null)
   const [error, setError] = useState(null)
   const [editing, setEditing] = useState(false)
-  // A paid invoice has no Edit button -- settled money is not an edit. But the
-  // METHOD a payment was recorded under is a label, not money, and getting it
-  // wrong is the one thing about a settled invoice that does need fixing.
+  // The METHOD a payment was recorded under is a label, not money, and getting
+  // it wrong is a thing that needs fixing on any invoice, paid or not.
   const [correcting, setCorrecting] = useState(null)
+  const [confirmStop, setConfirmStop] = useState(false)
 
   const load = useCallback(() => {
     api.get(withOrg(`/api/sis/invoices/${invoiceId}/document`, orgId))
@@ -34,10 +34,17 @@ const InvoiceModal = ({ invoiceId, orgId, onClose, onPrint, onChanged }) => {
   useEffect(() => { load() }, [load])
 
   const org = doc?.organization || {}
-  // A paid invoice is settled and a void one is cancelled; changing either is a
-  // refund or a new charge, not an edit.
-  const editable = doc && !['paid', 'void'].includes(doc.status)
+  // A void invoice is cancelled and stays that way. A PAID one can still be
+  // edited: a class added after the family paid, a class dropped before the
+  // refund, or a wrong class name on a bill going in for reimbursement
+  // (iCreate, 2026-09-20: "I need to have the ability to adjust invoices that
+  // have been paid"). The payments stay as recorded; the balance recomputes.
+  const editable = doc && doc.status !== 'void'
   const voidable = editable && !doc.amount_paid_cents
+  // The Rose family, 2026-09-15: withdrawn, refunded, and charged again on the
+  // 15th, because nothing on this card could stop the plan. This can.
+  const autopay = doc?.autopay || null
+  const autopayRunning = autopay?.status === 'active'
 
   const voidInvoice = async () => {
     try {
@@ -48,6 +55,17 @@ const InvoiceModal = ({ invoiceId, orgId, onClose, onPrint, onChanged }) => {
     } catch (e) {
       toast.error(e?.response?.data?.error || 'Could not void the invoice')
     }
+  }
+
+  const stopAutopay = async () => {
+    try {
+      await api.post(`/api/sis/invoices/${invoiceId}/autopay/cancel`, { organization_id: orgId })
+    } catch (e) {
+      toast.error(e?.response?.data?.error || 'Could not stop the automatic payments')
+      throw e
+    }
+    toast.success('Automatic payments stopped')
+    setDoc(null); load(); onChanged?.()
   }
 
   if (correcting) {
@@ -159,6 +177,31 @@ const InvoiceModal = ({ invoiceId, orgId, onClose, onPrint, onChanged }) => {
               </div>
             )}
 
+            {autopay && (
+              <div className="border-t border-gray-100 pt-2 text-xs text-neutral-600 no-print"
+                data-testid="invoice-autopay">
+                <span className="uppercase tracking-wide text-neutral-400">Automatic payments</span>
+                {' · '}
+                {autopayRunning ? (
+                  autopay.has_card ? (
+                    <span>
+                      {autopay.remaining_count} left ({money(autopay.remaining_cents)})
+                      {autopay.next_due_date ? `, next ${String(autopay.next_due_date).slice(0, 10)}` : ''}
+                    </span>
+                  ) : (
+                    // The Larson family, 2026-09-19: the plan said "active"
+                    // while the saved card was gone, and nothing charged.
+                    <span className="text-amber-700">
+                      {autopay.remaining_count} left, but no saved card. Nothing will be charged
+                      until the family sets up autopay again.
+                    </span>
+                  )
+                ) : (
+                  <span className="capitalize">{autopay.status}</span>
+                )}
+              </div>
+            )}
+
             {/* A UFA family pays through UFA, not by card. Saying so here stops
                 somebody chasing a card payment that is never coming. */}
             {doc.funding_label && (
@@ -170,6 +213,11 @@ const InvoiceModal = ({ invoiceId, orgId, onClose, onPrint, onChanged }) => {
         </div>
       )}
       <div className="flex flex-wrap justify-end gap-2 pt-4 no-print">
+        {autopayRunning && (
+          <Button size="sm" variant="secondary" onClick={() => setConfirmStop(true)}>
+            Stop autopay
+          </Button>
+        )}
         {voidable && (
           <Button size="sm" variant="secondary" onClick={voidInvoice}>Void</Button>
         )}
@@ -179,6 +227,22 @@ const InvoiceModal = ({ invoiceId, orgId, onClose, onPrint, onChanged }) => {
         <Button size="sm" variant="secondary" onClick={onClose}>Close</Button>
         <Button size="sm" onClick={onPrint} disabled={!doc}>Print</Button>
       </div>
+      <ConfirmDialog
+        isOpen={confirmStop}
+        onClose={() => setConfirmStop(false)}
+        title="Stop automatic payments?"
+        confirmLabel="Stop autopay"
+        destructive
+        onConfirm={stopAutopay}
+      >
+        <p>
+          {autopay?.remaining_count || 0} scheduled payment{autopay?.remaining_count === 1 ? '' : 's'}
+          {' '}({money(autopay?.remaining_cents || 0)}) will not be charged.
+        </p>
+        <p>
+          The invoice keeps its balance. Edit it, or record a refund, if the family no longer owes it.
+        </p>
+      </ConfirmDialog>
     </Modal>
   )
 }

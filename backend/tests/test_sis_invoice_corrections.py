@@ -115,13 +115,23 @@ class TestUpdateInvoiceGuards:
                    return_value=_service_with_invoice(None)):
             assert billing.update_invoice('org1', 'inv1', 'actor')['error'] == 'Invoice not found'
 
-    def test_paid_invoice_is_refused(self):
-        with patch('services.sis_billing_service._admin',
-                   return_value=_service_with_invoice({'id': 'inv1', 'status': 'paid'})):
-            err = billing.update_invoice('org1', 'inv1', 'actor')['error']
-        assert 'paid in full' in err
-        # Must not send the caller to void, which refuses a paid invoice too.
-        assert 'void' not in err.lower()
+    def test_paid_invoice_is_editable(self):
+        """iCreate, 2026-09-20: "I need to have the ability to adjust invoices
+        that have been paid." A class added after payment, a class dropped
+        before a refund, a wrong class name on a reimbursement: the payments
+        stay as recorded and the status recomputes from the new total."""
+        inv = {'id': 'inv1', 'status': 'paid', 'total_cents': 10000,
+               'subtotal_cents': 10000, 'discount_cents': 0, 'amount_paid_cents': 10000}
+        client = _service_with_invoice(inv)
+        with patch('services.sis_billing_service._admin', return_value=client), \
+             patch.object(billing, '_recompute_invoice_status', return_value=dict(inv, status='partial')), \
+             patch.object(billing, '_audit'), patch.object(billing, 'enqueue_qbo'), \
+             patch.object(billing, 'notify_family_of_invoice_change'), \
+             patch.object(billing, 'get_invoice', return_value={'id': 'inv1', 'status': 'partial'}):
+            result = billing.update_invoice('org1', 'inv1', 'actor',
+                                            line_items=[{'description': 'Pottery', 'amount_cents': 12000}])
+        assert 'error' not in result
+        client.table.return_value.update.assert_called()
 
     def test_void_invoice_is_refused(self):
         with patch('services.sis_billing_service._admin',
