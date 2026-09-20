@@ -6,7 +6,7 @@
  */
 
 import axios, { AxiosError, AxiosResponse, InternalAxiosRequestConfig } from 'axios';
-import { Platform } from 'react-native';
+import { AppState, Platform } from 'react-native';
 import Constants from 'expo-constants';
 import { tokenStore } from './tokenStore';
 import { postRefreshWithRetry } from './refreshRetry';
@@ -308,6 +308,20 @@ export function reportApiError(error: AxiosError, status: number | null) {
       level: 'warning',
       extra,
       fingerprint: ['api-unreachable'],
+    });
+    return;
+  }
+  // A timeout while the app is not in the foreground is not a slow endpoint:
+  // iOS suspends the process, the socket goes quiet, and axios's 15s clock
+  // expires on resume. Two such issues opened for one user at one instant,
+  // both with in_foreground false (OPTIO-MOBILE-20 and -21, 2026-09-18).
+  // Folded like ERR_NETWORK: one warning-level issue keeps the signal if it
+  // ever spikes, without an issue per endpoint a sleeping phone had in flight.
+  if (status === null && error.code === 'ECONNABORTED' && AppState.currentState !== 'active') {
+    captureMessage('API timeout while backgrounded', {
+      level: 'warning',
+      extra: { ...extra, appState: AppState.currentState },
+      fingerprint: ['api-timeout-backgrounded'],
     });
     return;
   }

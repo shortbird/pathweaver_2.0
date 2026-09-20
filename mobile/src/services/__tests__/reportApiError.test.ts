@@ -8,8 +8,13 @@
  * collapse into one unactionable bucket.
  */
 
+import { AppState } from 'react-native';
 import { reportApiError, SILENCED_API_STATUSES } from '@/src/services/api';
 import { captureException, captureMessage } from '@/src/services/sentry';
+
+// jest-expo's AppState.currentState is a mock function, not a status string.
+const setAppState = (value: string) =>
+  Object.defineProperty(AppState, 'currentState', { value, configurable: true });
 
 jest.mock('@/src/services/tokenStore', () => ({
   tokenStore: {
@@ -39,7 +44,10 @@ function axiosErr(status: number | null, url = '/api/quests/abc', method = 'get'
   } as any;
 }
 
-beforeEach(() => jest.clearAllMocks());
+beforeEach(() => {
+  jest.clearAllMocks();
+  setAppState('active');
+});
 
 describe('reportApiError', () => {
   it('silences expected client/auth statuses (401/403/404) — no Sentry noise', () => {
@@ -84,6 +92,29 @@ describe('reportApiError', () => {
       expect(call[1].level).toBe('warning');
       expect(call[1].fingerprint).toEqual(['api-unreachable']);
     }
+  });
+
+  it('folds a timeout that fired while the app was backgrounded into one warning', () => {
+    // OPTIO-MOBILE-20 and -21, 2026-09-18: GET /api/bounties and
+    // /api/bounties/my-posted both timed out at the same instant with
+    // in_foreground false. iOS had suspended the app; nothing was slow.
+    setAppState('background');
+    reportApiError(axiosErr(null, '/api/bounties', 'get', 'ECONNABORTED'), null);
+    reportApiError(axiosErr(null, '/api/bounties/my-posted', 'get', 'ECONNABORTED'), null);
+    expect(captureException).not.toHaveBeenCalled();
+    expect(captureMessage).toHaveBeenCalledTimes(2);
+    for (const call of (captureMessage as jest.Mock).mock.calls) {
+      expect(call[1].level).toBe('warning');
+      expect(call[1].fingerprint).toEqual(['api-timeout-backgrounded']);
+    }
+  });
+
+  it('a timeout in the foreground is still an issue for that endpoint', () => {
+    reportApiError(axiosErr(null, '/api/bounties', 'get', 'ECONNABORTED'), null);
+    expect(captureMessage).not.toHaveBeenCalled();
+    expect(captureException).toHaveBeenCalledTimes(1);
+    const opts = (captureException as jest.Mock).mock.calls[0][1];
+    expect(opts.fingerprint).toEqual(['api-error', 'GET', '/api/bounties', 'network']);
   });
 
   it('does not report a 4xx that is the product answering a person', () => {
