@@ -115,6 +115,10 @@ def main() -> int:
     failures = 0
     for name, expected, blob in CASES:
         part = load_image_bytes(blob, 'IMG_1616.jpeg', 'image/jpeg')
+        if part is None:
+            failures += 1
+            print(f'FAIL could not open the synthetic image for: {name}')
+            continue
         for _ in range(args.runs):
             result = svc.judge(LABEL, [part], prompt=svc.UPLOAD_PROMPT)
             ok = result.verdict == expected
