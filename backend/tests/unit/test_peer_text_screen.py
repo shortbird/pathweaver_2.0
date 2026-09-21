@@ -889,3 +889,16 @@ def test_an_adults_hold_goes_to_the_org_admins_and_superadmins_not_the_child():
     assert body.startswith('Mr Lee (advisor) wrote a message to Sam that our safety check held.')
     assert body.endswith('"our secret"')
     assert repo.record_hold.call_args.kwargs['author_role'] == 'advisor'
+
+
+def test_the_upload_rules_say_whose_contact_details_count():
+    """2026-09-21: "a phone number, home address, email" was read literally
+    and held a worksheet for the school's office number in its header.
+    The rule names the child and says printed school, business and product
+    numbers are clear. The live cases are scripts/eval_upload_screen.py."""
+    from services.peer_text_screen_service import PeerTextScreenService
+
+    prompt = PeerTextScreenService.UPLOAD_PROMPT
+    assert "a child's own phone number, home address, email" in prompt
+    assert 'the office number on a worksheet header' in prompt
+    assert '- a phone number, home address, email' not in prompt

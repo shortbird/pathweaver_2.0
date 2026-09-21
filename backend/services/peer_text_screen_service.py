@@ -199,6 +199,14 @@ class PeerTextScreenService(BaseAIService):
     #: An image a student uploads anywhere on the platform (task evidence, a
     #: feed post, an avatar), judged on its own. Teachers, parents and,
     #: under the Friends policy, other children will see it.
+    #:
+    #: Whose contact details matters. The first wording, "a phone number,
+    #: home address, email", was read literally: on 2026-09-21 one student's
+    #: photo was held 14 times in an hour for "contains phone numbers", and
+    #: the same prompt held a worksheet for the school's office number in
+    #: its header and a recipe card for the store's. The refusal never says
+    #: why, so the student kept trying. The rule now names the child, and
+    #: scripts/eval_upload_screen.py holds the live cases.
     UPLOAD_PROMPT = (
         'You screen an image a student (age 8 to 18) uploaded to Optio, a '
         'K-12 learning platform, where teachers, parents and other students '
@@ -208,13 +216,19 @@ class PeerTextScreenService(BaseAIService):
         '- violence, gore, or injury presented for shock\n'
         '- weapons presented as a threat, drugs, alcohol, or self-harm\n'
         '- hateful symbols or slurs\n'
-        '- a phone number, home address, email, or another app\'s username\n'
+        '- a child\'s own phone number, home address, email, or another '
+        'app\'s username, or another child\'s, shown so that someone could '
+        'contact them\n'
         '- a picture of another person used to mock or humiliate them\n\n'
         'Answer "clear" for schoolwork, art, crafts, science projects, pets, '
         'food, sports, games, nature, screenshots of the child\'s own work, '
         'and a child\'s own face doing something ordinary. A drawing of a '
         'sword in a story, a history project about a war, or a kitchen knife '
-        'in a cooking photo is clear.\n\n'
+        'in a cooking photo is clear. A printed phone number, address or '
+        'website that belongs to a school, a business, a product, a book or '
+        'an event is clear: the office number on a worksheet header, the '
+        'store number on a recipe card, a flyer, a receipt, packaging. Only '
+        'a child\'s own contact details, or another child\'s, are flagged.\n\n'
         'Reply with JSON only, in this exact shape: '
         '{"verdict": "clear" or "flagged", "reasons": ["short reason", ...]}. '
         'reasons is an empty list when the verdict is clear.\n'
