@@ -138,23 +138,56 @@ class AccessLogger:
             # through the pool dies with RemoteProtocolError("Server
             # disconnected") before the request is even sent -- Sentry
             # OPTIO-BACKEND-84, a parent reading a student's schedule. A second
-            # attempt takes a fresh connection and succeeds.
+            # attempt on a live connection succeeds; which connection that is
+            # is the subject of the note further down.
             #
             # A retry can duplicate a row if the disconnect happened after
             # Postgres accepted the insert. In an append-only audit log that is
             # the cheap direction to be wrong: a duplicated disclosure is
             # visible and explainable, a missing one is neither.
-            admin_client = get_supabase_admin_singleton()
+            row = {
+                'student_id': student_id,
+                'accessor_id': accessor_id,
+                'accessor_role': stored_role,
+                'data_accessed': data_accessed,
+                'purpose': purpose,
+                'ip_address': ip_address,
+                'user_agent': user_agent
+            }
+
+            # The retry must not go back through the pool that just died.
+            #
+            # "A second attempt takes a fresh connection" was the assumption
+            # above, and it does not hold: these clients speak HTTP/2, so a
+            # pool is usually ONE connection carrying every thread's streams.
+            # When the far end drops it, every stream on it fails together and
+            # the next attempt grabs the same dying connection -- two requests
+            # at one instant, both retries spent on the same socket, both rows
+            # lost (Sentry OPTIO-BACKEND-9J, 2026-09-22, a parent opening two
+            # evidence documents at once).
+            #
+            # So attempt two asks a different client, which owns a different
+            # pool: inside a request that is the request-scoped admin client
+            # (already alive, or dialled now), and the retry costs at most one
+            # handshake on a path that is rare by construction. Outside a
+            # request context there is no second client to reach for and this
+            # is the singleton again, unchanged.
+            attempts = {'n': 0}
+
+            def _write():
+                attempts['n'] += 1
+                if attempts['n'] == 1:
+                    client = get_supabase_admin_singleton()
+                else:
+                    from database import get_supabase_admin_client
+                    # admin client justified: the same FERPA audit insert as the
+                    # attempt above, retried on a second connection pool; writes
+                    # only student_access_logs, never reads user data
+                    client = get_supabase_admin_client()
+                return client.table('student_access_logs').insert(row).execute()
+
             with_connection_retry(
-                lambda: admin_client.table('student_access_logs').insert({
-                    'student_id': student_id,
-                    'accessor_id': accessor_id,
-                    'accessor_role': stored_role,
-                    'data_accessed': data_accessed,
-                    'purpose': purpose,
-                    'ip_address': ip_address,
-                    'user_agent': user_agent
-                }).execute(),
+                _write,
                 max_retries=2,
                 operation_name='access_log_insert',
             )

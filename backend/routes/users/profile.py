@@ -241,6 +241,14 @@ def upload_avatar(user_id):
 
         return jsonify({'avatar_url': sign_stored_url(avatar_url, 'user-uploads')}), 200
 
+    except ValidationError:
+        # The gate's refusal -- a held picture, a hash match -- is a 400 with
+        # the gate's own sentence, the same way the type and size checks above
+        # the try block reach the client. The catch-all below turned it into
+        # "Failed to upload avatar" and an error log: the student never read
+        # why and kept trying (2026-09-21, a Horizon student, Sentry
+        # optio-backend 7746776315).
+        raise
     except Exception as e:
         logger.error(f"Error uploading avatar: {str(e)}")
         return jsonify({'error': 'Failed to upload avatar'}), 500

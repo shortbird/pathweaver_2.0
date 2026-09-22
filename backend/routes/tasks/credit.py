@@ -439,7 +439,7 @@ def get_credit_history(user_id: str, task_id: str):
     """
     Get all diploma review rounds for a task completion.
     Shows the iteration trail: submissions, feedback, and approvals.
-    Accessible by the task owner, assigned advisors, and superadmins.
+    Readable by whoever may read the student's work (portfolio_access).
     """
     try:
         # admin client justified: task CRUD writes scoped to caller (self) under @require_auth; cross-user only after parent/advisor relationship verification
@@ -455,31 +455,22 @@ def get_credit_history(user_id: str, task_id: str):
 
         completion_data = completion.data[0]
 
-        # Verify access: owner, assigned advisor, or superadmin
-        is_owner = completion_data['user_id'] == user_id
-        if not is_owner:
-            user_result = admin_supabase.table('users')\
-                .select('role')\
-                .eq('id', user_id)\
-                .single()\
-                .execute()
-
-            is_superadmin = user_result.data and user_result.data.get('role') == 'superadmin'
-
-            if not is_superadmin:
-                assignment = admin_supabase.table('advisor_student_assignments')\
-                    .select('id')\
-                    .eq('advisor_id', user_id)\
-                    .eq('student_id', completion_data['user_id'])\
-                    .eq('is_active', True)\
-                    .execute()
-
-                if not assignment.data:
-                    return error_response(
-                        code='FORBIDDEN',
-                        message='You do not have access to this credit history',
-                        status=403
-                    )
+        # Whoever may read the student's work may read its review trail: the
+        # student, a parent, an assigned advisor, a class teacher, an observer,
+        # an org admin, Optio staff. One rule (utils.portfolio_access), not a
+        # fourth copy of it: this route knew only the owner, an assignment row
+        # and superadmin, so a parent on their child's task -- where the credit
+        # thread beside it had already answered -- got a 403 from "View
+        # iteration history" (2026-09-21, an iCreate parent, Sentry optio-web
+        # 7746900411). Peers are out: a connection shows a friend your work,
+        # not your reviewer's notes.
+        from utils.portfolio_access import can_view_portfolio
+        if not can_view_portfolio(user_id, completion_data['user_id'], allow_peers=False):
+            return error_response(
+                code='FORBIDDEN',
+                message='You do not have access to this credit history',
+                status=403
+            )
 
         rounds = admin_supabase.table('diploma_review_rounds')\
             .select('*')\

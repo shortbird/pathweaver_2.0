@@ -386,17 +386,29 @@ def enroll_children_in_family_quest(user_id, quest_id):
         #     makes the quest on the CHILD's account (/api/quests/create under
         #     @student_scope), and a sibling could not be put on it at all
         #     until 2026-09-18;
-        #   - any public/catalog quest (is_public), or
+        #   - any public/catalog quest (is_public),
+        #   - the family's school's own quest (organization_id). An org quest
+        #     is the school's catalog: the child can pick it, and the parent
+        #     can start it for the child from the child's page
+        #     (/api/quests/<id>/enroll under @student_scope) with no such
+        #     check. The family card lists it as soon as one member is on it
+        #     -- a quest the school assigned to the PARENT, on 2026-09-21 --
+        #     and offered "Add <child>", which this refused (Sentry optio-web
+        #     7746163895, an iCreate parent); or
         #   - anything, if superadmin.
         # Private quests owned by other families stay blocked. Per-child access
         # is the intersection with children_of_parent below.
-        quest = supabase.table('quests').select('id, created_by, is_public').eq('id', quest_id).single().execute()
+        quest = supabase.table('quests').select('id, created_by, is_public, organization_id').eq('id', quest_id).single().execute()
         if not quest.data:
             return jsonify({'success': False, 'error': 'Quest not found'}), 404
 
         if quest.data.get('created_by') not in family_ids and not quest.data.get('is_public'):
-            user_check = supabase.table('users').select('role').eq('id', user_id).single().execute()
-            if not user_check.data or user_check.data.get('role') != 'superadmin':
+            people = supabase.table('users').select('id, role, organization_id').in_('id', family_ids).execute().data or []
+            caller = next((p for p in people if p.get('id') == user_id), None)
+            is_superadmin = bool(caller and caller.get('role') == 'superadmin')
+            family_orgs = {p.get('organization_id') for p in people if p.get('organization_id')}
+            is_school_quest = bool(quest.data.get('organization_id')) and quest.data['organization_id'] in family_orgs
+            if not is_superadmin and not is_school_quest:
                 return jsonify({'success': False, 'error': 'Permission denied'}), 403
 
         # The list each child gets: the quest's template, else the family's.

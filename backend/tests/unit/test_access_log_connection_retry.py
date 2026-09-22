@@ -65,8 +65,18 @@ class _Client:
         return type('R', (), {'data': [{'id': ACCESSOR_ID, 'role': 'parent'}]})()
 
 
-def _log_with(client):
+def _log_with(client, retry_client=None):
+    """Run one logged access.
+
+    `client` answers attempt one (the singleton). `retry_client` answers every
+    attempt after it, because the retry deliberately asks a different client:
+    these clients speak HTTP/2, so a pool is one connection shared by every
+    thread, and going back to it after it dropped gets the same dead socket
+    (Sentry OPTIO-BACKEND-9J). Passing nothing keeps both attempts on `client`
+    for the tests that only care how many attempts happen.
+    """
     with patch('utils.access_logger.get_supabase_admin_singleton', return_value=client), \
+         patch('database.get_supabase_admin_client', return_value=retry_client or client), \
          patch('utils.retry_handler.time.sleep'):
         return AccessLogger.log_student_data_access(
             student_id=STUDENT_ID,
@@ -112,3 +122,33 @@ def test_a_write_that_never_succeeds_still_does_not_raise():
 
     assert _log_with(client) is False
     assert client._insert.attempts == 2
+
+
+def test_the_retry_goes_to_a_different_client_than_the_one_that_dropped():
+    """The second attempt must not reuse the pool that just failed.
+
+    Over HTTP/2 a pool is usually a single connection carrying every thread's
+    streams, so when the far end drops it, the next attempt through the same
+    client gets the same dying socket. Two evidence documents opened at one
+    instant spent both their retries that way and lost both FERPA rows
+    (Sentry OPTIO-BACKEND-9J, 2026-09-22).
+    """
+    dropped = _Client([httpx.RemoteProtocolError('Server disconnected')])
+    fresh = _Client([object()])
+
+    assert _log_with(dropped, retry_client=fresh) is True
+    assert dropped._insert.attempts == 1
+    assert fresh._insert.attempts == 1
+    # The row landed, and it landed on the client that was not the dead one.
+    assert fresh.insert_calls[-1]['student_id'] == STUDENT_ID
+    assert dropped.insert_calls[-1]['student_id'] == STUDENT_ID
+
+
+def test_a_drop_on_both_clients_still_does_not_raise():
+    """Both pools dead -- the API restarting -- must still not break the read."""
+    dropped = _Client([httpx.RemoteProtocolError('Server disconnected')])
+    also_dropped = _Client([httpx.RemoteProtocolError('Server disconnected')])
+
+    assert _log_with(dropped, retry_client=also_dropped) is False
+    assert dropped._insert.attempts == 1
+    assert also_dropped._insert.attempts == 1

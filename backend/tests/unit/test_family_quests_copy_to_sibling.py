@@ -194,3 +194,36 @@ def test_another_familys_private_quest_is_still_refused(app):
     assert status == 403
     assert body['error'] == 'Permission denied'
     assert log == []
+
+
+ICREATE = '11111111-1111-4111-8111-111111111111'
+OTHER_SCHOOL = '22222222-2222-4222-8222-222222222222'
+
+
+def _school_quest_answers(quest_org, family_org=ICREATE):
+    """A quest nobody in the family made and nobody published: the school's."""
+    answers = _answers(created_by=STRANGER)
+    answers['quests'] = [{'id': QUEST, 'created_by': STRANGER, 'is_public': False, 'organization_id': quest_org}]
+    answers['users'] = [
+        {'id': PARENT, 'role': 'org_managed', 'organization_id': family_org},
+        {'id': ROMNEY, 'role': 'org_managed', 'organization_id': family_org},
+    ]
+    return answers
+
+
+def test_the_schools_own_quest_is_the_familys_to_enroll_into(app):
+    # The school put the quest on the PARENT's account, so it sits on the
+    # family card offering "Add Bubba". The child could pick it from the
+    # school's catalog, so the parent may put the child on it here too.
+    log = []
+    body, status = _add_bubba(app, _school_quest_answers(quest_org=ICREATE), log)
+    assert status == 200, body
+    assert body['enrolled'][0]['tasks_copied'] == 2
+
+
+def test_another_schools_private_quest_is_still_refused(app):
+    log = []
+    body, status = _add_bubba(app, _school_quest_answers(quest_org=OTHER_SCHOOL), log)
+    assert status == 403
+    assert body['error'] == 'Permission denied'
+    assert log == []
