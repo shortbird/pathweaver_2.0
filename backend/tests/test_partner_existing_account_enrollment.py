@@ -156,7 +156,7 @@ def _tables(**overrides):
 class _FakeEnrollmentService:
     """Records what the route asked for, without touching quests."""
 
-    calls = []
+    calls: list = []
 
     def __init__(self, _client):
         pass

@@ -76,8 +76,13 @@ class PartnerEnrollmentRepository(BaseRepository):
                 if member.get('user_id') and member['user_id'] != parent_user_id:
                     ids.append(member['user_id'])
 
-        seen = set()
-        return [i for i in ids if not (i in seen or seen.add(i))]
+        seen: set = set()
+        unique: List[str] = []
+        for student_id in ids:
+            if student_id not in seen:
+                seen.add(student_id)
+                unique.append(student_id)
+        return unique
 
     def accounts_by_ids(self, user_ids: Iterable[str]) -> Dict[str, Dict[str, Any]]:
         """Account rows for a set of ids, keyed by id."""
