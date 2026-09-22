@@ -60,7 +60,9 @@ const openMenu = async (rowName) => {
   render(<PeoplePage />)
   await screen.findByText(rowName)
   const row = screen.getByText(rowName).closest('tr')
-  fireEvent.click(row.querySelector('button[aria-label="Actions"]'))
+  // Clicking the row opens the actions, since 2026-09-22. The per-row menu
+  // and its column are gone.
+  fireEvent.click(row)
 }
 
 beforeEach(() => {

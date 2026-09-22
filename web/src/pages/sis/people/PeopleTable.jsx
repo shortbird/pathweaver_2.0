@@ -2,7 +2,6 @@ import React from 'react'
 import StudentRow from '../../../components/sis/StudentRow'
 import { RolePill } from '../../../components/ui/RolePill'
 import { PaymentMethodPills } from '../PaymentMethodPills'
-import { RowActions } from './RowActions'
 import { rolesOf, statusOf, isRecent } from './peopleFilters'
 import StatusPill from '../../../components/sis/ui/StatusPill'
 import SortHeader from '../../../components/ui/SortHeader'
@@ -36,11 +35,14 @@ const PersonStatus = ({ status }) => <StatusPill domain="person" status={status}
  * hold; what used to be a tab's worth of context (a teacher's invite, a
  * family's payment answer) is a pill on the row.
  */
+// The card scrolls rather than spills. It was overflow-visible only because
+// the row's per-person menu opened an absolute panel inside it; that menu is
+// gone and its column with it, so the card can behave like every other table
+// card in the console (2026-09-22).
 const PeopleTable = ({
   rows, sort, onSort, onOpen, onOpenFamily, onResendInvite, resendingId,
-  menuFor, setMenuFor, actionsFor,
 }) => (
-  <div className="bg-white rounded-xl border border-gray-200 overflow-visible">
+  <div className="bg-white rounded-xl border border-gray-200 overflow-x-auto">
     <table className="w-full text-sm">
       <thead className="bg-neutral-50 text-neutral-500 text-left">
         <tr>
@@ -59,7 +61,6 @@ const PeopleTable = ({
           <SortHeader label="Family" col="family" sort={sort} onSort={onSort} />
           <SortHeader label="Joined" col="joined_at" sort={sort} onSort={onSort} />
           <SortHeader label="Last active" col="last_active" sort={sort} onSort={onSort} />
-          <th className="px-4 py-3 font-medium"></th>
         </tr>
       </thead>
       <tbody className="divide-y divide-gray-100">
@@ -95,12 +96,17 @@ const PeopleTable = ({
               </td>
               <td className="px-4 py-3">
                 {s.household_name ? (
-                  <div className="min-w-0">
-                    <span className="inline-flex items-center gap-1.5 flex-wrap">
+                  // Capped. Auto table layout gives every column its widest
+                  // unbreakable cell, and this one holds a household name plus
+                  // free-text payment answers, so at iCreate the table grew
+                  // wider than the card it sits in and spilled out over the
+                  // page (2026-09-22).
+                  <div className="min-w-0 max-w-[20rem]">
+                    <span className="inline-flex items-center gap-1.5 flex-wrap max-w-full">
                       <button type="button"
                         onClick={(e) => { e.stopPropagation(); onOpenFamily(s) }}
-                        className="text-neutral-600 hover:text-optio-purple hover:underline text-left"
-                        title="Open the family">
+                        className="text-neutral-600 hover:text-optio-purple hover:underline text-left max-w-[13rem] truncate"
+                        title={`Open ${s.household_name}`}>
                         {s.household_name}
                       </button>
                       {s.household_former && (
@@ -127,14 +133,6 @@ const PeopleTable = ({
                 )}
               </td>
               <td className="px-4 py-3 text-neutral-500">{fmtDate(s.last_active)}</td>
-              <td className="px-4 py-3 text-right" onClick={(e) => e.stopPropagation()}>
-                <RowActions
-                  open={menuFor === s.student_id}
-                  onOpen={() => setMenuFor(s.student_id)}
-                  onClose={() => setMenuFor(null)}
-                  actions={actionsFor(s)}
-                />
-              </td>
             </tr>
           )
         })}

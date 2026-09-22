@@ -144,10 +144,12 @@ describe('PeoplePage', () => {
     expect(screen.getAllByText('Student').length).toBeGreaterThan(0)
   })
 
-  it('opens the student detail modal from a row', async () => {
+  it('opens the student detail modal from a row, through Manage', async () => {
     render(<PeoplePage />)
-    // The roster is a directory: click a row (no per-row "Details" button).
+    // The row asks what you want first, since 2026-09-22; the per-row menu
+    // that used to hold the other answers is gone, and Manage is first.
     fireEvent.click(await screen.findByText('Alice Student'))
+    fireEvent.click(await screen.findByRole('button', { name: 'Manage' }))
     expect(await screen.findByText('Emergency contacts')).toBeInTheDocument()
   })
 
@@ -205,6 +207,7 @@ describe('PeoplePage', () => {
 
     // The Manage modal's Family section does the assigning.
     fireEvent.click(screen.getByText('Zed Unassigned'))
+    fireEvent.click(await screen.findByRole('button', { name: 'Manage' }))
     const section = (await screen.findByText('Not in a family yet.')).closest('section')
     fireEvent.change(await within(section).findByPlaceholderText(/Search families/), { target: { value: 'Fam' } })
     fireEvent.mouseDown(await within(await screen.findByTestId('search-select-menu')).findByText('Fam'))

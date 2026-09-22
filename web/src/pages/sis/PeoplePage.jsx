@@ -17,6 +17,7 @@ import { setPreviewTeacher } from './teacherPreview'
 import PeopleFilterBar from './people/PeopleFilterBar'
 import PeopleTable from './people/PeopleTable'
 import { RemovePersonModal } from './people/RemovePersonModal'
+import PersonActionsModal from './people/PersonActionsModal'
 import StaffDuplicatesBanner from './people/StaffDuplicatesBanner'
 import {
   EMPTY_FILTERS, applyFilters, sortRows, isStaff, asStaffRow,
@@ -75,7 +76,10 @@ const PeoplePage = () => {
 
   const { data: roster = [], isLoading: loading, refetch } = useSisRoster(orgId)
   const [sort, setSort] = useState({ key: 'name', dir: 'asc' })
-  const [menuFor, setMenuFor] = useState(null)
+  // The person whose actions are open. The row used to go straight to Manage
+  // and everything else hid behind a per-row menu; now the row asks what you
+  // want and Manage is the first answer (2026-09-22).
+  const [acting, setActing] = useState(null)
   const [removing, setRemoving] = useState(null)
   const [adding, setAdding] = useState(null)            // 'person' | 'teacher' | 'family' | null
   const [addMenu, setAddMenu] = useState(false)
@@ -257,13 +261,10 @@ const PeoplePage = () => {
           rows={visible}
           sort={sort}
           onSort={toggleSort}
-          onOpen={(s) => openStudent(s, { onSaved: refresh })}
+          onOpen={setActing}
           onOpenFamily={(s) => openFamily(s.household_id, { onSaved: refresh })}
           onResendInvite={resendInvite}
           resendingId={resendingId}
-          menuFor={menuFor}
-          setMenuFor={setMenuFor}
-          actionsFor={actionsFor}
         />
       )}
 
@@ -292,6 +293,10 @@ const PeoplePage = () => {
           onClose={() => setShowExport(false)} />
       )}
 
+      {acting && (
+        <PersonActionsModal person={acting} actions={actionsFor(acting)}
+          onClose={() => setActing(null)} />
+      )}
       {removing && (
         <RemovePersonModal person={removing} orgId={orgId}
           onClose={() => setRemoving(null)} onDone={() => { setRemoving(null); refresh() }} />

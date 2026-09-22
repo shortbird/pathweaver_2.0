@@ -1,6 +1,6 @@
 import React from 'react'
 import { PaymentFilterSelect } from '../PaymentMethodPills'
-import { roleChipOptions, statusOptions, familyOptions, RECENT_DAYS } from './peopleFilters'
+import { roleChipOptions, statusOptions, familyOptions, everyoneCount, RECENT_DAYS } from './peopleFilters'
 
 const chip = (active) => `px-2.5 py-1 rounded-full text-xs font-medium border transition-colors ${
   active ? 'bg-optio-purple text-white border-optio-purple'
@@ -18,7 +18,7 @@ const PeopleFilterBar = ({ rows, filters, onChange }) => {
   const roles = roleChipOptions(rows, filters)
   const statuses = statusOptions(rows, filters)
   const families = familyOptions(rows, filters)
-  const everyone = rows.length
+  const everyone = everyoneCount(rows, filters)
 
   return (
     <div className="mb-4 space-y-3">

@@ -90,8 +90,12 @@ const HOUSEHOLDS = [
 
 // The duplicates banner names a person too, so look for the table row.
 const rowOf = (name) => screen.getAllByText(name).map((e) => e.closest('tr')).find(Boolean)
-const openMenu = (name) => fireEvent.click(within(rowOf(name)).getByLabelText('Actions'))
-const menuItems = () => [...document.querySelectorAll('.absolute button')].map((b) => b.textContent)
+// Clicking the row is what opens a person's actions, since 2026-09-22. It
+// used to go straight to Manage, with everything else behind a per-row menu
+// whose column made an already too-wide table wider.
+const openMenu = (name) => fireEvent.click(rowOf(name))
+const menuItems = () => [...screen.getByRole('dialog').querySelectorAll('li button')]
+  .map((b) => b.textContent)
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -144,9 +148,36 @@ describe('filters built from the list', () => {
     render(<PeoplePage />)
     await screen.findByText('Ada Ant')
     const group = screen.getByRole('group', { name: 'Role' })
+    // Everyone counts the same people the role chips count: the five showing,
+    // not the seven on file. Two of these fixtures are former -- a withdrawn
+    // student and the parent whose only child withdrew -- and the table hides
+    // them by default. Everyone used to say 7 over a table of 5 (2026-09-22).
     expect(within(group).getAllByRole('button').map((b) => b.textContent)).toEqual([
-      'Everyone (7)', 'Students (2)', 'Parents (1)', 'Teachers (2)', 'Admins (1)',
+      'Everyone (5)', 'Students (2)', 'Parents (1)', 'Teachers (2)', 'Admins (1)',
     ])
+  })
+
+  it('Everyone follows the search box too', async () => {
+    render(<PeoplePage />)
+    await screen.findByText('Ada Ant')
+    fireEvent.change(screen.getByLabelText('Search people'), { target: { value: 'Ada' } })
+    const group = screen.getByRole('group', { name: 'Role' })
+    expect(within(group).getByRole('button', { name: /^Everyone/ }).textContent).toBe('Everyone (1)')
+  })
+
+  it('Everyone counts people, and a role chip counts the roles they hold', async () => {
+    // Somebody who teaches and also has a child here is in Teachers and in
+    // Parents both, so the chips can add up to more than Everyone. That is
+    // not the arithmetic being wrong; it is one person wearing two hats.
+    render(<PeoplePage />)
+    await screen.findByText('Ada Ant')
+    fireEvent.click(screen.getByLabelText(/Hide withdrawn/))
+    const group = await screen.findByRole('group', { name: 'Role' })
+    const counts = within(group).getAllByRole('button')
+      .map((b) => Number(b.textContent.match(/\((\d+)\)/)[1]))
+    const [everyone, ...roles] = counts
+    expect(everyone).toBe(7)
+    expect(roles.reduce((a, b) => a + b, 0)).toBeGreaterThanOrEqual(everyone)
   })
 
   it('narrows by role, and the other counts follow', async () => {
@@ -301,5 +332,55 @@ describe('adding', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Students (2)' }))
     fireEvent.click(screen.getByRole('button', { name: 'Export CSV' }))
     expect(screen.getByText('EXPORT 2')).toBeInTheDocument()
+  })
+})
+
+describe('the table stays inside its card', () => {
+  // "The list of people extends past the white inner rectangle. Family field
+  // could be made smaller so it all fits" (an iCreate org admin, 2026-09-22).
+  // The card is overflow-visible on purpose, because the row's ... menu opens
+  // inside it, so nothing scrolls the spill away: the Family cell has to stop
+  // being the widest thing in the table. Its widest part was a payment answer
+  // a family typed, and iCreate's longest runs to 53 unbreakable characters.
+  //
+  // jsdom has no layout -- every element measures zero -- so this pins the
+  // structure that keeps the width down rather than the width itself.
+  it('caps the family cell and truncates the long parts', async () => {
+    render(<PeoplePage />)
+    await screen.findByText('Ada Ant')
+
+    const family = screen.getAllByTitle(/^Open /)[0]
+    expect(family.className).toMatch(/truncate/)
+    expect(family.className).toMatch(/max-w-/)
+    expect(family.closest('div').className).toMatch(/max-w-/)
+  })
+
+  it('keeps a payment answer on one capped line, with the whole of it on hover', async () => {
+    render(<PeoplePage />)
+    await screen.findByText('Ada Ant')
+
+    const pill = within(screen.getByRole('table')).getByText('Self-Pay')
+    expect(pill.className).toMatch(/truncate/)
+    expect(pill.className).toMatch(/max-w-/)
+    // Truncated in the cell, intact in the tooltip.
+    expect(pill).toHaveAttribute('title', 'Self-Pay')
+  })
+
+  it('lets the card scroll, now that nothing pops out of it', async () => {
+    // It was overflow-visible only to keep the row menu's absolute panel from
+    // being clipped. The menu is gone, so the card behaves like every other
+    // table card in the console and a narrow window scrolls instead of
+    // spilling.
+    render(<PeoplePage />)
+    await screen.findByText('Ada Ant')
+
+    const card = screen.getByRole('table').closest('div')
+    expect(card.className).toMatch(/overflow-x-auto/)
+  })
+
+  it('has no per-row actions column any more', async () => {
+    render(<PeoplePage />)
+    await screen.findByText('Ada Ant')
+    expect(screen.queryByLabelText('Actions')).toBeNull()
   })
 })

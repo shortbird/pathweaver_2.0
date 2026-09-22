@@ -127,7 +127,9 @@ describe('staff on the table', () => {
   it('opens the staff record from the row menu', async () => {
     await show()
     const row = screen.getByText('Nate Vance').closest('tr')
-    fireEvent.click(row.querySelector('button[aria-label="Actions"]'))
+    // Clicking the row opens the actions, since 2026-09-22. The per-row menu
+  // and its column are gone.
+  fireEvent.click(row)
     fireEvent.click(screen.getByText('Staff record'))
     expect(await screen.findByRole('tab', { name: 'Employment' })).toBeInTheDocument()
   })

@@ -15,9 +15,14 @@ export const NO_ANSWER = '__none__'
 
 const isUfa = (m) => /utah fits all/i.test(m || '')
 
+// Capped, because these answers are free text the family chose and one of
+// iCreate's runs to 53 characters ("I will pay and get reimbursed by a
+// vendor/scholarship"). A nowrap pill that long sets the min-content width of
+// whatever column it sits in, and the People table spilled out past its own
+// white card because of it (2026-09-22). The full answer stays one hover away.
 const Pill = ({ className, title, children }) => (
   <span title={title}
-    className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium whitespace-nowrap ${className}`}>
+    className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium whitespace-nowrap max-w-[13rem] truncate ${className}`}>
     {children}
   </span>
 )
@@ -36,6 +41,7 @@ export const PaymentMethodPills = ({ methods = [], ufaPrivate, plan, emptyLabel 
     <span className="inline-flex flex-wrap items-center gap-1">
       {methods.map((m) => (
         <Pill key={m}
+          title={isUfa(m) && ufaPrivate ? 'Utah Fits All · Private School' : m}
           className={isUfa(m) ? 'bg-amber-100 text-amber-800' : 'bg-sky-100 text-sky-700'}>
           {isUfa(m) && ufaPrivate ? 'Utah Fits All · Private School' : m}
         </Pill>

@@ -128,6 +128,23 @@ export const applyFilters = (rows, f) => {
   })
 }
 
+/**
+ * How many people the Everyone chip stands for.
+ *
+ * The same base every role chip counts from, so each chip promises the same
+ * thing: click it, get that many rows. This used to be `rows.length` -- the
+ * whole roster, before a single filter -- which made Everyone the one number
+ * on the page that was not about what you were looking at. It read 361 for
+ * iCreate while the table underneath showed 342, it did not move when you
+ * typed in the search box, and an org admin sat down and added up the role
+ * chips to check (2026-09-22).
+ *
+ * The role chips can still sum to MORE than this, and that is not an error:
+ * somebody who teaches and also has a child here holds two roles and belongs
+ * under both. Eleven people at iCreate do.
+ */
+export const everyoneCount = (rows, f) => applyFilters(rows, { ...f, role: '' }).length
+
 /** Role chips with counts. The main three are always there; the rarer roles
  *  only when somebody holds one. Counts respect every other filter, so the
  *  numbers answer "of these". */

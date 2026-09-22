@@ -81,7 +81,9 @@ beforeEach(() => {
 const openStaffRecord = async (name) => {
   await screen.findByText(name)
   const row = screen.getByText(name).closest('tr')
-  fireEvent.click(row.querySelector('button[aria-label="Actions"]'))
+  // Clicking the row opens the actions, since 2026-09-22. The per-row menu
+  // and its column are gone.
+  fireEvent.click(row)
   fireEvent.click(screen.getByText('Staff record'))
 }
 
