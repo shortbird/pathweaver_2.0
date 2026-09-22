@@ -59,7 +59,13 @@ export function schoolTabsFor(
   // being a guardian, so no Schedule tab for them (the backend enforces the
   // same by family relationship).
   if (org?.is_guardian && !org.family_first_home && (on('classes') || on('attendance'))) {
-    tabs.push({ key: 'schedule', label: 'Schedule' });
+    // Named for both things it holds. Reporting an absence was a chip on this
+    // page with the word "Absence" on it until 2026-09-18, when it moved
+    // inside this tab -- and a coordinator who is also a parent of three came
+    // back looking for it and could not find it, because nothing on the page
+    // said the word any more (2026-09-22). Only a school that runs attendance
+    // gets the longer label; for the others the tab really is just a schedule.
+    tabs.push({ key: 'schedule', label: on('attendance') ? 'Schedule & Absences' : 'Schedule' });
   }
   // The calendar and the carpool board wait for a board (feed === null means
   // no board for this user); documents wait for the school to have any.

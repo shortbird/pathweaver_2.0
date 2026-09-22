@@ -9,7 +9,7 @@
  */
 
 import { AppState } from 'react-native';
-import { reportApiError, SILENCED_API_STATUSES } from '@/src/services/api';
+import { noteAppStateChange, reportApiError, SILENCED_API_STATUSES } from '@/src/services/api';
 import { captureException, captureMessage } from '@/src/services/sentry';
 
 // jest-expo's AppState.currentState is a mock function, not a status string.
@@ -34,12 +34,18 @@ jest.mock('@/src/services/sentry', () => ({
   wrapWithSentry: (c: unknown) => c,
 }));
 
-function axiosErr(status: number | null, url = '/api/quests/abc', method = 'get', code?: string) {
+function axiosErr(
+  status: number | null,
+  url = '/api/quests/abc',
+  method = 'get',
+  code?: string,
+  startedAt?: number,
+) {
   return {
     isAxiosError: true,
     message: status ? `Request failed with status code ${status}` : 'Network Error',
     code,
-    config: { url, method },
+    config: { url, method, ...(startedAt ? { _startTime: startedAt } : {}) },
     response: status ? ({ status, data: {} } as any) : undefined,
   } as any;
 }
@@ -47,6 +53,9 @@ function axiosErr(status: number | null, url = '/api/quests/abc', method = 'get'
 beforeEach(() => {
   jest.clearAllMocks();
   setAppState('active');
+  // Clear any background moment a previous test recorded: the module keeps
+  // one timestamp, and a stale one would fold every later timeout.
+  noteAppStateChange('active');
 });
 
 describe('reportApiError', () => {
@@ -151,5 +160,40 @@ describe('reportApiError', () => {
     // The grouping key must include the endpoint, not collapse everything.
     expect(msg).toContain('/api/quests/:id');
     expect(captureException).not.toHaveBeenCalled();
+  });
+  it('folds a timeout the app slept through, even after it is active again (OPTIO-MOBILE-26)', () => {
+    // A 90s AI generation on a phone the person put down and picked back up:
+    // the app is active by the time axios gives up, so reading AppState at
+    // that instant says foreground and the endpoint gets filed as slow. What
+    // matters is whether the app was away WHILE the request was out.
+    const startedAt = Date.now() - 90_000;
+    noteAppStateChange('background');
+    setAppState('active');
+
+    reportApiError(
+      axiosErr(null, '/api/quests/123/generate-tasks', 'post', 'ECONNABORTED', startedAt),
+      null,
+    );
+
+    expect(captureException).not.toHaveBeenCalled();
+    expect(captureMessage).toHaveBeenCalledTimes(1);
+    const [msg, opts] = (captureMessage as jest.Mock).mock.calls[0];
+    expect(msg).toBe('API timeout while backgrounded');
+    expect(opts.fingerprint).toEqual(['api-timeout-backgrounded']);
+  });
+
+  it('still reports a timeout the app stayed in the foreground for', () => {
+    // The signal the fold must not eat: an endpoint that really is too slow
+    // while the person sits and watches it.
+    const startedAt = Date.now();
+    noteAppStateChange('background');
+    noteAppStateChange('active');
+
+    reportApiError(
+      axiosErr(null, '/api/quests/123/generate-tasks', 'post', 'ECONNABORTED', startedAt + 1_000),
+      null,
+    );
+
+    expect(captureException).toHaveBeenCalledTimes(1);
   });
 });

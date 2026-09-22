@@ -488,6 +488,18 @@ describe('schoolTabsFor (the hub\'s tabs, 2026-09-18)', () => {
     expect(all).not.toContain('lostfound');
   });
 
+  it('says Absences on the tab at a school that runs attendance', () => {
+    // The word has to be somewhere a person can see it. It was on a chip
+    // until 2026-09-18; after that the page said "Schedule" and a parent who
+    // had used absence reporting before reported it as gone (2026-09-22).
+    const labels = (o: unknown, have = { board: true, documents: true }) =>
+      schoolTabsFor(o, have).map((t: { label: string }) => t.label);
+    expect(labels(org({ modules: ['classes', 'attendance'] }))).toContain('Schedule & Absences');
+    // A school without attendance has no absences to report, so plain Schedule.
+    expect(labels(org({ modules: ['classes'] }))).toContain('Schedule');
+    expect(labels(org({ modules: ['classes'] }))).not.toContain('Schedule & Absences');
+  });
+
   it('keeps Schedule for a school that runs attendance but not classes, and vice versa', () => {
     expect(keys(org({ modules: ['attendance'] }))).toContain('schedule');
     expect(keys(org({ modules: ['classes'] }))).toContain('schedule');

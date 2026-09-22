@@ -241,6 +241,37 @@ export function isExpectedApiOutcome(method: string | undefined, url: string | u
 }
 
 /**
+ * Whether the app has left the foreground since a given moment.
+ *
+ * `AppState.currentState` answers "where is the app NOW", and the timeout fold
+ * below needs "was the app ever away WHILE this request was in flight" -- two
+ * different questions whenever the phone comes back before the clock runs out.
+ * iOS suspends the process, the socket goes quiet, the person returns, and
+ * axios's timer expires a moment later with the app active again: the fold
+ * missed it and filed the endpoint as slow (OPTIO-MOBILE-26, 2026-09-22, a
+ * 90s AI generation on a phone that spent most of it asleep -- Sentry's own
+ * app context on that event said in_foreground false).
+ *
+ * So remember when the app last went away, and compare that against the
+ * request's start stamp.
+ */
+let lastLeftForegroundAt = 0;
+
+/** Called by the AppState listener below; exported for tests. */
+export function noteAppStateChange(next: string): void {
+  if (next !== 'active') lastLeftForegroundAt = Date.now();
+}
+
+AppState.addEventListener('change', noteAppStateChange);
+
+export function leftForegroundDuring(startedAt: number | undefined): boolean {
+  // An unstamped request (a hand-built error in a test, a request that never
+  // passed the request interceptor) cannot be judged; treat it as foreground.
+  if (!startedAt) return false;
+  return lastLeftForegroundAt >= startedAt;
+}
+
+/**
  * Collapse a request path into a stable fingerprint key by replacing volatile
  * id segments (UUIDs, numeric ids) with ':id'. Without this, 5xx errors group
  * by Axios's shared native constructor frame — so every endpoint's 500s pile
@@ -317,10 +348,15 @@ export function reportApiError(error: AxiosError, status: number | null) {
   // both with in_foreground false (OPTIO-MOBILE-20 and -21, 2026-09-18).
   // Folded like ERR_NETWORK: one warning-level issue keeps the signal if it
   // ever spikes, without an issue per endpoint a sleeping phone had in flight.
-  if (status === null && error.code === 'ECONNABORTED' && AppState.currentState !== 'active') {
+  //
+  // "Not in the foreground" means at any point while the request was out, not
+  // only at the instant it gave up -- see leftForegroundDuring above.
+  const startedAt = (cfg as InternalAxiosRequestConfig & { _startTime?: number })._startTime;
+  const wasAway = AppState.currentState !== 'active' || leftForegroundDuring(startedAt);
+  if (status === null && error.code === 'ECONNABORTED' && wasAway) {
     captureMessage('API timeout while backgrounded', {
       level: 'warning',
-      extra: { ...extra, appState: AppState.currentState },
+      extra: { ...extra, appState: AppState.currentState, startedAt, lastLeftForegroundAt },
       fingerprint: ['api-timeout-backgrounded'],
     });
     return;
