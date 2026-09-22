@@ -229,6 +229,26 @@ export default function QuestDraftForm({
   const [countsForCredit, setCountsForCredit] = useState(
     () => tasksCarryChosenSubjects(tasks) || creditDefault
   )
+
+  // The switch has to WRITE, not just show and hide.
+  //
+  // It only ever set showSubjects until 2026-09-22, so a quest saved with it
+  // off still went in with every task carrying its pillar's default subject,
+  // and the quest page then told the family it earned "Credits - Science,
+  // Language Arts" (iCreate, f2c4d88e). Off now clears the subject columns on
+  // every task; on restores the pillar's default so the pickers open on
+  // something rather than on nothing. An explicit [] is what the server reads
+  // as "no credit" -- omitting the column instead would take the table's
+  // ['Electives'] default, which is the older and worse version of this bug.
+  const toggleCredit = (on) => {
+    setCountsForCredit(on)
+    setTasks((prev) => prev.map((t) => {
+      if (!on) return { ...t, diploma_subjects: [], subject_xp_distribution: {} }
+      if ((t.diploma_subjects || []).length) return t
+      const next = [defaultSubjectForPillar(t.pillar)]
+      return { ...t, diploma_subjects: next, subject_xp_distribution: evenSplit(next, t.xp_value) }
+    }))
+  }
   return (
     <div className="space-y-3">
       <input value={title} onChange={(e) => setTitle(e.target.value)}
@@ -246,13 +266,13 @@ export default function QuestDraftForm({
       )}
       <label className="flex items-start gap-2 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-neutral-700">
         <input type="checkbox" checked={countsForCredit} className="mt-0.5"
-          onChange={(e) => setCountsForCredit(e.target.checked)} />
+          onChange={(e) => toggleCredit(e.target.checked)} />
         <span>
           <span className="font-medium">This quest counts toward high school credit</span>
           <span className="block text-xs text-neutral-500">
             {countsForCredit
               ? 'Each task below shows the subject it earns credit toward. Change it where a task is about something else.'
-              : 'Turn this on to choose the subject each task earns credit toward. Off, each task is credited by its pillar\u2019s usual subject.'}
+              : 'Off, this quest earns XP but no diploma subject credit, and nothing on it counts toward a transcript.'}
           </span>
         </span>
       </label>

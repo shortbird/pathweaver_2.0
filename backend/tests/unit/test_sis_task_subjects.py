@@ -283,3 +283,53 @@ class TestTheAiDraftCarriesSubjects:
         }, 4)
         assert draft['tasks'][0]['diploma_subjects']
         assert 'electives' not in draft['tasks'][0]['diploma_subjects']
+
+
+class TestAQuestMarkedAsNotForCredit:
+    """"I marked this as 'Not for high school credit' but it is showing
+    Credits - science and language arts" (iCreate, 2026-09-22, f2c4d88e).
+
+    The switch showed and hid the per-task subject pickers and wrote nothing,
+    so every task still went in carrying its pillar's default subject. The
+    quest then told the family it earned Science and Language Arts credit,
+    which is the opposite of what the author had said.
+
+    Silence still has to fall back to the pillar: that is what stops a task
+    with no subjects landing on the ['Electives'] column default, which is how
+    Gryffin's US History unit was filed as an elective. So "I did not say" and
+    "I said none" have to be different things, and they are None and [].
+    """
+
+    def test_an_explicit_empty_list_earns_no_credit(self):
+        subjects, split = clean_subjects([], None, 100, 'stem')
+        assert subjects == []
+        assert split == {}
+
+    def test_saying_nothing_still_falls_back_to_the_pillar(self):
+        subjects, _ = clean_subjects(None, None, 100, 'stem')
+        assert subjects == ['science']
+
+    def test_a_list_of_nothing_recognisable_still_falls_back(self):
+        """Not the same as an empty list: the author named a subject, it just
+        was not one of ours."""
+        subjects, _ = clean_subjects(['nonsense'], None, 100, 'stem')
+        assert subjects == ['science']
+
+    def test_a_task_saved_with_no_credit_keeps_none(self):
+        task = clean_task({'title': 'Watch the orientation video',
+                           'diploma_subjects': [], 'pillar': 'stem'}, 0)
+        assert task['diploma_subjects'] == []
+        assert task['subject_xp_distribution'] == {}
+
+    def test_an_empty_list_is_not_read_as_the_drafters_field_being_absent(self):
+        """`a or b` would send the falsy [] on to school_subjects and lose it."""
+        task = clean_task({'title': 'Orientation', 'diploma_subjects': [],
+                           'school_subjects': ['science'], 'pillar': 'stem'}, 0)
+        assert task['diploma_subjects'] == []
+
+    def test_the_columns_are_still_written_explicitly(self):
+        """An omitted column takes the ['Electives'] default, so "no credit"
+        has to be a written [], never a missing key."""
+        task = clean_task({'title': 'Orientation', 'diploma_subjects': []}, 0)
+        assert 'diploma_subjects' in task
+        assert 'subject_xp_distribution' in task

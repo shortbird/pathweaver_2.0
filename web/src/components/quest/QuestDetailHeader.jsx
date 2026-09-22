@@ -8,6 +8,7 @@ import { queryKeys } from '../../utils/queryKeys';
 import { getQuestHeaderImageSync } from '../../utils/questSourceConfig';
 import { useQuestEngagement } from '../../hooks/api/useQuests';
 import { useStudentScope } from '../../hooks/useStudentScope';
+import useIsClamped from '../../hooks/useIsClamped';
 import RhythmIndicator from './RhythmIndicator';
 import EngagementCalendar from './EngagementCalendar';
 import RhythmExplainerModal from './RhythmExplainerModal';
@@ -159,7 +160,10 @@ const QuestDetailHeader = ({
   const [descriptionExpanded, setDescriptionExpanded] = useState(false);
 
   const descriptionText = stripHtml(quest?.big_idea || quest?.description);
-  const isDescriptionLong = descriptionText.length > 140;
+  // Ask the paragraph whether it is hiding anything, rather than guessing from
+  // its length: at 140 characters the old guess offered "Show more" on
+  // descriptions that fit the two-line clamp whole (iCreate, 2026-09-22).
+  const [descriptionRef, isDescriptionLong] = useIsClamped(descriptionText, descriptionExpanded);
 
   // Fetch engagement/rhythm data for enrolled users
   const { data: engagement } = useQuestEngagement(
@@ -341,11 +345,12 @@ const QuestDetailHeader = ({
             {descriptionText && (
               <>
                 <p
+                  ref={descriptionRef}
                   className={`text-xs sm:text-sm text-gray-700 mt-1 leading-relaxed ${descriptionExpanded ? '' : 'line-clamp-2'}`}
                 >
                   {descriptionText}
                 </p>
-                {isDescriptionLong && (
+                {(isDescriptionLong || descriptionExpanded) && (
                   <button
                     type="button"
                     onClick={() => setDescriptionExpanded((prev) => !prev)}

@@ -55,9 +55,10 @@ export const useCreateLibraryQuest = (orgId) => {
 export const useUpdateLibraryQuest = (orgId) => {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: async ({ questId, title, description }) => {
-      const res = await api.patch(withOrg(`/api/sis/quests/${questId}`, orgId),
-        { title, description })
+    mutationFn: async ({ questId, ...fields }) => {
+      // Spread, not a fixed three: xp_threshold joined title and description
+      // on 2026-09-22 and the server treats a key's ABSENCE as "leave it".
+      const res = await api.patch(withOrg(`/api/sis/quests/${questId}`, orgId), fields)
       return res.data
     },
     onSuccess: () => invalidateLibrary(queryClient, orgId),

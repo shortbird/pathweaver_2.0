@@ -268,7 +268,16 @@ export default function TrainingForm({ orgId, audience, onAdded, onCancel, orgLo
       await saveLink.mutateAsync({ id: editingLink ? editItem.id : undefined, body: {
         title: title.trim(), url: url.trim(), description: description.trim(),
         category: category.trim(), is_required: required,
-        visible_to_roles: roles, visible_to_user_ids: people,
+        // Which tab built it. The server translates staff/family into the
+        // org_resources vocabulary; without it every link is filed as staff,
+        // which is what it did until 2026-09-22.
+        audience,
+        // Role narrowing is a staff idea (the column allows only staff roles),
+        // and a family link reaches every family. Sending them on a family
+        // link would store a rule nothing reads.
+        ...(audience === 'staff'
+          ? { visible_to_roles: roles, visible_to_user_ids: people }
+          : {}),
       } })
       toast.success(editingLink ? 'Changes saved' : 'Added to training')
       onAdded()
@@ -277,12 +286,23 @@ export default function TrainingForm({ orgId, audience, onAdded, onCancel, orgLo
     }
   }
 
-  // Three doors for staff: attach a quest, build one, or link to a video or
-  // document. Families and students get the two quest doors; a link for them
-  // has no portal to be done on. Editing has one door — the thing already
-  // exists and is being rewritten.
+  // Three doors: attach a quest, build one, or link to a video or document.
+  //
+  // The link door was staff-only until 2026-09-22, on the stated grounds that
+  // a link for families had no portal surface to be done on. Families now have
+  // one (/family/forms reads /api/sis/parent/training and posts the Done), so
+  // they get the third door too: "I would like to link to a video or document
+  // option in the 'for families' ... without creating an entire quest"
+  // (iCreate, ae16c5da).
+  //
+  // Students still get the two quest doors. org_resources.audience is
+  // CHECK-constrained to families/staff/all with no student value, so a
+  // student link cannot be stored without a migration, and a door that 400s is
+  // worse than no door. Editing has one door — the thing already exists and is
+  // being rewritten.
+  const canLink = audience === 'staff' || audience === 'family'
   const doors = [['existing', 'Use an existing quest'], ['new', 'Build a new one'],
-    ...(audience === 'staff' ? [['link', 'Link to a video or document']] : [])]
+    ...(canLink ? [['link', 'Link to a video or document']] : [])]
   const header = (
     <>
       <p className="text-sm text-neutral-600">
@@ -291,7 +311,7 @@ export default function TrainingForm({ orgId, audience, onAdded, onCancel, orgLo
           : editItem
           ? 'Editing this quest. Changes apply to anyone who starts it from now on \u2014 tasks already on somebody\u2019s account are their work and are left alone.'
           : audience === 'family'
-            ? 'A family quest is an ordinary quest \u2014 parents complete it on their own account. Attach one you already have, or build it here.'
+            ? 'A family quest is an ordinary quest \u2014 parents complete it on their own account. Attach one you already have, build it here, or link to a video or document they only have to watch.'
             : audience === 'student'
               ? 'A student quest is an ordinary quest, set by the school rather than chosen. Attach one you already have, or build it here.'
               : 'Training is a quest or a link. Attach a quest you already have, build one here, or link to a video or document.'}

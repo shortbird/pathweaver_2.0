@@ -4,7 +4,8 @@ masquerade start route and every token refresh share.
 
 Superadmin: anyone. Org admin: a non-admin member of their OWN school
 (iCreate, 2026-08-28: "select a specific teacher so we can see their actual
-setup"). Coordinators, teachers, families: nobody.
+setup"). Campus coordinator: the same school's teachers, students and
+observers, but never a family and never a peer. Teachers and families: nobody.
 """
 
 from utils.token_authority import caller_may_masquerade
@@ -20,8 +21,13 @@ SUPER = {'id': 'su', 'role': 'superadmin', 'org_role': None, 'org_roles': None,
 ADMIN = _org('adm', ['org_admin'])
 ADMIN_TEACHER = _org('adm2', ['advisor', 'org_admin'])
 COORD = _org('cc', ['campus_coordinator'])
+ADMIN_COORD = _org('adm3', ['campus_coordinator', 'org_admin'])
+OTHER_COORD = _org('cc2', ['campus_coordinator'])
 TEACHER = _org('t1', ['advisor'])
+TEACHER_PARENT = _org('t2', ['advisor', 'parent'])
 PARENT = _org('p1', ['parent'])
+STUDENT = _org('s1', ['student'])
+OBSERVER = _org('o1', ['observer'])
 OTHER_SCHOOL_TEACHER = _org('t9', ['advisor'], org='org-9')
 OTHER_ADMIN = _org('adm9', ['org_admin', 'parent'])
 
@@ -44,8 +50,35 @@ def test_org_admin_may_not_act_as_admins_or_other_schools():
     assert not caller_may_masquerade(ADMIN, OTHER_SCHOOL_TEACHER)
 
 
-def test_non_admins_may_act_as_nobody():
-    for caller in (COORD, TEACHER, PARENT):
+def test_coordinator_may_act_as_the_seats_below_theirs():
+    assert caller_may_masquerade(COORD, TEACHER)
+    assert caller_may_masquerade(COORD, STUDENT)
+    assert caller_may_masquerade(COORD, OBSERVER)
+
+
+def test_coordinator_may_not_act_as_a_family():
+    # A parent's own surface is the school's billing (GET /api/sis/parent/
+    # billing: balance, invoices, card on file) and a coordinator is an org
+    # admin minus the money. Inside a masquerade there is no coordinator left
+    # for the per-field redaction to act on.
+    assert not caller_may_masquerade(COORD, PARENT)
+    assert not caller_may_masquerade(COORD, TEACHER_PARENT)
+
+
+def test_coordinator_may_not_act_as_peers_admins_or_other_schools():
+    assert not caller_may_masquerade(COORD, OTHER_COORD)
+    assert not caller_may_masquerade(COORD, ADMIN)
+    assert not caller_may_masquerade(COORD, SUPER)
+    assert not caller_may_masquerade(COORD, OTHER_SCHOOL_TEACHER)
+
+
+def test_a_coordinator_who_is_also_an_admin_gets_the_admin_rule():
+    assert caller_may_masquerade(ADMIN_COORD, PARENT)
+    assert caller_may_masquerade(ADMIN_COORD, OTHER_COORD)
+
+
+def test_non_staff_may_act_as_nobody():
+    for caller in (TEACHER, PARENT):
         for target in (TEACHER, PARENT, ADMIN):
             assert not caller_may_masquerade(caller, target)
 

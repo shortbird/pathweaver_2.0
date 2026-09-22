@@ -139,6 +139,61 @@ function FamilyQuests({ quests, orgName, onEnd, ending }) {
   )
 }
 
+/** Training the school set for families that is a video or a document rather
+ *  than a quest — a recorded back-to-school night, a handbook to read.
+ *
+ *  "It'd be nice to be able to upload the training from last friday without
+ *  creating an entire quest" (iCreate, Molly, 2026-09-22, ae16c5da). There is
+ *  nothing to break into tasks, so there is nothing to make a quest out of:
+ *  open it, press Done. Done is a sis_resource_acks row, the same record a
+ *  required document uses, which is what lets the office see who has watched.
+ *
+ *  A required one is the school asking; an optional one is simply there. Both
+ *  are listed, because a parent deciding what to do tonight wants to see both.
+ */
+function FamilyTrainingLinks({ links, orgName, onToggleDone, busyId }) {
+  if (!links.length) return null
+  return (
+    <div>
+      <h3 className="text-sm font-semibold text-gray-900 mb-1">Watch or read from {orgName}</h3>
+      <p className="text-sm text-gray-500 mb-3">
+        Open each one, then mark it done so the school knows you have seen it.
+      </p>
+      <div className="bg-white rounded-xl border border-gray-200 divide-y divide-gray-100">
+        {links.map((l) => (
+          <div key={l.id} className="p-3 flex items-center gap-3 flex-wrap">
+            <div className="min-w-0 flex-1">
+              <a href={l.url} target="_blank" rel="noopener noreferrer"
+                className="text-sm font-medium text-optio-purple hover:underline">
+                {l.title}
+              </a>
+              {l.description && (
+                <p className="text-xs text-gray-500 mt-0.5">{l.description}</p>
+              )}
+            </div>
+            {l.is_required && !l.my_done && (
+              <span className="text-xs px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 shrink-0">
+                Required
+              </span>
+            )}
+            {l.my_done ? (
+              <button type="button" onClick={() => onToggleDone(l, false)} disabled={busyId === l.id}
+                className="text-xs px-2 py-1 rounded-full bg-green-100 text-green-700 shrink-0 disabled:opacity-50">
+                Done — undo
+              </button>
+            ) : (
+              <button type="button" onClick={() => onToggleDone(l, true)} disabled={busyId === l.id}
+                className="btn-primary text-xs px-3 py-1 shrink-0 disabled:opacity-50">
+                {busyId === l.id ? 'Saving…' : 'Mark done'}
+              </button>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 const FamilyFormsPage = () => {
   // One shared read of where this person is a guardian (hooks/api/
   // useSchoolContext); the student picker starts on the child the parent
@@ -150,10 +205,17 @@ const FamilyFormsPage = () => {
   const orgName = org?.organization_name || 'your school'
   const showChecklists = moduleOn(org, 'onboarding')
   const showRequests = moduleOn(org, 'forms')
+  // Training links are the `training` module's, not the checklist module's --
+  // the route says so (@require_module('training')). A school that runs
+  // training without onboarding checklists would otherwise never see the
+  // video it set for its families.
+  const showTraining = moduleOn(org, 'training')
 
   // To complete.
   const [assignments, setAssignments] = useState([])
   const [quests, setQuests] = useState([])
+  const [trainingLinks, setTrainingLinks] = useState([])
+  const [markingTraining, setMarkingTraining] = useState(null)
 
   // Your requests.
   const [studentId, setStudentId] = useState('')
@@ -177,16 +239,30 @@ const FamilyFormsPage = () => {
   }, [students, studentId])
 
   const loadChecklists = useCallback(() => {
-    if (!orgId || !showChecklists) { setAssignments([]); setQuests([]); return }
-    api.get(`/api/sis/parent/onboarding?organization_id=${orgId}`)
-      .then((r) => setAssignments(r.data?.assignments || []))
-      .catch(() => toast.error('Could not load your checklists'))
+    if (!orgId) { setAssignments([]); setQuests([]); setTrainingLinks([]); return }
+    if (!showChecklists) { setAssignments([]); setQuests([]) }
+    if (showChecklists) {
+      api.get(`/api/sis/parent/onboarding?organization_id=${orgId}`)
+        .then((r) => setAssignments(r.data?.assignments || []))
+        .catch(() => toast.error('Could not load your checklists'))
+    }
     // A school with no family quests set is the normal case, so this failing
     // must not take the checklists down with it.
-    api.get(`/api/sis/parent/quests?organization_id=${orgId}`)
-      .then((r) => setQuests(r.data?.quests || []))
-      .catch(() => setQuests([]))
-  }, [orgId, showChecklists])
+    if (showChecklists) {
+      api.get(`/api/sis/parent/quests?organization_id=${orgId}`)
+        .then((r) => setQuests(r.data?.quests || []))
+        .catch(() => setQuests([]))
+    }
+    // Same reasoning as the quests above: a school that has set no family
+    // training links is the normal case, so this failing is quiet.
+    if (showTraining) {
+      api.get(`/api/sis/parent/training?organization_id=${orgId}`)
+        .then((r) => setTrainingLinks(r.data?.training || []))
+        .catch(() => setTrainingLinks([]))
+    } else {
+      setTrainingLinks([])
+    }
+  }, [orgId, showChecklists, showTraining])
 
   const loadRequests = useCallback(() => {
     if (!orgId || !showRequests) { setSubmissions([]); setFormTypes({}); return }
@@ -267,7 +343,26 @@ const FamilyFormsPage = () => {
   }
 
   const openQuests = quests.filter((q) => !q.progress?.completed)
-  const nothingToComplete = !assignments.length && !openQuests.length
+  const nothingToComplete = !assignments.length && !openQuests.length && !trainingLinks.length
+
+  // Optimistic, then reconciled from the server's own row: the button is the
+  // whole interaction, so it has to answer immediately.
+  const toggleTrainingDone = async (link, done) => {
+    setMarkingTraining(link.id)
+    try {
+      const url = `/api/sis/parent/training/${link.id}/done?organization_id=${orgId}`
+      // The empty object is required, not decoration: without a body axios
+      // omits Content-Type and the CSRF middleware refuses the request
+      // (src/__tests__/csrfRequestBody.test.js).
+      const res = done ? await api.post(url, {}) : await api.delete(url)
+      const updated = res.data?.training
+      setTrainingLinks((prev) => prev.map((l) => (l.id === link.id ? (updated || l) : l)))
+    } catch {
+      toast.error('Could not save that')
+    } finally {
+      setMarkingTraining(null)
+    }
+  }
   // A parent with no request on file came here to send one: the composer is
   // open. Once there is history, the history is the page and the composer is a
   // button, so the list of what the office has answered is not pushed below a
@@ -291,7 +386,7 @@ const FamilyFormsPage = () => {
         )}
       </div>
 
-      {showChecklists && (
+      {(showChecklists || showTraining) && (
         <section id="to-complete" aria-labelledby="to-complete-heading" className="mb-10 space-y-4">
           <h2 id="to-complete-heading" className="text-lg font-semibold text-gray-900">To complete</h2>
           {nothingToComplete ? (
@@ -302,6 +397,8 @@ const FamilyFormsPage = () => {
                 <ChecklistAssignments orgId={orgId} assignments={assignments} onChanged={loadChecklists} />
               )}
               <FamilyQuests quests={quests} orgName={orgName} onEnd={endFamilyQuest} ending={endQuest.isPending} />
+              <FamilyTrainingLinks links={trainingLinks} orgName={orgName}
+                onToggleDone={toggleTrainingDone} busyId={markingTraining} />
             </>
           )}
         </section>

@@ -185,10 +185,10 @@ class TestAddingOne:
 
 @pytest.mark.unit
 class TestTheRepositoryFilesItAsStaffTraining:
-    def test_the_row_is_flagged_and_kept_off_the_family_portal(self):
+    def test_the_row_is_flagged_and_defaults_to_staff(self):
         """The flag is what separates the Training page from the Resources
-        page, and audience 'staff' is what keeps a teacher training out of
-        the family portal, which reads families/all."""
+        page. audience defaults to staff, which is what it was hardcoded to
+        until families got a training surface of their own (ae16c5da)."""
         inserted = []
         table = Mock()
         table.insert.side_effect = lambda p: (inserted.append(p), table)[1]
@@ -383,3 +383,76 @@ class TestTheOtherPagesLeaveItAlone:
         assert out['l-1']['link'] == '/library?tab=training'
         assert out['l-1']['title'] == 'Training: Whole Brain Teaching'
         assert out['r-1']['link'] == '/library?highlight=r-1'
+
+
+@pytest.mark.unit
+class TestALinkSetForFamilies:
+    """"I would like to link to a video or document option in the 'for
+    families' ... it'd be nice to be able to upload the training from last
+    friday without creating an entire quest" (iCreate, Molly, 2026-09-22,
+    ae16c5da).
+
+    The link kind was staff-only in four places, on the stated grounds that a
+    family link had no portal surface to be done on. Families have one now
+    (routes/sis/parent.py), so the audience the admin picked is the audience
+    the row carries.
+
+    Two vocabularies meet here and the tests say so: training speaks
+    staff/family/student, org_resources.audience is CHECK-constrained to
+    families/staff/all.
+    """
+
+    def test_the_chosen_audience_is_stored_in_the_columns_vocabulary(self):
+        repo = _FakeRepo()
+        _body, status = _call(training.add_training, ADMIN, repo, json={
+            'kind': 'link', 'title': 'Back to school night',
+            'url': 'https://loom.com/x', 'audience': 'family',
+        })
+        assert status == 201
+        assert repo.created[0]['audience'] == 'families'
+
+    def test_a_student_link_is_refused_rather_than_mislabelled(self):
+        """org_resources.audience has no 'student' value and widening the
+        CHECK is a migration. Storing it as something else would put a
+        student's training on the parents' list."""
+        repo = _FakeRepo()
+        body, status = _call(training.add_training, ADMIN, repo, json={
+            'kind': 'link', 'title': 'T', 'url': 'https://x', 'audience': 'student',
+        })
+        assert status == 400
+        assert 'students' in body['error']
+        assert repo.created == []
+
+    def test_a_family_link_is_not_on_the_staff_list(self):
+        repo = _FakeRepo(rows=[_link(audience='families', title='Back to school night')])
+        body, _s = _call(training.list_training, TEACHER, repo, query='?audience=staff')
+        assert _links(body) == []
+
+    def test_a_staff_link_is_not_on_the_family_list(self):
+        repo = _FakeRepo(rows=[_link(audience='staff', title='Whole Brain Teaching')])
+        body, _s = _call(training.list_training, ADMIN, repo, query='?audience=family')
+        assert _links(body) == []
+
+    def test_a_family_link_is_on_the_family_list(self):
+        repo = _FakeRepo(rows=[_link(audience='families', title='Back to school night')])
+        body, _s = _call(training.list_training, ADMIN, repo, query='?audience=family')
+        assert [l['title'] for l in _links(body)] == ['Back to school night']
+
+    def test_it_reports_its_own_audience_not_a_hardcoded_staff(self):
+        shaped = sis_training_service.shape_link(_link(audience='families'))
+        assert shaped['audience'] == 'family'
+        assert shaped['audiences'] == ['family']
+
+    def test_an_older_row_with_the_document_librarys_all_reads_as_staff(self):
+        """No link is written with 'all'; one that carries it behaved as staff
+        and must keep behaving as staff rather than becoming a family notice."""
+        assert sis_training_service.shape_link(_link(audience='all'))['audience'] == 'staff'
+
+    def test_role_narrowing_is_not_applied_to_a_family_list(self):
+        """visible_to_roles is CHECK-constrained to staff roles, so asking
+        whether a parent holds one would hide every family link."""
+        repo = _FakeRepo(rows=[_link(audience='families', visible_to_roles=['org_admin'],
+                                     title='Back to school night')])
+        with patch.object(sis_training_service, '_repo', return_value=repo):
+            links = sis_training_service.list_links(ORG, TEACHER, audience='family')
+        assert [l['title'] for l in links] == ['Back to school night']

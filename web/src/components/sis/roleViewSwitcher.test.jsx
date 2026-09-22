@@ -1,9 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 
-// "Viewing as" (2026-08-31): for admins it is ONE searchable person picker —
-// no role dropdown. Picking a person starts a masquerade landed on their own
-// surface. Non-admins with several roles keep the role view select.
+// "Viewing as" (2026-08-31): for the front office it is ONE searchable person
+// picker — no role dropdown. Picking a person starts a masquerade landed on
+// their own surface. Campus coordinators have the picker too (the server hands
+// them a shorter list). Everyone else with several roles keeps the role view
+// select.
 
 const apiMock = vi.hoisted(() => ({ get: vi.fn(), post: vi.fn() }))
 vi.mock('../../services/api', () => ({ default: apiMock }))
@@ -61,6 +63,14 @@ describe('RoleViewSwitcher — admin person picker', () => {
     render(<RoleViewSwitcher user={superadmin} orgId={null} />)
     expect(screen.getByPlaceholderText('Pick a school first')).toBeInTheDocument()
     expect(apiMock.get).not.toHaveBeenCalled()
+  })
+
+  it('a campus coordinator gets the picker, not a role dropdown', async () => {
+    const coord = { role_view: { active_role: null, available_roles: ['campus_coordinator'] } }
+    render(<RoleViewSwitcher user={coord} />)
+    expect(screen.queryByRole('combobox')).not.toBeInTheDocument()
+    await screen.findByPlaceholderText('Search people…')
+    expect(apiMock.get).toHaveBeenCalledWith('/api/role-view/people')
   })
 
   it('a lingering role view still has a way out', async () => {

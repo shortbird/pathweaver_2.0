@@ -76,15 +76,28 @@ def clean_subjects(raw_subjects, raw_distribution, xp_value, pillar):
     exactly what the read path does, so a second copy of that arithmetic is a
     second answer to "how much Social Studies is this worth".
 
-    An empty or unrecognized subject list falls back to the pillar rather than
-    to Electives. Sending subjects with no split divides the XP evenly.
+    An unrecognized subject list falls back to the pillar rather than to
+    Electives. Sending subjects with no split divides the XP evenly.
+
+    An EXPLICITLY empty list is different, and means the task earns no diploma
+    credit at all -- the author turned "This quest counts toward high school
+    credit" off. That switch used to only show and hide the per-task pickers,
+    so a quest marked as not for credit still saved every task with its
+    pillar's subject and then displayed "Credits - Science, Language Arts" to
+    the family (iCreate, 2026-09-22, f2c4d88e). None, a missing key, or a list
+    of nothing recognisable still means "you did not say", and the pillar
+    answers -- silence must keep falling back, because falling through to the
+    column default is how Gryffin's US History unit became an elective.
     """
+    says_no_credit = isinstance(raw_subjects, (list, tuple)) and len(raw_subjects) == 0
     keys = []
     for raw in (raw_subjects or []):
         key = normalize_subject_key(raw if isinstance(raw, str) else '')
         if key and key not in keys:
             keys.append(key)
     if not keys:
+        if says_no_credit:
+            return [], {}
         keys = default_subjects_for_pillar(pillar)
     keys = keys[:MAX_SUBJECTS]
 
@@ -170,9 +183,13 @@ def clean_task(raw, order_index):
     pillar = norm_pillar(raw.get('pillar'))
     # Accepts school_subjects too: that is the name the AI drafter's task shape
     # uses, and a draft goes straight into this form.
+    # Not `a or b`: an explicit [] is falsy and means "no credit", which that
+    # would quietly turn back into "you did not say".
+    raw_subjects = raw.get('diploma_subjects')
+    if raw_subjects is None:
+        raw_subjects = raw.get('school_subjects')
     subjects, distribution = clean_subjects(
-        raw.get('diploma_subjects') or raw.get('school_subjects'),
-        raw.get('subject_xp_distribution'), xp, pillar)
+        raw_subjects, raw.get('subject_xp_distribution'), xp, pillar)
     return {
         'title': title[:MAX_TITLE_LEN],
         'description': (raw.get('description') or '').strip(),

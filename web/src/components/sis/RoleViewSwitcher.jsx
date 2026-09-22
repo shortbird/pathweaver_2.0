@@ -6,12 +6,18 @@ import { withOrg } from '../../pages/sis/useSisOrg'
 import { getMasqueradeState, startMasquerade, exitMasquerade } from '../../services/masqueradeService'
 
 /**
- * "Viewing as" — for the admin tiers (superadmin, org_admin) this is ONE
- * searchable person picker: choose anyone at the school and the backend
- * answers as that account (a masquerade — audited in admin_masquerade_log,
- * gated by token_authority.caller_may_masquerade). The role dropdown that
- * used to sit above it is gone: the generic role view showed an empty
- * account, and admins only ever wanted a real person's setup (2026-08-31).
+ * "Viewing as" — for the front office (superadmin, org_admin,
+ * campus_coordinator) this is ONE searchable person picker: choose a colleague
+ * and the backend answers as that account (a masquerade — audited in
+ * admin_masquerade_log, gated by token_authority.caller_may_masquerade). The
+ * role dropdown that used to sit above it is gone: the generic role view
+ * showed an empty account, and admins only ever wanted a real person's setup
+ * (2026-08-31).
+ *
+ * Who appears in the picker is the server's answer, never this component's: a
+ * coordinator's list comes back without the families and without their peers,
+ * because a family's seat carries the school's billing and a coordinator is an
+ * org admin minus the money.
  *
  * Non-admins who hold several roles (Katie at Gryffin: parent + teacher)
  * keep the role view instead — they may not masquerade, so narrowing their
@@ -30,10 +36,15 @@ const ROLE_LABELS = {
 
 const viewable = (roles = []) => roles.filter((r) => ROLE_LABELS[r])
 
-const isAdminTier = (realRoles = []) => realRoles.includes('superadmin') || realRoles.includes('org_admin')
+// The seats that may open somebody else's account, and so get the person
+// picker rather than the role dropdown. Mirrors token_authority; the server
+// still decides every individual person.
+const PICKER_ROLES = ['superadmin', 'org_admin', 'campus_coordinator']
+
+const hasPersonPicker = (realRoles = []) => realRoles.some((r) => PICKER_ROLES.includes(r))
 
 export const offeredRoles = (realRoles = []) => {
-  if (isAdminTier(realRoles)) return []
+  if (hasPersonPicker(realRoles)) return []
   const held = viewable(realRoles)
   return held.length > 1 ? held : []
 }
@@ -79,12 +90,12 @@ const RoleViewSwitcher = ({ user, orgId = null }) => {
   const active = rv?.active_role || null
   const masq = getMasqueradeState()
   const isSuperadmin = real.includes('superadmin')
-  const adminTier = isAdminTier(real)
+  const picker = hasPersonPicker(real)
   const orgReady = !isSuperadmin || Boolean(orgId)
 
-  // The person list — everyone at the school an admin may open.
+  // The person list — everyone at the school this caller may open.
   useEffect(() => {
-    if (!adminTier || masq || !orgReady) { setPeople(null); setLoadError(null); return }
+    if (!picker || masq || !orgReady) { setPeople(null); setLoadError(null); return }
     let cancelled = false
     setLoadError(null)
     api.get(withOrg('/api/role-view/people', isSuperadmin ? orgId : null))
@@ -96,7 +107,7 @@ const RoleViewSwitcher = ({ user, orgId = null }) => {
       })
     return () => { cancelled = true }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [adminTier, isSuperadmin, orgId, orgReady, Boolean(masq)])
+  }, [picker, isSuperadmin, orgId, orgReady, Boolean(masq)])
 
   // Inside a masquerade the account we see IS the target, so the real roles
   // above belong to them; render the way back instead of their switcher.
@@ -139,7 +150,7 @@ const RoleViewSwitcher = ({ user, orgId = null }) => {
     }
   }
 
-  if (adminTier) {
+  if (picker) {
     return (
       <div className="px-3 pt-3 space-y-2">
         <label className="block">
@@ -173,7 +184,7 @@ const RoleViewSwitcher = ({ user, orgId = null }) => {
     )
   }
 
-  // Non-admin, several roles: narrow the session to one of them.
+  // No person picker, several roles: narrow the session to one of them.
   if (!active && !roles.length) return null
 
   const pickRole = async (role) => {

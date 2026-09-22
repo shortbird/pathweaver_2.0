@@ -27,7 +27,8 @@ masquerade_bp = Blueprint('masquerade', __name__, url_prefix='/api/admin/masquer
 # session still works from inside one (switching targets, or backing out of an
 # account that renders nothing). Who may act as whom is one rule,
 # token_authority.caller_may_masquerade — superadmin anyone; an org admin a
-# non-admin member of their own school — and the same rule re-runs on every
+# non-admin member of their own school; a campus coordinator the teachers and
+# students of that school — and the same rule re-runs on every
 # token refresh. Everything OUTSIDE these routes authorizes the person being
 # viewed — see utils.auth.decorators.authorizing_user_id.
 @masquerade_bp.route('/<target_user_id>', methods=['POST'])
@@ -64,7 +65,7 @@ def start_masquerade(admin_id, target_user_id):
 
         if not caller_may_masquerade(admin_row, target_user_data):
             logger.warning(f"[Masquerade] Blocked: {admin_id[:8]} ({admin_role}) tried to masquerade as {target_user_id[:8]}")
-            return jsonify({'error': 'You can view as members of your own school who are not admins'}), 403
+            return jsonify({'error': 'You can view as members of your own school whose access is below your own'}), 403
 
         # Get request metadata (use secure IP extraction to prevent spoofing)
         ip_address = get_real_ip()

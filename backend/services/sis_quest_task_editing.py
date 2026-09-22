@@ -100,12 +100,18 @@ def list_tasks(admin, quest: Dict[str, Any], editable: bool) -> Dict[str, Any]:
 
 
 def update_quest_info(admin, quest_id: str, data: Dict[str, Any]) -> Dict[str, Any]:
-    """Rename a quest, or rewrite its description.
+    """Rename a quest, rewrite its description, or set the XP it requires.
 
     big_idea is written alongside description because create_org_quest sets
     both from the same field and the training catalog reads `big_idea or
     description`. Writing only one of them made a renamed quest describe
     itself two different ways depending on which screen asked.
+
+    xp_threshold is the same column the staff-training and class-quest editors
+    already write, and POST /api/quests/<id>/end is what enforces it. Adding it
+    here is not a new mechanism -- it is the third editor of one quest getting
+    the field the other two had ("I'd like to be able to add the required XP
+    per quest" from /library?tab=quests -- iCreate, 2026-09-22, 3d926fc3).
     """
     updates: Dict[str, Any] = {}
     if 'title' in data:
@@ -117,6 +123,12 @@ def update_quest_info(admin, quest_id: str, data: Dict[str, Any]) -> Dict[str, A
         description = (data.get('description') or '').strip() or None
         updates['description'] = description
         updates['big_idea'] = description
+    if 'xp_threshold' in data:
+        from services.sis_training_service import clean_xp_threshold
+        value, err = clean_xp_threshold(data.get('xp_threshold'))
+        if err:
+            raise QuestTaskEditError(err)
+        updates['xp_threshold'] = value
     if not updates:
         raise QuestTaskEditError('Nothing to update')
 
@@ -125,6 +137,7 @@ def update_quest_info(admin, quest_id: str, data: Dict[str, Any]) -> Dict[str, A
     return {'success': True, 'quest': {
         'id': quest_id, 'title': q.get('title'),
         'description': q.get('description') or '',
+        'xp_threshold': q.get('xp_threshold') or 0,
     }}
 
 

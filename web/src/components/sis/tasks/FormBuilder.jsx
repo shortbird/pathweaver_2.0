@@ -4,7 +4,7 @@ import api from '../../../services/api'
 import { withOrg } from '../../../pages/sis/useSisOrg'
 import { useConfirm } from '../../../contexts/ConfirmContext'
 import SearchSelect from '../../ui/SearchSelect'
-import { INPUT_CLASS } from '../../ui/Input'
+import { INPUT_CLASS, INLINE_INPUT_CLASS } from '../../ui/Input'
 
 /**
  * Build the school's own forms — the editor checklists always had and forms
@@ -32,6 +32,8 @@ const PRIORITIES = [['', 'Normal (default)'], ['low', 'Low'], ['normal', 'Normal
   ['high', 'High'], ['urgent', 'Urgent']]
 
 const input = INPUT_CLASS
+// Without w-full, for the type picker that shares a row with the question box.
+const inlineInput = INLINE_INPUT_CLASS
 const emptyField = () => ({ label: '', type: 'short_text', required: false, options: [], help: '' })
 
 const FormEditor = ({ orgId, template, staff, onSaved, onCancel }) => {
@@ -80,6 +82,19 @@ const FormEditor = ({ orgId, template, staff, onSaved, onCancel }) => {
 
   const save = async () => {
     if (!name.trim()) { toast.error('The form needs a name'); return }
+    // Say which question is missing its wording rather than dropping it.
+    //
+    // This used to be `fields.filter((f) => f.label.trim())`, which threw away
+    // every unlabelled row without a word. Combined with the squeezed question
+    // box this row used to draw, it lost people's work twice over: four
+    // questions typed into the hint boxes saved as zero and reported "Add at
+    // least one question", and three questions saved as the one whose label
+    // happened to be filled (iCreate, 2026-09-22, cc5edc5c and b7167bc6).
+    const blank = fields.findIndex((f) => !f.label.trim())
+    if (blank !== -1) {
+      toast.error(`Question ${blank + 1} needs its wording. Type it in the box marked "Question ${blank + 1}", or remove the question.`)
+      return
+    }
     setBusy(true)
     try {
       const body = {
@@ -89,7 +104,7 @@ const FormEditor = ({ orgId, template, staff, onSaved, onCancel }) => {
         audience,
         default_assignee_id: assignee || null,
         default_priority: priority || null,
-        fields: fields.filter((f) => f.label.trim()),
+        fields,
       }
       if (template?.id) await api.put(`/api/sis/staff-admin/form-templates/${template.id}`, body)
       else await api.post('/api/sis/staff-admin/form-templates', body)
@@ -107,11 +122,21 @@ const FormEditor = ({ orgId, template, staff, onSaved, onCancel }) => {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
         <input value={name} onChange={(e) => setName(e.target.value)} className={input}
           placeholder="Form name (e.g. Incident report)" aria-label="Form name" />
-        <select value={audience} onChange={(e) => setAudience(e.target.value)} className={input}
-          aria-label="Who can file this">
-          <option value="staff">Staff file this</option>
-          <option value="family">Families file this</option>
-        </select>
+        {/* "Idk what 'staff file this' vs 'families file this' actually means"
+            (iCreate, 2026-09-22, 8b5f114f). The words named the audience but
+            never said what follows from it — who sees the form, and where. */}
+        <div>
+          <select value={audience} onChange={(e) => setAudience(e.target.value)}
+            className={input} aria-label="Who fills this in">
+            <option value="staff">Staff fill this in</option>
+            <option value="family">Families fill this in</option>
+          </select>
+          <p className="mt-1 text-xs text-neutral-500">
+            {audience === 'family'
+              ? 'Parents find it under Forms in their Optio account. What they send lands in your Task Center.'
+              : 'Teachers and office staff find it under Forms in the school console. What they send lands in your Task Center.'}
+          </p>
+        </div>
         <select value={priority} onChange={(e) => setPriority(e.target.value)} className={input}
           aria-label="Priority it opens at">
           {PRIORITIES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
@@ -156,18 +181,27 @@ const FormEditor = ({ orgId, template, staff, onSaved, onCancel }) => {
           className={`bg-white rounded-lg border p-3 space-y-2 transition-colors ${
             draggedIdx === i ? 'border-optio-purple bg-optio-purple/5 opacity-60' : 'border-gray-200'
           }`}>
+          {/* The question and its type sit on their own row; the reorder and
+              remove buttons go above them.
+
+              They were all one flex row until 2026-09-22, and it did not fit:
+              a w-full question box, a w-44 type picker and four shrink-0
+              buttons overflowed the card, and with no min-w-0 the question box
+              could not shrink below its intrinsic width, so it drew as a
+              sliver nobody recognised as the question. People typed the
+              question into the full-width hint box underneath instead, and the
+              save silently dropped every row whose label was blank (iCreate,
+              2026-09-22: 1662c5fb "there's a tiny field before the field where
+              you pick the type", cc5edc5c, b7167bc6). Molly's one saved field
+              had label "Slkjf;aeoijwef" and help "Name of Training" — she was
+              poking the sliver to find out what it was. */}
           <div className="flex items-center gap-2">
             <span className="cursor-grab active:cursor-grabbing text-neutral-400 hover:text-neutral-600 px-1 select-none text-base font-bold shrink-0"
               title="Drag to reorder block">
               ⋮⋮
             </span>
-            <input value={f.label} onChange={(e) => setField(i, { label: e.target.value })}
-              placeholder={`Question ${i + 1}`} className={input} />
-            <select value={f.type} onChange={(e) => setField(i, { type: e.target.value })}
-              className={`${input} w-44 shrink-0`} aria-label={`Type of question ${i + 1}`}>
-              {FIELD_TYPES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
-            </select>
-            <div className="flex items-center gap-1 shrink-0">
+            <span className="text-xs font-medium text-neutral-500">Question {i + 1}</span>
+            <div className="ml-auto flex items-center gap-1 shrink-0">
               <button type="button" onClick={() => moveField(i, -1)} disabled={i === 0}
                 title="Move question up"
                 className="px-2 py-1 text-xs rounded border border-gray-200 text-neutral-600 hover:bg-gray-50 disabled:opacity-30">↑</button>
@@ -180,8 +214,18 @@ const FormEditor = ({ orgId, template, staff, onSaved, onCancel }) => {
                 className="text-sm text-red-600 hover:underline ml-1">Remove</button>
             </div>
           </div>
+          <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+            <input value={f.label} onChange={(e) => setField(i, { label: e.target.value })}
+              aria-label={`Question ${i + 1}`}
+              placeholder={`Question ${i + 1} — what are you asking?`}
+              className={`${input} min-w-0 sm:flex-1`} />
+            <select value={f.type} onChange={(e) => setField(i, { type: e.target.value })}
+              className={`${inlineInput} w-full sm:w-44 sm:shrink-0`} aria-label={`Type of question ${i + 1}`}>
+              {FIELD_TYPES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+            </select>
+          </div>
           <input value={f.help || ''} onChange={(e) => setField(i, { help: e.target.value })}
-            placeholder="Hint under the question (optional)" className={input} />
+            placeholder="Hint shown under the question (optional)" className={input} />
           {f.type === 'select' && (
             <textarea rows={3} className={input}
               aria-label={`Choices for question ${i + 1}`}
@@ -375,9 +419,17 @@ const FormBuilder = ({
           <p className="text-xs font-semibold uppercase tracking-wide text-neutral-400 mb-1">
             Built-in forms
           </p>
+          {/* "Idk what the built-in forms look like" (iCreate, 2026-09-22,
+              5012eff5). They all look the same, and saying so is the whole
+              answer: a built-in carries no questions of its own, so every one
+              of them draws the same three boxes. Building your own form here
+              is how you ask anything else — which is the choice this panel is
+              really offering. */}
           <p className="text-sm text-neutral-500 mb-2">
-            Every school gets these. Hide the ones yours does not use and they leave the
-            staff picker; nothing already filed is affected.
+            Every school gets these, and they all ask the same three things: a title, a
+            description, and where it happened. Build your own form above to ask anything
+            else. Hide the ones your school does not use and they leave the staff picker;
+            nothing already filed is affected.
           </p>
           <ul className="divide-y divide-gray-100">
             {builtins.map((b) => (

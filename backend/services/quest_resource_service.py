@@ -146,7 +146,13 @@ def upload(quest: Dict[str, Any], *, task_id: Optional[str], file,
         'title': _clean_title(title, fallback=filename),
         # The canonical pointer. Reads sign it; storing a signed URL would give
         # the row a lifetime and leave a broken link after it.
-        'url': public_object_url(path, DOCUMENT_BUCKET),
+        #
+        # (bucket, path) — not (path, bucket). Swapped, this built
+        # ".../public/<path>/org-documents" and every attachment 404'd from the
+        # day the feature shipped until 2026-09-22; the row looked fine because
+        # file_path was right and nothing reads the URL server-side. A parent
+        # hitting the dead link is what finally surfaced it (iCreate, Gabby).
+        'url': public_object_url(DOCUMENT_BUCKET, path),
         'file_path': path,
         'sort_order': repo.next_sort_order(quest['id'], task_id),
         'created_by': user_id,

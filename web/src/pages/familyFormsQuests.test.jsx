@@ -42,13 +42,15 @@ const QUEST = {
   progress: { started: false, completed: false, done: 0, total: 0 },
 }
 
-const mockPortal = ({ quests = [QUEST], assignments = [] } = {}) => {
+const mockPortal = ({ quests = [QUEST], assignments = [], training = [], modules } = {}) => {
   api.get.mockImplementation((url) => {
     if (url.includes('/parent/context')) {
-      return Promise.resolve({ data: { orgs: [{ organization_id: 'org-1', organization_name: 'iCreate' }] } })
+      const org = { organization_id: 'org-1', organization_name: 'iCreate' }
+      return Promise.resolve({ data: { orgs: [modules ? { ...org, modules } : org] } })
     }
     if (url.includes('/parent/quests')) return Promise.resolve({ data: { quests } })
     if (url.includes('/parent/onboarding')) return Promise.resolve({ data: { assignments } })
+    if (url.includes('/parent/training')) return Promise.resolve({ data: { training } })
     return Promise.resolve({ data: {} })
   })
 }
@@ -173,5 +175,71 @@ describe('ending a quest the school set', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'End quest' }))
     expect(await screen.findByText('Nothing to sign or complete right now.')).toBeInTheDocument()
     expect(screen.queryByText('Back to school night')).not.toBeInTheDocument()
+  })
+})
+
+// Training the school set for families that is a video or a document rather
+// than a quest. "It'd be nice to be able to upload the training from last
+// friday without creating an entire quest" (iCreate, Molly, 2026-09-22,
+// ae16c5da). There is nothing to break into tasks, so: open it, press Done.
+describe('family training links', () => {
+  const LINK = {
+    id: 'l1', kind: 'link', title: 'Back to school night recording',
+    url: 'https://loom.com/bts', description: 'Forty minutes, watch any time.',
+    is_required: true, my_done: null,
+  }
+
+  beforeEach(() => {
+    api.post.mockResolvedValue({ data: { training: { ...LINK, my_done: { done_at: 'now' } } } })
+    api.delete = vi.fn().mockResolvedValue({ data: { training: { ...LINK, my_done: null } } })
+  })
+
+  it('lists one with a link straight to it', async () => {
+    mockPortal({ quests: [], training: [LINK] })
+    render(<FamilyFormsPage />)
+    const link = await screen.findByRole('link', { name: 'Back to school night recording' })
+    expect(link).toHaveAttribute('href', 'https://loom.com/bts')
+  })
+
+  it('marks it done for the caller', async () => {
+    mockPortal({ quests: [], training: [LINK] })
+    render(<FamilyFormsPage />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Mark done' }))
+    // The empty object matters: without a body axios omits Content-Type and
+    // the CSRF middleware refuses the request.
+    await waitFor(() => expect(api.post).toHaveBeenCalledWith(
+      '/api/sis/parent/training/l1/done?organization_id=org-1', {}))
+    expect(await screen.findByRole('button', { name: /Done/ })).toBeInTheDocument()
+  })
+
+  it('can be undone', async () => {
+    mockPortal({ quests: [], training: [{ ...LINK, my_done: { done_at: 'now' } }] })
+    render(<FamilyFormsPage />)
+    fireEvent.click(await screen.findByRole('button', { name: /Done/ }))
+    await waitFor(() => expect(api.delete).toHaveBeenCalledWith(
+      '/api/sis/parent/training/l1/done?organization_id=org-1'))
+  })
+
+  it('says Required only while it is still outstanding', async () => {
+    mockPortal({ quests: [], training: [{ ...LINK, my_done: { done_at: 'now' } }] })
+    render(<FamilyFormsPage />)
+    await screen.findByRole('button', { name: /Done/ })
+    expect(screen.queryByText('Required')).toBeNull()
+  })
+
+  // The route is @require_module('training'), not the checklist module's, so a
+  // school running training without onboarding checklists still sees them.
+  it('is asked for when the school runs training but no checklists', async () => {
+    mockPortal({ quests: [], training: [LINK], modules: ['training'] })
+    render(<FamilyFormsPage />)
+    expect(await screen.findByText('Back to school night recording')).toBeInTheDocument()
+    expect(api.get).not.toHaveBeenCalledWith(expect.stringContaining('/parent/onboarding'))
+  })
+
+  it('is not asked for when the school does not run training', async () => {
+    mockPortal({ quests: [], training: [LINK], modules: ['onboarding'] })
+    render(<FamilyFormsPage />)
+    await waitFor(() => expect(api.get).toHaveBeenCalledWith(expect.stringContaining('/parent/quests')))
+    expect(api.get).not.toHaveBeenCalledWith(expect.stringContaining('/parent/training'))
   })
 })

@@ -506,3 +506,67 @@ class TestAnEditReachesStudentsAlreadyOnTheQuest:
                                       tables={'quests': [OWN_QUEST]})
         assert status == 200
         assert not resync.called
+
+
+@pytest.mark.unit
+class TestTheXpAQuestRequiresToFinish:
+    """"I'd like to be able to add the required XP per quest" from
+    /library?tab=quests (iCreate, 2026-09-22, 3d926fc3).
+
+    Not a new mechanism: `quests.xp_threshold` already existed, POST
+    /api/quests/<id>/end already refused below it, and the staff-training and
+    class-quest editors already wrote it. The library editor was the one of the
+    three that could not, so a quest authored here could only be given a finish
+    line by opening it from somewhere else.
+    """
+
+    def _patch(self, body, quest=None):
+        return _run(library.update_library_quest, (Q1,), body=body,
+                    tables={'quests': [quest or OWN_QUEST]})
+
+    def test_it_is_written_to_the_quest(self):
+        _out, status, log = self._patch({'xp_threshold': 500})
+        assert status == 200
+        payload = [e[2] for e in log if e[0] == 'update' and e[1] == 'quests'][0]
+        assert payload['xp_threshold'] == 500
+
+    def test_a_number_in_a_string_is_accepted(self):
+        """It arrives from a number input, which yields a string."""
+        _out, status, log = self._patch({'xp_threshold': '250'})
+        assert status == 200
+        payload = [e[2] for e in log if e[0] == 'update' and e[1] == 'quests'][0]
+        assert payload['xp_threshold'] == 250
+
+    def test_clearing_it_removes_the_requirement(self):
+        """Blank and zero both mean "any amount finishes it", which is how
+        every quest behaved before an admin set one."""
+        for blank in (None, '', 0):
+            _out, status, log = self._patch({'xp_threshold': blank})
+            assert status == 200, blank
+            payload = [e[2] for e in log if e[0] == 'update' and e[1] == 'quests'][0]
+            assert payload['xp_threshold'] is None, blank
+
+    def test_a_negative_requirement_is_refused(self):
+        out, status, log = self._patch({'xp_threshold': -50})
+        assert status == 400
+        assert 'negative' in out['error'].lower()
+        assert not [e for e in log if e[0] == 'update']
+
+    def test_words_are_refused(self):
+        out, status, log = self._patch({'xp_threshold': 'lots'})
+        assert status == 400
+        assert not [e for e in log if e[0] == 'update']
+
+    def test_it_is_left_alone_when_the_key_is_absent(self):
+        """A rename must not wipe the finish line somebody set."""
+        _out, status, log = self._patch({'title': 'Watercolour Basics'})
+        assert status == 200
+        payload = [e[2] for e in log if e[0] == 'update' and e[1] == 'quests'][0]
+        assert 'xp_threshold' not in payload
+
+    def test_a_shared_optio_quest_is_still_refused(self):
+        _out, status, log = _run(library.update_library_quest, (Q2,),
+                                 body={'xp_threshold': 500},
+                                 tables={'quests': [SHARED_QUEST]})
+        assert status == 403
+        assert not [e for e in log if e[0] == 'update']

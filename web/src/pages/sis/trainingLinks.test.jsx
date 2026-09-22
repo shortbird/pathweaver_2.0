@@ -110,10 +110,53 @@ describe('adding a link', () => {
       })))
   })
 
-  it('is offered for teachers only -- families and students still get quests', async () => {
+  // Staff-only until 2026-09-22, on the stated grounds that a link for
+  // families had no portal surface to be done on. Families have one now
+  // (/family/forms reads /api/sis/parent/training and posts the Done), so the
+  // door opens for them: "I would like to link to a video or document option
+  // in the 'for families' ... without creating an entire quest" (iCreate,
+  // Molly, ae16c5da).
+  it('is offered for families too, and sends the audience', async () => {
     render(<TrainingPanel />)
     fireEvent.click(await screen.findByRole('button', { name: /for families/i }))
     fireEvent.click(await screen.findByRole('button', { name: /add a family quest/i }))
+    fireEvent.click(screen.getByRole('tab', { name: /link to a video or document/i }))
+
+    fireEvent.change(screen.getByLabelText('Training title'), { target: { value: 'Back to school night' } })
+    fireEvent.change(screen.getByLabelText('Training link'), { target: { value: 'https://loom.com/bts' } })
+    fireEvent.click(screen.getByRole('button', { name: /^add link$/i }))
+
+    await waitFor(() => expect(api.post).toHaveBeenCalledWith('/api/sis/training',
+      expect.objectContaining({
+        kind: 'link', title: 'Back to school night', audience: 'family',
+      })))
+  })
+
+  // visible_to_roles is CHECK-constrained to staff roles, so sending it on a
+  // family link would store a rule nothing reads.
+  it('does not send staff role narrowing on a family link', async () => {
+    render(<TrainingPanel />)
+    fireEvent.click(await screen.findByRole('button', { name: /for families/i }))
+    fireEvent.click(await screen.findByRole('button', { name: /add a family quest/i }))
+    fireEvent.click(screen.getByRole('tab', { name: /link to a video or document/i }))
+
+    fireEvent.change(screen.getByLabelText('Training title'), { target: { value: 'Handbook' } })
+    fireEvent.change(screen.getByLabelText('Training link'), { target: { value: 'https://x.test/h' } })
+    fireEvent.click(screen.getByRole('button', { name: /^add link$/i }))
+
+    await waitFor(() => expect(api.post).toHaveBeenCalled())
+    const sent = api.post.mock.calls.find((c) => c[0] === '/api/sis/training')[1]
+    expect(sent).not.toHaveProperty('visible_to_roles')
+    expect(sent).not.toHaveProperty('visible_to_user_ids')
+  })
+
+  // org_resources.audience is CHECK-constrained to families/staff/all with no
+  // student value, so a student link cannot be stored without a migration. A
+  // door that 400s is worse than no door.
+  it('is not offered for students, which would need a migration to store', async () => {
+    render(<TrainingPanel />)
+    fireEvent.click(await screen.findByRole('button', { name: /for students/i }))
+    fireEvent.click(await screen.findByRole('button', { name: /add a student quest/i }))
     expect(screen.queryByRole('tab', { name: /link to a video or document/i })).toBeNull()
   })
 })

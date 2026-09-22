@@ -805,6 +805,54 @@ def org_resources(user_id):
     return jsonify({'success': True, 'resources': resources})
 
 
+# ── Training the school set for families ──────────────────────────────────────
+# A link, not a quest: a recorded training or a PDF has no tasks to invent, so
+# it is "open it, press done" (iCreate, 2026-09-22, ae16c5da). The quest kind
+# already reached families through /quests above.
+@bp.route('/training', methods=['GET'])
+@require_auth
+@require_module('training')
+def my_training_links(user_id):
+    """The school's family training links, with whether I have done each."""
+    org_id = sis_service.requested_org_id()
+    if not org_id:
+        return jsonify({'success': False, 'error': 'organization_id is required'}), 400
+    links = parent.training_links(user_id, org_id)
+    if links is None:
+        return jsonify({'success': False, 'error': 'Not available'}), 403
+    return jsonify({'success': True, 'training': links})
+
+
+@bp.route('/training/<training_id>/done', methods=['POST'])
+@require_auth
+@require_module('training')
+def mark_my_training_done(user_id, training_id):
+    """I watched or read it. Self-scoped: the id is the caller's own, from the
+    decorator, never from the body."""
+    return _set_my_training_done(user_id, training_id, True)
+
+
+@bp.route('/training/<training_id>/done', methods=['DELETE'])
+@require_auth
+@require_module('training')
+def unmark_my_training_done(user_id, training_id):
+    """The undo, for the row somebody pressed by mistake."""
+    return _set_my_training_done(user_id, training_id, False)
+
+
+def _set_my_training_done(user_id, training_id, done):
+    org_id = sis_service.requested_org_id()
+    if not org_id:
+        return jsonify({'success': False, 'error': 'organization_id is required'}), 400
+    # None covers both "not in this school" and "not a family training link",
+    # deliberately as one 404: telling a guesser which one it was tells them
+    # whether a staff training by that id exists.
+    link = parent.set_training_link_done(user_id, org_id, training_id, done)
+    if link is None:
+        return jsonify({'success': False, 'error': 'Not found'}), 404
+    return jsonify({'success': True, 'training': link})
+
+
 # ── School calendar (family-visible events) ───────────────────────────────────
 @bp.route('/events', methods=['GET'])
 @require_auth

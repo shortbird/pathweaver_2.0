@@ -11,6 +11,7 @@ import AnnouncementBody from '../announcements/AnnouncementBody'
 import { useConfirm } from '../../contexts/ConfirmContext'
 import { fmtDateOnly, fmtShortDate, fmtInstant, isDateOnly } from '../../utils/timeFormat'
 import { INPUT_CLASS } from '../ui/Input'
+import useIsClamped from '../../hooks/useIsClamped'
 
 /**
  * Posting an announcement. One composer, mounted in two places.
@@ -65,10 +66,88 @@ const audienceChip = (value) => {
 const fmtDate = (v) => (isDateOnly(v) ? fmtDateOnly(v, 'short').replace(/, \d{4}$/, '') : fmtShortDate(v))
 const fmtDateTime = fmtInstant
 
+// How the list is ordered, and what narrows it. Pinned stays on top of every
+// order: it is the office saying "read this first", which a sort must not
+// overrule (the server already returns pinned-first, newest-first).
+const SORTS = [
+  { value: 'newest', label: 'Newest first' },
+  { value: 'oldest', label: 'Oldest first' },
+  { value: 'title', label: 'By title' },
+]
+
+const sortItems = (items, sort) => {
+  const at = (a) => new Date(a.created_at || 0).getTime()
+  const ordered = [...items]
+  if (sort === 'oldest') ordered.sort((a, b) => at(a) - at(b))
+  else if (sort === 'title') ordered.sort((a, b) => (a.title || '').localeCompare(b.title || ''))
+  else ordered.sort((a, b) => at(b) - at(a))
+  ordered.sort((a, b) => Number(Boolean(b.pinned)) - Number(Boolean(a.pinned)))
+  return ordered
+}
+
+/**
+ * One posted announcement.
+ *
+ * Its own component so it can hold its own collapsed state: the board renders
+ * every notice at full length, and a term's worth of them is a page you scroll
+ * past rather than read ("I thought we had it so the announcements could be
+ * sorted and collapsed?" -- iCreate, 2026-09-22, d0a27882). A long body clamps
+ * to four lines with a Show more; a short one is left alone, because a button
+ * that expands nothing is its own complaint (eb48ad83, same day).
+ */
+const AnnouncementItem = ({ a, admin, onEdit, onDelete }) => {
+  const [expanded, setExpanded] = useState(false)
+  const [bodyRef, isClamped] = useIsClamped(a.body, expanded)
+
+  return (
+    <div className={`bg-white rounded-xl border p-4 ${a.pinned ? 'border-optio-purple/40' : 'border-gray-200'}`}>
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            {a.pinned && <span className="text-[11px] font-medium rounded-full px-2 py-0.5 bg-optio-purple/10 text-optio-purple">Pinned</span>}
+            {a.priority === 'urgent' && <span className="text-[11px] font-medium rounded-full px-2 py-0.5 bg-red-100 text-red-700">Urgent</span>}
+            {audienceChip(a.audience) && (
+              <span className="text-[11px] font-medium rounded-full px-2 py-0.5 bg-gray-100 text-neutral-600"
+                title={`Seen by ${reachOf(LEGACY_AUDIENCE[a.audience] || a.audience)}`}>
+                {audienceChip(a.audience)}
+              </span>
+            )}
+            <h3 className="text-base font-semibold text-neutral-900">{a.title}</h3>
+          </div>
+          {a.body && (
+            <div ref={bodyRef} className={expanded ? '' : 'line-clamp-4'}>
+              <AnnouncementBody text={a.body} className="text-sm text-neutral-600 mt-1" />
+            </div>
+          )}
+          {a.body && (isClamped || expanded) && (
+            <button type="button" onClick={() => setExpanded((v) => !v)}
+              className="mt-1 text-xs font-semibold text-optio-purple hover:text-optio-pink">
+              {expanded ? 'Show less' : 'Show more'}
+            </button>
+          )}
+          <div className="text-xs text-neutral-400 mt-2">
+            {fmtDate(a.created_at)}
+            {a.publish_at && new Date(a.publish_at) > new Date() ? ` \u00b7 Scheduled for ${fmtDateTime(a.publish_at)}` : ''}
+            {a.expires_at ? ` \u00b7 Expires ${fmtDate(a.expires_at)}` : ''}
+          </div>
+        </div>
+        {admin && (
+          <div className="flex items-center gap-3 flex-shrink-0">
+            <button onClick={() => onEdit(a)} className="text-sm text-neutral-500 hover:text-optio-purple">Edit</button>
+            <button onClick={() => onDelete(a)} className="text-sm text-red-500 hover:underline">Delete</button>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
 const BoardAnnouncementsTab = ({ orgId, admin }) => {
   const confirm = useConfirm()
   const queryClient = useQueryClient()
   const [editing, setEditing] = useState(null) // row | 'new' | null
+  const [sort, setSort] = useState('newest')
+  const [audienceFilter, setAudienceFilter] = useState('')
 
   const { data: items = [], isPending: loading, isError } = useCommunityAnnouncements(orgId)
   useEffect(() => { if (isError) toast.error('Failed to load announcements') }, [isError])
@@ -85,11 +164,45 @@ const BoardAnnouncementsTab = ({ orgId, admin }) => {
     } catch { toast.error('Could not delete') }
   }
 
+  const shown = sortItems(
+    audienceFilter
+      ? items.filter((a) => (LEGACY_AUDIENCE[a.audience] || a.audience || 'school') === audienceFilter)
+      : items,
+    sort,
+  )
+
   return (
     <div>
       {admin && (
         <div className="mb-4 flex items-center gap-3 flex-wrap">
           <Button size="sm" onClick={() => setEditing('new')}>Post announcement</Button>
+        </div>
+      )}
+      {/* Sorting and narrowing the board. A school year's notices are a long
+          page, and the only order on offer was the one the server chose
+          (d0a27882). Hidden below two items, where a control is just noise. */}
+      {items.length > 2 && (
+        <div className="mb-3 flex items-center gap-2 flex-wrap text-xs text-neutral-500">
+          <label className="flex items-center gap-1.5">
+            Sort
+            <select value={sort} onChange={(e) => setSort(e.target.value)}
+              aria-label="Sort announcements"
+              className="rounded-lg border border-gray-300 px-2 py-1 text-xs">
+              {SORTS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+            </select>
+          </label>
+          <label className="flex items-center gap-1.5">
+            Show
+            <select value={audienceFilter} onChange={(e) => setAudienceFilter(e.target.value)}
+              aria-label="Filter announcements by audience"
+              className="rounded-lg border border-gray-300 px-2 py-1 text-xs">
+              <option value="">All announcements</option>
+              {AUDIENCES.map((a) => <option key={a.value} value={a.value}>{a.label}</option>)}
+            </select>
+          </label>
+          <span className="text-neutral-400">
+            {shown.length} of {items.length}
+          </span>
         </div>
       )}
       {editing && (
@@ -104,37 +217,13 @@ const BoardAnnouncementsTab = ({ orgId, admin }) => {
       {!orgId && <p className="text-neutral-500">Pick a school to see its announcements.</p>}
       {orgId && loading && <p className="text-neutral-500">Loading…</p>}
       {orgId && !loading && !items.length && <p className="text-neutral-500">No announcements yet.</p>}
+      {orgId && !loading && items.length > 0 && !shown.length && (
+        <p className="text-neutral-500">No announcements for that audience.</p>
+      )}
       <div className="space-y-3">
-        {items.map((a) => (
-          <div key={a.id} className={`bg-white rounded-xl border p-4 ${a.pinned ? 'border-optio-purple/40' : 'border-gray-200'}`}>
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <div className="flex items-center gap-2 flex-wrap">
-                  {a.pinned && <span className="text-[11px] font-medium rounded-full px-2 py-0.5 bg-optio-purple/10 text-optio-purple">Pinned</span>}
-                  {a.priority === 'urgent' && <span className="text-[11px] font-medium rounded-full px-2 py-0.5 bg-red-100 text-red-700">Urgent</span>}
-                  {audienceChip(a.audience) && (
-                    <span className="text-[11px] font-medium rounded-full px-2 py-0.5 bg-gray-100 text-neutral-600"
-                      title={`Seen by ${reachOf(LEGACY_AUDIENCE[a.audience] || a.audience)}`}>
-                      {audienceChip(a.audience)}
-                    </span>
-                  )}
-                  <h3 className="text-base font-semibold text-neutral-900">{a.title}</h3>
-                </div>
-                {a.body && <AnnouncementBody text={a.body} className="text-sm text-neutral-600 mt-1" />}
-                <div className="text-xs text-neutral-400 mt-2">
-                  {fmtDate(a.created_at)}
-                  {a.publish_at && new Date(a.publish_at) > new Date() ? ` · Scheduled for ${fmtDateTime(a.publish_at)}` : ''}
-                  {a.expires_at ? ` · Expires ${fmtDate(a.expires_at)}` : ''}
-                </div>
-              </div>
-              {admin && (
-                <div className="flex items-center gap-3 flex-shrink-0">
-                  <button onClick={() => setEditing(a)} className="text-sm text-neutral-500 hover:text-optio-purple">Edit</button>
-                  <button onClick={() => remove(a)} className="text-sm text-red-500 hover:underline">Delete</button>
-                </div>
-              )}
-            </div>
-          </div>
+        {shown.map((a) => (
+          <AnnouncementItem key={a.id} a={a} admin={admin}
+            onEdit={setEditing} onDelete={remove} />
         ))}
       </div>
     </div>
@@ -245,8 +334,13 @@ const AnnouncementForm = ({ orgId, announcement, onDone, onCancel }) => {
                   By email
                 </label>
               </div>
+              {/* The same audience, so the same people: "Visible to" below
+                  now names them whether or not this box is ticked. Said here
+                  as what the notification ADDS, rather than repeating the
+                  reach twice on one form. */}
               <p className="text-xs text-neutral-500 mt-1.5">
-                Goes to {reachOf(f.audience)}.
+                Sent to the same people the post is visible to, now, rather than
+                waiting for them to open the board.
               </p>
             </div>
           )}
@@ -274,6 +368,12 @@ const AnnouncementForm = ({ orgId, announcement, onDone, onCancel }) => {
               <option key={a.value} value={a.value}>{a.label}</option>
             ))}
           </select>
+          {/* Who that actually is. The reach was written down but only ever
+              rendered inside "Also notify people", so anyone who left that off
+              had to guess -- "Does 'Everyone at School' include students too?"
+              (iCreate, 2026-09-22, 745e2857). The names are the school's
+              words; only this line says who receives it. */}
+          <span className="block mt-1 text-neutral-400">Goes to {reachOf(f.audience)}.</span>
         </label>
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">

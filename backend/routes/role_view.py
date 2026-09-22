@@ -22,6 +22,8 @@ from utils.auth.decorators import require_auth, require_real_identity
 from utils.db_fetch import fetch_all_rows
 from utils.roles import _real_effective_roles, may_view_as, VIEWABLE_ROLES
 from utils.session_manager import session_manager
+from utils.sis_roles import CAMPUS_COORDINATOR
+from utils.token_authority import masquerade_target_allowed
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -40,12 +42,15 @@ _STAFF_PICK_ROLES = {'campus_coordinator', 'advisor'}
 @role_view_bp.route('/people', methods=['GET'])
 @require_real_identity
 def people_in_role(user_id):
-    """The members of a school an admin may open — the person list behind the
-    "Viewing as" picker, so an admin can open a teacher's or a family's actual
-    setup rather than a generic empty view. Resolved on the REAL caller (it is
-    reachable from inside a narrowed view or a masquerade): superadmin for any
-    org, org admin for their own. Admin-tier accounts are never listed — the
-    masquerade rule refuses them as targets.
+    """The members of a school the caller may open — the person list behind the
+    "Viewing as" picker, so the front office can open a teacher's or a family's
+    actual setup rather than a generic empty view. Resolved on the REAL caller
+    (it is reachable from inside a narrowed view or a masquerade): superadmin
+    for any org, org admin and campus coordinator for their own. Admin-tier
+    accounts are never listed, and the rest of the list is whatever THIS caller
+    may actually open — one rule, token_authority.masquerade_target_allowed, so
+    the picker can never offer a seat the masquerade route will refuse. A
+    coordinator's list is the shorter one: no peers, no families.
 
     Query: role (optional filter; omitted = school staff only — teachers and
     coordinators, not the hundreds of students and parents), organization_id
@@ -64,10 +69,11 @@ def people_in_role(user_id):
     real = _real_effective_roles(me[0])
     if 'superadmin' in real:
         org_id = (request.args.get('organization_id') or '').strip() or None
-    elif 'org_admin' in real:
+    elif {'org_admin', CAMPUS_COORDINATOR} & set(real):
         org_id = me[0].get('organization_id')
     else:
-        return jsonify({'success': False, 'error': 'Admin access required'}), 403
+        return jsonify({'success': False,
+                        'error': 'Admin or campus coordinator access required'}), 403
     if not org_id:
         return jsonify({'success': False, 'error': 'Pick a school first'}), 400
 
@@ -80,6 +86,10 @@ def people_in_role(user_id):
     for u in rows:
         roles = set(_real_effective_roles(u))
         if roles & {'org_admin', 'superadmin'}:
+            continue
+        # The rows are already pinned to one org by the query above, so the
+        # remaining half of the masquerade rule is the tier one.
+        if not masquerade_target_allowed(real, roles):
             continue
         viewable = [r for r in _ROLE_DISPLAY_ORDER if r in roles]
         if not viewable or (role and role not in roles):

@@ -288,6 +288,7 @@ from services.registration_funnel_service import (  # noqa: E402
     _abs_url,
     org_funnel_config as _org_config,
 )
+from services.registration_alerts import notify_registration_started  # noqa: E402
 
 
 
@@ -484,6 +485,11 @@ def submit_family(reg_id):
         return jsonify({'error': 'Not authorized'}), 403
     if reg.get('status') not in ('family', 'details', 'paperwork', 'fee'):
         return jsonify({'error': 'This registration is already completed'}), 400
+    # This step doubles as the back-edit for every later step, so `family` is the
+    # only status that means "the school has not seen this family yet" -- it is
+    # what stops the start alert from re-sending on every correction. Read here,
+    # before anything downstream advances the row.
+    first_submission = reg.get('status') == 'family'
 
     admin = _admin()
     org_id = reg['organization_id']
@@ -812,6 +818,17 @@ def submit_family(reg_id):
 
     logger.info(f'registration family: registration {reg_id} has {len(created_kids)} kids, '
                 f'fee {fee_cents}c{" (deferred)" if fee_deferred else ""}, monthly {monthly_cents}c')
+
+    # Tell the school now, not at completion. Most families who fill this in
+    # never reach the fee step, and until 2026-09-22 those were invisible to the
+    # office (services/registration_alerts.py has the count). Once per
+    # registration; a back-edit is silent. Best-effort inside -- the family is
+    # already created and must never fail over mail.
+    if first_submission:
+        notify_registration_started(
+            {**reg, 'kids': created_kids, 'fee_cents': fee_cents, 'monthly_cents': monthly_cents},
+            cfg, None, parent, {'phone': phone, 'address': address})
+
     return jsonify({'success': True, 'status': 'details', 'kids': created_kids,
                     'fee_cents': fee_cents, 'fee_deferred': fee_deferred,
                     'monthly_cents': monthly_cents}), 200

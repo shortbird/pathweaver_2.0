@@ -159,6 +159,9 @@ def list_org_quests(user_id):
             'is_public': bool(q.get('is_public')),
             'created_at': q.get('created_at'),
             'updated_at': q.get('updated_at'),
+            # The finish line, if the school set one. POST /api/quests/:id/end
+            # is what enforces it; the editor needs the current value to show.
+            'xp_threshold': q.get('xp_threshold') or 0,
             'task_count': len(tasks_per_quest.get(q['id'], [])),
             'tasks': tasks_per_quest.get(q['id'], []),
             'made_by': _made_by(creator_by_id.get(q.get('created_by'))),
@@ -354,7 +357,10 @@ def _edit(op, *args):
 @bp.route('/quests/<quest_id>', methods=['PATCH'])
 @require_role(*ADMIN_ROLES)
 def update_library_quest(user_id, quest_id):
-    """Rename a quest or rewrite its description. Body: {title?, description?}."""
+    """Edit a quest's headline fields.
+
+    Body: {title?, description?, xp_threshold?}.
+    """
     _org_id, _quest, err = _own_quest(user_id, quest_id)
     if err:
         return err

@@ -200,10 +200,24 @@ def shape_link(link, ack=None):
         'visible_to_roles': link.get('visible_to_roles'),
         'visible_to_user_ids': link.get('visible_to_user_ids'),
         'sequence_order': link.get('sort_order') or 0,
-        'audience': 'staff',
-        'audiences': ['staff'],
+        # The row's own audience, back in the training vocabulary the page
+        # speaks. Hardcoded 'staff' until 2026-09-22, which was true then
+        # because create_link wrote nothing else (ae16c5da).
+        'audience': training_audience(link.get('audience')),
+        'audiences': [training_audience(link.get('audience'))],
         'my_done': ({'done_at': ack.get('acknowledged_at')} if link_done(link, ack) else None),
     }
+
+
+#: The reverse of _RESOURCE_AUDIENCE, for reads. 'all' is a document-library
+#: value no link is written with; an older row carrying it reads as staff,
+#: which is what it behaved as.
+_TRAINING_AUDIENCE = {'staff': 'staff', 'families': 'family', 'all': 'staff'}
+
+
+def training_audience(value):
+    """An org_resources audience as the training page names it."""
+    return _TRAINING_AUDIENCE.get(str(value or 'staff').strip().lower(), 'staff')
 
 
 def link_fields_from(data, org_id, partial=False):
@@ -250,21 +264,65 @@ def link_fields_from(data, org_id, partial=False):
             fields['sort_order'] = int(data.get('sequence_order') or 0)
         except (TypeError, ValueError):
             return None, 'sequence_order must be a number'
+    if wants('audience') and 'audience' in data:
+        resolved, err = resource_audience(data.get('audience'))
+        if err:
+            return None, err
+        fields['audience'] = resolved
     return fields, None
 
 
-def links_for_org(org_id):
-    """Every link the school has set, raw rows in the admin's order."""
-    return _repo().list_for_org(org_id)
+#: Training speaks staff/family/student; org_resources.audience is constrained
+#: to families/staff/all. One row, two vocabularies, so the translation lives
+#: here rather than at each call site.
+#:
+#: 'student' is deliberately absent. The CHECK constraint has no value for it
+#: and widening the constraint is a migration, which has to reach production
+#: before the code that writes it -- so a student-only training link is not
+#: offered rather than written as something it is not (ae16c5da, families half,
+#: 2026-09-22).
+_RESOURCE_AUDIENCE = {'staff': 'staff', 'family': 'families', 'families': 'families'}
 
 
-def list_links(org_id, user_id):
+def resource_audience(value):
+    """(org_resources audience, error) for a training audience."""
+    key = str(value or 'staff').strip().lower()
+    resolved = _RESOURCE_AUDIENCE.get(key)
+    if not resolved:
+        if key == 'student':
+            return None, 'A link for students is not available yet — set it for families or staff.'
+        return None, 'Choose who the training is for.'
+    return resolved, None
+
+
+#: The org_resources audiences a training audience reads. 'all' is a document
+#: library value no training link is written with, but an older row could carry
+#: it, so both readers accept it.
+_AUDIENCE_READS = {'staff': ('staff', 'all'), 'family': ('families', 'all')}
+
+
+def links_for_org(org_id, audience='staff'):
+    """Every link the school has set for this audience, raw rows in the
+    admin's order."""
+    wanted = _AUDIENCE_READS.get(audience, ())
+    return [r for r in _repo().list_for_org(org_id)
+            if (r.get('audience') or 'staff') in wanted]
+
+
+def list_links(org_id, user_id, audience='staff'):
     """The school's training links as the caller sees them, with whether they
     have done each. Admins see every row (they curate the list); a teacher
     sees the rows aimed at them, by role or by name -- the same narrowing the
-    document library applies."""
+    document library applies.
+
+    The role narrowing is a STAFF idea: visible_to_roles is constrained to
+    org_admin/campus_coordinator/advisor, so applying it to a family list would
+    ask whether a parent holds a staff role and hide everything. A family link
+    reaches every family."""
     repo = _repo()
-    rows = sis_service.filter_role_visible(user_id, repo.list_for_org(org_id))
+    rows = links_for_org(org_id, audience)
+    if audience == 'staff':
+        rows = sis_service.filter_role_visible(user_id, rows)
     acks = repo.acks_for_user(user_id, [r['id'] for r in rows])
     return [shape_link(r, acks.get(r['id'])) for r in rows]
 

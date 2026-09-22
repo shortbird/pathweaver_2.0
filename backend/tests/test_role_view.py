@@ -211,6 +211,42 @@ def test_people_without_role_lists_staff_only(client, mock_verify_token):
     assert people['u-c']['roles'] == ['campus_coordinator']
 
 
+def test_people_for_a_coordinator_drops_peers_and_families(client, mock_verify_token):
+    """A coordinator gets the picker too, on a shorter list: teachers and
+    learners, never a family (their seat carries the school's billing) and
+    never another coordinator (a peer's seat is not a smaller seat)."""
+    caller = {'id': 'test-user-123', 'role': 'org_managed',
+              'org_role': 'campus_coordinator', 'org_roles': None,
+              'organization_id': 'org-1'}
+    members = [
+        {'id': 'u-t', 'first_name': 'Dallin', 'last_name': 'Bird',
+         'role': 'org_managed', 'org_role': 'advisor', 'org_roles': None},
+        {'id': 'u-tp', 'first_name': 'Katie', 'last_name': 'Bird',
+         'role': 'org_managed', 'org_role': 'advisor', 'org_roles': ['advisor', 'parent']},
+        {'id': 'u-c', 'first_name': 'Cora', 'last_name': 'Front',
+         'role': 'org_managed', 'org_role': 'campus_coordinator', 'org_roles': None},
+        {'id': 'u-a', 'first_name': 'Christina', 'last_name': 'Admin',
+         'role': 'org_managed', 'org_role': 'org_admin', 'org_roles': None},
+    ]
+    db, _ = _org_people_db(caller, members)
+    with patch('routes.role_view.get_supabase_admin_client', return_value=db), \
+         patch('routes.role_view.fetch_all_rows', return_value=members):
+        resp = client.get('/api/role-view/people',
+                          headers={'Authorization': 'Bearer t'})
+    assert resp.status_code == 200
+    assert [p['id'] for p in resp.get_json()['people']] == ['u-t']
+
+
+def test_people_refuses_a_teacher(client, mock_verify_token):
+    caller = {'id': 'test-user-123', 'role': 'org_managed', 'org_role': 'advisor',
+              'org_roles': None, 'organization_id': 'org-1'}
+    db, _ = _org_people_db(caller, [])
+    with patch('routes.role_view.get_supabase_admin_client', return_value=db):
+        resp = client.get('/api/role-view/people',
+                          headers={'Authorization': 'Bearer t'})
+    assert resp.status_code == 403
+
+
 def test_people_still_filters_by_role_when_asked(client, mock_verify_token):
     caller = {'id': 'test-user-123', 'role': 'org_managed', 'org_role': 'org_admin',
               'org_roles': None, 'organization_id': 'org-1'}

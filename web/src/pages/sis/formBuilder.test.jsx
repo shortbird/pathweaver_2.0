@@ -15,6 +15,7 @@ const { api } = vi.hoisted(() => ({
 }))
 vi.mock('../../services/api', () => ({ default: api }))
 
+import { toast } from 'react-hot-toast'
 import FormBuilder from '../../components/sis/tasks/FormBuilder'
 import { SubmitForm } from './StaffFormsPage'
 
@@ -115,7 +116,7 @@ describe('FormBuilder', () => {
     render(<FormBuilder orgId="org-1" />)
     fireEvent.click(await screen.findByRole('button', { name: '+ New form' }))
     fireEvent.change(screen.getByLabelText('Form name'), { target: { value: 'Supply request' } })
-    fireEvent.change(screen.getByPlaceholderText('Question 1'), { target: { value: 'What do you need?' } })
+    fireEvent.change(screen.getByLabelText('Question 1'), { target: { value: 'What do you need?' } })
     fireEvent.click(screen.getByRole('button', { name: 'Save form' }))
     await waitFor(() => expect(api.post).toHaveBeenCalledWith(
       '/api/sis/staff-admin/form-templates',
@@ -124,6 +125,82 @@ describe('FormBuilder', () => {
         fields: [expect.objectContaining({ label: 'What do you need?' })],
       }),
     ))
+  })
+
+  // iCreate, 2026-09-22. Three tickets, one cause: the question box and the
+  // type picker shared a flex row with four buttons and no min-w-0, so the
+  // box drew as a sliver ("there's a tiny field before the field where you
+  // pick the type", 1662c5fb). People typed the question into the hint box
+  // instead, and save() quietly dropped every row whose label was blank --
+  // four questions saving as nothing with "Add at least one question"
+  // (cc5edc5c), three saving as one (b7167bc6).
+  describe('a question with no wording', () => {
+    const newFormWithQuestions = async (n) => {
+      render(<FormBuilder orgId="org-1" />)
+      fireEvent.click(await screen.findByRole('button', { name: '+ New form' }))
+      fireEvent.change(screen.getByLabelText('Form name'), { target: { value: 'Training Completion' } })
+      for (let i = 1; i < n; i += 1) {
+        fireEvent.click(screen.getByRole('button', { name: '+ Add question' }))
+      }
+    }
+
+    it('is refused by name instead of being thrown away', async () => {
+      await newFormWithQuestions(3)
+      fireEvent.change(screen.getByLabelText('Question 1'), { target: { value: 'Which training?' } })
+      // Questions 2 and 3 are left blank.
+      fireEvent.click(screen.getByRole('button', { name: 'Save form' }))
+      await waitFor(() => expect(toast.error).toHaveBeenCalledWith(
+        expect.stringContaining('Question 2')))
+      expect(api.post).not.toHaveBeenCalled()
+    })
+
+    it('does not save the form as one question', async () => {
+      await newFormWithQuestions(3)
+      fireEvent.change(screen.getByLabelText('Question 1'), { target: { value: 'Which training?' } })
+      fireEvent.click(screen.getByRole('button', { name: 'Save form' }))
+      await waitFor(() => expect(toast.error).toHaveBeenCalled())
+      expect(api.post).not.toHaveBeenCalled()
+    })
+
+    it('saves all three once each is worded', async () => {
+      await newFormWithQuestions(3)
+      fireEvent.change(screen.getByLabelText('Question 1'), { target: { value: 'Which training?' } })
+      fireEvent.change(screen.getByLabelText('Question 2'), { target: { value: 'When did you watch it?' } })
+      fireEvent.change(screen.getByLabelText('Question 3'), { target: { value: 'Anything unclear?' } })
+      fireEvent.click(screen.getByRole('button', { name: 'Save form' }))
+      await waitFor(() => expect(api.post).toHaveBeenCalled())
+      expect(api.post.mock.calls[0][1].fields).toHaveLength(3)
+    })
+
+    // The hint is not the question. Molly's one saved field was
+    // label "Slkjf;aeoijwef", help "Name of Training".
+    it('a hint alone does not stand in for the question', async () => {
+      await newFormWithQuestions(1)
+      fireEvent.change(screen.getByPlaceholderText('Hint shown under the question (optional)'),
+        { target: { value: 'Name of Training' } })
+      fireEvent.click(screen.getByRole('button', { name: 'Save form' }))
+      await waitFor(() => expect(toast.error).toHaveBeenCalledWith(
+        expect.stringContaining('Question 1')))
+      expect(api.post).not.toHaveBeenCalled()
+    })
+  })
+
+  // 8b5f114f: the audience words named the audience but never said what
+  // followed from it.
+  it('says where each audience finds the form', async () => {
+    render(<FormBuilder orgId="org-1" />)
+    fireEvent.click(await screen.findByRole('button', { name: '+ New form' }))
+    expect(screen.getByText(/Teachers and office staff find it under Forms/)).toBeInTheDocument()
+    fireEvent.change(screen.getByLabelText('Who fills this in'), { target: { value: 'family' } })
+    expect(screen.getByText(/Parents find it under Forms in their Optio account/)).toBeInTheDocument()
+  })
+
+  // 5012eff5: every built-in draws the same three boxes, so saying so is the
+  // whole answer to "idk what the built-in forms look like".
+  it('says what the built-in forms ask', async () => {
+    render(<FormBuilder orgId="org-1" />)
+    await open()
+    expect(await screen.findByText(/they all ask the same three things/)).toBeInTheDocument()
   })
 
   it('duplicating a question does not copy its key', async () => {

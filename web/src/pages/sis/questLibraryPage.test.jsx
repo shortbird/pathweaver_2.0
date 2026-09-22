@@ -383,7 +383,45 @@ describe('editing and duplicating from the library row', () => {
 
     await waitFor(() => expect(api.patch).toHaveBeenCalledWith(
       '/api/sis/quests/q2?organization_id=org-1',
-      { title: 'Bridges', description: 'Build one.' }))
+      // xp_threshold rides along from 2026-09-22: the editor gained the
+      // required-XP field the training and class-quest editors already had
+      // (3d926fc3). null is "no requirement", which is what the box was.
+      { title: 'Bridges', description: 'Build one.', xp_threshold: null }))
+  })
+
+  // 3d926fc3: quests.xp_threshold already existed and POST /api/quests/:id/end
+  // already enforced it; the library editor was the one of the three that
+  // could not set it.
+  it('saves the XP a quest requires to finish', async () => {
+    render(<QuestsPanel />)
+    await screen.findByText('Bridge Building')
+    fireEvent.click(screen.getAllByRole('button', { name: 'Edit' })[1])
+    const dialog = await screen.findByRole('dialog')
+
+    fireEvent.change(within(dialog).getByLabelText(/XP required to finish/),
+      { target: { value: '500' } })
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Save' }))
+
+    await waitFor(() => expect(api.patch).toHaveBeenCalledWith(
+      '/api/sis/quests/q2?organization_id=org-1',
+      expect.objectContaining({ xp_threshold: 500 })))
+  })
+
+  it('clearing the box means no requirement, not zero XP', async () => {
+    render(<QuestsPanel />)
+    await screen.findByText('Bridge Building')
+    fireEvent.click(screen.getAllByRole('button', { name: 'Edit' })[1])
+    const dialog = await screen.findByRole('dialog')
+
+    const box = within(dialog).getByLabelText(/XP required to finish/)
+    fireEvent.change(box, { target: { value: '500' } })
+    fireEvent.change(box, { target: { value: '' } })
+    fireEvent.change(within(dialog).getByLabelText('Quest title'), { target: { value: 'Bridges' } })
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Save' }))
+
+    await waitFor(() => expect(api.patch).toHaveBeenCalledWith(
+      '/api/sis/quests/q2?organization_id=org-1',
+      expect.objectContaining({ xp_threshold: null })))
   })
 
   it('will not save a quest with no title', async () => {

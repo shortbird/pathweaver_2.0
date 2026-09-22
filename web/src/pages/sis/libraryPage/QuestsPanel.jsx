@@ -305,19 +305,37 @@ export function QuestAttachments({ questId, tasks }) {
 export function QuestEditModal({ quest, orgId, onClose }) {
   const [title, setTitle] = useState(quest.title || '')
   const [description, setDescription] = useState(quest.description || '')
+  // The XP a learner has to earn before the quest counts as finished
+  // (quests.xp_threshold). The staff-training and class-quest editors have had
+  // this field for weeks; the library editor did not, so a quest made here
+  // could only be given a finish line by opening it from somewhere else
+  // ("I'd like to be able to add the required XP per quest" -- iCreate,
+  // 2026-09-22, 3d926fc3). Blank means no requirement, which is how every
+  // quest behaved before anyone set one.
+  const [requiredXp, setRequiredXp] = useState(
+    quest.xp_threshold ? String(quest.xp_threshold) : '')
   const save = useUpdateLibraryQuest(orgId)
 
   const saveInfo = async () => {
     if (!title.trim()) { toast.error('A title is required'); return }
+    if (requiredXp !== '' && !(Number(requiredXp) >= 0)) {
+      toast.error('XP required has to be a number, or empty for no requirement')
+      return
+    }
     try {
-      await save.mutateAsync({ questId: quest.id, title: title.trim(), description })
+      await save.mutateAsync({
+        questId: quest.id, title: title.trim(), description,
+        xp_threshold: requiredXp === '' ? null : Number(requiredXp),
+      })
       toast.success('Saved')
     } catch (e) {
       toast.error(e?.response?.data?.error || 'Could not save that')
     }
   }
 
-  const dirty = title !== (quest.title || '') || description !== (quest.description || '')
+  const dirty = title !== (quest.title || '')
+    || description !== (quest.description || '')
+    || requiredXp !== (quest.xp_threshold ? String(quest.xp_threshold) : '')
 
   return (
     <Modal isOpen onClose={onClose} title={`Edit “${quest.title}”`} size="lg">
@@ -328,6 +346,19 @@ export function QuestEditModal({ quest, orgId, onClose }) {
           <textarea value={description} onChange={(e) => setDescription(e.target.value)}
             aria-label="Quest description" placeholder="What is this quest about?" rows={3}
             className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-optio-purple" />
+          <div>
+            <label className="block text-xs font-medium text-neutral-500 mb-1" htmlFor="quest-required-xp">
+              XP required to finish <span className="text-neutral-400">(optional)</span>
+            </label>
+            <input id="quest-required-xp" type="number" min="0" step="25"
+              value={requiredXp} onChange={(e) => setRequiredXp(e.target.value)}
+              placeholder="No requirement"
+              className="w-40 rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-optio-purple" />
+            <p className="mt-1 text-xs text-neutral-400">
+              A learner sees how far off they are while they work, and cannot mark the
+              quest finished below this. Leave it empty and any amount finishes it.
+            </p>
+          </div>
           <div className="flex justify-end">
             <Button size="xs" onClick={saveInfo} disabled={!dirty || save.isPending}>
               {save.isPending ? 'Saving…' : 'Save'}
@@ -491,7 +522,13 @@ function QuestTable({ rows, onAssign, onAttach, onEdit, onDuplicate, duplicating
             <th className="px-3 py-3 font-medium">Made by</th>
             <th className="px-3 py-3 font-medium">Tasks</th>
             <th className="px-3 py-3 font-medium">On curriculum</th>
-            <th className="px-3 py-3 font-medium">Assigned to</th>
+            {/* "Assigned to" read as "assigned to the curriculum", which is
+                the column beside it ("What if it's not assigned to the
+                class?" -- iCreate, 2026-09-22, 3e4c6a0a). It holds classes,
+                and a quest in the library belongs to no class until somebody
+                puts it in one, which "In classes" says and "Assigned to" did
+                not. */}
+            <th className="px-3 py-3 font-medium">In classes</th>
             <th className="px-3 py-3 font-medium">Updated</th>
             <th className="px-3 py-3" />
           </tr>

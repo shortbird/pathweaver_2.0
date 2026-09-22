@@ -91,13 +91,27 @@ class TrainingLinkRepository(BaseRepository):
     # with a different contract fails the release's mypy gate (2026-09-15).
 
     def create_link(self, fields: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """A training link, for whichever audience the caller resolved.
+
+        `audience` was hardcoded to 'staff' until 2026-09-22, and that hardcode
+        was the only thing keeping a teacher training out of the family
+        document library: sis_parent_service.org_resources reads
+        audience in (families, all) and did not filter `is_training`, so a
+        family-audience training link would have appeared there AND on the
+        training list. That query now excludes training, which is what makes it
+        safe for this to honour what the admin chose (ae16c5da).
+
+        Callers pass the org_resources vocabulary (families/staff/all), not the
+        training one (staff/family/student) — the column's CHECK constraint
+        knows only the former. sis_training_service.resource_audience is the
+        one place that translates.
+        """
         now = datetime.now(timezone.utc).isoformat()
         rows = (self.client.table(self.table_name).insert({
+            'audience': 'staff',
             **fields,
             'is_training': True,
-            # Staff only: the family portal reads families/all and must not
-            # see a teacher training. Stamped so acks have a version to match.
-            'audience': 'staff',
+            # Stamped so acks have a version to match.
             'version_date': now,
         }).execute()).data
         return rows[0] if rows else None

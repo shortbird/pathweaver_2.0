@@ -22,6 +22,7 @@ from datetime import datetime, timezone
 from typing import Optional
 
 from utils.logger import get_logger
+from utils.sis_roles import CAMPUS_COORDINATOR
 
 logger = get_logger(__name__)
 
@@ -72,6 +73,46 @@ def session_revoked_since(user_id: str, issued_at: Optional[datetime]) -> bool:
 
 _MASQUERADE_ROW = 'id, role, org_role, org_roles, organization_id'
 
+# The seats nobody may open. A masquerade hands the caller the target's whole
+# session, so opening an admin is how you become one.
+_NEVER_A_TARGET = {'org_admin', 'superadmin'}
+
+# What a campus coordinator may NOT open, on top of that.
+#
+# `parent` is on this list on purpose, and it is the one exclusion that is not
+# about rank. A coordinator is an org admin minus the money (utils/sis_roles.py,
+# FINANCE_ROLES), and a family's own surface is where a school's money lives:
+# GET /api/sis/parent/billing answers with that family's balance, invoices,
+# payments and card-on-file to whoever holds the session, and inside a
+# masquerade there is no coordinator left for the per-field redaction to act
+# on. Opening a parent's seat would therefore hand back the single thing the
+# role exists to withhold. Coordinators run registration and paperwork for
+# families through the console, where the tiers still apply.
+#
+# `campus_coordinator` is on it for the ordinary reason: a peer's seat is not a
+# smaller seat, which is also why an org admin may not open another org admin.
+_COORDINATOR_MAY_NOT_OPEN = _NEVER_A_TARGET | {'campus_coordinator', 'parent'}
+
+
+def masquerade_target_allowed(caller_roles, target_roles) -> bool:
+    """The role half of the masquerade rule: may these caller roles open a seat
+    held by these target roles?
+
+    Split out of caller_may_masquerade so the "Viewing as" person list can ask
+    the same question of a row it has already scoped to one organization
+    (routes/role_view.py), instead of spelling the tiers out a second time.
+    The org half stays with the caller — see below.
+    """
+    caller_roles = set(caller_roles or ())
+    target_roles = set(target_roles or ())
+    if 'superadmin' in caller_roles:
+        return True
+    if 'org_admin' in caller_roles:
+        return not (target_roles & _NEVER_A_TARGET)
+    if CAMPUS_COORDINATOR in caller_roles:
+        return not (target_roles & _COORDINATOR_MAY_NOT_OPEN)
+    return False
+
 
 def caller_may_masquerade(admin_row, target_row) -> bool:
     """The one rule for who may act as whom.
@@ -79,10 +120,14 @@ def caller_may_masquerade(admin_row, target_row) -> bool:
     A superadmin may act as anyone. An org admin may act as a member of their
     OWN organization who holds no admin-tier role (no org_admin, no
     superadmin) — the "view this teacher's / this family's actual setup" the
-    front office keeps asking for. Every other pairing is refused. Used both
-    when the session is granted (routes/admin/masquerade.py) and every time it
-    is renewed (session_manager), so a demotion ends the session at the next
-    refresh.
+    front office keeps asking for. A campus coordinator may act as the same
+    school's teachers, students and observers: the front office runs the
+    console day to day and hit the same "why can't this teacher see her class"
+    question the admins did, but families stay out of reach because a family's
+    seat carries the school's billing. Every other pairing is refused. Used
+    both when the session is granted (routes/admin/masquerade.py) and every
+    time it is renewed (session_manager), so a demotion ends the session at the
+    next refresh.
     """
     from utils.roles import _real_effective_roles
     if not admin_row or not target_row:
@@ -90,13 +135,12 @@ def caller_may_masquerade(admin_row, target_row) -> bool:
     admin_roles = set(_real_effective_roles(admin_row))
     if 'superadmin' in admin_roles:
         return True
-    if 'org_admin' not in admin_roles:
+    if not (admin_roles & {'org_admin', CAMPUS_COORDINATOR}):
         return False
     if not admin_row.get('organization_id') or \
             admin_row.get('organization_id') != target_row.get('organization_id'):
         return False
-    target_roles = set(_real_effective_roles(target_row))
-    return not (target_roles & {'org_admin', 'superadmin'})
+    return masquerade_target_allowed(admin_roles, _real_effective_roles(target_row))
 
 
 def is_masquerade_still_authorized(admin_id: str, target_id: str = None) -> bool:

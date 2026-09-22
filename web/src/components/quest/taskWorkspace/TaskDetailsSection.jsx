@@ -4,11 +4,23 @@
 import { TrophyIcon, ExclamationCircleIcon, CheckCircleIcon, SparklesIcon, PencilSquareIcon } from '@heroicons/react/24/outline';
 import SubjectBadges from '../../common/SubjectBadges';
 import QuestResourceList from '../QuestResourceList';
+import useIsClamped from '../../../hooks/useIsClamped';
 
 // optio-purple. Stands in for the pillar colour where pillars are hidden.
 const BRAND_PURPLE = '#6d469b';
 
-const TaskDetailsSection = ({ canUseTaskGeneration, isDescriptionExpanded, pillarData, pillarsVisible, setIsDescriptionExpanded, setIsEditModalOpen, setIsStepsModalOpen, task }) => (
+const TaskDetailsSection = ({ canUseTaskGeneration, isDescriptionExpanded, pillarData, pillarsVisible, setIsDescriptionExpanded, setIsEditModalOpen, setIsStepsModalOpen, task }) => {
+  // Same guess, same wrong answer as the quest header had: 150 characters
+  // against a three-line clamp offered "Show more" on descriptions that were
+  // already whole (iCreate, 2026-09-22, eb48ad83). Ask the paragraph instead.
+  const [descriptionRef, isDescriptionClamped] = useIsClamped(
+    task.description, isDescriptionExpanded);
+  const credits = task.subject_xp_distribution || task.school_subjects;
+  const hasCredits = Array.isArray(credits)
+    ? credits.length > 0
+    : Boolean(credits) && Object.keys(credits).length > 0;
+
+  return (
   <div className="px-4 sm:px-6 py-5 border-b border-gray-200">
     {/* Title row with Steps button */}
     <div className="flex items-start justify-between gap-4 mb-4">
@@ -49,11 +61,12 @@ const TaskDetailsSection = ({ canUseTaskGeneration, isDescriptionExpanded, pilla
     {task.description && (
       <div className="mb-5">
         <p
+          ref={descriptionRef}
           className={`text-sm text-gray-600 leading-relaxed ${isDescriptionExpanded ? '' : 'line-clamp-3'}`}
         >
           {task.description}
         </p>
-        {task.description.length > 150 && (
+        {(isDescriptionClamped || isDescriptionExpanded) && (
           <button
             onClick={() => setIsDescriptionExpanded(!isDescriptionExpanded)}
             className="text-xs text-optio-purple font-medium mt-2 touch-manipulation min-h-[32px] flex items-center"
@@ -115,8 +128,11 @@ const TaskDetailsSection = ({ canUseTaskGeneration, isDescriptionExpanded, pilla
       </div>
     </div>
 
-    {/* Subject Credits - separate row */}
-    {(task.subject_xp_distribution || task.school_subjects) && (
+    {/* Subject Credits - separate row.
+        Emptiness, not presence: a task the author marked as not counting
+        toward credit carries {} here, and {} is truthy, so the old check drew
+        a "Credits" heading with no subjects under it (iCreate, f2c4d88e). */}
+    {hasCredits && (
       <div className="mt-4 pt-4 border-t border-gray-100">
         <div className="flex items-center gap-3">
           <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">Credits</span>
@@ -129,6 +145,7 @@ const TaskDetailsSection = ({ canUseTaskGeneration, isDescriptionExpanded, pilla
       </div>
     )}
   </div>
-);
+  );
+};
 
 export default TaskDetailsSection;

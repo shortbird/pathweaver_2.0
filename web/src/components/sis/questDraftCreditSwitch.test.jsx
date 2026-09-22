@@ -62,6 +62,56 @@ describe('the quest-level credit switch', () => {
   })
 })
 
+// iCreate, 2026-09-22 (f2c4d88e): "I marked this as 'Not for high school
+// credit' but it is showing Credits - science and language arts." The switch
+// only set showSubjects, so the tasks still saved with their pillar's default
+// subject and the quest page credited them anyway.
+describe('the credit switch writes what it says', () => {
+  const withTasks = (initial, props = {}) => {
+    let tasks = initial
+    const setTasks = (fn) => { tasks = typeof fn === 'function' ? fn(tasks) : fn }
+    const { rerender } = render(
+      <QuestDraftForm
+        title="" setTitle={() => {}}
+        description="" setDescription={() => {}}
+        tasks={tasks} setTasks={setTasks}
+        {...props}
+      />
+    )
+    return { get: () => tasks, rerender }
+  }
+
+  it('turning it off clears the subject columns on every task', () => {
+    const state = withTasks([
+      task({ pillar: 'stem', diploma_subjects: ['science'], subject_xp_distribution: { science: 100 } }),
+      task({ pillar: 'civics', diploma_subjects: ['social_studies'], subject_xp_distribution: { social_studies: 100 } }),
+    ])
+    fireEvent.click(screen.getByLabelText(/counts toward high school credit/i))
+    expect(state.get().every((t) => t.diploma_subjects.length === 0)).toBe(true)
+    expect(state.get().every((t) => Object.keys(t.subject_xp_distribution).length === 0)).toBe(true)
+  })
+
+  // An omitted column takes the table's ['Electives'] default. "No credit"
+  // has to be a written empty list, not a missing key.
+  it('clears to an empty list rather than dropping the columns', () => {
+    const state = withTasks([task({ pillar: 'stem', diploma_subjects: ['science'] })])
+    fireEvent.click(screen.getByLabelText(/counts toward high school credit/i))
+    expect(state.get()[0].diploma_subjects).toEqual([])
+    expect(state.get()[0].subject_xp_distribution).toEqual({})
+  })
+
+  it('turning it back on refills each task from its pillar', () => {
+    const state = withTasks([task({ pillar: 'stem', diploma_subjects: [] })], { creditDefault: false })
+    fireEvent.click(screen.getByLabelText(/counts toward high school credit/i))
+    expect(state.get()[0].diploma_subjects).toEqual(['science'])
+  })
+
+  it('says plainly what off means', () => {
+    draft([task()], { creditDefault: false })
+    expect(screen.getByText(/no diploma subject credit/i)).toBeInTheDocument()
+  })
+})
+
 describe('tasksCarryChosenSubjects', () => {
   it('is false for tasks on their pillar default, or with no subject at all', () => {
     expect(tasksCarryChosenSubjects([task(), task({ diploma_subjects: [] })])).toBe(false)

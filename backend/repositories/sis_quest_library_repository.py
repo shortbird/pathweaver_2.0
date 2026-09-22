@@ -24,7 +24,8 @@ from utils.person_name import USER_NAME_FIELDS
 
 logger = get_logger(__name__)
 
-_QUEST_COLUMNS = 'id, title, description, quest_type, is_public, created_at, updated_at, created_by'
+_QUEST_COLUMNS = ('id, title, description, quest_type, is_public, created_at, updated_at, '
+                  'created_by, xp_threshold')
 
 
 class SisQuestLibraryRepository(BaseRepository):

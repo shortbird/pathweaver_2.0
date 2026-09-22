@@ -1299,7 +1299,18 @@ def school_quests(user_id: str, org_id: str) -> Optional[List[Dict[str, Any]]]:
 # ── Org resources (family-readable document library) ─────────────────────────
 def org_resources(user_id: str, org_id: str) -> Optional[List[Dict[str, Any]]]:
     """The org's resource library (guidebooks, contracts, links) for a family.
-    Staff-only knowledge-base entries (audience='staff') never reach families."""
+    Staff-only knowledge-base entries (audience='staff') never reach families.
+
+    Training links are left out even when they ARE for families. They are rows
+    in this same table, told apart by `is_training`, and they belong on the
+    training list with the Done button that records who watched them — listing
+    them here as well would put one video in two places on one portal, which is
+    the duplication the flag exists to prevent. Nothing had to enforce this
+    until 2026-09-22, because every training link was written with
+    audience='staff' and so could never match this query; the moment a link
+    could be set for families (ae16c5da), this filter is what keeps it in one
+    place.
+    """
     if not _is_org_member(user_id, org_id):
         return None
     from utils.storage_urls import sign_in_place
@@ -1308,12 +1319,54 @@ def org_resources(user_id: str, org_id: str) -> Optional[List[Dict[str, Any]]]:
         .select('id, title, description, url, category, sort_order')
         .eq('organization_id', org_id)
         .in_('audience', ['families', 'all'])
+        .eq('is_training', False)
         .order('sort_order').order('title').execute()
     ).data or []
     # `org-documents` is private: sign the whole library in one batched call.
     # External links (a Google Doc, a video) pass through untouched.
     sign_in_place(rows, ['url'])
     return rows
+
+
+# ── Training links a school set for its families ──────────────────────────────
+#
+# "I would like to link to a video or document option in the 'for families'
+# ... it'd be nice to be able to upload the training from last friday without
+# creating an entire quest" (iCreate, Molly, 2026-09-22, ae16c5da).
+#
+# A family training QUEST already reached families (school_quests above). The
+# link kind did not: it was hardcoded to audience='staff' in four places, on
+# the stated grounds that "a link for families would need a portal surface that
+# does not exist". This pair is that surface.
+#
+# Deliberately its own read rather than a third section bolted onto
+# org_resources: a training link is a thing you are asked to DO, with a record
+# of who has done it, and the document library is a shelf you take things off.
+# org_resources now filters `is_training` so one video cannot appear on both.
+def training_links(user_id: str, org_id: str) -> Optional[List[Dict[str, Any]]]:
+    """The school's family training links, with whether this person has done
+    each. None if they are not in this school."""
+    if not _is_org_member(user_id, org_id):
+        return None
+    from services import sis_training_service
+    return sis_training_service.list_links(org_id, user_id, audience='family')
+
+
+def set_training_link_done(user_id: str, org_id: str, link_id: str,
+                           done: bool) -> Optional[Dict[str, Any]]:
+    """Record that this person watched or read it, or undo that.
+
+    Self-scoped: `user_id` is the caller's own, from the decorator. The link
+    has to be one of THIS school's AND one set for families -- a parent must
+    not be able to acknowledge a staff training by guessing its id.
+    """
+    if not _is_org_member(user_id, org_id):
+        return None
+    from services import sis_training_service
+    link = sis_training_service.owned_link(org_id, link_id)
+    if not link or (link.get('audience') or 'staff') not in ('families', 'all'):
+        return None
+    return sis_training_service.set_link_done(link, user_id, done)
 
 
 def org_events(user_id: str, org_id: str, from_iso: Optional[str] = None,

@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import { toast } from 'react-hot-toast'
 import {
@@ -23,6 +23,7 @@ import {
   conversationsQueryKey,
 } from '../../hooks/api/useDirectMessages'
 import useMessagingRealtime from '../../hooks/api/useMessagingRealtime'
+import { useGroups } from '../../hooks/api/useGroupMessages'
 import BoardAnnouncementsTab from '../../components/sis/BoardAnnouncementsTab'
 import SearchSelect from '../../components/ui/SearchSelect'
 import StaffComposeModal from '../../components/sis/StaffComposeModal'
@@ -359,6 +360,25 @@ const SchoolInboxPage = () => {
     ['all', 'All'],
   ]
 
+  // Group threads sent from this very page.
+  //
+  // "New message" to several staff at once creates a group_conversations row
+  // (sis_messaging_service._send_as_group), and this page only ever read the
+  // DM list -- so the thread the office had just sent vanished from the screen
+  // it was sent on, while the sidebar badge went on counting its unread
+  // (iCreate, 2026-09-22, 3a189384). The group chat itself lives on
+  // /messages and is good; what was missing was any way back to it from here.
+  // These rows are that way back, not a second group reader: the thread pane
+  // on this page is DM-shaped down to its realtime topic and its resolve mark.
+  const { data: groupsData } = useGroups(user?.id, { enabled: isMessages && tab === 'mine' })
+  const staffGroups = useMemo(() => {
+    const rows = groupsData?.groups || (Array.isArray(groupsData) ? groupsData : []) || []
+    return [...rows]
+      .filter((g) => (g.audience || 'staff') === 'staff')
+      .sort((a, b) => new Date(b.last_message_at || b.created_at || 0)
+        - new Date(a.last_message_at || a.created_at || 0))
+  }, [groupsData])
+
   // The open thread's row as the list has it now -- `selected` is a snapshot
   // from the click, and the resolved mark lands on the list.
   const selectedRow = (selected?.id && conversations.find((c) => c.id === selected.id)) || selected
@@ -489,6 +509,33 @@ const SchoolInboxPage = () => {
             ))}
           </div>
           <div className="flex-1 overflow-y-auto">
+            {/* Group threads first: they are the newest thing the office did,
+                and they were the ones that disappeared. */}
+            {tab === 'mine' && staffGroups.length > 0 && (
+              <div className="border-b border-gray-100 py-1">
+                <p className="px-3 pt-1 pb-1.5 text-[11px] font-semibold uppercase tracking-wide text-neutral-400">
+                  Group threads
+                </p>
+                {staffGroups.map((g) => (
+                  <Link key={g.id} to={`/messages?group=${g.id}`}
+                    className="flex items-center gap-2 px-3 py-2 hover:bg-gray-50 transition-colors">
+                    <ChatBubbleLeftRightIcon className="w-4 h-4 text-optio-purple flex-shrink-0" />
+                    <span className="min-w-0 flex-1 truncate text-sm text-neutral-800">{g.name}</span>
+                    {g.member_count > 0 && (
+                      <span className="text-xs text-neutral-400 flex-shrink-0">{g.member_count}</span>
+                    )}
+                    {g.unread_count > 0 && (
+                      <span className="flex-shrink-0 rounded-full bg-optio-purple px-1.5 py-0.5 text-[11px] font-semibold text-white">
+                        {g.unread_count}
+                      </span>
+                    )}
+                  </Link>
+                ))}
+                <p className="px-3 pt-1 pb-1 text-[11px] text-neutral-400">
+                  Group threads open in Messages, where everyone sees the replies.
+                </p>
+              </div>
+            )}
             {loading ? (
               <div className="flex items-center justify-center h-40">
                 <Spinner />

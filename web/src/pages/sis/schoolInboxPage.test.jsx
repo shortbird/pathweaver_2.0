@@ -49,6 +49,7 @@ vi.mock('../../hooks/api/useMessagingRealtime', () => ({
 const { api, state } = vi.hoisted(() => {
   const state = {
     schoolConvos: [], schoolMessages: [], myConvos: [], myMessages: [], roster: [],
+    groups: [],
   }
   const apiData = (url) => {
     if (url.includes('/api/school-inbox/conversations/')) {
@@ -67,6 +68,7 @@ const { api, state } = vi.hoisted(() => {
       return { data: { data: { conversations: state.myConvos, total: state.myConvos.length } } }
     }
     if (url.includes('/api/sis/roster')) return { data: { roster: state.roster } }
+    if (url === '/api/groups') return { data: { data: state.groups } }
     return { data: {} }
   }
   return {
@@ -106,6 +108,7 @@ beforeEach(() => {
   state.myConvos = []
   state.myMessages = []
   state.roster = []
+  state.groups = []
   vi.clearAllMocks()
 })
 
@@ -459,5 +462,63 @@ describe('SchoolInboxPage — combined inbox', () => {
     render(<SchoolInboxPage />, { route: '/inbox?conversation=not-mine' })
     await screen.findByText('Greta Family')
     expect(api.get).not.toHaveBeenCalledWith('/api/school-inbox/conversations/not-mine')
+  })
+})
+
+// "I sent a group message here to 10 people, but it shows all 10 messages"
+// (iCreate, 2026-09-22, 3a189384). The families half of that is by design --
+// no family may see another family's reply. The staff half was not: sending to
+// several staff at once makes a group_conversations row, this page only ever
+// read the DM list, and the thread it had just sent was nowhere on the screen
+// that sent it while the sidebar badge went on counting its unread.
+describe('group threads sent from this page', () => {
+  const group = (over = {}) => ({
+    id: 'g1', name: 'Elementary teachers', audience: 'staff',
+    member_count: 10, unread_count: 0,
+    last_message_at: '2026-09-22T10:00:00Z', ...over,
+  })
+
+  it('lists a staff group thread on the teacher’s own tab', async () => {
+    authUser = { id: 'me-1', role: 'advisor' }
+    state.groups = [group()]
+    render(<SchoolInboxPage />)
+    expect(await screen.findByText('Elementary teachers')).toBeInTheDocument()
+  })
+
+  it('links it to the group chat that can actually read it', async () => {
+    authUser = { id: 'me-1', role: 'advisor' }
+    state.groups = [group()]
+    render(<SchoolInboxPage />)
+    const row = await screen.findByText('Elementary teachers')
+    expect(row.closest('a')).toHaveAttribute('href', '/messages?group=g1')
+  })
+
+  it('shows the unread the sidebar badge was counting', async () => {
+    authUser = { id: 'me-1', role: 'advisor' }
+    state.groups = [group({ unread_count: 3 })]
+    render(<SchoolInboxPage />)
+    await screen.findByText('Elementary teachers')
+    expect(screen.getByText('3')).toBeInTheDocument()
+  })
+
+  // A class's family or student group is the class page's, not the office's.
+  it('leaves family and student groups out', async () => {
+    authUser = { id: 'me-1', role: 'advisor' }
+    state.groups = [
+      group({ id: 'g2', name: 'Art class families', audience: 'family' }),
+      group({ id: 'g3', name: 'Art class students', audience: 'student' }),
+    ]
+    render(<SchoolInboxPage />)
+    await waitFor(() => expect(api.get).toHaveBeenCalledWith('/api/groups'))
+    expect(screen.queryByText('Art class families')).toBeNull()
+    expect(screen.queryByText('Art class students')).toBeNull()
+  })
+
+  it('says nothing about groups when there are none', async () => {
+    authUser = { id: 'me-1', role: 'advisor' }
+    state.myConvos = [convo(2, 'Pat')]
+    render(<SchoolInboxPage />)
+    await screen.findByText('Pat Family')
+    expect(screen.queryByText('Group threads')).toBeNull()
   })
 })

@@ -346,3 +346,69 @@ class TestContextCarriesEffectiveModules:
         org = self._context({'sis_enabled': True})['orgs'][0]
         assert org['organization_name'] == 'Micro School'
         assert org['students'][0]['student_id'] == 'stu1'
+
+
+@pytest.mark.unit
+class TestTrainingLinksOnTheFamilyPortal:
+    """A training that is a video or a document rather than a quest
+    (iCreate, Molly, 2026-09-22, ae16c5da).
+
+    Training links and the family document library are rows in ONE table,
+    told apart by `is_training`. Until a link could be set for families that
+    distinction never had to be enforced, because every link was written with
+    audience='staff' and so could not match the family library's query. These
+    tests hold the line now that it can.
+    """
+
+    def test_the_document_library_leaves_training_out(self):
+        """Otherwise the same video is on the family portal twice: once on the
+        training list with its Done button, once as a document."""
+        filters = {}
+
+        def resolver(table, eq, _in):
+            if table == 'org_resources':
+                filters.update(eq)
+            return []
+
+        with patch.object(parent, '_admin', return_value=_fake_admin(resolver)), \
+             patch.object(parent, '_is_org_member', return_value=True), \
+             patch('utils.storage_urls.sign_in_place', lambda *_a, **_k: None):
+            parent.org_resources('g1', 'org1')
+        assert filters.get('is_training') is False
+
+    def test_a_parent_can_only_finish_a_link_set_for_families(self):
+        """A staff training's id is guessable. Marking one done as a parent
+        would put a parent in the office's training report."""
+        from services import sis_training_service
+
+        staff_link = {'id': 'L1', 'organization_id': 'org1', 'audience': 'staff'}
+        with patch.object(parent, '_is_org_member', return_value=True), \
+             patch.object(sis_training_service, 'owned_link', return_value=staff_link), \
+             patch.object(sis_training_service, 'set_link_done') as marked:
+            assert parent.set_training_link_done('g1', 'org1', 'L1', True) is None
+        marked.assert_not_called()
+
+    def test_a_family_link_is_marked_for_the_caller(self):
+        from services import sis_training_service
+
+        family_link = {'id': 'L2', 'organization_id': 'org1', 'audience': 'families'}
+        with patch.object(parent, '_is_org_member', return_value=True), \
+             patch.object(sis_training_service, 'owned_link', return_value=family_link), \
+             patch.object(sis_training_service, 'set_link_done',
+                          return_value={'id': 'L2'}) as marked:
+            out = parent.set_training_link_done('g1', 'org1', 'L2', True)
+        assert out == {'id': 'L2'}
+        # The caller's own id, never one from the body.
+        marked.assert_called_once_with(family_link, 'g1', True)
+
+    def test_a_link_from_another_school_is_not_found(self):
+        from services import sis_training_service
+
+        with patch.object(parent, '_is_org_member', return_value=True), \
+             patch.object(sis_training_service, 'owned_link', return_value=None):
+            assert parent.set_training_link_done('g1', 'org1', 'L3', True) is None
+
+    def test_somebody_outside_the_school_gets_nothing(self):
+        with patch.object(parent, '_is_org_member', return_value=False):
+            assert parent.training_links('nobody', 'org1') is None
+            assert parent.set_training_link_done('nobody', 'org1', 'L2', True) is None

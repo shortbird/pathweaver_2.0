@@ -394,3 +394,45 @@ class TestCorrectingAnAttachment:
         repo = _Repo(rows=[])
         with _with(repo):
             assert svc.rename(QUEST['id'], 'r1', title='x') is None
+
+
+@pytest.mark.unit
+class TestAnUploadedFilesUrlPointsAtTheFile:
+    """`public_object_url` takes (bucket, path), in that order.
+
+    Called the other way round it still returns a plausible-looking URL --
+    ".../object/public/<org>/quest-resources/<quest>/<uuid>.pdf/org-documents"
+    -- with the bucket glued on the end, which resolves to nothing. Nothing
+    server-side reads the column back, and `file_path` beside it was correct,
+    so all four files ever attached to a quest were dead links and the rows
+    looked healthy. It took a parent clicking one to find out (iCreate,
+    2026-09-22, ticket 7bcfe8b2).
+    """
+
+    class _Upload:
+        filename = 'parent-pack.pdf'
+        content_type = 'application/pdf'
+
+        def read(self):
+            return b'%PDF-1.4 pretend'
+
+    def _upload(self):
+        repo = _Repo()
+        admin = Mock()
+        with _with(repo):
+            svc.upload(QUEST, task_id=None, file=self._Upload(),
+                       title='Parent Pack', user_id=TEACHER, admin=admin)
+        return repo.created[0], admin
+
+    def test_the_bucket_comes_before_the_path(self):
+        row, _ = self._upload()
+        assert f'/public/{svc.DOCUMENT_BUCKET}/{row["file_path"]}' in row['url']
+
+    def test_the_bucket_is_not_glued_onto_the_end(self):
+        row, _ = self._upload()
+        assert not row['url'].endswith(svc.DOCUMENT_BUCKET)
+
+    def test_the_file_is_uploaded_to_that_same_bucket(self):
+        row, admin = self._upload()
+        admin.storage.from_.assert_called_once_with(svc.DOCUMENT_BUCKET)
+        assert row['file_path'].startswith(f'{QUEST["organization_id"]}/quest-resources/')

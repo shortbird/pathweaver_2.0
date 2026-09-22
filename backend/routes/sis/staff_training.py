@@ -472,8 +472,12 @@ def list_training(user_id):
         progress = _progress_for([user_id], quest_ids, _thresholds(catalog))
         for c in catalog:
             c['my_progress'] = progress.get((user_id, c['quest_id']), dict(_NOT_STARTED))
-    if audience == 'staff':
-        catalog = _in_creators_order(catalog + sis_training_service.list_links(org_id, user_id))
+    # Links merge into every audience that can carry one. Staff-only until
+    # 2026-09-22, when a link became settable for families: "I would like to
+    # link to a video or document option in the 'for families'" (iCreate,
+    # ae16c5da). Students are still quests only -- see resource_audience.
+    catalog = _in_creators_order(
+        catalog + sis_training_service.list_links(org_id, user_id, audience))
     return jsonify({'success': True, 'training': catalog, 'audience': audience})
 
 
@@ -1273,10 +1277,9 @@ def training_progress(user_id):
         return err
     audience = _audience(request.args.get('audience'))
     catalog = _catalog(org_id, audience)
-    links = []
-    if audience == 'staff':
-        links = [sis_training_service.shape_link(l) | {'_raw': l}
-                 for l in sis_training_service.links_for_org(org_id)]
+    links = [sis_training_service.shape_link(l) | {'_raw': l}
+             for l in sis_training_service.links_for_org(org_id, audience)]
+    if links:
         catalog = _in_creators_order(catalog + links)
     # One tab, one group of people. A quest set for parents AND students shows
     # on both tabs, but each tab reports on the people that tab is about — a
