@@ -107,6 +107,37 @@ or roles).
 2. Investigate. Write what you learn to `triage_notes` (append).
 3. Fix it, with tests, following `ship-feature` or `debug-production` as the
    ticket warrants. Run the affected suites.
+
+   The tests are part of the fix, not a follow-up, and "the suite still
+   passes" is not the same as "the change is tested". Before you stop for the
+   local check, go through the diff and cover each of these:
+
+   - **The reported behaviour.** A test that fails on the old code and passes
+     on the new. Quote the reporter and the ticket id in its docstring, so
+     the next person who wants to "tidy it up" meets the reason first.
+   - **Existing tests that pinned the old behaviour.** Update them to the new
+     behaviour and say why in the test. Do not delete them, and do not only
+     change the numbers until they pass.
+   - **The layer you changed, not only the route above it.** A new keyword
+     on a service needs a direct test of that service in both directions
+     (the new path and the default path the other callers still rely on). A
+     route test that stubs the service does not prove the service.
+   - **Every new field on the wire.** A column added to a response needs a
+     test that the response carries it, including the null or default case.
+     Otherwise the UI reads `undefined` and nothing fails.
+   - **Every new gate.** A role or ownership check needs the refused case
+     (and nothing written) and the allowed case.
+   - **Every screen and every surface the fix touches.** Two screens that do
+     the same job (the office page and the teacher page, web and mobile)
+     each need their own test. A prop that decides what a user sees needs a
+     test at the parent that passes it, not only at the child.
+   - **The edges the fix creates.** A new default must lose to a value that
+     was already saved. A reset must return to the new default. Changed copy
+     that makes a promise ("Classes already on it do not get it") must be
+     asserted, because the copy is the contract the reporter reads.
+
+   Then run the affected suites again and say in the report which tests you
+   added and which you changed.
 4. **Stop for the user's local check (CLAUDE.md rule 1).** Tell them what to
    click at http://localhost:3000 (or the port your worktree's servers use).
    Nothing is committed until they confirm.
@@ -158,7 +189,7 @@ the same `fix_commit` and the same two sentences, and they are mailed too.
 ### 6. Finish the sweep
 
 Report to the user, as a table: ticket id, title, what you did in one line,
-how to verify locally, and status. Then say which will email their reporters
+the tests you added or changed, how to verify locally, and status. Then say which will email their reporters
 once the deploy is live and which already did (the cron ran). If any ticket
 is `fixed` with a commit that is not yet on `main` (your worktree branch),
 say so: the sweep cannot see it until it is merged with its SHA intact.
