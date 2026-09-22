@@ -150,9 +150,17 @@ def push_curriculum_quests_to_classes(admin, curriculum_id, org_id, user_id,
     return {'classes': len(touched), 'assignments': len(rows)}
 
 
-def attach_quest_to_curriculum(admin, org_id, curriculum_id, quest_id, user_id):
+def attach_quest_to_curriculum(admin, org_id, curriculum_id, quest_id, user_id,
+                               push=True):
     """Put one quest on one curriculum: the sis_curriculum_quests row, at the
-    end of the order, then the push to that curriculum's classes.
+    end of the order, then (push=True) the push to that curriculum's classes.
+
+    push=False is the quest library's door. Molly (iCreate, a933ee02,
+    2026-09-22): "Attach to a curriculum should not assign it to all the
+    classes." From the library, putting a quest on a curriculum files it
+    there and nothing more; giving it to a class is the library's other
+    assign action. The curriculum page's own doors still push, because that
+    is the screen where a curriculum's quests are its classes' quests.
 
     The one writer for "this quest is on this curriculum" from a quest's point
     of view. routes/sis/curriculum.py (add_quest_to_curriculum: "also put this
@@ -168,6 +176,8 @@ def attach_quest_to_curriculum(admin, org_id, curriculum_id, quest_id, user_id):
     if repo.curriculum_has_quest(curriculum_id, quest_id):
         return {'added': False, 'pushed_to_classes': 0}
     repo.add_curriculum_quest(curriculum_id, quest_id, repo.next_sequence_order(curriculum_id), user_id)
+    if not push:
+        return {'added': True, 'pushed_to_classes': 0}
     pushed = push_curriculum_quests_safe(admin, curriculum_id, org_id, user_id,
                                          quest_ids=[quest_id])
     return {'added': True, 'pushed_to_classes': pushed['classes']}

@@ -90,9 +90,12 @@ export default function AttendancePanel() {
     api.get(`/api/sis/classes/${classId}/attendance?date=${date}&organization_id=${orgId}`)
       .then((r) => {
         const rows = r.data?.roster || []
-        // Default is present; a status already recorded (including an excusal
-        // an admin set) loads in and wins over the default.
-        setRoster(rows.map((s) => ({ ...s, mark: s.status || 'present' })))
+        // Default is present, or excused when a guardian reported the student
+        // out for this class or the whole day -- iCreate, 831acc63: "is that
+        // then reflected in every class for the day so the teachers don't have
+        // to figure it out?" It was a label only, and untouched roll saved the
+        // child present. A status already recorded loads in and wins.
+        setRoster(rows.map((s) => ({ ...s, mark: s.status || (s.planned_absence ? 'excused' : 'present') })))
         setAlreadyTaken(rows.some((s) => s.status != null))
         setDirty(false)
       })
@@ -337,7 +340,7 @@ export default function AttendancePanel() {
           </div>
 
           <div className="px-4 py-3 border-t border-gray-100 flex items-center justify-between gap-3">
-            <span className="text-xs text-neutral-400">Untouched students are saved as present. You can edit and re-save anytime.</span>
+            <span className="text-xs text-neutral-400">Untouched students are saved as present, or excused if a parent reported them out. You can edit and re-save anytime.</span>
             <Button size="sm" onClick={save} loading={saving}>
               {absentCount ? `Save (${absentCount} absent)` : 'Save'}
             </Button>

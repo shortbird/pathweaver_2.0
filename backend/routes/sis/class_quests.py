@@ -54,6 +54,7 @@ from services.sis_quest_authoring import (
     subject_updates as _subject_updates,
 )
 from services.sis_curriculum_sync import assignable_quest_ids
+from services import sis_quest_task_editing as task_editing
 from services.class_quest_enrollment import (
     active_student_ids,
     audience,
@@ -319,7 +320,7 @@ def list_class_quests(user_id, class_id):
     rows = (admin.table('class_quests')
             .select('id, quest_id, sequence_order, publish_at, due_date, student_ids, '
                     'quests(id, title, description, quest_type, is_active, '
-                    'organization_id, xp_threshold)')
+                    'organization_id, xp_threshold, allow_custom_tasks)')
             .eq('class_id', class_row['id']).order('sequence_order').execute()).data or []
     quest_ids = [r['quest_id'] for r in rows]
     counts = _template_task_count(admin, quest_ids)
@@ -347,6 +348,9 @@ def list_class_quests(user_id, class_id):
             # The XP a student has to earn before the quest counts as finished.
             # On the quest, not the class link: it is a property of the work.
             'xp_threshold': q.get('xp_threshold') or 0,
+            # Whether a student may add tasks of their own. Null reads as the
+            # column default, true.
+            'allow_custom_tasks': q.get('allow_custom_tasks') is not False,
             # Only the org's own quests may have their preset tasks edited here.
             'editable_tasks': q.get('organization_id') == org_id,
         })
@@ -680,10 +684,18 @@ def copy_quests_from_curriculum(user_id, class_id):
 def save_quests_to_curriculum(user_id, class_id):
     """Save this class's current quest list onto a linked curriculum, so next
     year's section can start from it. Replaces the curriculum's set — the class
-    in front of you is the statement of what the curriculum should be."""
+    in front of you is the statement of what the curriculum should be.
+
+    Admins only. It replaces the school's saved set for every class that uses
+    the curriculum, which is not one teacher's call, and iCreate did not want
+    teachers offered it (93af5014, 2026-09-22: "I don't think we want the 'Save
+    this class's quests to the curriculum.'")."""
     class_row, admin, err = _authorize(user_id, class_id)
     if err:
         return err
+    if not sis_service.caller_is_admin(user_id):
+        return jsonify({'success': False,
+                        'error': 'Only your school office can change a curriculum.'}), 403
     data = request.get_json(silent=True) or {}
     curriculum_id = (data.get('curriculum_id') or '').strip()
     if _bad_uuid(curriculum_id):
@@ -842,6 +854,40 @@ def _authorize_editable_quest(user_id, class_id, quest_id):
             'error': 'Preset tasks can only be edited on your school\'s own quests.'
         }), 403)
     return class_row, admin, quest, None
+
+
+# The fields a teacher may change on the quest itself from the class page.
+# xp_threshold is not here: update_class_quest already writes it, and one
+# field with two writers is how two screens end up disagreeing.
+_CLASS_QUEST_INFO_FIELDS = ('title', 'description', 'allow_custom_tasks')
+
+
+@bp.route('/classes/<class_id>/quests/<quest_id>/info', methods=['PATCH'])
+@require_auth
+def update_class_quest_info(user_id, class_id, quest_id):
+    """Rename a quest, rewrite its description, or say whether students may
+    add tasks of their own -- from the class page, by the class's teacher.
+
+    iCreate, 93af5014, 2026-09-22: "Teachers can't seem to edit the quests.
+    Once they can edit, they should be able to select whether or not students
+    can add tasks." A teacher could already edit a quest's tasks, attachments
+    and XP here; the title and description were reachable only from the
+    admin-only library and curriculum editors. Same gate as the preset tasks
+    (_authorize_editable_quest): the class's moderator, the quest on this
+    class, and the school's own quest, so a library quest shared by every
+    school is never renamed from one class. The quest is one row, so the change
+    shows on every class and curriculum that carries it, as it does from the
+    library.
+    """
+    _, admin, _, err = _authorize_editable_quest(user_id, class_id, quest_id)
+    if err:
+        return err
+    data = request.get_json(silent=True) or {}
+    fields = {k: data[k] for k in _CLASS_QUEST_INFO_FIELDS if k in data}
+    try:
+        return jsonify(task_editing.update_quest_info(admin, quest_id, fields))
+    except task_editing.QuestTaskEditError as e:
+        return jsonify({'success': False, 'error': e.message}), e.status
 
 
 @bp.route('/classes/<class_id>/quests/<quest_id>/tasks', methods=['GET'])

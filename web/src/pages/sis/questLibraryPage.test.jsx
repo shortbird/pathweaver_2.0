@@ -71,6 +71,13 @@ beforeEach(() => {
   }))
 })
 
+// Each row's actions sit behind one kebab menu: open the i-th row's menu,
+// then pick the action.
+const rowAction = (i, label) => {
+  fireEvent.click(screen.getAllByRole('button', { name: /^Actions for / })[i])
+  fireEvent.click(screen.getByRole('menuitem', { name: label }))
+}
+
 const libraryLoads = () => api.get.mock.calls.filter(([url]) => !url.includes('/resources') && !url.includes('/roster'))
 
 describe('QuestsPanel (was QuestLibraryPage)', () => {
@@ -100,14 +107,16 @@ describe('QuestsPanel (was QuestLibraryPage)', () => {
   })
 
   it('puts a quest on a curriculum through the quest-scoped route, and reloads', async () => {
-    api.post.mockResolvedValue({ data: { success: true, added: true, pushed_to_classes: 2,
+    api.post.mockResolvedValue({ data: { success: true, added: true, pushed_to_classes: 0,
       curriculum: { id: 'cur-stem', title: 'STEM' } } })
     render(<QuestsPanel />)
     await screen.findByText('Bridge Building')
-    fireEvent.click(screen.getAllByRole('button', { name: 'Assign' })[1])
+    rowAction(1, 'Assign')
 
     const dialog = await screen.findByRole('dialog')
     expect(within(dialog).getByText(/Assign “Bridge Building”/)).toBeInTheDocument()
+    // a933ee02: from here a curriculum is where a quest is filed, not a push.
+    expect(within(dialog).getByText(/Classes already on it do not get/)).toBeInTheDocument()
     const curriculumBox = within(dialog).getByPlaceholderText('Search curriculum…')
     fireEvent.focus(curriculumBox)
     fireEvent.change(curriculumBox, { target: { value: 'STE' } })
@@ -126,7 +135,7 @@ describe('QuestsPanel (was QuestLibraryPage)', () => {
     api.post.mockResolvedValue({ data: { success: true, students_enrolled: 12 } })
     render(<QuestsPanel />)
     await screen.findByText('Bridge Building')
-    fireEvent.click(screen.getAllByRole('button', { name: 'Assign' })[1])
+    rowAction(1, 'Assign')
 
     const dialog = await screen.findByRole('dialog')
     const classBox = within(dialog).getByPlaceholderText('Search classes…')
@@ -157,7 +166,7 @@ describe('QuestsPanel (was QuestLibraryPage)', () => {
 
     render(<QuestsPanel />)
     await screen.findByText('Bridge Building')
-    fireEvent.click(screen.getAllByRole('button', { name: 'Assign' })[1])
+    rowAction(1, 'Assign')
     const dialog = await screen.findByRole('dialog')
     const classBox = within(dialog).getByPlaceholderText('Search classes…')
     fireEvent.focus(classBox)
@@ -180,7 +189,7 @@ describe('QuestsPanel (was QuestLibraryPage)', () => {
 
     render(<QuestsPanel />)
     await screen.findByText('Bridge Building')
-    fireEvent.click(screen.getAllByRole('button', { name: 'Assign' })[1])
+    rowAction(1, 'Assign')
     const dialog = await screen.findByRole('dialog')
     fireEvent.focus(within(dialog).getByPlaceholderText('Search classes…'))
 
@@ -195,7 +204,7 @@ describe('QuestsPanel (was QuestLibraryPage)', () => {
     api.post.mockResolvedValue({ data: { success: true, enrolled: 2, already_had_it: 0 } })
     render(<QuestsPanel />)
     await screen.findByText('Bridge Building')
-    fireEvent.click(screen.getAllByRole('button', { name: 'Assign' })[1])
+    rowAction(1, 'Assign')
 
     const dialog = await screen.findByRole('dialog')
     const box = await within(dialog).findByPlaceholderText('Search students…')
@@ -218,7 +227,7 @@ describe('QuestsPanel (was QuestLibraryPage)', () => {
   it('does not offer a curriculum or class the quest is already on', async () => {
     render(<QuestsPanel />)
     await screen.findByText('Watercolor Basics')
-    fireEvent.click(screen.getAllByRole('button', { name: 'Assign' })[0])
+    rowAction(0, 'Assign')
     const dialog = await screen.findByRole('dialog')
     expect(within(dialog).getByText(/Already on: Art$/)).toBeInTheDocument()
     const curriculumBox = within(dialog).getByPlaceholderText('Search curriculum…')
@@ -276,11 +285,21 @@ describe('QuestsPanel (was QuestLibraryPage)', () => {
     expect(screen.queryByText('“Robot Garden” is in the library')).toBeNull()
   })
 
+  it('puts every row action behind one menu', async () => {
+    render(<QuestsPanel />)
+    await screen.findByText('Watercolor Basics')
+    // No loose action links on the row any more.
+    expect(screen.queryByRole('button', { name: 'Edit' })).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Actions for Watercolor Basics' }))
+    expect(screen.getAllByRole('menuitem').map((b) => b.textContent))
+      .toEqual(['Edit', 'Assign', 'Attachments', 'Duplicate'])
+  })
+
   it('opens any quest\'s attachments from its row, task by task', async () => {
     render(<QuestsPanel />)
     await screen.findByText('Watercolor Basics')
-    const row = screen.getByText('Watercolor Basics').closest('tr')
-    fireEvent.click(within(row).getByRole('button', { name: 'Attachments' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Actions for Watercolor Basics' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Attachments' }))
     const dialog = await screen.findByRole('dialog')
     expect(within(dialog).getByText('Attachments for “Watercolor Basics”')).toBeInTheDocument()
     expect(within(dialog).getByText('Stretch the paper')).toBeInTheDocument()
@@ -318,7 +337,7 @@ describe('QuestsPanel (was QuestLibraryPage)', () => {
 
   it('can put the new quest straight onto a curriculum', async () => {
     api.post.mockResolvedValue({ data: { success: true, quest_id: 'q-new', task_count: 0,
-      curriculum: { id: 'cur-stem', title: 'STEM' }, added: true, pushed_to_classes: 1 } })
+      curriculum: { id: 'cur-stem', title: 'STEM' }, added: true, pushed_to_classes: 0 } })
     render(<QuestsPanel />)
     await screen.findByText('Watercolor Basics')
     fireEvent.click(screen.getByRole('button', { name: /Add quest/ }))
@@ -362,7 +381,7 @@ describe('editing and duplicating from the library row', () => {
     render(<QuestsPanel />)
     // q2 has no curricula and no classes.
     await screen.findByText('Not on a curriculum')
-    fireEvent.click(screen.getAllByRole('button', { name: 'Edit' })[1])
+    rowAction(1, 'Edit')
 
     const dialog = await screen.findByRole('dialog')
     expect(within(dialog).getByLabelText('Quest title')).toHaveValue('Bridge Building')
@@ -374,7 +393,7 @@ describe('editing and duplicating from the library row', () => {
   it('saves a new title and description through the quest-scoped route', async () => {
     render(<QuestsPanel />)
     await screen.findByText('Bridge Building')
-    fireEvent.click(screen.getAllByRole('button', { name: 'Edit' })[1])
+    rowAction(1, 'Edit')
     const dialog = await screen.findByRole('dialog')
 
     fireEvent.change(within(dialog).getByLabelText('Quest title'), { target: { value: 'Bridges' } })
@@ -395,7 +414,7 @@ describe('editing and duplicating from the library row', () => {
   it('saves the XP a quest requires to finish', async () => {
     render(<QuestsPanel />)
     await screen.findByText('Bridge Building')
-    fireEvent.click(screen.getAllByRole('button', { name: 'Edit' })[1])
+    rowAction(1, 'Edit')
     const dialog = await screen.findByRole('dialog')
 
     fireEvent.change(within(dialog).getByLabelText(/XP required to finish/),
@@ -410,7 +429,7 @@ describe('editing and duplicating from the library row', () => {
   it('clearing the box means no requirement, not zero XP', async () => {
     render(<QuestsPanel />)
     await screen.findByText('Bridge Building')
-    fireEvent.click(screen.getAllByRole('button', { name: 'Edit' })[1])
+    rowAction(1, 'Edit')
     const dialog = await screen.findByRole('dialog')
 
     const box = within(dialog).getByLabelText(/XP required to finish/)
@@ -427,7 +446,7 @@ describe('editing and duplicating from the library row', () => {
   it('will not save a quest with no title', async () => {
     render(<QuestsPanel />)
     await screen.findByText('Bridge Building')
-    fireEvent.click(screen.getAllByRole('button', { name: 'Edit' })[1])
+    rowAction(1, 'Edit')
     const dialog = await screen.findByRole('dialog')
     fireEvent.change(within(dialog).getByLabelText('Quest title'), { target: { value: '  ' } })
     fireEvent.click(within(dialog).getByRole('button', { name: 'Save' }))
@@ -438,7 +457,7 @@ describe('editing and duplicating from the library row', () => {
     render(<QuestsPanel />)
     await screen.findByText('Watercolor Basics')
     // q1 is on a curriculum and a class.
-    fireEvent.click(screen.getAllByRole('button', { name: 'Edit' })[0])
+    rowAction(0, 'Edit')
     const dialog = await screen.findByRole('dialog')
     expect(within(dialog).getByText(/reach everyone already on it/i)).toBeInTheDocument()
   })
@@ -446,7 +465,7 @@ describe('editing and duplicating from the library row', () => {
   it('says nothing about blast radius for a quest nobody is on', async () => {
     render(<QuestsPanel />)
     await screen.findByText('Bridge Building')
-    fireEvent.click(screen.getAllByRole('button', { name: 'Edit' })[1])
+    rowAction(1, 'Edit')
     const dialog = await screen.findByRole('dialog')
     expect(within(dialog).queryByText(/reach everyone already on it/i)).toBeNull()
   })
@@ -490,7 +509,7 @@ describe('editing and duplicating from the library row', () => {
     await screen.findByText('Bridge Building')
     const before = libraryLoads().length
 
-    fireEvent.click(screen.getAllByRole('button', { name: 'Duplicate' })[1])
+    rowAction(1, 'Duplicate')
 
     await waitFor(() => expect(api.post).toHaveBeenCalledWith(
       '/api/sis/quests/q2/duplicate?organization_id=org-1', {}))

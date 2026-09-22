@@ -39,7 +39,7 @@ const SCOPE_HEADING = {
   other: 'Elsewhere in your school and the Optio library',
 }
 
-export default function ClassQuestsManager({ classId, scheduledEnabled = false }) {
+export default function ClassQuestsManager({ classId, scheduledEnabled = false, canSaveToCurriculum = false }) {
   const confirm = useConfirm()
   const [quests, setQuests] = useState([])
   // The class's active students, for the "who is this for" picker. Rides along
@@ -402,7 +402,10 @@ export default function ClassQuestsManager({ classId, scheduledEnabled = false }
               {syncing === c.curriculum_id ? 'Adding\u2026' : `Add ${c.missing_count} to this class`}
             </button>
           )}
-          {quests.length > 0 && (
+          {/* Office only: it replaces the curriculum's saved set for every
+              class that uses it. iCreate, 93af5014: "I don't think we want
+              the 'Save this class's quests to the curriculum.'" */}
+          {canSaveToCurriculum && quests.length > 0 && (
             <button type="button" disabled={syncing === c.curriculum_id}
               onClick={() => saveToCurriculum(c)}
               title="Replaces the curriculum's saved set with this class's quests"
@@ -734,6 +737,11 @@ export default function ClassQuestsManager({ classId, scheduledEnabled = false }
                         has its own below. "Is there a way to upload images into
                         quests for the kids to look over?" (Gryffin, 2026-09-14,
                         ac9bde84) -- there was, one task at a time. */}
+                    {q.editable_tasks && (
+                      <QuestInfoEditor classId={classId} quest={q}
+                        onSaved={(patch) => setQuests((prev) => prev.map((x) => (
+                          x.quest_id === q.quest_id ? { ...x, ...patch } : x)))} />
+                    )}
                     {q.editable_tasks && <QuestResourcesPanel questId={q.quest_id} />}
                     <PresetTaskManager base={`/api/sis/classes/${classId}/quests/${q.quest_id}/tasks`}
                       questId={q.quest_id} />
@@ -744,6 +752,72 @@ export default function ClassQuestsManager({ classId, scheduledEnabled = false }
           })}
         </ul>
       )}
+    </div>
+  )
+}
+
+/**
+ * The quest itself -- title, description, and whether students may add tasks
+ * of their own -- editable by the class's teacher on the school's own quests.
+ *
+ * iCreate, 93af5014, 2026-09-22: "Teachers can't seem to edit the quests. Once
+ * they can edit, they should be able to select whether or not students can add
+ * tasks." Tasks, attachments and XP were already editable here; the title and
+ * description were only reachable from the office's library. The quest is one
+ * row, so a change shows on every class carrying it -- said under the Save.
+ */
+export function QuestInfoEditor({ classId, quest, onSaved }) {
+  const [title, setTitle] = useState(quest.title || '')
+  const [description, setDescription] = useState(quest.description || '')
+  const [allowCustom, setAllowCustom] = useState(quest.allow_custom_tasks !== false)
+  const [saving, setSaving] = useState(false)
+
+  const dirty = title.trim() !== (quest.title || '')
+    || description.trim() !== (quest.description || '')
+    || allowCustom !== (quest.allow_custom_tasks !== false)
+
+  const save = async () => {
+    if (!title.trim()) { toast.error('A quest needs a title'); return }
+    setSaving(true)
+    try {
+      const { data } = await api.patch(`/api/sis/classes/${classId}/quests/${quest.quest_id}/info`, {
+        title: title.trim(), description: description.trim(), allow_custom_tasks: allowCustom,
+      })
+      const q = data?.quest || {}
+      onSaved({ title: q.title ?? title.trim(), description: q.description ?? description.trim(),
+        allow_custom_tasks: q.allow_custom_tasks ?? allowCustom })
+      toast.success('Quest saved')
+    } catch (err) {
+      toast.error(err?.response?.data?.error || 'Could not save the quest')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="mt-3 mb-4 space-y-2">
+      <label className="block">
+        <span className="block text-xs font-medium text-neutral-600 mb-1">Quest title</span>
+        <input value={title} onChange={(e) => setTitle(e.target.value)} className={inputCls}
+          maxLength={200} />
+      </label>
+      <label className="block">
+        <span className="block text-xs font-medium text-neutral-600 mb-1">Description</span>
+        <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={3}
+          className={inputCls} />
+      </label>
+      <label className="flex items-center gap-2 text-sm text-neutral-700">
+        <input type="checkbox" checked={allowCustom} onChange={(e) => setAllowCustom(e.target.checked)}
+          className="rounded border-gray-300 text-optio-purple" />
+        Students can add their own tasks
+      </label>
+      <div className="flex items-center gap-3">
+        <button type="button" onClick={save} disabled={!dirty || saving}
+          className="px-3 py-1.5 rounded-lg bg-optio-purple text-white text-sm font-medium disabled:opacity-50">
+          {saving ? 'Saving\u2026' : 'Save quest'}
+        </button>
+        <span className="text-xs text-neutral-500">Changes show on every class that has this quest.</span>
+      </div>
     </div>
   )
 }

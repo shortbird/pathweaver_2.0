@@ -129,6 +129,14 @@ def update_quest_info(admin, quest_id: str, data: Dict[str, Any]) -> Dict[str, A
         if err:
             raise QuestTaskEditError(err)
         updates['xp_threshold'] = value
+    if 'allow_custom_tasks' in data:
+        # The column has existed since the platform began (default true) and
+        # quest_personalization._custom_tasks_blocked enforces it; no SIS
+        # editor wrote it. iCreate, 93af5014, 2026-09-22: teachers "should be
+        # able to select whether or not students can add tasks".
+        if not isinstance(data.get('allow_custom_tasks'), bool):
+            raise QuestTaskEditError('allow_custom_tasks must be true or false')
+        updates['allow_custom_tasks'] = data['allow_custom_tasks']
     if not updates:
         raise QuestTaskEditError('Nothing to update')
 
@@ -138,6 +146,7 @@ def update_quest_info(admin, quest_id: str, data: Dict[str, Any]) -> Dict[str, A
         'id': quest_id, 'title': q.get('title'),
         'description': q.get('description') or '',
         'xp_threshold': q.get('xp_threshold') or 0,
+        'allow_custom_tasks': q.get('allow_custom_tasks') is not False,
     }}
 
 

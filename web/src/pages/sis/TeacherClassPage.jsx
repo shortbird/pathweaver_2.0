@@ -71,7 +71,7 @@ const nameList = (names, n) => {
 
 const TeacherClassPage = () => {
   const { classId } = useParams()
-  const { orgId, activeOrg } = useSisOrg()
+  const { orgId, activeOrg, isAdmin } = useSisOrg()
   const [searchParams] = useSearchParams()
   // QF-03: the class, its budget and its roster arrive together and are only
   // ever set together, so they are one query. Keyed on classId too, so moving
@@ -82,6 +82,8 @@ const TeacherClassPage = () => {
   const students = classData?.students || []
   const [date, setDate] = useState(today())
   const [marks, setMarks] = useState({})
+  // student_id -> the guardian's report for this class on this date, if any.
+  const [planned, setPlanned] = useState({})
   const [saving, setSaving] = useState(false)
   const [exporting, setExporting] = useState(false)  // Print / export roster modal
   // One page to hand somebody covering the class — students, room, and what
@@ -144,18 +146,24 @@ const TeacherClassPage = () => {
     api.get(withOrg(`/api/sis/classes/${classId}/attendance?date=${date}`, orgId))
       .then((r) => {
         const existing = {}
+        const reported = {}
         for (const row of r.data?.roster || []) {
           if (row.status) existing[row.student_user_id] = row.status
+          if (row.planned_absence) reported[row.student_user_id] = row.planned_absence
         }
         setMarks(existing)
+        setPlanned(reported)
       })
-      .catch(() => setMarks({}))
+      .catch(() => { setMarks({}); setPlanned({}) })
   }, [orgId, classId, date])
 
   // Everyone is present by default — the teacher only taps the exceptions
-  // (absent/late/excused). Any status an admin already set (e.g. an excusal)
-  // loads into `marks` and wins over the default.
-  const markOf = (id) => marks[id] || 'present'
+  // (absent/late/excused). A student a guardian reported out defaults to
+  // excused instead: iCreate, 831acc63, "is that then reflected in every class
+  // for the day so the teachers don't have to figure it out?" This page did not
+  // read the report at all, so untouched roll saved the child present. Any
+  // status already recorded loads into `marks` and wins over either default.
+  const markOf = (id) => marks[id] || (planned[id] ? 'excused' : 'present')
 
   const saveAttendance = async () => {
     // Record the WHOLE roster so "attendance was taken" is explicit — untouched
@@ -242,7 +250,8 @@ const TeacherClassPage = () => {
         // from the org in view rather than the caller's own -- a superadmin
         // looking at a school's class has no org of their own.
         <ClassQuestsManager classId={classId}
-          scheduledEnabled={Boolean(activeOrg?.feature_flags?.scheduled_publish)} />
+          scheduledEnabled={Boolean(activeOrg?.feature_flags?.scheduled_publish)}
+          canSaveToCurriculum={Boolean(isAdmin)} />
       )}
 
       {tab === 'curriculum' && (
@@ -342,7 +351,7 @@ const TeacherClassPage = () => {
             <input type="date" value={date} onChange={(e) => setDate(e.target.value)}
               className="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-optio-purple"
               aria-label="Attendance date" />
-            <button onClick={markAllPresent} className="text-sm text-optio-purple hover:underline">Reset to all present</button>
+            <button onClick={markAllPresent} className="text-sm text-optio-purple hover:underline">Reset</button>
           </div>
 
           {!students.length && <p className="text-neutral-500">No students enrolled yet.</p>}
@@ -360,7 +369,7 @@ const TeacherClassPage = () => {
               </div>
 
               <p className="px-4 pt-3 text-xs text-neutral-400">
-                Everyone is present by default — tap only the students who are absent, late, or excused.
+                Everyone is present by default, and students a parent reported out start as excused. Tap only the rest.
               </p>
 
               <div className="p-3 grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -375,6 +384,12 @@ const TeacherClassPage = () => {
                           {s.name}
                           {s.age != null && <span className="ml-1.5 text-xs font-normal text-neutral-400">age {s.age}</span>}
                         </span>
+                        {planned[s.student_id] && (
+                          <span className="block text-xs text-amber-700"
+                            title={planned[s.student_id].reason || 'Reported by a guardian'}>
+                            Parent reported out{planned[s.student_id].scope === 'day' ? ' (all day)' : ''}
+                          </span>
+                        )}
                         {s.next_class && (
                           <span className="block text-xs text-neutral-500 truncate">
                             Next: {s.next_class.name}

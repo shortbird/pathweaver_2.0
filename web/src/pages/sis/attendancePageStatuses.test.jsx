@@ -81,4 +81,28 @@ describe('admin attendance page — four statuses', () => {
     expect(byId.s2).toBe('excused')
     expect(byId.s1).toBe('present')
   })
+
+  it('starts a student a parent reported out as excused, and saves them excused', async () => {
+    // iCreate, 831acc63: the report was a label only and untouched roll saved
+    // the child present.
+    api.get.mockImplementation((url) => {
+      if (url.includes('/api/sis/classes/c1/attendance')) {
+        return Promise.resolve({ data: { roster: [
+          { student_user_id: 's1', name: 'Ada', status: null, planned_absence: { scope: 'day', reason: 'Sick' } },
+          { student_user_id: 's3', name: 'Cy', status: null },
+        ] } })
+      }
+      if (url.includes('/api/sis/classes')) return Promise.resolve({ data: { classes: CLASSES } })
+      return Promise.resolve({ data: {} })
+    })
+    render(<MemoryRouter><AttendancePanel /></MemoryRouter>)
+    await screen.findByText('Ada')
+    expect(screen.getByText('Parent reported out (all day)')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: /^save/i }))
+    await waitFor(() => expect(api.post).toHaveBeenCalled())
+    const [, body] = api.post.mock.calls[0]
+    const byId = Object.fromEntries(body.entries.map((e) => [e.student_user_id, e.status]))
+    expect(byId).toEqual({ s1: 'excused', s3: 'present' })
+  })
 })

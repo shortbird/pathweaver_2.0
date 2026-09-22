@@ -178,11 +178,14 @@ class TestPuttingAQuestOnACurriculum:
             'sis_curriculum_quests': [{'id': 'x', 'sequence_order': 4}] if already else [],
         }
 
-    def test_attaches_at_the_end_of_the_order_and_pushes_to_the_classes(self):
+    def test_attaches_at_the_end_of_the_order_and_does_not_push_to_the_classes(self):
+        """Molly (iCreate, a933ee02): "Attach to a curriculum should not assign
+        it to all the classes." _run stubs the push to report 2 classes, so a 0
+        here means the push never ran."""
         body, status, log = _run(library.put_quest_on_curriculum, (Q2,),
                                  body={'curriculum_id': CURR}, tables=self._tables())
         assert status == 200
-        assert body['added'] is True and body['pushed_to_classes'] == 2
+        assert body['added'] is True and body['pushed_to_classes'] == 0
         assert body['curriculum'] == {'id': CURR, 'title': 'Art'}
         inserts = [e for e in log if e[0] == 'insert']
         assert inserts == [('insert', 'sis_curriculum_quests',
@@ -219,6 +222,9 @@ def test_the_curriculum_page_and_the_library_share_one_attach_writer():
     assert 'attach_quest_to_curriculum(' in inspect.getsource(curriculum.add_quest_to_curriculum)
     assert 'attach_quest_to_curriculum(' in inspect.getsource(library.put_quest_on_curriculum)
     assert "table('sis_curriculum_quests').insert" not in inspect.getsource(curriculum.add_quest_to_curriculum)
+    # The curriculum page still pushes; only the library files without pushing.
+    assert 'push=False' not in inspect.getsource(curriculum.add_quest_to_curriculum)
+    assert 'push=False' in inspect.getsource(library.put_quest_on_curriculum)
 
 
 @pytest.mark.unit
@@ -250,7 +256,7 @@ class TestAuthoringFromTheLibrary:
             {'title': 'Bridge Building', 'tasks': [], 'curriculum_id': CURR}, tables=tables)
         assert status == 201
         assert body['curriculum'] == {'id': CURR, 'title': 'Art'}
-        assert body['added'] is True and body['pushed_to_classes'] == 2
+        assert body['added'] is True and body['pushed_to_classes'] == 0
         assert [e for e in log if e[0] == 'insert'] == [('insert', 'sis_curriculum_quests',
             {'curriculum_id': CURR, 'quest_id': Q2, 'sequence_order': 0, 'added_by': USER})]
 

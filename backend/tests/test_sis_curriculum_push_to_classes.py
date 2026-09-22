@@ -14,6 +14,11 @@ be "tidied up" by someone later, so it is asserted directly: attaching pushes,
 detaching does not pull. A class quest carries its own publish_at and due_date
 and may have student work behind it; removing a quest from a school's library is
 not a statement that a section in progress should lose it.
+
+One door does not push (2026-09-22, iCreate a933ee02): the quest library's
+"Put it on a curriculum" files the quest there and leaves the classes alone,
+via attach_quest_to_curriculum(push=False). Every curriculum-page door still
+pushes; TestAttachingOneQuest pins both.
 """
 
 from unittest.mock import Mock
@@ -259,3 +264,41 @@ class TestTheCoursesAClassInherits:
         )
         out = curriculum_courses_for_class(_client(tables, []), CLASS_A)
         assert [c['id'] for c in out] == [COURSE1, COURSE2]
+
+
+class TestAttachingOneQuest:
+    """attach_quest_to_curriculum: the curriculum page pushes, the library does not."""
+
+    def _attach(self, push, already=False):
+        from unittest.mock import patch
+        import services.sis_curriculum_sync as sync
+        repo = Mock()
+        repo.curriculum_has_quest.return_value = already
+        repo.next_sequence_order.return_value = 3
+        with patch('repositories.sis_quest_library_repository.SisQuestLibraryRepository',
+                   return_value=repo), \
+             patch.object(sync, 'push_curriculum_quests_safe',
+                          return_value={'classes': 2, 'assignments': 4}) as pushed:
+            kwargs = {} if push is None else {'push': push}
+            out = sync.attach_quest_to_curriculum(Mock(), ORG, CURR, Q1, ADMIN, **kwargs)
+        return out, repo, pushed
+
+    def test_by_default_the_curriculum_s_classes_get_it(self):
+        out, repo, pushed = self._attach(push=None)
+        repo.add_curriculum_quest.assert_called_once_with(CURR, Q1, 3, ADMIN)
+        pushed.assert_called_once()
+        assert pushed.call_args.kwargs == {'quest_ids': [Q1]}
+        assert out == {'added': True, 'pushed_to_classes': 2}
+
+    def test_the_library_door_files_it_and_leaves_the_classes_alone(self):
+        out, repo, pushed = self._attach(push=False)
+        repo.add_curriculum_quest.assert_called_once_with(CURR, Q1, 3, ADMIN)
+        pushed.assert_not_called()
+        assert out == {'added': True, 'pushed_to_classes': 0}
+
+    def test_a_quest_already_there_is_left_alone_either_way(self):
+        for push in (True, False):
+            out, repo, pushed = self._attach(push=push, already=True)
+            repo.add_curriculum_quest.assert_not_called()
+            pushed.assert_not_called()
+            assert out == {'added': False, 'pushed_to_classes': 0}

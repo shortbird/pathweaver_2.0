@@ -3,7 +3,7 @@ import api from '../../services/api'
 import { useAuth } from '../../contexts/AuthContext'
 import { useOrganization } from '../../contexts/OrganizationContext'
 import * as orgStore from './sisOrgStore'
-import { canViewAs } from './sisRole'
+import { canViewAs, isSisAdmin } from './sisRole'
 
 /**
  * Resolves the organization the SIS console operates on.
@@ -11,7 +11,7 @@ import { canViewAs } from './sisRole'
  * - superadmin (no org of their own): picks from all organizations via the shared
  *   store, so every surface — sidebar, route guards, and pages — switches together.
  *
- * Returns { orgId, setOrgId, orgs, isSuperadmin, canViewAs, loading, activeOrg }.
+ * Returns { orgId, setOrgId, orgs, isSuperadmin, canViewAs, isAdmin, loading, activeOrg }.
  * `orgId` is appended as ?organization_id to every SIS API call; `activeOrg` is the
  * full org row (with feature_flags) for the org currently in view, so callers can
  * mirror exactly what that org's admin sees. `canViewAs` is whether the caller may
@@ -46,7 +46,7 @@ export function useSisOrg() {
   const loading = isSuperadmin && !organization?.id && !snap.fetched
 
   return { orgId, setOrgId: orgStore.setOrgId, orgs, isSuperadmin,
-           canViewAs: canViewAs(user), loading, activeOrg }
+           canViewAs: canViewAs(user), isAdmin: isSisAdmin(user), loading, activeOrg }
 }
 
 /** Append ?organization_id to a SIS API path when an org is selected. */

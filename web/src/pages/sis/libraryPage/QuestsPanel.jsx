@@ -1,7 +1,7 @@
-import React, { useMemo, useState } from 'react'
+import React, { useCallback, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { toast } from 'react-hot-toast'
-import { BookOpenIcon, PlusIcon } from '@heroicons/react/24/outline'
+import { BookOpenIcon, EllipsisVerticalIcon, PlusIcon } from '@heroicons/react/24/outline'
 import { useSisOrg } from '../useSisOrg'
 import {
   useSisQuestLibrary, useAddQuestToCurriculum, useAssignQuestToClass, useCreateLibraryQuest,
@@ -17,6 +17,7 @@ import { Modal } from '../../../components/ui/Modal'
 import SearchSelect from '../../../components/ui/SearchSelect'
 import EmptyState from '../../../components/ui/EmptyState'
 import Button from '../../../components/ui/Button'
+import PopMenu from '../../../components/sis/ui/PopMenu'
 
 /**
  * QuestsPanel -- every quest the school owns, in one list, with where each
@@ -32,7 +33,9 @@ import Button from '../../../components/ui/Button'
  *
  * Assigning means what it means on the other screens, through the same two
  * writes: onto a curriculum (POST /api/sis/quests/<id>/curricula, the writer
- * the curriculum page shares) and onto a class (the class page's own POST
+ * the curriculum page shares, except that from here it does not push the
+ * quest to the curriculum's classes -- Molly, a933ee02, 2026-09-22: "Attach
+ * to a curriculum should not assign it to all the classes") and onto a class (the class page's own POST
  * /api/sis/classes/<id>/quests, so the class is enrolled the same way, with
  * the same optional due date).
  *
@@ -150,7 +153,7 @@ export function AssignQuestModal({ quest, curricula, classes, orgId, onClose }) 
       const data = await addToCurriculumMutation.mutateAsync({ questId: quest.id, curriculumId })
       const name = data?.curriculum?.title || 'the curriculum'
       toast.success(data?.added
-        ? `Added to ${name}${data.pushed_to_classes ? ` and ${data.pushed_to_classes} of its classes` : ''}`
+        ? `Added to ${name}`
         : `Already on ${name}`)
       setCurriculumId('')
     } catch (e) {
@@ -178,8 +181,8 @@ export function AssignQuestModal({ quest, curricula, classes, orgId, onClose }) 
         <section>
           <h3 className="text-sm font-semibold text-neutral-900">Put it on a curriculum</h3>
           <p className="text-xs text-neutral-500 mb-2">
-            Kept there for every class that teaches it, this term and next. Classes already on that
-            curriculum get it now.
+            Kept there for classes that join that curriculum later. Classes already on it do not get
+            it; to give it to one, use Put it on a class below.
           </p>
           <div className="flex items-start gap-2">
             <div className="flex-1">
@@ -426,7 +429,7 @@ export function NewQuestPanel({ curricula, orgId, onDone, onCancel }) {
       })
       const where = data?.curriculum?.title
       toast.success(where
-        ? `Quest created and added to ${where}${data.pushed_to_classes ? ` and ${data.pushed_to_classes} of its classes` : ''}`
+        ? `Quest created and added to ${where}`
         : 'Quest created. Assign it from its row when you are ready.')
       if (data?.quest_id) {
         setCreated({ id: data.quest_id, title: title.trim(), tasks: data.tasks || [] })
@@ -500,21 +503,27 @@ const SCOPES = [
 const isTeacherMade = (q) => Boolean(q.made_by?.teacher)
 
 function QuestTable({ rows, onAssign, onAttach, onEdit, onDuplicate, duplicatingId }) {
+  // Which row's actions menu is open. One kebab per row instead of four links:
+  // the links wrapped into a ragged block on every row and read as clutter
+  // (owner, 2026-09-22).
+  const [menuFor, setMenuFor] = useState(null)
+  const closeMenu = useCallback(() => setMenuFor(null), [])
   return (
     // Fixed layout, so the columns divide the width available instead of each
     // demanding what its widest cell wants. With auto layout the class chips
     // and four action links pushed the table off the right of the screen
-    // (2026-09-22). Percentages, not pixels, so it follows the window.
+    // (2026-09-22). Percentages, not pixels, so it follows the window. The
+    // actions are one menu now, so their column is narrow.
     <div className="bg-white rounded-xl border border-gray-200 overflow-x-auto">
       <table className="w-full table-fixed text-sm min-w-[56rem]">
         <colgroup>
-          <col className="w-[24%]" />
-          <col className="w-[11%]" />
-          <col className="w-[6%]" />
-          <col className="w-[15%]" />
-          <col className="w-[17%]" />
-          <col className="w-[9%]" />
+          <col className="w-[30%]" />
+          <col className="w-[12%]" />
+          <col className="w-[7%]" />
           <col className="w-[18%]" />
+          <col className="w-[19%]" />
+          <col className="w-[9%]" />
+          <col className="w-[5%]" />
         </colgroup>
         <thead className="bg-neutral-50 text-neutral-500 text-left">
           <tr>
@@ -563,27 +572,28 @@ function QuestTable({ rows, onAssign, onAttach, onEdit, onDuplicate, duplicating
               </td>
               <td className="px-3 py-3 text-neutral-500 text-xs">{when(q.updated_at)}</td>
               <td className="px-3 py-3">
-                <div className="flex flex-wrap justify-end gap-x-3 gap-y-1">
-                <button type="button" onClick={() => onEdit(q.id)}
-                  className="text-sm font-medium text-optio-purple hover:underline">
-                  Edit
-                </button>
-                {/* Offered on every row, including a shared quest that cannot
-                    be edited: duplicating is how a school gets a copy of one
-                    it can edit. */}
-                <button type="button" onClick={() => onDuplicate(q.id)}
-                  disabled={duplicatingId === q.id}
-                  className="text-sm font-medium text-optio-purple hover:underline disabled:opacity-50">
-                  {duplicatingId === q.id ? 'Copying…' : 'Duplicate'}
-                </button>
-                <button type="button" onClick={() => onAttach(q.id)}
-                  className="text-sm font-medium text-optio-purple hover:underline">
-                  Attachments
-                </button>
-                <button type="button" onClick={() => onAssign(q.id)}
-                  className="text-sm font-medium text-optio-purple hover:underline">
-                  Assign
-                </button>
+                <div className="flex justify-end">
+                  {/* Duplicate is offered on every row, including a shared
+                      quest that cannot be edited: duplicating is how a school
+                      gets a copy of one it can edit. The menu floats so the
+                      table's horizontal scroll does not clip it. */}
+                  <PopMenu floating open={menuFor === q.id} onClose={closeMenu} width="w-44"
+                    trigger={(
+                      <button type="button" onClick={() => setMenuFor(menuFor === q.id ? null : q.id)}
+                        aria-haspopup="menu" aria-expanded={menuFor === q.id}
+                        aria-label={`Actions for ${q.title}`}
+                        disabled={duplicatingId === q.id}
+                        className="p-1.5 rounded-md text-neutral-500 hover:bg-neutral-100 hover:text-neutral-800 disabled:opacity-50">
+                        <EllipsisVerticalIcon className="w-5 h-5" />
+                      </button>
+                    )}
+                    items={[
+                      { label: 'Edit', onClick: () => onEdit(q.id) },
+                      { label: 'Assign', onClick: () => onAssign(q.id) },
+                      { label: 'Attachments', onClick: () => onAttach(q.id) },
+                      { label: duplicatingId === q.id ? 'Copying…' : 'Duplicate',
+                        onClick: () => onDuplicate(q.id), disabled: duplicatingId === q.id },
+                    ]} />
                 </div>
               </td>
             </tr>

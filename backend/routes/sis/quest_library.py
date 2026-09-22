@@ -22,9 +22,10 @@ be listed, and we can assign them as needed from there."
 What "assign" means here is what it means everywhere else on the SIS, and the
 two writes are the ones those screens already make: putting a quest on a
 curriculum inserts the same sis_curriculum_quests row the curriculum page
-inserts and pushes it to that curriculum's classes the same way
-(services.sis_curriculum_sync.attach_quest_to_curriculum, shared with
-routes/sis/curriculum.py); putting a quest on a class is the class page's own
+inserts (services.sis_curriculum_sync.attach_quest_to_curriculum, shared with
+routes/sis/curriculum.py) but, unlike the curriculum page, does not push it
+to that curriculum's classes -- Molly, a933ee02: "Attach to a curriculum
+should not assign it to all the classes"; putting a quest on a class is the class page's own
 POST /api/sis/classes/<id>/quests, which the library page calls directly, so a
 release date, a due date and an audience mean the same thing from either
 door.
@@ -213,7 +214,8 @@ def create_library_quest(user_id):
            'tasks': created.get('tasks') or []}
     if curriculum:
         out['curriculum'] = {'id': curriculum['id'], 'title': curriculum['title']}
-        out.update(attach_quest_to_curriculum(_admin(), org_id, curriculum_id, created['quest_id'], user_id))
+        out.update(attach_quest_to_curriculum(_admin(), org_id, curriculum_id, created['quest_id'], user_id,
+                                               push=False))
     return jsonify(out), 201
 
 
@@ -223,8 +225,9 @@ def put_quest_on_curriculum(user_id, quest_id):
     """Put one of the school's quests (or an Optio library quest) on a curriculum.
 
     Body: {curriculum_id}. Additive and idempotent: a quest already there is
-    left alone and reported as not added. The curriculum's classes get the
-    quest pushed, exactly as adding it from the curriculum page would.
+    left alone and reported as not added. The curriculum's classes do NOT get
+    the quest: from the library, a curriculum is a place to file a quest, and
+    giving it to a class is the separate class assign (a933ee02, 2026-09-22).
     """
     org_id, err = sis_service.org_or_error(user_id)
     if err:
@@ -246,7 +249,8 @@ def put_quest_on_curriculum(user_id, quest_id):
             or (quest.get('organization_id') is None and quest.get('is_public'))):
         return jsonify({'success': False, 'error': 'That quest is not available to assign.'}), 404
 
-    result = attach_quest_to_curriculum(_admin(), org_id, curriculum_id, quest_id, user_id)
+    result = attach_quest_to_curriculum(_admin(), org_id, curriculum_id, quest_id, user_id,
+                                        push=False)
     return jsonify({'success': True, 'curriculum': {'id': curriculum['id'], 'title': curriculum['title']},
                     **result})
 
