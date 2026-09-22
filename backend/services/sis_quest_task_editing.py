@@ -22,7 +22,7 @@ quest for every school at once, which is why each route does that check first
 and this module refuses to look like it did it for them.
 """
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 from services.sis_quest_authoring import (
     clean_task,
@@ -185,7 +185,7 @@ def update_task(admin, quest_id: str, task_id: str,
         try:
             xp = int(data.get('xp_value'))
         except (TypeError, ValueError):
-            raise QuestTaskEditError('XP must be a number.')
+            raise QuestTaskEditError('XP must be a number.') from None
         updates['xp_value'] = max(0, xp)
     if 'is_required' in data:
         updates['is_required'] = bool(data.get('is_required'))
