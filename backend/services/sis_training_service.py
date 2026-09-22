@@ -126,8 +126,9 @@ def catch_up_students(org_id: str, student_ids: Optional[Iterable[str]]) -> int:
 # "the ability to add training as links and not just as new quests". A
 # recorded training on Loom or a district PDF has no tasks to invent, so it is
 # a link: open it, press done. "Done" is a sis_resource_acks row, the same
-# record a required document uses. Staff only: a link for families would need
-# a portal surface that does not exist.
+# record a required document uses. Staff only at first; families got a portal
+# surface on 2026-09-22 (routes/sis/parent.py /training) and students the same
+# day (routes/sis/student_training.py, on their /school page) -- ae16c5da.
 
 _MAX_TITLE_LEN = 300
 _MAX_URL_LEN = 2048
@@ -212,7 +213,8 @@ def shape_link(link, ack=None):
 #: The reverse of _RESOURCE_AUDIENCE, for reads. 'all' is a document-library
 #: value no link is written with; an older row carrying it reads as staff,
 #: which is what it behaved as.
-_TRAINING_AUDIENCE = {'staff': 'staff', 'families': 'family', 'all': 'staff'}
+_TRAINING_AUDIENCE = {'staff': 'staff', 'families': 'family', 'students': 'student',
+                      'all': 'staff'}
 
 
 def training_audience(value):
@@ -272,16 +274,18 @@ def link_fields_from(data, org_id, partial=False):
     return fields, None
 
 
-#: Training speaks staff/family/student; org_resources.audience is constrained
-#: to families/staff/all. One row, two vocabularies, so the translation lives
-#: here rather than at each call site.
+#: Training speaks staff/family/student; org_resources.audience speaks
+#: families/staff/all/students. One row, two vocabularies, so the translation
+#: lives here rather than at each call site.
 #:
-#: 'student' is deliberately absent. The CHECK constraint has no value for it
-#: and widening the constraint is a migration, which has to reach production
-#: before the code that writes it -- so a student-only training link is not
-#: offered rather than written as something it is not (ae16c5da, families half,
-#: 2026-09-22).
-_RESOURCE_AUDIENCE = {'staff': 'staff', 'family': 'families', 'families': 'families'}
+#: 'student' was refused here until migration
+#: 20260922200100_org_resources_audience_students.sql added 'students' to the
+#: org_resources_audience_check constraint. THAT MIGRATION MUST BE APPLIED
+#: (migrate-prod.yml) BEFORE THIS CODE DEPLOYS: until it is, every student link
+#: insert fails the CHECK and the admin sees a 500 instead of the old message
+#: (ae16c5da, students half, 2026-09-22).
+_RESOURCE_AUDIENCE = {'staff': 'staff', 'family': 'families', 'families': 'families',
+                      'student': 'students', 'students': 'students'}
 
 
 def resource_audience(value):
@@ -289,16 +293,17 @@ def resource_audience(value):
     key = str(value or 'staff').strip().lower()
     resolved = _RESOURCE_AUDIENCE.get(key)
     if not resolved:
-        if key == 'student':
-            return None, 'A link for students is not available yet — set it for families or staff.'
         return None, 'Choose who the training is for.'
     return resolved, None
 
 
 #: The org_resources audiences a training audience reads. 'all' is a document
 #: library value no training link is written with, but an older row could carry
-#: it, so both readers accept it.
-_AUDIENCE_READS = {'staff': ('staff', 'all'), 'family': ('families', 'all')}
+#: it, so the staff and family readers accept it. Students do NOT read 'all':
+#: in the document library 'all' has always meant families and staff, and no
+#: row carrying it was ever written with a student in mind.
+_AUDIENCE_READS = {'staff': ('staff', 'all'), 'family': ('families', 'all'),
+                   'student': ('students',)}
 
 
 def links_for_org(org_id, audience='staff'):
@@ -546,3 +551,49 @@ def item_applies_to(item, person, audience=None):
     if roles & set(ADMIN_ORG_ROLES):
         return True
     return bool(set(targets) & roles)
+
+
+# ── Students doing a link ─────────────────────────────────────────────────────
+#
+# "I would like to link to a video or document option in the 'for families'
+# (and students if it's not there too)" (iCreate, Molly, 2026-09-22, ae16c5da).
+# The families half is sis_parent_service.training_links; this is the student
+# half. A student's org is their own users.organization_id -- there is no
+# child to reach through, so no org id is taken from the request.
+
+def _student_org(user_id):
+    """The school this caller is a student at, or None. The student role
+    decides, as it does for the progress report (_org_students): a person who
+    holds it is reached as a student whatever else they hold."""
+    ctx = sis_service.get_user_org_context(user_id)
+    org_id = ctx.get('organization_id')
+    if not org_id or 'student' not in roles_of(ctx):
+        return None
+    return org_id
+
+
+def student_training_links(user_id):
+    """The student-audience training links of the caller's school, with
+    whether they have done each. Empty for anybody who is not a student there:
+    the list sits on every member's /school page and renders nothing when
+    empty, the way the class-materials card does."""
+    org_id = _student_org(user_id)
+    if not org_id:
+        return []
+    return list_links(org_id, user_id, audience='student')
+
+
+def set_student_training_link_done(user_id, link_id, done):
+    """Mark (or unmark) one of the caller's own student training links.
+
+    None when the caller is not a student, the link is not their school's, or
+    it is not a student link -- one answer for all three, so a guesser learns
+    nothing about staff or family training ids. The user id is the caller's,
+    from the decorator, never from the body."""
+    org_id = _student_org(user_id)
+    if not org_id:
+        return None
+    link = owned_link(org_id, link_id)
+    if not link or link.get('audience') != 'students':
+        return None
+    return set_link_done(link, user_id, done)

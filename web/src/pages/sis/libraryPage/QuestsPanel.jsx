@@ -317,6 +317,12 @@ export function QuestEditModal({ quest, orgId, onClose }) {
   // quest behaved before anyone set one.
   const [requiredXp, setRequiredXp] = useState(
     quest.xp_threshold ? String(quest.xp_threshold) : '')
+  // Whether a class's teacher may move that number from the class page
+  // (quests.teachers_may_change_xp, default on). Molly, iCreate, 3d926fc3:
+  // "I think it'd be good to click on 'teachers may change' if we want
+  // teachers to change it." Only the office's editors write it.
+  const savedTeachersMay = quest.teachers_may_change_xp !== false
+  const [teachersMay, setTeachersMay] = useState(savedTeachersMay)
   const save = useUpdateLibraryQuest(orgId)
 
   const saveInfo = async () => {
@@ -329,6 +335,7 @@ export function QuestEditModal({ quest, orgId, onClose }) {
       await save.mutateAsync({
         questId: quest.id, title: title.trim(), description,
         xp_threshold: requiredXp === '' ? null : Number(requiredXp),
+        teachers_may_change_xp: teachersMay,
       })
       toast.success('Saved')
     } catch (e) {
@@ -339,6 +346,7 @@ export function QuestEditModal({ quest, orgId, onClose }) {
   const dirty = title !== (quest.title || '')
     || description !== (quest.description || '')
     || requiredXp !== (quest.xp_threshold ? String(quest.xp_threshold) : '')
+    || teachersMay !== savedTeachersMay
 
   return (
     <Modal isOpen onClose={onClose} title={`Edit “${quest.title}”`} size="lg">
@@ -361,6 +369,12 @@ export function QuestEditModal({ quest, orgId, onClose }) {
               A learner sees how far off they are while they work, and cannot mark the
               quest finished below this. Leave it empty and any amount finishes it.
             </p>
+            <label className="mt-2 flex items-center gap-2 text-sm text-neutral-700">
+              <input type="checkbox" checked={teachersMay}
+                onChange={(e) => setTeachersMay(e.target.checked)}
+                className="rounded border-gray-300 text-optio-purple focus:ring-optio-purple" />
+              Teachers may change the XP to finish
+            </label>
           </div>
           <div className="flex justify-end">
             <Button size="xs" onClick={saveInfo} disabled={!dirty || save.isPending}>

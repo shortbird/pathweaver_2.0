@@ -123,3 +123,88 @@ describe('keeping the teacher\'s wording', () => {
     expect(picker).toBeDisabled()
   })
 })
+
+/**
+ * iCreate, d4cdfa81 (Molly): "I uploaded my quest doc and it added all the
+ * quests, but not the descriptions. It would be helpful to add the XP too."
+ * The verbatim rule that leaves a missing description blank stays; the panel
+ * now says so. And the 30-task cap, which used to cut a list in silence, is
+ * reported by the backend and shown here.
+ */
+describe('telling the teacher what the draft left out', () => {
+  const quest = (n, description = '') => ({
+    title: 'T', description: 'D',
+    tasks: Array.from({ length: n }, (_, i) => ({ title: `Quest ${i}`, description, xp_value: 50 })),
+  })
+
+  const generate = async ({ keep = true, alwaysOpen = true } = {}) => {
+    render(<QuestAiDraftPanel alwaysOpen={alwaysOpen} onDrafted={() => {}} />)
+    if (!alwaysOpen) fireEvent.click(screen.getByText(/build it from something i already have/i))
+    if (keep) fireEvent.click(screen.getByLabelText(/enter my tasks as i wrote them/i))
+    fireEvent.change(screen.getByLabelText('Source material'), { target: { value: 'Quest 1' } })
+    fireEvent.click(screen.getByRole('button', { name: /generate draft/i }))
+    await waitFor(() => expect(api.post).toHaveBeenCalled())
+  }
+
+  beforeEach(() => { vi.clearAllMocks() })
+
+  it('explains blank descriptions when the wording was kept', async () => {
+    api.post.mockResolvedValue({ data: { quest: quest(3) } })
+    await generate()
+    const note = await screen.findByRole('status')
+    expect(note).toHaveTextContent(
+      'Your document had no descriptions for 3 tasks, so they are blank. Turn off '
+      + '"Enter my tasks as I wrote them" to have them written for you, or fill them in here.',
+    )
+  })
+
+  it('says nothing about descriptions when every task has one', async () => {
+    api.post.mockResolvedValue({ data: { quest: quest(3, 'Do it') } })
+    await generate()
+    await waitFor(() => expect(api.post).toHaveBeenCalled())
+    expect(screen.queryByRole('status')).toBeNull()
+  })
+
+  it('does not blame the document for a blank description in the composed mode', async () => {
+    api.post.mockResolvedValue({ data: { quest: quest(3) } })
+    await generate({ keep: false })
+    expect(screen.queryByText(/had no descriptions/i)).toBeNull()
+  })
+
+  it('warns when the 30-task cap cut the list short', async () => {
+    api.post.mockResolvedValue({
+      data: { quest: quest(30, 'Do it'), tasks_truncated: true, source_task_count: 42 },
+    })
+    await generate()
+    expect(await screen.findByRole('status'))
+      .toHaveTextContent('Your document had 42 tasks; the first 30 were kept.')
+  })
+
+  it('does not warn about the cap when the backend reports no cut', async () => {
+    api.post.mockResolvedValue({
+      data: { quest: quest(12, 'Do it'), tasks_truncated: false, source_task_count: 12 },
+    })
+    await generate()
+    expect(screen.queryByText(/were kept/i)).toBeNull()
+  })
+
+  it('keeps the note on screen after the panel collapses onto the form', async () => {
+    api.post.mockResolvedValue({
+      data: { quest: quest(30), tasks_truncated: true, source_task_count: 42 },
+    })
+    await generate({ alwaysOpen: false })
+    const note = await screen.findByRole('status')
+    expect(screen.getByText(/build it from something i already have/i)).toBeInTheDocument()
+    expect(note).toHaveTextContent('Your document had 42 tasks; the first 30 were kept.')
+    expect(note).toHaveTextContent('no descriptions for 30 tasks')
+  })
+
+  it('can be dismissed', async () => {
+    api.post.mockResolvedValue({ data: { quest: quest(1) } })
+    await generate()
+    expect(await screen.findByRole('status'))
+      .toHaveTextContent('no descriptions for 1 task, so it is blank')
+    fireEvent.click(screen.getByRole('button', { name: /dismiss/i }))
+    expect(screen.queryByRole('status')).toBeNull()
+  })
+})

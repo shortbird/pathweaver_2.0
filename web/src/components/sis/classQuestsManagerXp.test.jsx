@@ -103,3 +103,45 @@ describe('ClassQuestsManager XP to finish', () => {
     expect(screen.queryByLabelText('XP to finish Reading Appreciation')).not.toBeInTheDocument()
   })
 })
+
+/**
+ * The office can lock the finish line (quests.teachers_may_change_xp).
+ * Molly, iCreate, 3d926fc3, 2026-09-22: "I'd like to be able to add the
+ * required XP per quest. Then I think it'd be good to click on 'teachers may
+ * change' if we want teachers to change it."
+ *
+ * canSaveToCurriculum is the office signal TeacherClassPage passes
+ * (useSisOrg().isAdmin); teacherClassPlannedAbsence.test.jsx pins that the
+ * parent passes it. The backend refuses a teacher's write either way.
+ */
+describe('ClassQuestsManager XP to finish, locked by the office', () => {
+  it('shows a teacher the number read-only, with who sets it', async () => {
+    mockQuests([quest({ xp_threshold: 300, teachers_may_change_xp: false })])
+    render(withConfirm(<ClassQuestsManager classId="c1" />))
+
+    expect(await screen.findByText('Set by your school office')).toBeInTheDocument()
+    expect(xpBox()).toBeDisabled()
+    expect(xpBox()).toHaveValue(300)
+    fireEvent.blur(xpBox(), { target: { value: '50' } })
+    await new Promise((r) => setTimeout(r, 0))
+    expect(api.patch).not.toHaveBeenCalled()
+  })
+
+  it('leaves the box editable for the office on a locked quest', async () => {
+    mockQuests([quest({ xp_threshold: 300, teachers_may_change_xp: false })])
+    render(withConfirm(<ClassQuestsManager classId="c1" canSaveToCurriculum />))
+
+    fireEvent.blur(await screen.findByLabelText('XP to finish Reading Appreciation'),
+      { target: { value: '50' } })
+    await waitFor(() => expect(api.patch).toHaveBeenCalledTimes(1))
+    expect(screen.queryByText('Set by your school office')).not.toBeInTheDocument()
+  })
+
+  it('leaves the box editable for a teacher when the quest is unlocked', async () => {
+    mockQuests([quest({ teachers_may_change_xp: true })])
+    render(withConfirm(<ClassQuestsManager classId="c1" />))
+
+    expect(await screen.findByLabelText('XP to finish Reading Appreciation')).not.toBeDisabled()
+    expect(screen.queryByText('Set by your school office')).not.toBeInTheDocument()
+  })
+})

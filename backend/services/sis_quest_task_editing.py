@@ -137,6 +137,17 @@ def update_quest_info(admin, quest_id: str, data: Dict[str, Any]) -> Dict[str, A
         if not isinstance(data.get('allow_custom_tasks'), bool):
             raise QuestTaskEditError('allow_custom_tasks must be true or false')
         updates['allow_custom_tasks'] = data['allow_custom_tasks']
+    if 'teachers_may_change_xp' in data:
+        # Whether a class's teacher may move xp_threshold from the class page
+        # (routes/sis/class_quests.update_class_quest enforces it). Molly,
+        # iCreate, 3d926fc3, 2026-09-22: "I think it'd be good to click on
+        # 'teachers may change' if we want teachers to change it." Only the
+        # office's editors (library, curriculum) pass it through; the class
+        # /info route leaves it out so a teacher cannot unlock themselves.
+        # Strict bool: "false" as a string is truthy and would unlock it.
+        if not isinstance(data.get('teachers_may_change_xp'), bool):
+            raise QuestTaskEditError('teachers_may_change_xp must be true or false')
+        updates['teachers_may_change_xp'] = data['teachers_may_change_xp']
     if not updates:
         raise QuestTaskEditError('Nothing to update')
 
@@ -147,6 +158,8 @@ def update_quest_info(admin, quest_id: str, data: Dict[str, Any]) -> Dict[str, A
         'description': q.get('description') or '',
         'xp_threshold': q.get('xp_threshold') or 0,
         'allow_custom_tasks': q.get('allow_custom_tasks') is not False,
+        # Null (a row the migration has not reached) reads as the default, on.
+        'teachers_may_change_xp': q.get('teachers_may_change_xp') is not False,
     }}
 
 

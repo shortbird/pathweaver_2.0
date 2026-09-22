@@ -66,16 +66,20 @@ def _client(tables, log):
     return c
 
 
-def _run(body, quest_org=ORG, linked=True):
+def _run(body, quest_org=ORG, linked=True, teachers_may=None, is_admin=False):
     log = []
+    quest = {'id': QUEST, 'organization_id': quest_org}
+    if teachers_may is not None:
+        quest['teachers_may_change_xp'] = teachers_may
     tables = {
         'class_quests': ([{'id': 'cq1', 'due_date': None, 'publish_at': None}]
                          if linked else []),
-        'quests': [{'id': QUEST, 'organization_id': quest_org}],
+        'quests': [quest],
     }
     client = _client(tables, log)
     class_row = {'id': CLASS, 'organization_id': ORG}
     with patch.object(class_quests, '_authorize', return_value=(class_row, client, None)), \
+         patch.object(class_quests.sis_service, 'caller_is_admin', return_value=is_admin), \
          patch.object(class_quests, 'request',
                       Mock(get_json=lambda silent=True: body, args={})):
         from flask import Flask
@@ -155,3 +159,51 @@ class TestWhatIsRefused:
         _, status, log = _run({'xp_threshold': 100}, linked=False)
         assert status == 404
         assert _quest_writes(log) == []
+
+
+@pytest.mark.unit
+class TestTheOfficeCanLockTheFinishLine:
+    """Molly (iCreate, 3d926fc3, 2026-09-22): "I'd like to be able to add the
+    required XP per quest. Then I think it'd be good to click on 'teachers may
+    change' if we want teachers to change it."
+
+    quests.teachers_may_change_xp, set in the library editor. When it is false
+    a teacher's change is refused and nothing is written; the office can still
+    change it from the class page.
+    """
+
+    def test_a_teacher_is_refused_when_the_office_locked_it(self):
+        out, status, log = _run({'xp_threshold': 50}, teachers_may=False)
+        assert status == 403
+        assert out['error'] == 'Your school office sets the XP to finish for this quest.'
+        assert _quest_writes(log) == []
+
+    def test_a_refused_call_writes_nothing_else_either(self):
+        """The gate runs before the class link is written, so a due date sent
+        in the same call does not half-land."""
+        _, status, log = _run({'xp_threshold': 50, 'due_date': '2026-09-30T23:59:59Z'},
+                              teachers_may=False)
+        assert status == 403
+        assert [e for e in log if e[0] == 'update'] == []
+
+    def test_the_office_can_still_change_it(self):
+        out, status, log = _run({'xp_threshold': 50}, teachers_may=False, is_admin=True)
+        assert status == 200
+        assert _quest_writes(log) == [{'xp_threshold': 50}]
+
+    def test_a_teacher_can_change_it_when_it_is_unlocked(self):
+        _, status, log = _run({'xp_threshold': 50}, teachers_may=True)
+        assert status == 200
+        assert _quest_writes(log) == [{'xp_threshold': 50}]
+
+    def test_a_row_without_the_column_reads_as_unlocked(self):
+        """Null is the column default, on -- the same as every quest before."""
+        _, status, log = _run({'xp_threshold': 50})
+        assert status == 200
+        assert _quest_writes(log) == [{'xp_threshold': 50}]
+
+    def test_a_locked_quest_still_takes_a_due_date_from_a_teacher(self):
+        """The lock is on the XP only. The due date is the class's own."""
+        _, status, log = _run({'due_date': '2026-09-30T23:59:59Z'}, teachers_may=False)
+        assert status == 200
+        assert ('update', 'class_quests', {'due_date': '2026-09-30T23:59:59Z'}) in log

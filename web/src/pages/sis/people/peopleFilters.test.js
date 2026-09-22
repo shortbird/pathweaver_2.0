@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   applyFilters, sortRows, roleChipOptions, statusOptions, familyOptions,
-  isFormer, statusOf, EMPTY_FILTERS,
+  isFormer, statusOf, EMPTY_FILTERS, QUICK_VIEWS, quickViewOf, applyQuickView,
 } from './peopleFilters'
 
 /**
@@ -123,5 +123,46 @@ describe('sort', () => {
     const rows = applyFilters(ROWS, EMPTY_FILTERS)
     expect(names(sortRows(rows, { key: 'age', dir: 'asc' }))).toEqual(['Cal', 'Ada', 'Julia', 'Liz', 'Molly'])
     expect(names(sortRows(rows, { key: 'age', dir: 'desc' }))).toEqual(['Ada', 'Cal', 'Julia', 'Liz', 'Molly'])
+  })
+})
+
+/**
+ * Ticket 180cc397 (iCreate, Molly, org admin, 2026-09-22): "I did actually
+ * like having the staff on the different page." The owner kept one list and
+ * added quick views on top. A view only sets the role and family filters the
+ * page already had, so /people?role=staff is the Staff view's link.
+ */
+describe('quick views', () => {
+  it('offers Everyone, Staff, Families and Students, in that order', () => {
+    expect(QUICK_VIEWS.map((v) => v.label)).toEqual(['Everyone', 'Staff', 'Families', 'Students'])
+  })
+
+  it('Staff is admins, coordinators and teachers, and nobody else', () => {
+    const f = applyQuickView(EMPTY_FILTERS, 'staff')
+    expect(f.role).toBe('staff')
+    expect(names(applyFilters(ROWS, f))).toEqual(['Molly', 'Julia', 'Liz'])
+  })
+
+  it('Families is everyone in a family; Students is the students', () => {
+    expect(names(applyFilters(ROWS, applyQuickView(EMPTY_FILTERS, 'families')))).toEqual(['Ada', 'Molly'])
+    expect(names(applyFilters(ROWS, applyQuickView(EMPTY_FILTERS, 'students')))).toEqual(['Ada', 'Cal'])
+  })
+
+  it('a switch changes only role and family; search and the rest carry across', () => {
+    const before = { ...EMPTY_FILTERS, q: 'jul', status: 'invite_pending', family: 'none', recent: true, showFormer: true }
+    const after = applyQuickView(before, 'staff')
+    expect(after).toEqual({ ...before, role: 'staff', family: '' })
+    // Everyone clears both, and an unknown id falls back to Everyone.
+    expect(applyQuickView(after, 'everyone')).toEqual({ ...before, role: '', family: '' })
+    expect(applyQuickView(after, 'nope')).toEqual({ ...before, role: '', family: '' })
+  })
+
+  it('reads the view back from the filters, and none for a mix no view stands for', () => {
+    expect(quickViewOf(EMPTY_FILTERS)).toBe('everyone')
+    expect(quickViewOf({ ...EMPTY_FILTERS, role: 'staff' })).toBe('staff')
+    expect(quickViewOf({ ...EMPTY_FILTERS, family: 'in' })).toBe('families')
+    expect(quickViewOf({ ...EMPTY_FILTERS, role: 'student' })).toBe('students')
+    expect(quickViewOf({ ...EMPTY_FILTERS, role: 'advisor' })).toBeNull()
+    expect(quickViewOf({ ...EMPTY_FILTERS, role: 'student', family: 'none' })).toBeNull()
   })
 })

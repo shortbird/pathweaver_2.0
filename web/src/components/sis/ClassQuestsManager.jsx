@@ -576,7 +576,22 @@ export default function ClassQuestsManager({ classId, scheduledEnabled = false, 
                           ? 'text-neutral-500' : 'text-optio-purple font-medium bg-optio-purple/5'}`}>
                       <UsersIcon className="w-3.5 h-3.5" /> {audienceLabel(q)}
                     </button>
-                    {q.editable_tasks && (
+                    {/* The office can lock the finish line from the library
+                        (quests.teachers_may_change_xp). Molly, iCreate,
+                        3d926fc3: "click on 'teachers may change' if we want
+                        teachers to change it." canSaveToCurriculum is the
+                        office signal (TeacherClassPage passes useSisOrg().isAdmin);
+                        the backend refuses a teacher's write either way. */}
+                    {q.editable_tasks && (q.teachers_may_change_xp === false && !canSaveToCurriculum ? (
+                      <label className="flex items-center gap-2 text-xs text-neutral-500 mt-1.5">
+                        XP to finish
+                        <input type="number" value={q.xp_threshold || ''} readOnly disabled
+                          placeholder="Any"
+                          aria-label={`XP to finish ${q.title}`}
+                          className="w-24 rounded-lg border border-gray-200 bg-neutral-50 px-2 py-1 text-xs text-neutral-500" />
+                        <span className="text-neutral-400">Set by your school office</span>
+                      </label>
+                    ) : (
                       <label className="flex items-center gap-2 text-xs text-neutral-500 mt-1.5">
                         XP to finish
                         <input type="number" min={0} step={25} defaultValue={q.xp_threshold || ''}
@@ -586,7 +601,7 @@ export default function ClassQuestsManager({ classId, scheduledEnabled = false, 
                           title="Leave blank and any amount of work finishes the quest"
                           className="w-24 rounded-lg border border-gray-300 px-2 py-1 text-xs" />
                       </label>
-                    )}
+                    ))}
                   </div>
                   <div className="shrink-0 flex items-center gap-2">
                     {scheduledEnabled && isFuture(q.publish_at) && releaseEditing !== q.quest_id && (

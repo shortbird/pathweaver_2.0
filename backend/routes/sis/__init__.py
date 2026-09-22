@@ -1124,6 +1124,8 @@ def register_sis_routes(app):
     from routes.sis.quest_drafts import bp as quest_drafts_bp
     from routes.sis.quest_library import bp as quest_library_bp
     from routes.sis.staff_training import bp as staff_training_bp
+    # A student's own training links (ae16c5da): self-scoped, per-route gated.
+    from routes.sis.student_training import bp as student_training_bp
     from routes.sis.secure_documents import bp as secure_documents_bp
     from routes.sis.parent_forms import bp as parent_forms_bp
     from routes.sis.tasks import bp as sis_tasks_bp
@@ -1218,6 +1220,7 @@ def register_sis_routes(app):
     app.register_blueprint(quest_drafts_bp)
     app.register_blueprint(quest_library_bp)
     app.register_blueprint(staff_training_bp)
+    app.register_blueprint(student_training_bp)
     app.register_blueprint(secure_documents_bp)
     app.register_blueprint(parent_forms_bp)
     app.register_blueprint(sis_tasks_bp)

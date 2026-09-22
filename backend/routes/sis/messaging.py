@@ -120,8 +120,10 @@ def family_audience(user_id):
 def compose_families(user_id):
     """One private message from the school to each guardian named.
 
-    Body: {recipient_ids: [], subject?, body, attachments?, email?: bool}.
-    No mode: families never share a thread.
+    Body: {recipient_ids: [], subject?, body, attachments?, email?: bool,
+           staff_ids?: [], audience_label?}.
+    No mode: families never share a thread. staff_ids are copied, each in a
+    DM from the sender (see the service docstring, ticket 77efe09b).
     """
     org_id, err = sis_service.org_or_error(user_id)
     if err:
@@ -135,6 +137,8 @@ def compose_families(user_id):
             subject=data.get('subject'),
             attachments=data.get('attachments') or [],
             email=bool(data.get('email')),
+            staff_ids=data.get('staff_ids') or [],
+            audience_label=data.get('audience_label'),
         )
     except ValueError as e:
         return jsonify({'success': False, 'error': str(e)}), 400

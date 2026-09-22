@@ -276,3 +276,130 @@ class TestTheRoutes:
         body, status = self._run(routes.compose_families,
                                  body={'recipient_ids': ['lark-mum'], 'body': 'x', 'email': False})
         assert status == 200 and body['sent'] == 1
+
+
+# Staff of this org, as the staff composer lists them. 'kate' is the sender;
+# 'lark-mum' is a parent here who also teaches.
+ORG_STAFF = [{'id': 'kate'}, {'id': 'tess'}, {'id': 'otto'}, {'id': 'lark-mum'}]
+
+
+@pytest.fixture
+def staff_dm():
+    calls = []
+
+    def _send(sender, recipient, content, attachments=None, **_):
+        calls.append({'from': sender, 'to': recipient, 'content': content,
+                      'attachments': attachments})
+        if recipient == 'otto':
+            raise RuntimeError('no such account')
+        return {'conversation_id': f'dm-{recipient}'}
+
+    with patch('services.sis_messaging_service.staff_recipients', return_value=ORG_STAFF), \
+            patch('services.direct_message_service.DirectMessageService.__init__',
+                  return_value=None), \
+            patch('services.direct_message_service.DirectMessageService.send_message',
+                  autospec=True,
+                  side_effect=lambda self, *a, **k: _send(*a, **k)):
+        yield calls
+
+
+@pytest.mark.unit
+class TestCopyingStaff:
+    """Molly (iCreate, 2026-09-22, ticket 77efe09b): "it would be nice if i
+    could add extra people who are NOT in the class. Like I just sent a
+    message to the CLD parents. But I couldn't add the teacher on to that
+    message too."
+
+    A teacher is copied with their own DM from the sender, labelled as a copy;
+    the families still get one private thread each from the school."""
+
+    def test_a_staff_member_gets_their_own_labelled_copy_from_the_sender(
+            self, school, school_sender, staff_dm):
+        out = families.compose(ORG, STAFF, body='Pickup moves to 3pm', subject='Pickup',
+                               recipient_ids=['lark-mum', 'lark-dad'],
+                               staff_ids=['tess'], audience_label='Art')
+        # Families: unchanged, one private thread each from the school.
+        assert [c['to'] for c in school_sender] == ['lark-mum', 'lark-dad']
+        assert all('[Copy]' not in c['content'] for c in school_sender)
+        # Tess: one DM, from Kate herself, not from the school account.
+        assert [(c['from'], c['to']) for c in staff_dm] == [(STAFF, 'tess')]
+        content = staff_dm[0]['content']
+        assert content.startswith('[Copy] This message went to 2 parents (Art)')
+        assert 'Their replies go to the School Inbox' in content
+        assert content.endswith('Pickup\n\nPickup moves to 3pm')
+        assert out['staff_sent'] == 1 and out['staff_skipped'] == []
+        assert out['staff_copies'] == [{'recipient_id': 'tess', 'conversation_id': 'dm-tess'}]
+
+    def test_no_staff_named_means_no_copies_and_the_old_shape(
+            self, school, school_sender, staff_dm):
+        out = families.compose(ORG, STAFF, body='x', recipient_ids=['lark-mum'])
+        assert staff_dm == []
+        assert out['staff_sent'] == 0 and out['staff_copies'] == [] and out['sent'] == 1
+
+    def test_someone_who_is_not_staff_here_is_refused_and_nothing_sends(
+            self, school, school_sender, staff_dm):
+        # Another school's teacher, or anyone not on this org's staff list.
+        with pytest.raises(ValueError, match='staff at this school'):
+            families.compose(ORG, STAFF, body='x', recipient_ids=['lark-mum'],
+                             staff_ids=['tess', 'other-org-teacher'])
+        assert school_sender == [] and staff_dm == []
+
+    def test_a_parent_cannot_be_slipped_in_as_a_copy(self, school, school_sender, staff_dm):
+        # A guardian who is not staff goes in the family list or nowhere.
+        with pytest.raises(ValueError):
+            families.compose(ORG, STAFF, body='x', recipient_ids=['lark-mum'],
+                             staff_ids=['moss-mum'])
+        assert school_sender == [] and staff_dm == []
+
+    def test_a_staff_copy_does_not_open_the_family_list_to_strangers(
+            self, school, school_sender, staff_dm):
+        # The family rule still stands: a staff member in recipient_ids is refused.
+        with pytest.raises(ValueError, match='parent of a current student'):
+            families.compose(ORG, STAFF, body='x', recipient_ids=['tess'])
+        assert school_sender == [] and staff_dm == []
+
+    def test_the_sender_and_a_teacher_who_is_also_a_parent_get_no_second_copy(
+            self, school, school_sender, staff_dm):
+        families.compose(ORG, STAFF, body='x', recipient_ids=['lark-mum'],
+                         staff_ids=[STAFF, 'lark-mum', 'tess', 'tess'])
+        assert [c['to'] for c in staff_dm] == ['tess']
+
+    def test_one_unreachable_staff_member_does_not_stop_the_rest(
+            self, school, school_sender, staff_dm):
+        out = families.compose(ORG, STAFF, body='x', recipient_ids=['lark-mum'],
+                               staff_ids=['otto', 'tess'])
+        assert out['staff_sent'] == 1 and out['staff_skipped'] == ['otto']
+
+    def test_no_copy_of_a_message_no_family_received(self, school, school_sender, staff_dm):
+        out = families.compose(ORG, STAFF, body='x', recipient_ids=['moss-mum'],
+                               staff_ids=['tess'])
+        assert out['sent'] == 0 and staff_dm == []
+
+    def test_the_email_copy_never_goes_to_staff(self, school, school_sender, staff_dm, emailer):
+        families.compose(ORG, STAFF, body='x', subject='Field day', recipient_ids=['lark-mum'],
+                         staff_ids=['tess'], email=True)
+        assert emailer.call_args[0][3] == ['lark-mum']
+
+    def test_the_note_counts_one_parent_and_works_without_a_label(self):
+        assert families.copy_note(1).startswith('[Copy] This message went to 1 parent,')
+        assert families.copy_note(3, '  ').startswith('[Copy] This message went to 3 parents,')
+        assert families.copy_note(3, 42).startswith('[Copy] This message went to 3 parents,')
+        long = families.copy_note(2, 'x' * 500)
+        assert 'x' * families.MAX_AUDIENCE_LABEL + ')' in long
+
+
+@pytest.mark.unit
+class TestTheRouteCopiesStaff:
+    def test_the_route_passes_staff_and_label_and_refuses_strangers(
+            self, school, school_sender, staff_dm):
+        import routes.sis.messaging as routes
+        run = TestTheRoutes()._run
+        body, status = run(routes.compose_families, body={
+            'recipient_ids': ['lark-mum'], 'body': 'x',
+            'staff_ids': ['tess'], 'audience_label': 'CLD'})
+        assert status == 200 and body['staff_sent'] == 1
+        assert '(CLD)' in staff_dm[0]['content']
+
+        body, status = run(routes.compose_families, body={
+            'recipient_ids': ['lark-mum'], 'body': 'x', 'staff_ids': ['stranger']})
+        assert status == 400 and 'staff at this school' in body['error']

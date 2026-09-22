@@ -22,7 +22,7 @@ Two kinds, one catalog (`kind`, M18 2026-09-17):
   quest   the above.
   link    a video or a document (a recorded training on Loom, a district PDF)
           -- an org_resources row flagged is_training, done by pressing done
-          (services/sis_training_service, the link half). Staff only. Until
+          (services/sis_training_service, the link half). Any audience. Until
           M18 links had their own route file with a second list, a second
           targeting model and a second progress report; the page merged them
           for display and the reports were joined in the browser. Now every
@@ -472,10 +472,10 @@ def list_training(user_id):
         progress = _progress_for([user_id], quest_ids, _thresholds(catalog))
         for c in catalog:
             c['my_progress'] = progress.get((user_id, c['quest_id']), dict(_NOT_STARTED))
-    # Links merge into every audience that can carry one. Staff-only until
-    # 2026-09-22, when a link became settable for families: "I would like to
-    # link to a video or document option in the 'for families'" (iCreate,
-    # ae16c5da). Students are still quests only -- see resource_audience.
+    # Links merge into every audience. Staff-only until 2026-09-22, when a
+    # link became settable for families and students: "I would like to link to
+    # a video or document option in the 'for families' (and students ...)"
+    # (iCreate, ae16c5da). See sis_training_service.resource_audience.
     catalog = _in_creators_order(
         catalog + sis_training_service.list_links(org_id, user_id, audience))
     return jsonify({'success': True, 'training': catalog, 'audience': audience})

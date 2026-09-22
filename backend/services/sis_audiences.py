@@ -94,3 +94,66 @@ def normalize_recipient_roles(audiences, fallback=None) -> List[str]:
 def event_audience(value) -> str:
     text = str(value or '').strip()
     return text if text in EVENT_AUDIENCES else 'school'
+
+
+#: WHERE a notice goes, beside who it is for (ticket 214bbc12, iCreate,
+#: 2026-09-22: "I want to be able to message just SOME of the teachers, not
+#: all of them ... see options of where it could go: Community Announcement
+#: Board; Teacher & Staff Announcement board; Optio Message inbox; Email").
+#:
+#: The two boards are one board. The "staff board" is the staff audience of the
+#: same sis_announcements table, so each audience has exactly one board it can
+#: go on -- everyone and families on the community board, staff on the staff
+#: board -- and a whole-school post is on the staff board already, because
+#: staff read every post. Two board rows for one notice is the double-write
+#: the 2026-09-17 audit spent a section on (D1); this vocabulary cannot ask
+#: for one.
+#:
+#: The inbox is staff only. A family is messaged from "Message Families",
+#: which writes from the school account so replies land in the School Inbox;
+#: a DM from here would come from the office member personally and bypass it.
+DESTINATIONS: Tuple[str, ...] = ('community_board', 'staff_board', 'inbox', 'email')
+BOARD_DESTINATIONS: Tuple[str, ...] = ('community_board', 'staff_board')
+DESTINATION_LABELS: Dict[str, str] = {
+    'community_board': 'Community board',
+    'staff_board': 'Staff board',
+    'inbox': 'Optio inbox',
+    'email': 'Email',
+}
+
+
+def destination_error(destinations, audience: str, narrowed: bool = False):
+    """Why this combination of destinations cannot be sent, or None.
+
+    Pure: the membership of any chosen people is checked by the caller, which
+    has the org. Everything here is a mistake the composer should never let
+    through, said in words the office can act on.
+    """
+    chosen = list(destinations or [])
+    if not chosen:
+        return 'Choose at least one place to send it'
+    for d in chosen:
+        if d not in DESTINATIONS:
+            return f'There is no place to send called "{d}"'
+    audience = board_audience(audience)
+    if 'community_board' in chosen and audience == 'teachers':
+        return 'A staff-only post goes on the staff board, not the community board'
+    if 'staff_board' in chosen and audience == 'families':
+        return ('Families do not read the staff board. Choose "Everyone at the '
+                'school" to reach families and staff with one post')
+    if 'staff_board' in chosen and audience == 'school' and 'community_board' not in chosen:
+        # A whole-school row IS on the community board; storing one because
+        # "staff board" was ticked would put it in front of every family.
+        return ('A post for everyone goes on the community board, which staff '
+                'read too. Choose "Staff only" for the staff board')
+    if 'inbox' in chosen and audience == 'families':
+        return 'Families are messaged from "Message Families", not from here'
+    if narrowed:
+        if audience != 'teachers':
+            return 'Choosing people is for staff-only sends'
+        if not any(d in chosen for d in ('inbox', 'email')):
+            # A board post is read by every staff member whoever was picked, so
+            # a narrowed board-only post would promise something it cannot do.
+            return ('Every staff member reads the staff board. Choose Optio inbox '
+                    'or Email to reach only the people you picked')
+    return None

@@ -4,7 +4,8 @@ Quest drafting from material a school already has (2026-08-12).
 POST /api/sis/quest-drafts/generate
   JSON      {context, notes?, task_count?, keep_wording?}
   multipart file=<pdf|docx|txt|md|csv> (+ notes, task_count, keep_wording)
-  -> {success, quest: {title, description, tasks: [...]}}
+  -> {success, quest: {title, description, tasks: [...]}, source_material,
+      truncated, tasks_truncated, source_task_count}
 
 keep_wording: the material is already the task list; copy it rather than
 compose from it, one task per item, and ignore task_count (iCreate, edb43711).
@@ -121,6 +122,15 @@ def generate(user_id):
     # be about — the quest's own title and description are a line and a
     # paragraph. Still nothing is written here; storing it is the caller's
     # separate, explicit create call.
+    #
+    # Two different cut-offs, two different keys. `truncated` is the SOURCE
+    # TEXT being trimmed to the context limit. `tasks_truncated` is the task
+    # LIST being trimmed to VERBATIM_MAX_TASKS in keep_wording mode, with
+    # `source_task_count` the best count of what the document listed (see
+    # QuestAIService._verbatim_cap_report for what that count can and cannot
+    # know). iCreate, d4cdfa81: 42 items used to arrive as 30 in silence.
     return jsonify({'success': True, 'quest': result['quest'],
                     'source_material': context[:_MAX_CONTEXT_CHARS],
-                    'truncated': len(context) > _MAX_CONTEXT_CHARS})
+                    'truncated': len(context) > _MAX_CONTEXT_CHARS,
+                    'tasks_truncated': bool(result.get('tasks_truncated')),
+                    'source_task_count': result.get('source_task_count')})

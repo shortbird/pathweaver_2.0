@@ -150,14 +150,24 @@ describe('adding a link', () => {
     expect(sent).not.toHaveProperty('visible_to_user_ids')
   })
 
-  // org_resources.audience is CHECK-constrained to families/staff/all with no
-  // student value, so a student link cannot be stored without a migration. A
-  // door that 400s is worse than no door.
-  it('is not offered for students, which would need a migration to store', async () => {
+  // Rewritten 2026-09-22 (ae16c5da, students half). This used to pin the
+  // door's ABSENCE on the student tab, because org_resources.audience had no
+  // student value. Migration 20260922200100 adds 'students', so the door is
+  // there and the link is filed as a student link.
+  it('is offered for students and files the link as theirs', async () => {
     render(<TrainingPanel />)
     fireEvent.click(await screen.findByRole('button', { name: /for students/i }))
     fireEvent.click(await screen.findByRole('button', { name: /add a student quest/i }))
-    expect(screen.queryByRole('tab', { name: /link to a video or document/i })).toBeNull()
+    fireEvent.click(screen.getByRole('tab', { name: /link to a video or document/i }))
+
+    fireEvent.change(screen.getByLabelText('Training title'), { target: { value: 'Last Friday training' } })
+    fireEvent.change(screen.getByLabelText('Training link'), { target: { value: 'https://loom.com/fri' } })
+    fireEvent.click(screen.getByRole('button', { name: /^add link$/i }))
+
+    await waitFor(() => expect(api.post).toHaveBeenCalledWith('/api/sis/training',
+      expect.objectContaining({ kind: 'link', title: 'Last Friday training', audience: 'student' })))
+    const sent = api.post.mock.calls.find((c) => c[0] === '/api/sis/training')[1]
+    expect(sent).not.toHaveProperty('visible_to_roles')
   })
 })
 

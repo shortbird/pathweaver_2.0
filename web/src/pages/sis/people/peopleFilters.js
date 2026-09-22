@@ -105,6 +105,37 @@ const matchesSearch = (r, q) => {
     .some((v) => (v || '').toLowerCase().includes(q))
 }
 
+/**
+ * The quick views over the one People table: a one-click answer to "show me
+ * the staff" that feels like the Staff page the office had before 2026-09-16.
+ *
+ * "I did actually like having the staff on the different page" -- Molly,
+ * iCreate org admin, ticket 180cc397 (2026-09-22). The owner kept one list
+ * and asked for a Staff view on top of it, so a view is not a second filter
+ * mechanism: it only sets the role and family filters the page already has,
+ * and the link it leaves (/people?role=staff, ?family=in, ?role=student) is
+ * the same link those filters always made. Search, status, payment and the
+ * other filters carry across a switch.
+ */
+export const QUICK_VIEWS = [
+  { id: 'everyone', label: 'Everyone', role: '', family: '' },
+  { id: 'staff', label: 'Staff', role: 'staff', family: '' },
+  { id: 'families', label: 'Families', role: '', family: 'in' },
+  { id: 'students', label: 'Students', role: 'student', family: '' },
+]
+
+/** The quick view the filters amount to, or null when the role and family
+ *  filters are a mix no view stands for (Teachers only, say). */
+export const quickViewOf = (f) => (
+  QUICK_VIEWS.find((v) => v.role === (f.role || '') && v.family === (f.family || ''))?.id || null
+)
+
+/** The filters with a quick view applied: role and family, nothing else. */
+export const applyQuickView = (f, id) => {
+  const v = QUICK_VIEWS.find((x) => x.id === id) || QUICK_VIEWS[0]
+  return { ...f, role: v.role, family: v.family }
+}
+
 export const EMPTY_FILTERS = {
   q: '', role: '', status: '', family: '', pay: '', recent: false, showFormer: false,
 }

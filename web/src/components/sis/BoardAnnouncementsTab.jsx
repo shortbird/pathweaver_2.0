@@ -5,13 +5,15 @@ import {
   useCommunityAnnouncements, sisCommunityApi, invalidateCommunity,
 } from '../../hooks/api/useSisCommunity'
 import Button from '../../components/ui/Button'
-import { useSisOrg } from '../../pages/sis/useSisOrg'
+import { useSisOrg, withOrg } from '../../pages/sis/useSisOrg'
 import RichTextEditor from '../course/outline/RichTextEditor'
 import AnnouncementBody from '../announcements/AnnouncementBody'
 import { useConfirm } from '../../contexts/ConfirmContext'
 import { fmtDateOnly, fmtShortDate, fmtInstant, isDateOnly } from '../../utils/timeFormat'
 import { INPUT_CLASS } from '../ui/Input'
 import useIsClamped from '../../hooks/useIsClamped'
+import PeoplePicker from './ui/PeoplePicker'
+import api from '../../services/api'
 
 /**
  * Posting an announcement. One composer, mounted in two places.
@@ -23,10 +25,12 @@ import useIsClamped from '../../hooks/useIsClamped'
  * so plainly ("I think we may be getting confused with messaging and
  * announcements?", 2026-09-02).
  *
- * An announcement is now one thing: a notice on the board that stays up for the
- * school year, with an optional "also notify" for something that cannot wait.
- * Reaching a particular set of people is what messaging is for, and the SIS
- * console can now write to a chosen group.
+ * An announcement is now one thing, written once and sent to each place the
+ * office ticks: the community board, the staff board, each staff member's
+ * Optio inbox, email (ticket 214bbc12, 2026-09-22: "I want to be able to
+ * message just SOME of the teachers, not all of them"). A staff-only send can
+ * be narrowed to named people. Families are narrowed and messaged from
+ * "Message Families", which writes from the school account.
  *
  * Lives in components/ rather than on either page because /community is opt-in
  * per org: a school with the Community Hub switched off still posts
@@ -230,9 +234,65 @@ const BoardAnnouncementsTab = ({ orgId, admin }) => {
   )
 }
 
+// WHERE a notice goes, beside who it is for (ticket 214bbc12, iCreate,
+// 2026-09-22): "I want to be able to message just SOME of the teachers, not all
+// of them ... see options of where it could go: Community Announcement Board;
+// Teacher & Staff Announcement board; Optio Message inbox; Email". Kept in step
+// with services/sis_audiences.py (DESTINATIONS, destination_error), which
+// refuses every combination this form disables.
+//
+// Still one composer. Two were merged on purpose on 2026-09-17 because the
+// office had to choose between them before writing a word; the choice now
+// lives inside the one form as checkboxes.
+const DESTINATIONS = [
+  { value: 'community_board', label: 'Community board' },
+  { value: 'staff_board', label: 'Staff board' },
+  { value: 'inbox', label: 'Optio inbox' },
+  { value: 'email', label: 'Email' },
+]
+
+// The two boards are one board: the staff board is its staff audience. So
+// each audience has exactly one board it can go on, and the other checkbox
+// says why it is off rather than silently doing nothing.
+const boardFor = (audience) => (audience === 'teachers' ? 'staff_board' : 'community_board')
+const isBoard = (d) => d === 'community_board' || d === 'staff_board'
+
+const disabledReason = (dest, audience) => {
+  if (dest === 'community_board' && audience === 'teachers') return 'A staff-only post goes on the staff board.'
+  if (dest === 'staff_board' && audience === 'families') return 'Families do not read the staff board.'
+  if (dest === 'staff_board' && audience === 'school') return 'A post for everyone is on the staff board too. Staff read every post.'
+  // Family messages come from the school account so replies land in the
+  // School Inbox. A DM from here would come from you personally.
+  if (dest === 'inbox' && audience === 'families') return 'Families are messaged from "Message Families", not from here.'
+  return null
+}
+
+const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`
+
+/**
+ * What Post will do, one sentence per destination. This line is the contract
+ * the office reads, so it is built from the same choices the payload is.
+ */
+export const reachLines = ({ audience, destinations, notifyApp, someStaff, chosenCount }) => {
+  const reach = reachOf(audience)
+  const people = someStaff ? `the ${plural(chosenCount, 'staff member', 'staff members')} you chose` : null
+  const lines = []
+  if (destinations.has('community_board')) lines.push(`Posts on the community board for ${reach}.`)
+  if (destinations.has('staff_board')) lines.push('Posts on the staff board, where every staff member can read it.')
+  if (notifyApp && [...destinations].some(isBoard)) lines.push(`Sends an app notification to ${people || reach}.`)
+  if (destinations.has('inbox')) {
+    lines.push(`Sends a private message to ${people || 'every staff member'} in their Optio inbox.`)
+    if (audience === 'school') lines.push('Families get no inbox message from here. Use "Message Families" for that.')
+  }
+  if (destinations.has('email')) lines.push(`Emails ${people || reach}.`)
+  if (!lines.length) lines.push('Choose at least one place to send it.')
+  return lines
+}
+
 const AnnouncementForm = ({ orgId, announcement, onDone, onCancel }) => {
   const { activeOrg } = useSisOrg()
   const lastDay = activeOrg?.feature_flags?.sis_settings?.last_day_of_school || ''
+  const isNew = !announcement
   const [f, setF] = useState({
     title: announcement?.title || '',
     body: announcement?.body || '',
@@ -241,19 +301,60 @@ const AnnouncementForm = ({ orgId, announcement, onDone, onCancel }) => {
     audience: LEGACY_AUDIENCE[announcement?.audience] || announcement?.audience || 'school',
     publish_at: announcement?.publish_at ? announcement.publish_at.slice(0, 16) : '',
     expires_at: announcement?.expires_at ? announcement.expires_at.slice(0, 16) : '',
-    // Whether to ALSO push it, beyond the board. The board audience above
-    // already says who the notice is for; asking again in a second vocabulary
-    // is how three composers with three different audience models came to
-    // exist. Off by default: a board post is a thing people come and read.
-    notify: false,
-    notify_app: true,
-    notify_email: false,
+    // The app notification rides on the board post it points at. Off by
+    // default: a board post is a thing people come and read.
+    notify_app: false,
   })
+  const [destinations, setDestinations] = useState(() => new Set(['community_board']))
+  // Narrowing to named staff (the "just SOME of the teachers" half).
+  const [someStaff, setSomeStaff] = useState(false)
+  const [chosenStaff, setChosenStaff] = useState(() => new Set())
+  const [staff, setStaff] = useState(null)
   const [saving, setSaving] = useState(false)
   const set = (k, v) => setF((p) => ({ ...p, [k]: v }))
 
+  const staffOnly = f.audience === 'teachers'
+  const onBoard = !isNew || [...destinations].some(isBoard)
+
+  useEffect(() => {
+    if (!isNew || !staffOnly || !someStaff || staff) return
+    api.get(withOrg('/api/sis/messaging/recipients', orgId))
+      .then((r) => setStaff(r.data?.people || []))
+      .catch(() => { setStaff([]); toast.error('Could not load the staff list') })
+  }, [isNew, staffOnly, someStaff, staff, orgId])
+
+  const changeAudience = (audience) => {
+    set('audience', audience)
+    // Keep the board ticked if it was, moved to the board this audience goes
+    // on; drop what this audience cannot have.
+    setDestinations((prev) => {
+      const next = new Set([...prev].filter((d) => !isBoard(d)))
+      if ([...prev].some(isBoard)) next.add(boardFor(audience))
+      if (audience === 'families') next.delete('inbox')
+      return next
+    })
+    if (audience !== 'teachers') { setSomeStaff(false); setChosenStaff(new Set()) }
+  }
+
+  const toggleDestination = (d) => setDestinations((prev) => {
+    const next = new Set(prev)
+    if (next.has(d)) next.delete(d); else next.add(d)
+    return next
+  })
+
+  const toggleStaff = (id) => setChosenStaff((prev) => {
+    const next = new Set(prev)
+    if (next.has(id)) next.delete(id); else next.add(id)
+    return next
+  })
+
+  const narrowedWithoutDelivery = someStaff && !destinations.has('inbox') && !destinations.has('email')
+
   const save = async () => {
     if (!f.title.trim()) return toast.error('Title is required')
+    if (isNew && !destinations.size) return toast.error('Choose at least one place to send it')
+    if (isNew && someStaff && !chosenStaff.size) return toast.error('Choose at least one person, or send to all staff')
+    if (isNew && narrowedWithoutDelivery) return toast.error('Choose Optio inbox or Email to reach only the people you picked')
     setSaving(true)
     const payload = {
       organization_id: orgId,
@@ -264,21 +365,29 @@ const AnnouncementForm = ({ orgId, announcement, onDone, onCancel }) => {
       audience: f.audience,
       publish_at: f.publish_at ? new Date(f.publish_at).toISOString() : null,
       expires_at: f.expires_at ? new Date(f.expires_at).toISOString() : null,
-      notify: f.notify,
-      notify_app: f.notify_app,
-      notify_email: f.notify_email,
+    }
+    if (isNew) {
+      payload.destinations = DESTINATIONS.map((d) => d.value).filter((d) => destinations.has(d))
+      payload.notify_app = onBoard && f.notify_app
+      if (someStaff) payload.staff_ids = [...chosenStaff]
     }
     try {
-      if (announcement) await sisCommunityApi.saveAnnouncement(announcement.id, payload)
-      else {
-        const { data } = await sisCommunityApi.saveAnnouncement(null, payload)
-        if (data?.notify_error) toast.error(data.notify_error)
-        else if (data?.notified?.sent) {
-          toast.success(`Posted and sent to ${data.notified.sent} ${data.notified.sent === 1 ? 'person' : 'people'}`)
-          return onDone()
-        }
+      if (!isNew) {
+        await sisCommunityApi.saveAnnouncement(announcement.id, payload)
+        toast.success('Announcement updated')
+        return onDone()
       }
-      toast.success(announcement ? 'Announcement updated' : 'Announcement posted')
+      const { data } = await sisCommunityApi.saveAnnouncement(null, payload)
+      if (data?.notify_error) toast.error(data.notify_error)
+      if (data?.inbox_error) toast.error(data.inbox_error)
+      const done = []
+      if (data?.announcement) done.push('Posted')
+      if (data?.messaged?.sent) done.push(`messaged ${plural(data.messaged.sent, 'person', 'people')}`)
+      if (data?.notified?.emailed) done.push(`emailed ${plural(data.notified.recipients || 0, 'person', 'people')}`)
+      if (done.length) {
+        const text = done.join(', ')
+        toast.success(text.charAt(0).toUpperCase() + text.slice(1))
+      }
       onDone()
     } catch (e) { toast.error(e?.response?.data?.error || 'Could not save') }
     finally { setSaving(false) }
@@ -301,99 +410,140 @@ const AnnouncementForm = ({ orgId, announcement, onDone, onCancel }) => {
           />
         </div>
       </div>
-      {/* Posting to the board publishes it, to whoever "Visible to" names.
-          Sending is the separate, louder act: a notification and an email that
-          arrive whether or not anyone opens the board. Who it reaches is that
-          same setting and nothing else — one audience, asked once. Saying the
-          answer back here is what the office was missing: "does the newsletter
-          go to the teachers?" had no answer anywhere on the form. */}
-      {!announcement && (
-        <div className="rounded-lg border border-gray-200 bg-neutral-50 p-3">
-          <label className="flex items-start gap-2 text-sm text-neutral-700">
-            <input type="checkbox" checked={f.notify} className="mt-0.5"
-              onChange={(e) => set('notify', e.target.checked)} />
-            <span>
-              Also notify people
-              <span className="block text-xs text-neutral-500">
-                The board is where people come and read. Tick this for something
-                that cannot wait.
-              </span>
-            </span>
+
+      {/* Who, then where. Editing a post changes the post only, so it keeps
+          the plain audience picker; the destinations are a sending choice. */}
+      {isNew ? (
+        <div className="rounded-lg border border-gray-200 bg-neutral-50 p-3 space-y-3">
+          <label className="text-xs text-neutral-500 block">Who
+            <select value={f.audience} onChange={(e) => changeAudience(e.target.value)} className={field}>
+              {AUDIENCES.map((a) => (
+                <option key={a.value} value={a.value}>{a.label}</option>
+              ))}
+            </select>
           </label>
-          {f.notify && (
-            <div className="mt-2 pl-6">
-              <div className="flex flex-wrap gap-4">
-                <label className="flex items-center gap-1.5 text-sm text-neutral-700">
-                  <input type="checkbox" checked={f.notify_app}
-                    onChange={(e) => set('notify_app', e.target.checked)} />
-                  In the app
+          {staffOnly && (
+            <div className="space-y-2">
+              <div className="flex flex-wrap gap-4 text-sm text-neutral-700">
+                <label className="flex items-center gap-1.5">
+                  <input type="radio" name="staff-scope" checked={!someStaff}
+                    onChange={() => setSomeStaff(false)} />
+                  All staff
                 </label>
-                <label className="flex items-center gap-1.5 text-sm text-neutral-700">
-                  <input type="checkbox" checked={f.notify_email}
-                    onChange={(e) => set('notify_email', e.target.checked)} />
-                  By email
+                <label className="flex items-center gap-1.5">
+                  <input type="radio" name="staff-scope" checked={someStaff}
+                    onChange={() => setSomeStaff(true)} />
+                  Only some staff
                 </label>
               </div>
-              {/* The same audience, so the same people: "Visible to" below
-                  now names them whether or not this box is ticked. Said here
-                  as what the notification ADDS, rather than repeating the
-                  reach twice on one form. */}
-              <p className="text-xs text-neutral-500 mt-1.5">
-                Sent to the same people the post is visible to, now, rather than
-                waiting for them to open the board.
-              </p>
+              {someStaff && (
+                staff === null
+                  ? <p className="text-sm text-neutral-500">Loading staff…</p>
+                  : <PeoplePicker people={staff} selected={chosenStaff} onToggle={toggleStaff}
+                      searchLabel="Search staff" placeholder="Search staff by name"
+                      emptyLabel="No staff to choose from."
+                      renderMeta={(p) => (p.role_labels?.length
+                        ? <span className="block text-xs text-neutral-500">{p.role_labels.join(', ')}</span>
+                        : null)} />
+              )}
             </div>
           )}
+          {f.audience === 'families' && (
+            <p className="text-xs text-neutral-500">
+              To reach only some families, use &ldquo;Message Families&rdquo;.
+            </p>
+          )}
+          <fieldset>
+            <legend className="text-xs text-neutral-500 mb-1">Where it goes</legend>
+            <div className="space-y-1.5">
+              {DESTINATIONS.map((d) => {
+                const reason = disabledReason(d.value, f.audience)
+                return (
+                  <label key={d.value} className={`flex items-start gap-2 text-sm ${reason ? 'text-neutral-400' : 'text-neutral-700'}`}>
+                    <input type="checkbox" className="mt-0.5" disabled={Boolean(reason)}
+                      checked={!reason && destinations.has(d.value)}
+                      onChange={() => toggleDestination(d.value)} />
+                    <span>
+                      {d.label}
+                      {reason && <span className="block text-xs">{reason}</span>}
+                    </span>
+                  </label>
+                )
+              })}
+            </div>
+            {onBoard && (
+              <label className="flex items-center gap-1.5 text-sm text-neutral-700 mt-2 pl-6">
+                <input type="checkbox" checked={f.notify_app}
+                  onChange={(e) => set('notify_app', e.target.checked)} />
+                Also send an app notification with the board post
+              </label>
+            )}
+          </fieldset>
+          {/* What Post will do, said back in words ("does the newsletter go to
+              the teachers?" had no answer anywhere on the form, 745e2857). */}
+          <ul aria-label="What Post will do" className="text-xs text-neutral-600 space-y-0.5">
+            {reachLines({
+              audience: f.audience, destinations, notifyApp: f.notify_app,
+              someStaff, chosenCount: chosenStaff.size,
+            }).map((line) => <li key={line}>{line}</li>)}
+            {narrowedWithoutDelivery && (
+              <li className="text-red-600">Every staff member reads the staff board. Choose Optio inbox or Email to reach only the people you picked.</li>
+            )}
+            {f.publish_at && (destinations.has('inbox') || destinations.has('email')) && (
+              <li>The inbox message and email go now. Only the board post waits for its publish time.</li>
+            )}
+          </ul>
         </div>
-      )}
-      <div className="flex flex-wrap items-center gap-4">
-        <label className="flex items-center gap-2 text-sm text-neutral-700">
-          <input type="checkbox" checked={f.pinned} onChange={(e) => set('pinned', e.target.checked)} />
-          Pin to top
-        </label>
-        <label className="text-xs text-neutral-500 block">Priority
-          <select value={f.priority} onChange={(e) => set('priority', e.target.value)} className={field}>
-            <option value="normal">Normal</option>
-            <option value="urgent">Urgent</option>
-          </select>
-        </label>
-        {/* Who can READ the board post, and who "Also notify people" above
-            reaches. Board posts had no audience at all, so a note for teachers
-            was readable by every family in the app (iCreate, 2026-08-26).
-            "Families" means the parents: the weekly newsletter is not news a
-            teacher needs pushed to their phone. */}
+      ) : (
         <label className="text-xs text-neutral-500 block">Visible to
           <select value={f.audience} onChange={(e) => set('audience', e.target.value)} className={field}>
             {AUDIENCES.map((a) => (
               <option key={a.value} value={a.value}>{a.label}</option>
             ))}
           </select>
-          {/* Who that actually is. The reach was written down but only ever
-              rendered inside "Also notify people", so anyone who left that off
-              had to guess -- "Does 'Everyone at School' include students too?"
-              (iCreate, 2026-09-22, 745e2857). The names are the school's
-              words; only this line says who receives it. */}
           <span className="block mt-1 text-neutral-400">Goes to {reachOf(f.audience)}.</span>
         </label>
-      </div>
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <label className="text-xs text-neutral-500 block">Publish at <span className="text-neutral-400">(optional)</span>
-          <input type="datetime-local" value={f.publish_at} onChange={(e) => set('publish_at', e.target.value)} className={field} />
-        </label>
-        <label className="text-xs text-neutral-500 block">Expires at <span className="text-neutral-400">(optional)</span>
-          <input type="datetime-local" value={f.expires_at} onChange={(e) => set('expires_at', e.target.value)} className={field} />
-          {/* Left blank the server uses the end of the school year, so this
-              year's notices stay up and then come down. Saying which date that
-              is beats leaving "optional" to mean "forever" silently. */}
-          <span className="block mt-1 text-neutral-400">
-            {lastDay
-              ? `Blank: comes down at the end of the school year (${lastDay}).`
-              : 'Blank: stays up until you remove it.'}
-          </span>
-        </label>
-      </div>
+      )}
+
+      {/* Pinning, priority and dates belong to the board post. Without one
+          they would do nothing, so they are not offered. */}
+      {onBoard && (
+        <>
+          <div className="flex flex-wrap items-center gap-4">
+            <label className="flex items-center gap-2 text-sm text-neutral-700">
+              <input type="checkbox" checked={f.pinned} onChange={(e) => set('pinned', e.target.checked)} />
+              Pin to top
+            </label>
+            <label className="text-xs text-neutral-500 block">Priority
+              <select value={f.priority} onChange={(e) => set('priority', e.target.value)} className={field}>
+                <option value="normal">Normal</option>
+                <option value="urgent">Urgent</option>
+              </select>
+            </label>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <label className="text-xs text-neutral-500 block">Publish at <span className="text-neutral-400">(optional)</span>
+              <input type="datetime-local" value={f.publish_at} onChange={(e) => set('publish_at', e.target.value)} className={field} />
+            </label>
+            <label className="text-xs text-neutral-500 block">Expires at <span className="text-neutral-400">(optional)</span>
+              <input type="datetime-local" value={f.expires_at} onChange={(e) => set('expires_at', e.target.value)} className={field} />
+              {/* Left blank the server uses the end of the school year, so this
+                  year's notices stay up and then come down. Saying which date that
+                  is beats leaving "optional" to mean "forever" silently. */}
+              <span className="block mt-1 text-neutral-400">
+                {lastDay
+                  ? `Blank: comes down at the end of the school year (${lastDay}).`
+                  : 'Blank: stays up until you remove it.'}
+              </span>
+            </label>
+          </div>
+        </>
+      )}
       <div className="flex gap-2">
-        <Button size="sm" onClick={save} loading={saving}>{announcement ? 'Save changes' : 'Post'}</Button>
+        <Button size="sm" onClick={save} loading={saving}
+          disabled={isNew && !destinations.size}>
+          {isNew ? (onBoard ? 'Post' : 'Send') : 'Save changes'}
+        </Button>
         <button onClick={onCancel} className="text-sm text-neutral-500 hover:underline">Cancel</button>
       </div>
     </div>

@@ -576,3 +576,39 @@ class TestTheXpAQuestRequiresToFinish:
                                  tables={'quests': [SHARED_QUEST]})
         assert status == 403
         assert not [e for e in log if e[0] == 'update']
+
+
+@pytest.mark.unit
+class TestTeachersMayChangeTheXp:
+    """Molly (iCreate, 3d926fc3, 2026-09-22): "Then I think it'd be good to
+    click on 'teachers may change' if we want teachers to change it."
+
+    quests.teachers_may_change_xp: the library editor writes it, and the list
+    carries it so the editor opens on the saved value. The class page's PATCH
+    enforces it (tests/test_class_quest_xp_threshold.py).
+    """
+
+    def test_the_list_carries_it_and_null_reads_as_on(self):
+        tables = _tables()
+        tables['quests'][0] = {**tables['quests'][0], 'teachers_may_change_xp': False}
+        body, status, _ = _run(library.list_org_quests, (), tables=tables)
+        assert status == 200
+        by_id = {q['id']: q for q in body['quests']}
+        assert by_id[Q1]['teachers_may_change_xp'] is False
+        # Q2 has no value at all: the column default, on.
+        assert by_id[Q2]['teachers_may_change_xp'] is True
+
+    def test_the_editor_can_lock_it(self):
+        _out, status, log = _run(library.update_library_quest, (Q1,),
+                                 body={'teachers_may_change_xp': False},
+                                 tables={'quests': [OWN_QUEST]})
+        assert status == 200
+        payload = [e[2] for e in log if e[0] == 'update' and e[1] == 'quests'][0]
+        assert payload == {'teachers_may_change_xp': False}
+
+    def test_a_string_is_refused(self):
+        out, status, log = _run(library.update_library_quest, (Q1,),
+                                body={'teachers_may_change_xp': 'false'},
+                                tables={'quests': [OWN_QUEST]})
+        assert status == 400
+        assert not [e for e in log if e[0] == 'update']

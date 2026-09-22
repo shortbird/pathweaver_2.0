@@ -316,7 +316,10 @@ class TestOneCatalogForBothKinds:
             ('link', 'first'), ('quest', 'tr-q'), ('link', 'third')]
         assert body['training'][0]['sequence_order'] == 0
 
-    def test_only_the_staff_tab_has_links(self):
+    def test_a_staff_link_stays_on_the_staff_tab(self):
+        # Was test_only_the_staff_tab_has_links. Every tab carries links since
+        # 2026-09-22 (ae16c5da); what still holds is that a staff link is on
+        # no other tab.
         repo = _FakeRepo(rows=[_link()])
         body, _ = _call(training.list_training, ADMIN, repo, query='?audience=family')
         assert body['training'] == []
@@ -399,7 +402,8 @@ class TestALinkSetForFamilies:
 
     Two vocabularies meet here and the tests say so: training speaks
     staff/family/student, org_resources.audience is CHECK-constrained to
-    families/staff/all.
+    families/staff/all, and to 'students' as well since migration
+    20260922200100 (test_sis_student_training_links.py covers that half).
     """
 
     def test_the_chosen_audience_is_stored_in_the_columns_vocabulary(self):
@@ -411,16 +415,28 @@ class TestALinkSetForFamilies:
         assert status == 201
         assert repo.created[0]['audience'] == 'families'
 
-    def test_a_student_link_is_refused_rather_than_mislabelled(self):
-        """org_resources.audience has no 'student' value and widening the
-        CHECK is a migration. Storing it as something else would put a
+    def test_a_student_link_is_stored_as_students_not_refused(self):
+        """Rewritten 2026-09-22 (ae16c5da, students half). This test used to
+        pin a 400 -- "A link for students is not available yet" -- because
+        org_resources.audience had no student value. Migration
+        20260922200100_org_resources_audience_students.sql adds 'students', so
+        the refusal is gone and the row carries the column's word for it. It
+        must never be stored as something else: 'families' would put a
         student's training on the parents' list."""
         repo = _FakeRepo()
+        _body, status = _call(training.add_training, ADMIN, repo, json={
+            'kind': 'link', 'title': 'T', 'url': 'https://x.org', 'audience': 'student',
+        })
+        assert status == 201
+        assert repo.created[0]['audience'] == 'students'
+
+    def test_an_unknown_audience_is_still_refused(self):
+        repo = _FakeRepo()
         body, status = _call(training.add_training, ADMIN, repo, json={
-            'kind': 'link', 'title': 'T', 'url': 'https://x', 'audience': 'student',
+            'kind': 'link', 'title': 'T', 'url': 'https://x.org', 'audience': 'alumni',
         })
         assert status == 400
-        assert 'students' in body['error']
+        assert body['error'] == 'Choose who the training is for.'
         assert repo.created == []
 
     def test_a_family_link_is_not_on_the_staff_list(self):

@@ -101,10 +101,11 @@ class TrainingLinkRepository(BaseRepository):
         training list. That query now excludes training, which is what makes it
         safe for this to honour what the admin chose (ae16c5da).
 
-        Callers pass the org_resources vocabulary (families/staff/all), not the
-        training one (staff/family/student) — the column's CHECK constraint
-        knows only the former. sis_training_service.resource_audience is the
-        one place that translates.
+        Callers pass the org_resources vocabulary (families/staff/all/students),
+        not the training one (staff/family/student) — the column's CHECK
+        constraint knows only the former. sis_training_service.resource_audience
+        is the one place that translates. 'students' exists only once migration
+        20260922200100_org_resources_audience_students.sql is applied.
         """
         now = datetime.now(timezone.utc).isoformat()
         rows = (self.client.table(self.table_name).insert({

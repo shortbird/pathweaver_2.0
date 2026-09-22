@@ -320,7 +320,8 @@ def list_class_quests(user_id, class_id):
     rows = (admin.table('class_quests')
             .select('id, quest_id, sequence_order, publish_at, due_date, student_ids, '
                     'quests(id, title, description, quest_type, is_active, '
-                    'organization_id, xp_threshold, allow_custom_tasks)')
+                    'organization_id, xp_threshold, allow_custom_tasks, '
+                    'teachers_may_change_xp)')
             .eq('class_id', class_row['id']).order('sequence_order').execute()).data or []
     quest_ids = [r['quest_id'] for r in rows]
     counts = _template_task_count(admin, quest_ids)
@@ -351,6 +352,9 @@ def list_class_quests(user_id, class_id):
             # Whether a student may add tasks of their own. Null reads as the
             # column default, true.
             'allow_custom_tasks': q.get('allow_custom_tasks') is not False,
+            # Whether a teacher may move xp_threshold here (the office sets it
+            # in the library). Null reads as the column default, on.
+            'teachers_may_change_xp': q.get('teachers_may_change_xp') is not False,
             # Only the org's own quests may have their preset tasks edited here.
             'editable_tasks': q.get('organization_id') == org_id,
         })
@@ -859,6 +863,9 @@ def _authorize_editable_quest(user_id, class_id, quest_id):
 # The fields a teacher may change on the quest itself from the class page.
 # xp_threshold is not here: update_class_quest already writes it, and one
 # field with two writers is how two screens end up disagreeing.
+# teachers_may_change_xp is not here either, and must never be: it is the
+# office's lock on xp_threshold, and a teacher who could write it could unlock
+# themselves (3d926fc3).
 _CLASS_QUEST_INFO_FIELDS = ('title', 'description', 'allow_custom_tasks')
 
 
@@ -1098,6 +1105,26 @@ def update_class_quest(user_id, class_id, quest_id):
         return jsonify({'success': False, 'error': 'That quest is not on this class.'}), 404
     link = link[0]
 
+    if xp_threshold is not None:
+        quest = (admin.table('quests').select('organization_id, teachers_may_change_xp')
+                 .eq('id', quest_id).limit(1).execute()).data
+        if not quest or quest[0].get('organization_id') != class_row['organization_id']:
+            return jsonify({
+                'success': False,
+                'error': "XP to finish can only be set on your school's own quests.",
+            }), 403
+        # The office can lock the finish line from the library editor. Molly,
+        # iCreate, 3d926fc3, 2026-09-22: "I think it'd be good to click on
+        # 'teachers may change' if we want teachers to change it." This
+        # runs before any write, so a refused call changes nothing -- not even a
+        # due date sent alongside.
+        if (quest[0].get('teachers_may_change_xp') is False
+                and not sis_service.caller_is_admin(user_id)):
+            return jsonify({
+                'success': False,
+                'error': 'Your school office sets the XP to finish for this quest.',
+            }), 403
+
     row = [{}]
     students_enrolled = students_hidden = 0
     if updates:
@@ -1130,13 +1157,6 @@ def update_class_quest(user_id, class_id, quest_id):
                     logger.warning(f'Could not hide rescheduled quest {quest_id}: {e}')
 
     if xp_threshold is not None:
-        quest = (admin.table('quests').select('organization_id')
-                 .eq('id', quest_id).limit(1).execute()).data
-        if not quest or quest[0].get('organization_id') != class_row['organization_id']:
-            return jsonify({
-                'success': False,
-                'error': "XP to finish can only be set on your school's own quests.",
-            }), 403
         # 0 and None both mean "no finish line"; store None so the completion
         # route's `if xp_threshold and xp_threshold > 0` reads it the same way
         # a quest that never had one does.

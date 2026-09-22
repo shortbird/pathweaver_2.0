@@ -19,10 +19,12 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render as rtlRender, screen, fireEvent } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 
-const { announcements, saveAnnouncement } = vi.hoisted(() => ({
+const { announcements, saveAnnouncement, apiGet } = vi.hoisted(() => ({
   announcements: { current: [] },
   saveAnnouncement: vi.fn(async () => ({ data: {} })),
+  apiGet: vi.fn(async () => ({ data: { people: [], presets: [] } })),
 }))
+vi.mock('../../services/api', () => ({ default: { get: apiGet } }))
 
 vi.mock('../../hooks/api/useSisCommunity', () => ({
   useCommunityAnnouncements: () => ({
@@ -57,7 +59,9 @@ const render = (ui) => {
 const openComposer = () => {
   render(<BoardAnnouncementsTab orgId="org-1" admin />)
   fireEvent.click(screen.getByRole('button', { name: 'Post announcement' }))
-  return screen.getByLabelText(/Visible to/)
+  // "Who" since ticket 214bbc12: the new composer asks who, then where. The
+  // edit form keeps "Visible to", because editing changes the post only.
+  return screen.getByLabelText(/^Who/)
 }
 
 const optionsOf = (select) => [...select.querySelectorAll('option')].map((o) => o.textContent)
@@ -65,6 +69,8 @@ const optionsOf = (select) => [...select.querySelectorAll('option')].map((o) => 
 beforeEach(() => {
   announcements.current = []
   saveAnnouncement.mockClear()
+  saveAnnouncement.mockImplementation(async () => ({ data: {} }))
+  apiGet.mockClear()
 })
 
 describe('the audience a board post is written for', () => {
@@ -127,37 +133,164 @@ describe('the audience a board post is written for', () => {
 // The reach used to render only inside "Also notify people", so an office
 // that just posted to the board had to guess who "Everyone at the school"
 // was -- "Does 'Everyone at School' include students too?" (iCreate,
-// 2026-09-22, 745e2857). It is one audience for both acts, so it is named
-// once, under the picker, and always.
+// 2026-09-22, 745e2857). Since ticket 214bbc12 the composer says WHERE as well
+// as who, so the line under the picker says what Post does for each place
+// ticked. These replace the old "Goes to ..." assertions on the new composer;
+// the edit form still says "Goes to", because it only changes the post.
 describe('who the composer says a post reaches', () => {
-  const reachFor = (audience) => {
+  const linesFor = (audience) => {
     const select = openComposer()
     fireEvent.change(select, { target: { value: audience } })
-    return screen.getByText(/^Goes to /).textContent
+    return [...screen.getByRole('list', { name: 'What Post will do' }).querySelectorAll('li')]
+      .map((li) => li.textContent)
   }
 
   it('names the parents for a Families post', () => {
-    expect(reachFor('families')).toBe('Goes to parents.')
+    expect(linesFor('families')).toEqual(['Posts on the community board for parents.'])
   })
 
   it('answers the students question for a school-wide post', () => {
-    expect(reachFor('school')).toBe('Goes to parents, students and teachers.')
+    expect(linesFor('school')).toEqual(['Posts on the community board for parents, students and teachers.'])
   })
 
-  it('names the teachers for a staff post', () => {
-    expect(reachFor('teachers')).toBe('Goes to teachers.')
+  it('puts a staff post on the staff board', () => {
+    expect(linesFor('teachers')).toEqual(['Posts on the staff board, where every staff member can read it.'])
   })
 
-  it('says so without waiting for "Also notify people" to be ticked', () => {
+  it('still says Goes to on the edit form', () => {
+    announcements.current = [{ id: 'a1', title: 'Picture day', audience: 'families' }]
+    render(<BoardAnnouncementsTab orgId="org-1" admin />)
+    fireEvent.click(screen.getByRole('button', { name: 'Edit' }))
+    expect(screen.getByText(/^Goes to /).textContent).toBe('Goes to parents.')
+  })
+})
+
+// Ticket 214bbc12 (iCreate, Molly, 2026-09-22): "I really think this needs to
+// be bulk messaging and not just announcements. I want to be able to message
+// just SOME of the teachers, not all of them. (and to filter people.) ... see
+// options of where it could go: Community Announcement Board; Teacher & Staff
+// Announcement board; Optio Message inbox; Email."
+describe('where a notice goes', () => {
+  const box = (name) => screen.getByRole('checkbox', { name: new RegExp(`^${name}`) })
+  const lines = () => [...screen.getByRole('list', { name: 'What Post will do' }).querySelectorAll('li')]
+    .map((li) => li.textContent)
+  const titled = (title = 'Gate code') => fireEvent.change(
+    screen.getByPlaceholderText('Early dismissal Friday'), { target: { value: title } })
+  const submit = async (name = 'Post') => {
+    fireEvent.click(screen.getByRole('button', { name }))
+    await vi.waitFor(() => expect(saveAnnouncement).toHaveBeenCalled())
+    return saveAnnouncement.mock.calls[0][1]
+  }
+
+  it('offers the four places, in one composer', () => {
     openComposer()
-    expect(screen.getByText(/^Goes to /)).toBeInTheDocument()
+    for (const name of ['Community board', 'Staff board', 'Optio inbox', 'Email']) {
+      expect(box(name)).toBeInTheDocument()
+    }
+    expect(screen.getAllByRole('button', { name: /^(Post|Send)$/ })).toHaveLength(1)
   })
 
-  it('does not say the reach twice when notifying as well', () => {
+  it('starts on the community board and sends that alone', async () => {
     openComposer()
-    fireEvent.click(screen.getByLabelText(/Also notify people/))
-    expect(screen.getAllByText(/^Goes to /)).toHaveLength(1)
-    expect(screen.getByText(/Sent to the same people the post is visible to/)).toBeInTheDocument()
+    titled()
+    expect(await submit()).toMatchObject({ destinations: ['community_board'], audience: 'school' })
+  })
+
+  it('sends each destination alone', async () => {
+    for (const [audience, dest, button] of [
+      ['teachers', 'Staff board', 'Post'],
+      ['teachers', 'Optio inbox', 'Send'],
+      ['school', 'Email', 'Send'],
+    ]) {
+      saveAnnouncement.mockClear()
+      const { unmount } = render(<BoardAnnouncementsTab orgId="org-1" admin />)
+      fireEvent.click(screen.getByRole('button', { name: 'Post announcement' }))
+      fireEvent.change(screen.getByLabelText(/^Who/), { target: { value: audience } })
+      if (dest !== 'Staff board') fireEvent.click(box(audience === 'teachers' ? 'Staff board' : 'Community board'))
+      if (dest !== 'Staff board') fireEvent.click(box(dest))
+      titled()
+      const payload = await submit(button)
+      const wire = { 'Staff board': 'staff_board', 'Optio inbox': 'inbox', Email: 'email' }[dest]
+      expect(payload.destinations).toEqual([wire])
+      unmount()
+    }
+  })
+
+  it('sends them combined, and says what each will do', async () => {
+    openComposer()
+    fireEvent.click(box('Optio inbox'))
+    fireEvent.click(box('Email'))
+    fireEvent.click(screen.getByLabelText(/Also send an app notification/))
+    expect(lines()).toEqual([
+      'Posts on the community board for parents, students and teachers.',
+      'Sends an app notification to parents, students and teachers.',
+      'Sends a private message to every staff member in their Optio inbox.',
+      'Families get no inbox message from here. Use "Message Families" for that.',
+      'Emails parents, students and teachers.',
+    ])
+    titled()
+    expect(await submit()).toMatchObject({
+      destinations: ['community_board', 'inbox', 'email'], notify_app: true,
+    })
+  })
+
+  it('refuses to send with no destination', () => {
+    openComposer()
+    fireEvent.click(box('Community board'))
+    expect(lines()).toEqual(['Choose at least one place to send it.'])
+    expect(screen.getByRole('button', { name: 'Send' })).toBeDisabled()
+  })
+
+  it('never offers the inbox for families, and says where to go instead', () => {
+    const select = openComposer()
+    fireEvent.change(select, { target: { value: 'families' } })
+    expect(box('Optio inbox')).toBeDisabled()
+    expect(screen.getByText('Families are messaged from "Message Families", not from here.')).toBeInTheDocument()
+  })
+
+  it('moves a staff post to the staff board, which is the same board', () => {
+    const select = openComposer()
+    fireEvent.change(select, { target: { value: 'teachers' } })
+    expect(box('Community board')).toBeDisabled()
+    expect(box('Staff board')).toBeChecked()
+  })
+
+  it('narrows a staff send to the people picked and passes their ids', async () => {
+    apiGet.mockResolvedValueOnce({ data: { people: [
+      { id: 's1', name: 'Ada Teacher', role_labels: ['Teacher'] },
+      { id: 's2', name: 'Sam Teacher', role_labels: ['Teacher'] },
+      { id: 's3', name: 'Kim Office', role_labels: ['Admin'] },
+    ] } })
+    const select = openComposer()
+    fireEvent.change(select, { target: { value: 'teachers' } })
+    fireEvent.click(box('Staff board'))
+    fireEvent.click(box('Optio inbox'))
+    fireEvent.click(screen.getByLabelText('Only some staff'))
+    await screen.findByLabelText('Select Ada Teacher')
+    expect(apiGet.mock.calls[0][0]).toContain('/api/sis/messaging/recipients')
+    fireEvent.click(screen.getByLabelText('Select Ada Teacher'))
+    fireEvent.click(screen.getByLabelText('Select Kim Office'))
+    expect(lines()).toEqual(['Sends a private message to the 2 staff members you chose in their Optio inbox.'])
+    titled()
+    const payload = await submit('Send')
+    expect(payload).toMatchObject({ audience: 'teachers', destinations: ['inbox'] })
+    expect(payload.staff_ids.sort()).toEqual(['s1', 's3'])
+  })
+
+  it('warns that the staff board reaches everyone when people are picked', async () => {
+    const select = openComposer()
+    fireEvent.change(select, { target: { value: 'teachers' } })
+    fireEvent.click(screen.getByLabelText('Only some staff'))
+    expect(screen.getByText(/Every staff member reads the staff board/)).toBeInTheDocument()
+  })
+
+  it('does not send destinations when editing a post', async () => {
+    announcements.current = [{ id: 'a1', title: 'Picture day', audience: 'families' }]
+    render(<BoardAnnouncementsTab orgId="org-1" admin />)
+    fireEvent.click(screen.getByRole('button', { name: 'Edit' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Save changes' }))
+    await vi.waitFor(() => expect(saveAnnouncement).toHaveBeenCalled())
+    expect(saveAnnouncement.mock.calls[0][1]).not.toHaveProperty('destinations')
   })
 })
 

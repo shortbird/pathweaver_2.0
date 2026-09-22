@@ -185,14 +185,12 @@ def _default_expires_at(org_id: str) -> Optional[str]:
         return None
 
 
-def create_announcement(org_id: str, user_id: str, data: Dict[str, Any]) -> Dict[str, Any]:
-    title = _text(data.get('title'))
-    if not title:
-        return {'error': 'A title is required'}
+def _insert_board_row(org_id: str, user_id: str, data: Dict[str, Any],
+                      title: str, audience: str) -> Optional[Dict[str, Any]]:
+    """Put one post on the board and return the row."""
     priority = data.get('priority') or 'normal'
     if priority not in ANNOUNCEMENT_PRIORITIES:
         priority = 'normal'
-    audience = _audience(data.get('audience'))
     fields = {
         'organization_id': org_id,
         'title': title,
@@ -206,7 +204,28 @@ def create_announcement(org_id: str, user_id: str, data: Dict[str, Any]) -> Dict
         'created_by': user_id,
     }
     row = (_admin().table('sis_announcements').insert(fields).execute()).data
-    created = row[0] if row else None
+    return row[0] if row else None
+
+
+def _publish(*args: Any, **kwargs: Any) -> Dict[str, Any]:
+    """The one call into announcement_service.publish (shared/sisConcepts.json,
+    announcement_publish): both the older notify path and the destination
+    path send through here, so the post and its send stay linked one way."""
+    from services import announcement_service
+    return announcement_service.publish(*args, **kwargs)
+
+
+def create_announcement(org_id: str, user_id: str, data: Dict[str, Any]) -> Dict[str, Any]:
+    title = _text(data.get('title'))
+    if not title:
+        return {'error': 'A title is required'}
+    audience = _audience(data.get('audience'))
+    # The composer since ticket 214bbc12 says WHERE as well as who. A caller
+    # without `destinations` (the mobile app, anything older) keeps the
+    # board-plus-optional-notify behaviour below, unchanged.
+    if 'destinations' in data:
+        return _create_with_destinations(org_id, user_id, data, title, audience)
+    created = _insert_board_row(org_id, user_id, data, title, audience)
 
     # Posting puts it on the board, which families can now read (see
     # family_feed). Sending is the louder, separate act iCreate expected the
@@ -214,14 +233,14 @@ def create_announcement(org_id: str, user_id: str, data: Dict[str, Any]) -> Dict
     # doesn't show up ... on the non-admin side"): the family-facing
     # announcement path — durable row, in-app notification, email. Best-effort —
     # a delivery problem must not lose the post that already succeeded.
-    result = {'announcement': created}
+    result: Dict[str, Any] = {'announcement': created}
     audiences = _notify_audiences(data, audience)
     if audiences:
         try:
             from services import announcement_service
             audiences = announcement_service.normalize_audiences(audiences)
             if audiences:
-                sent = announcement_service.publish(
+                sent = _publish(
                     org_id, user_id, title, _body(data.get('body')) or title, audiences,
                     send_app=bool(data.get('notify_app', True)) if 'notify' in data else True,
                     # Email is the deliberate half (ticket b4a4d250): a caller
@@ -236,6 +255,112 @@ def create_announcement(org_id: str, user_id: str, data: Dict[str, Any]) -> Dict
         except Exception as e:  # noqa: BLE001
             logger.error(f'Community announcement fan-out failed: {e}', exc_info=True)
             result['notify_error'] = 'The post was saved, but sending it to families failed.'
+    return result
+
+
+def _create_with_destinations(org_id: str, user_id: str, data: Dict[str, Any],
+                              title: str, audience: str) -> Dict[str, Any]:
+    """One notice, sent to each place the office ticked.
+
+    Ticket 214bbc12 (iCreate, Molly, 2026-09-22): "I really think this needs to
+    be bulk messaging and not just announcements. I want to be able to message
+    just SOME of the teachers, not all of them ... see options of where it could
+    go: Community Announcement Board; Teacher & Staff Announcement board; Optio
+    Message inbox; Email."
+
+      community_board / staff_board  one board row, audience as chosen (the
+                        staff board is the staff audience of the same board;
+                        see sis_audiences.DESTINATIONS).
+      inbox             a private message to each chosen staff member, through
+                        the staff compose path. Never families: they are
+                        messaged from Message Families.
+      email             the announcement send's email half, to the audience's
+                        roles or to the chosen staff.
+
+    `staff_ids` narrows a staff-only send to named people. Every id is checked
+    against this org's staff BEFORE anything is written: a stranger in the list
+    is refused, not dropped, because a picker that quietly discards a recipient
+    tells the sender their message went somewhere it did not.
+
+    Everything that can be refused is refused before the first write. After
+    that each destination is best-effort, the same rule as the notify half has
+    always had: a failed email must not lose the post that already went up.
+    """
+    from services import sis_messaging_service as staff_messaging
+
+    destinations = data.get('destinations') or []
+    if isinstance(destinations, str):
+        destinations = [destinations]
+    destinations = list(dict.fromkeys(destinations))
+    staff_ids = data.get('staff_ids')
+    narrowed = staff_ids is not None
+    if narrowed and not isinstance(staff_ids, list):
+        return {'error': 'staff_ids has to be a list'}
+    if narrowed and not staff_ids:
+        return {'error': 'Choose at least one person, or send to all staff'}
+
+    problem = sis_audiences.destination_error(destinations, audience, narrowed)
+    if problem:
+        return {'error': problem}
+
+    staff: set = set()
+    if narrowed or 'inbox' in destinations:
+        staff = {p['id'] for p in staff_messaging.staff_recipients(org_id)}
+    if narrowed:
+        if any(i not in staff for i in (staff_ids or [])):
+            return {'error': 'Everyone you choose has to be staff at this school'}
+        staff_ids = list(dict.fromkeys(staff_ids or []))
+
+    body = _body(data.get('body'))
+    inbox_text = rich_text.to_text(body) if body else ''
+    inbox_to: List[str] = []
+    if 'inbox' in destinations:
+        if len(inbox_text) > staff_messaging.MAX_BODY:
+            return {'error': (f'An inbox message is limited to {staff_messaging.MAX_BODY} '
+                              'characters. Shorten it, or send it by email instead')}
+        inbox_to = [i for i in ((staff_ids or []) if narrowed else sorted(staff)) if i != user_id]
+        if not inbox_to:
+            return {'error': 'There is nobody on the staff to message'}
+
+    result: Dict[str, Any] = {'announcement': None, 'destinations': destinations}
+    on_board = any(d in destinations for d in sis_audiences.BOARD_DESTINATIONS)
+    created = _insert_board_row(org_id, user_id, data, title, audience) if on_board else None
+    result['announcement'] = created
+
+    # The app notification rides on the board post (it points at it); email is
+    # its own destination. Both go through the one announcement send so the
+    # recipient resolution is the one the preview and the archive use.
+    send_app = on_board and bool(data.get('notify_app'))
+    send_email = 'email' in destinations
+    if send_app or send_email:
+        try:
+            roles = sis_audiences.recipient_roles_for(audience)
+            sent = _publish(
+                org_id, user_id, title, body or title, roles,
+                send_app=send_app, send_email=send_email,
+                advisor_ids=set(staff_ids or []) if narrowed else None,
+                source_announcement_id=(created or {}).get('id'))
+            result['notified'] = {**sent, 'audiences': roles}
+        except Exception as e:  # noqa: BLE001
+            logger.error(f'Announcement send failed: {e}', exc_info=True)
+            result['notify_error'] = ('The post was saved, but the email or notification '
+                                      'did not go out.' if on_board
+                                      else 'The email did not go out.')
+
+    if inbox_to:
+        try:
+            # 'separate': one private thread each. A notice is not a
+            # conversation thirty people should all see the replies to, and a
+            # teacher answering "which gate?" should reach the office alone.
+            sent = staff_messaging.compose(
+                org_id, user_id, body=inbox_text or title,
+                subject=title if inbox_text else None,
+                recipient_ids=inbox_to, mode='separate')
+            result['messaged'] = {'sent': sent.get('sent', 0),
+                                  'skipped': sent.get('skipped', [])}
+        except Exception as e:  # noqa: BLE001
+            logger.error(f'Announcement inbox send failed: {e}', exc_info=True)
+            result['inbox_error'] = 'The inbox messages did not go out.'
     return result
 
 

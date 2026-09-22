@@ -16,8 +16,9 @@ import { assignedMessage } from '../../pages/sis/trainingCopy'
 /**
  * The one form for adding or editing a training, whatever shape it takes.
  *
- * Three doors for staff: attach an existing quest, build a new one, or link to
- * a video or document. Families and students get the two quest doors. Until
+ * Three doors on every tab: attach an existing quest, build a new one, or link
+ * to a video or document (families and students got the link door on
+ * 2026-09-22, ae16c5da; staff had it first). Until
  * M18 (2026-09-17) the link door was a second form in a second file with its
  * own targeting block and its own save path; now every kind shares the
  * category, the required flag and one "who is this for" (roles OR named
@@ -268,13 +269,13 @@ export default function TrainingForm({ orgId, audience, onAdded, onCancel, orgLo
       await saveLink.mutateAsync({ id: editingLink ? editItem.id : undefined, body: {
         title: title.trim(), url: url.trim(), description: description.trim(),
         category: category.trim(), is_required: required,
-        // Which tab built it. The server translates staff/family into the
+        // Which tab built it. The server translates staff/family/student into the
         // org_resources vocabulary; without it every link is filed as staff,
         // which is what it did until 2026-09-22.
         audience,
         // Role narrowing is a staff idea (the column allows only staff roles),
-        // and a family link reaches every family. Sending them on a family
-        // link would store a rule nothing reads.
+        // and a family or student link reaches every family or student.
+        // Sending them on one would store a rule nothing reads.
         ...(audience === 'staff'
           ? { visible_to_roles: roles, visible_to_user_ids: people }
           : {}),
@@ -289,20 +290,18 @@ export default function TrainingForm({ orgId, audience, onAdded, onCancel, orgLo
   // Three doors: attach a quest, build one, or link to a video or document.
   //
   // The link door was staff-only until 2026-09-22, on the stated grounds that
-  // a link for families had no portal surface to be done on. Families now have
-  // one (/family/forms reads /api/sis/parent/training and posts the Done), so
-  // they get the third door too: "I would like to link to a video or document
-  // option in the 'for families' ... without creating an entire quest"
-  // (iCreate, ae16c5da).
+  // a link for families or students had no portal surface to be done on. Both
+  // have one now -- families on /family/forms (/api/sis/parent/training), and
+  // students on /school (/api/sis/student/training) -- so every tab gets the
+  // third door: "I would like to link to a video or document option in the
+  // 'for families' (and students if it's not there too) ... without creating
+  // an entire quest" (iCreate, ae16c5da).
   //
-  // Students still get the two quest doors. org_resources.audience is
-  // CHECK-constrained to families/staff/all with no student value, so a
-  // student link cannot be stored without a migration, and a door that 400s is
-  // worse than no door. Editing has one door — the thing already exists and is
-  // being rewritten.
-  const canLink = audience === 'staff' || audience === 'family'
+  // A student link needs migration 20260922200100 (org_resources.audience
+  // gained 'students'), which must be applied before this ships. Editing has
+  // one door -- the thing already exists and is being rewritten.
   const doors = [['existing', 'Use an existing quest'], ['new', 'Build a new one'],
-    ...(canLink ? [['link', 'Link to a video or document']] : [])]
+    ['link', 'Link to a video or document']]
   const header = (
     <>
       <p className="text-sm text-neutral-600">
@@ -313,7 +312,7 @@ export default function TrainingForm({ orgId, audience, onAdded, onCancel, orgLo
           : audience === 'family'
             ? 'A family quest is an ordinary quest \u2014 parents complete it on their own account. Attach one you already have, build it here, or link to a video or document they only have to watch.'
             : audience === 'student'
-              ? 'A student quest is an ordinary quest, set by the school rather than chosen. Attach one you already have, or build it here.'
+              ? 'A student quest is an ordinary quest, set by the school rather than chosen. Attach one you already have, build it here, or link to a video or document they only have to watch.'
               : 'Training is a quest or a link. Attach a quest you already have, build one here, or link to a video or document.'}
       </p>
       {!editItem && (
@@ -500,7 +499,10 @@ export default function TrainingForm({ orgId, audience, onAdded, onCancel, orgLo
         </>)}
         {/* Who it goes to. Several groups at once, because a school's
             orientation quest is one quest whether the parents or the teenagers
-            are doing it (iCreate, 2026-08-17). A link is for staff only. */}
+            are doing it (iCreate, 2026-08-17). A link belongs to the one tab
+            that built it, and only a staff link can be narrowed by role or by
+            name: the role column allows staff roles only, and a family or
+            student link reaches every family or student (ae16c5da). */}
         <div className="sm:col-span-2 border-t border-gray-200 pt-3">
           {!isLink && <span className="block text-xs text-neutral-500 mb-1.5">Who gets this quest</span>}
           {!isLink && <div className="flex flex-wrap items-center gap-4">
@@ -531,7 +533,7 @@ export default function TrainingForm({ orgId, audience, onAdded, onCancel, orgLo
               </span>
             </div>
           )}
-          {(isLink || targets.includes('staff')) && (
+          {(isLink ? audience === 'staff' : targets.includes('staff')) && (
             <div className={`${isLink ? '' : 'mt-3 '}text-xs text-neutral-500 space-y-3`}>
               <div>
                 <span className="block mb-1">Which staff roles <span className="text-neutral-400">(none ticked = all staff)</span></span>

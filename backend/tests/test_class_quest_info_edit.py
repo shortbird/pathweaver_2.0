@@ -190,3 +190,69 @@ def test_the_class_list_reports_the_student_tasks_switch():
         payload, status = _call(class_quests.list_class_quests, CLASS)
     assert status == 200
     assert {q['quest_id']: q['allow_custom_tasks'] for q in payload['quests']} == {'qa': False, 'qb': True}
+
+
+@pytest.mark.unit
+class TestTeachersMayChangeXp:
+    """The office's lock on a quest's XP to finish. Molly (iCreate, 3d926fc3,
+    2026-09-22): "I think it'd be good to click on 'teachers may change' if we
+    want teachers to change it." update_quest_info writes it for the office's
+    editors; the class /info route must never pass it through."""
+
+    def _service(self, body, row=None):
+        log = []
+        client = _client({'quests': [row or {'id': QUEST, 'title': 'T'}]}, log)
+        out = task_editing.update_quest_info(client, QUEST, body)
+        return out, log
+
+    def test_false_is_written_and_returned(self):
+        out, log = self._service({'teachers_may_change_xp': False})
+        assert log == [('update', 'quests', {'teachers_may_change_xp': False})]
+        assert out['quest']['teachers_may_change_xp'] is False
+
+    def test_true_is_written_and_returned(self):
+        out, log = self._service({'teachers_may_change_xp': True},
+                                 row={'id': QUEST, 'teachers_may_change_xp': False})
+        assert log == [('update', 'quests', {'teachers_may_change_xp': True})]
+        assert out['quest']['teachers_may_change_xp'] is True
+
+    def test_a_string_is_refused_and_nothing_written(self):
+        """"false" as a string is truthy; coercing it would unlock the quest."""
+        for bad in ('false', 0, None):
+            with pytest.raises(task_editing.QuestTaskEditError):
+                self._service({'teachers_may_change_xp': bad})
+
+    def test_absent_leaves_it_alone_and_reads_as_the_default(self):
+        out, log = self._service({'title': 'T'})
+        assert 'teachers_may_change_xp' not in log[0][2]
+        assert out['quest']['teachers_may_change_xp'] is True
+
+    def test_the_class_info_route_ignores_it(self):
+        """A teacher must not unlock the XP they were locked out of."""
+        log = []
+        client = _client({'quests': [{'id': QUEST, 'title': 'Old'}]}, log)
+        with patch.object(class_quests, '_authorize_editable_quest',
+                          return_value=({'id': CLASS}, client, {'id': QUEST}, None)):
+            payload, status = _call(class_quests.update_class_quest_info, CLASS, QUEST,
+                                    body={'teachers_may_change_xp': True})
+        assert status == 400 and payload['error'] == 'Nothing to update'
+        assert not log
+        assert 'teachers_may_change_xp' not in class_quests._CLASS_QUEST_INFO_FIELDS
+
+    def test_the_class_list_reports_it(self):
+        """The class page opens on the saved lock. Null is the default, on."""
+        rows = [
+            {'quest_id': 'qa', 'sequence_order': 0, 'student_ids': None,
+             'quests': {'title': 'A', 'organization_id': ORG, 'teachers_may_change_xp': False}},
+            {'quest_id': 'qb', 'sequence_order': 1, 'student_ids': None,
+             'quests': {'title': 'B', 'organization_id': ORG, 'teachers_may_change_xp': None}},
+        ]
+        client = _client({'class_quests': rows}, [])
+        with patch.object(class_quests, '_authorize',
+                          return_value=({'id': CLASS, 'organization_id': ORG}, client, None)), \
+             patch.object(class_quests, '_template_task_count', return_value={}), \
+             patch.object(class_quests, '_roster', return_value=[]):
+            payload, status = _call(class_quests.list_class_quests, CLASS)
+        assert status == 200
+        assert {q['quest_id']: q['teachers_may_change_xp'] for q in payload['quests']} == \
+            {'qa': False, 'qb': True}

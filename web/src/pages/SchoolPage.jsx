@@ -8,6 +8,7 @@ import { roleHomePath } from '../utils/postLoginPath'
 import { useSisOrg } from './sis/useSisOrg'
 import { isFamilyFirstHubOrg } from '../config/optioAcademy'
 import { cardGroupsFor, cardsFor } from './school/schoolCards'
+import MySchoolTraining from '../components/school/MySchoolTraining'
 
 // The card catalog lives in ./school/schoolCards (shared with the sidebar).
 export { cardGroupsFor, cardsFor }
@@ -346,6 +347,10 @@ export default function SchoolPage() {
               Schedule tab now, under the week, where a parent looks for a
               class.) */}
           {!previewOrgId && <MyClassMaterials />}
+          {/* Videos and documents the school set for its students, with a Done
+              button (ae16c5da). Empty -- so nothing -- for anyone who is not a
+              student, and hidden in the preview for the same reason as above. */}
+          {!previewOrgId && <MySchoolTraining />}
 
           {!cardsOnly && (
             <UnifiedFeed

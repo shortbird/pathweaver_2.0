@@ -22,6 +22,24 @@ not in one coordinator's personal messages; and no family may see another
 family's reply, so there is no group mode at all. The optional email copy is
 the announcement fan-out (one copy per mailbox, dependents routed to their
 parent), because "their message box and/or email" was the ask.
+
+Staff can be copied (Molly, iCreate, 2026-09-22 77efe09b: "it would be nice if
+i could add extra people who are NOT in the class. Like I just sent a message
+to the CLD parents. But I couldn't add the teacher on to that message too").
+Adding the teacher to the families' threads was never an option -- there is
+one thread per guardian, and a teacher in all of them would be a group chat by
+the back door. So each staff member named gets their OWN copy, and it comes
+from the staff member who wrote it, personally, not from the school account.
+That is the staff composer's rule (sis_messaging_service's docstring): the
+School Inbox is the family queue, and a teacher's "thanks, got it" landing
+there would bury the parent replies the office is working through. The copy
+opens with a line saying it is a copy, how many parents it went to and which
+audience, and that the families' replies go to the School Inbox -- so the
+teacher knows they are not looking at the thread the parents answer in.
+Families never learn who was copied, and nothing about the one-thread-per-
+guardian rule changes. Staff are checked server-side against the same list
+the staff composer uses (active, non-placeholder staff of THIS org); anyone
+else is refused before a single message goes out.
 """
 
 from typing import Any, Dict, List, Optional, Sequence, Set
@@ -32,6 +50,9 @@ logger = get_logger(__name__)
 
 #: Same cap as the staff composer and the school inbox.
 MAX_BODY = 2000
+#: The composer's description of who the families are ("Art, ages 5 to 8").
+#: Free text from the sender, shown only to staff, so it is only trimmed.
+MAX_AUDIENCE_LABEL = 120
 
 
 def _active_students(org_id: str) -> List[Dict[str, Any]]:
@@ -163,13 +184,17 @@ def compose(org_id: str, actor_id: str, *, body: str,
             recipient_ids: Sequence[str],
             subject: Optional[str] = None,
             attachments: Optional[List[Dict[str, Any]]] = None,
-            email: bool = False) -> Dict[str, Any]:
-    """One private message from the school to each guardian named.
+            email: bool = False,
+            staff_ids: Optional[Sequence[str]] = None,
+            audience_label: Optional[str] = None) -> Dict[str, Any]:
+    """One private message from the school to each guardian named, and a
+    labelled copy from the sender to each staff member in `staff_ids`.
 
     Raises ValueError on anything the sender can fix (nobody chosen, a person
-    who is not a current student's guardian, an empty body); the route turns
-    those into a 400. Sends are best-effort per guardian: one unreachable
-    account does not stop the other forty.
+    who is not a current student's guardian, a copy to someone who is not
+    staff here, an empty body); the route turns those into a 400. Sends are
+    best-effort per person: one unreachable account does not stop the other
+    forty.
     """
     body = (body or '').strip()
     if not body and not attachments:
@@ -186,6 +211,7 @@ def compose(org_id: str, actor_id: str, *, body: str,
         # Refused rather than dropped: a composer that quietly discards a
         # recipient tells the sender their message went somewhere it did not.
         raise ValueError("Everyone you message has to be the parent of a current student")
+    copies = _staff_to_copy(org_id, actor_id, staff_ids, families=wanted)
 
     content = f'{subject}\n\n{body}' if (subject or '').strip() else body
 
@@ -207,8 +233,69 @@ def compose(org_id: str, actor_id: str, *, body: str,
     if email and conversations:
         emailed = _email_copies(org_id, subject, body, [c['recipient_id'] for c in conversations])
 
+    # A copy of a message nobody received would tell the teacher something
+    # that did not happen, so copies wait on at least one family send.
+    staff_copies: List[Dict[str, Any]] = []
+    staff_skipped: List[str] = []
+    if copies and conversations:
+        staff_copies, staff_skipped = _send_staff_copies(
+            actor_id, copies, content, attachments,
+            parents=len(conversations), audience_label=audience_label)
+
     return {'mode': 'families', 'conversations': conversations,
-            'sent': len(conversations), 'skipped': skipped, 'emailed': emailed}
+            'sent': len(conversations), 'skipped': skipped, 'emailed': emailed,
+            'staff_copies': staff_copies, 'staff_sent': len(staff_copies),
+            'staff_skipped': staff_skipped}
+
+
+def _staff_to_copy(org_id: str, actor_id: str, staff_ids: Optional[Sequence[str]],
+                   *, families: Sequence[str]) -> List[str]:
+    """The staff a family message is copied to, checked before anything sends.
+
+    Only active, reachable staff of this org (the staff composer's own list);
+    anyone else is refused, not dropped, for the same reason a stranger in the
+    family list is. The sender is left out (they wrote it), and so is anyone
+    already getting the family copy -- a teacher who is also a parent here
+    gets the one their household gets, not two.
+    """
+    wanted = [s for s in dict.fromkeys(staff_ids or []) if s]
+    if not wanted:
+        return []
+    from services import sis_messaging_service
+    staff = {p['id'] for p in sis_messaging_service.staff_recipients(org_id)}
+    if any(s not in staff for s in wanted):
+        raise ValueError('Everyone you copy has to be staff at this school')
+    already = set(families)
+    return [s for s in wanted if s != actor_id and s not in already]
+
+
+def copy_note(parents: int, audience_label: Optional[str] = None) -> str:
+    """The line a staff copy opens with: that it is a copy, of what, and where
+    the families' replies went."""
+    label = (audience_label if isinstance(audience_label, str) else '').strip()[:MAX_AUDIENCE_LABEL]
+    who = f"{parents} {'parent' if parents == 1 else 'parents'}"
+    if label:
+        who = f'{who} ({label})'
+    return (f'[Copy] This message went to {who}, each family in their own private '
+            'thread from the school. Their replies go to the School Inbox, not here.')
+
+
+def _send_staff_copies(actor_id: str, staff: List[str], content: str,
+                       attachments: Optional[List[Dict[str, Any]]], *,
+                       parents: int, audience_label: Optional[str]):
+    from services.direct_message_service import DirectMessageService
+    svc = DirectMessageService()
+    text = f'{copy_note(parents, audience_label)}\n\n{content}'
+    sent: List[Dict[str, Any]] = []
+    skipped: List[str] = []
+    for sid in staff:
+        try:
+            msg = svc.send_message(actor_id, sid, text, attachments=attachments or [])
+            sent.append({'recipient_id': sid, 'conversation_id': msg.get('conversation_id')})
+        except Exception as e:  # noqa: BLE001
+            logger.info(f'family message staff copy to {str(sid)[:8]} skipped: {e}')
+            skipped.append(sid)
+    return sent, skipped
 
 
 def _email_copies(org_id: str, subject: Optional[str], body: str,

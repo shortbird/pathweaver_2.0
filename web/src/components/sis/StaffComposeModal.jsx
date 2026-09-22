@@ -38,6 +38,12 @@ import { withOrg } from '../../pages/sis/useSisOrg'
  * the school, so replies land in the School Inbox and no family sees another.
  * No group mode there, by design. The filter and list live in
  * FamilyAudiencePicker; this modal keeps the words and the send.
+ *
+ * Staff can be copied on a family message (Molly, 77efe09b: "I just sent a
+ * message to the CLD parents. But I couldn't add the teacher on to that
+ * message too"). Each gets their own copy from the sender, marked as a copy;
+ * the families' threads are untouched and never show who was copied. Why the
+ * copy comes from the sender and not the school: sis_family_messaging_service.
  */
 
 const AUDIENCES = [['staff', 'Staff'], ['families', 'Families']]
@@ -68,6 +74,8 @@ export default function StaffComposeModal({ isOpen, orgId, onClose, onSent, init
   const [families, setFamilies] = useState([])
   const [chosenFamilies, setChosenFamilies] = useState(() => new Set())
   const [emailToo, setEmailToo] = useState(false)
+  const [copyStaff, setCopyStaff] = useState(() => new Set())
+  const [audienceLabel, setAudienceLabel] = useState('')
 
   useEffect(() => {
     if (!isOpen) return
@@ -88,6 +96,7 @@ export default function StaffComposeModal({ isOpen, orgId, onClose, onSent, init
     setChosen(new Set()); setSubject(''); setBody('')
     setName(''); setSeparate(false)
     setFamilies([]); setChosenFamilies(new Set()); setEmailToo(false)
+    setCopyStaff(new Set()); setAudienceLabel('')
     setAudienceOverride(null)
   }, [isOpen])
 
@@ -123,10 +132,13 @@ export default function StaffComposeModal({ isOpen, orgId, onClose, onSent, init
         subject: subject.trim() || undefined,
         body: body.trim(),
         email: emailToo,
+        // Only when someone is copied, so a plain family send is unchanged.
+        ...(copyStaff.size ? { staff_ids: [...copyStaff], audience_label: audienceLabel || undefined } : {}),
       })
       const data = res.data || {}
       toast.success(`Sent to ${data.sent} ${data.sent === 1 ? 'parent' : 'parents'}, each in their own thread`
-        + (data.emailed ? `, and emailed ${data.emailed}` : ''))
+        + (data.emailed ? `, and emailed ${data.emailed}` : '')
+        + (data.staff_sent ? `, with a copy to ${data.staff_sent} staff` : ''))
       if (data.skipped?.length) {
         toast.error(`${data.skipped.length} could not be reached`)
       }
@@ -180,6 +192,7 @@ export default function StaffComposeModal({ isOpen, orgId, onClose, onSent, init
             {toFamilies
               ? (chosenFamilies.size
                 ? `${chosenFamilies.size} ${chosenFamilies.size === 1 ? 'parent' : 'parents'} · a private thread each`
+                  + (copyStaff.size ? ` · copy to ${copyStaff.size} staff` : '')
                 : 'No families selected yet')
               : (chosen.size
                 ? `${chosen.size} ${chosen.size === 1 ? 'person' : 'people'}${willBeGroup ? ' · one thread' : ''}`
@@ -214,7 +227,33 @@ export default function StaffComposeModal({ isOpen, orgId, onClose, onSent, init
         <div className="space-y-4">
           <FamilyAudiencePicker orgId={orgId}
             people={families} setPeople={setFamilies}
-            selected={chosenFamilies} setSelected={setChosenFamilies} />
+            selected={chosenFamilies} setSelected={setChosenFamilies}
+            onAudienceLabel={setAudienceLabel} />
+
+          <div>
+            <span className="block text-xs font-medium text-neutral-600 mb-1">Copy staff (optional)</span>
+            <SearchSelect value=""
+              onChange={(id) => id && setCopyStaff((prev) => new Set([...prev, id]))}
+              options={people.filter((p) => !copyStaff.has(p.id))}
+              getId={(p) => p.id} getLabel={nameOf}
+              placeholder="Add a teacher or staff member" />
+            {copyStaff.size > 0 && (
+              <div className="flex flex-wrap gap-1.5 mt-2">
+                {[...copyStaff].map((id) => (
+                  <span key={id}
+                    className="inline-flex items-center gap-1 rounded-full bg-optio-purple/10 px-2.5 py-1 text-xs text-optio-purple">
+                    {nameOf(byId.get(id))}
+                    <button type="button" aria-label={`Stop copying ${nameOf(byId.get(id))}`}
+                      onClick={() => setCopyStaff((prev) => { const n = new Set(prev); n.delete(id); return n })}
+                      className="font-bold hover:text-optio-pink">×</button>
+                  </span>
+                ))}
+              </div>
+            )}
+            <span className="block text-xs text-neutral-500 mt-1">
+              Each gets their own copy from you, marked as a copy. Families do not see who was copied, and their replies still come only to the School Inbox.
+            </span>
+          </div>
 
           <label className="flex items-start gap-2 text-sm text-neutral-700">
             <input type="checkbox" checked={emailToo} className="mt-0.5"

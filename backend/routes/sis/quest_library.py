@@ -163,6 +163,9 @@ def list_org_quests(user_id):
             # The finish line, if the school set one. POST /api/quests/:id/end
             # is what enforces it; the editor needs the current value to show.
             'xp_threshold': q.get('xp_threshold') or 0,
+            # Whether a class's teacher may move that finish line. Null reads
+            # as the column default, on (3d926fc3).
+            'teachers_may_change_xp': q.get('teachers_may_change_xp') is not False,
             'task_count': len(tasks_per_quest.get(q['id'], [])),
             'tasks': tasks_per_quest.get(q['id'], []),
             'made_by': _made_by(creator_by_id.get(q.get('created_by'))),
@@ -363,7 +366,8 @@ def _edit(op, *args):
 def update_library_quest(user_id, quest_id):
     """Edit a quest's headline fields.
 
-    Body: {title?, description?, xp_threshold?}.
+    Body: {title?, description?, xp_threshold?, allow_custom_tasks?,
+    teachers_may_change_xp?}.
     """
     _org_id, _quest, err = _own_quest(user_id, quest_id)
     if err:

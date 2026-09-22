@@ -355,6 +355,11 @@ Return ONLY valid JSON (no markdown code blocks):
                     'required': ['title', 'pillar', 'xp_value', 'is_required'],
                 },
             },
+            # Verbatim mode only: how many items the SOURCE lists, counted
+            # before the VERBATIM_MAX_TASKS cap. Without it a 42-item document
+            # came back as 30 tasks and nothing on screen said so (iCreate,
+            # d4cdfa81). Optional, because the composed mode never asks.
+            'source_task_count': {'type': 'INTEGER'},
         },
         'required': ['title', 'description', 'tasks'],
     }
@@ -431,6 +436,10 @@ instruction about one task to every task.
       (trimmed to 1000 characters). If the source has none, leave it empty
       rather than writing one.
     - pillar: one of [{pillars}]"""
+            count_rule = f"""
+- source_task_count: how many activities, steps or assignments the source
+  lists IN TOTAL, including any past the first {target_task_count} that you could not
+  include. Count them; do not copy them."""
             quest_rules = """- title: the source's own title if it has one, copied word for word;
   otherwise 3-8 plain words naming it
 - description: the source's own introduction or summary if it has one, copied
@@ -453,6 +462,7 @@ instruction about one task to every task.
     - pillar: one of [{pillars}]"""
             style_rules = ("READING LEVEL: 5th-6th grade. The task may be hard; the words must "
                            "be easy.")
+            count_rule = ""
 
         prompt = f"""
 You are helping a teacher turn material they already wrote into an Optio quest.
@@ -479,7 +489,7 @@ Produce ONE quest:
     - is_required: true for the core of the unit, false for extensions. Set it
       on EVERY task. If the teacher's instructions name which tasks are
       required, every task they did not name is false — "make the first task
-      required" means exactly one true.
+      required" means exactly one true.{count_rule}
 {extra}
 {style_rules}
 Do not mention grades, points beyond XP, deadlines, or assessment rubrics.
@@ -536,7 +546,44 @@ Return a single JSON object: {{"title": str, "description": str, "tasks": [...]}
                     'error': 'The AI could not find enough to build a quest from that.',
                     'quest': None}
 
-        return {'success': True, 'quest': self._normalize_quest_draft(data, target_task_count)}
+        quest = self._normalize_quest_draft(data, target_task_count)
+        result = {'success': True, 'quest': quest,
+                  'tasks_truncated': False, 'source_task_count': None}
+        if keep_wording:
+            result.update(self._verbatim_cap_report(data, target_task_count))
+        return result
+
+    @staticmethod
+    def _verbatim_cap_report(data: Dict[str, Any], cap: int) -> Dict[str, Any]:
+        """Did the VERBATIM_MAX_TASKS cap cut the teacher's list short?
+
+        iCreate, d4cdfa81: a doc of quest names came back capped at 30 and
+        nothing said so. The cap is applied in TWO places, and they differ in
+        what the code can know:
+
+          - _normalize_quest_draft slices the model's list to `cap`. When the
+            model ignored "at most N" and sent more, the tasks dropped there
+            are counted exactly.
+          - the prompt tells the model "at most N", so a model that obeyed
+            stopped at N and the items it never wrote are invisible to this
+            code. For those the only count is the model's own
+            source_task_count - the model reading the document, not this code
+            counting it. It can be wrong in either direction.
+
+        So source_task_count is the larger of the two, and tasks_truncated is
+        true when that number is more than the tasks the model sent that fit
+        under the cap. When the model omits its count and sent no more than
+        the cap, nothing is known and nothing is claimed.
+        """
+        raw = [t for t in (data.get('tasks') or []) if isinstance(t, dict)]
+        try:
+            reported = int(data.get('source_task_count') or 0)
+        except (TypeError, ValueError):
+            reported = 0
+        source_count = max(len(raw), reported)
+        kept = min(len(raw), cap)
+        return {'tasks_truncated': source_count > kept,
+                'source_task_count': source_count or None}
 
     def _normalize_quest_draft(self, data: Dict[str, Any], target_task_count: int) -> Dict[str, Any]:
         """Coerce a model draft into exactly the shape the SIS quest form holds.

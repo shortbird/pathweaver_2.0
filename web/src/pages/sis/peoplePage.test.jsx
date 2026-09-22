@@ -110,11 +110,14 @@ beforeEach(() => {
 })
 
 describe('the one table', () => {
-  it('lists everyone with every role they hold, and no tabs', async () => {
+  // This test used to assert there were no Everyone and Families tabs at all.
+  // Ticket 180cc397 brought them back as quick views over the same one list
+  // (not three lists), so it now asserts one table under one view bar.
+  it('lists everyone with every role they hold, in one table under the quick views', async () => {
     render(<PeoplePage />)
     expect(await screen.findByText('Ada Ant')).toBeInTheDocument()
-    expect(screen.queryByText('Everyone')).not.toBeInTheDocument()
-    expect(screen.queryByText('Families')).not.toBeInTheDocument()
+    expect(screen.getAllByRole('table')).toHaveLength(1)
+    expect(screen.getByRole('tab', { name: 'Everyone' })).toHaveAttribute('aria-selected', 'true')
     const molly = rowOf('Molly Christensen')
     expect(within(molly).getByText('Admin')).toBeInTheDocument()
     expect(within(molly).getByText('Parent')).toBeInTheDocument()
@@ -243,6 +246,73 @@ describe('filters built from the list', () => {
     expect(await screen.findByText('Julia Connor')).toBeInTheDocument()
     expect(screen.getByText('Molly Christensen')).toBeInTheDocument()
     expect(screen.queryByText('Ada Ant')).not.toBeInTheDocument()
+  })
+})
+
+/**
+ * Ticket 180cc397 (iCreate, Molly, org admin, 2026-09-22): "Not sure I'm
+ * loving the new people section... I did actually like having the staff on
+ * the different page." Owner decision: keep one People list and put a
+ * one-click Staff view on top, set through the role filter the page already
+ * has, so the link is /people?role=staff.
+ */
+describe('quick views', () => {
+  const tab = (name) => screen.getByRole('tab', { name })
+
+  it('offers Everyone, Staff, Families and Students at the top', async () => {
+    render(<PeoplePage />)
+    await screen.findByText('Ada Ant')
+    const bar = screen.getByRole('tablist', { name: 'People views' })
+    expect(within(bar).getAllByRole('tab').map((t) => t.textContent))
+      .toEqual(['Everyone', 'Staff', 'Families', 'Students'])
+  })
+
+  it('Staff is one click to the admins, coordinators and teachers', async () => {
+    render(<PeoplePage />)
+    await screen.findByText('Ada Ant')
+    fireEvent.click(tab('Staff'))
+    expect(await screen.findByText('Julia Connor')).toBeInTheDocument()
+    expect(screen.getByText('Molly Christensen')).toBeInTheDocument()
+    expect(screen.queryByText('Ada Ant')).not.toBeInTheDocument()
+    expect(screen.queryByText('Cal Cat')).not.toBeInTheDocument()
+    expect(tab('Staff')).toHaveAttribute('aria-selected', 'true')
+    expect(tab('Everyone')).toHaveAttribute('aria-selected', 'false')
+  })
+
+  it('a /people?role=staff link opens on the Staff view', async () => {
+    render(<PeoplePage />, { route: '/people?role=staff' })
+    expect(await screen.findByText('Julia Connor')).toBeInTheDocument()
+    expect(tab('Staff')).toHaveAttribute('aria-selected', 'true')
+  })
+
+  it('Students and Families set the filters the page already had', async () => {
+    render(<PeoplePage />)
+    await screen.findByText('Ada Ant')
+    fireEvent.click(tab('Students'))
+    expect(await screen.findByText('Cal Cat')).toBeInTheDocument()
+    expect(screen.queryByText('Molly Christensen')).not.toBeInTheDocument()
+    // The Students role chip lights up too: it is the same filter.
+    expect(screen.getByRole('button', { name: /^Students \(/ })).toHaveAttribute('aria-pressed', 'true')
+    fireEvent.click(tab('Families'))
+    expect(await screen.findByText('Molly Christensen')).toBeInTheDocument()
+    expect(screen.queryByText('Cal Cat')).not.toBeInTheDocument()
+    expect(screen.getByRole('combobox', { name: 'Family' })).toHaveValue('in')
+  })
+
+  it('keeps the search across a switch', async () => {
+    render(<PeoplePage />)
+    await screen.findByText('Ada Ant')
+    fireEvent.change(screen.getByLabelText('Search people'), { target: { value: 'julia' } })
+    fireEvent.click(tab('Staff'))
+    expect(await screen.findByText('Julia Connor')).toBeInTheDocument()
+    expect(screen.queryByText('Molly Christensen')).not.toBeInTheDocument()
+    expect(screen.getByLabelText('Search people')).toHaveValue('julia')
+  })
+
+  it('no view is selected when the role chips pick a mix no view stands for', async () => {
+    render(<PeoplePage />, { route: '/people?role=advisor' })
+    expect(await screen.findByText('Julia Connor')).toBeInTheDocument()
+    screen.getAllByRole('tab').forEach((t) => expect(t).toHaveAttribute('aria-selected', 'false'))
   })
 })
 

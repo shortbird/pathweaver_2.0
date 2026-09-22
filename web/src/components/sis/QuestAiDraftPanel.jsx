@@ -24,6 +24,36 @@ import { INPUT_CLASS } from '../ui/Input'
  */
 
 const inputCls = INPUT_CLASS
+
+/**
+ * What the teacher needs told about a draft that is not what they expected.
+ *
+ * iCreate, d4cdfa81 (Molly): "I uploaded my quest doc and it added all the
+ * quests, but not the descriptions." Two silent gaps, both now said out loud:
+ *  - "Enter my tasks as I wrote them" copies descriptions and leaves one blank
+ *    when the document has none. That rule is deliberate (the box promises not
+ *    to write for them), so the note explains it rather than the AI filling in.
+ *  - a verbatim draft keeps at most 30 tasks. The backend reports the cut as
+ *    tasks_truncated / source_task_count; before, 42 items arrived as 30.
+ */
+export function draftNotices(response, keptWording) {
+  const notices = []
+  const tasks = response?.quest?.tasks || []
+  if (response?.tasks_truncated && response?.source_task_count) {
+    notices.push(`Your document had ${response.source_task_count} tasks; the first ${tasks.length} were kept.`)
+  }
+  if (keptWording) {
+    const blank = tasks.filter((t) => !String(t?.description || '').trim()).length
+    if (blank > 0) {
+      notices.push(
+        `Your document had no descriptions for ${blank} task${blank === 1 ? '' : 's'}, so `
+        + `${blank === 1 ? 'it is' : 'they are'} blank. Turn off "Enter my tasks as I wrote them" `
+        + 'to have them written for you, or fill them in here.',
+      )
+    }
+  }
+  return notices
+}
 export default function QuestAiDraftPanel({ onDrafted, hasDraft, alwaysOpen = false }) {
   // Collapsed by default where it sits above a form somebody may already be
   // typing into; always open where it IS the container (the curriculum page).
@@ -49,6 +79,9 @@ export default function QuestAiDraftPanel({ onDrafted, hasDraft, alwaysOpen = fa
   const [file, setFile] = useState(null)
   const [fileName, setFileName] = useState('')
   const [busy, setBusy] = useState(false)
+  // Shown after the draft lands and kept until the next run or a dismiss. The
+  // panel collapses once a draft is applied, so this renders in both states.
+  const [notices, setNotices] = useState([])
   const fileRef = useRef(null)
 
   const apply = (quest, sourceMaterial = '') => {
@@ -75,6 +108,8 @@ export default function QuestAiDraftPanel({ onDrafted, hasDraft, alwaysOpen = fa
     }
     if (hasDraft && !(await confirm('Replace what is currently in the form with the generated draft?'))) return
     setBusy(true)
+    setNotices([])
+    const keptWording = keepWording
     try {
       let res
       if (file) {
@@ -96,6 +131,7 @@ export default function QuestAiDraftPanel({ onDrafted, hasDraft, alwaysOpen = fa
         toast('Only the first part of that document was used — it is very long.', { icon: 'ℹ️' })
       }
       apply(res.data.quest, res.data.source_material || '')
+      setNotices(draftNotices(res.data, keptWording))
     } catch (err) {
       toast.error(err?.response?.data?.error || 'Could not build a quest from that')
     } finally {
@@ -110,12 +146,27 @@ export default function QuestAiDraftPanel({ onDrafted, hasDraft, alwaysOpen = fa
     setFileName(chosen.name)
   }
 
+  const noticeBox = notices.length > 0 && (
+    <div role="status" className="rounded-lg border border-amber-300 bg-amber-50 p-2.5 text-sm text-amber-900">
+      <div className="flex items-start gap-2">
+        <ul className="space-y-1 flex-1">
+          {notices.map((n) => <li key={n}>{n}</li>)}
+        </ul>
+        <button type="button" onClick={() => setNotices([])}
+          className="text-xs text-amber-800 hover:underline">Dismiss</button>
+      </div>
+    </div>
+  )
+
   if (!open && !alwaysOpen) {
     return (
-      <button type="button" onClick={() => setOpen(true)}
-        className="inline-flex items-center gap-1.5 text-sm font-medium text-optio-purple hover:underline">
-        <SparklesIcon className="w-4 h-4" /> Build it from something I already have
-      </button>
+      <div className="space-y-2">
+        {noticeBox}
+        <button type="button" onClick={() => setOpen(true)}
+          className="inline-flex items-center gap-1.5 text-sm font-medium text-optio-purple hover:underline">
+          <SparklesIcon className="w-4 h-4" /> Build it from something I already have
+        </button>
+      </div>
     )
   }
 
@@ -189,6 +240,7 @@ export default function QuestAiDraftPanel({ onDrafted, hasDraft, alwaysOpen = fa
       <p className="text-[11px] text-neutral-400">
         PDF, Word, or text, up to 5MB. A scanned PDF is a picture of words, so its text has to be pasted.
       </p>
+      {noticeBox}
     </div>
   )
 }

@@ -21,7 +21,9 @@ import PersonActionsModal from './people/PersonActionsModal'
 import StaffDuplicatesBanner from './people/StaffDuplicatesBanner'
 import {
   EMPTY_FILTERS, applyFilters, sortRows, isStaff, asStaffRow,
+  QUICK_VIEWS, quickViewOf, applyQuickView,
 } from './people/peopleFilters'
+import GlassTabBar from '../../components/ui/GlassTabBar'
 import PopMenu from '../../components/sis/ui/PopMenu'
 import { useRecordDoors } from '../../components/sis/RecordDoors'
 
@@ -41,6 +43,10 @@ import { useRecordDoors } from '../../components/sis/RecordDoors'
  *
  * Filters live in the URL so a link can carry them: /people?role=student&
  * family=none is the old "Students without a family" panel.
+ *
+ * The quick views at the top (Everyone, Staff, Families, Students) are the
+ * old tabs' one click back, set on the same filters: /people?role=staff is
+ * the Staff view (ticket 180cc397, 2026-09-22).
  */
 
 const FILTER_KEYS = ['q', 'role', 'status', 'family', 'pay']
@@ -233,6 +239,13 @@ const PeoplePage = () => {
 
       {!loading && roster.length > 0 && (
         <>
+          {/* One click to the staff, so staff still feel like their own
+              page without a second list (ticket 180cc397). The views set the
+              role and family filters below; they are not a filter of their own. */}
+          <GlassTabBar align="start" aria-label="People views" className="mb-4"
+            tabs={QUICK_VIEWS.map(({ id, label }) => ({ id, label }))}
+            active={quickViewOf(filters)}
+            onSelect={(id) => setFilters(applyQuickView(filters, id))} />
           <StaffDuplicatesBanner rows={roster} orgId={orgId} onMerged={refresh} />
           <PeopleFilterBar rows={roster} filters={filters} onChange={setFilters} />
           {studentsWithoutFamily > 0 && filters.family !== 'none' && (

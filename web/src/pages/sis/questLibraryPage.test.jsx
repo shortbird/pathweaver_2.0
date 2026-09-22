@@ -405,7 +405,43 @@ describe('editing and duplicating from the library row', () => {
       // xp_threshold rides along from 2026-09-22: the editor gained the
       // required-XP field the training and class-quest editors already had
       // (3d926fc3). null is "no requirement", which is what the box was.
-      { title: 'Bridges', description: 'Build one.', xp_threshold: null }))
+      // teachers_may_change_xp joined it the same day: the checkbox opens on
+      // the saved value (absent reads as the default, on) and is always sent.
+      { title: 'Bridges', description: 'Build one.', xp_threshold: null,
+        teachers_may_change_xp: true }))
+  })
+
+  // 3d926fc3, Molly: "Then I think it'd be good to click on 'teachers may
+  // change' if we want teachers to change it."
+  it('saves whether teachers may change the XP to finish', async () => {
+    render(<QuestsPanel />)
+    await screen.findByText('Bridge Building')
+    rowAction(1, 'Edit')
+    const dialog = await screen.findByRole('dialog')
+
+    const box = within(dialog).getByLabelText('Teachers may change the XP to finish')
+    expect(box).toBeChecked()
+    fireEvent.click(box)
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Save' }))
+
+    await waitFor(() => expect(api.patch).toHaveBeenCalledWith(
+      '/api/sis/quests/q2?organization_id=org-1',
+      expect.objectContaining({ teachers_may_change_xp: false })))
+  })
+
+  it('opens the checkbox on the saved value', async () => {
+    api.get.mockImplementation((url) => Promise.resolve({
+      data: url.includes('/resources') ? RESOURCES : url.includes('/roster') ? ROSTER : {
+        ...LIBRARY,
+        quests: LIBRARY.quests.map((q) => (q.id === 'q2' ? { ...q, teachers_may_change_xp: false } : q)),
+      },
+    }))
+    render(<QuestsPanel />)
+    await screen.findByText('Bridge Building')
+    rowAction(1, 'Edit')
+    const dialog = await screen.findByRole('dialog')
+
+    expect(within(dialog).getByLabelText('Teachers may change the XP to finish')).not.toBeChecked()
   })
 
   // 3d926fc3: quests.xp_threshold already existed and POST /api/quests/:id/end
