@@ -183,7 +183,10 @@ def update_task(admin, quest_id: str, task_id: str,
         updates['pillar'] = norm_pillar(data.get('pillar'))
     if 'xp_value' in data:
         try:
-            xp = int(data.get('xp_value'))
+            # data['...'] not .get(): the key is present (the branch above
+            # checked) and .get() widens the type to include None, which int()
+            # does not accept. A None VALUE still lands in the except below.
+            xp = int(data['xp_value'])
         except (TypeError, ValueError):
             raise QuestTaskEditError('XP must be a number.') from None
         updates['xp_value'] = max(0, xp)
