@@ -15,6 +15,7 @@ the "One route, one owner" note in CLAUDE.md for why that matters.
 
 from flask import Blueprint, request, jsonify
 from utils.auth.decorators import require_org_admin
+from repositories.partner_enrollment_repository import PartnerEnrollmentRepository
 from database import get_supabase_admin_client
 from generated.pillars import PILLAR_KEYS
 from utils.logger import get_logger
@@ -59,6 +60,74 @@ def _join_titles(titles):
     return f"{', '.join(titles[:-1])}, and {titles[-1]}"
 
 
+def _display_name(user):
+    """Best available name for a user row, falling back to their email."""
+    name = (user.get('display_name') or '').strip()
+    if not name:
+        name = f"{user.get('first_name') or ''} {user.get('last_name') or ''}".strip()
+    return name or user.get('email') or 'Unnamed student'
+
+
+def _effective_role(user):
+    """The real role, whether the account is platform-side or org-managed.
+
+    Mirrors get_effective_role(): an org member carries 'org_managed' in `role`
+    and their real role in `org_role`. See the roles table in CLAUDE.md.
+    """
+    if (user.get('role') or '') == 'org_managed':
+        return user.get('org_role') or ''
+    return user.get('role') or ''
+
+
+def _students_behind_email(repo, account):
+    """The student accounts a partner may enrol on behalf of an existing login.
+
+    A partner sells a course to a family and types the address the purchase came
+    from. That address is often already an Optio login, and it is not always the
+    student's:
+
+      - the student themselves -> that one account
+      - a parent or guardian    -> the children on their account, found through
+        parent_student_links (the platform link) and household_members (the SIS
+        one, which is how an org-managed family is put together)
+      - anyone else (advisor, org_admin, observer, superadmin) -> nothing. A
+        course enrolment on a staff account puts a child's work on an adult's
+        login, and a partner has no business touching staff.
+
+    Returns a list of {id, name, relationship} with the student's own account
+    first. Never returns the parent's own account.
+    """
+    role = _effective_role(account)
+
+    if role == 'student':
+        return [{
+            'id': account['id'],
+            'name': _display_name(account),
+            'relationship': 'self'
+        }]
+
+    if role != 'parent':
+        return []
+
+    # A SIS family is assembled out of households, not parent_student_links, so
+    # a guardian can have children the link table has never heard of. Elvia
+    # Labrador on 2026-09-22 was exactly this: a guardian row and a student row
+    # in one household, no link row, and the partner form dead-ended.
+    child_ids = repo.linked_student_ids(account['id'])
+    if not child_ids:
+        return []
+
+    by_id = repo.accounts_by_ids(child_ids)
+
+    # A household row says 'student' about its relationship, not about the
+    # account, so confirm the role on the user row itself before offering it.
+    return [
+        {'id': cid, 'name': _display_name(by_id[cid]), 'relationship': 'child'}
+        for cid in child_ids
+        if cid in by_id and _effective_role(by_id[cid]) == 'student'
+    ]
+
+
 @bp.route('/<org_id>/register-student-for-course', methods=['POST'])
 @require_org_admin
 def register_student_for_course(current_user_id, current_org_id, is_superadmin, org_id):
@@ -78,6 +147,13 @@ def register_student_for_course(current_user_id, current_org_id, is_superadmin, 
       - Returning student (e.g. a second purchase months later): finds the
         existing account by email and enrolls it in the newly selected courses,
         skipping any they are already in. No invite is issued.
+      - The address already logs in somewhere else: a platform student, another
+        school's student, or a parent. The account is never adopted -- writing
+        an org or a role onto it would move a student between schools or demote
+        staff -- but the courses can still be added to the student behind that
+        address. The first call answers 409 'existing_account' with the student
+        or students to choose from; the caller picks one and repeats the call
+        with student_id.
 
     Request body:
         first_name: str (required)
@@ -86,6 +162,8 @@ def register_student_for_course(current_user_id, current_org_id, is_superadmin, 
         course_ids: list[str] (required) - one or more published courses
                     (a single course_id string is also accepted)
         date_of_birth: str (optional, YYYY-MM-DD)
+        student_id: str (optional) - confirms which existing account to enrol,
+                    answering a 409 'existing_account'
         family_email: str (optional) - where the email is sent (defaults to student_email)
     """
     try:
@@ -157,26 +235,61 @@ def register_student_for_course(current_user_id, current_org_id, is_superadmin, 
         ordered_courses = [found[cid] for cid in course_ids]  # preserve requested order
 
         # Look up an existing account by email
-        existing = client.table('users').select('id, organization_id, role, org_role').eq('email', student_email).execute()
-        existing_user = existing.data[0] if existing.data else None
+        repo = PartnerEnrollmentRepository(client=client)
+        existing_user = repo.account_by_email(student_email)
         is_new_account = existing_user is None
         user_record = None
+        enrolled_student = None
 
         if existing_user:
             existing_org = existing_user.get('organization_id')
-            # Only an account already in THIS org counts as a returning student.
-            # Never adopt or modify an account that belongs to another org or to no
-            # org at all (a platform user, or staff such as an advisor/superadmin) -
-            # doing so could overwrite their role. Refuse and let a human sort it out.
-            if existing_org != org_id:
-                return jsonify({
-                    'error': (
-                        f"An account already exists for {student_email} outside this program, "
-                        f"so it can't be registered here. Use a different email, or contact "
-                        f"support to add this course to that account."
-                    )
-                }), 409
-            user_id = existing_user['id']
+            if existing_org == org_id:
+                # A returning student of this partner: enrol their existing
+                # account in whatever is newly selected.
+                user_id = existing_user['id']
+            else:
+                # The address already logs in somewhere else. Never adopt or
+                # modify that account -- writing organization_id or role onto it
+                # would move a student between schools, or demote staff. Its
+                # course enrolments, though, are per-user and carry no org, so
+                # the partner can add the course they sold to the student who
+                # is really behind this address without touching the user row.
+                candidates = _students_behind_email(repo, existing_user)
+                chosen_id = (data.get('student_id') or '').strip()
+
+                if not candidates:
+                    return jsonify({
+                        'code': 'existing_account_no_student',
+                        'error': (
+                            f"{student_email} already signs in to Optio, but that account is not a "
+                            f"student and has no student on it, so a course cannot be added to it. "
+                            f"Register the student under their own email address."
+                        )
+                    }), 409
+
+                if not chosen_id:
+                    # Ask first. The address is often a parent's, and enrolling
+                    # the wrong member of a family is not something the partner
+                    # can undo without deleting the student's work.
+                    return jsonify({
+                        'code': 'existing_account',
+                        'error': f"{student_email} already has an Optio account.",
+                        'students': candidates,
+                        'message': (
+                            f"{student_email} already has an Optio account. Choose who the "
+                            f"course should be added to, or register the student under a "
+                            f"different email address."
+                        )
+                    }), 409
+
+                enrolled_student = next((c for c in candidates if c['id'] == chosen_id), None)
+                if not enrolled_student:
+                    return jsonify({
+                        'code': 'student_not_on_account',
+                        'error': f"That student is no longer on the Optio account for {student_email}.",
+                        'students': candidates
+                    }), 409
+                user_id = enrolled_student['id']
         else:
             # Create the Supabase Auth account. The password is random and
             # never leaves this function; the student sets a real one through
@@ -256,7 +369,9 @@ def register_student_for_course(current_user_id, current_org_id, is_superadmin, 
         course_results = []
         newly_enrolled_titles = []
         for course in ordered_courses:
-            result = enrollment_service.enroll_user(user_id, course['id'])
+            result = enrollment_service.enroll_user(
+                user_id, course['id'], enrolled_by_organization_id=org_id
+            )
             status = result.get('status', 'failed') if result.get('success') else 'failed'
             course_results.append({
                 'course_id': course['id'],
@@ -328,9 +443,15 @@ def register_student_for_course(current_user_id, current_org_id, is_superadmin, 
                         f"Could not mint invite token for {user_id}; welcome email skipped"
                     )
             elif newly_enrolled_titles:
+                # Name the student the courses actually landed on. On an
+                # existing account that is the name Optio already holds, which
+                # may not be the one typed into the partner's form.
+                notify_name = first_name
+                if enrolled_student:
+                    notify_name = (enrolled_student['name'].split() or [first_name])[0]
                 email_sent = email_service.send_org_courses_added_email(
                     to_email=student_email,
-                    student_name=first_name,
+                    student_name=notify_name,
                     org_name=org_name,
                     courses_sentence=courses_sentence,
                     course_count=len(newly_enrolled_titles),
@@ -340,7 +461,8 @@ def register_student_for_course(current_user_id, current_org_id, is_superadmin, 
             logger.warning(f"Welcome/added email to {student_email} failed: {email_error}")
 
         logger.info(
-            f"{'Created' if is_new_account else 'Updated'} student {user_id} ({student_email}) in org {org_id}; "
+            f"{'Created' if is_new_account else 'Updated'} student {user_id} ({student_email})"
+            f"{' [existing account outside the org]' if enrolled_student else ''} in org {org_id}; "
             f"courses={[r['status'] for r in course_results]}; email_sent={email_sent} by {current_user_id}"
         )
 
@@ -354,6 +476,8 @@ def register_student_for_course(current_user_id, current_org_id, is_superadmin, 
         }
         if user_record is not None:
             response['user'] = user_record
+        if enrolled_student is not None:
+            response['enrolled_student'] = enrolled_student
         if is_new_account:
             # No credential exists to hand back: the student sets their own
             # password through the invite link in the welcome email.
@@ -362,6 +486,11 @@ def register_student_for_course(current_user_id, current_org_id, is_superadmin, 
                 if email_sent else
                 'Student registered and enrolled, but the welcome email could not be sent. '
                 'Ask them to use "Forgot password" on the login page with this email address.'
+            )
+        elif enrolled_student is not None:
+            response['message'] = (
+                f"{enrolled_student['name']}'s existing Optio account was enrolled in the "
+                f"selected course(s). Nothing else on that account changed."
             )
         else:
             response['message'] = 'Existing student enrolled in the selected course(s).'
@@ -378,6 +507,11 @@ def list_org_course_enrollments(current_user_id, current_org_id, is_superadmin, 
     """
     List course enrollments for every student in the organization, with student
     and course details. Used by the partner dashboard's "Active Enrollments" tab.
+
+    Also lists what this org sold to students who are not its own: a partner can
+    add a course to an Optio account that already exists elsewhere, and an
+    enrolment nobody can see is an enrolment nobody can correct. Those rows are
+    marked external.
 
     Query params:
         status: enrollment status filter (default 'active'; pass 'all' for everything)
@@ -397,19 +531,31 @@ def list_org_course_enrollments(current_user_id, current_org_id, is_superadmin, 
             .eq('organization_id', org_id)\
             .execute()
         users_by_id = {u['id']: u for u in (users_res.data or [])}
-        if not users_by_id:
+        member_ids = set(users_by_id.keys())
+
+        enrollments = []
+        if member_ids:
+            query = client.table('course_enrollments')\
+                .select('id, user_id, course_id, status, enrolled_at')\
+                .in_('user_id', list(member_ids))
+            if status_filter != 'all':
+                query = query.eq('status', status_filter)
+            enrollments = (query.order('enrolled_at', desc=True).execute().data) or []
+
+        # Enrolments this org created on accounts it does not own
+        repo = PartnerEnrollmentRepository(client=client)
+        sold = repo.sold_to_outside_accounts(
+            org_id, None if status_filter == 'all' else status_filter
+        )
+        external = [e for e in sold if e.get('user_id') not in member_ids]
+
+        external_ids = {e['user_id'] for e in external if e.get('user_id')}
+        if external_ids:
+            users_by_id.update(repo.roster_by_ids(external_ids))
+            enrollments = enrollments + external
+
+        if not enrollments:
             return jsonify({'success': True, 'enrollments': [], 'total': 0}), 200
-
-        user_ids = list(users_by_id.keys())
-
-        # Enrollments for those users
-        query = client.table('course_enrollments')\
-            .select('id, user_id, course_id, status, enrolled_at')\
-            .in_('user_id', user_ids)
-        if status_filter != 'all':
-            query = query.eq('status', status_filter)
-        enroll_res = query.order('enrolled_at', desc=True).execute()
-        enrollments = enroll_res.data or []
 
         # Course titles
         course_ids = list({e['course_id'] for e in enrollments if e.get('course_id')})
@@ -432,8 +578,10 @@ def list_org_course_enrollments(current_user_id, current_org_id, is_superadmin, 
                 'course_title': courses_by_id.get(e.get('course_id'), 'Unknown course'),
                 'status': e.get('status'),
                 'enrolled_at': e.get('enrolled_at'),
+                'external_account': e['user_id'] not in member_ids,
             })
 
+        result.sort(key=lambda r: r.get('enrolled_at') or '', reverse=True)
         return jsonify({'success': True, 'enrollments': result, 'total': len(result)}), 200
 
     except Exception as e:
@@ -465,10 +613,18 @@ def remove_org_course_enrollment(current_user_id, current_org_id, is_superadmin,
         # admin client justified: admin-only route (@require_org_admin) — needs RLS bypass for cross-tenant administration
         client = get_supabase_admin_client()
 
-        # The student must belong to this organization
+        # The student must belong to this organization, or the enrolment must be
+        # one this org created on an outside account. That second case is the
+        # whole boundary: unenroll_user() deletes user_quests and
+        # user_quest_tasks, so a partner may withdraw what it sold and nothing
+        # else. An enrolment somebody else made carries somebody else's work.
         student_res = client.table('users').select('id, organization_id').eq('id', student_id).single().execute()
-        if not student_res.data or student_res.data.get('organization_id') != org_id:
+        if not student_res.data:
             return jsonify({'error': 'Student not found in this organization'}), 404
+        if student_res.data.get('organization_id') != org_id:
+            repo = PartnerEnrollmentRepository(client=client)
+            if not repo.was_sold_by(org_id, student_id, course_id):
+                return jsonify({'error': 'Student not found in this organization'}), 404
 
         from services.course_enrollment_service import CourseEnrollmentService
         result = CourseEnrollmentService(client).unenroll_user(student_id, course_id)

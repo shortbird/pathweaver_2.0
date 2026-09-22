@@ -551,7 +551,16 @@ BASELINES = {
     # 2026-09-22: 589 -> 590. QuestResourceRepository.update_by_id, so a
     # mistyped attachment name or a wrong link is a correction rather than a
     # delete and a re-upload (ticket 2b12c03b).
-    'repositories': 590,
+    # 2026-09-22: 590 -> 598. PartnerEnrollmentRepository, for a partner adding
+    # a course to an Optio account that already exists: the account behind the
+    # purchase email, the children on it (parent_student_links AND
+    # household_members -- an org-managed family has no link rows, which is the
+    # bug), their rows, and the enrolments this partner sold to accounts it does
+    # not own. All eight are new reads, but none of them is in routes/: the
+    # route file they serve is entirely direct calls and this is where the
+    # docstring says a new query belongs. routes/ and services/ are unchanged,
+    # so the combined total this ratchet exists to hold did not move.
+    'repositories': 598,
     # 2026-09-09: 135 -> 136. class_membership.children_in_classes, the inverse
     # of parents_of_students: which of a guardian's children sit in each of a
     # set of classes. It answers "whose class chat is this?" for the messaging

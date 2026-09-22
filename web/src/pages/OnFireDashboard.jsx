@@ -158,7 +158,14 @@ export default function OnFireDashboard() {
                   <tbody className="divide-y divide-gray-100">
                     {filtered.map(e => (
                       <tr key={e.enrollment_id} className="hover:bg-gray-50">
-                        <td className="px-4 py-3 font-medium text-gray-900">{e.student_name}</td>
+                        <td className="px-4 py-3 font-medium text-gray-900">
+                          {e.student_name}
+                          {e.external_account && (
+                            <span className="ml-2 text-xs font-medium text-gray-500 whitespace-nowrap">
+                              existing Optio account
+                            </span>
+                          )}
+                        </td>
                         <td className="px-4 py-3 text-gray-600 break-all">{e.student_email}</td>
                         <td className="px-4 py-3 text-gray-900">{e.course_title}</td>
                         <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{formatDate(e.enrolled_at)}</td>
@@ -195,6 +202,7 @@ export default function OnFireDashboard() {
               This removes <strong>{removeTarget.student_name}</strong>'s access to{' '}
               <strong>{removeTarget.course_title}</strong> and deletes their progress in it.
               This can't be undone.
+              {removeTarget.external_account && ' The rest of their Optio account is not affected.'}
             </p>
             <div className="flex gap-3">
               <button

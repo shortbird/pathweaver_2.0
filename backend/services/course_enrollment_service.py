@@ -49,7 +49,12 @@ class CourseEnrollmentService(BaseService):
         self.client = supabase_client
         self.progress_service = CourseProgressService(supabase_client)
 
-    def enroll_user(self, user_id: str, course_id: str) -> Dict[str, Any]:
+    def enroll_user(
+        self,
+        user_id: str,
+        course_id: str,
+        enrolled_by_organization_id: Optional[str] = None
+    ) -> Dict[str, Any]:
         """
         Enroll a single user in a course.
 
@@ -60,6 +65,13 @@ class CourseEnrollmentService(BaseService):
         Args:
             user_id: User ID to enroll
             course_id: Course ID to enroll in
+            enrolled_by_organization_id: the org enrolling on the student's
+                behalf, stamped on the row so a partner can see and withdraw
+                what it sold. Only written when this call creates or reactivates
+                the enrollment -- an 'already_enrolled' result leaves the
+                existing row alone, because unenroll_user() deletes quest
+                progress and a partner must not be able to claim, and then
+                delete, an enrollment somebody else made.
 
         Returns:
             Dict with enrollment result:
@@ -109,10 +121,15 @@ class CourseEnrollmentService(BaseService):
 
                 # Reactivate completed enrollment
                 logger.info(f"Reactivating completed course enrollment for user {user_id} in course {course_id}")
-                self.client.table('course_enrollments').update({
+                reactivation = {
                     'status': 'active',
                     'completed_at': None
-                }).eq('id', existing_enrollment['id']).execute()
+                }
+                if enrolled_by_organization_id:
+                    reactivation['enrolled_by_organization_id'] = enrolled_by_organization_id
+                self.client.table('course_enrollments').update(
+                    reactivation
+                ).eq('id', existing_enrollment['id']).execute()
 
                 result = self.client.table('course_enrollments').select('*').eq(
                     'id', existing_enrollment['id']
@@ -127,6 +144,8 @@ class CourseEnrollmentService(BaseService):
                     'status': 'active',
                     'current_quest_id': first_quest_id
                 }
+                if enrolled_by_organization_id:
+                    enrollment_data['enrolled_by_organization_id'] = enrolled_by_organization_id
                 result = self.client.table('course_enrollments').insert(enrollment_data).execute()
                 enrollment = result.data[0] if result.data else None
 

@@ -40,6 +40,12 @@ const isSelectableCourse = (course, orgId) =>
  * student) or, for a returning student already in the org, enrolls their
  * existing account in the newly selected courses.
  *
+ * When the address already signs in to Optio somewhere else — a platform
+ * student, another school's student, or a parent — the register call answers
+ * 409 'existing_account' with the student or students on it. The form then asks
+ * who the courses go to and repeats the call with that student_id. That account
+ * is never adopted into the partner's org; only the courses are added.
+ *
  * Props:
  *   orgId        - organization id to register the student into
  *   onRegistered - optional callback fired after a successful registration
@@ -53,6 +59,11 @@ export default function EnrollStudentForm({ orgId, onRegistered, initialCourseId
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
   const [result, setResult] = useState(null)
+  // Set when the email already logs in to Optio. Holds the student or students
+  // on that account, so the admin says who the courses go to before anything
+  // is written. See the 409 'existing_account' branch in the register route.
+  const [existingAccount, setExistingAccount] = useState(null)
+  const [chosenStudentId, setChosenStudentId] = useState('')
 
   useEffect(() => {
     let active = true
@@ -83,6 +94,42 @@ export default function EnrollStudentForm({ orgId, onRegistered, initialCourseId
   const toggleCourse = (id) =>
     setSelected(prev => (prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]))
 
+  /**
+   * Register, or — when studentId is given — add the selected courses to an
+   * Optio account that already exists. The second call is the answer to a 409
+   * 'existing_account'; it is the same request with the chosen student on it.
+   */
+  const submitRegistration = async (studentId) => {
+    setError('')
+    setSubmitting(true)
+    try {
+      const res = await api.post(`/api/admin/organizations/${orgId}/register-student-for-course`, {
+        first_name: form.first_name.trim(),
+        last_name: form.last_name.trim(),
+        student_email: form.student_email.trim().toLowerCase(),
+        date_of_birth: form.date_of_birth || undefined,
+        course_ids: selected,
+        student_id: studentId || undefined
+      })
+      setExistingAccount(null)
+      setResult({ ...res.data, studentName: `${form.first_name} ${form.last_name}`.trim() })
+      if (onRegistered) onRegistered(res.data)
+    } catch (err) {
+      const data = err.response?.data
+      // The email already signs in to Optio. Ask who gets the courses rather
+      // than dead-ending: the address is often a parent's.
+      if (data?.code === 'existing_account' && data.students?.length) {
+        setExistingAccount({ message: data.message || data.error, students: data.students })
+        setChosenStudentId(data.students.length === 1 ? data.students[0].id : '')
+        return
+      }
+      const d = data?.error || data?.message || data
+      setError(typeof d === 'string' ? d : d?.message || 'Failed to register student')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
   const handleSubmit = async (e) => {
     e.preventDefault()
     setError('')
@@ -91,24 +138,18 @@ export default function EnrollStudentForm({ orgId, onRegistered, initialCourseId
     if (!form.student_email.trim()) return setError('Student email is required')
     if (selected.length === 0) return setError('Select at least one course')
     if (!orgId) return setError('No organization is associated with your account')
+    await submitRegistration(null)
+  }
 
-    setSubmitting(true)
-    try {
-      const res = await api.post(`/api/admin/organizations/${orgId}/register-student-for-course`, {
-        first_name: form.first_name.trim(),
-        last_name: form.last_name.trim(),
-        student_email: form.student_email.trim().toLowerCase(),
-        date_of_birth: form.date_of_birth || undefined,
-        course_ids: selected
-      })
-      setResult({ ...res.data, studentName: `${form.first_name} ${form.last_name}`.trim() })
-      if (onRegistered) onRegistered(res.data)
-    } catch (err) {
-      const d = err.response?.data?.error || err.response?.data?.message || err.response?.data
-      setError(typeof d === 'string' ? d : d?.message || 'Failed to register student')
-    } finally {
-      setSubmitting(false)
-    }
+  const confirmExistingAccount = async () => {
+    if (!chosenStudentId) return setError('Choose who the courses should be added to')
+    await submitRegistration(chosenStudentId)
+  }
+
+  const cancelExistingAccount = () => {
+    setExistingAccount(null)
+    setChosenStudentId('')
+    setError('')
   }
 
   const registerAnother = () => {
@@ -117,19 +158,24 @@ export default function EnrollStudentForm({ orgId, onRegistered, initialCourseId
     setCourseSearch('')
     setError('')
     setResult(null)
+    setExistingAccount(null)
+    setChosenStudentId('')
   }
 
   // ---- Success view ----
   if (result) {
     const courseResults = result.courses || []
     const isNew = result.is_new_account
+    // On an existing account, name the student Optio holds, not the one typed
+    // into this form — they can differ when the address belongs to a parent.
+    const enrolledName = result.enrolled_student?.name || result.studentName
     return (
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
         <div className="flex items-center gap-3 mb-4">
           <CheckCircleIcon className="w-8 h-8 text-green-600 shrink-0" />
           <div>
             <h2 className="text-xl font-bold text-gray-900">
-              {result.studentName} is {isNew ? 'registered' : 'enrolled'}
+              {enrolledName} is {isNew ? 'registered' : 'enrolled'}
             </h2>
             <p className="text-sm text-gray-600">{result.message}</p>
           </div>
@@ -160,6 +206,71 @@ export default function EnrollStudentForm({ orgId, onRegistered, initialCourseId
         >
           Register Another Student
         </button>
+      </div>
+    )
+  }
+
+  // ---- Existing-account view ----
+  // The email already has an Optio account. Nothing on that account changes;
+  // the only question is which student the courses are added to.
+  if (existingAccount) {
+    const selectedTitles = courses.filter(c => selected.includes(c.id)).map(c => c.title)
+    return (
+      <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+        <h2 className="text-xl font-bold text-gray-900 mb-2">This email already has an Optio account</h2>
+        <p className="text-sm text-gray-600 mb-4">{existingAccount.message}</p>
+
+        <fieldset className="mb-4">
+          <legend className="block text-sm font-medium mb-2">
+            Add {selectedTitles.length === 1 ? selectedTitles[0] : `${selectedTitles.length} courses`} to:
+          </legend>
+          <div className="border border-gray-200 rounded-lg divide-y divide-gray-100">
+            {existingAccount.students.map(student => (
+              <label key={student.id} className="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-gray-50">
+                <input
+                  type="radio"
+                  name="existing-student"
+                  value={student.id}
+                  checked={chosenStudentId === student.id}
+                  onChange={() => { setChosenStudentId(student.id); setError('') }}
+                  className="w-4 h-4 border-gray-300 text-optio-purple focus:ring-optio-purple"
+                />
+                <span className="text-sm text-gray-900">{student.name}</span>
+                {student.relationship === 'child' && (
+                  <span className="text-xs text-gray-500">student on this account</span>
+                )}
+              </label>
+            ))}
+          </div>
+        </fieldset>
+
+        <p className="text-sm text-gray-600 mb-4">
+          Their existing account keeps the school, login and work it already has. Only the
+          selected course{selected.length === 1 ? '' : 's'} are added.
+        </p>
+
+        {error && (
+          <div className="mb-4 p-3 bg-red-50 text-red-700 rounded-lg text-sm">{error}</div>
+        )}
+
+        <div className="flex gap-3">
+          <button
+            type="button"
+            onClick={cancelExistingAccount}
+            disabled={submitting}
+            className="btn-quiet flex-1"
+          >
+            Use a different email
+          </button>
+          <button
+            type="button"
+            onClick={confirmExistingAccount}
+            disabled={submitting || !chosenStudentId}
+            className="flex-1 px-4 py-2.5 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg hover:opacity-90 disabled:opacity-50 font-medium"
+          >
+            {submitting ? 'Adding...' : 'Add to this account'}
+          </button>
+        </div>
       </div>
     )
   }
