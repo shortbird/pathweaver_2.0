@@ -5,12 +5,13 @@ import { BookOpenIcon, PlusIcon } from '@heroicons/react/24/outline'
 import { useSisOrg } from '../useSisOrg'
 import {
   useSisQuestLibrary, useAddQuestToCurriculum, useAssignQuestToClass, useCreateLibraryQuest,
-  useGiveQuestToStudents,
+  useGiveQuestToStudents, useUpdateLibraryQuest, useDuplicateLibraryQuest,
 } from '../../../hooks/api/useSisQuestLibrary'
 import { useSisRoster } from '../../../hooks/api/useSisRoster'
 import QuestDraftForm, { blankTask } from '../../../components/sis/QuestDraftForm'
 import QuestAiDraftPanel from '../../../components/sis/QuestAiDraftPanel'
 import QuestResourcesPanel from '../../../components/sis/QuestResourcesPanel'
+import PresetTaskManager from '../../../components/sis/PresetTaskManager'
 import { Input } from '../../../components/ui/Input'
 import { Modal } from '../../../components/ui/Modal'
 import SearchSelect from '../../../components/ui/SearchSelect'
@@ -33,8 +34,15 @@ import Button from '../../../components/ui/Button'
  * writes: onto a curriculum (POST /api/sis/quests/<id>/curricula, the writer
  * the curriculum page shares) and onto a class (the class page's own POST
  * /api/sis/classes/<id>/quests, so the class is enrolled the same way, with
- * the same optional due date). Editing stays where the quest lives: a row
- * links to its curriculum, which opens on it.
+ * the same optional due date).
+ *
+ * Editing is here too, since 2026-09-22. It used to live only on the
+ * curriculum the quest sat on, which meant the quests this page exists for --
+ * the ones on no curriculum -- had no editor anywhere. Molly again: "There's
+ * no way to edit a quest that I can see. I'd also love to be able to
+ * duplicate quests." Edit opens the same PresetTaskManager the curriculum tab
+ * and the class tab use, over routes that differ from theirs only in the
+ * gate.
  *
  * Attachments (a video, a link, a file, on the quest or on one task) are the
  * same QuestResourcesPanel the curriculum editor shows. They were reachable
@@ -57,19 +65,34 @@ const when = (iso) => (iso ? new Date(iso).toLocaleDateString('en-US', {
   month: 'short', day: 'numeric', year: 'numeric',
 }) : '')
 
+// At most MAX_CHIPS, then a count. A quest pushed to every section of a
+// microschool carries nine class chips; stacked, one row grew taller than the
+// screen and the column demanded width the table did not have (2026-09-22).
+// The rest are named in the tooltip, and the Assign dialog is the place that
+// lists them properly.
+const MAX_CHIPS = 3
+
 const Chips = ({ items, labelOf, hrefOf, empty }) => {
   if (!items?.length) return <span className="text-xs text-neutral-400">{empty}</span>
+  const shown = items.slice(0, MAX_CHIPS)
+  const rest = items.slice(MAX_CHIPS)
   return (
-    <div className="flex flex-wrap gap-1">
-      {items.map((it) => (
+    <div className="flex flex-wrap gap-1 min-w-0">
+      {shown.map((it) => (
         hrefOf
           ? <Link key={it.id} to={hrefOf(it)}
-              className="inline-block max-w-[12rem] truncate rounded-full bg-optio-purple/10 px-2 py-0.5 text-xs text-optio-purple hover:bg-optio-purple/20"
+              className="inline-block max-w-full truncate rounded-full bg-optio-purple/10 px-2 py-0.5 text-xs text-optio-purple hover:bg-optio-purple/20"
               title={labelOf(it)}>{labelOf(it)}</Link>
           : <span key={it.id}
-              className="inline-block max-w-[12rem] truncate rounded-full bg-neutral-100 px-2 py-0.5 text-xs text-neutral-700"
+              className="inline-block max-w-full truncate rounded-full bg-neutral-100 px-2 py-0.5 text-xs text-neutral-700"
               title={labelOf(it)}>{labelOf(it)}</span>
       ))}
+      {rest.length > 0 && (
+        <span className="inline-block rounded-full bg-neutral-100 px-2 py-0.5 text-xs text-neutral-500"
+          title={rest.map(labelOf).join('\n')}>
+          +{rest.length} more
+        </span>
+      )}
     </div>
   )
 }
@@ -270,6 +293,69 @@ export function QuestAttachments({ questId, tasks }) {
   )
 }
 
+/**
+ * Rename a quest, rewrite its description, and edit its task list.
+ *
+ * PresetTaskManager is the task editor the curriculum tab and the class tab
+ * already use; it derives every verb from `base`, so pointing it at the
+ * library routes is the whole integration. It reads `editable` off the server
+ * and hides its own controls when the answer is no, which is how a shared
+ * Optio-library quest stays readable here without becoming editable.
+ */
+export function QuestEditModal({ quest, orgId, onClose }) {
+  const [title, setTitle] = useState(quest.title || '')
+  const [description, setDescription] = useState(quest.description || '')
+  const save = useUpdateLibraryQuest(orgId)
+
+  const saveInfo = async () => {
+    if (!title.trim()) { toast.error('A title is required'); return }
+    try {
+      await save.mutateAsync({ questId: quest.id, title: title.trim(), description })
+      toast.success('Saved')
+    } catch (e) {
+      toast.error(e?.response?.data?.error || 'Could not save that')
+    }
+  }
+
+  const dirty = title !== (quest.title || '') || description !== (quest.description || '')
+
+  return (
+    <Modal isOpen onClose={onClose} title={`Edit “${quest.title}”`} size="lg">
+      <div className="space-y-5">
+        <div className="space-y-2">
+          <Input value={title} onChange={(e) => setTitle(e.target.value)}
+            aria-label="Quest title" placeholder="Quest title" />
+          <textarea value={description} onChange={(e) => setDescription(e.target.value)}
+            aria-label="Quest description" placeholder="What is this quest about?" rows={3}
+            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-optio-purple" />
+          <div className="flex justify-end">
+            <Button size="xs" onClick={saveInfo} disabled={!dirty || save.isPending}>
+              {save.isPending ? 'Saving…' : 'Save'}
+            </Button>
+          </div>
+        </div>
+
+        <div className="border-t border-gray-100 pt-4">
+          {/* A quest is one task list wherever it is used, so an edit here
+              reaches every class and curriculum carrying it, and every student
+              already on it. The chips on the row say where that is. */}
+          {(quest.curricula?.length > 0 || quest.classes?.length > 0) && (
+            <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-3">
+              This quest is in use. Changes reach everyone already on it. To change it for one
+              class only, duplicate it first.
+            </p>
+          )}
+          <PresetTaskManager base={`/api/sis/quests/${quest.id}/tasks`} orgId={orgId}
+            questId={quest.id} />
+        </div>
+      </div>
+      <div className="mt-6 flex justify-end">
+        <Button size="xs" onClick={onClose}>Done</Button>
+      </div>
+    </Modal>
+  )
+}
+
 export function QuestAttachmentsModal({ quest, onClose }) {
   return (
     <Modal isOpen onClose={onClose} title={`Attachments for “${quest.title}”`} size="md">
@@ -382,18 +468,31 @@ const SCOPES = [
 
 const isTeacherMade = (q) => Boolean(q.made_by?.teacher)
 
-function QuestTable({ rows, onAssign, onAttach }) {
+function QuestTable({ rows, onAssign, onAttach, onEdit, onDuplicate, duplicatingId }) {
   return (
+    // Fixed layout, so the columns divide the width available instead of each
+    // demanding what its widest cell wants. With auto layout the class chips
+    // and four action links pushed the table off the right of the screen
+    // (2026-09-22). Percentages, not pixels, so it follows the window.
     <div className="bg-white rounded-xl border border-gray-200 overflow-x-auto">
-      <table className="w-full text-sm">
+      <table className="w-full table-fixed text-sm min-w-[56rem]">
+        <colgroup>
+          <col className="w-[24%]" />
+          <col className="w-[11%]" />
+          <col className="w-[6%]" />
+          <col className="w-[15%]" />
+          <col className="w-[17%]" />
+          <col className="w-[9%]" />
+          <col className="w-[18%]" />
+        </colgroup>
         <thead className="bg-neutral-50 text-neutral-500 text-left">
           <tr>
             <th className="px-4 py-3 font-medium">Quest</th>
-            <th className="px-3 py-3 font-medium whitespace-nowrap">Made by</th>
-            <th className="px-3 py-3 font-medium whitespace-nowrap">Tasks</th>
+            <th className="px-3 py-3 font-medium">Made by</th>
+            <th className="px-3 py-3 font-medium">Tasks</th>
             <th className="px-3 py-3 font-medium">On curriculum</th>
             <th className="px-3 py-3 font-medium">Assigned to</th>
-            <th className="px-3 py-3 font-medium whitespace-nowrap">Updated</th>
+            <th className="px-3 py-3 font-medium">Updated</th>
             <th className="px-3 py-3" />
           </tr>
         </thead>
@@ -406,10 +505,12 @@ function QuestTable({ rows, onAssign, onAttach }) {
                   <div className="text-xs text-neutral-500 line-clamp-2 mt-0.5">{q.description}</div>
                 )}
               </td>
-              <td className="px-3 py-3 text-neutral-700 whitespace-nowrap">
-                {q.made_by?.name || <span className="text-neutral-400">The school</span>}
+              <td className="px-3 py-3 text-neutral-700">
+                <div className="truncate" title={q.made_by?.name || 'The school'}>
+                  {q.made_by?.name || <span className="text-neutral-400">The school</span>}
+                </div>
                 {isTeacherMade(q) && (
-                  <span className="ml-1.5 inline-block rounded-full bg-neutral-100 px-2 py-0.5 text-xs text-neutral-600">
+                  <span className="mt-0.5 inline-block rounded-full bg-neutral-100 px-2 py-0.5 text-xs text-neutral-600">
                     Teacher
                   </span>
                 )}
@@ -423,8 +524,21 @@ function QuestTable({ rows, onAssign, onAttach }) {
               <td className="px-3 py-3">
                 <Chips items={q.classes} labelOf={(c) => c.name} empty="No class yet" />
               </td>
-              <td className="px-3 py-3 text-neutral-500 whitespace-nowrap">{when(q.updated_at)}</td>
-              <td className="px-3 py-3 text-right whitespace-nowrap space-x-3">
+              <td className="px-3 py-3 text-neutral-500 text-xs">{when(q.updated_at)}</td>
+              <td className="px-3 py-3">
+                <div className="flex flex-wrap justify-end gap-x-3 gap-y-1">
+                <button type="button" onClick={() => onEdit(q.id)}
+                  className="text-sm font-medium text-optio-purple hover:underline">
+                  Edit
+                </button>
+                {/* Offered on every row, including a shared quest that cannot
+                    be edited: duplicating is how a school gets a copy of one
+                    it can edit. */}
+                <button type="button" onClick={() => onDuplicate(q.id)}
+                  disabled={duplicatingId === q.id}
+                  className="text-sm font-medium text-optio-purple hover:underline disabled:opacity-50">
+                  {duplicatingId === q.id ? 'Copying…' : 'Duplicate'}
+                </button>
                 <button type="button" onClick={() => onAttach(q.id)}
                   className="text-sm font-medium text-optio-purple hover:underline">
                   Attachments
@@ -433,6 +547,7 @@ function QuestTable({ rows, onAssign, onAttach }) {
                   className="text-sm font-medium text-optio-purple hover:underline">
                   Assign
                 </button>
+                </div>
               </td>
             </tr>
           ))}
@@ -456,6 +571,21 @@ export default function QuestsPanel() {
   const [scope, setScope] = useState('all')
   const [assigning, setAssigning] = useState(null) // quest id
   const [attaching, setAttaching] = useState(null) // quest id
+  const [editing, setEditing] = useState(null) // quest id
+  const [duplicatingId, setDuplicatingId] = useState(null)
+  const duplicate = useDuplicateLibraryQuest(orgId)
+
+  const onDuplicate = async (questId) => {
+    setDuplicatingId(questId)
+    try {
+      const out = await duplicate.mutateAsync({ questId })
+      toast.success(`Copied as “${out.title}”`)
+    } catch (e) {
+      toast.error(e?.response?.data?.error || 'Could not duplicate that quest')
+    } finally {
+      setDuplicatingId(null)
+    }
+  }
   const [adding, setAdding] = useState(false)
 
   // Filtered here rather than by ?search= so typing does not fire a request
@@ -486,14 +616,16 @@ export default function QuestsPanel() {
 
   const assigningQuest = assigning ? quests.find((q) => q.id === assigning) : null
   const attachingQuest = attaching ? quests.find((q) => q.id === attaching) : null
+  const editingQuest = editing ? quests.find((q) => q.id === editing) : null
 
   return (
     <div>
       <p className="text-sm text-neutral-500 mb-6">
         Every quest your school has made, wherever it was made. Put one on a curriculum to keep it
-        for next term, or assign it straight to a class. Attachments adds videos, links and files to a
-        quest or to one of its tasks. To change a quest&apos;s tasks, open the curriculum it is on
-        (the Curriculum tab).
+        for next term, or assign it straight to a class. Edit changes its title, description and
+        tasks. Attachments adds videos, links and files to a quest or to one of its tasks.
+        Duplicate copies the whole thing, which is how you change one without changing it for
+        everyone already on it.
       </p>
 
       <div className="flex flex-wrap items-center gap-3 mb-4">
@@ -550,7 +682,8 @@ export default function QuestsPanel() {
                   {heading} <span className="font-normal text-neutral-400">({sectionRows.length})</span>
                 </h2>
               )}
-              <QuestTable rows={sectionRows} onAssign={setAssigning} onAttach={setAttaching} />
+              <QuestTable rows={sectionRows} onAssign={setAssigning} onAttach={setAttaching}
+                onEdit={setEditing} onDuplicate={onDuplicate} duplicatingId={duplicatingId} />
             </section>
           ))}
         </div>
@@ -562,6 +695,9 @@ export default function QuestsPanel() {
       )}
       {attachingQuest && (
         <QuestAttachmentsModal quest={attachingQuest} onClose={() => setAttaching(null)} />
+      )}
+      {editingQuest && (
+        <QuestEditModal quest={editingQuest} orgId={orgId} onClose={() => setEditing(null)} />
       )}
     </div>
   )

@@ -228,12 +228,16 @@ class TestTheRoutesWriteThem:
         assert out['subject_xp_distribution'] == {'social_studies': 100}
 
     def test_the_curriculum_editor_returns_the_same_shape(self):
+        # The curriculum and library tabs now share one serializer
+        # (services/sis_quest_task_editing). The class tab still has its own,
+        # so this pins the copy that is left against the shared one -- one
+        # PresetTaskManager renders all three and a missing key renders blank.
         from routes.sis.class_quests import _serialize_task
-        from routes.sis.curriculum import _serialize_template_task
+        from services.sis_quest_task_editing import serialize_task
         row = {'id': 'a', 'title': 't', 'pillar': 'civics', 'xp_value': 100,
                'diploma_subjects': ['social_studies'],
                'subject_xp_distribution': {'social_studies': 100}}
-        assert set(_serialize_task(row)) == set(_serialize_template_task(row))
+        assert set(_serialize_task(row)) == set(serialize_task(row))
 
     def test_a_null_column_serializes_as_empty_not_null(self):
         from routes.sis.class_quests import _serialize_task

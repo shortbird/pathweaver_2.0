@@ -32,7 +32,7 @@ vi.mock('./useSisOrg', () => ({
   withOrg: (path, orgId) => (orgId ? `${path}${path.includes('?') ? '&' : '?'}organization_id=${orgId}` : path),
 }))
 
-const { api } = vi.hoisted(() => ({ api: { get: vi.fn(), post: vi.fn() } }))
+const { api } = vi.hoisted(() => ({ api: { get: vi.fn(), post: vi.fn(), patch: vi.fn(), delete: vi.fn(), put: vi.fn() } }))
 vi.mock('../../services/api', () => ({ default: api }))
 
 const render = (ui) => rtlRender(
@@ -138,6 +138,56 @@ describe('QuestsPanel (was QuestLibraryPage)', () => {
 
     await waitFor(() => expect(api.post).toHaveBeenCalledWith(
       '/api/sis/classes/cl-2/quests?organization_id=org-1', { quest_id: 'q2', due_date: '2026-11-01' }))
+  })
+
+  it('shows a school with more classes than the menu draws, and says it cut the list', async () => {
+    // Molly (iCreate, 2026-09-22): "When I go to assign the quest to a class,
+    // it doesn't actually show all the classes. So I can't assign it." Her
+    // school has 158; the menu drew the first 50 in silence and stopped in the
+    // middle of the alphabet, so the list looked complete and her class looked
+    // absent. The cut itself is fine -- the menu has to say it is cutting.
+    const many = Array.from({ length: 120 }, (_, i) => ({
+      id: `cl-${i}`, name: `Class ${String(i).padStart(3, '0')}`,
+    }))
+    api.get.mockImplementation((url) => {
+      if (url.includes('/resources')) return Promise.resolve({ data: RESOURCES })
+      if (url.includes('/roster')) return Promise.resolve({ data: ROSTER })
+      return Promise.resolve({ data: { ...LIBRARY, classes: many } })
+    })
+
+    render(<QuestsPanel />)
+    await screen.findByText('Bridge Building')
+    fireEvent.click(screen.getAllByRole('button', { name: 'Assign' })[1])
+    const dialog = await screen.findByRole('dialog')
+    const classBox = within(dialog).getByPlaceholderText('Search classes…')
+    fireEvent.focus(classBox)
+
+    // 120 is under the draw limit, so nothing is cut and nothing is said.
+    expect(screen.queryByText(/Showing the first/)).toBeNull()
+    // A class far past the old 50-row ceiling is reachable.
+    expect(await screen.findByRole('button', { name: 'Class 099' })).toBeInTheDocument()
+  })
+
+  it('names the classes it could not draw when there are more than the menu holds', async () => {
+    const many = Array.from({ length: 260 }, (_, i) => ({
+      id: `cl-${i}`, name: `Class ${String(i).padStart(3, '0')}`,
+    }))
+    api.get.mockImplementation((url) => {
+      if (url.includes('/resources')) return Promise.resolve({ data: RESOURCES })
+      if (url.includes('/roster')) return Promise.resolve({ data: ROSTER })
+      return Promise.resolve({ data: { ...LIBRARY, classes: many } })
+    })
+
+    render(<QuestsPanel />)
+    await screen.findByText('Bridge Building')
+    fireEvent.click(screen.getAllByRole('button', { name: 'Assign' })[1])
+    const dialog = await screen.findByRole('dialog')
+    fireEvent.focus(within(dialog).getByPlaceholderText('Search classes…'))
+
+    expect(await screen.findByText(/Showing the first 200 of 260/)).toBeInTheDocument()
+    // And typing reaches the rest.
+    fireEvent.change(within(dialog).getByPlaceholderText('Search classes…'), { target: { value: 'Class 255' } })
+    expect(await screen.findByRole('button', { name: 'Class 255' })).toBeInTheDocument()
   })
 
   it('gives a quest to students by name, students only, through the quest-scoped route', async () => {
@@ -296,5 +346,116 @@ describe('QuestsPanel (was QuestLibraryPage)', () => {
     api.get.mockResolvedValue({ data: { quests: [], curricula: [], classes: [] } })
     render(<QuestsPanel />)
     expect(await screen.findByText('No quests yet')).toBeInTheDocument()
+  })
+})
+
+describe('editing and duplicating from the library row', () => {
+  // Molly (iCreate, 2026-09-22): "There's no way to edit a quest that I can
+  // see. I'd also love to be able to duplicate quests." Editing lived only on
+  // the curriculum a quest sat on, so a quest on no curriculum -- the exact
+  // population this page was built for -- had no editor anywhere.
+  beforeEach(() => {
+    api.patch.mockResolvedValue({ data: { success: true, quest: { id: 'q2', title: 'Renamed' } } })
+  })
+
+  it('opens an editor on a quest that is on no curriculum at all', async () => {
+    render(<QuestsPanel />)
+    // q2 has no curricula and no classes.
+    await screen.findByText('Not on a curriculum')
+    fireEvent.click(screen.getAllByRole('button', { name: 'Edit' })[1])
+
+    const dialog = await screen.findByRole('dialog')
+    expect(within(dialog).getByLabelText('Quest title')).toHaveValue('Bridge Building')
+    // The task editor reads the library's own task route, not a curriculum one.
+    await waitFor(() => expect(api.get).toHaveBeenCalledWith(
+      expect.stringContaining('/api/sis/quests/q2/tasks')))
+  })
+
+  it('saves a new title and description through the quest-scoped route', async () => {
+    render(<QuestsPanel />)
+    await screen.findByText('Bridge Building')
+    fireEvent.click(screen.getAllByRole('button', { name: 'Edit' })[1])
+    const dialog = await screen.findByRole('dialog')
+
+    fireEvent.change(within(dialog).getByLabelText('Quest title'), { target: { value: 'Bridges' } })
+    fireEvent.change(within(dialog).getByLabelText('Quest description'), { target: { value: 'Build one.' } })
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Save' }))
+
+    await waitFor(() => expect(api.patch).toHaveBeenCalledWith(
+      '/api/sis/quests/q2?organization_id=org-1',
+      { title: 'Bridges', description: 'Build one.' }))
+  })
+
+  it('will not save a quest with no title', async () => {
+    render(<QuestsPanel />)
+    await screen.findByText('Bridge Building')
+    fireEvent.click(screen.getAllByRole('button', { name: 'Edit' })[1])
+    const dialog = await screen.findByRole('dialog')
+    fireEvent.change(within(dialog).getByLabelText('Quest title'), { target: { value: '  ' } })
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Save' }))
+    expect(api.patch).not.toHaveBeenCalled()
+  })
+
+  it('warns that an edit reaches everyone when the quest is already in use', async () => {
+    render(<QuestsPanel />)
+    await screen.findByText('Watercolor Basics')
+    // q1 is on a curriculum and a class.
+    fireEvent.click(screen.getAllByRole('button', { name: 'Edit' })[0])
+    const dialog = await screen.findByRole('dialog')
+    expect(within(dialog).getByText(/reach everyone already on it/i)).toBeInTheDocument()
+  })
+
+  it('says nothing about blast radius for a quest nobody is on', async () => {
+    render(<QuestsPanel />)
+    await screen.findByText('Bridge Building')
+    fireEvent.click(screen.getAllByRole('button', { name: 'Edit' })[1])
+    const dialog = await screen.findByRole('dialog')
+    expect(within(dialog).queryByText(/reach everyone already on it/i)).toBeNull()
+  })
+
+  it('caps the chips on a quest that is on many classes, and counts the rest', async () => {
+    // A quest pushed to every section of a microschool carried nine class
+    // chips; stacked, the row grew taller than the screen and the column
+    // demanded width the table did not have (2026-09-22).
+    const classes = Array.from({ length: 9 }, (_, i) => ({ id: `cl-${i}`, name: `Section ${i}` }))
+    api.get.mockImplementation((url) => {
+      if (url.includes('/resources')) return Promise.resolve({ data: RESOURCES })
+      if (url.includes('/roster')) return Promise.resolve({ data: ROSTER })
+      return Promise.resolve({
+        data: { ...LIBRARY, quests: [{ ...LIBRARY.quests[0], classes }] },
+      })
+    })
+
+    render(<QuestsPanel />)
+    await screen.findByText('Watercolor Basics')
+    expect(screen.getByText('Section 0')).toBeInTheDocument()
+    expect(screen.getByText('Section 2')).toBeInTheDocument()
+    expect(screen.queryByText('Section 3')).toBeNull()
+    // The rest are counted, and named on hover.
+    const more = screen.getByText('+6 more')
+    expect(more).toHaveAttribute('title', expect.stringContaining('Section 8'))
+  })
+
+  it('lays the table out in fixed columns so it cannot outgrow the window', async () => {
+    // jsdom has no layout, so this pins the mechanism: fixed columns share the
+    // width available instead of each demanding what its widest cell wants.
+    render(<QuestsPanel />)
+    await screen.findByText('Watercolor Basics')
+    const table = screen.getAllByRole('table')[0]
+    expect(table.className).toMatch(/table-fixed/)
+    expect(table.querySelector('colgroup')).toBeTruthy()
+  })
+
+  it('duplicates a quest and re-reads the library, because the copy is a new row', async () => {
+    api.post.mockResolvedValue({ data: { success: true, quest_id: 'q3', title: 'Bridge Building (copy)', task_count: 0 } })
+    render(<QuestsPanel />)
+    await screen.findByText('Bridge Building')
+    const before = libraryLoads().length
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'Duplicate' })[1])
+
+    await waitFor(() => expect(api.post).toHaveBeenCalledWith(
+      '/api/sis/quests/q2/duplicate?organization_id=org-1', {}))
+    await waitFor(() => expect(libraryLoads().length).toBeGreaterThan(before))
   })
 })

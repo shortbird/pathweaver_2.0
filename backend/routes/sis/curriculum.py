@@ -44,11 +44,9 @@ from services.sis_quest_authoring import (
     QuestAuthoringError,
     create_org_quest,
     duplicate_org_quest,
-    duplicate_template_task as _duplicate_template_task,
-    clean_task as _clean_task,
-    norm_pillar as _norm_pillar,
-    subject_updates as _subject_updates,
 )
+from services import sis_quest_task_editing as task_editing
+from services.sis_quest_task_editing import QuestTaskEditError
 from services.sis_curriculum_sync import push_curriculum_quests_safe, attach_quest_to_curriculum
 from utils.sis_roles import STAFF_ROLES, ADMIN_ROLES
 
@@ -575,22 +573,6 @@ def create_curriculum_quest(user_id, curriculum_id):
 # would change it for every school using it.
 
 
-def _serialize_template_task(t):
-    return {
-        'id': t['id'],
-        'title': t.get('title'),
-        'description': t.get('description') or '',
-        'pillar': t.get('pillar'),
-        'xp_value': t.get('xp_value'),
-        'is_required': bool(t.get('is_required')),
-        'order_index': t.get('order_index', 0),
-        # Same shape the class task editor returns -- one PresetTaskManager
-        # renders both.
-        'diploma_subjects': t.get('diploma_subjects') or [],
-        'subject_xp_distribution': t.get('subject_xp_distribution') or {},
-    }
-
-
 @bp.route('/curriculum/<curriculum_id>/quests/<quest_id>/curricula', methods=['GET'])
 @require_role(*ADMIN_ROLES)
 def quest_curricula(user_id, curriculum_id, quest_id):
@@ -698,14 +680,17 @@ def _library_quest_403():
     }), 403)
 
 
-def _resync_template(quest_id):
-    """Template edits must reach students already enrolled — their task lists
-    are copies taken at enrollment (same rule as the class routes)."""
+def _edit(op, *args):
+    """Run a shared task-editing operation and shape its refusal into a response.
+
+    The gate above each route is the only part the Curriculum tab, the class
+    Quests tab and the Library Quests tab do not share; everything after it
+    lives in services/sis_quest_task_editing.
+    """
     try:
-        from utils.template_tasks import resync_enrollments_to_template
-        resync_enrollments_to_template(_admin(), quest_id)
-    except Exception as e:  # noqa: BLE001 — the edit itself succeeded
-        logger.warning(f'Saved but enrollment resync failed for {quest_id}: {e}')
+        return jsonify(op(_admin(), *args))
+    except QuestTaskEditError as e:
+        return jsonify({'success': False, 'error': e.message}), e.status
 
 
 @bp.route('/curriculum/<curriculum_id>/quests/<quest_id>', methods=['PATCH'])
@@ -718,23 +703,8 @@ def update_curriculum_quest(user_id, curriculum_id, quest_id):
     if quest.get('organization_id') != org_id:
         return _library_quest_403()
 
-    data = request.get_json(silent=True) or {}
-    updates = {}
-    if 'title' in data:
-        title = (data.get('title') or '').strip()[:_MAX_TITLE]
-        if not title:
-            return jsonify({'success': False, 'error': 'A title is required'}), 400
-        updates['title'] = title
-    if 'description' in data:
-        updates['description'] = (data.get('description') or '').strip() or None
-    if not updates:
-        return jsonify({'success': False, 'error': 'Nothing to update'}), 400
-    row = (_admin().table('quests').update(updates)
-           .eq('id', quest_id).execute()).data
-    q = row[0] if row else {}
-    return jsonify({'success': True, 'quest': {
-        'id': quest_id, 'title': q.get('title'), 'description': q.get('description') or '',
-    }})
+    return _edit(task_editing.update_quest_info, quest_id,
+                 request.get_json(silent=True) or {})
 
 
 @bp.route('/curriculum/<curriculum_id>/quests/<quest_id>/duplicate', methods=['POST'])
@@ -834,15 +804,8 @@ def curriculum_quest_tasks(user_id, curriculum_id, quest_id):
     org_id, quest, err = _curriculum_quest(user_id, curriculum_id, quest_id)
     if err:
         return err
-    tasks = (_admin().table('quest_template_tasks').select('*')
-             .eq('quest_id', quest_id).order('order_index').execute()).data or []
-    return jsonify({
-        'success': True,
-        'editable': quest.get('organization_id') == org_id,
-        'quest': {'id': quest['id'], 'title': quest.get('title'),
-                  'description': quest.get('description') or ''},
-        'tasks': [_serialize_template_task(t) for t in tasks],
-    })
+    return jsonify(task_editing.list_tasks(
+        _admin(), quest, editable=quest.get('organization_id') == org_id))
 
 
 @bp.route('/curriculum/<curriculum_id>/quests/<quest_id>/tasks', methods=['POST'])
@@ -853,19 +816,8 @@ def add_curriculum_quest_task(user_id, curriculum_id, quest_id):
         return err
     if quest.get('organization_id') != org_id:
         return _library_quest_403()
-    data = request.get_json(silent=True) or {}
-    last = (_admin().table('quest_template_tasks').select('order_index')
-            .eq('quest_id', quest_id).order('order_index', desc=True).limit(1).execute()).data
-    next_order = ((last[0]['order_index'] or 0) + 1) if last else 0
-    task = _clean_task(data, next_order)
-    if not task:
-        return jsonify({'success': False, 'error': 'A task title is required.'}), 400
-    task['quest_id'] = quest_id
-    row = _admin().table('quest_template_tasks').insert(task).execute().data
-    if not row:
-        return jsonify({'success': False, 'error': 'Could not add the task.'}), 500
-    _resync_template(quest_id)
-    return jsonify({'success': True, 'task': _serialize_template_task(row[0])})
+    return _edit(task_editing.add_task, quest_id,
+                 request.get_json(silent=True) or {})
 
 
 @bp.route('/curriculum/<curriculum_id>/quests/<quest_id>/tasks/order', methods=['PUT'])
@@ -878,16 +830,8 @@ def reorder_curriculum_quest_tasks(user_id, curriculum_id, quest_id):
         return err
     if quest.get('organization_id') != org_id:
         return _library_quest_403()
-    task_ids = [t for t in ((request.get_json(silent=True) or {}).get('task_ids') or []) if t]
-    if not task_ids or any(_bad_uuid(t) for t in task_ids):
-        return jsonify({'success': False, 'error': 'Send every task id, in order.'}), 400
-    from repositories.quest_template_task_repository import QuestTemplateTaskRepository
-    rows = QuestTemplateTaskRepository(client=_admin()).reorder(quest_id, task_ids)
-    if rows is None:
-        return jsonify({'success': False,
-                        'error': 'That is not the full task list -- reload and try again.'}), 409
-    _resync_template(quest_id)
-    return jsonify({'success': True, 'tasks': [_serialize_template_task(t) for t in rows]})
+    return _edit(task_editing.reorder_tasks, quest_id,
+                 (request.get_json(silent=True) or {}).get('task_ids') or [])
 
 
 @bp.route('/curriculum/<curriculum_id>/quests/<quest_id>/tasks/<task_id>', methods=['PATCH'])
@@ -898,47 +842,8 @@ def update_curriculum_quest_task(user_id, curriculum_id, quest_id, task_id):
         return err
     if quest.get('organization_id') != org_id:
         return _library_quest_403()
-    if _bad_uuid(task_id):
-        return jsonify({'success': False, 'error': 'Invalid task id'}), 400
-
-    data = request.get_json(silent=True) or {}
-    updates = {}
-    if 'title' in data:
-        title = (data.get('title') or '').strip()
-        if not title:
-            return jsonify({'success': False, 'error': 'A task title is required.'}), 400
-        updates['title'] = title
-    if 'description' in data:
-        updates['description'] = (data.get('description') or '').strip()
-    if 'pillar' in data:
-        updates['pillar'] = _norm_pillar(data.get('pillar'))
-    if 'xp_value' in data:
-        try:
-            xp = int(data.get('xp_value'))
-        except (TypeError, ValueError):
-            return jsonify({'success': False, 'error': 'XP must be a number.'}), 400
-        updates['xp_value'] = max(0, xp)
-    if 'is_required' in data:
-        updates['is_required'] = bool(data.get('is_required'))
-    if not updates and 'diploma_subjects' not in data and 'subject_xp_distribution' not in data:
-        return jsonify({'success': False, 'error': 'Nothing to update.'}), 400
-
-    # Read before write, for the same reason the class task editor does it: the
-    # split is stored as XP amounts, so it depends on the XP and pillar the task
-    # will hold after this patch.
-    current = (_admin().table('quest_template_tasks')
-               .select('xp_value, pillar, diploma_subjects, subject_xp_distribution')
-               .eq('id', task_id).eq('quest_id', quest_id).limit(1).execute()).data
-    if not current:
-        return jsonify({'success': False, 'error': 'Task not found.'}), 404
-    updates.update(_subject_updates(current[0], data, updates))
-
-    row = (_admin().table('quest_template_tasks').update(updates)
-           .eq('id', task_id).eq('quest_id', quest_id).execute()).data
-    if not row:
-        return jsonify({'success': False, 'error': 'Task not found.'}), 404
-    _resync_template(quest_id)
-    return jsonify({'success': True, 'task': _serialize_template_task(row[0])})
+    return _edit(task_editing.update_task, quest_id, task_id,
+                 request.get_json(silent=True) or {})
 
 
 @bp.route('/curriculum/<curriculum_id>/quests/<quest_id>/tasks/<task_id>/duplicate',
@@ -962,19 +867,7 @@ def duplicate_curriculum_quest_task(user_id, curriculum_id, quest_id, task_id):
         return err
     if quest.get('organization_id') != org_id:
         return _library_quest_403()
-    if _bad_uuid(task_id):
-        return jsonify({'success': False, 'error': 'Invalid task id'}), 400
-
-    rows = (_admin().table('quest_template_tasks').select('*')
-            .eq('id', task_id).eq('quest_id', quest_id).limit(1).execute()).data
-    if not rows:
-        return jsonify({'success': False, 'error': 'Task not found.'}), 404
-
-    row = _duplicate_template_task(_admin(), rows[0], quest_id)
-    if not row:
-        return jsonify({'success': False, 'error': 'Could not duplicate the task.'}), 500
-    _resync_template(quest_id)
-    return jsonify({'success': True, 'task': _serialize_template_task(row)})
+    return _edit(task_editing.duplicate_task, quest_id, task_id)
 
 
 @bp.route('/curriculum/<curriculum_id>/quests/<quest_id>/tasks/<task_id>', methods=['DELETE'])
@@ -985,12 +878,7 @@ def delete_curriculum_quest_task(user_id, curriculum_id, quest_id, task_id):
         return err
     if quest.get('organization_id') != org_id:
         return _library_quest_403()
-    if _bad_uuid(task_id):
-        return jsonify({'success': False, 'error': 'Invalid task id'}), 400
-    _admin().table('quest_template_tasks').delete() \
-        .eq('id', task_id).eq('quest_id', quest_id).execute()
-    _resync_template(quest_id)
-    return jsonify({'success': True})
+    return _edit(task_editing.delete_task, quest_id, task_id)
 
 
 @bp.route('/curriculum/<curriculum_id>/courses', methods=['PUT'])

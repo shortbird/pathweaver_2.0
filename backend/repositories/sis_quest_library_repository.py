@@ -82,18 +82,32 @@ class SisQuestLibraryRepository(BaseRepository):
 
     def org_curricula(self, org_id: str) -> List[Dict[str, Any]]:
         try:
-            return (self.client.table('sis_curriculum').select('id, title')
-                    .eq('organization_id', org_id).eq('is_active', True).order('title')
-                    .execute()).data or []
+            return fetch_all_rows(
+                lambda: self.client.table('sis_curriculum').select('id, title')
+                .eq('organization_id', org_id).eq('is_active', True),
+                order_by='title',
+            )
         except APIError as e:
             logger.error(f"Error listing curricula for {org_id}: {e}")
             raise DatabaseError("Failed to list curricula") from e
 
     def org_classes(self, org_id: str) -> List[Dict[str, Any]]:
-        """The org's classes (org_classes), active or archived, by name."""
+        """The org's classes (org_classes), active or archived, by name.
+
+        Paged, like every other many-row read in this module. These two were
+        the exceptions -- a bare select, silently capped at the PostgREST
+        limit -- and a school past the cap would have had classes missing from
+        the assign picker with nothing to say so. iCreate is at 158 and was
+        never truncated here; the picker's own 50-row ceiling is what hid its
+        classes (2026-09-22). Fixing that one and leaving this would only have
+        moved the trapdoor further down the corridor.
+        """
         try:
-            return (self.client.table('org_classes').select('id, name, status')
-                    .eq('organization_id', org_id).order('name').execute()).data or []
+            return fetch_all_rows(
+                lambda: self.client.table('org_classes').select('id, name, status')
+                .eq('organization_id', org_id),
+                order_by='name',
+            )
         except APIError as e:
             logger.error(f"Error listing classes for {org_id}: {e}")
             raise DatabaseError("Failed to list classes") from e

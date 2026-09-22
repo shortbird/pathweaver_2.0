@@ -255,7 +255,7 @@ def _run(route, args, body, tables):
     with patch.object(curriculum, '_admin', return_value=client), \
          patch('services.sis_service.org_or_error', return_value=(ORG, None)), \
          patch.object(curriculum, '_owned', return_value={'id': CURR, 'organization_id': ORG}), \
-         patch.object(curriculum, '_resync_template', Mock()), \
+         patch('services.sis_quest_task_editing.resync', Mock()), \
          patch.object(curriculum, 'request', Mock(get_json=lambda silent=True: body, args={})):
         from flask import Flask
         app = Flask(__name__)

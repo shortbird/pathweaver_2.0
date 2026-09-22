@@ -8,6 +8,9 @@ one is in use and a way to put it somewhere from there.
                                                 straight onto a curriculum)
   POST /api/sis/quests/<quest_id>/curricula     put one on a curriculum
   POST /api/sis/quests/<quest_id>/students      give one to named students
+  PATCH/GET/POST/PUT/DELETE
+       /api/sis/quests/<quest_id>[/tasks...]    edit the quest and its tasks
+  POST /api/sis/quests/<quest_id>/duplicate     copy it, tasks and all
 
 Why a page of its own. Quests were reachable only through the curriculum that
 carried them: open Curriculum, expand an entry, find the quest. A quest on no
@@ -24,7 +27,16 @@ inserts and pushes it to that curriculum's classes the same way
 routes/sis/curriculum.py); putting a quest on a class is the class page's own
 POST /api/sis/classes/<id>/quests, which the library page calls directly, so a
 release date, a due date and an audience mean the same thing from either
-door. Editing stays where the quest lives: the row links to its curriculum.
+door.
+
+Editing used to stay where the quest lived -- follow the row's link to its
+curriculum and edit it there -- which left the quests this page exists for
+with nowhere to be edited at all, since a quest on no curriculum has no link
+to follow. Molly (iCreate, 2026-09-22): "There's no way to edit a quest that I
+can see. I'd also love to be able to duplicate quests." The editing routes
+below are the curriculum tab's, scoped by ownership instead of a curriculum
+link; everything after the gate is shared
+(services/sis_quest_task_editing.py), so the two screens cannot drift.
 
 The third door, students by name, is Dallin's (iCreate, 293c4d99, 2026-09-18:
 "Can we assign quests to individuals too?"). A class quest can already be kept
@@ -46,7 +58,11 @@ from repositories.sis_quest_library_repository import SisQuestLibraryRepository
 from services import sis_service
 from services.class_quest_enrollment import enroll_students_in_quests
 from services.sis_curriculum_sync import attach_quest_to_curriculum
-from services.sis_quest_authoring import QuestAuthoringError, create_org_quest
+from services import sis_quest_task_editing as task_editing
+from services.sis_quest_authoring import (
+    QuestAuthoringError, create_org_quest, duplicate_org_quest,
+)
+from services.sis_quest_task_editing import QuestTaskEditError
 from utils.auth.decorators import require_role
 from utils.logger import get_logger
 from utils.person_name import full_name
@@ -287,3 +303,145 @@ def give_quest_to_students(user_id, quest_id):
     return jsonify({'success': True, 'enrolled': result['enrolled'],
                     'already_had_it': result.get('skipped_existing', 0),
                     'student_ids': student_ids})
+# --- editing a quest the school owns ---------------------------------------
+#
+# The gate, and only the gate. A quest is editable here when this school owns
+# it outright: an Optio-library quest is shared with other schools and editing
+# its tasks would change them for every one of them, which is the same line
+# routes/sis/curriculum.py and routes/sis/class_quests.py hold.
+
+
+def _own_quest(user_id, quest_id, *, for_edit=True):
+    """(org_id, quest, err). The school's own quest, ready to edit.
+
+    `for_edit=False` drops the ownership requirement, for the two things that
+    are legal on a shared quest: reading its tasks, and duplicating it.
+    """
+    org_id, err = sis_service.org_or_error(user_id)
+    if err:
+        return None, None, err
+    if _bad_uuid(quest_id):
+        return None, None, (jsonify({'success': False, 'error': 'Quest not found'}), 404)
+    rows = (_admin().table('quests')
+            .select('id, title, description, quest_type, organization_id, is_active, is_public')
+            .eq('id', quest_id).limit(1).execute()).data
+    if not rows:
+        return None, None, (jsonify({'success': False, 'error': 'Quest not found'}), 404)
+    quest = rows[0]
+    if quest.get('organization_id') != org_id:
+        # Readable when it is the shared catalogue; invisible when it belongs
+        # to another school, which is not the caller's business either way.
+        if quest.get('organization_id') is not None or not quest.get('is_public'):
+            return None, None, (jsonify({'success': False, 'error': 'Quest not found'}), 404)
+        if for_edit:
+            return None, None, (jsonify({
+                'success': False,
+                'error': "This quest comes from the Optio library and is shared with "
+                         "other schools, so it can't be edited here. Duplicate it to "
+                         "make it yours.",
+            }), 403)
+    return org_id, quest, None
+
+
+def _edit(op, *args):
+    """Run a shared editing operation and shape its refusal into a response."""
+    try:
+        return jsonify(op(_admin(), *args))
+    except QuestTaskEditError as e:
+        return jsonify({'success': False, 'error': e.message}), e.status
+
+
+@bp.route('/quests/<quest_id>', methods=['PATCH'])
+@require_role(*ADMIN_ROLES)
+def update_library_quest(user_id, quest_id):
+    """Rename a quest or rewrite its description. Body: {title?, description?}."""
+    _org_id, _quest, err = _own_quest(user_id, quest_id)
+    if err:
+        return err
+    return _edit(task_editing.update_quest_info, quest_id,
+                 request.get_json(silent=True) or {})
+
+
+@bp.route('/quests/<quest_id>/duplicate', methods=['POST'])
+@require_role(*ADMIN_ROLES)
+def duplicate_library_quest(user_id, quest_id):
+    """Copy a quest, its tasks and its attachments, into this school's library.
+
+    Allowed on a shared Optio-library quest as well as the school's own, for
+    the reason the curriculum tab allows it: the copy is org-owned either way,
+    so this is how a school takes a library quest and makes it theirs to edit.
+
+    The copy is attached to nothing. A duplicate is a draft somebody is about
+    to rename, and putting it on a curriculum or a class would push a quest
+    called "X (copy)" at students before anyone had touched it.
+    """
+    org_id, _quest, err = _own_quest(user_id, quest_id, for_edit=False)
+    if err:
+        return err
+    try:
+        out = duplicate_org_quest(_admin(), org_id=org_id, user_id=user_id,
+                                  source_quest_id=quest_id,
+                                  title=(request.get_json(silent=True) or {}).get('title'))
+    except QuestAuthoringError as e:
+        return jsonify({'success': False, 'error': str(e)}), e.status
+    return jsonify({'success': True, **out})
+
+
+@bp.route('/quests/<quest_id>/tasks', methods=['GET'])
+@require_role(*ADMIN_ROLES)
+def library_quest_tasks(user_id, quest_id):
+    """The quest's preset tasks. Readable for a shared quest, editable if ours."""
+    org_id, quest, err = _own_quest(user_id, quest_id, for_edit=False)
+    if err:
+        return err
+    return jsonify(task_editing.list_tasks(
+        _admin(), quest, editable=quest.get('organization_id') == org_id))
+
+
+@bp.route('/quests/<quest_id>/tasks', methods=['POST'])
+@require_role(*ADMIN_ROLES)
+def add_library_quest_task(user_id, quest_id):
+    _org_id, _quest, err = _own_quest(user_id, quest_id)
+    if err:
+        return err
+    return _edit(task_editing.add_task, quest_id,
+                 request.get_json(silent=True) or {})
+
+
+@bp.route('/quests/<quest_id>/tasks/order', methods=['PUT'])
+@require_role(*ADMIN_ROLES)
+def reorder_library_quest_tasks(user_id, quest_id):
+    """Body: {task_ids: [...]}, the whole set."""
+    _org_id, _quest, err = _own_quest(user_id, quest_id)
+    if err:
+        return err
+    return _edit(task_editing.reorder_tasks, quest_id,
+                 (request.get_json(silent=True) or {}).get('task_ids') or [])
+
+
+@bp.route('/quests/<quest_id>/tasks/<task_id>', methods=['PATCH'])
+@require_role(*ADMIN_ROLES)
+def update_library_quest_task(user_id, quest_id, task_id):
+    _org_id, _quest, err = _own_quest(user_id, quest_id)
+    if err:
+        return err
+    return _edit(task_editing.update_task, quest_id, task_id,
+                 request.get_json(silent=True) or {})
+
+
+@bp.route('/quests/<quest_id>/tasks/<task_id>/duplicate', methods=['POST'])
+@require_role(*ADMIN_ROLES)
+def duplicate_library_quest_task(user_id, quest_id, task_id):
+    _org_id, _quest, err = _own_quest(user_id, quest_id)
+    if err:
+        return err
+    return _edit(task_editing.duplicate_task, quest_id, task_id)
+
+
+@bp.route('/quests/<quest_id>/tasks/<task_id>', methods=['DELETE'])
+@require_role(*ADMIN_ROLES)
+def delete_library_quest_task(user_id, quest_id, task_id):
+    _org_id, _quest, err = _own_quest(user_id, quest_id)
+    if err:
+        return err
+    return _edit(task_editing.delete_task, quest_id, task_id)

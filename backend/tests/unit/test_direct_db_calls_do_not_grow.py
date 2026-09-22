@@ -240,7 +240,12 @@ BASELINES = {
     # reads and writes went into UserRepository (family_cover_pointers,
     # set_family_cover) when the photo started to be shared across a platform
     # family's co-parents.
-    'routes': 2245,
+    # 2026-09-22: 2245 -> 2236. The quest task editor moved out of
+    # routes/sis/curriculum.py into services/sis_quest_task_editing.py so the
+    # new Library Quests editing routes could share it rather than become a
+    # third copy (ticket d48d5bea). Nine calls left routes/, five arrived in
+    # services/: the difference is the copy that no longer exists.
+    'routes': 2236,
     # 2026-09-09: 1828 -> 1830. The deletion sweep's reactivation guard, in
     # account_deletion_service: one read for dependents added after the request,
     # one write to rescind it. The sweep is a cron entrypoint that already owns
@@ -313,7 +318,10 @@ BASELINES = {
     # sis_catalog_service.time_blocks like every other reader.
     # 2026-09-18 (M16, second half): 1834 -> 1833. grant_teacher_role and
     # link_staff_account's merge share one role write (grant_advisor_role).
-    'services': 1833,
+    # 2026-09-22: 1833 -> 1838. The receiving half of the move described
+    # against BASELINES['routes'] above. Not new querying -- the combined
+    # total fell by four.
+    'services': 1838,
     # 2026-09-09: 439 -> 442. GroupRepository, owning the three reads behind the
     # Messages badge: this user's group memberships, the still-active groups
     # among them, and the unread count within one group. The badge counted
@@ -540,7 +548,10 @@ BASELINES = {
     # 2026-09-20: 588 -> 589. SisQuestLibraryRepository.students_of_org, which
     # of a picker's ids are accounts at this school, so the library's "give it
     # to a student" door (ticket 293c4d99) refuses a stale id before enrolling.
-    'repositories': 589,
+    # 2026-09-22: 589 -> 590. QuestResourceRepository.update_by_id, so a
+    # mistyped attachment name or a wrong link is a correction rather than a
+    # delete and a re-upload (ticket 2b12c03b).
+    'repositories': 590,
     # 2026-09-09: 135 -> 136. class_membership.children_in_classes, the inverse
     # of parents_of_students: which of a guardian's children sit in each of a
     # set of classes. It answers "whose class chat is this?" for the messaging
@@ -620,7 +631,7 @@ def test_direct_db_calls_do_not_grow(layer):
 
 #: routes/ + services/ combined. A call may move DOWN a layer; the total may not
 #: grow. Keep this equal to BASELINES['routes'] + BASELINES['services'].
-UPPER_TOTAL_BASELINE = 2245 + 1833
+UPPER_TOTAL_BASELINE = 2236 + 1838
 
 
 def test_the_upper_layers_do_not_grow_in_total():

@@ -45,6 +45,46 @@ export const useCreateLibraryQuest = (orgId) => {
   })
 }
 
+/**
+ * Rename a quest, or rewrite its description, from the library row.
+ *
+ * Until 2026-09-22 the only way in was through the curriculum the quest sat
+ * on, which meant a quest on no curriculum could not be edited at all -- and
+ * those are exactly the quests this page was built to reach.
+ */
+export const useUpdateLibraryQuest = (orgId) => {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ questId, title, description }) => {
+      const res = await api.patch(withOrg(`/api/sis/quests/${questId}`, orgId),
+        { title, description })
+      return res.data
+    },
+    onSuccess: () => invalidateLibrary(queryClient, orgId),
+  })
+}
+
+/**
+ * Copy a quest, its tasks and its attachments, into the school's own library.
+ *
+ * Offered on every row, including a shared Optio-library quest that cannot be
+ * edited: the copy is the school's own, so duplicating is how you get an
+ * editable version of one. The copy is attached to nothing, so the library
+ * has to be re-read rather than patched -- the row is one the page has never
+ * seen.
+ */
+export const useDuplicateLibraryQuest = (orgId) => {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ questId, title }) => {
+      const res = await api.post(withOrg(`/api/sis/quests/${questId}/duplicate`, orgId),
+        title ? { title } : {})
+      return res.data
+    },
+    onSuccess: () => invalidateLibrary(queryClient, orgId),
+  })
+}
+
 export const useAddQuestToCurriculum = (orgId) => {
   const queryClient = useQueryClient()
   return useMutation({

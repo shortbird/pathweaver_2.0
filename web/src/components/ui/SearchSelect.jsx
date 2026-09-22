@@ -35,7 +35,16 @@ const baseInput = 'w-full rounded-lg border border-gray-300 px-3 py-2 text-sm fo
 const MENU_MAX_HEIGHT = 224 // matches max-h-56
 const VIEWPORT_GUTTER = 8
 
-const SearchSelect = ({ value, onChange, options = [], getId, getLabel, placeholder = 'Search…', limit = 50, className = '', emptyLabel = '' }) => {
+// How many options the menu draws at once. The menu scrolls, so this is about
+// not building hundreds of buttons on every keystroke, not about what a person
+// is allowed to choose -- and whatever it is, the menu has to SAY when it has
+// cut the list. At 50 and silent, iCreate's 158 classes stopped dead at "I
+// Love America (Tues Block 2)" and an org admin concluded the quest could not
+// be assigned to her class at all (2026-09-22). Anything past the cut is one
+// keystroke away; the person just has to know to type.
+const DEFAULT_LIMIT = 200
+
+const SearchSelect = ({ value, onChange, options = [], getId, getLabel, placeholder = 'Search…', limit = DEFAULT_LIMIT, className = '', emptyLabel = '' }) => {
   const [query, setQuery] = useState('')
   const [open, setOpen] = useState(false)
   const [menuStyle, setMenuStyle] = useState(null)
@@ -45,10 +54,10 @@ const SearchSelect = ({ value, onChange, options = [], getId, getLabel, placehol
   const selected = useMemo(() => options.find((o) => getId(o) === value), [options, value, getId])
   const display = open ? query : (selected ? getLabel(selected) : '')
 
-  const filtered = useMemo(() => {
+  const { filtered, matchCount } = useMemo(() => {
     const q = query.trim().toLowerCase()
     const list = q ? options.filter((o) => (getLabel(o) || '').toLowerCase().includes(q)) : options
-    return list.slice(0, limit)
+    return { filtered: list.slice(0, limit), matchCount: list.length }
   }, [options, query, getLabel, limit])
 
   // Position from the input's viewport rect, flipping above when the space
@@ -139,6 +148,11 @@ const SearchSelect = ({ value, onChange, options = [], getId, getLabel, placehol
           {getLabel(o)}
         </button>
       ))}
+      {matchCount > filtered.length && (
+        <div className="px-3 py-2 text-xs text-neutral-500 border-t border-gray-100 bg-neutral-50">
+          Showing the first {filtered.length} of {matchCount}. Type to narrow the list.
+        </div>
+      )}
     </div>,
     document.body
   ) : null

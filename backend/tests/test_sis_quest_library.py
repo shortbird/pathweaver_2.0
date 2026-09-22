@@ -45,6 +45,14 @@ class _FakeTable:
         self._log.append(('insert', self.name, payload))
         return self
 
+    def update(self, payload):
+        self._log.append(('update', self.name, payload))
+        return self
+
+    def delete(self):
+        self._log.append(('delete', self.name))
+        return self
+
     def execute(self):
         return Mock(data=list(self._rows))
 
@@ -61,7 +69,7 @@ def _run(route, args, body=None, tables=None, query=None):
     with patch.object(library, '_admin', return_value=client), \
          patch('services.sis_service.org_or_error', return_value=(ORG, None)), \
          patch('repositories.sis_quest_library_repository.fetch_all_rows',
-               side_effect=lambda build: build().execute().data), \
+               side_effect=lambda build, order_by='id': build().execute().data), \
          patch.object(library, 'request', Mock(get_json=lambda silent=True: body or {}, args=query or {})), \
          patch.object(sync, 'push_curriculum_quests_safe', return_value={'classes': 2, 'assignments': 5}):
         from flask import Flask
@@ -323,3 +331,178 @@ class TestGivingAQuestToStudentsByName:
         body, status, _log, _ = self._run({'student_ids': [S1]}, enroll=enroll)
         assert status == 500
         assert body['success'] is False
+
+
+# ---------------------------------------------------------------------------
+# Editing, 2026-09-22. Molly (iCreate): "There's no way to edit a quest that I
+# can see. I'd also love to be able to duplicate quests."
+#
+# The gate is the only thing these routes add; everything after it is
+# services/sis_quest_task_editing, shared with the Curriculum tab. So what is
+# worth pinning here is the gate, and the fact that the shared half is
+# actually reached.
+# ---------------------------------------------------------------------------
+
+OWN_QUEST = {'id': Q1, 'title': 'Watercolor Basics', 'description': 'Paint.',
+             'organization_id': ORG, 'is_active': True, 'is_public': False,
+             'quest_type': 'optio'}
+SHARED_QUEST = {'id': Q2, 'title': 'Optio Civics', 'description': 'Vote.',
+                'organization_id': None, 'is_active': True, 'is_public': True,
+                'quest_type': 'optio'}
+OTHER_SCHOOLS_QUEST = {'id': Q2, 'title': 'Not yours', 'description': '',
+                       'organization_id': OTHER_ORG, 'is_active': True,
+                       'is_public': False, 'quest_type': 'optio'}
+
+
+@pytest.mark.unit
+class TestEditingIsScopedByOwnership:
+    """A curriculum link is not required, and ownership is."""
+
+    def test_the_school_can_rename_its_own_quest(self):
+        out, status, log = _run(library.update_library_quest, (Q1,),
+                                body={'title': 'Watercolour Basics'},
+                                tables={'quests': [OWN_QUEST]})
+        assert status == 200 and out['success'] is True
+        writes = [e for e in log if e[0] == 'update' and e[1] == 'quests']
+        assert writes, 'the quest row was never written'
+        # big_idea travels with description, because create_org_quest sets both
+        # and the training catalog reads whichever it finds first.
+        out2, _s, log2 = _run(library.update_library_quest, (Q1,),
+                              body={'description': 'Paint a season.'},
+                              tables={'quests': [OWN_QUEST]})
+        payload = [e[2] for e in log2 if e[0] == 'update' and e[1] == 'quests'][0]
+        assert payload['description'] == 'Paint a season.'
+        assert payload['big_idea'] == 'Paint a season.'
+
+    def test_a_shared_optio_quest_is_refused_with_a_way_forward(self):
+        out, status, log = _run(library.update_library_quest, (Q2,),
+                                body={'title': 'Mine now'},
+                                tables={'quests': [SHARED_QUEST]})
+        assert status == 403
+        assert 'Duplicate it' in out['error']
+        assert not [e for e in log if e[0] == 'update']
+
+    def test_another_schools_quest_is_not_found_rather_than_forbidden(self):
+        # Telling them it exists would be telling them about another school.
+        out, status, _log = _run(library.update_library_quest, (Q2,),
+                                 body={'title': 'Mine now'},
+                                 tables={'quests': [OTHER_SCHOOLS_QUEST]})
+        assert status == 404
+        assert 'not found' in out['error'].lower()
+
+    def test_a_quest_that_is_on_no_curriculum_is_editable_here(self):
+        # The whole point. The curriculum routes need a sis_curriculum_quests
+        # link; this one asks for no link at all, so a quest nobody ever placed
+        # can still be fixed.
+        out, status, log = _run(library.add_library_quest_task, (Q1,),
+                                body={'title': 'Stretch the paper', 'pillar': 'art',
+                                      'xp_value': 100},
+                                tables={'quests': [OWN_QUEST],
+                                        'quest_template_tasks': [{'id': 'new-1',
+                                                                  'title': 'Stretch the paper',
+                                                                  'pillar': 'art',
+                                                                  'xp_value': 100,
+                                                                  'order_index': 0}]})
+        assert status == 200
+        assert [e for e in log if e[0] == 'insert' and e[1] == 'quest_template_tasks']
+        assert not [e for e in log if e[1] == 'sis_curriculum_quests']
+
+    @pytest.mark.parametrize('route, args', [
+        ('add_library_quest_task', (Q2,)),
+        ('reorder_library_quest_tasks', (Q2,)),
+        ('delete_library_quest_task', (Q2, '44444444-4444-4444-8444-444444444444')),
+        ('duplicate_library_quest_task', (Q2, '44444444-4444-4444-8444-444444444444')),
+        ('update_library_quest_task', (Q2, '44444444-4444-4444-8444-444444444444')),
+    ])
+    def test_no_task_route_touches_a_shared_quest(self, route, args):
+        # An edit to a shared quest's tasks would change it for every school
+        # using it, which is the line routes/sis/curriculum.py holds too.
+        _out, status, log = _run(getattr(library, route), args,
+                                 body={'title': 'x'}, tables={'quests': [SHARED_QUEST]})
+        assert status == 403
+        assert not [e for e in log if e[0] in ('insert', 'update', 'delete')]
+
+
+@pytest.mark.unit
+class TestReadingAndDuplicatingAreAllowedOnASharedQuest:
+    def test_a_shared_quest_lists_its_tasks_but_says_they_are_not_editable(self):
+        out, status, _log = _run(library.library_quest_tasks, (Q2,),
+                                 tables={'quests': [SHARED_QUEST],
+                                         'quest_template_tasks': [
+                                             {'id': 't1', 'title': 'Read the ballot',
+                                              'pillar': 'civics', 'xp_value': 100,
+                                              'order_index': 0}]})
+        assert status == 200
+        assert out['editable'] is False
+        assert [t['title'] for t in out['tasks']] == ['Read the ballot']
+
+    def test_the_schools_own_quest_reads_as_editable(self):
+        out, _status, _log = _run(library.library_quest_tasks, (Q1,),
+                                  tables={'quests': [OWN_QUEST], 'quest_template_tasks': []})
+        assert out['editable'] is True
+
+    def test_a_shared_quest_can_be_duplicated_even_though_it_cannot_be_edited(self):
+        # This is how a school gets a copy of a library quest that IS theirs
+        # to edit -- the same rule the curriculum tab follows.
+        with patch.object(library, 'duplicate_org_quest',
+                          return_value={'quest_id': 'new-q', 'title': 'Optio Civics (copy)',
+                                        'task_count': 3}) as dup:
+            out, status, _log = _run(library.duplicate_library_quest, (Q2,),
+                                     tables={'quests': [SHARED_QUEST]})
+        assert status == 200
+        assert out['title'] == 'Optio Civics (copy)'
+        assert dup.call_args.kwargs['org_id'] == ORG
+        assert dup.call_args.kwargs['source_quest_id'] == Q2
+
+    def test_the_copy_is_attached_to_nothing(self):
+        # A duplicate is a draft somebody is about to rename. Pushing it would
+        # put "X (copy)" in front of students before anyone touched it.
+        with patch.object(library, 'duplicate_org_quest',
+                          return_value={'quest_id': 'new-q', 'title': 'x (copy)',
+                                        'task_count': 0}):
+            _out, _status, log = _run(library.duplicate_library_quest, (Q1,),
+                                      tables={'quests': [OWN_QUEST]})
+        assert not [e for e in log if e[1] in ('sis_curriculum_quests', 'class_quests')]
+
+    def test_another_schools_quest_cannot_be_duplicated(self):
+        _out, status, _log = _run(library.duplicate_library_quest, (Q2,),
+                                  tables={'quests': [OTHER_SCHOOLS_QUEST]})
+        assert status == 404
+
+
+@pytest.mark.unit
+class TestAnEditReachesStudentsAlreadyOnTheQuest:
+    """A student's task list is a copy taken at enrollment, so an edit that
+    stops at the template is an edit nobody sees. Every write here has to push
+    it out, exactly as the curriculum and class editors do."""
+
+    @pytest.mark.parametrize('route, args, body', [
+        ('add_library_quest_task', (Q1,), {'title': 'New step', 'pillar': 'art'}),
+        ('update_library_quest_task', (Q1, '44444444-4444-4444-8444-444444444444'),
+         {'title': 'Renamed'}),
+        ('duplicate_library_quest_task', (Q1, '44444444-4444-4444-8444-444444444444'), {}),
+        ('delete_library_quest_task', (Q1, '44444444-4444-4444-8444-444444444444'), {}),
+        ('reorder_library_quest_tasks', (Q1,),
+         {'task_ids': ['44444444-4444-4444-8444-444444444444']}),
+    ])
+    def test_every_task_write_resyncs_enrollments(self, route, args, body):
+        task = {'id': '44444444-4444-4444-8444-444444444444', 'title': 'Step',
+                'pillar': 'art', 'xp_value': 100, 'order_index': 0}
+        with patch('services.sis_quest_task_editing.resync') as resync, \
+             patch('repositories.quest_template_task_repository'
+                   '.QuestTemplateTaskRepository.reorder', return_value=[task]):
+            _out, status, _log = _run(getattr(library, route), args, body=body,
+                                      tables={'quests': [OWN_QUEST],
+                                              'quest_template_tasks': [task]})
+        assert status == 200, f'{route} did not succeed'
+        assert resync.called, f'{route} left enrolled students on the old task list'
+
+    def test_renaming_the_quest_does_not_need_a_resync(self):
+        # Title and description are read live off the quests row; only the
+        # task list is copied per enrollment.
+        with patch('services.sis_quest_task_editing.resync') as resync:
+            _out, status, _log = _run(library.update_library_quest, (Q1,),
+                                      body={'title': 'Renamed'},
+                                      tables={'quests': [OWN_QUEST]})
+        assert status == 200
+        assert not resync.called

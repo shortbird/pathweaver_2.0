@@ -34,6 +34,7 @@ class _Repo:
         self.created_many = []
         self.deleted = []
         self.reordered = []
+        self.updated = []
 
     def list_for_quest(self, _quest_id):
         return list(self.rows)
@@ -66,6 +67,14 @@ class _Repo:
 
     def set_sort_order(self, resource_id, position):
         self.reordered.append((resource_id, position))
+
+    def update_by_id(self, resource_id, patch):
+        row = next((r for r in self.rows if r['id'] == resource_id), None)
+        if row is None:
+            return None
+        row.update(patch)
+        self.updated.append((resource_id, dict(patch)))
+        return dict(row)
 
 
 def _with(repo, admin=None):
@@ -324,3 +333,64 @@ class TestWhoMayEdit:
         attaching their handout would put it in front of all of them."""
         with patch('services.sis_service.caller_is_admin', return_value=True):
             assert svc.can_edit_quest('kate', LIBRARY_QUEST, admin=Mock()) is False
+
+
+@pytest.mark.unit
+class TestCorrectingAnAttachment:
+    """A mistyped name or a wrong link is a correction, not a re-do.
+
+    "There is no way to edit an attachment on the quests. Like if you enter the
+    wrong name or link, you have to delete and start over" (an iCreate org
+    admin, 2026-09-22). On an uploaded file that also meant uploading the file
+    a second time.
+    """
+
+    def _repo_with_a_link(self):
+        return _Repo(rows=[{'id': 'r1', 'kind': 'link', 'title': 'Sylabus',
+                            'url': 'https://example.com/old', 'file_path': None}])
+
+    def test_a_link_takes_a_new_title_and_url(self):
+        repo = self._repo_with_a_link()
+        with _with(repo):
+            row = svc.rename(QUEST['id'], 'r1', title='Syllabus',
+                             url='https://example.com/new')
+        assert row['title'] == 'Syllabus'
+        assert row['url'] == 'https://example.com/new'
+        assert repo.deleted == []
+
+    def test_only_the_fields_given_change(self):
+        repo = self._repo_with_a_link()
+        with _with(repo):
+            svc.rename(QUEST['id'], 'r1', title='Syllabus')
+        assert repo.updated == [('r1', {'title': 'Syllabus'})]
+
+    def test_a_dangerous_url_is_refused_here_too(self):
+        # The same gate as add_link: an edit must not be a way around it.
+        repo = self._repo_with_a_link()
+        with _with(repo):
+            with pytest.raises(ValueError):
+                svc.rename(QUEST['id'], 'r1', url='javascript:alert(1)')
+        assert repo.updated == []
+
+    def test_an_empty_title_is_refused(self):
+        repo = self._repo_with_a_link()
+        with _with(repo):
+            with pytest.raises(ValueError):
+                svc.rename(QUEST['id'], 'r1', title='   ')
+
+    def test_an_uploaded_file_keeps_its_own_link(self):
+        # A file's url is its storage pointer. Changing the file is an upload.
+        repo = _Repo(rows=[{'id': 'r2', 'kind': 'file', 'title': 'Worksheet.pdf',
+                            'url': 'quests/q1/a.pdf', 'file_path': 'quests/q1/a.pdf'}])
+        with _with(repo):
+            with pytest.raises(ValueError):
+                svc.rename(QUEST['id'], 'r2', url='https://example.com/elsewhere')
+            # Its title is still correctable.
+            row = svc.rename(QUEST['id'], 'r2', title='Week 3 worksheet')
+        assert row['title'] == 'Week 3 worksheet'
+        assert row['url'] == 'quests/q1/a.pdf'
+
+    def test_a_resource_on_another_quest_is_not_found(self):
+        repo = _Repo(rows=[])
+        with _with(repo):
+            assert svc.rename(QUEST['id'], 'r1', title='x') is None

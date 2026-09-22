@@ -16,7 +16,7 @@ vi.mock('react-hot-toast', () => ({
 }))
 
 const { api } = vi.hoisted(() => ({
-  api: { get: vi.fn(), post: vi.fn(), delete: vi.fn() },
+  api: { get: vi.fn(), post: vi.fn(), patch: vi.fn(), delete: vi.fn() },
 }))
 vi.mock('../../services/api', () => ({ default: api }))
 
@@ -30,6 +30,7 @@ describe('QuestResourcesPanel', () => {
     vi.clearAllMocks()
     api.get.mockResolvedValue({ data: PAYLOAD })
     api.post.mockResolvedValue({ data: { success: true } })
+    api.patch.mockResolvedValue({ data: { success: true } })
     api.delete.mockResolvedValue({ data: { success: true } })
   })
 
@@ -114,5 +115,58 @@ describe('QuestResourcesPanel', () => {
 
     await waitFor(() => expect(api.post).toHaveBeenCalled())
     expect(screen.getByLabelText('Resource URL')).toBeInTheDocument()
+  })
+  // iCreate, 2026-09-22: "There is no way to edit an attachment on the quests.
+  // Like if you enter the wrong name or link, you have to delete and start
+  // over." On an uploaded file that also meant uploading the file again.
+  describe('correcting an attachment', () => {
+    it('saves a new name and link on a link, without removing it', async () => {
+      render(<QuestResourcesPanel questId="quest-1" />)
+      fireEvent.click(await screen.findByRole('button', { name: 'Edit Syllabus' }))
+
+      fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Course syllabus' } })
+      fireEvent.change(screen.getByLabelText('Link'), { target: { value: 'https://b/fixed' } })
+      fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+
+      await waitFor(() => expect(api.patch).toHaveBeenCalledWith(
+        '/api/sis/quests/quest-1/resources/q1',
+        { title: 'Course syllabus', url: 'https://b/fixed' },
+      ))
+      expect(api.delete).not.toHaveBeenCalled()
+    })
+
+    it('renames an uploaded file but does not offer to retype its link', async () => {
+      render(<QuestResourcesPanel questId="quest-1" taskId="task-1" />)
+      fireEvent.click(await screen.findByRole('button', { name: 'Edit Worksheet.pdf' }))
+
+      // The URL of a file is its storage path; changing the file is an upload.
+      expect(screen.queryByLabelText('Link')).toBeNull()
+      expect(screen.getByText(/upload the new one/i)).toBeInTheDocument()
+
+      fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Week 3 worksheet' } })
+      fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+
+      await waitFor(() => expect(api.patch).toHaveBeenCalledWith(
+        '/api/sis/quests/quest-1/resources/t1',
+        { title: 'Week 3 worksheet' },
+      ))
+    })
+
+    it('refuses an empty name rather than saving a blank row', async () => {
+      render(<QuestResourcesPanel questId="quest-1" />)
+      fireEvent.click(await screen.findByRole('button', { name: 'Edit Syllabus' }))
+      fireEvent.change(screen.getByLabelText('Name'), { target: { value: '   ' } })
+      fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+      expect(api.patch).not.toHaveBeenCalled()
+    })
+
+    it('leaves the row alone on Cancel', async () => {
+      render(<QuestResourcesPanel questId="quest-1" />)
+      fireEvent.click(await screen.findByRole('button', { name: 'Edit Syllabus' }))
+      fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Nope' } })
+      fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+      expect(api.patch).not.toHaveBeenCalled()
+      expect(await screen.findByText('Syllabus')).toBeInTheDocument()
+    })
   })
 })

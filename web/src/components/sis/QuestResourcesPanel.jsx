@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react'
 import { toast } from 'react-hot-toast'
-import { DocumentTextIcon, LinkIcon, PlayCircleIcon, TrashIcon } from '@heroicons/react/24/outline'
+import { DocumentTextIcon, LinkIcon, PencilSquareIcon, PlayCircleIcon, TrashIcon } from '@heroicons/react/24/outline'
 import api from '../../services/api'
 
 /**
@@ -28,6 +28,10 @@ const QuestResourcesPanel = ({ questId, taskId = null, compact = false }) => {
   const [url, setUrl] = useState('')
   const [title, setTitle] = useState('')
   const [busy, setBusy] = useState(false)
+  // The row being corrected, if any: {id, title, url}. A typo in a name or a
+  // pasted-wrong link meant deleting the attachment and starting over, and on
+  // an uploaded file that meant uploading the file again (iCreate, 2026-09-22).
+  const [editing, setEditing] = useState(null)
 
   const load = useCallback(() => {
     if (!questId) return
@@ -85,6 +89,22 @@ const QuestResourcesPanel = ({ questId, taskId = null, compact = false }) => {
     } finally { setBusy(false) }
   }
 
+  const saveEdit = async () => {
+    const next = { title: (editing.title || '').trim() }
+    // A file's URL is a signed storage path, so only a link's is offered.
+    // The server refuses a URL on a file either way.
+    if (editing.kind !== 'file') next.url = (editing.url || '').trim()
+    if (!next.title) { toast.error('Give it a name'); return }
+    setBusy(true)
+    try {
+      await api.patch(`/api/sis/quests/${questId}/resources/${editing.id}`, next)
+      setEditing(null)
+      load()
+    } catch (e) {
+      toast.error(e?.response?.data?.error || 'Could not save that')
+    } finally { setBusy(false) }
+  }
+
   const remove = async (resource) => {
     try {
       await api.delete(`/api/sis/quests/${questId}/resources/${resource.id}`)
@@ -112,6 +132,36 @@ const QuestResourcesPanel = ({ questId, taskId = null, compact = false }) => {
         <ul className="space-y-1.5">
           {resources.map((r) => {
             const Icon = KIND_ICON[r.kind] || LinkIcon
+            if (editing?.id === r.id) {
+              return (
+                <li key={r.id} className="rounded-lg border border-optio-purple/40 p-2.5 space-y-2">
+                  <input value={editing.title}
+                    onChange={(e) => setEditing({ ...editing, title: e.target.value })}
+                    aria-label="Name" placeholder="Name"
+                    className="w-full rounded-lg border border-gray-300 px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-optio-purple" />
+                  {r.kind === 'file' ? (
+                    <p className="text-xs text-neutral-500">
+                      Uploaded file. To change the file itself, remove this and upload the new one.
+                    </p>
+                  ) : (
+                    <input value={editing.url}
+                      onChange={(e) => setEditing({ ...editing, url: e.target.value })}
+                      aria-label="Link" placeholder="https://…"
+                      className="w-full rounded-lg border border-gray-300 px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-optio-purple" />
+                  )}
+                  <div className="flex gap-2">
+                    <button type="button" onClick={saveEdit} disabled={busy}
+                      className="rounded-lg bg-optio-purple px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-50">
+                      Save
+                    </button>
+                    <button type="button" onClick={() => setEditing(null)}
+                      className="rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-medium text-neutral-600">
+                      Cancel
+                    </button>
+                  </div>
+                </li>
+              )
+            }
             return (
               <li key={r.id}
                 className="flex items-center gap-2 rounded-lg border border-gray-200 px-2.5 py-1.5">
@@ -120,6 +170,12 @@ const QuestResourcesPanel = ({ questId, taskId = null, compact = false }) => {
                   className="flex-1 min-w-0 text-sm text-neutral-800 truncate hover:underline">
                   {r.title}
                 </a>
+                <button type="button"
+                  onClick={() => setEditing({ id: r.id, title: r.title || '', url: r.url || '', kind: r.kind })}
+                  aria-label={`Edit ${r.title}`}
+                  className="text-neutral-400 hover:text-optio-purple">
+                  <PencilSquareIcon className="w-4 h-4" />
+                </button>
                 <button type="button" onClick={() => remove(r)}
                   aria-label={`Remove ${r.title}`}
                   className="text-neutral-400 hover:text-optio-pink">

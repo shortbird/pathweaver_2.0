@@ -155,6 +155,40 @@ def upload(quest: Dict[str, Any], *, task_id: Optional[str], file,
     return repo.create(row)
 
 
+def rename(quest_id: str, resource_id: str, title: Optional[str] = None,
+           url: Optional[str] = None, admin=None) -> Optional[Dict[str, Any]]:
+    """Correct a resource's title, and a link's URL, in place.
+
+    A mistyped name or a pasted-wrong link used to mean delete it and start
+    over, which on an uploaded file also meant uploading the file again
+    ("There is no way to edit an attachment on the quests", an iCreate org
+    admin, 2026-09-22). The same correction already existed one tab over for
+    the school's document library (routes/sis/resources.update_resource).
+
+    A file's URL is its storage path and is not editable: the title is the
+    label on it, and replacing the file is an upload, not an edit. Passing
+    nothing changes nothing and returns the row unchanged.
+    """
+    repo = _repo(admin)
+    row = repo.find_in_quest(quest_id, resource_id)
+    if not row:
+        return None
+
+    patch: Dict[str, Any] = {}
+    if title is not None:
+        # No fallback to the current title: somebody who cleared the box and
+        # pressed Save meant something, and silently putting the old name back
+        # looks like the save failed.
+        patch['title'] = _clean_title(title)
+    if url is not None:
+        if row.get('file_path'):
+            raise ValueError('An uploaded file keeps its own link. Upload a new file to replace it.')
+        patch['url'] = _clean_url(url)
+    if not patch:
+        return row
+    return repo.update_by_id(resource_id, patch) or {**row, **patch}
+
+
 def remove(quest_id: str, resource_id: str, admin=None) -> bool:
     """Detach a resource, and delete its file if it had one."""
     admin = admin or _admin()

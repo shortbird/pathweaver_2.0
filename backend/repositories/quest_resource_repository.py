@@ -81,8 +81,14 @@ class QuestResourceRepository(BaseRepository):
         return len(rows)
 
     def find_in_quest(self, quest_id: str, resource_id: str) -> Optional[Dict[str, Any]]:
-        rows = (self.client.table(self.table_name).select('id, file_path')
+        rows = (self.client.table(self.table_name)
+                .select('id, kind, title, url, file_path, task_id, sort_order')
                 .eq('id', resource_id).eq('quest_id', quest_id).limit(1).execute()).data
+        return rows[0] if rows else None
+
+    def update_by_id(self, resource_id: str, patch: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        rows = (self.client.table(self.table_name).update(patch)
+                .eq('id', resource_id).execute()).data
         return rows[0] if rows else None
 
     def delete_by_id(self, resource_id: str) -> None:

@@ -108,6 +108,30 @@ def upload_resource(user_id, quest_id):
     return jsonify({'success': True, 'resource': row})
 
 
+@bp.route('/<quest_id>/resources/<resource_id>', methods=['PATCH'])
+@require_auth
+def update_resource(user_id, quest_id, resource_id):
+    """Body: {title?, url?}. Correct a mistyped name or a wrong link.
+
+    Registered above the DELETE on the same rule; Flask keys on the method, so
+    the two live together. Only the fields present in the body change.
+    """
+    quest, admin, err = _authorize(user_id, quest_id)
+    if err:
+        return err
+    data = request.get_json() or {}
+    try:
+        row = resources.rename(
+            quest['id'], resource_id,
+            title=data.get('title'), url=data.get('url'), admin=admin,
+        )
+    except ValueError as e:
+        return jsonify({'success': False, 'error': str(e)}), 400
+    if row is None:
+        return jsonify({'success': False, 'error': 'Not found'}), 404
+    return jsonify({'success': True, 'resource': row})
+
+
 @bp.route('/<quest_id>/resources/<resource_id>', methods=['DELETE'])
 @require_auth
 def delete_resource(user_id, quest_id, resource_id):
