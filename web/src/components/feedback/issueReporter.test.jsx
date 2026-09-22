@@ -3,6 +3,7 @@ import { render as rtlRender, screen, fireEvent, waitFor } from '@testing-librar
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 
 import IssueReporter from './IssueReporter'
+import { Modal } from '../ui/Modal'
 
 /**
  * The staff issue reporter, which replaced the Perch widget on 2026-09-14.
@@ -101,5 +102,41 @@ describe('IssueReporter', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Something is broken' }))
     fireEvent.click(screen.getByRole('button', { name: 'Send' }))
     expect(api.post).not.toHaveBeenCalled()
+  })
+  // iCreate, 2026-09-22: "I can't send feedback when the message popup is
+  // open." The modal's focus trap pulled focus straight back out of the
+  // reporter's textarea, so nothing could be typed and Send refused an empty
+  // message. The trap has to stand down while the panel is up.
+  describe('inside an open modal', () => {
+    it('lets a person type in the panel and send the report', async () => {
+      authState = { user: { role: 'org_managed', org_role: 'org_admin' } }
+      orgState = { organization: { slug: 'icreate', name: 'iCreate' } }
+      api.post.mockResolvedValue({ data: { id: 'b1' } })
+
+      render(
+        <>
+          <Modal isOpen onClose={() => {}} title="New message">
+            <textarea aria-label="Message" defaultValue="" />
+          </Modal>
+          <IssueReporter />
+        </>,
+      )
+
+      fireEvent.click(button())
+      fireEvent.click(screen.getByRole('button', { name: 'Something is broken' }))
+      const box = screen.getByPlaceholderText(/What happened/)
+      // The actual failure: focus goes to the panel and the trap takes it
+      // back, so every keystroke lands in the modal behind it.
+      box.focus()
+      expect(document.activeElement).toBe(box)
+
+      fireEvent.change(box, { target: { value: 'The class list is in no order.' } })
+      expect(box).toHaveValue('The class list is in no order.')
+
+      fireEvent.click(screen.getByRole('button', { name: 'Send' }))
+      await waitFor(() => expect(api.post).toHaveBeenCalled())
+      const [, body] = api.post.mock.calls[0]
+      expect(body.message).toBe('The class list is in no order.')
+    })
   })
 })

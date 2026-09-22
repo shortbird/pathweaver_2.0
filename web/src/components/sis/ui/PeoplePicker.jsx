@@ -36,6 +36,11 @@ export default function PeoplePicker({
   noMatchLabel = (q) => `Nobody matches "${q}".`,
   maxHeight = 'max-h-52',
 }) {
+  // Cleared when somebody is ticked on, because the next person you want is
+  // almost never the one whose name you just typed. Leaving it set meant
+  // erasing the box by hand between every pick, which is what it took to
+  // message six teachers (2026-09-22). Ticking someone OFF leaves the query
+  // alone: you are correcting the list you are looking at.
   const [query, setQuery] = useState('')
   const isSelected = (id) => (selected instanceof Set ? selected.has(id) : (selected || []).includes(id))
   const textOf = getSearchText || ((p) => `${getLabel(p)} ${p.email || ''}`)
@@ -65,7 +70,8 @@ export default function PeoplePicker({
             return (
               <li key={id}>
                 <label className="flex items-center gap-3 px-3 py-2 hover:bg-gray-50 cursor-pointer">
-                  <input type="checkbox" checked={isSelected(id)} onChange={() => onToggle(id)}
+                  <input type="checkbox" checked={isSelected(id)}
+                    onChange={() => { if (!isSelected(id)) setQuery(''); onToggle(id) }}
                     aria-label={`Select ${label}`}
                     className="h-4 w-4 rounded border-gray-300 text-optio-purple focus:ring-optio-purple" />
                   <span className="flex-1 min-w-0">

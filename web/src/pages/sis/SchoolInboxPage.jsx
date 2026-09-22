@@ -456,9 +456,13 @@ const SchoolInboxPage = () => {
                     className="flex-1 rounded-lg border border-optio-purple/40 px-3 py-2 text-sm font-semibold text-optio-purple hover:bg-optio-purple/5 transition-colors">
                     New message
                   </button>
+                  {/* "Message families" promised one audience and opened a
+                      composer with a Staff | Families toggle, so an org admin
+                      reported the label as wrong (2026-09-22). The composer is
+                      right; the button was describing half of it. */}
                   <button type="button" onClick={() => setStaffCompose('families')}
                     className="flex-1 rounded-lg border border-optio-purple/40 px-3 py-2 text-sm font-semibold text-optio-purple hover:bg-optio-purple/5 transition-colors">
-                    Message families
+                    Message a group
                   </button>
                 </div>
               )}

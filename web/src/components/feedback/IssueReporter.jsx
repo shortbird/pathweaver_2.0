@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { toast } from 'react-hot-toast'
 import { useMutation } from '@tanstack/react-query'
 
@@ -7,6 +7,7 @@ import { useAuth } from '../../contexts/AuthContext'
 import { useOrganization } from '../../contexts/OrganizationContext'
 import { isStaffUser } from '../../utils/userRoles'
 import { getAppSurface } from '../../utils/appSurface'
+import { setReporterPanelOpen } from './reporterOpen'
 
 /**
  * The staff issue reporter: the button in the corner that files a ticket.
@@ -42,6 +43,14 @@ export default function IssueReporter() {
   const file = useMutation({
     mutationFn: (body) => api.post('/api/bug-reports', body),
   })
+
+  // Tell any open modal to let go of focus while the panel is up; see
+  // ./reporterOpen. Cleared on unmount too, or a modal would stay unpaused
+  // after a route change closed the reporter with it.
+  useEffect(() => {
+    setReporterPanelOpen(open)
+    return () => setReporterPanelOpen(false)
+  }, [open])
 
   if (!isStaffUser(user)) return null
 
@@ -93,7 +102,7 @@ export default function IssueReporter() {
         onClick={() => setOpen((v) => !v)}
         aria-label="Report an issue"
         title="Report an issue"
-        className={`fixed ${buttonPosition} z-[90] flex h-12 w-12 items-center justify-center rounded-full bg-gradient-primary text-white shadow-lg transition-all duration-200 hover:-translate-y-0.5`}
+        className={`fixed ${buttonPosition} z-[10000] flex h-12 w-12 items-center justify-center rounded-full bg-gradient-primary text-white shadow-lg transition-all duration-200 hover:-translate-y-0.5`}
       >
         <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
@@ -108,13 +117,13 @@ export default function IssueReporter() {
           <button
             type="button"
             aria-label="Close the report panel"
-            className="fixed inset-0 z-[91] cursor-default bg-transparent"
+            className="fixed inset-0 z-[10001] cursor-default bg-transparent"
             onClick={reset}
           />
           <div
             role="dialog"
             aria-label="Report an issue"
-            className={`fixed ${panelPosition} z-[92] w-80 max-w-[calc(100vw-2rem)] bg-white rounded-2xl shadow-2xl border border-gray-200 p-4`}
+            className={`fixed ${panelPosition} z-[10002] w-80 max-w-[calc(100vw-2rem)] bg-white rounded-2xl shadow-2xl border border-gray-200 p-4`}
             onKeyDown={(e) => { if (e.key === 'Escape') reset() }}
           >
             {!type ? (

@@ -256,3 +256,33 @@ class TestTheBody:
         with pytest.raises(ValueError, match='mode'):
             messaging.compose(ORG, ADMIN, body='Hi', mode='shout',
                               recipient_ids=[TEACHER_A])
+@pytest.mark.unit
+class TestTheClassQuickPicksAreInAnOrderAPersonCanFollow:
+    """A chip per class, and iCreate has 158 of them.
+
+    fetch_all_rows orders by id when nothing says otherwise, which for these
+    rows means by UUID, which means at random. An org admin gave up on picking
+    classes and picked people by teacher instead ("it literally lists every
+    single class in no particular order", 2026-09-22). The families side of the
+    same modal has always sorted by name.
+    """
+
+    def test_the_class_read_asks_for_name_order(self):
+        seen = {}
+
+        def _fetch(build, order_by='id'):
+            seen['order_by'] = order_by
+            return []
+
+        with patch('utils.db_fetch.fetch_all_rows', side_effect=_fetch), \
+             patch('utils.admin_client.admin_client', return_value=Mock()):
+            messaging._active_classes(ORG)
+
+        assert seen['order_by'] == 'name'
+
+    def test_the_chips_come_out_in_the_order_the_classes_arrived(self, org):
+        # The read is sorted, so the chips are. This pins that nothing between
+        # the two re-sorts or re-groups them back into arrival order.
+        presets = messaging.preset_groups(ORG)
+        class_labels = [p['label'] for p in presets if p['key'].startswith('class:')]
+        assert class_labels == sorted(class_labels)

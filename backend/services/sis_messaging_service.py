@@ -114,11 +114,16 @@ def _active_classes(org_id: str) -> List[Dict[str, Any]]:
     from utils.admin_client import admin_client
     from utils.db_fetch import fetch_all_rows
     try:
+        # By name. fetch_all_rows orders by id when nothing says otherwise,
+        # which is to say by UUID, which is to say at random -- 158 quick-pick
+        # chips in no order anyone could follow, and an org admin who gave up
+        # and picked people by teacher instead (2026-09-22). The families side
+        # has always sorted by name; this is the same list in the same modal.
         return fetch_all_rows(lambda: (
             admin_client().table('org_classes')
             .select('id, name, primary_instructor_id, assistant_instructor_ids')
             .eq('organization_id', org_id).neq('status', 'archived')
-        ))
+        ), order_by='name')
     except Exception as e:  # noqa: BLE001
         logger.warning(f"sis messaging: class lookup failed for org {org_id}: {e}")
         return []

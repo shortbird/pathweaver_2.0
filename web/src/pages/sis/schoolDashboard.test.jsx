@@ -74,6 +74,16 @@ describe('the queues', () => {
     expect(screen.queryByText('Not accounted for')).not.toBeInTheDocument()
   })
 
+  it('names the announcements action for where it lands, not for who it reaches', async () => {
+    // It said "Message families" and opened the announcements board -- a third
+    // meaning of those words, after the inbox button and the composer that
+    // button opens. An org admin reported the label as wrong (2026-09-22).
+    renderPage({})
+    const link = await screen.findByRole('link', { name: 'Post an announcement' })
+    expect(link).toHaveAttribute('href', '/inbox?tab=announcements')
+    expect(screen.queryByText('Message families')).not.toBeInTheDocument()
+  })
+
   it('never renders a tile for a module the org turned off', async () => {
     orgState.activeOrg = {
       id: 'org-1',

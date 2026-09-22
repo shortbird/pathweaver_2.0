@@ -146,6 +146,66 @@ describe('StaffComposeModal', () => {
     expect(screen.getByLabelText('Remove Ada L')).toBeInTheDocument()
   })
 
+  // iCreate, 2026-09-22: "the list is too long". Their 158 classes were one
+  // quick-pick chip each, which buried the four that name a group of the
+  // school under a wall of class names.
+  describe('quick picks at a school with many classes', () => {
+    const manyClasses = Array.from({ length: 40 }, (_, i) => ({
+      key: `class:c${i}`, label: `Class ${String(i).padStart(3, '0')}`, member_ids: ['ada'],
+    }))
+
+    beforeEach(() => {
+      api.get.mockResolvedValue({ data: { people: PEOPLE, presets: [...PRESETS, ...manyClasses] } })
+    })
+
+    it('keeps the school-wide picks as chips and puts the classes in a search box', async () => {
+      open()
+      expect(await screen.findByRole('button', { name: /All teachers/ })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: /Teaching Tuesday/ })).toBeInTheDocument()
+      // No chip per class.
+      expect(screen.queryByRole('button', { name: /Class 000/ })).toBeNull()
+      expect(screen.getByPlaceholderText(/Teachers of a class/)).toBeInTheDocument()
+    })
+
+    it('adds a class\'s teachers when you pick it out of that box', async () => {
+      open()
+      const box = await screen.findByPlaceholderText(/Teachers of a class/)
+      fireEvent.focus(box)
+      fireEvent.change(box, { target: { value: 'Class 007' } })
+      fireEvent.mouseDown(await screen.findByRole('button', { name: /Class 007/ }))
+
+      expect(await screen.findByLabelText('Remove Ada L')).toBeInTheDocument()
+    })
+  })
+
+  it('clears the search box when you tick somebody, so the next name can be typed', async () => {
+    // "you type a staff member's name in the search bar, select the staff
+    // member but then you have to erase the name to search again" (an iCreate
+    // org admin, 2026-09-22, messaging six teachers one at a time).
+    open()
+    await screen.findByLabelText('Select Ada L')
+    const box = screen.getByLabelText('Search staff')
+    fireEvent.change(box, { target: { value: 'ada' } })
+    await pick('Ada L')
+
+    expect(box).toHaveValue('')
+    // And the whole list is back, so the next person is one keystroke away.
+    expect(await screen.findByLabelText('Select Sam P')).toBeInTheDocument()
+    expect(screen.getByLabelText('Remove Ada L')).toBeInTheDocument()
+  })
+
+  it('leaves the search alone when you untick somebody', async () => {
+    // Unticking is correcting the list you are looking at; wiping the filter
+    // would throw away the search that got you there.
+    open()
+    await pick('Ada L')
+    const box = screen.getByLabelText('Search staff')
+    fireEvent.change(box, { target: { value: 'ada' } })
+    fireEvent.click(await screen.findByLabelText('Select Ada L'))
+
+    expect(box).toHaveValue('ada')
+  })
+
   it('reports anyone who could not be reached', async () => {
     const { toast } = await import('react-hot-toast')
     api.post.mockResolvedValue({ data: { mode: 'separate', sent: 1, skipped: ['sam'] } })
@@ -236,6 +296,15 @@ describe('StaffComposeModal, to families', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Send' }))
     await waitFor(() => expect(api.post).toHaveBeenCalled())
     expect(api.post.mock.calls[0][1].recipient_ids).toEqual(['lark-mum'])
+  })
+
+  it('says the message reaches parents, not the students it is filtered by', async () => {
+    // "When I selected send to 'Students in' and then it lists the classes,
+    // I'm not really sure if it's just to parents or parents and students?"
+    // (an iCreate org admin, 2026-09-22). It has only ever gone to guardians.
+    await toFamilies()
+    expect(screen.getByText('Parents of students in')).toBeInTheDocument()
+    expect(screen.queryByText('Students in')).not.toBeInTheDocument()
   })
 
   it('narrows by class and by age through the audience route', async () => {

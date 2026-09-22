@@ -211,14 +211,14 @@ describe('SchoolInboxPage — combined inbox', () => {
     render(<SchoolInboxPage />)
     await screen.findByRole('tab', { name: /^My messages/ })
     expect(screen.queryByRole('button', { name: 'New message' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Message families' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Message a group' })).not.toBeInTheDocument()
   })
 
   // iCreate, 2026-09-17 (b32b2fca), from this tab: "Right now we can only send
   // to one person. I'm needing to message all the elementary school parents."
   it('opens the composer on Families from the school tab', async () => {
     render(<SchoolInboxPage />)
-    fireEvent.click(await screen.findByRole('button', { name: 'Message families' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Message a group' }))
     const dialog = await screen.findByRole('dialog')
     expect(within(dialog).getByRole('button', { name: 'Families' })).toHaveAttribute('aria-pressed', 'true')
     await waitFor(() => expect(api.get).toHaveBeenCalledWith(

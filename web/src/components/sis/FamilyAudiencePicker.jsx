@@ -80,7 +80,11 @@ export default function FamilyAudiencePicker({ orgId, people, setPeople, selecte
     <div className="space-y-3">
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div>
-          <span className="block text-xs font-medium text-neutral-600 mb-1">Students in</span>
+          {/* Names the people who get the message, not the people it is about.
+              "Students in" made an org admin stop and ask whether the send
+              went to the children too (2026-09-22); it never does -- the
+              recipient list is built from guardians only. */}
+          <span className="block text-xs font-medium text-neutral-600 mb-1">Parents of students in</span>
           <SearchSelect value={classId} onChange={setClassId} options={classOptions}
             getId={(c) => c.id} getLabel={(c) => c.name}
             placeholder="Every class" emptyLabel="Every class" />

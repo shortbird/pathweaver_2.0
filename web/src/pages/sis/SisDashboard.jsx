@@ -78,7 +78,10 @@ const QUICK_ACTIONS = [
   { label: 'Take attendance', to: '/classes?tab=attendance', module: '/attendance' },
   { label: 'Classes', to: '/classes', module: '/classes' },
   { label: 'Add a family', to: '/people?add=family' },
-  { label: 'Message families', to: '/inbox?tab=announcements' },
+  // Named for where it lands. It said "Message families" and opened the
+  // announcements board, which is a third thing again from the inbox button
+  // of the same name and from the composer that button opens (2026-09-22).
+  { label: 'Post an announcement', to: '/inbox?tab=announcements' },
   { label: 'Send for signature', to: '/tasks?tab=assigned', module: '/tasks' },
   { label: 'Reports', to: '/reports', module: '/reports' },
 ]

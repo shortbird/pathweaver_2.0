@@ -2,6 +2,7 @@ import React from 'react';
 import { createPortal } from 'react-dom';
 import { XMarkIcon } from '@heroicons/react/24/outline';
 import FocusTrap from 'focus-trap-react';
+import { useReporterPanelOpen } from '../feedback/reporterOpen';
 
 /**
  * Modal Component - Reusable modal wrapper with slot-based architecture
@@ -39,6 +40,7 @@ export const Modal = ({
 }) => {
   // Track if this modal instance set the overflow
   const didLockScroll = React.useRef(false);
+  const reporterOpen = useReporterPanelOpen();
 
   // Handle keyboard events - must be defined before useEffect that uses it
   const handleKeyDown = React.useCallback((e) => {
@@ -101,7 +103,15 @@ export const Modal = ({
       className="fixed top-0 left-0 right-0 bottom-0 w-full h-full bg-black/50 z-50 flex items-center justify-center p-2 sm:p-4 overflow-y-auto"
       onClick={handleOverlayClick}
     >
+      {/* Paused while the issue reporter is open. allowOutsideClick lets the
+          click through but not the FOCUS: focus-trap pulls focus back inside
+          on every focusin, so the reporter's textarea lost it the instant it
+          took it and nothing could be typed into the panel. Reported from
+          inside a modal by somebody trying to report the modal (2026-09-22).
+          Paused, not deactivated, so Escape and return-focus still behave when
+          the reporter closes. */}
       <FocusTrap
+        paused={reporterOpen}
         focusTrapOptions={{
           allowOutsideClick: true,
           escapeDeactivates: closeOnOverlayClick,

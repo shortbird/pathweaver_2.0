@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react'
 import { toast } from 'react-hot-toast'
 import { Modal } from '../ui'
 import PeoplePicker from './ui/PeoplePicker'
+import SearchSelect from '../ui/SearchSelect'
 import FamilyAudiencePicker from './FamilyAudiencePicker'
 import api from '../../services/api'
 import { withOrg } from '../../pages/sis/useSisOrg'
@@ -51,6 +52,10 @@ export default function StaffComposeModal({ isOpen, orgId, onClose, onSent, init
   const setAudience = setAudienceOverride
   const [people, setPeople] = useState([])
   const [presets, setPresets] = useState([])
+  // Split by what the preset names: a standing group of the school, or one
+  // class. The first few belong on screen; the class ones are a search.
+  const groupPresets = presets.filter((p) => !p.key.startsWith('class:'))
+  const classPresets = presets.filter((p) => p.key.startsWith('class:'))
   const [loading, setLoading] = useState(true)
   const [chosen, setChosen] = useState(() => new Set())
   const [separate, setSeparate] = useState(false)
@@ -242,10 +247,15 @@ export default function StaffComposeModal({ isOpen, orgId, onClose, onSent, init
       ) : (
         <div className="space-y-4">
           {presets.length > 0 && (
-            <div>
-              <p className="text-xs font-medium text-neutral-500 mb-1.5">Quick picks</p>
+            <div className="space-y-2">
+              <p className="text-xs font-medium text-neutral-500">Quick picks</p>
+              {/* The few that name a group of the school stay as chips. The
+                  per-class ones do not: iCreate has 158 classes, and a chip
+                  each buried the handful worth reading behind a wall of them
+                  ("the list is too long", 2026-09-22). Those go in a box you
+                  type into instead, which is how you find one class anyway. */}
               <div className="flex flex-wrap gap-1.5">
-                {presets.map((preset) => (
+                {groupPresets.map((preset) => (
                   <button key={preset.key} type="button" onClick={() => addPreset(preset)}
                     title={preset.description || undefined}
                     className="px-2.5 py-1 rounded-full border border-gray-300 text-xs text-neutral-700 hover:border-optio-purple hover:text-optio-purple transition-colors">
@@ -254,6 +264,19 @@ export default function StaffComposeModal({ isOpen, orgId, onClose, onSent, init
                   </button>
                 ))}
               </div>
+              {classPresets.length > 0 && (
+                <SearchSelect
+                  value=""
+                  onChange={(key) => {
+                    const preset = classPresets.find((p) => p.key === key)
+                    if (preset) addPreset(preset)
+                  }}
+                  options={classPresets}
+                  getId={(p) => p.key}
+                  getLabel={(p) => `${p.label} (${p.member_ids.length})`}
+                  placeholder={`Teachers of a class… (${classPresets.length})`}
+                />
+              )}
             </div>
           )}
 
