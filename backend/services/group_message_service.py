@@ -326,21 +326,10 @@ class GroupMessageService(BaseService):
             if audience:
                 group['audience'] = audience
 
-            result = supabase.table('group_conversations').insert(group).execute()
-
-            if not result.data:
-                raise Exception("Failed to create group")
-
             # Add creator as admin
-            creator_member = {
-                'id': str(uuid.uuid4()),
-                'group_id': group_id,
-                'user_id': user_id,
-                'role': 'admin',
-                'joined_at': datetime.utcnow().isoformat(),
-                'added_by': user_id
-            }
-            supabase.table('group_members').insert(creator_member).execute()
+            created = self._insert_group(supabase, group, [
+                self._member_row(group_id, user_id, 'admin', added_by=user_id),
+            ])
 
             # Add initial members if provided
             if member_ids:
@@ -351,11 +340,91 @@ class GroupMessageService(BaseService):
                         except Exception as e:
                             logger.warning(f"Failed to add initial member {member_id}: {str(e)}")
 
-            return result.data[0]
+            return created
 
         except Exception as e:
             logger.error(f"Error creating group: {str(e)}")
             raise
+
+    @staticmethod
+    def _member_row(group_id: str, user_id: str, role: str, *, added_by: str) -> Dict[str, Any]:
+        return {
+            'id': str(uuid.uuid4()),
+            'group_id': group_id,
+            'user_id': user_id,
+            'role': role,
+            'joined_at': datetime.utcnow().isoformat(),
+            'added_by': added_by,
+        }
+
+    @staticmethod
+    def _insert_group(supabase, group: Dict[str, Any],
+                      members: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """Insert the group row, then its first members in one write."""
+        result = supabase.table('group_conversations').insert(group).execute()
+        if not result.data:
+            raise Exception("Failed to create group")
+        if members:
+            supabase.table('group_members').insert(members).execute()
+        return result.data[0]
+
+    def create_school_group(
+        self,
+        organization_id: str,
+        inbox_user_id: str,
+        actor_id: str,
+        name: str,
+        member_ids: List[str],
+        audience: str = 'staff',
+    ) -> Dict[str, Any]:
+        """A group the SCHOOL owns, started by a staff member from the School tab.
+
+        "When I sent a group message from icreate's inbox, the thread popped
+        into my PERSONAL inbox" (iCreate, ac84b6cd): create_group makes the
+        sender the owner and a member, so the thread was theirs alone, listed
+        under My messages and nowhere the rest of the office could see it.
+
+        Here the school-inbox account is the creator and the group's admin,
+        the way send_as_school makes it the sender of a DM. The staff member
+        who started it is recorded as `added_by` on every membership and as
+        the `sender_id` of what they write -- the actor, not the school, so a
+        teacher replying knows who asked. They are NOT a member: the office
+        reads the thread through the school inbox (school_inbox_service.
+        school_group_access), exactly as it reads the school's DMs.
+
+        The caller has already checked the actor is front-office staff of this
+        org and that every member is staff of it (sis_messaging_service.
+        resolve_recipients), which is why this does not run can_add_member: that
+        rule asks whether the CREATOR shares an org with the target, and the
+        inbox account deliberately has no organization_id.
+        """
+        if not self.can_create_group(actor_id):
+            raise ValueError("You don't have permission to create groups")
+        supabase = self._get_client()
+        group_id = str(uuid.uuid4())
+        now = datetime.utcnow().isoformat()
+        group = {
+            'id': group_id,
+            'name': name,
+            'description': None,
+            'created_by': inbox_user_id,
+            'organization_id': organization_id,
+            'is_active': True,
+            'audience': audience,
+            'created_at': now,
+            'updated_at': now,
+        }
+        members = [self._member_row(group_id, inbox_user_id, 'admin', added_by=actor_id)]
+        members += [self._member_row(group_id, m, 'member', added_by=actor_id)
+                    for m in dict.fromkeys(member_ids) if m and m != inbox_user_id]
+        return self._insert_group(supabase, group, members)
+
+    def get_school_groups(self, inbox_user_id: str) -> List[Dict[str, Any]]:
+        """The groups a school owns, shaped like get_user_groups, with the
+        unread count read from the school's own membership (one colleague
+        reading a thread reads it for the office, as with school DMs)."""
+        return [g for g in self.get_user_groups(inbox_user_id)
+                if g.get('created_by') == inbox_user_id]
 
     def get_group(self, user_id: str, group_id: str) -> Dict[str, Any]:
         """
@@ -849,10 +918,17 @@ class GroupMessageService(BaseService):
     def send_message(self, user_id: str, group_id: str, content: str,
                      reply_to_message_id: Optional[str] = None,
                      attachments: Optional[list] = None,
-                     sent_from: Optional[str] = None) -> Dict[str, Any]:
+                     sent_from: Optional[str] = None,
+                     on_behalf_of: Optional[str] = None) -> Dict[str, Any]:
         """
         Send a message to a group. Supports replying to a message and attachments.
         Announcement-only groups accept messages from group admins only.
+
+        `on_behalf_of` is the school-inbox account, for a staff member writing
+        in a group the school owns (create_school_group). Membership and admin
+        rights are the school's; the message's sender stays the staff member,
+        so everyone in the room sees who wrote it (ac84b6cd). Only the school
+        inbox routes pass it, after school_inbox_service.school_group_access.
 
         Args:
             user_id: UUID of the sender
@@ -873,14 +949,15 @@ class GroupMessageService(BaseService):
         if sent_from is None:
             sent_from = request_client_platform()
         try:
-            if not self.is_group_member(user_id, group_id):
+            member_id = on_behalf_of or user_id
+            if not self.is_group_member(member_id, group_id):
                 raise ValueError("You are not a member of this group")
 
             supabase = self._get_client()
 
             grp = supabase.table('group_conversations').select('announcement_only, audience').eq(
                 'id', group_id).single().execute()
-            if grp.data and grp.data.get('announcement_only') and not self.is_group_admin(user_id, group_id):
+            if grp.data and grp.data.get('announcement_only') and not self.is_group_admin(member_id, group_id):
                 raise ValueError("Only teachers can post in this group")
 
             clean_atts = extras.clean_attachments(attachments)
@@ -930,10 +1007,10 @@ class GroupMessageService(BaseService):
 
             result = supabase.table('group_messages').insert(message).execute()
 
-            # Update last_read_at for sender
+            # Update last_read_at for sender (the school, when writing for it)
             supabase.table('group_members').update({
                 'last_read_at': datetime.utcnow().isoformat()
-            }).eq('group_id', group_id).eq('user_id', user_id).execute()
+            }).eq('group_id', group_id).eq('user_id', member_id).execute()
 
             # Notify other group members
             self._notify_group_members(user_id, group_id, content or 'Sent an attachment')
@@ -1119,7 +1196,7 @@ class GroupMessageService(BaseService):
 
             # Get group info
             group = supabase.table('group_conversations').select(
-                'name, organization_id'
+                'name, organization_id, created_by'
             ).eq('id', group_id).single().execute()
 
             if not group.data:
@@ -1127,6 +1204,13 @@ class GroupMessageService(BaseService):
 
             group_name = group.data.get('name', 'Group')
             organization_id = group.data.get('organization_id')
+
+            # A school-owned group (create_school_group): the inbox account is
+            # a member nobody logs in as, so the front office is told instead,
+            # pointing at the thread in the console's School tab (ac84b6cd).
+            from services import school_inbox_service
+            school_org = school_inbox_service.org_for_inbox_user(group.data.get('created_by'))
+            school_inbox_id = school_org.get('inbox_user_id') if school_org else None
 
             # Get sender info
             sender = self._get_user_info(sender_id)
@@ -1137,14 +1221,37 @@ class GroupMessageService(BaseService):
                 'group_id', group_id
             ).neq('user_id', sender_id).execute()
 
-            if not members.data:
-                return
+            member_ids = {m['user_id'] for m in (members.data or [])}
 
             # Create notification for each member
             notification_service = NotificationService()
             message_preview = content[:50] + '...' if len(content) > 50 else content
 
-            for member in members.data:
+            if school_org:
+                link = school_inbox_service.school_inbox_link(group_id=group_id)
+                for admin_id in school_inbox_service.admin_recipient_ids(school_org['id']):
+                    # A colleague who is also in the room hears about it as a
+                    # member, below; the sender needs no bell for their own words.
+                    if admin_id == sender_id or admin_id in member_ids:
+                        continue
+                    try:
+                        notification_service.create_notification(
+                            user_id=admin_id,
+                            notification_type='message_received',
+                            title=f"{school_org.get('name') or 'School'} inbox: {group_name}",
+                            message=f'{sender_name}: {message_preview}',
+                            link=link,
+                            metadata={'group_id': group_id, 'sender_id': sender_id,
+                                      'sender_name': sender_name, 'school_inbox': True,
+                                      'organization_id': school_org['id']},
+                            organization_id=organization_id,
+                        )
+                    except Exception as e:  # noqa: BLE001
+                        logger.warning(f"Failed to notify office user {admin_id}: {str(e)}")
+
+            for member in (members.data or []):
+                if member['user_id'] == school_inbox_id:
+                    continue
                 try:
                     notification_service.create_notification(
                         user_id=member['user_id'],

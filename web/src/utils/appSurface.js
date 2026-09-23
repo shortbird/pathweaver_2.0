@@ -178,6 +178,29 @@ export const LEARNING_SURFACE_PATHS = [
   '/family',
 ]
 
+/**
+ * The console's own page for a learning-app messaging link, or null.
+ *
+ * Message notifications carry learning-app paths -- '/communication?user=<id>'
+ * for a DM, '/communication?group=<id>' for a group (direct_message_service,
+ * group_message_service), and '/messages?...' from older links. Handed to the
+ * learning app, a staff member reading their bell in the console left it for
+ * app.optioeducation.com and lost the console's sidebar (iCreate, 9284344e).
+ * The console reads both in its own inbox now: My messages opens a DM with
+ * ?to=<user> and a group with ?group=<id> (SchoolInboxPage). Anything else on
+ * those paths -- a bare /messages -- still goes to the learning app.
+ */
+export function sisEquivalentPath(pathname, search = '') {
+  const path = (pathname || '').replace(/\/+$/, '')
+  if (path !== '/communication' && path !== '/messages') return null
+  const params = new URLSearchParams(search || '')
+  const group = params.get('group')
+  if (group) return `/inbox?tab=mine&group=${encodeURIComponent(group)}`
+  const user = params.get('user')
+  if (user) return `/inbox?tab=mine&to=${encodeURIComponent(user)}`
+  return null
+}
+
 /** SIS console paths the learning app hands over to sis. — staff only. */
 /**
  * Every top-level path served by the SIS console and NOT by the learning app.

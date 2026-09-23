@@ -21,6 +21,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../../services/supabaseClient'
 import { useAuth } from '../../contexts/AuthContext'
 import { messagesQueryKey } from './useDirectMessages'
+import { groupMessagesQueryKey, groupQueryKey } from './useGroupMessages'
 import { appendRealtimeMessage } from './threadCache'
 
 // Broadcast reaction payloads are shared across users, so they can't carry a
@@ -45,7 +46,8 @@ const mergeReactions = (existing = [], incoming = []) =>
  *   user id here subscribed to a topic nothing publishes to, so DM realtime was
  *   dead on the web and every thread fell back to its 60s poll.
  * @param {object} [params.source] - Which list the thread was read from (see
- *   useDirectMessages): the school inbox keys its message cache with it.
+ *   useDirectMessages / useGroupMessages): the school inbox keys its DM and
+ *   group caches with it.
  * @param {boolean} [params.enabled=true]
  */
 export const useMessagingRealtime = ({ kind, id, topicId, source, enabled = true }) => {
@@ -58,7 +60,7 @@ export const useMessagingRealtime = ({ kind, id, topicId, source, enabled = true
     if (!enabled || !kind || !id) return undefined
 
     const topic = `${kind}:${topicId || id}`
-    const messagesKey = kind === 'group' ? ['group-messages', id] : messagesQueryKey(id, source)
+    const messagesKey = kind === 'group' ? groupMessagesQueryKey(id, source) : messagesQueryKey(id, source)
 
     const updateMessages = (updater) => {
       queryClient.setQueryData(messagesKey, (old) => {
@@ -69,7 +71,7 @@ export const useMessagingRealtime = ({ kind, id, topicId, source, enabled = true
 
     // The group-details cache may be shaped { group: {...} } or the group itself.
     const updateGroup = (patch) => {
-      queryClient.setQueryData(['group', id], (old) => {
+      queryClient.setQueryData(groupQueryKey(id, source), (old) => {
         if (!old) return old
         if (old.group) return { ...old, group: { ...old.group, ...patch } }
         return { ...old, ...patch }

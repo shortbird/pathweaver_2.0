@@ -50,7 +50,11 @@ const AUDIENCES = [['staff', 'Staff'], ['families', 'Families']]
 
 const nameOf = (p) => p?.name || [p?.first_name, p?.last_name].filter(Boolean).join(' ') || 'Staff'
 
-export default function StaffComposeModal({ isOpen, orgId, onClose, onSent, initialAudience = 'staff' }) {
+// `asSchool`: opened from the School tab, so the staff send belongs to the
+// school -- a group the school inbox owns, or separate messages from the
+// school -- instead of landing in the sender's personal Messages (iCreate,
+// ac84b6cd). From My messages it stays the sender's own.
+export default function StaffComposeModal({ isOpen, orgId, onClose, onSent, initialAudience = 'staff', asSchool = false }) {
   // The opener says which audience to start on ("Message families" on the
   // school tab); a switch inside overrides it until the modal closes.
   const [audienceOverride, setAudienceOverride] = useState(null)
@@ -163,6 +167,7 @@ export default function StaffComposeModal({ isOpen, orgId, onClose, onSent, init
         subject: subject.trim() || undefined,
         name: name.trim() || undefined,
         body: body.trim(),
+        ...(asSchool ? { as_school: true } : {}),
       })
       const data = res.data || {}
       toast.success(data.mode === 'group'

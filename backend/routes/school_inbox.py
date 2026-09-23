@@ -16,6 +16,7 @@ from flask import Blueprint, request
 
 from services import school_inbox_service, sis_service
 from services.direct_message_service import DirectMessageService
+from services.group_message_service import GroupMessageService
 from utils.auth.decorators import require_role
 from utils.auth.relationships import require_relationship_to
 from utils.api_response import success_response, error_response
@@ -189,4 +190,136 @@ def unread_count(user_id: str):
     except Exception as e:
         logger.error(f"Error getting school inbox unread count: {str(e)}")
         return error_response('Failed to get unread count', status_code=500,
+                              error_code='internal_error')
+
+
+# ── Groups the school owns ────────────────────────────────────────────────────
+#
+# A staff group started from the School tab belongs to the school-inbox
+# account (GroupMessageService.create_school_group), not to the colleague who
+# started it -- it used to land in the sender's personal Messages and nowhere
+# the rest of the office could see (iCreate, ac84b6cd). These routes are how the
+# front office reads and writes those threads in the console, without being
+# members: the school is the member. What a staff member writes is sent under
+# their own name, so the teachers in the room know who asked.
+#
+# Access is school_inbox_service.school_group_access on every id route: the
+# group must be owned by an org's inbox account, and the caller must be that
+# org's front office (or a superadmin). ADMIN_ROLES alone would let one
+# school's admin read another school's group by id.
+
+group_service = GroupMessageService()
+
+
+def _groups():
+    return group_service
+
+
+@bp.route('/groups', methods=['GET'])
+@require_role(*ADMIN_ROLES)
+def list_school_groups(user_id: str):
+    """The school's group threads for the School tab, most recent first."""
+    try:
+        ctx, err = _resolve_inbox(user_id)
+        if err:
+            return err
+        groups = _groups().get_school_groups(ctx['inbox_user_id'])
+        return success_response({
+            'groups': groups,
+            'inbox_user_id': ctx['inbox_user_id'],
+            'total': len(groups),
+        })
+    except Exception as e:
+        logger.error(f"Error listing school groups: {str(e)}")
+        return error_response('Failed to load group threads', status_code=500,
+                              error_code='internal_error')
+
+
+def _school_group_or_404(user_id, group_id):
+    access = school_inbox_service.school_group_access(user_id, group_id)
+    if not access:
+        return None, error_response('Group not found', status_code=404,
+                                    error_code='not_found')
+    return access, None
+
+
+@bp.route('/groups/<group_id>', methods=['GET'])
+@require_role(*ADMIN_ROLES)
+def get_school_group(user_id: str, group_id: str):
+    """Group details (members, pin, settings), read as the school."""
+    try:
+        access, err = _school_group_or_404(user_id, group_id)
+        if err:
+            return err
+        group = _groups().get_group(access['inbox_user_id'], group_id)
+        return success_response({**group, 'inbox_user_id': access['inbox_user_id']})
+    except ValueError as e:
+        return error_response(str(e), status_code=404, error_code='not_found')
+    except Exception as e:
+        logger.error(f"Error loading school group: {str(e)}")
+        return error_response('Failed to load the group', status_code=500,
+                              error_code='internal_error')
+
+
+@bp.route('/groups/<group_id>/messages', methods=['GET'])
+@require_role(*ADMIN_ROLES)
+def get_school_group_messages(user_id: str, group_id: str):
+    """One page of a school group, read as the school. Reading it marks it read
+    for the whole office, the same shared read state as the school's DMs."""
+    try:
+        access, err = _school_group_or_404(user_id, group_id)
+        if err:
+            return err
+        limit = min(int(request.args.get('limit', 50)), 100)
+        offset = int(request.args.get('offset', 0))
+        messages = _groups().get_messages(access['inbox_user_id'], group_id,
+                                          limit=limit, offset=offset)
+        return success_response({
+            'messages': messages,
+            'group_id': group_id,
+            'inbox_user_id': access['inbox_user_id'],
+            'count': len(messages),
+            'limit': limit,
+            'offset': offset,
+        })
+    except ValueError as e:
+        return error_response(str(e), status_code=404, error_code='not_found')
+    except Exception as e:
+        logger.error(f"Error loading school group messages: {str(e)}")
+        return error_response('Failed to load the conversation', status_code=500,
+                              error_code='internal_error')
+
+
+@bp.route('/groups/<group_id>/messages', methods=['POST'])
+@require_role(*ADMIN_ROLES)
+def send_to_school_group(user_id: str, group_id: str):
+    """Write in a school group. The school's membership lets the caller in; the
+    message is sent under the caller's own name."""
+    try:
+        access, err = _school_group_or_404(user_id, group_id)
+        if err:
+            return err
+        data = request.get_json() or {}
+        content = (data.get('content') or '').strip()
+        attachments = data.get('attachments') or []
+        if not content and not attachments:
+            raise ValidationError('Message content cannot be empty')
+        if content:
+            validate_string_length(content, 'content', max_length=2000)
+        message = _groups().send_message(
+            user_id, group_id, content,
+            reply_to_message_id=data.get('reply_to_message_id'),
+            attachments=attachments,
+            on_behalf_of=access['inbox_user_id'],
+        )
+        return success_response({'message': message, 'group_id': group_id},
+                                status_code=201)
+    except ValidationError as e:
+        return error_response(str(e), status_code=400, error_code='validation_error')
+    except ValueError as e:
+        logger.warning(f"School group send refused: {str(e)}")
+        return error_response(str(e), status_code=403, error_code='forbidden')
+    except Exception as e:
+        logger.error(f"Error sending to school group: {str(e)}")
+        return error_response('Failed to send message', status_code=500,
                               error_code='internal_error')

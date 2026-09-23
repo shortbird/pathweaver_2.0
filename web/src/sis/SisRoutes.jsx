@@ -1,7 +1,7 @@
 import React, { lazy, useEffect } from 'react'
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import SisLayout from '../components/sis/SisLayout'
-import { goToLearningSurface, LEARNING_SURFACE_PATHS } from '../utils/appSurface'
+import { goToLearningSurface, LEARNING_SURFACE_PATHS, sisEquivalentPath } from '../utils/appSurface'
 import { isPathHidden, isClpEnabled } from '../pages/sis/sisModules'
 import { useSisOrg } from '../pages/sis/useSisOrg'
 import { canSeeFinance, canSeeHr, isSisAdmin } from '../pages/sis/sisRole'
@@ -127,10 +127,16 @@ const AdminRoute = ({ children }) => {
 // If one is opened on the SIS host anyway — e.g. an old link copied before the
 // www fix — bounce it to the same path on the learning surface instead of
 // dead-ending on the staff login.
+//
+// A messaging link the console can answer itself stays in the console
+// (sisEquivalentPath; iCreate, 9284344e).
 const LearningRedirect = () => {
   const location = useLocation()
-  useEffect(() => { goToLearningSurface(location.pathname + location.search) }, [location])
-  return null
+  const inConsole = sisEquivalentPath(location.pathname, location.search)
+  useEffect(() => {
+    if (!inConsole) goToLearningSurface(location.pathname + location.search)
+  }, [location, inConsole])
+  return inConsole ? <Navigate to={inConsole} replace /> : null
 }
 
 // New SIS console pages

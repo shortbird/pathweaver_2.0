@@ -263,13 +263,38 @@ def admin_recipient_ids(org_id: str) -> List[str]:
     return [s['id'] for s in admin_recipients(org_id)]
 
 
+def school_inbox_link(*, conversation_id: Optional[str] = None,
+                      group_id: Optional[str] = None) -> str:
+    """The console path that opens one school-inbox thread in place.
+
+    A bare '/inbox' was the link on every member-message notification, so
+    "View details" opened the page the reader was already on and did nothing
+    else (iCreate, 11f6ad24). SchoolInboxPage consumes ?conversation= and
+    ?group= once the thread is in its list.
+    """
+    if conversation_id:
+        return f'/inbox?tab=school&conversation={conversation_id}'
+    if group_id:
+        return f'/inbox?tab=school&group={group_id}'
+    return '/inbox?tab=school'
+
+
 def notify_admins_of_member_message(org: Dict[str, Any], sender_id: str,
-                                    sender_name: str, preview: str) -> None:
+                                    sender_name: str, preview: str,
+                                    conversation_id: Optional[str] = None) -> None:
     """Fan a member's message to the shared inbox out to the front office's
-    notification bells. Best-effort; never raises."""
+    notification bells. Best-effort; never raises.
+
+    `conversation_id` is the thread the message landed in. It goes into the
+    link and the metadata so the bell opens THAT thread (11f6ad24).
+    """
     from services.notification_service import NotificationService
     try:
         notification_service = NotificationService()
+        metadata = {'sender_id': sender_id, 'sender_name': sender_name,
+                    'school_inbox': True, 'organization_id': org['id']}
+        if conversation_id:
+            metadata['conversation_id'] = conversation_id
         for admin_id in admin_recipient_ids(org['id']):
             if admin_id == sender_id:
                 continue
@@ -278,9 +303,8 @@ def notify_admins_of_member_message(org: Dict[str, Any], sender_id: str,
                 notification_type='message_received',
                 title=f"{org.get('name') or 'School'} inbox: message from {sender_name}",
                 message=preview,
-                link='/inbox',
-                metadata={'sender_id': sender_id, 'sender_name': sender_name,
-                          'school_inbox': True, 'organization_id': org['id']},
+                link=school_inbox_link(conversation_id=conversation_id),
+                metadata=metadata,
                 organization_id=org['id'],
             )
     except Exception as e:  # noqa: BLE001
@@ -421,6 +445,42 @@ def mark_conversation_read(conversation_id: str, inbox_user_id: str) -> int:
         except Exception:  # noqa: BLE001
             logger.debug("intentional swallow", exc_info=True)
     return len(updated)
+
+
+def school_group_access(user_id: str, group_id: str) -> Optional[Dict[str, Any]]:
+    """Whether `user_id` may read and write group `group_id` AS the school.
+
+    Returns {'group', 'org', 'inbox_user_id'} or None. The rule is the one the
+    school's DMs already follow: the thread belongs to the org's inbox account,
+    and the org's front office (admin_recipients: org admins and campus
+    coordinators) reads it, plus a superadmin. Anyone else -- a teacher in the
+    room, a parent, another school's admin -- gets None and reads the group, if
+    at all, as the member they are through /api/groups (ac84b6cd).
+
+    The group is the school's only if the inbox account created it
+    (GroupMessageService.create_school_group) AND the group sits in that same
+    org; a personal group someone later added the inbox to is not.
+    """
+    if not user_id or not group_id:
+        return None
+    try:
+        from repositories.group_repository import GroupRepository
+        group = GroupRepository(client=_admin()).group_owner_row(group_id)
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f"school inbox: group lookup failed for {str(group_id)[:8]}: {e}")
+        return None
+    if not group or not group.get('is_active'):
+        return None
+    org = org_for_inbox_user(group.get('created_by'))
+    if not org or not org.get('is_active') or org.get('id') != group.get('organization_id'):
+        return None
+    allowed = user_id in admin_recipient_ids(org['id'])
+    if not allowed:
+        from services.group_message_service import GroupMessageService
+        allowed = GroupMessageService()._is_superadmin(user_id)
+    if not allowed:
+        return None
+    return {'group': group, 'org': org, 'inbox_user_id': org['inbox_user_id']}
 
 
 def attach_sent_by_names(messages: List[Dict[str, Any]]) -> None:

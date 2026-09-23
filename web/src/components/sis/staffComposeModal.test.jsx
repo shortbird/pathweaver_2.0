@@ -62,6 +62,31 @@ describe('StaffComposeModal', () => {
     expect(payload.body).toBe('Gate code is 4821')
   })
 
+  // ac84b6cd: a group sent from the School tab popped into the sender's
+  // personal inbox. From that tab the send is the school's; from My messages
+  // it stays the sender's own, and the flag is not sent at all.
+  it('marks a send from the School tab as the school\'s', async () => {
+    open({ asSchool: true })
+    await pick('Ada L')
+    await pick('Sam P')
+    fireEvent.change(screen.getByLabelText('Message'), { target: { value: 'Tuesday cover' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Send' }))
+
+    await waitFor(() => expect(api.post).toHaveBeenCalled())
+    expect(api.post.mock.calls[0][1].as_school).toBe(true)
+  })
+
+  it('leaves a send from My messages personal', async () => {
+    open()
+    await pick('Ada L')
+    await pick('Sam P')
+    fireEvent.change(screen.getByLabelText('Message'), { target: { value: 'Hi' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Send' }))
+
+    await waitFor(() => expect(api.post).toHaveBeenCalled())
+    expect(api.post.mock.calls[0][1]).not.toHaveProperty('as_school')
+  })
+
   it('sends separately when the toggle is on', async () => {
     open()
     await pick('Ada L')

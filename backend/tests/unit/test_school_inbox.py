@@ -108,7 +108,8 @@ def test_member_message_notifies_admins_and_coordinators_not_sender():
     notified = [c.kwargs['user_id'] for c in notification_service.create_notification.call_args_list]
     assert set(notified) == {'admin-1', 'coord-1'}  # teacher excluded, sender excluded
     for c in notification_service.create_notification.call_args_list:
-        assert c.kwargs['link'] == '/inbox'
+        # No thread id given: the School tab, not the bare page (11f6ad24).
+        assert c.kwargs['link'] == '/inbox?tab=school'
         assert 'iCreate' in c.kwargs['title']
 
 

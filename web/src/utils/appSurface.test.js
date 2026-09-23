@@ -8,6 +8,7 @@ import {
   switchSurfaceInApp,
   getLearningOrigin,
   isSisSurfacePath,
+  sisEquivalentPath,
   LEARNING_SURFACE_PATHS,
   SIS_SURFACE_PATHS,
 } from './appSurface'
@@ -151,5 +152,26 @@ describe('isSisSurfacePath', () => {
   it('the two surface lists do not overlap — an overlap is a redirect loop', () => {
     const both = LEARNING_SURFACE_PATHS.filter((p) => SIS_SURFACE_PATHS.includes(p))
     expect(both).toEqual([])
+  })
+})
+
+// 9284344e: a message notification opened in the console linked to
+// /communication or /messages, which the console handed to the learning app --
+// the reader lost the console and its sidebar. Where the console has the same
+// thread, the link stays in the console.
+describe('sisEquivalentPath', () => {
+  it('opens a group in the console inbox', () => {
+    expect(sisEquivalentPath('/communication', '?group=g1')).toBe('/inbox?tab=mine&group=g1')
+    expect(sisEquivalentPath('/messages', '?group=g1')).toBe('/inbox?tab=mine&group=g1')
+  })
+
+  it('opens a DM with that person in the console inbox', () => {
+    expect(sisEquivalentPath('/communication', '?user=u1')).toBe('/inbox?tab=mine&to=u1')
+  })
+
+  it('leaves everything else to the learning app', () => {
+    expect(sisEquivalentPath('/messages', '')).toBeNull()
+    expect(sisEquivalentPath('/communication', '?tab=groups')).toBeNull()
+    expect(sisEquivalentPath('/feed', '?group=g1')).toBeNull()
   })
 })

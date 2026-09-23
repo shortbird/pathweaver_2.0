@@ -576,7 +576,8 @@ class DirectMessageService(BaseService):
             )
 
             # Send notification to recipient
-            self._notify_recipient(sender_id, recipient_id, content or 'Sent an attachment')
+            self._notify_recipient(sender_id, recipient_id, content or 'Sent an attachment',
+                                   conversation_id=conversation['id'])
 
             row = result.data[0]
             enriched = extras.enrich_messages('dm', [row], sender_id)[0]
@@ -594,7 +595,8 @@ class DirectMessageService(BaseService):
             logger.error(f"Error sending message: {str(e)}")
             raise
 
-    def _notify_recipient(self, sender_id: str, recipient_id: str, content: str) -> None:
+    def _notify_recipient(self, sender_id: str, recipient_id: str, content: str,
+                          conversation_id: Optional[str] = None) -> None:
         """
         Send a notification to the message recipient.
 
@@ -602,6 +604,9 @@ class DirectMessageService(BaseService):
             sender_id: UUID of the message sender
             recipient_id: UUID of the message recipient
             content: Message content (for preview)
+            conversation_id: The thread the message landed in. A school-inbox
+                notification links to it, so the bell opens that thread rather
+                than the inbox page the reader is already on (11f6ad24).
         """
         try:
             # Get sender info for notification
@@ -620,7 +625,8 @@ class DirectMessageService(BaseService):
             if inbox_org:
                 preview = content[:50] + '...' if len(content) > 50 else content
                 school_inbox_service.notify_admins_of_member_message(
-                    inbox_org, sender_id, sender_name, preview
+                    inbox_org, sender_id, sender_name, preview,
+                    conversation_id=conversation_id,
                 )
                 return
 

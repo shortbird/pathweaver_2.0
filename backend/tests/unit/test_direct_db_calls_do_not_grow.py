@@ -560,7 +560,12 @@ BASELINES = {
     # route file they serve is entirely direct calls and this is where the
     # docstring says a new query belongs. routes/ and services/ are unchanged,
     # so the combined total this ratchet exists to hold did not move.
-    'repositories': 598,
+    # 2026-09-22: 598 -> 599. GroupRepository.group_owner_row, the read behind
+    # school_inbox_service.school_group_access: whether a group belongs to a
+    # school inbox, so the front office can read staff groups sent from the
+    # School tab (ticket ac84b6cd). The new school-inbox group routes add no
+    # direct call above repositories/.
+    'repositories': 599,
     # 2026-09-09: 135 -> 136. class_membership.children_in_classes, the inverse
     # of parents_of_students: which of a guardian's children sit in each of a
     # set of classes. It answers "whose class chat is this?" for the messaging

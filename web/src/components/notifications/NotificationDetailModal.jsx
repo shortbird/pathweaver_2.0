@@ -1,6 +1,6 @@
 import React from 'react'
 import ReactMarkdown from 'react-markdown'
-import { Link } from 'react-router-dom'
+import { Link, useLocation } from 'react-router-dom'
 import { XMarkIcon } from '@heroicons/react/24/outline'
 import { formatDistanceToNow } from 'date-fns'
 import { safeHref } from '../../utils/safeHref'
@@ -24,7 +24,27 @@ const ArrowRight = () => (
  * message, not a two-line clip of it.
  * For announcement-type notifications, renders markdown content.
  */
+/**
+ * Whether following `href` would leave the reader where they already are.
+ *
+ * A link with no query of its own lands on the same page when the paths match
+ * (the old school-inbox notifications all said '/inbox', and "View details" on
+ * /inbox just closed the modal -- iCreate, 11f6ad24). A link with a query is
+ * the same place only when the query matches too: '/inbox?conversation=x'
+ * opens a thread, which is exactly what the reader wants.
+ */
+export const linksToCurrentPage = (href, location) => {
+  if (!href || !href.startsWith('/') || !location) return false
+  const [hrefPath, hrefQuery = ''] = href.split('#')[0].split('?')
+  const here = (location.pathname || '').replace(/\/+$/, '') || '/'
+  const there = hrefPath.replace(/\/+$/, '') || '/'
+  if (here !== there) return false
+  if (!hrefQuery) return true
+  return `?${hrefQuery}` === (location.search || '')
+}
+
 const NotificationDetailModal = ({ notification, isOpen, onClose }) => {
+  const location = useLocation()
   if (!isOpen || !notification) return null
 
   const formatDate = (dateString) => {
@@ -105,6 +125,8 @@ const NotificationDetailModal = ({ notification, isOpen, onClose }) => {
     ? safeHref(notification.link)
     : null
   const isInternal = !!href && href.startsWith('/')
+  // A button that only closes the modal is a dead end; leave it out.
+  const showLink = !!href && href !== '#' && !linksToCurrentPage(href, location)
 
   // Portalled, not a raw `fixed inset-0`. The bell that opens this sits inside
   // a z-30 sticky nav, and a modal nested in that stacking context paints
@@ -161,7 +183,7 @@ const NotificationDetailModal = ({ notification, isOpen, onClose }) => {
           {/* Action link if available. An internal path routes in place --
               a full page reload here threw away the app's loaded state and
               made "View Details" feel broken on a slow connection. */}
-          {href && href !== '#' && (
+          {showLink && (
             <div className="mt-6 pt-4 border-t border-gray-100">
               {isInternal ? (
                 <Link to={href} onClick={onClose} className={CTA_CLASS}>

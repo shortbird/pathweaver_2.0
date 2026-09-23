@@ -54,7 +54,7 @@ def compose(user_id):
     """Send to several staff: one group thread, or one DM each.
 
     Body: {recipient_ids: [], group_keys: [], mode: 'group'|'separate',
-           subject?, body, name?, attachments?}
+           subject?, body, name?, attachments?, as_school?: bool}
     """
     org_id, err = sis_service.org_or_error(user_id)
     if err:
@@ -70,6 +70,8 @@ def compose(user_id):
             subject=data.get('subject'),
             name=data.get('name'),
             attachments=data.get('attachments') or [],
+            # Sent from the School tab: the school owns the thread (ac84b6cd).
+            as_school=data.get('as_school') is True,
         )
     except ValueError as e:
         # Everything the sender can fix: no recipients, a stranger in the list,

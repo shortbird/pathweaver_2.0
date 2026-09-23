@@ -15,11 +15,24 @@ Two shapes, because both are real:
   separate  one private DM each. For the same words to different people when
             the replies should not be shared -- a reminder about paperwork.
 
-The sender is the STAFF MEMBER, personally, never the school-inbox account. Two
-reasons: a group cannot be "the school" (a thread with no author is unanswerable
--- who would a teacher be replying to?), and the school inbox is the FAMILY
-queue. Staff replies landing there would bury the parent messages the office is
-working through, which is the whole job that page does.
+Who owns the thread depends on where it was sent from (owner decision,
+2026-09-22, after iCreate's ac84b6cd: "when I sent a group message from
+icreate's inbox, the thread popped into my PERSONAL inbox"):
+
+  My messages (as_school False)
+            the staff member, personally -- their own group or DMs, in their own
+            Messages, exactly as before.
+  School tab (as_school True)
+            the SCHOOL. A group is created by the school-inbox account
+            (GroupMessageService.create_school_group) and listed on the School
+            tab for the whole front office; separate messages go through
+            school_inbox_service.send_as_school, so replies land in the school
+            inbox. Every message still names its author: the staff member is
+            the group message's sender and the DM's sent_by, because a thread
+            with no author is unanswerable -- who would a teacher be replying to?
+            School groups sit in their own list on the School tab, apart from
+            the family queue, so they do not bury the parent messages the
+            office works through.
 """
 
 from typing import Any, Dict, List, Optional, Sequence, Set
@@ -192,9 +205,10 @@ def compose(org_id: str, actor_id: str, *, body: str,
             group_keys: Optional[Sequence[str]] = None,
             mode: str = 'group', subject: Optional[str] = None,
             name: Optional[str] = None,
-            attachments: Optional[List[Dict[str, Any]]] = None) -> Dict[str, Any]:
+            attachments: Optional[List[Dict[str, Any]]] = None,
+            as_school: bool = False) -> Dict[str, Any]:
     """Send one message to several staff. See the module docstring for the two
-    modes.
+    modes, and for `as_school` (sent from the School tab: the school owns it).
 
     Raises ValueError on anything the sender can fix (no recipients, a stranger
     in the list, an empty body); the route turns those into a 400.
@@ -218,8 +232,11 @@ def compose(org_id: str, actor_id: str, *, body: str,
     # leave the recipient with a named room instead of a conversation, and a
     # thread the sender cannot find under their own messages.
     if mode == 'group' and len(recipients) > 1:
+        if as_school:
+            return _send_as_school_group(org_id, actor_id, recipients, content, name, attachments)
         return _send_as_group(org_id, actor_id, recipients, content, name, attachments)
-    return _send_separately(actor_id, recipients, content, attachments)
+    return _send_separately(actor_id, recipients, content, attachments,
+                            school_org_id=org_id if as_school else None)
 
 
 def _send_as_group(org_id: str, actor_id: str, recipients: List[str],
@@ -240,14 +257,48 @@ def _send_as_group(org_id: str, actor_id: str, recipients: List[str],
             'sent': len(recipients), 'skipped': []}
 
 
+def _send_as_school_group(org_id: str, actor_id: str, recipients: List[str],
+                          content: str, name: Optional[str],
+                          attachments: Optional[List[Dict[str, Any]]]) -> Dict[str, Any]:
+    """The School tab's group: owned by the school inbox, written by the actor
+    (ac84b6cd). No fallback to a personal group when the inbox cannot be
+    resolved -- that is the bug this replaces, and a 500 the sender can retry
+    is better than a thread filed where the office cannot see it."""
+    from services import school_inbox_service
+    from services.group_message_service import GroupMessageService
+    _org, inbox_user_id = school_inbox_service.school_account(org_id)
+    if not inbox_user_id:
+        raise RuntimeError('School inbox is unavailable')
+    svc = GroupMessageService()
+    group = svc.create_school_group(
+        org_id, inbox_user_id, actor_id,
+        (name or '').strip()[:MAX_NAME] or _default_name(org_id, recipients),
+        member_ids=recipients,
+        audience='staff',
+    )
+    message = svc.send_message(actor_id, group['id'], content,
+                               attachments=attachments, on_behalf_of=inbox_user_id)
+    return {'mode': 'group', 'group': group, 'message': message, 'as_school': True,
+            'sent': len(recipients), 'skipped': []}
+
+
 def _send_separately(actor_id: str, recipients: List[str], content: str,
-                     attachments: Optional[List[Dict[str, Any]]]) -> Dict[str, Any]:
+                     attachments: Optional[List[Dict[str, Any]]],
+                     school_org_id: Optional[str] = None) -> Dict[str, Any]:
+    """One DM each: from the actor, or -- with `school_org_id`, sent from the
+    School tab -- from the school with the actor as sent_by."""
+    from services import school_inbox_service
     from services.direct_message_service import DirectMessageService
     svc = DirectMessageService()
     conversations, skipped = [], []
     for rid in recipients:
         try:
-            message = svc.send_message(actor_id, rid, content, attachments=attachments)
+            if school_org_id:
+                message = school_inbox_service.send_as_school(
+                    school_org_id, rid, content, sent_by=actor_id,
+                    attachments=attachments)
+            else:
+                message = svc.send_message(actor_id, rid, content, attachments=attachments)
             conversations.append({'recipient_id': rid,
                                   'conversation_id': message.get('conversation_id')})
         except Exception as e:  # noqa: BLE001

@@ -164,9 +164,9 @@ class TestGroupMode:
         assert kwargs['organization_id'] == ORG
 
     def test_the_sender_is_the_staff_member_not_the_school(self, org, group_service):
-        """A group cannot be "the school" -- a thread with no author is
-        unanswerable. And the school inbox is the FAMILY queue; staff replies
-        landing there would bury the parent messages."""
+        """Sent from My messages, the group is the staff member's own. From
+        the School tab it is the school's (ac84b6cd) -- see
+        test_school_owned_staff_groups.py."""
         messaging.compose(ORG, ADMIN, body='Hi', recipient_ids=[TEACHER_A, TEACHER_B])
         assert group_service.create_group.call_args.args[0] == ADMIN
         assert group_service.send_message.call_args.args[0] == ADMIN

@@ -1,5 +1,5 @@
 """
-Group Repository - reads behind the group-chat (class chat) unread badge.
+Group Repository - reads behind the group-chat unread badge and school-owned groups.
 
 Group messaging predates the repository pattern, so most of its data access
 still sits inline in services/group_message_service.py. This repository is the
@@ -73,3 +73,14 @@ class GroupRepository(BaseRepository):
         if since:
             query = query.gt('created_at', since)
         return query.execute().count or 0
+
+    def group_owner_row(self, group_id: str) -> Optional[Dict[str, Any]]:
+        """The fields that say who owns a group: creator, org, whether live.
+
+        Read by school_inbox_service.school_group_access to decide whether the
+        school inbox (and so the front office) may read a group as the school.
+        """
+        rows = (self.client.table('group_conversations')
+                .select('id, name, created_by, organization_id, is_active, audience')
+                .eq('id', group_id).limit(1).execute()).data or []
+        return rows[0] if rows else None

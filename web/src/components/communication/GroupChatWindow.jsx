@@ -28,7 +28,16 @@ import { classMeetingLabel, studentName } from '../../utils/groupsByChild'
 import { toast } from 'react-hot-toast'
 import { REPORT_REASONS, reportContent } from '../../services/friendsAPI'
 
-const GroupChatWindow = ({ group, onBack }) => {
+/**
+ * `source` is useGroupMessages' source. Left out, the reader is a member and
+ * every action is theirs. `{ school: true, orgId }` is the SIS School tab
+ * reading a group the school owns (iCreate, ac84b6cd): the front office reads
+ * and writes it through /api/school-inbox/groups without being a member, so
+ * the member-only actions -- reactions, edit, delete, pin, report, settings --
+ * are not offered, and reading marks it read for the office on the server.
+ */
+const GroupChatWindow = ({ group, onBack, source }) => {
+  const asSchool = !!source?.school
   const confirm = useConfirm()
   const { user } = useAuth()
   const [showSettings, setShowSettings] = useState(false)
@@ -52,11 +61,12 @@ const GroupChatWindow = ({ group, onBack }) => {
   const messageRefs = useRef({})
 
   const { data: messagesData, isLoading } = useGroupMessages(group?.id, user?.id, {
+    source,
     enabled: !!group?.id && !!user?.id
   })
 
   // Group details: members (with role), pinned_message, announcement_only
-  const { data: groupData } = useGroup(group?.id, { enabled: !!group?.id })
+  const { data: groupData } = useGroup(group?.id, { source, enabled: !!group?.id })
 
   const sendMessageMutation = useSendGroupMessage()
   const markAsReadMutation = useMarkGroupAsRead()
@@ -66,7 +76,7 @@ const GroupChatWindow = ({ group, onBack }) => {
   const pinMessageMutation = usePinGroupMessage()
 
   // Live updates for the open group (polling remains as a fallback)
-  useMessagingRealtime({ kind: 'group', id: group?.id, enabled: !!group?.id })
+  useMessagingRealtime({ kind: 'group', id: group?.id, source, enabled: !!group?.id })
 
   const messages = messagesData?.messages || []
   const groupDetails = groupData?.group || groupData || group
@@ -90,12 +100,12 @@ const GroupChatWindow = ({ group, onBack }) => {
 
   useThreadScroll(scrollerRef, messages, group?.id, user?.id)
 
-  // Mark as read when viewing
+  // Mark as read when viewing. The school's read happens on the GET.
   useEffect(() => {
-    if (group?.id && user?.id) {
+    if (group?.id && user?.id && !asSchool) {
       markAsReadMutation.mutate(group.id)
     }
-  }, [group?.id, user?.id])
+  }, [group?.id, user?.id, asSchool])
 
   // Reset composer state on group change
   useEffect(() => {
@@ -124,7 +134,8 @@ const GroupChatWindow = ({ group, onBack }) => {
         currentUserId: user?.id,
         attachments,
         replyToMessageId,
-        replyToPreview
+        replyToPreview,
+        source
       })
     } catch (error) {
       // Error handled by mutation
@@ -216,13 +227,15 @@ const GroupChatWindow = ({ group, onBack }) => {
           </div>
         </div>
 
-        <button
-          onClick={() => setShowSettings(true)}
-          className="p-2 text-gray-600 hover:bg-gray-100 rounded-full transition-colors"
-          title="Group Settings"
-        >
-          <Cog6ToothIcon className="w-5 h-5" />
-        </button>
+        {!asSchool && (
+          <button
+            onClick={() => setShowSettings(true)}
+            className="p-2 text-gray-600 hover:bg-gray-100 rounded-full transition-colors"
+            title="Group Settings"
+          >
+            <Cog6ToothIcon className="w-5 h-5" />
+          </button>
+        )}
       </div>
 
       {/* Pinned message banner */}
@@ -311,7 +324,7 @@ const GroupChatWindow = ({ group, onBack }) => {
 
                     {/* Message bubble + hover actions */}
                     <div className="relative">
-                      {!isDeleted && !isEditing && !msg.isOptimistic && (
+                      {!isDeleted && !isEditing && !msg.isOptimistic && !asSchool && (
                         <MessageActionBar
                           open={open}
                           onHold={hold}
@@ -364,7 +377,7 @@ const GroupChatWindow = ({ group, onBack }) => {
                       {!isDeleted && (
                         <ReactionsRow
                           reactions={msg.reactions}
-                          onToggle={(emoji) => handleToggleReaction(msg, emoji)}
+                          onToggle={asSchool ? undefined : (emoji) => handleToggleReaction(msg, emoji)}
                           align={isOwn ? 'end' : 'start'}
                         />
                       )}

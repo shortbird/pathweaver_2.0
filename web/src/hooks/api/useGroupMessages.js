@@ -4,12 +4,44 @@ import api from '../../services/api'
 import toast from 'react-hot-toast'
 import { useAuth } from '../../contexts/AuthContext'
 
-// Get all groups for the current user
-export const useGroups = (userId, options = {}) => {
+/**
+ * Which groups the hooks read -- the same `source` as useDirectMessages.
+ *
+ * Left out, they read the caller's own groups at /api/groups, as a member.
+ * `{ school: true, orgId }` reads the groups the org's school inbox owns at
+ * /api/school-inbox/groups: a staff group sent from the SIS School tab belongs
+ * to the school, not to the colleague who sent it (iCreate, ac84b6cd), and the
+ * front office reads and writes it there without being a member. The keys
+ * carry the source, so a school group never shares a cache entry with the
+ * member's view of the same group, while prefix invalidation (['groups'],
+ * ['group-messages', id]) still reaches both.
+ */
+// Written out in full for backend/tests/test_client_api_paths_exist.py (see
+// useDirectMessages).
+const GROUPS = {
+  lms: '/api/groups',
+  school: '/api/school-inbox/groups',
+}
+
+/** The groups endpoint for a source, plus `tail` ('' for the list, `/<id>`,
+ *  `/<id>/messages`). */
+export const groupSourcePath = (source, tail = '') => {
+  if (!source?.school) return `${GROUPS.lms}${tail}`
+  const url = `${GROUPS.school}${tail}`
+  if (!source.orgId) return url
+  return `${url}?organization_id=${encodeURIComponent(source.orgId)}`
+}
+const sourceKey = (source) => (source?.school ? ['school', source.orgId || null] : [])
+export const groupsQueryKey = (userId, source) => ['groups', userId, ...sourceKey(source)]
+export const groupQueryKey = (groupId, source) => ['group', groupId, ...sourceKey(source)]
+export const groupMessagesQueryKey = (groupId, source) => ['group-messages', groupId, ...sourceKey(source)]
+
+// Get all groups for the current user (or, with a school source, the school's)
+export const useGroups = (userId, { source, ...options } = {}) => {
   return useQuery({
-    queryKey: ['groups', userId],
+    queryKey: groupsQueryKey(userId, source),
     queryFn: async () => {
-      const response = await api.get('/api/groups')
+      const response = await api.get(groupSourcePath(source))
       return response.data.data || response.data
     },
     enabled: !!userId,
@@ -21,11 +53,11 @@ export const useGroups = (userId, options = {}) => {
 }
 
 // Get group details with members
-export const useGroup = (groupId, options = {}) => {
+export const useGroup = (groupId, { source, ...options } = {}) => {
   return useQuery({
-    queryKey: ['group', groupId],
+    queryKey: groupQueryKey(groupId, source),
     queryFn: async () => {
-      const response = await api.get(`/api/groups/${groupId}`)
+      const response = await api.get(groupSourcePath(source, `/${groupId}`))
       return response.data.data || response.data
     },
     enabled: !!groupId,
@@ -35,16 +67,17 @@ export const useGroup = (groupId, options = {}) => {
 }
 
 // Get messages for a group
-export const useGroupMessages = (groupId, userId, options = {}) => {
+export const useGroupMessages = (groupId, userId, { source, ...options } = {}) => {
   const queryClient = useQueryClient()
+  const key = groupMessagesQueryKey(groupId, source)
   return useQuery({
-    queryKey: ['group-messages', groupId],
+    queryKey: key,
     queryFn: async () => {
-      const response = await api.get(`/api/groups/${groupId}/messages`)
+      const response = await api.get(groupSourcePath(source, `/${groupId}/messages`))
       const page = response.data.data || response.data
       // A poll that was in flight when a send started must not land on top
       // of the optimistic bubble and erase it -- see threadCache.
-      const local = queryClient.getQueryData(['group-messages', groupId])?.messages
+      const local = queryClient.getQueryData(key)?.messages
       return { ...page, messages: mergeThreadPage(local, page?.messages) }
     },
     enabled: !!groupId && !!userId,
@@ -194,18 +227,19 @@ export const useSendGroupMessage = () => {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: async ({ groupId, content, replyToMessageId, attachments }) => {
+    mutationFn: async ({ groupId, content, replyToMessageId, attachments, source }) => {
       const body = { content }
       if (replyToMessageId) body.reply_to_message_id = replyToMessageId
       if (attachments?.length) body.attachments = attachments
-      const response = await api.post(`/api/groups/${groupId}/messages`, body)
+      const response = await api.post(groupSourcePath(source, `/${groupId}/messages`), body)
       return response.data.data || response.data
     },
     // Optimistic update - show message immediately
-    onMutate: async ({ groupId, content, currentUserId, attachments, replyToPreview }) => {
-      await queryClient.cancelQueries({ queryKey: ['group-messages', groupId] })
+    onMutate: async ({ groupId, content, currentUserId, attachments, replyToPreview, source }) => {
+      const key = groupMessagesQueryKey(groupId, source)
+      await queryClient.cancelQueries({ queryKey: key })
 
-      const previousMessages = queryClient.getQueryData(['group-messages', groupId])
+      const previousMessages = queryClient.getQueryData(key)
 
       const optimisticId = `temp-${Date.now()}`
       const optimisticMessage = {
@@ -226,7 +260,7 @@ export const useSendGroupMessage = () => {
         }
       }
 
-      queryClient.setQueryData(['group-messages', groupId], (old) => {
+      queryClient.setQueryData(key, (old) => {
         const messages = old?.messages || old || []
         return {
           ...old,
@@ -234,11 +268,11 @@ export const useSendGroupMessage = () => {
         }
       })
 
-      return { previousMessages, groupId, optimisticId }
+      return { previousMessages, key, optimisticId }
     },
     onSuccess: (data, variables, context) => {
       // The saved row replaces the bubble in place -- see useSendMessage.
-      queryClient.setQueryData(['group-messages', variables.groupId], (old) =>
+      queryClient.setQueryData(context.key, (old) =>
         patchThread(old, (messages) => settleOptimistic(messages, context.optimisticId, data?.message)))
       queryClient.invalidateQueries({ queryKey: ['groups'] })
     },
@@ -247,10 +281,7 @@ export const useSendGroupMessage = () => {
       toast.error(message)
 
       if (context?.previousMessages) {
-        queryClient.setQueryData(
-          ['group-messages', context.groupId],
-          context.previousMessages
-        )
+        queryClient.setQueryData(context.key, context.previousMessages)
       }
     }
   })

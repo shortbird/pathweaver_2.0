@@ -49,9 +49,19 @@ vi.mock('../../hooks/api/useMessagingRealtime', () => ({
 const { api, state } = vi.hoisted(() => {
   const state = {
     schoolConvos: [], schoolMessages: [], myConvos: [], myMessages: [], roster: [],
-    groups: [],
+    groups: [], schoolGroups: [], groupMessages: [],
   }
   const apiData = (url) => {
+    // Group threads: the school's (School tab) and the caller's own (Mine).
+    if (url === '/api/school-inbox/groups') {
+      return { data: { data: { groups: state.schoolGroups, inbox_user_id: 'inbox-1' } } }
+    }
+    if (/^\/api\/(school-inbox\/)?groups\/[^/]+\/messages$/.test(url)) {
+      return { data: { data: { messages: state.groupMessages } } }
+    }
+    if (/^\/api\/(school-inbox\/)?groups\/[^/]+$/.test(url)) {
+      return { data: { data: { id: url.split('/').pop(), members: [] } } }
+    }
     if (url.includes('/api/school-inbox/conversations/')) {
       return { data: { data: { messages: state.schoolMessages, inbox_user_id: 'inbox-1' } } }
     }
@@ -109,6 +119,8 @@ beforeEach(() => {
   state.myMessages = []
   state.roster = []
   state.groups = []
+  state.schoolGroups = []
+  state.groupMessages = []
   vi.clearAllMocks()
 })
 
@@ -485,12 +497,25 @@ describe('group threads sent from this page', () => {
     expect(await screen.findByText('Elementary teachers')).toBeInTheDocument()
   })
 
-  it('links it to the group chat that can actually read it', async () => {
+  // 9284344e: the row linked to /messages?group=, a learning-app path, and
+  // the console handed the reader to app.optioeducation.com without its
+  // sidebar. It opens in this page's pane now, read as a member.
+  it('opens a personal group in place on My messages, with no /messages link', async () => {
     authUser = { id: 'me-1', role: 'advisor' }
     state.groups = [group()]
-    render(<SchoolInboxPage />)
+    state.groupMessages = [
+      { id: 'gm1', sender_id: 'u9', message_content: 'Room is sorted',
+        created_at: '2026-09-22T10:00:00Z', sender: { id: 'u9', first_name: 'Ada' } },
+    ]
+    const { container } = render(<SchoolInboxPage />)
     const row = await screen.findByText('Elementary teachers')
-    expect(row.closest('a')).toHaveAttribute('href', '/messages?group=g1')
+    expect(row.closest('a')).toBeNull()
+    expect(container.querySelector('a[href*="/messages"]')).toBeNull()
+
+    fireEvent.click(row)
+    expect(await screen.findByText('Room is sorted')).toBeInTheDocument()
+    expect(api.get).toHaveBeenCalledWith('/api/groups/g1/messages')
+    expect(api.get).not.toHaveBeenCalledWith('/api/school-inbox/groups/g1/messages')
   })
 
   it('shows the unread the sidebar badge was counting', async () => {
@@ -521,4 +546,63 @@ describe('group threads sent from this page', () => {
     await screen.findByText('Pat Family')
     expect(screen.queryByText('Group threads')).toBeNull()
   })
+})
+
+// ac84b6cd: "when I sent a group message from icreate's inbox, the thread
+// popped into my PERSONAL inbox". A staff group sent from the School tab now
+// belongs to the school, and the School tab lists and opens it, read as the
+// school -- not through the sender's membership.
+describe('school-owned group threads on the School tab', () => {
+  const schoolGroup = (over = {}) => ({
+    id: 'sg1', name: 'Tuesday cover', audience: 'staff', created_by: 'inbox-1',
+    member_count: 4, unread_count: 0,
+    last_message_at: '2026-09-22T11:00:00Z', ...over,
+  })
+
+  it('lists the school groups on the School tab', async () => {
+    state.schoolGroups = [schoolGroup()]
+    render(<SchoolInboxPage />)
+    expect(await screen.findByText('Tuesday cover')).toBeInTheDocument()
+    expect(api.get).toHaveBeenCalledWith('/api/school-inbox/groups')
+    // The office's own groups are not read on the School tab.
+    expect(api.get).not.toHaveBeenCalledWith('/api/groups')
+  })
+
+  it('opens a school group in place, read as the school', async () => {
+    state.schoolGroups = [schoolGroup()]
+    state.groupMessages = [
+      { id: 'gm2', sender_id: 'me-1', message_content: 'Who can cover Ada?',
+        created_at: '2026-09-22T11:00:00Z', sender: { id: 'me-1', first_name: 'Kate' } },
+    ]
+    const { container } = render(<SchoolInboxPage />)
+    const row = await screen.findByText('Tuesday cover')
+    expect(row.closest('a')).toBeNull()
+    fireEvent.click(row)
+    expect(await screen.findByText('Who can cover Ada?')).toBeInTheDocument()
+    expect(api.get).toHaveBeenCalledWith('/api/school-inbox/groups/sg1/messages')
+    expect(api.get).not.toHaveBeenCalledWith('/api/groups/sg1/messages')
+    // Reading as the school marks it read on the server; the member-only
+    // read route is never called.
+    expect(api.post).not.toHaveBeenCalledWith('/api/groups/sg1/read', {})
+    expect(container.querySelector('a[href*="/messages"]')).toBeNull()
+  })
+
+  it('sends in a school group through the school inbox', async () => {
+    state.schoolGroups = [schoolGroup()]
+    render(<SchoolInboxPage />)
+    fireEvent.click(await screen.findByText('Tuesday cover'))
+    const box = await screen.findByPlaceholderText('Type a message...')
+    fireEvent.change(box, { target: { value: 'Thanks all' } })
+    fireEvent.click(screen.getByLabelText('Send message'))
+    await waitFor(() => expect(api.post).toHaveBeenCalledWith(
+      '/api/school-inbox/groups/sg1/messages', expect.objectContaining({ content: 'Thanks all' })))
+  })
+
+  it('opens ?group= from a notification link', async () => {
+    state.schoolGroups = [schoolGroup()]
+    render(<SchoolInboxPage />, { route: '/inbox?tab=school&group=sg1' })
+    await waitFor(() =>
+      expect(api.get).toHaveBeenCalledWith('/api/school-inbox/groups/sg1/messages'))
+  })
+
 })

@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
-import { Link, useSearchParams } from 'react-router-dom'
+import { useSearchParams } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import { toast } from 'react-hot-toast'
 import {
@@ -13,6 +13,7 @@ import api from '../../services/api'
 import MessageBubble from '../../components/communication/MessageBubble'
 import MessageInput from '../../components/communication/MessageInput'
 import ThreadRow from '../../components/communication/ThreadRow'
+import GroupChatWindow from '../../components/communication/GroupChatWindow'
 import useThreadScroll from '../../components/communication/useThreadScroll'
 import {
   useConversations,
@@ -119,6 +120,11 @@ const SchoolInboxPage = () => {
   const viewingSchool = admin && tab === 'school'
   const setTab = (t) => setSearchParams({ tab: t }, { replace: true })
   const [selected, setSelected] = useState(null)
+  // An open GROUP thread, in the same pane. A DM and a group are never open
+  // together: picking one clears the other.
+  const [selectedGroup, setSelectedGroupState] = useState(null)
+  const setSelectedGroup = (g) => { setSelectedGroupState(g); if (g) setSelected(null) }
+  const selectThread = (c) => { setSelected(c); if (c) setSelectedGroupState(null) }
   // Starting a thread, rather than answering one. The inbox could only ever
   // reply, so reaching ONE family meant an announcement to everybody or a
   // phone call (iCreate, 2026-09-02: "allow us to message an individual person
@@ -250,6 +256,7 @@ const SchoolInboxPage = () => {
   if (renderedListKey !== listKey) {
     setRenderedListKey(listKey)
     setSelected(null)
+    setSelectedGroupState(null)
   }
 
   // ?to=<user id> opens a thread with that person straight away, so "Message"
@@ -264,6 +271,7 @@ const SchoolInboxPage = () => {
   useEffect(() => {
     if (!wantedTo || tab !== 'mine') return
     const existing = conversations.find((c) => c.other_user?.id === wantedTo)
+    setSelectedGroupState(null)
     setSelected((current) => {
       if (existing) return existing
       if (current?.other_user?.id === wantedTo) return current
@@ -292,7 +300,7 @@ const SchoolInboxPage = () => {
     if (!wantedConversation || !isMessages) return
     const match = conversations.find((c) => c.id === wantedConversation)
     if (!match) return
-    setSelected(match)
+    selectThread(match)
     // Consumed only once the thread is in hand, exactly as ?to= is. Dropping
     // the param on the first pass instead would eat it during the load -- the
     // list is empty until the fetch returns, so the effect runs once with
@@ -316,7 +324,7 @@ const SchoolInboxPage = () => {
       })
       const convoId = selected.id || sent?.conversation_id
       if (convoId && convoId !== selected.id) setSelected((c) => ({ ...c, id: convoId }))
-    } catch (error) {
+    } catch {
       // The mutation already toasted.
     }
   }
@@ -360,17 +368,21 @@ const SchoolInboxPage = () => {
     ['all', 'All'],
   ]
 
-  // Group threads sent from this very page.
+  // Group threads, opened in this page's own pane.
   //
   // "New message" to several staff at once creates a group_conversations row
-  // (sis_messaging_service._send_as_group), and this page only ever read the
-  // DM list -- so the thread the office had just sent vanished from the screen
-  // it was sent on, while the sidebar badge went on counting its unread
-  // (iCreate, 2026-09-22, 3a189384). The group chat itself lives on
-  // /messages and is good; what was missing was any way back to it from here.
-  // These rows are that way back, not a second group reader: the thread pane
-  // on this page is DM-shaped down to its realtime topic and its resolve mark.
-  const { data: groupsData } = useGroups(user?.id, { enabled: isMessages && tab === 'mine' })
+  // (sis_messaging_service), and this page only ever read the DM list -- so the
+  // thread the office had just sent vanished from the screen it was sent on
+  // (iCreate, 2026-09-22, 3a189384). The rows that fixed that linked out to
+  // /messages, which is a learning-app path: the console handed the reader to
+  // app.optioeducation.com and the sidebar was gone ("different page ... left
+  // side bar menu is gone", 9284344e). They open here now, in GroupChatWindow.
+  //
+  // Which groups depends on the tab, like the DM list: the School tab lists the
+  // groups the SCHOOL owns (sent from that tab, ac84b6cd), read as the school;
+  // My messages lists the caller's own groups, read as a member.
+  const groupsEnabled = isMessages && !!user?.id && !(viewingSchool && isSuperadmin && !orgId)
+  const { data: groupsData } = useGroups(user?.id, { source, enabled: groupsEnabled })
   const staffGroups = useMemo(() => {
     const rows = groupsData?.groups || (Array.isArray(groupsData) ? groupsData : []) || []
     return [...rows]
@@ -378,6 +390,19 @@ const SchoolInboxPage = () => {
       .sort((a, b) => new Date(b.last_message_at || b.created_at || 0)
         - new Date(a.last_message_at || a.created_at || 0))
   }, [groupsData])
+
+  // ?group=<id> opens that group, the same consume-once rule as ?conversation=
+  // (the bell's link for a reply in a school group, 11f6ad24).
+  const wantedGroup = searchParams.get('group')
+  useEffect(() => {
+    if (!wantedGroup || !isMessages) return
+    const match = staffGroups.find((g) => g.id === wantedGroup)
+    if (!match) return
+    setSelectedGroup(match)
+    const next = new URLSearchParams(searchParams)
+    next.delete('group')
+    setSearchParams(next, { replace: true })
+  }, [wantedGroup, isMessages, staffGroups])
 
   // The open thread's row as the list has it now -- `selected` is a snapshot
   // from the click, and the resolved mark lands on the list.
@@ -425,7 +450,11 @@ const SchoolInboxPage = () => {
         initialAudience={staffCompose || 'staff'}
         orgId={isSuperadmin ? orgId : null}
         onClose={() => setStaffCompose(null)}
-        onSent={() => queryClient.invalidateQueries({ queryKey: ['conversations'] })}
+        asSchool={viewingSchool}
+        onSent={() => {
+          queryClient.invalidateQueries({ queryKey: ['conversations'] })
+          queryClient.invalidateQueries({ queryKey: ['groups'] })
+        }}
       />
 
       {tab === 'announcements' ? (
@@ -446,7 +475,7 @@ const SchoolInboxPage = () => {
       <div className="flex h-[72vh] min-h-[440px] bg-white border border-gray-200 rounded-xl overflow-hidden">
         {/* Thread list */}
         <div className={`w-full md:w-[300px] lg:w-[340px] flex-shrink-0 border-r border-gray-200 flex flex-col ${
-          selected ? 'hidden md:flex' : 'flex'}`}>
+          selected || selectedGroup ? 'hidden md:flex' : 'flex'}`}>
           {viewingSchool && (
             <div className="border-b border-gray-100 p-3">
               {composing ? (
@@ -511,14 +540,16 @@ const SchoolInboxPage = () => {
           <div className="flex-1 overflow-y-auto">
             {/* Group threads first: they are the newest thing the office did,
                 and they were the ones that disappeared. */}
-            {tab === 'mine' && staffGroups.length > 0 && (
+            {staffGroups.length > 0 && (
               <div className="border-b border-gray-100 py-1">
                 <p className="px-3 pt-1 pb-1.5 text-[11px] font-semibold uppercase tracking-wide text-neutral-400">
                   Group threads
                 </p>
                 {staffGroups.map((g) => (
-                  <Link key={g.id} to={`/messages?group=${g.id}`}
-                    className="flex items-center gap-2 px-3 py-2 hover:bg-gray-50 transition-colors">
+                  <button key={g.id} type="button" onClick={() => setSelectedGroup(g)}
+                    aria-pressed={selectedGroup?.id === g.id}
+                    className={`w-full text-left flex items-center gap-2 px-3 py-2 transition-colors ${
+                      selectedGroup?.id === g.id ? 'bg-optio-purple/5' : 'hover:bg-gray-50'}`}>
                     <ChatBubbleLeftRightIcon className="w-4 h-4 text-optio-purple flex-shrink-0" />
                     <span className="min-w-0 flex-1 truncate text-sm text-neutral-800">{g.name}</span>
                     {g.member_count > 0 && (
@@ -529,11 +560,8 @@ const SchoolInboxPage = () => {
                         {g.unread_count}
                       </span>
                     )}
-                  </Link>
+                  </button>
                 ))}
-                <p className="px-3 pt-1 pb-1 text-[11px] text-neutral-400">
-                  Group threads open in Messages, where everyone sees the replies.
-                </p>
               </div>
             )}
             {loading ? (
@@ -568,7 +596,7 @@ const SchoolInboxPage = () => {
                   key={convo.id}
                   conversation={convo}
                   isSelected={selected?.id === convo.id}
-                  onSelect={setSelected}
+                  onSelect={selectThread}
                 />
               ))
             )}
@@ -576,8 +604,17 @@ const SchoolInboxPage = () => {
         </div>
 
         {/* Thread */}
-        <div className={`flex-1 flex flex-col min-w-0 ${!selected ? 'hidden md:flex' : 'flex'}`}>
-          {!selected ? (
+        <div className={`flex-1 flex flex-col min-w-0 ${!selected && !selectedGroup ? 'hidden md:flex' : 'flex'}`}>
+          {selectedGroup ? (
+            // Keyed on the group: a reply or a half-written message belongs to
+            // the thread it was started in.
+            <GroupChatWindow
+              key={selectedGroup.id}
+              group={selectedGroup}
+              source={source}
+              onBack={() => setSelectedGroup(null)}
+            />
+          ) : !selected ? (
             <div className="flex-1 flex flex-col items-center justify-center bg-gray-50 p-6 text-center">
               <ChatBubbleLeftRightIcon className="w-10 h-10 text-gray-300 mb-3" />
               <p className="text-sm text-neutral-500">
