@@ -1004,7 +1004,8 @@ def list_family_directives(user_id):
 @require_role(*ADMIN_ROLES)
 def upsert_family_directives(user_id):
     """Bulk upsert directives by email: {directives: [{email, registration_hold,
-    hold_reason, fee_prepaid, notes}]}. A directive is staged for a family that
+    hold_reason, fee_prepaid, no_charge, notes}]}. no_charge registers the
+    family free: no fee, no monthly plan, no card. A directive is staged for a family that
     has no household yet and applied once when the funnel attaches one
     (sis_holds.apply_directives). registration_tier is ignored: it never had a
     reader."""
@@ -1026,7 +1027,8 @@ def upsert_family_directives(user_id):
             registration_hold=bool(r.get('registration_hold')),
             hold_reason=r.get('hold_reason'),
             fee_prepaid=bool(r.get('fee_prepaid')),
-            notes=r.get('notes'))
+            notes=r.get('notes'),
+            no_charge=bool(r['no_charge']) if 'no_charge' in r else None)
         saved += 1
     if not saved:
         return jsonify({'success': False, 'error': 'No rows had a valid email'}), 400

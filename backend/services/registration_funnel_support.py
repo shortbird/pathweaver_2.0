@@ -155,7 +155,7 @@ def _apply_prepaid_directive(admin, reg):
             return reg
         parent = _parent_row(admin, reg['parent_user_id'])
         directive = _family_directive(admin, reg['organization_id'], parent.get('email'))
-        if directive and directive.get('fee_prepaid'):
+        if directive and (directive.get('fee_prepaid') or directive.get('no_charge')):
             admin.table('registrations').update({
                 'fee_cents': 0, 'updated_at': datetime.utcnow().isoformat(),
             }).eq('id', reg['id']).execute()
@@ -167,3 +167,26 @@ def _apply_prepaid_directive(admin, reg):
 
 
 # ── Endpoints ────────────────────────────────────────────────────────────────
+
+
+def no_charge_config(cfg):
+    """The funnel config a no-charge family is priced under: no registration
+    fee, no monthly plan, so nothing is quoted, no add-on is offered and no card
+    is asked for. Everything else (paperwork, scheduling) is the org's."""
+    return {**(cfg or {}), 'registration_fee_cents': 0, 'per_student_fee_cents': 0, 'monthly': None}
+
+
+def _family_config(admin, reg, cfg):
+    """`cfg`, or no_charge_config(cfg) when the school staged this parent's
+    email as no-charge (sis_family_directives.no_charge). Every payment-step
+    endpoint prices through this, so the quote, the checkout and the record-only
+    finish agree. Returns (cfg, no_charge)."""
+    try:
+        parent = _parent_row(admin, reg['parent_user_id'])
+        directive = _family_directive(admin, reg['organization_id'], parent.get('email'))
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f"registration: no-charge check failed for registration {reg.get('id')}: {e}")
+        directive = None
+    if directive and directive.get('no_charge'):
+        return no_charge_config(cfg), True
+    return cfg, False

@@ -131,9 +131,12 @@ def clear_hold_for_guardian(org_id: str, guardian_user_id: str, code: str) -> in
 
 def stage_directive(org_id: str, email: str, *, registration_hold: bool = False,
                     hold_reason: Optional[str] = None, fee_prepaid: bool = False,
-                    notes: Optional[str] = None) -> Dict[str, Any]:
+                    notes: Optional[str] = None,
+                    no_charge: Optional[bool] = None) -> Dict[str, Any]:
     """Upsert the pre-household directive for a parent email: what the funnel
-    applies when this family registers. One row per (org, email)."""
+    applies when this family registers. One row per (org, email). `no_charge`
+    None leaves a stored value alone: the prepaid import and the waive-fee
+    route do not know about it and must not switch a free family back on."""
     row = {
         'organization_id': org_id,
         'email': (email or '').strip().lower(),
@@ -143,6 +146,8 @@ def stage_directive(org_id: str, email: str, *, registration_hold: bool = False,
         'notes': (notes or '').strip() or None,
         'updated_at': _now(),
     }
+    if no_charge is not None:
+        row['no_charge'] = bool(no_charge)
     out = (_admin().table('sis_family_directives')
            .upsert(row, on_conflict='organization_id,email').execute()).data
     return out[0] if out else row

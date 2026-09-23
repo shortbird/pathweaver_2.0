@@ -117,6 +117,7 @@ from services.registration_funnel_support import (
     _parent_row,
     _family_directive,
     _apply_prepaid_directive,
+    no_charge_config,
 )
 from services.registration_accounts_service import (
     _insert_user_with_retry,  # noqa: F401 -- patched by tests, called via the service
@@ -803,13 +804,16 @@ def submit_family(reg_id):
     # line and is fully refunded if they aren't accepted (see the reject flow).
     # So we no longer defer to first release; every new registration pays now.
     # (Legacy fee_deferred=True registrations still reopen on release.)
+    # A no-charge family (the school registers them free) owes nothing at all:
+    # no fee and no monthly plan.
+    price_cfg = no_charge_config(cfg) if (directive and directive.get('no_charge')) else cfg
     fee_cents = 0 if (directive and directive.get('fee_prepaid')) \
-        else registration_fee_cents(cfg, len(created_kids))
+        else registration_fee_cents(price_cfg, len(created_kids))
     fee_deferred = False
     # The monthly plan starts at the base program fee; add-ons are chosen on the
     # payment step and re-price it there. A back-edit rebuilds the kids, so a
     # previous selection is gone here too -- the payment step asks again.
-    monthly_cents = monthly_total_cents(monthly_plan(cfg), created_kids)
+    monthly_cents = monthly_total_cents(monthly_plan(price_cfg), created_kids)
     admin.table('registrations').update({
         'kids': created_kids, 'fee_cents': fee_cents, 'fee_deferred': fee_deferred,
         'monthly_cents': monthly_cents,

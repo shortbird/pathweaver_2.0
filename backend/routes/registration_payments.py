@@ -53,6 +53,7 @@ from services.registration_funnel_support import (
     _org_stripe_enabled,
     _parent_row,
     _apply_prepaid_directive,
+    _family_config,
 )
 from services.registration_funnel_service import (
     _abs_url,
@@ -265,6 +266,7 @@ def register_routes(bp):
         # A stale tab could still show the card button after the school staged a
         # prepaid credit — never charge a family that already paid.
         reg = _apply_prepaid_directive(admin, reg)
+        cfg, _no_charge = _family_config(admin, reg, cfg)
         # The add-ons ticked on the payment step (teacher support, ...) price
         # the month; they are stored BEFORE the session is created so the
         # amount Stripe charges and the amount /confirm-payment expects agree.
@@ -475,6 +477,9 @@ def register_routes(bp):
         cfg = _org_config(admin, reg['organization_id'])
         completed = reg.get('status') in ('schedule', 'appointment', 'completed')
         reg = _apply_prepaid_directive(admin, reg)
+        # A no-charge family has no plan: the step offers no add-ons and says
+        # nothing is due.
+        cfg, no_charge = _family_config(admin, reg, cfg)
         # Re-price the month from the stored kids and choices (a config change
         # since the family step -- a new add-on price -- lands here, before
         # anyone pays).
@@ -500,6 +505,7 @@ def register_routes(bp):
             'fee_deferred': fee_deferred,
             'stripe_enabled': stripe_enabled,
             'requires_card': requires_card,
+            'no_charge': no_charge,
             'already_completed': completed,
             # The lines the step draws (registration_pricing.quote): the browser
             # renders these and prices nothing itself.
@@ -518,7 +524,8 @@ def register_routes(bp):
         reg = _load_registration(reg_id)
         if not _authz(reg, body.get('access_token')):
             return jsonify({'error': 'Not authorized'}), 403
-        cfg = _org_config(_admin(), reg['organization_id'])
+        admin = _admin()
+        cfg, _no_charge = _family_config(admin, reg, _org_config(admin, reg['organization_id']))
         n = body.get('num_students')
         try:
             n = int(n) if n is not None else None
@@ -579,6 +586,7 @@ def register_routes(bp):
                             'scheduling_url': _abs_url(cfg.get('scheduling_url')),
                             'scheduling_emailed': bool(reg.get('scheduling_emailed_at'))}), 200
         reg = _apply_prepaid_directive(admin, reg)
+        cfg, _no_charge = _family_config(admin, reg, cfg)
         # Record-only orgs (external payment link, or the school collects it)
         # still keep the family's add-on choices, so staff know who asked for
         # a teacher when they set the payment up by hand.

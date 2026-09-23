@@ -382,9 +382,12 @@ const parseEmails = (text) => {
 }
 
 // Pre-staged family settings (sis_family_directives): who has already paid the
-// registration fee (the school emails these in), who's on hold, and whether
-// they've registered here yet (matched household). The paste box marks parents
-// prepaid by email — applied automatically when they register with that email.
+// registration fee (the school emails these in), who registers free, who's on
+// hold, and whether they've registered here yet (matched household). The paste
+// box marks parents prepaid or no-charge by email — applied automatically when
+// they register with that email. Prepaid waives only the one-time fee; no
+// charge also drops the monthly plan and its add-ons (Optio Academy has no
+// one-time fee, so prepaid alone does nothing there).
 const FamilyDirectivesCard = ({ orgId }) => {
   const { openFamily } = useRecordDoors()
   const [directives, setDirectives] = useState(null)
@@ -402,25 +405,37 @@ const FamilyDirectivesCard = ({ orgId }) => {
 
   const emails = parseEmails(pasted)
 
-  const markPrepaid = async () => {
-    if (!emails.length) return toast.error('Paste at least one email address')
+  const save = async (list, fields, label) => {
     setSaving(true)
     try {
       const byEmail = Object.fromEntries((directives || []).map((d) => [d.email, d]))
       const { data } = await api.post(withOrg('/api/sis/family-directives', orgId), {
-        directives: emails.map((email) => ({
+        directives: list.map((email) => ({
           ...(byEmail[email] || {}), // keep an existing hold/notes when re-marking
           email,
-          fee_prepaid: true,
+          ...fields,
         })),
       })
-      toast.success(`Marked ${data.saved} famil${data.saved === 1 ? 'y' : 'ies'} as prepaid`)
-      setPasted('')
-      reload()
+      toast.success(label(data.saved))
+      return true
     } catch (e) {
       toast.error(e.response?.data?.error || 'Could not save')
-    } finally { setSaving(false) }
+      return false
+    } finally {
+      setSaving(false)
+      reload()
+    }
   }
+
+  const families = (n) => `${n} famil${n === 1 ? 'y' : 'ies'}`
+
+  const markFromPaste = async (fields, verb) => {
+    if (!emails.length) return toast.error('Paste at least one email address')
+    if (await save(emails, fields, (n) => `Marked ${families(n)} ${verb}`)) setPasted('')
+  }
+
+  const chargeAgain = (email) =>
+    save([email], { no_charge: false }, () => `${email} will be charged normally`)
 
   const list = directives || []
   const registered = list.filter((d) => d.matched_household_id)
@@ -448,8 +463,10 @@ const FamilyDirectivesCard = ({ orgId }) => {
         )}
       </div>
       <p className="text-sm text-neutral-500 mb-3">
-        Paste the emails of parents who have already paid the registration fee. When they register
-        with that email, their fee is waived automatically. Holds staged here are applied the same way.
+        Paste parent emails, then choose one. <strong>Mark as prepaid</strong> waives the one-time
+        registration fee. <strong>No charge</strong> waives everything, including the monthly plan: the
+        payment step says nothing is due and offers no add-ons. Each applies when the parent registers
+        with that email. Holds staged here are applied the same way.
       </p>
 
       <div className="mb-5">
@@ -464,10 +481,16 @@ const FamilyDirectivesCard = ({ orgId }) => {
           <span className="text-xs text-neutral-400">
             {emails.length ? `${emails.length} email${emails.length === 1 ? '' : 's'} found` : 'Commas, spaces, or new lines all work.'}
           </span>
-          <button onClick={markPrepaid} disabled={saving || !emails.length}
-            className="px-4 py-2 rounded-lg bg-gradient-primary text-white text-sm font-semibold hover:opacity-90 disabled:opacity-50">
-            {saving ? 'Saving…' : 'Mark as prepaid'}
-          </button>
+          <span className="flex gap-2">
+            <button onClick={() => markFromPaste({ no_charge: true }, 'no charge')} disabled={saving || !emails.length}
+              className="px-4 py-2 rounded-lg border border-optio-purple text-optio-purple text-sm font-semibold hover:bg-optio-purple/5 disabled:opacity-50">
+              No charge
+            </button>
+            <button onClick={() => markFromPaste({ fee_prepaid: true }, 'as prepaid')} disabled={saving || !emails.length}
+              className="px-4 py-2 rounded-lg bg-gradient-primary text-white text-sm font-semibold hover:opacity-90 disabled:opacity-50">
+              {saving ? 'Saving…' : 'Mark as prepaid'}
+            </button>
+          </span>
         </div>
       </div>
 
@@ -494,9 +517,20 @@ const FamilyDirectivesCard = ({ orgId }) => {
                     <td className="py-2 pr-3 text-neutral-800">{(d.notes || '').split(' | ')[0] || '—'}</td>
                     <td className="py-2 pr-3 text-neutral-500">{d.email}</td>
                     <td className="py-2 pr-3">
-                      {d.fee_prepaid
-                        ? <span className="text-xs font-medium rounded-full px-2 py-0.5 bg-green-100 text-green-700">Paid</span>
-                        : <span className="text-xs font-medium rounded-full px-2 py-0.5 bg-amber-100 text-amber-700">Unpaid</span>}
+                      {d.no_charge
+                        ? (
+                          <span className="inline-flex items-center gap-1.5">
+                            <span className="text-xs font-medium rounded-full px-2 py-0.5 bg-blue-100 text-blue-700">No charge</span>
+                            <button type="button" onClick={() => chargeAgain(d.email)} disabled={saving}
+                              className="text-xs text-neutral-400 hover:text-neutral-700 underline disabled:opacity-50"
+                              title="Remove no charge. The family pays the normal fees if they have not registered yet.">
+                              Undo
+                            </button>
+                          </span>
+                        )
+                        : d.fee_prepaid
+                          ? <span className="text-xs font-medium rounded-full px-2 py-0.5 bg-green-100 text-green-700">Paid</span>
+                          : <span className="text-xs font-medium rounded-full px-2 py-0.5 bg-amber-100 text-amber-700">Unpaid</span>}
                     </td>
                     <td className="py-2">
                       <span className="inline-flex items-center gap-1.5 flex-wrap">

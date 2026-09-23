@@ -76,6 +76,7 @@ const RegisterFunnelPage = () => {
   // (a flat/per-student fee, an external payment link, or card payment) or
   // bills monthly. Zero-fee orgs (e.g. Gryffin) never see it — not in the
   // flow, the stepper, or preview.
+  const [noCharge, setNoCharge] = useState(false) // a free family (fee-status): no plan, no add-ons
   const monthlyPlan = config?.monthly || null
   const feeApplies = Boolean(
     Number(config?.registration_fee_cents) > 0
@@ -736,6 +737,7 @@ const RegisterFunnelPage = () => {
         if (!alive) return
         setFeeCents(Number(data.fee_cents) || 0)
         setFeeDeferred(!!data.fee_deferred)
+        setNoCharge(!!data.no_charge)
         if (data.quote) feeQuote.setQuote(data.quote)
         // The server's copy of the add-on choices wins on landing (a resumed
         // tab, or Stripe's return page after a reload) -- what it stored is
@@ -973,7 +975,7 @@ const RegisterFunnelPage = () => {
             waitlistAck={waitlistAck} setWaitlistAck={setWaitlistAck}
             startCheckout={startCheckout} confirmPayment={confirmPayment}
             finishFee={finishFee} submitting={submitting}
-            monthlyPlan={monthlyPlan}
+            monthlyPlan={noCharge ? null : monthlyPlan}
             quote={feeQuote.quote}
             // The server's kids once the family step has run; the local cards
             // (keyed by _key) in preview, where nothing is ever submitted.
