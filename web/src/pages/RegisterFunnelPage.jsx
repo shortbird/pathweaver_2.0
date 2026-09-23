@@ -38,7 +38,7 @@ import useRegistrationQuote, { quoteRegistration, quoteByCode } from '../hooks/a
 //               booking link is emailed; the Schedule Builder has a
 //               "Book appointment" button), so this page never has to be found again.
 import {
-  EMAIL_RE, isoToMdy, emptyKid, emptyContact, mergeAutofilledFields,
+  EMAIL_RE, isoToMdy, emptyKid, emptyContact, restoreContact, trimStr, mergeAutofilledFields,
   FAMILY_INPUT_NAMES, firstQuestionError, firstDestinationError, PHOTO_TIPS,
 } from './registerFunnel/funnelFields'
 // One component per step. The page owns the state -- a wizard's state genuinely
@@ -212,7 +212,8 @@ const RegisterFunnelPage = () => {
             ))
           }
           if ((regData.paperwork || []).length) {
-            setSignatures(Object.fromEntries(regData.paperwork.map((p) => [p.key, p.signed_name || ''])))
+            // {name, agreed} like SignatureCapture; a bare string crashed Paperwork on back-nav.
+            setSignatures(Object.fromEntries(regData.paperwork.map((p) => [p.key, { name: p.signed_name || '', agreed: true }])))
             setAgreed(Object.fromEntries(regData.paperwork.map((p) => [p.key, true])))
           }
           // Legacy statuses from when schedule/appointment were funnel steps
@@ -325,7 +326,7 @@ const RegisterFunnelPage = () => {
     }
     if (status === 'family' || status === 'details') {
       const draftContacts = (d.contacts || []).filter((c) => (c.name || '').trim() || (c.phone || '').trim())
-      if (draftContacts.length) setContacts(draftContacts)
+      if (draftContacts.length) setContacts(draftContacts.map(restoreContact))
       if (d.answers && Object.keys(d.answers).length) setAnswers(d.answers)
     }
   }
@@ -610,10 +611,10 @@ const RegisterFunnelPage = () => {
       : (config.paperwork || []).length ? 'paperwork' : (feeApplies ? 'fee' : 'done'))
     // Orgs can opt out of emergency contacts (config.emergency_contacts === false).
     const asksContacts = config.emergency_contacts !== false
-    const validContacts = asksContacts ? contacts.filter((c) => c.name.trim() || c.phone.trim()) : []
+    const validContacts = asksContacts ? contacts.filter((c) => trimStr(c.name) || trimStr(c.phone)) : []
     if (asksContacts && !validContacts.length) return toast.error('Add at least one emergency contact')
     for (const [i, c] of validContacts.entries()) {
-      if (!c.name.trim() || !c.phone.trim()) return toast.error(`Emergency contact #${i + 1} needs a name and phone`)
+      if (!trimStr(c.name) || !trimStr(c.phone)) return toast.error(`Emergency contact #${i + 1} needs a name and phone`)
     }
     const qErr = firstQuestionError(config.questions, answers, serverKids)
     if (qErr) return toast.error(qErr)
@@ -622,8 +623,8 @@ const RegisterFunnelPage = () => {
       await api.post(`/api/registration/registrations/${reg.registration_id}/details`, {
         access_token: reg.access_token,
         emergency_contacts: validContacts.map((c) => ({
-          name: c.name.trim(), relationship: c.relationship, phone: c.phone.trim(),
-          email: c.email.trim(),
+          name: trimStr(c.name), relationship: c.relationship || '', phone: trimStr(c.phone),
+          email: trimStr(c.email),
         })),
         answers,
       })

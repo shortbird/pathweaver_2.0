@@ -60,7 +60,10 @@ function VideoEmbed({ url }: { url: string }) {
  *  <script>, on* handlers, and other XSS vectors. */
 function HtmlContent({ html }: { html: string }) {
   const c = useThemeColors();
-  const safeHtml = useMemo(() => sanitizeLessonHtml(html), [html]);
+  // Sanitize only on web. The hook stays above the early return (hook order),
+  // but native never reaches DOMPurify, which has no sanitize() under Hermes
+  // (Sentry ef1eb8a9, iPad: "undefined is not a function at sanitizeLessonHtml").
+  const safeHtml = useMemo(() => (Platform.OS === 'web' ? sanitizeLessonHtml(html) : ''), [html]);
   if (!html || Platform.OS !== 'web') return null;
 
   return (

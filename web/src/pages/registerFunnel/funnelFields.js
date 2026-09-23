@@ -62,6 +62,16 @@ export const emptyKid = () => ({
 })
 export const emptyContact = () => ({ name: '', relationship: '', phone: '', email: '' })
 
+// A contact restored from a localStorage draft (older build, half-typed row)
+// can miss any field or hold null. Fill every field with a string so the
+// details submit can .trim() it (Sentry ae186726, "p.name.trim", Safari).
+export const restoreContact = (c) => Object.fromEntries(
+  Object.entries({ ...emptyContact(), ...(c || {}) }).map(([k, v]) => [k, v == null ? '' : v]),
+)
+
+// Null-safe trim for form values that may come from a draft or the server.
+export const trimStr = (v) => String(v ?? '').trim()
+
 // Browser/password-manager autofill can paint values into inputs WITHOUT firing
 // the events React listens to, so the field looks filled while state stays ''.
 // The submit then fails validation ("add an address") even though the parent
