@@ -83,7 +83,7 @@ const TaskDetailModal = ({ task, isOpen, onClose }) => {
                   <BookOpenIcon className="w-5 h-5" />
                   Description
                 </h4>
-                <p className="text-gray-700 text-base leading-relaxed">{task.description}</p>
+                <p className="text-gray-700 text-base leading-relaxed whitespace-pre-line">{task.description}</p>
               </div>
             )}
 

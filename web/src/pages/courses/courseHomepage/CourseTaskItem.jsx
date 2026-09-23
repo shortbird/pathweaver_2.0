@@ -184,7 +184,7 @@ const CourseTaskItem = ({ task, onComplete, onRemove, preview = false }) => {
       {expanded && (
         <div className="px-4 pb-4 space-y-3 border-t border-gray-100 pt-3">
           {task.description && (
-            <p className="text-sm text-gray-600">{task.description}</p>
+            <p className="text-sm text-gray-600 whitespace-pre-line">{task.description}</p>
           )}
 
           {/* Evidence blocks */}

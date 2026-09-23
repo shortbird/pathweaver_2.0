@@ -521,7 +521,7 @@ export default function SubmissionsPanel() {
                   </div>
                   <h2 className="text-lg font-semibold text-neutral-900">{selected.task?.title}</h2>
                   {selected.task?.description && (
-                    <p className="text-sm text-neutral-600 mt-1">{selected.task.description}</p>
+                    <p className="text-sm text-neutral-600 mt-1 whitespace-pre-line">{selected.task.description}</p>
                   )}
                   <div className="mt-2 flex items-center gap-3 flex-wrap">
                     {/* Named the way the learner sees it. Printing the raw

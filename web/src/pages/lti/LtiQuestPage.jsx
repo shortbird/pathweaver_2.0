@@ -384,7 +384,7 @@ function CompletedTaskRow({ task, onComplete }) {
         </div>
       </div>
       {task.description && !editing && (
-        <p className="text-sm text-gray-600">{task.description}</p>
+        <p className="text-sm text-gray-600 whitespace-pre-line">{task.description}</p>
       )}
       {err && <p className="text-sm text-red-600">{err}</p>}
       {editing && existingBlocks !== null && (
@@ -457,7 +457,7 @@ function TaskRow({ task, onComplete, onRemove }) {
           </button>
         </div>
       </div>
-      {task.description && <p className="text-sm text-gray-600">{task.description}</p>}
+      {task.description && <p className="text-sm text-gray-600 whitespace-pre-line">{task.description}</p>}
       {err && <p className="text-sm text-red-600">{err}</p>}
       <LtiEvidenceEditor
         taskId={task.id}

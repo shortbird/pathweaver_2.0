@@ -120,6 +120,13 @@ describe('SubmissionsPage', () => {
     expect(screen.getByText('100 XP')).toBeInTheDocument()
   })
 
+  it('keeps the hard returns in the task description (ticket 3a9e16c1)', async () => {
+    // Task descriptions are stored with their line breaks; the reviewer should
+    // see them as the author typed them.
+    render(<SubmissionsPanel />)
+    expect(await screen.findByText('Model a cell')).toHaveClass('whitespace-pre-line')
+  })
+
   it('accepts a submission and auto-advances to the next one', async () => {
     render(<SubmissionsPanel />)
     await screen.findByText('My cell essay evidence')

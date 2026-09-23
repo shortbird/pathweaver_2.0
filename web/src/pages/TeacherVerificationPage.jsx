@@ -138,7 +138,7 @@ const TeacherVerificationPage = () => {
                   </div>
 
                   {task.description && (
-                    <p className="mt-3 text-gray-700">{task.description}</p>
+                    <p className="mt-3 text-gray-700 whitespace-pre-line">{task.description}</p>
                   )}
 
                   <div className="mt-4">

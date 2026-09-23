@@ -62,7 +62,7 @@ const TaskDetailsSection = ({ canUseTaskGeneration, isDescriptionExpanded, pilla
       <div className="mb-5">
         <p
           ref={descriptionRef}
-          className={`text-sm text-gray-600 leading-relaxed ${isDescriptionExpanded ? '' : 'line-clamp-3'}`}
+          className={`text-sm text-gray-600 leading-relaxed whitespace-pre-line ${isDescriptionExpanded ? '' : 'line-clamp-3'}`}
         >
           {task.description}
         </p>

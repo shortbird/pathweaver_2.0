@@ -121,7 +121,7 @@ export default function QuestPreviewModal({
                     <div className="flex-1 min-w-0">
                       <p className="font-semibold text-neutral-900">{t.title}</p>
                       {t.description && (
-                        <p className="text-sm text-neutral-500 mt-0.5">{t.description}</p>
+                        <p className="text-sm text-neutral-500 mt-0.5 whitespace-pre-line">{t.description}</p>
                       )}
                       <div className="flex items-center gap-2 mt-2">
                         <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-bold bg-optio-purple/10 text-optio-purple">

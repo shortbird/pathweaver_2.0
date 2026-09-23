@@ -2,6 +2,13 @@ import React from 'react';
 import { getPillarData } from '../../utils/pillarMappings';
 import { getSubjectName } from '../../constants/subjects';
 import { FireIcon, BookOpenIcon } from '@heroicons/react/24/outline';
+import { useAuth } from '../../contexts/AuthContext';
+
+// Staff see the student-facing Start Quest button too (they pick quests up to
+// build task lists, see GiveStudentsMyTasksCard), but an org_admin asked what
+// the button means for her students (ticket a87602cf). They get one line that
+// says what it does when a student clicks it.
+const STAFF_ROLES = ['org_admin', 'advisor', 'superadmin', 'campus_coordinator'];
 
 /**
  * QuestEnrollment - Handles enrollment UI and template tasks display
@@ -19,6 +26,9 @@ const QuestEnrollment = ({
   onPreloadWizard,
   hidePersonalizationPrompt = false
 }) => {
+  const { hasAnyRole } = useAuth();
+  const isStaffViewer = !!hasAnyRole?.(STAFF_ROLES);
+
   // Determine quest behavior based on unified model
   const allowsCustomization = quest?.allow_custom_tasks !== false;
 
@@ -130,8 +140,10 @@ const QuestEnrollment = ({
                           {task.xp_value} XP
                         </div>
                       </div>
+                      {/* whitespace-pre-line keeps the hard returns authors
+                          type into task descriptions (ticket 3a9e16c1). */}
                       {task.description && (
-                        <p className="text-sm text-gray-700">
+                        <p className="text-sm text-gray-700 whitespace-pre-line">
                           {task.description}
                         </p>
                       )}
@@ -151,8 +163,13 @@ const QuestEnrollment = ({
                 className="btn-primary btn-lg min-h-[44px] touch-manipulation"
               >
                 <FireIcon className="w-5 h-5 inline mr-2" />
-                {isEnrolling ? 'Picking Up...' : 'Pick Up Quest'}
+                {isEnrolling ? 'Starting...' : 'Start Quest'}
               </button>
+              {isStaffViewer && (
+                <p className="mt-2 text-sm text-gray-500">
+                  Students click Start Quest to add this quest and its tasks to their account.
+                </p>
+              )}
             </div>
           )}
         </div>
