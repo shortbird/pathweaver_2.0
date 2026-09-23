@@ -439,6 +439,14 @@ class Config:
     # Stripe Configuration
     STRIPE_SECRET_KEY = os.getenv('STRIPE_SECRET_KEY')
     STRIPE_WEBHOOK_SECRET = os.getenv('STRIPE_WEBHOOK_SECRET')
+    # Optio's own invoices (/admin/billing) go out on the Stripe account whose
+    # key this org holds in organization_secrets. That is Optio Academy's: it is
+    # the Stripe account Optio actually runs (logo, payouts), and
+    # STRIPE_SECRET_KEY above belongs to a different, older "Optio" account.
+    # Reading the org's key rather than copying it into an env var keeps one
+    # copy, so rotating it in the school's settings rotates it here too.
+    OPTIO_BILLING_STRIPE_ORG_ID = os.getenv('OPTIO_BILLING_STRIPE_ORG_ID',
+                                            '8ee22671-6e38-473c-a326-90ff86460310')
 
     # Rate Limiting - CONFIGURABLE
     # RATE_LIMIT_ENABLED is the emergency kill switch, honoured by the

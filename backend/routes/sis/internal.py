@@ -62,7 +62,22 @@ def _run_billing_reminders():
     """
     from services import sis_billing_service as billing
     swept = billing.sweep_online_payments()
-    return {'payment_sweep': swept, **billing.run_payment_reminders()}
+    return {'payment_sweep': swept, **billing.run_payment_reminders(),
+            'org_invoices': _run_org_invoice_sweep()}
+
+
+def _run_org_invoice_sweep():
+    """Optio's own invoices to organizations (services/org_billing_service.py):
+    record card payments and send due reminders. Rides on the daily billing run
+    for the same reason the online-payment sweep does -- no new cron entry.
+    Contained, so a Stripe outage on Optio's account cannot stop the schools'
+    reminders from going out."""
+    from services import org_billing_service as org_billing
+    try:
+        return org_billing.sweep()
+    except Exception as exc:  # noqa: BLE001
+        logger.error(f'org invoice sweep failed: {exc}', exc_info=True)
+        return {'error': 'failed'}
 
 
 def _run_tuition_autopay():

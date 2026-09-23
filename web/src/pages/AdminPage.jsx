@@ -22,6 +22,7 @@ const ModerationQueue = lazy(() => import('../components/admin/ModerationQueue')
 const RosterImportPage = lazy(() => import('./admin/RosterImportPage'))
 const CrmConsole = lazy(() => import('./admin/crm/CrmConsole'))
 const TicketsPanel = lazy(() => import('../components/admin/tickets/TicketsPanel'))
+const AdminBillingPage = lazy(() => import('./admin/AdminBillingPage'))
 
 // Loading spinner component
 const LoadingFallback = () => (
@@ -39,6 +40,7 @@ const ADMIN_TABS = [
   { path: 'quests', label: 'Quests' },
   { path: 'organizations', label: 'Organizations' },
   { path: 'crm', label: 'CRM' },
+  { path: 'billing', label: 'Billing' },
   { path: 'tickets', label: 'Tickets' },
   { path: 'moderation', label: 'Moderation' },
   { path: 'roster-import', label: 'Roster Import' },
@@ -115,6 +117,7 @@ const AdminPage = () => {
           <Route path="moderation" element={<ModerationQueue />} />
           <Route path="roster-import" element={<RosterImportPage />} />
           <Route path="crm/*" element={<CrmConsole />} />
+          <Route path="billing" element={<AdminBillingPage />} />
           <Route path="tickets" element={<TicketsPanel />} />
           <Route path="tickets/:ticketId" element={<TicketsPanel />} />
         </Routes>

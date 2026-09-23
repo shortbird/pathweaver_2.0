@@ -66,6 +66,18 @@
       "use_instead": "sis_billing_service.start_checkout(secret, kind=, org_id=, ref_id=, success_url=, cancel_url=, mode=, line_items=, metadata=, idempotency_key=, **session_kwargs); kinds are CHECKOUT_KINDS. The count of 1 is the factory (exempt: [])."
     },
     {
+      "id": "org_invoice",
+      "means": "Optio's own invoices, sent from /admin/billing on Optio's Stripe account to any recipient and optionally linked to an organization (not a school billing a family -- that is invoice_row). Stripe is the record: invoices carry metadata.source=optio_admin and organization_id when linked, the invoice takes bank transfer (ACH) only, with no card option by decision (2026-09-22).",
+      "owner": { "backend": ["services/org_billing_service.py"] },
+      "forbid": {
+        "backend": { "pattern": "Invoice\\.create\\(", "dirs": ["routes", "services", "utils", "jobs"], "exempt": [] }
+      },
+      "baseline": { "backend": 1 },
+      "measured": "2026-09-22",
+      "lowered_by": "none",
+      "use_instead": "org_billing_service.create_invoice(recipient_email=, recipient_name=, lines=, memo=, days_until_due=, organization_id=) -- it sets the bank-only payment settings and the metadata the list and the reminders read. The count of 1 is that call (exempt: [])."
+    },
+    {
       "id": "stripe_verify",
       "means": "A Checkout Session being read back from Stripe to decide whether somebody paid (no webhooks: the platform verifies by reading). Seven readers each had their own loop and their own idea of paid; sis_billing_service.first_session(secret, session_ids, accept) is the one reader over retrieve_session / list_sessions (M6, 2026-09-17), with is_paid and is_complete_of_kind as the accept rules.",
       "owner": { "backend": ["services/sis_billing_service.py"] },

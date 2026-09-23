@@ -218,6 +218,9 @@ def register_all(app):
     # Withdraw a student / reinstate, for schools without the SIS console.
     from routes.admin import org_member_standing
     app.register_blueprint(org_member_standing.bp, url_prefix='/api/admin/organizations')
+    # Optio's own invoices (/admin/billing) on Optio's Stripe account.
+    from routes.admin import optio_billing
+    app.register_blueprint(optio_billing.bp)
     app.register_blueprint(course_enrollments.bp)
     app.register_blueprint(bulk_import.bp)
     app.register_blueprint(user_invitations.bp)

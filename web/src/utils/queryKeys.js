@@ -175,6 +175,12 @@ export const queryKeys = {
     },
     // Feed items bookmarked in the app for a story (/admin/stories queue).
     storyCandidates: (status) => [...queryKeys.admin.all, 'story-candidates', status],
+    // Optio's own invoices (/admin/billing). `billing.all` is the invalidation
+    // root; the list is keyed by the org filter ('' = every invoice).
+    billing: {
+      all: ['admin', 'billing'],
+      invoices: (orgId) => [...queryKeys.admin.billing.all, 'invoices', orgId || ''],
+    },
   },
 
   // Utility functions
