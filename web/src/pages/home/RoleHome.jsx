@@ -54,8 +54,19 @@ function ParentHome() {
 
 export default function RoleHome() {
   const { user, effectiveRole, loading } = useAuth()
+  const { isScoped } = useFamilyScope()
 
   if (loading && !user) return <PageLoader className="min-h-[60vh]" />
+
+  // A picked child wins over the role, for every role. Family scope is only
+  // ever entered by the user (FamilyScopeContext), so a scoped /dashboard
+  // means "I am working with this child" -- Open on a Family card, or the
+  // profile switcher. Only the parent branch honoured it, so an org admin
+  // who is also a parent clicked Open on Brady's card and got her own admin
+  // home with the scope silently set to Brady; the quest cards on it then
+  // opened her quests as Brady (iCreate, Molly, tickets 376cb2ce / bec3639e,
+  // 2026-09-23). "Just me" clears the scope and the role switch applies.
+  if (isScoped) return <DashboardPage />
 
   switch (effectiveRole) {
     case 'parent':

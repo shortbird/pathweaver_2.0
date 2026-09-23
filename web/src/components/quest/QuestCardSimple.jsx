@@ -1,6 +1,7 @@
 import React, { memo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuestEngagement, useArchiveEnrollment } from '../../hooks/api/useQuests';
+import { useFamilyScope } from '../../contexts/FamilyScopeContext';
 import ModalOverlay from '../ui/ModalOverlay';
 import { dueStatus, dueChipOverlayClasses } from '../../utils/dueDate';
 import { MiniHeatMap, rhythmConfig } from './RhythmBadge';
@@ -60,15 +61,27 @@ const ArchiveModal = ({ questTitle, onClose, onConfirm, busy }) => {
   );
 };
 
-const QuestCardSimple = ({ quest }) => {
+/**
+ * `ownOnly`: the card is one of the signed-in user's OWN quests (the role
+ * homes' "Your quests"), never a child's. The student dashboard renders this
+ * card pointed at whoever is in family scope; the staff homes must not. Molly
+ * at iCreate (org admin + parent, 2026-09-23, tickets 376cb2ce / bec3639e)
+ * had Brady picked, and her own quest cards read Brady's engagement and
+ * opened her quests as Brady ("I can't open the quests"). An own card reads
+ * her engagement and leaves the family scope before it opens the quest, so
+ * the detail page loads her enrollment.
+ */
+const QuestCardSimple = ({ quest, ownOnly = false }) => {
   const navigate = useNavigate();
   const [showArchive, setShowArchive] = useState(false);
   const archiveEnrollment = useArchiveEnrollment();
+  const { isScoped, exitScope } = useFamilyScope();
 
   // Fetch engagement data for this quest
-  const { data: engagement } = useQuestEngagement(quest.id);
+  const { data: engagement } = useQuestEngagement(quest.id, { ownOnly });
 
   const handleCardClick = () => {
+    if (ownOnly && isScoped) exitScope();
     navigate(`/quests/${quest.id}`);
   };
 

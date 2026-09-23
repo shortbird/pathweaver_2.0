@@ -70,7 +70,12 @@ export default function PresetTaskManager({ base, orgId, questId = null }) {
     setEditDraft({
       title: t.title, pillar: t.pillar, xp_value: t.xp_value, description: t.description || '',
       diploma_subjects: t.diploma_subjects || [],
-      subject_xp_distribution: t.subject_xp_distribution || {}
+      subject_xp_distribution: t.subject_xp_distribution || {},
+      // The add row had Required and the edit form did not, so a task could
+      // be made required once and never changed (iCreate, ea9756e3,
+      // 2026-09-23: "In editing, I can't edit if something is required or
+      // optional"). Every task-edit route already accepts is_required.
+      is_required: Boolean(t.is_required),
     })
   }
 
@@ -85,6 +90,7 @@ export default function PresetTaskManager({ base, orgId, questId = null }) {
         xp_value: Number(editDraft.xp_value) || 0,
         diploma_subjects: editDraft.diploma_subjects,
         subject_xp_distribution: editDraft.subject_xp_distribution,
+        is_required: Boolean(editDraft.is_required),
       })
       setTasks((prev) => prev.map((t) => (t.id === taskId ? data.task : t)))
       setEditingId(null)
@@ -174,6 +180,11 @@ export default function PresetTaskManager({ base, orgId, questId = null }) {
                       className="w-24 rounded-lg border border-gray-300 px-2 py-1.5 text-sm"
                       onChange={(e) => setEditDraft({ ...editDraft, xp_value: e.target.value })} />
                     <span className="text-xs text-neutral-500">XP</span>
+                    <label className="flex items-center gap-1.5 text-sm text-neutral-600">
+                      <input type="checkbox" checked={!!editDraft.is_required}
+                        onChange={(e) => setEditDraft({ ...editDraft, is_required: e.target.checked })} />
+                      Required
+                    </label>
                     <button onClick={() => saveEdit(t.id)} disabled={saving}
                       className="px-3 py-1.5 rounded-lg bg-gradient-primary text-white text-sm disabled:opacity-50">
                       Save

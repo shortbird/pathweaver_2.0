@@ -5,7 +5,7 @@ import { BookOpenIcon, EllipsisVerticalIcon, PlusIcon } from '@heroicons/react/2
 import { useSisOrg } from '../useSisOrg'
 import {
   useSisQuestLibrary, useAddQuestToCurriculum, useAssignQuestToClass, useCreateLibraryQuest,
-  useGiveQuestToStudents, useUpdateLibraryQuest, useDuplicateLibraryQuest,
+  useGiveQuestToStudents, useUpdateLibraryQuest, useDuplicateLibraryQuest, useQuestHolders,
 } from '../../../hooks/api/useSisQuestLibrary'
 import { useSisRoster } from '../../../hooks/api/useSisRoster'
 import QuestDraftForm, { blankTask } from '../../../components/sis/QuestDraftForm'
@@ -118,6 +118,13 @@ export function AssignQuestModal({ quest, curricula, classes, orgId, onClose }) 
   const assignToClassMutation = useAssignQuestToClass(orgId)
   const giveToStudentsMutation = useGiveQuestToStudents(orgId)
   const { data: roster = [] } = useSisRoster(orgId)
+  // Who already has it, marked in the picker before anyone presses Give
+  // (iCreate, ebfc9253, 2026-09-23: "I can't tell if they already have it or
+  // not until I enter it in again"). Refreshed after a Give, because the
+  // Give hook invalidates the library key this one sits under.
+  const { data: holderIds = [] } = useQuestHolders(orgId, quest.id)
+  const holders = useMemo(() => new Set(holderIds), [holderIds])
+  const studentLabel = (p) => (holders.has(p.student_id) ? `${p.name} (already has it)` : p.name)
   const students = roster.filter((p) => p.is_student)
   const studentOptions = students.filter((p) => !studentIds.includes(p.student_id))
   const studentName = (id) => students.find((p) => p.student_id === id)?.name || 'Student'
@@ -206,7 +213,8 @@ export function AssignQuestModal({ quest, curricula, classes, orgId, onClose }) 
         <section>
           <h3 className="text-sm font-semibold text-neutral-900">Assign it to a class</h3>
           <p className="text-xs text-neutral-500 mb-2">
-            Its students get the quest in their accounts right away. A due date is optional.
+            Its students get the quest in their accounts right away. Only this class gets it: the
+            curriculum the class follows stays as it is. A due date is optional.
           </p>
           <div className="flex items-start gap-2 flex-wrap">
             <div className="flex-1 min-w-[12rem]">
@@ -241,7 +249,7 @@ export function AssignQuestModal({ quest, curricula, classes, orgId, onClose }) 
           <div className="flex items-start gap-2">
             <div className="flex-1">
               <SearchSelect value={studentPick} onChange={pickStudent} options={studentOptions}
-                getId={(p) => p.student_id} getLabel={(p) => p.name}
+                getId={(p) => p.student_id} getLabel={studentLabel}
                 placeholder={students.length ? 'Search students…' : 'No students yet'}
                 emptyLabel="No student matches" />
             </div>
@@ -254,7 +262,7 @@ export function AssignQuestModal({ quest, curricula, classes, orgId, onClose }) 
             <ul className="flex flex-wrap gap-1.5 mt-2" aria-label="Students to give it to">
               {studentIds.map((id) => (
                 <li key={id} className="inline-flex items-center gap-1 rounded-full bg-optio-purple/10 text-optio-purple text-xs px-2.5 py-1">
-                  {studentName(id)}
+                  {studentName(id)}{holders.has(id) ? ' (already has it)' : ''}
                   <button type="button" onClick={() => setStudentIds((prev) => prev.filter((s) => s !== id))}
                     aria-label={`Remove ${studentName(id)}`} className="hover:text-red-600">×</button>
                 </li>
@@ -427,6 +435,16 @@ export function NewQuestPanel({ curricula, orgId, onDone, onCancel }) {
   const [description, setDescription] = useState('')
   const [tasks, setTasks] = useState([blankTask()])
   const [curriculumId, setCurriculumId] = useState('')
+  // The finish line, who may move it, and links, on the create form itself.
+  // iCreate, b067c6c8, 2026-09-23: "add links and attachments when I first
+  // create the quest ... Also add the required xp and mark if the teacher can
+  // change that when first creating too." The XP fields are the edit
+  // dialog's (QuestEditModal); links are posted to the quest's resources once
+  // it has an id. Files still need the id first, so they stay on the step
+  // that opens after Create.
+  const [requiredXp, setRequiredXp] = useState('')
+  const [teachersMay, setTeachersMay] = useState(true)
+  const [links, setLinks] = useState([])
   // The quest once it exists: the form gives way to its attachments, because
   // nothing can be attached to a quest that has no id yet, and closing the
   // panel on save left no way back to it (5a20862f).
@@ -436,15 +454,27 @@ export function NewQuestPanel({ curricula, orgId, onDone, onCancel }) {
 
   const save = async () => {
     if (!title.trim()) { toast.error('Give the quest a title'); return }
+    if (requiredXp !== '' && !(Number(requiredXp) >= 0)) {
+      toast.error('XP required has to be a number, or empty for no requirement')
+      return
+    }
     try {
       const data = await create.mutateAsync({
         title: title.trim(), description: description.trim(),
         tasks: tasks.filter((t) => t.title.trim()), curriculumId: curriculumId || null,
+        xpThreshold: requiredXp === '' ? undefined : Number(requiredXp),
+        // Sent only when unticked: on is the column default, and leaving it
+        // out keeps a plain create the request it always was.
+        teachersMayChangeXp: teachersMay ? undefined : false,
+        links,
       })
       const where = data?.curriculum?.title
       toast.success(where
         ? `Quest created and added to ${where}`
         : 'Quest created. Assign it from its row when you are ready.')
+      if (data?.links_failed) {
+        toast.error(`${data.links_failed} ${data.links_failed === 1 ? 'link' : 'links'} could not be added. Add them below.`)
+      }
       if (data?.quest_id) {
         setCreated({ id: data.quest_id, title: title.trim(), tasks: data.tasks || [] })
       } else {
@@ -487,6 +517,44 @@ export function NewQuestPanel({ curricula, orgId, onDone, onCancel }) {
         description={description} setDescription={setDescription}
         tasks={tasks} setTasks={setTasks}
       />
+      <div>
+        <label className="block text-xs font-medium text-neutral-600 mb-1" htmlFor="new-quest-required-xp">
+          XP required to finish <span className="text-neutral-400">(optional)</span>
+        </label>
+        <input id="new-quest-required-xp" type="number" min="0" step="25"
+          value={requiredXp} onChange={(e) => setRequiredXp(e.target.value)}
+          placeholder="No requirement"
+          className="w-40 rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-optio-purple" />
+        <label className="mt-2 flex items-center gap-2 text-sm text-neutral-700">
+          <input type="checkbox" checked={teachersMay}
+            onChange={(e) => setTeachersMay(e.target.checked)}
+            className="rounded border-gray-300 text-optio-purple focus:ring-optio-purple" />
+          Teachers may change the XP to finish
+        </label>
+      </div>
+      <div>
+        <span className="block text-xs font-medium text-neutral-600 mb-1">Links (optional)</span>
+        {links.map((l, i) => (
+          <div key={i} className="flex flex-wrap items-center gap-2 mb-2">
+            <input value={l.title} aria-label={`Link ${i + 1} title`} placeholder="Title"
+              onChange={(e) => setLinks((prev) => prev.map((x, j) => (j === i ? { ...x, title: e.target.value } : x)))}
+              className="w-48 rounded-lg border border-gray-300 px-3 py-2 text-sm" />
+            <input value={l.url} aria-label={`Link ${i + 1} URL`} placeholder="https://…"
+              onChange={(e) => setLinks((prev) => prev.map((x, j) => (j === i ? { ...x, url: e.target.value } : x)))}
+              className="flex-1 min-w-[12rem] rounded-lg border border-gray-300 px-3 py-2 text-sm" />
+            <button type="button" aria-label={`Remove link ${i + 1}`}
+              onClick={() => setLinks((prev) => prev.filter((_, j) => j !== i))}
+              className="text-sm text-neutral-500 hover:text-red-600">×</button>
+          </div>
+        ))}
+        <button type="button" onClick={() => setLinks((prev) => [...prev, { title: '', url: '' }])}
+          className="text-sm text-optio-purple hover:underline">
+          + Add a link
+        </button>
+        <p className="mt-1 text-xs text-neutral-400">
+          Files, and anything for one task, can be added on the next step.
+        </p>
+      </div>
       <div className="flex flex-wrap items-end gap-3">
         <div className="flex-1 min-w-[14rem]">
           <span className="block text-xs font-medium text-neutral-600 mb-1">Put it on a curriculum (optional)</span>

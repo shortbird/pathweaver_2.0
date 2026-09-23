@@ -612,3 +612,114 @@ class TestTeachersMayChangeTheXp:
                                 tables={'quests': [OWN_QUEST]})
         assert status == 400
         assert not [e for e in log if e[0] == 'update']
+
+
+@pytest.mark.unit
+class TestTheXpFieldsOnTheCreateForm:
+    """iCreate, b067c6c8, 2026-09-23: "Also add the required xp and mark if the
+    teacher can change that when first creating too." The create route takes
+    the two fields the edit dialog already writes, checks them before the quest
+    exists, and writes them through the same update_quest_info."""
+
+    def _create(self, body):
+        with patch.object(library, 'create_org_quest',
+                          return_value={'quest_id': Q2, 'task_count': 0}) as create:
+            out = _run(library.create_library_quest, (), body=body, tables={'quests': [{'id': Q2}]})
+        return out + (create,)
+
+    def test_without_the_fields_nothing_else_is_written(self):
+        body, status, log, create = self._create({'title': 'Bridge Building'})
+        assert status == 201
+        create.assert_called_once()
+        assert [e for e in log if e[0] == 'update'] == []
+
+    def test_with_the_fields_they_are_written_to_the_new_quest(self):
+        body, status, log, _ = self._create(
+            {'title': 'Bridge Building', 'xp_threshold': 300, 'teachers_may_change_xp': False})
+        assert status == 201
+        assert [e for e in log if e[0] == 'update'] == [
+            ('update', 'quests', {'xp_threshold': 300, 'teachers_may_change_xp': False})]
+
+    def test_an_empty_requirement_is_no_requirement(self):
+        _body, status, log, _ = self._create({'title': 'Bridge Building', 'xp_threshold': ''})
+        assert status == 201
+        assert [e for e in log if e[0] == 'update'] == [('update', 'quests', {'xp_threshold': None})]
+
+    @pytest.mark.parametrize('bad', [
+        {'xp_threshold': -25},
+        {'xp_threshold': 'lots'},
+        {'teachers_may_change_xp': 'false'},
+    ])
+    def test_a_bad_value_is_refused_before_the_quest_exists(self, bad):
+        body, status, log, create = self._create({'title': 'Bridge Building', **bad})
+        assert status == 400
+        assert body['success'] is False
+        create.assert_not_called()
+        assert log == []
+
+
+@pytest.mark.unit
+class TestWhoAlreadyHasTheQuest:
+    """iCreate, ebfc9253, 2026-09-23: "When assigning to a student, I can't
+    tell if they already have it or not until I enter it in again." The
+    picker asks first; only this school's accounts come back."""
+
+    def _tables(self, quest):
+        return {
+            'quests': [quest],
+            # The users read is filtered to the org in the query, so the fake
+            # returns only this school's accounts, as the database would.
+            'users': [{'id': S1}, {'id': S2}],
+            'user_quests': [{'id': 'uq1', 'user_id': S1}],
+        }
+
+    def test_this_schools_students_on_the_quest_come_back(self):
+        quest = {'id': Q1, 'organization_id': ORG, 'is_public': False, 'is_active': True}
+        body, status, _ = _run(library.quest_students, (Q1,), tables=self._tables(quest))
+        assert status == 200
+        assert body['student_ids'] == [S1]
+
+    def test_the_read_is_scoped_to_this_schools_accounts(self):
+        """A shared Optio-library quest has enrollments at other schools; the
+        org's own users are read first and the quest read is limited to them."""
+        quest = {'id': Q1, 'organization_id': None, 'is_public': True, 'is_active': True}
+        seen = []
+        orig = _FakeTable.__getattr__
+
+        def spy(self, name):
+            fn = orig(self, name)
+            def call(*a, **k):
+                seen.append((self.name, name, a))
+                return fn(*a, **k)
+            return call
+        with patch.object(_FakeTable, '__getattr__', spy):
+            body, status, _ = _run(library.quest_students, (Q1,), tables=self._tables(quest))
+        assert status == 200
+        assert ('users', 'eq', ('organization_id', ORG)) in seen
+        assert ('user_quests', 'in_', ('user_id', [S1, S2])) in seen
+        assert ('user_quests', 'eq', ('quest_id', Q1)) in seen
+
+    def test_another_schools_quest_is_not_found(self):
+        quest = {'id': Q1, 'organization_id': OTHER_ORG, 'is_public': False, 'is_active': True}
+        body, status, _ = _run(library.quest_students, (Q1,), tables=self._tables(quest))
+        assert status == 404
+        assert 'student_ids' not in body
+
+    def test_a_caller_outside_the_org_gate_is_refused(self):
+        from flask import Flask, jsonify
+        app = Flask(__name__)
+        with app.app_context():
+            refusal = (jsonify({'success': False, 'error': 'No organization'}), 403)
+            with patch('services.sis_service.org_or_error', return_value=(None, refusal)):
+                fn = library.quest_students
+                while hasattr(fn, '__wrapped__'):
+                    fn = fn.__wrapped__
+                resp = fn(USER, Q1)
+        assert resp[1] == 403
+
+    def test_the_route_is_admin_only(self):
+        """Same role gate as the Give write beside it."""
+        import inspect
+        src = inspect.getsource(library)
+        get_block = src.split("def quest_students")[0].rsplit('@bp.route', 1)[1]
+        assert '@require_role(*ADMIN_ROLES)' in get_block

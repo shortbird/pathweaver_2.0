@@ -498,7 +498,15 @@ def assign_quest(user_id, class_id):
         'class_id': class_row['id'], 'quest_id': quest_id,
         'added_by': user_id, 'sequence_order': next_order, **row,
     }, on_conflict='class_id,quest_id').execute()
-    _attach_quest_to_class_curricula(admin, class_row['id'], quest_id, user_id)
+    # The class page's own "add a quest" keeps the curriculum in step (see
+    # _attach_quest_to_class_curricula). The quest library's Assign dialog
+    # sends attach_to_curricula=false: it assigns to ONE class, and a class
+    # can share its curricula with others. iCreate, 56dbc3ab, 2026-09-23:
+    # "when I assign this quest (us history) to the class: independent study
+    # it also adds it to the applied physics curriculum." Tanner's call: the
+    # library Assign stops attaching; the class page keeps attaching.
+    if data.get('attach_to_curricula', True) is not False:
+        _attach_quest_to_class_curricula(admin, class_row['id'], quest_id, user_id)
     # An assigned quest is a quest: enroll the class so it lands in each
     # student's account like any other, not in a separate "assigned" tray.
     # (Only the students it is for, and only once its release date has come.)

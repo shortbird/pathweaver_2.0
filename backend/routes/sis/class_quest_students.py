@@ -19,6 +19,8 @@ Python above every read/write.
 """
 
 
+from datetime import datetime, timedelta, timezone
+
 from flask import Blueprint, request, jsonify
 
 from utils.auth.decorators import require_auth
@@ -58,6 +60,113 @@ def _audience_summary(result):
     return '; '.join(parts).capitalize() + '.' if parts else 'No change for anyone.'
 
 
+# ── What a cell on the progress grid says ─────────────────────────────────────
+
+# Written by GET /api/quests/<id> when the student or their parent opens the
+# quest (migration 20260923120000_user_quests_opened_at). Read optimistically:
+# until that migration is applied the columns do not exist, and the grid must
+# still load -- it just cannot tell "Opened" from "Assigned" yet.
+OPENED_COLUMNS = 'first_opened_at, last_opened_at'
+
+# How far back "XP this week" looks on the grid's engagement line.
+RECENT_XP_DAYS = 7
+
+
+def _read_enrollments(build, columns):
+    """user_quests rows, with the opened timestamps when the database has them.
+
+    `build(columns)` returns a fresh query. A read that fails with the opened
+    columns is retried without them, so a missing migration costs the Opened
+    state and nothing else.
+    """
+    try:
+        return (build(f'{columns}, {OPENED_COLUMNS}').execute()).data or []
+    except Exception as e:  # noqa: BLE001 -- the column may not exist yet
+        logger.warning(f'user_quests opened columns unavailable, reading without them: {e}')
+        return (build(columns).execute()).data or []
+
+
+def _pick_enrollment(rows):
+    """The one enrollment that speaks for a student on a quest.
+
+    A student can hold more than one user_quests row for the same quest (ended
+    and restarted, removed and re-added). The grid used to keep whichever row
+    the database returned last, so a restarted quest could show the old, ended
+    attempt. Prefer the active row, then the most recent.
+    """
+    if not rows:
+        return None
+    return max(rows, key=lambda r: (bool(r.get('is_active')),
+                                    r.get('started_at') or r.get('created_at') or ''))
+
+
+def _group_enrollments(user_quests, key):
+    grouped = {}
+    for uq in user_quests:
+        grouped.setdefault(key(uq), []).append(uq)
+    return {k: _pick_enrollment(rows) for k, rows in grouped.items()}
+
+
+def _xp(task):
+    return task.get('xp_value') or 0
+
+
+def _xp_required(threshold, own_tasks):
+    """The XP this student needs on this quest.
+
+    The quest's xp_threshold when the school set one; otherwise every task's XP,
+    which is the same bar as "every task done".
+    """
+    return (threshold or 0) or sum(_xp(t) for t in own_tasks)
+
+
+def _done_on_this_tab(uq, done, total, xp_earned, xp_required):
+    """Is this quest done, as the Student Progress tab shows it?
+
+    Reaching the quest's XP target counts, on this tab only (iCreate, ticket
+    d4e562c9, 2026-09-23: Colby Barker read "2/8" while he had earned the 50 XP
+    the quest asks for). The weekly digest and the class list keep the stricter
+    rule in utils/quest_completion.is_quest_done, which this does not change --
+    by decision (Tanner, 2026-09-23).
+    """
+    if _is_done(uq, done, total):
+        return True
+    return bool(uq) and xp_required > 0 and xp_earned >= xp_required
+
+
+def _cell_state(uq, completed, done, xp_earned):
+    """One word for where a student is on an assigned quest.
+
+    Assigned -> Opened -> In progress -> Done, or Set aside. "Assigned" and
+    "Opened" exist because assigning a quest creates the enrollment at once, so
+    an enrollment alone says nothing about whether the student has looked
+    (iCreate, ticket 7cf5d330, 2026-09-23).
+    """
+    if not uq:
+        return 'assigned'
+    if completed:
+        return 'done'
+    # The student's own "end quest" below the XP target sets the quest aside
+    # (routes/quest/completion.py _set_aside): off their dashboard, work kept.
+    if uq.get('status') == 'set_down':
+        return 'set_aside'
+    if done or xp_earned:
+        return 'in_progress'
+    if uq.get('first_opened_at'):
+        return 'opened'
+    return 'assigned'
+
+
+def _parse_ts(value):
+    if not value:
+        return None
+    try:
+        parsed = datetime.fromisoformat(str(value).replace('Z', '+00:00'))
+    except ValueError:
+        return None
+    return parsed if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)
+
+
 @bp.route('/classes/<class_id>/progress', methods=['GET'])
 @require_auth
 def class_student_progress(user_id, class_id):
@@ -78,7 +187,8 @@ def class_student_progress(user_id, class_id):
         return err
 
     assigned = (admin.table('class_quests')
-                .select('quest_id, sequence_order, due_date, publish_at, student_ids, quests(id, title)')
+                .select('quest_id, sequence_order, due_date, publish_at, student_ids, '
+                        'quests(id, title, xp_threshold)')
                 .eq('class_id', class_row['id']).order('sequence_order').execute()).data or []
     quests = [{
         'quest_id': r['quest_id'],
@@ -86,6 +196,9 @@ def class_student_progress(user_id, class_id):
         'due_date': r.get('due_date'),
         'publish_at': r.get('publish_at'),
         'student_ids': r.get('student_ids'),
+        # The XP the school asks for; 0 when unset (then each student's own
+        # task XP is the bar).
+        'xp_threshold': (r.get('quests') or {}).get('xp_threshold') or 0,
     } for r in assigned]
     quest_ids = [q['quest_id'] for q in quests]
     link_by_quest = {r['quest_id']: r for r in assigned}
@@ -108,11 +221,12 @@ def class_student_progress(user_id, class_id):
                        or 'Unnamed') for u in users}
 
     # Enrollments, then that enrollment's tasks, then which of those are done.
-    user_quests, tasks, done_task_ids = [], [], set()
+    user_quests, tasks, completed_at_by_task = [], [], {}
     if quest_ids:
-        user_quests = (admin.table('user_quests')
-                       .select('id, user_id, quest_id, is_active, completed_at, started_at')
-                       .in_('user_id', student_ids).in_('quest_id', quest_ids).execute()).data or []
+        user_quests = _read_enrollments(
+            lambda cols: (admin.table('user_quests').select(cols)
+                          .in_('user_id', student_ids).in_('quest_id', quest_ids)),
+            'id, user_id, quest_id, is_active, status, completed_at, started_at, created_at')
     uq_ids = [uq['id'] for uq in user_quests]
     if uq_ids:
         # Paged: this is one row per task per student per assigned quest, so a
@@ -126,44 +240,73 @@ def class_student_progress(user_id, class_id):
     task_ids = [t['id'] for t in tasks]
     for chunk_start in range(0, len(task_ids), 200):  # keep the IN list sane
         chunk = task_ids[chunk_start:chunk_start + 200]
-        rows = (admin.table('quest_task_completions').select('task_id')
+        rows = (admin.table('quest_task_completions').select('task_id, completed_at')
                 .in_('task_id', chunk).execute()).data or []
-        done_task_ids.update(r['task_id'] for r in rows)
+        completed_at_by_task.update({r['task_id']: r.get('completed_at') for r in rows})
+    done_task_ids = set(completed_at_by_task)
 
     tasks_by_uq = {}
     for t in tasks:
         tasks_by_uq.setdefault(t['user_quest_id'], []).append(t)
-    uq_by_student_quest = {(uq['user_id'], uq['quest_id']): uq for uq in user_quests}
+    uq_by_student_quest = _group_enrollments(user_quests, lambda uq: (uq['user_id'], uq['quest_id']))
+    recent_since = datetime.now(timezone.utc) - timedelta(days=RECENT_XP_DAYS)
 
     students = []
     for sid in student_ids:
         cells, total_done, total_tasks = [], 0, 0
+        total_xp, total_xp_required, recent_xp, last_activity = 0, 0, 0, None
         for q in quests:
             # A quest kept to other students is not this one's work: no cell
             # arithmetic, and the grid says "not assigned" rather than "not
             # started", which would read as a student falling behind.
             if not assigned_to(link_by_quest[q['quest_id']], sid):
                 cells.append({'quest_id': q['quest_id'], 'assigned': False, 'started': False,
-                              'completed': False, 'done': 0, 'total': 0})
+                              'completed': False, 'done': 0, 'total': 0,
+                              'xp_earned': 0, 'xp_required': 0, 'state': 'not_assigned'})
                 continue
             uq = uq_by_student_quest.get((sid, q['quest_id']))
             if not uq:
+                total_xp_required += q['xp_threshold']
                 cells.append({'quest_id': q['quest_id'], 'assigned': True, 'started': False,
-                              'completed': False, 'done': 0, 'total': 0})
+                              'completed': False, 'done': 0, 'total': 0,
+                              'xp_earned': 0, 'xp_required': q['xp_threshold'],
+                              'state': 'assigned'})
                 continue
             own = tasks_by_uq.get(uq['id'], [])
-            done = len([t for t in own if t['id'] in done_task_ids])
+            finished = [t for t in own if t['id'] in done_task_ids]
+            done = len(finished)
+            xp_earned = sum(_xp(t) for t in finished)
+            xp_required = _xp_required(q['xp_threshold'], own)
+            completed = _done_on_this_tab(uq, done, len(own), xp_earned, xp_required)
+            for t in finished:
+                at = _parse_ts(completed_at_by_task.get(t['id']))
+                if at and (last_activity is None or at > last_activity):
+                    last_activity = at
+                if at and at >= recent_since:
+                    recent_xp += _xp(t)
             total_done += done
             total_tasks += len(own)
+            total_xp += xp_earned
+            total_xp_required += xp_required
             cells.append({
                 'quest_id': q['quest_id'],
                 'assigned': True,
                 'started': True,
-                'completed': _is_done(uq, done, len(own)),
+                'completed': completed,
                 'done': done,
                 'total': len(own),
+                'xp_earned': xp_earned,
+                'xp_required': xp_required,
+                'state': _cell_state(uq, completed, done, xp_earned),
                 'started_at': uq.get('started_at'),
+                # Set only when the student (or parent) ended the quest; the
+                # grid shows it as a check and a date (iCreate, ticket
+                # 8b928af0, 2026-09-23: "When a parent completes a Quest and
+                # ends it, it would be nice to know/see that on this page").
                 'completed_at': uq.get('completed_at'),
+                'set_aside': uq.get('status') == 'set_down' and not uq.get('completed_at'),
+                'first_opened_at': uq.get('first_opened_at'),
+                'last_opened_at': uq.get('last_opened_at'),
             })
         students.append({
             'student_id': sid,
@@ -171,6 +314,13 @@ def class_student_progress(user_id, class_id):
             'cells': cells,
             'tasks_done': total_done,
             'tasks_total': total_tasks,
+            'xp_earned': total_xp,
+            'xp_required': total_xp_required,
+            # Engagement, read from the class's quests only (iCreate, ticket
+            # 7cf5d330): when this student last turned something in, and how
+            # much XP they earned in the last week.
+            'last_activity_at': last_activity.isoformat() if last_activity else None,
+            'xp_last_7_days': recent_xp,
             'quests_started': len([c for c in cells if c['started']]),
             'quests_completed': len([c for c in cells if c['completed']]),
         })
@@ -190,19 +340,19 @@ def _student_work(admin, class_row, student_id):
     what is done and what isn't").
     """
     links = (admin.table('class_quests')
-             .select('quest_id, due_date, student_ids, quests(title)')
+             .select('quest_id, due_date, student_ids, quests(title, xp_threshold)')
              .eq('class_id', class_row['id'])
              .order('sequence_order').execute()).data or []
     quest_ids = [r['quest_id'] for r in links if r.get('quest_id')]
     if not quest_ids:
         return []
 
-    user_quests = (admin.table('user_quests')
-                   .select('id, quest_id, completed_at, started_at')
-                   .eq('user_id', student_id)
-                   .in_('quest_id', quest_ids).execute()).data or []
-    uq_by_quest = {uq['quest_id']: uq for uq in user_quests}
-    uq_ids = [uq['id'] for uq in user_quests]
+    user_quests = _read_enrollments(
+        lambda cols: (admin.table('user_quests').select(cols)
+                      .eq('user_id', student_id).in_('quest_id', quest_ids)),
+        'id, quest_id, is_active, status, completed_at, started_at, created_at')
+    uq_by_quest = _group_enrollments(user_quests, lambda uq: uq['quest_id'])
+    uq_ids = [uq['id'] for uq in uq_by_quest.values()]
 
     tasks, done_ids, completion_by_task = [], set(), {}
     if uq_ids:
@@ -225,15 +375,29 @@ def _student_work(admin, class_row, student_id):
     for link in links:
         uq = uq_by_quest.get(link['quest_id'])
         own = by_uq.get(uq['id'], []) if uq else []
+        finished = [t for t in own if t['id'] in done_ids]
+        threshold = (link.get('quests') or {}).get('xp_threshold') or 0
+        xp_earned = sum(_xp(t) for t in finished)
+        xp_required = _xp_required(threshold, own)
+        completed = _done_on_this_tab(uq, len(finished), len(own), xp_earned, xp_required)
+        assigned = assigned_to(link, student_id)
         out.append({
             'quest_id': link['quest_id'],
             'title': (link.get('quests') or {}).get('title') or 'Untitled quest',
             'due_date': link.get('due_date'),
             # False when the teacher kept this quest to other students. Listed
             # anyway, so the panel can offer to assign it to this one.
-            'assigned': assigned_to(link, student_id),
+            'assigned': assigned,
             'started': bool(uq),
-            'completed': _is_done(uq, len([t for t in own if t['id'] in done_ids]), len(own)),
+            # Same XP rule as the grid, so the panel and the reminder agree
+            # with the cell the teacher clicked from (ticket d4e562c9).
+            'completed': completed,
+            'xp_earned': xp_earned,
+            'xp_required': xp_required,
+            'state': _cell_state(uq, completed, len(finished), xp_earned) if assigned else 'not_assigned',
+            'completed_at': (uq or {}).get('completed_at'),
+            'set_aside': bool(uq) and uq.get('status') == 'set_down' and not uq.get('completed_at'),
+            'first_opened_at': (uq or {}).get('first_opened_at'),
             'tasks': [{
                 'id': t['id'],
                 'title': t.get('title'),

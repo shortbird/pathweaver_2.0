@@ -137,6 +137,32 @@ class SisQuestLibraryRepository(BaseRepository):
             logger.error(f"Error reading students for org {org_id}: {e}")
             raise DatabaseError("Failed to read students") from e
 
+    def org_users_on_quest(self, org_id: str, quest_id: str) -> List[str]:
+        """The ids of this school's accounts that already have a user_quests row
+        for this quest, in ANY state -- the same test the enroller uses to skip
+        somebody (services/class_quest_enrollment._existing_pairs), so the
+        picker's "(already has it)" and the Give toast cannot disagree.
+
+        Org first, then the quest: a shared Optio-library quest can have
+        enrollments at every school on the platform, and this school's
+        accounts are the bounded side. Both reads page (fetch_all_rows), and
+        the quest read is chunked so the id list stays a sane URL.
+        """
+        org_ids = [r['id'] for r in fetch_all_rows(
+            lambda: self.client.table('users').select('id').eq('organization_id', org_id))]
+        holders: List[str] = []
+        seen = set()
+        for i in range(0, len(org_ids), 200):
+            chunk = org_ids[i:i + 200]
+            rows = fetch_all_rows(
+                lambda chunk=chunk: self.client.table('user_quests').select('id, user_id')
+                .eq('quest_id', quest_id).in_('user_id', chunk))
+            for r in rows:
+                if r['user_id'] not in seen:
+                    seen.add(r['user_id'])
+                    holders.append(r['user_id'])
+        return holders
+
     def find_quest_for_assign(self, quest_id: str) -> Optional[Dict[str, Any]]:
         """The columns the assign rule needs: whose it is, and whether it is live."""
         try:

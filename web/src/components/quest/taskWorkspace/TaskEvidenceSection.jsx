@@ -7,6 +7,25 @@ import EvidenceDisplay from '../../evidence/EvidenceDisplay';
 import CreditFeedbackThread from '../../credit/CreditFeedbackThread';
 import { Spinner, ButtonSpinner } from '../../ui';
 
+// A teacher's accept of this task, where the family is looking. The accept was
+// written in the SIS submissions inbox and the parent was notified, but the
+// task itself never showed it (iCreate, ticket 650aa9b9, 2026-09-23: "When I
+// accept a task, the parent is notified of which one, but then it doesn't show
+// up on the task that it has been accepted"). `task.review` comes from GET
+// /api/quests/<id>; it is null until a teacher reviews the task.
+export const TaskReviewChip = ({ review }) => {
+  if (!review || review.action !== 'accepted') return null
+  const when = review.reviewed_at
+    ? new Date(review.reviewed_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+    : null
+  return (
+    <p className="mb-4 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-green-50 text-green-700 text-xs font-medium">
+      <CheckCircleIcon className="w-4 h-4" aria-hidden="true" />
+      Accepted by {review.reviewer_name || 'your teacher'}{when ? ` · ${when}` : ''}
+    </p>
+  )
+}
+
 const TaskEvidenceSection = ({ canRequestCredit, creditStatus, error, evidenceBlocks, handleDeleteEvidence, handleDeleteItem, handleEditEvidence, handleMarkComplete, handleReorder, handleRequestCredit, handleTogglePortfolio, isClassQuest, isCompleting, isLoading, isRequestingCredit, isSaving, isTaskCompleted, isTogglingPortfolio, portfolioPick, setIsModalOpen, task }) => (
   <>
     <div className="sticky top-0 z-10 bg-white border-b border-gray-200 px-3 sm:px-6 py-2 sm:py-3 shadow-sm">
@@ -135,6 +154,8 @@ const TaskEvidenceSection = ({ canRequestCredit, creditStatus, error, evidenceBl
     </div>
 
     <div className="p-6">
+      {task.is_completed && <TaskReviewChip review={task.review} />}
+
       {error && (
         <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
           <div className="flex items-start gap-2">

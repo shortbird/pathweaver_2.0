@@ -19,6 +19,10 @@ import CreditFeedbackThread from '../../../components/credit/CreditFeedbackThrea
  * marks it reviewed and auto-advances to the next item. j/k also navigate.
  */
 
+// One page of the queue. The server's default is 50 too; sending it keeps
+// offset arithmetic for Load more on the client's side of the contract.
+const PAGE_SIZE = 50
+
 const timeAgo = (iso) => {
   if (!iso) return ''
   const s = Math.max(0, (Date.now() - new Date(iso).getTime()) / 1000)
@@ -30,6 +34,13 @@ const timeAgo = (iso) => {
   const d = Math.floor(h / 24)
   if (d < 7) return `${d}d ago`
   return new Date(iso).toLocaleDateString()
+}
+
+const listParams = (scope, classId, search, offset) => {
+  const p = new URLSearchParams({ scope, limit: String(PAGE_SIZE), offset: String(offset) })
+  if (classId) p.set('class_id', classId)
+  if (search) p.set('q', search)
+  return p.toString()
 }
 
 // Evidence block content mirrors the credit dashboard's shapes: content is a
@@ -212,8 +223,22 @@ export default function SubmissionsPanel() {
   const [classes, setClasses] = useState([])
   const [submissions, setSubmissions] = useState([])
   const [counts, setCounts] = useState({ new: 0, reviewed: 0 })
+  // Size of the list being paged (after the search), for Load more.
+  const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(false)
+  const [loadingMore, setLoadingMore] = useState(false)
   const [selectedId, setSelectedId] = useState(null)
+  // Search by student name, task title or quest title. iCreate, ticket
+  // 0e6cb0fc (2026-09-23): "It would be nice to have a search bar to be able
+  // to find a past reviewed task easily." Reviewed stopped at the newest 50
+  // with no way further back, so search runs on the server over the whole
+  // list, and Load more walks the rest of it.
+  const [query, setQuery] = useState('')
+  const [search, setSearch] = useState('')
+  useEffect(() => {
+    const t = setTimeout(() => setSearch(query.trim()), 300)
+    return () => clearTimeout(t)
+  }, [query])
 
   useEffect(() => {
     if (!orgId) return
@@ -227,13 +252,14 @@ export default function SubmissionsPanel() {
   const load = useCallback(({ quiet = false } = {}) => {
     if (!orgId) return
     if (!quiet) setLoading(true)
-    const params = `scope=${scope}${classId ? `&class_id=${classId}` : ''}`
-    api.get(withOrg(`/api/sis/submissions?${params}`, orgId))
+    // A new scope, class or search always starts again at the first page.
+    api.get(withOrg(`/api/sis/submissions?${listParams(scope, classId, search, 0)}`, orgId))
       .then((r) => {
         loadedAt.current = Date.now()
         const list = r.data?.submissions || []
         setSubmissions(list)
         setCounts(r.data?.counts || { new: 0, reviewed: 0 })
+        setTotal(r.data?.total ?? list.length)
         const target = targetCompletion.current
         if (target && list.some((s) => s.completion_id === target)) {
           targetCompletion.current = null
@@ -250,9 +276,29 @@ export default function SubmissionsPanel() {
       })
       .catch(() => toast.error('Failed to load submissions'))
       .finally(() => { if (!quiet) setLoading(false) })
-  }, [orgId, scope, classId])
+  }, [orgId, scope, classId, search])
 
   useEffect(() => { load() }, [load])
+
+  // The next page, after the rows already on screen. Accept and un-review
+  // take rows out of the server's list as they take them off the screen, so
+  // the count on screen is the right offset.
+  const loadMore = () => {
+    if (!orgId || loadingMore) return
+    setLoadingMore(true)
+    api.get(withOrg(
+      `/api/sis/submissions?${listParams(scope, classId, search, submissions.length)}`, orgId))
+      .then((r) => {
+        const more = r.data?.submissions || []
+        setSubmissions((subs) => {
+          const have = new Set(subs.map((s) => s.completion_id))
+          return [...subs, ...more.filter((s) => !have.has(s.completion_id))]
+        })
+        if (r.data?.total != null) setTotal(r.data.total)
+      })
+      .catch(() => toast.error('Failed to load more submissions'))
+      .finally(() => setLoadingMore(false))
+  }
 
   // The evidence links are signed URLs, good for an hour from the load above.
   // A teacher who read through the class and clicked "poems.pdf" seventy
@@ -317,6 +363,7 @@ export default function SubmissionsPanel() {
       })
       const idx = submissions.findIndex((s) => s.completion_id === sub.completion_id)
       const rest = submissions.filter((s) => s.completion_id !== sub.completion_id)
+      setTotal((t) => Math.max(0, t - 1))
       if (rest.length) {
         setSubmissions(rest)
         setSelectedId(rest[Math.min(idx, rest.length - 1)]?.completion_id || null)
@@ -346,6 +393,7 @@ export default function SubmissionsPanel() {
       } else {
         const idx = submissions.findIndex((s) => s.completion_id === sub.completion_id)
         const next = submissions.filter((s) => s.completion_id !== sub.completion_id)
+        setTotal((t) => Math.max(0, t - 1))
         setSubmissions(next)
         setSelectedId(next[Math.min(idx, next.length - 1)]?.completion_id || null)
       }
@@ -408,18 +456,34 @@ export default function SubmissionsPanel() {
           getLabel={classLabel}
           placeholder="Filter by class…"
         />
+        <input
+          type="search"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Search student, task or quest…"
+          aria-label="Search submissions"
+          className="w-64 rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-optio-purple"
+        />
       </div>
 
       {loading && <p className="text-neutral-500">Loading…</p>}
 
       {!loading && submissions.length === 0 && (
         <div className="bg-white rounded-xl border border-gray-200 p-10 text-center">
-          <p className="text-lg font-semibold text-neutral-800">You're all caught up.</p>
-          <p className="text-sm text-neutral-500 mt-1">
-            {scope === 'new'
-              ? 'No new submissions from your classes.'
-              : 'Nothing has been reviewed yet.'}
-          </p>
+          {search ? (
+            <p className="text-lg font-semibold text-neutral-800">
+              {`No ${scope === 'new' ? 'new' : 'reviewed'} submissions match "${search}".`}
+            </p>
+          ) : (
+            <>
+              <p className="text-lg font-semibold text-neutral-800">You're all caught up.</p>
+              <p className="text-sm text-neutral-500 mt-1">
+                {scope === 'new'
+                  ? 'No new submissions from your classes.'
+                  : 'Nothing has been reviewed yet.'}
+              </p>
+            </>
+          )}
         </div>
       )}
 
@@ -445,6 +509,16 @@ export default function SubmissionsPanel() {
                 </div>
               </button>
             ))}
+            {submissions.length < total && (
+              <button
+                type="button"
+                onClick={loadMore}
+                disabled={loadingMore}
+                className="block w-full px-4 py-3 text-sm font-medium text-optio-purple hover:bg-neutral-50 disabled:opacity-50"
+              >
+                {loadingMore ? 'Loading…' : `Load more (${total - submissions.length} more)`}
+              </button>
+            )}
           </div>
 
           {/* Main pane: selected submission.

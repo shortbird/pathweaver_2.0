@@ -85,7 +85,9 @@ describe('StudentProgressTab', () => {
     expect(screen.getByText('Poetry Slam')).toBeInTheDocument()
   })
 
-  it('distinguishes done, part-way, and not started', async () => {
+  it('distinguishes done, part-way, and assigned-but-untouched', async () => {
+    /** "Not started" became "Assigned" on 2026-09-23 (ticket 7cf5d330): the
+     *  grid now also has "Opened", and a quest nobody touched is assigned. */
     api.get.mockResolvedValue({
       data: {
         quests: [QUESTS[0]],
@@ -99,8 +101,9 @@ describe('StudentProgressTab', () => {
     render(<StudentProgressTab classId="c1" className="Art" />)
 
     expect(await screen.findByText('Done')).toBeInTheDocument()
-    expect(screen.getByText('1/4')).toBeInTheDocument()
-    expect(screen.getByText('Not started')).toBeInTheDocument()
+    // Once in Blaise's cell; his total column reads 1/4 as well.
+    expect(screen.getAllByText('1/4').length).toBeGreaterThan(0)
+    expect(screen.getByText('Assigned')).toBeInTheDocument()
   })
 
   it('calls out students who have started nothing', async () => {
@@ -213,12 +216,13 @@ describe('StudentProgressTab during a check-in', () => {
     }
   })
 
-  it('keeps the tasks-done column pinned to the right edge', async () => {
+  it('keeps the total column pinned to the right edge', async () => {
+    /** The column was "Tasks done" until it became XP (ticket d4e562c9). */
     threeStudents()
     render(<StudentProgressTab classId="c1" className="Art" />)
     await screen.findByRole('button', { name: 'Ada Byron' })
 
-    const header = screen.getByRole('columnheader', { name: 'Tasks done' })
+    const header = screen.getByRole('columnheader', { name: 'XP' })
     expect(header.className).toMatch(/\bsticky\b/)
     expect(header.className).toMatch(/\bright-0\b/)
     // And every cell under it, or the header pins while the numbers slide away.

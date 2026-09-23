@@ -186,7 +186,8 @@ def list_org_quests(user_id):
 def create_library_quest(user_id):
     """Author a new school quest from the library page.
 
-    Body: {title, description?, tasks?, curriculum_id?}. The same form and the
+    Body: {title, description?, tasks?, curriculum_id?, xp_threshold?,
+    teachers_may_change_xp?}. The same form and the
     same authoring service as "create a quest" on a curriculum or a class
     (services/sis_quest_authoring), the difference being that nothing has to
     exist to hang it on: a quest can be written first and placed later, which
@@ -205,6 +206,20 @@ def create_library_quest(user_id):
         curriculum = _repo().find_curriculum(curriculum_id)
         if not curriculum or curriculum.get('organization_id') != org_id:
             return jsonify({'success': False, 'error': 'Curriculum not found'}), 404
+    # The finish line and who may move it, set on the create form too
+    # (iCreate, b067c6c8, 2026-09-23: "Also add the required xp and mark if
+    # the teacher can change that when first creating too"). Checked BEFORE
+    # the quest exists, so a bad value refuses the request instead of leaving
+    # a half-configured quest behind; written after, through the same
+    # update_quest_info the edit dialog uses, so the rules are one rule.
+    xp_fields = {k: data[k] for k in ('xp_threshold', 'teachers_may_change_xp') if k in data}
+    if 'xp_threshold' in xp_fields:
+        from services.sis_training_service import clean_xp_threshold
+        _value, xp_err = clean_xp_threshold(xp_fields['xp_threshold'])
+        if xp_err:
+            return jsonify({'success': False, 'error': xp_err}), 400
+    if 'teachers_may_change_xp' in xp_fields and not isinstance(xp_fields['teachers_may_change_xp'], bool):
+        return jsonify({'success': False, 'error': 'teachers_may_change_xp must be true or false'}), 400
     try:
         created = create_org_quest(
             _admin(), org_id=org_id, user_id=user_id,
@@ -213,6 +228,11 @@ def create_library_quest(user_id):
         )
     except QuestAuthoringError as e:
         return jsonify({'success': False, 'error': e.message}), e.status
+    if xp_fields:
+        try:
+            task_editing.update_quest_info(_admin(), created['quest_id'], xp_fields)
+        except QuestTaskEditError as e:
+            return jsonify({'success': False, 'error': e.message}), e.status
     out = {'success': True, 'quest_id': created['quest_id'], 'task_count': created['task_count'],
            'tasks': created.get('tasks') or []}
     if curriculum:
@@ -261,6 +281,31 @@ def put_quest_on_curriculum(user_id, quest_id):
 # Enough for a whole school's students in one request, small enough that a
 # runaway client cannot enroll everyone in everything by accident.
 MAX_STUDENTS_PER_ASSIGN = 200
+
+
+@bp.route('/quests/<quest_id>/students', methods=['GET'])
+@require_role(*ADMIN_ROLES)
+def quest_students(user_id, quest_id):
+    """This school's students who already have the quest.
+
+    iCreate, ebfc9253, 2026-09-23: "When assigning to a student, I can't tell
+    if they already have it or not until I enter it in again." The Give door
+    only said so afterwards (already_had_it). The picker reads this first and
+    marks them. Same gate as the Give write; only this school's accounts come
+    back, whoever else in the platform is on a shared Optio-library quest.
+    """
+    org_id, err = sis_service.org_or_error(user_id)
+    if err:
+        return err
+    if _bad_uuid(quest_id):
+        return jsonify({'success': False, 'error': 'Invalid id'}), 400
+    repo = _repo()
+    quest = repo.find_quest_for_assign(quest_id)
+    if not quest or not (
+            quest.get('organization_id') == org_id
+            or (quest.get('organization_id') is None and quest.get('is_public'))):
+        return jsonify({'success': False, 'error': 'Quest not found'}), 404
+    return jsonify({'success': True, 'student_ids': repo.org_users_on_quest(org_id, quest_id)})
 
 
 @bp.route('/quests/<quest_id>/students', methods=['POST'])

@@ -35,11 +35,44 @@ const invalidateLibrary = (queryClient, orgId) =>
 export const useCreateLibraryQuest = (orgId) => {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: async ({ title, description, tasks, curriculumId }) => {
+    mutationFn: async ({
+      title, description, tasks, curriculumId, xpThreshold, teachersMayChangeXp, links,
+    }) => {
       const body = { title, description, tasks }
       if (curriculumId) body.curriculum_id = curriculumId
+      // The finish line and who may move it, on the create form too (iCreate,
+      // b067c6c8, 2026-09-23). Only sent when the form names them, so the
+      // plain create is the same request it always was.
+      if (xpThreshold !== undefined && xpThreshold !== null && xpThreshold !== '') {
+        body.xp_threshold = Number(xpThreshold)
+      }
+      if (typeof teachersMayChangeXp === 'boolean') body.teachers_may_change_xp = teachersMayChangeXp
       const res = await api.post(withOrg('/api/sis/quests', orgId), body)
-      return res.data
+      const data = res.data
+      // Links typed on the create form go on once the quest has an id, through
+      // the same route the attachments panel posts to. One failed link must
+      // not lose the quest, so failures are counted and reported, not thrown.
+      const questId = data?.quest_id
+      const toAdd = (links || []).filter((l) => l?.url?.trim())
+      let linksFailed = 0
+      if (questId && toAdd.length) {
+        for (const l of toAdd) {
+          try {
+            // Link vs video is told apart the way QuestResourcesPanel does it,
+            // so a link added here is stored like one added there.
+            const looksLikeVideo = /youtube\.com|youtu\.be|vimeo\.com|loom\.com|drive\.google\.com/
+              .test(l.url)
+            await api.post(withOrg(`/api/sis/quests/${questId}/resources`, orgId), {
+              kind: looksLikeVideo ? 'video' : 'link',
+              title: (l.title || '').trim(),
+              url: l.url.trim(),
+            })
+          } catch {
+            linksFailed += 1
+          }
+        }
+      }
+      return { ...data, links_added: toAdd.length - linksFailed, links_failed: linksFailed }
     },
     onSuccess: () => invalidateLibrary(queryClient, orgId),
   })
@@ -102,7 +135,12 @@ export const useAssignQuestToClass = (orgId) => {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async ({ questId, classId, dueDate }) => {
-      const body = { quest_id: questId }
+      // attach_to_curricula: false -- assigning from the library puts the
+      // quest on this ONE class and leaves every curriculum alone. The class
+      // endpoint otherwise adds it to each curriculum linked to the class
+      // (iCreate, 56dbc3ab, 2026-09-23: US History assigned to Independent
+      // Study also landed on the Applied Physics curriculum).
+      const body = { quest_id: questId, attach_to_curricula: false }
       if (dueDate) body.due_date = dueDate
       const res = await api.post(withOrg(`/api/sis/classes/${classId}/quests`, orgId), body)
       return res.data
@@ -110,6 +148,20 @@ export const useAssignQuestToClass = (orgId) => {
     onSuccess: () => invalidateLibrary(queryClient, orgId),
   })
 }
+
+// Which of the school's students already have this quest, so the Give picker
+// can say so before anyone presses Give (iCreate, ebfc9253, 2026-09-23: "I
+// can't tell if they already have it or not until I enter it in again"). The
+// key sits under the library's, so the invalidation after a Give refreshes it.
+export const useQuestHolders = (orgId, questId) => useQuery({
+  queryKey: [...queryKeys.sis.questLibrary(orgId), 'holders', questId],
+  queryFn: async () => {
+    const res = await api.get(withOrg(`/api/sis/quests/${questId}/students`, orgId))
+    return res.data?.student_ids || []
+  },
+  enabled: !!orgId && !!questId,
+  staleTime: 30 * 1000,
+})
 
 // Give a quest to students by name. Dallin (iCreate, 293c4d99, 2026-09-18):
 // "Can we assign quests to individuals too?" The class door narrows to an

@@ -29,23 +29,93 @@ import { printHtml } from '../../utils/printView'
  * to filter by student would be very helpful on that page"). Same request: the
  * "Tasks done" column stays put while the quest columns scroll under it, and
  * the grid opens scrolled to its newest quests, which sit at the far right.
+ *
+ * Since 2026-09-23 (iCreate tickets d4e562c9, 8b928af0, 7cf5d330) a cell leads
+ * with XP against the quest's target, reaching that target counts as Done on
+ * this tab, an ended quest shows a check and the date, and each student row
+ * says when they last turned something in.
  */
 
 const isAssigned = (c) => c.assigned !== false
 
-const cellStyle = (c) => {
-  if (!isAssigned(c)) return 'text-neutral-300 border border-dashed border-gray-200'
-  if (!c.started) return 'bg-gray-50 text-neutral-400'
-  if (c.completed) return 'bg-green-50 text-green-700 font-semibold'
-  return 'bg-amber-50 text-amber-800'
+// XP first, tasks second (iCreate, ticket d4e562c9, 2026-09-23: Colby Barker
+// read "2/8" while he had earned the 50 XP the quest asks for -- "So it would
+// be 50XP/50XP"). A payload from before the XP fields falls back to tasks.
+const hasXp = (o) => typeof o?.xp_earned === 'number'
+const xpLabel = (earned, required) => (required ? `${earned} / ${required} XP` : `${earned} XP`)
+const tasksLabel = (done, total) => `${done || 0}/${total || 0} tasks`
+const shortDate = (iso) => new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+
+// Where a student is on one quest. The backend sends `state`; the fallback
+// reads the older fields, so a stale tab keeps working through a deploy.
+//   Assigned -> Opened -> In progress -> Done, or Set aside
+// "Assigned" and "Opened" are separate because assigning a quest creates the
+// enrollment at once -- an enrollment alone says nothing about whether the
+// student has looked (iCreate, ticket 7cf5d330, 2026-09-23).
+const stateOf = (c) => {
+  if (c.state) return c.state
+  if (!isAssigned(c)) return 'not_assigned'
+  if (!c.started) return 'assigned'
+  if (c.completed) return 'done'
+  return c.done ? 'in_progress' : 'assigned'
 }
 
-const cellLabel = (c) => {
-  if (!isAssigned(c)) return 'Not assigned'
-  if (!c.started) return 'Not started'
-  if (c.completed) return 'Done'
-  if (!c.total) return 'Started'
-  return `${c.done}/${c.total}`
+const cellStyle = (c) => ({
+  not_assigned: 'text-neutral-300 border border-dashed border-gray-200',
+  assigned: 'bg-gray-50 text-neutral-400',
+  opened: 'bg-blue-50 text-blue-700',
+  in_progress: 'bg-amber-50 text-amber-800',
+  done: 'bg-green-50 text-green-700',
+  set_aside: 'bg-gray-100 text-neutral-600',
+}[stateOf(c)] || 'bg-gray-50 text-neutral-400')
+
+/** [main line, secondary line or null] for a grid cell. */
+const cellLines = (c) => {
+  const state = stateOf(c)
+  const xp = hasXp(c) ? xpLabel(c.xp_earned, c.xp_required) : null
+  const tasks = c.total ? tasksLabel(c.done, c.total) : null
+  switch (state) {
+    case 'not_assigned': return ['Not assigned', null]
+    case 'assigned': return ['Assigned', null]
+    case 'opened': return ['Opened', c.first_opened_at ? shortDate(c.first_opened_at) : null]
+    case 'set_aside': return ['Set aside', [xp, tasks].filter(Boolean).join(' · ') || null]
+    case 'done':
+      // Ended by the student or a parent: a check and the date (iCreate,
+      // ticket 8b928af0, 2026-09-23: "When a parent completes a Quest and
+      // ends it, it would be nice to know/see that on this page. Like a check
+      // mark."). Done without ending -- target reached, quest still open --
+      // says Done in words instead.
+      if (c.completed_at) {
+        return [`✓ ${xp || 'Done'}`, [`Ended ${shortDate(c.completed_at)}`, tasks].filter(Boolean).join(' · ')]
+      }
+      return [xp || 'Done', ['Done', tasks].filter(Boolean).join(' · ')]
+    default:
+      if (xp) return [xp, tasks]
+      return [c.total ? `${c.done}/${c.total}` : 'Started', null]
+  }
+}
+
+const cellText = (c) => cellLines(c).filter(Boolean).join(' — ')
+
+const totalLines = (s) => (hasXp(s)
+  ? [xpLabel(s.xp_earned, s.xp_required), tasksLabel(s.tasks_done, s.tasks_total)]
+  : [`${s.tasks_done}/${s.tasks_total || 0}`, null])
+
+// How recently a student did anything, in words a teacher reads at a glance
+// (ticket 7cf5d330: "& engagement metric").
+const sinceLabel = (iso) => {
+  const days = Math.floor((Date.now() - new Date(iso).getTime()) / 86400000)
+  if (days <= 0) return 'today'
+  if (days === 1) return 'yesterday'
+  if (days < 14) return `${days} days ago`
+  return `on ${shortDate(iso)}`
+}
+
+const engagementText = (s) => {
+  if (!('last_activity_at' in s)) return null
+  const parts = [s.last_activity_at ? `Last work ${sinceLabel(s.last_activity_at)}` : 'No work turned in yet']
+  if (s.xp_last_7_days) parts.push(`+${s.xp_last_7_days} XP this week`)
+  return parts.join(' · ')
 }
 
 const printProgress = (className, quests, students) => {
@@ -53,13 +123,13 @@ const printProgress = (className, quests, students) => {
   const rows = students.map((s) => `
     <tr>
       <td class="name">${s.name}</td>
-      ${s.cells.map((c) => `<td>${cellLabel(c)}</td>`).join('')}
-      <td>${s.tasks_done}/${s.tasks_total || 0}</td>
+      ${s.cells.map((c) => `<td>${cellText(c)}</td>`).join('')}
+      <td>${totalLines(s).filter(Boolean).join(' — ')}</td>
     </tr>`).join('')
   printHtml(`${className} — student progress`, `
     <h1>${className || 'Class'} — student progress</h1>
     <p>Generated ${new Date().toLocaleDateString()}</p>
-    <table><thead><tr><th>Student</th>${head}<th>Tasks done</th></tr></thead>
+    <table><thead><tr><th>Student</th>${head}<th>XP</th></tr></thead>
     <tbody>${rows}</tbody></table>`)
 }
 
@@ -185,7 +255,7 @@ const StudentProgressTab = ({ classId, className }) => {
                   )}
                 </th>
               ))}
-              <th className="px-3 py-2.5 font-medium text-neutral-600 sticky right-0 bg-white shadow-[inset_1px_0_0_#e5e7eb] whitespace-nowrap">Tasks done</th>
+              <th className="px-3 py-2.5 font-medium text-neutral-600 sticky right-0 bg-white shadow-[inset_1px_0_0_#e5e7eb] whitespace-nowrap">XP</th>
             </tr>
           </thead>
           <tbody>
@@ -202,16 +272,28 @@ const StudentProgressTab = ({ classId, className }) => {
                   >
                     {s.name}
                   </button>
-                </td>
-                {s.cells.map((c) => (
-                  <td key={c.quest_id} className="px-3 py-2.5 text-center">
-                    <span className={`inline-block px-2 py-1 rounded-md text-xs ${cellStyle(c)}`}>
-                      {cellLabel(c)}
+                  {engagementText(s) && (
+                    <span className="block text-[11px] font-normal text-neutral-400 whitespace-nowrap">
+                      {engagementText(s)}
                     </span>
-                  </td>
-                ))}
+                  )}
+                </td>
+                {s.cells.map((c) => {
+                  const [main, sub] = cellLines(c)
+                  return (
+                    <td key={c.quest_id} className="px-3 py-2.5 text-center">
+                      <span className={`inline-block px-2 py-1 rounded-md text-xs ${cellStyle(c)}`}>
+                        <span className={`block whitespace-nowrap ${stateOf(c) === 'done' ? 'font-semibold' : ''}`}>{main}</span>
+                        {sub && <span className="block text-[10px] opacity-75 whitespace-nowrap">{sub}</span>}
+                      </span>
+                    </td>
+                  )
+                })}
                 <td className="px-3 py-2.5 text-center text-neutral-600 sticky right-0 bg-white shadow-[inset_1px_0_0_#e5e7eb] whitespace-nowrap">
-                  {s.tasks_done}<span className="text-neutral-400">/{s.tasks_total || 0}</span>
+                  <span className="block">{totalLines(s)[0]}</span>
+                  {totalLines(s)[1] && (
+                    <span className="block text-[11px] text-neutral-400">{totalLines(s)[1]}</span>
+                  )}
                 </td>
               </tr>
             ))}
@@ -321,7 +403,12 @@ const StudentWorkPanel = ({ classId, student, onClose, onChanged }) => {
           <div>
             <h3 className="font-semibold text-neutral-900">{student.name}</h3>
             <p className="text-sm text-neutral-500">
-              {student.tasks_done}/{student.tasks_total || 0} tasks done
+              {hasXp(student) ? (
+                <>
+                  {xpLabel(student.xp_earned, student.xp_required)}
+                  <span className="text-neutral-400"> · {tasksLabel(student.tasks_done, student.tasks_total)} done</span>
+                </>
+              ) : `${student.tasks_done}/${student.tasks_total || 0} tasks done`}
             </p>
           </div>
           <button onClick={onClose} className="p-1 text-neutral-400 hover:text-neutral-700">✕</button>
@@ -332,7 +419,26 @@ const StudentWorkPanel = ({ classId, student, onClose, onChanged }) => {
           {!loading && (work || []).map((q) => (
             <div key={q.quest_id} className={isAssigned(q) ? '' : 'opacity-70'}>
               <div className="flex items-baseline justify-between gap-2">
-                <p className="font-medium text-sm text-neutral-800">{q.title}</p>
+                <p className="font-medium text-sm text-neutral-800">
+                  {q.title}
+                  {/* The same ended / set-aside marks the grid cell shows
+                      (ticket 8b928af0), beside the quest they are about. */}
+                  {isAssigned(q) && q.completed_at && (
+                    <span className="ml-2 text-[11px] font-medium text-green-700 whitespace-nowrap">
+                      ✓ Ended {shortDate(q.completed_at)}
+                    </span>
+                  )}
+                  {isAssigned(q) && !q.completed_at && q.set_aside && (
+                    <span className="ml-2 text-[11px] px-1.5 py-0.5 rounded bg-gray-100 text-neutral-600 whitespace-nowrap">
+                      Set aside
+                    </span>
+                  )}
+                  {isAssigned(q) && q.started && hasXp(q) && (
+                    <span className="block text-xs font-normal text-neutral-500">
+                      {xpLabel(q.xp_earned, q.xp_required)}{q.completed ? ' · Done' : ''}
+                    </span>
+                  )}
+                </p>
                 <span className="flex items-center gap-2 shrink-0">
                   {isAssigned(q) && q.due_date && (
                     <span className="text-[11px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-700">

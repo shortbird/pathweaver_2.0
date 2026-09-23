@@ -9,7 +9,7 @@ from flask import Blueprint, jsonify, request
 from database import get_supabase_admin_client, get_supabase_client
 from utils.auth.decorators import require_auth
 from utils.guardian_scope import (
-    GuardianAccessError, guardian_capabilities, resolve_student_scope,
+    GuardianAccessError, guardian_capabilities, guardian_relationship, resolve_student_scope,
 )
 from utils.pillar_utils import normalize_pillar_name
 from utils.logger import get_logger
@@ -46,6 +46,64 @@ def _may_rename(supabase, user_id, quest):
                 'Someone else is working on this quest, so its title is shared. '
                 'Ask an admin to rename it.', 409)
     return None
+
+
+def _opener_is_family(caller_id, student_id):
+    """Does this visit count as the student opening their quest?
+
+    Yes for the student, and for their parent in family scope -- a parent
+    working a child's quest from the family view is how many of these quests
+    get done. No for platform staff reading through the same scope, and no for
+    an admin masquerading as the student: a teacher's Student Progress tab must
+    not report "Opened" because somebody at the office looked (iCreate, ticket
+    7cf5d330, 2026-09-23).
+    """
+    if getattr(request, 'masquerade_admin_id', None):
+        return False
+    if caller_id == student_id:
+        return True
+    rel = guardian_relationship(caller_id, student_id)
+    return bool(rel) and rel.get('via') == 'parent'
+
+
+def _record_opened(supabase, caller_id, student_id, enrollment):
+    """Stamp first/last opened on the enrollment. Never breaks the page.
+
+    Best-effort by design: until migration 20260923120000_user_quests_opened_at
+    is applied the columns do not exist, and a quest page that 500s because of
+    a teacher-facing signal is the wrong trade.
+    """
+    try:
+        if not _opener_is_family(caller_id, student_id):
+            return
+        from repositories.quest_view_repository import QuestViewRepository
+        QuestViewRepository(supabase).record_opened(enrollment['id'])
+    except Exception as e:  # noqa: BLE001 -- see docstring
+        logger.warning(f"[QUEST DETAIL] could not record opened for {enrollment.get('id')}: {e}")
+
+
+def _attach_reviews(supabase, tasks, completion_id_by_task):
+    """Put a teacher's review of each completed task on the task.
+
+    iCreate, ticket 650aa9b9 (2026-09-23): "When I accept a task, the parent is
+    notified of which one, but then it doesn't show up on the task that it has
+    been accepted." The accept lives in sis_submission_reviews; this is the
+    first reader of it outside the SIS console. `review` is None on a task no
+    teacher has reviewed, so the app can tell "not yet" from "unknown".
+    """
+    for task in tasks:
+        task['review'] = None
+    if not completion_id_by_task:
+        return
+    try:
+        from repositories.quest_view_repository import QuestViewRepository
+        reviews = QuestViewRepository(supabase).reviews_for_completions(
+            completion_id_by_task.values())
+    except Exception as e:  # noqa: BLE001 -- a chip is not worth a 500
+        logger.warning(f"[QUEST DETAIL] reviews unavailable: {e}")
+        return
+    for task in tasks:
+        task['review'] = reviews.get(completion_id_by_task.get(task['id']))
 
 
 @bp.route('/<quest_id>', methods=['GET'])
@@ -163,7 +221,7 @@ def get_quest_detail(user_id: str, quest_id: str):
 
             # Get task completions with evidence (only columns that exist in table)
             task_completions = supabase.table('quest_task_completions')\
-                .select('user_quest_task_id, evidence_text, evidence_url, completed_at')\
+                .select('id, user_quest_task_id, evidence_text, evidence_url, completed_at')\
                 .eq('user_id', user_id)\
                 .eq('quest_id', quest_id)\
                 .execute()
@@ -203,6 +261,12 @@ def get_quest_detail(user_id: str, quest_id: str):
                     except ValueError:
                         pillar_key = 'art'  # Default fallback
                     task['pillar'] = pillar_key  # Send key, not display name
+
+            _attach_reviews(supabase, quest_tasks, {
+                task_id: c.get('id') for task_id, c in completion_data_map.items() if c.get('id')})
+
+            # Opened, for the teacher's Student Progress tab (ticket 7cf5d330).
+            _record_opened(supabase, caller_id, user_id, enrollment_to_use)
 
             # Q2: legacy response key — the web app reads `quest.quest_tasks`.
             # The DB table is `user_quest_tasks`; the `quest_tasks` table was

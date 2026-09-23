@@ -565,7 +565,25 @@ BASELINES = {
     # school inbox, so the front office can read staff groups sent from the
     # School tab (ticket ac84b6cd). The new school-inbox group routes add no
     # direct call above repositories/.
-    'repositories': 599,
+    # 2026-09-23: 599 -> 602. QuestViewRepository (repositories/
+    # quest_view_repository.py), for the quest page: read and stamp
+    # user_quests.first_opened_at / last_opened_at so a teacher can tell
+    # "Assigned" from "Opened" (ticket 7cf5d330), and read
+    # sis_submission_reviews so a parent sees "Accepted by <teacher>" on the
+    # task (ticket 650aa9b9). routes/quest/detail.py gained no direct call.
+    # 2026-09-23: 602 -> 604. SisQuestLibraryRepository.org_users_on_quest
+    # (users + user_quests), so the library's Give picker can mark the
+    # students who already have the quest (iCreate, ticket ebfc9253).
+    # routes/sis/quest_library.py gained no direct call.
+    # 2026-09-23: 604 -> 611. SisSubmissionRepository (repositories/
+    # sis_submission_repository.py). Two reads MOVED out of
+    # routes/sis/submissions.py and now paged (completions and
+    # sis_submission_reviews, which PostgREST truncated at 1,000 rows); three
+    # for the Submissions search (users, quests, user_quest_tasks; iCreate,
+    # ticket 0e6cb0fc); two so a family's reply on a submission reaches the
+    # SIS reviewer or the class teachers (sis_submission_reviews, class_quests;
+    # ticket 41474658). routes/ went DOWN by the two moved reads.
+    'repositories': 611,
     # 2026-09-09: 135 -> 136. class_membership.children_in_classes, the inverse
     # of parents_of_students: which of a guardian's children sit in each of a
     # set of classes. It answers "whose class chat is this?" for the messaging

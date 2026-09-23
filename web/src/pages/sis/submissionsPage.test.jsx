@@ -325,3 +325,87 @@ describe('accepting the last submission in the queue', () => {
     expect(screen.getAllByText('Only task left').length).toBeGreaterThan(0)
   })
 })
+
+/**
+ * iCreate, ticket 0e6cb0fc (2026-09-23): "It would be nice to have a search
+ * bar to be able to find a past reviewed task easily." Reviewed stopped at the
+ * newest 50, with no search and no way further back.
+ */
+describe('search and Load more', () => {
+  const row = (i) => ({
+    completion_id: `r${i}`,
+    completed_at: '2026-09-01T10:00:00Z',
+    student: { id: `s${i}`, name: `Student ${i}`, avatar_url: null },
+    class_id: 'cl1', class_name: 'Biology',
+    quest_id: 'q1', quest_title: 'Cells Quest',
+    task: { id: `t${i}`, title: `Task ${i}`, description: null, xp_value: 10, pillar: 'stem_logic' },
+    evidence_blocks: [],
+    review: { action: 'accepted', reviewed_by_name: 'Nicole' },
+  })
+  const listCalls = () => api.get.mock.calls.map((c) => c[0]).filter((u) => u.includes('/api/sis/submissions?'))
+
+  it('searches on the server after typing stops, from the first page', async () => {
+    render(<SubmissionsPanel />)
+    await screen.findByText('New (2)')
+    fireEvent.change(screen.getByLabelText('Search submissions'), { target: { value: 'mitosis' } })
+    // Debounced: one request for the settled text, not one per keystroke.
+    await waitFor(() => expect(listCalls().some((u) => u.includes('q=mitosis'))).toBe(true))
+    const searched = listCalls().filter((u) => u.includes('q='))
+    expect(searched).toHaveLength(1)
+    expect(searched[0]).toContain('offset=0')
+    expect(searched[0]).toContain('scope=new')
+  })
+
+  it('keeps the class filter and the scope in the searched request', async () => {
+    rtlRender(
+      <MemoryRouter initialEntries={['/submissions?class_id=cl2']}>
+        <SubmissionsPanel />
+      </MemoryRouter>,
+    )
+    await screen.findByText('New (2)')
+    fireEvent.click(screen.getByText('Reviewed (1)'))
+    fireEvent.change(screen.getByLabelText('Search submissions'), { target: { value: 'Ada' } })
+    await waitFor(() => expect(listCalls().some((u) => u.includes('q=Ada'))).toBe(true))
+    const last = listCalls().at(-1)
+    expect(last).toContain('scope=reviewed')
+    expect(last).toContain('class_id=cl2')
+  })
+
+  it('says when nothing matches the search', async () => {
+    api.get.mockImplementation((url) =>
+      url.includes('/api/sis/submissions')
+        ? Promise.resolve({ data: { success: true, submissions: url.includes('q=') ? [] : [row(1)],
+            counts: { new: 0, reviewed: 1 }, total: url.includes('q=') ? 0 : 1 } })
+        : Promise.resolve(apiData(url)))
+    render(<SubmissionsPanel />)
+    await screen.findAllByText('Task 1')
+    fireEvent.change(screen.getByLabelText('Search submissions'), { target: { value: 'zebra' } })
+    expect(await screen.findByText('No new submissions match "zebra".')).toBeInTheDocument()
+  })
+
+  it('loads the next page after the rows on screen, and stops at the total', async () => {
+    const all = Array.from({ length: 53 }, (_, i) => row(i))
+    api.get.mockImplementation((url) => {
+      if (!url.includes('/api/sis/submissions')) return Promise.resolve(apiData(url))
+      const params = new URLSearchParams(url.split('?')[1])
+      const offset = Number(params.get('offset') || 0)
+      const limit = Number(params.get('limit') || 50)
+      return Promise.resolve({ data: { success: true, submissions: all.slice(offset, offset + limit),
+        counts: { new: 53, reviewed: 0 }, total: 53, limit, offset } })
+    })
+    render(<SubmissionsPanel />)
+    await screen.findAllByText('Task 0')
+    expect(listCalls()[0]).toContain('limit=50')
+    fireEvent.click(screen.getByText('Load more (3 more)'))
+    expect(await screen.findByText('Task 52')).toBeInTheDocument()
+    expect(listCalls().at(-1)).toContain('offset=50')
+    // Everything is on screen now: no more Load more.
+    expect(screen.queryByText(/Load more/)).not.toBeInTheDocument()
+  })
+
+  it('shows no Load more when the whole list is on screen', async () => {
+    render(<SubmissionsPanel />)
+    await screen.findByText('New (2)')
+    expect(screen.queryByText(/Load more/)).not.toBeInTheDocument()
+  })
+})

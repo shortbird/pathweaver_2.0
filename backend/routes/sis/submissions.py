@@ -20,6 +20,7 @@ from utils.logger import get_logger
 from services import sis_service
 from database import get_supabase_admin_client
 from utils.db_fetch import fetch_all_rows
+from repositories.sis_submission_repository import SisSubmissionRepository
 from utils.sis_roles import STAFF_ROLES
 from utils.storage_urls import sign_in_place
 from services.portfolio_service import PortfolioService
@@ -116,10 +117,17 @@ def _completion_in_scope(user_id, org_id, completion_id):
 @bp.route('/submissions', methods=['GET'])
 @require_role(*STAFF_ROLES)
 def list_submissions(user_id):
-    """Unified inbox. ?scope=new|reviewed&class_id=&limit=&offset=
+    """Unified inbox. ?scope=new|reviewed&class_id=&q=&limit=&offset=
 
     'new' is ordered oldest-first (teachers work the backlog in order);
-    'reviewed' newest-first. Both totals are always returned for the badge.
+    'reviewed' newest-first. Both totals are always returned for the badge;
+    `total` is the size of the (searched) list being paged.
+
+    ?q= keeps submissions whose student name, task title or quest title holds
+    the text. It filters BEFORE the page is cut, so a match on page three is
+    found. iCreate, ticket 0e6cb0fc (2026-09-23): "It would be nice to have a
+    search bar to be able to find a past reviewed task easily." The Reviewed
+    list stopped at the newest 50 with no way further back.
     """
     org_id, err = sis_service.org_or_error(user_id)
     if err:
@@ -137,6 +145,8 @@ def list_submissions(user_id):
         return jsonify({'success': True, 'submissions': [],
                         'counts': {'new': 0, 'reviewed': 0},
                         'total': 0, 'limit': limit, 'offset': offset})
+
+    search = (request.args.get('q') or '').strip().lower()[:100]
 
     classes = _scope_classes(user_id, org_id)
     class_filter = request.args.get('class_id')
@@ -156,14 +166,17 @@ def list_submissions(user_id):
 
     # admin client justified: cross-student inbox read (completions, evidence, profiles) gated by @require_role(STAFF_ROLES); rows filtered to the caller's scoped classes
     admin = get_supabase_admin_client()
-    completions = (
-        admin.table('quest_task_completions')
-        .select('id, user_id, quest_id, user_quest_task_id, completed_at')
-        .in_('user_id', list(all_students))
-        .in_('quest_id', list(all_quests))
-        .order('completed_at', desc=False)
-        .execute()
-    ).data or []
+    # Paged, because this read grows with every task a school's students ever
+    # hand in, and PostgREST cuts a response at 1,000 rows without a word.
+    # fetch_all_rows pages by id, so the queue order is set below in Python.
+    # Unpaged and ordered oldest-first, the cut fell on the NEWEST work: a
+    # busy school's latest submissions silently never reached the inbox.
+    submissions_repo = SisSubmissionRepository(admin)
+    completions = submissions_repo.completions_for(all_students, all_quests)
+    # Oldest first, undated last (PostgREST's own default); id breaks ties so
+    # the order, and so each page, is stable between loads.
+    completions.sort(key=lambda c: (c.get('completed_at') is None,
+                                    c.get('completed_at') or '', c['id']))
 
     # Keep only completions that land in one of the caller's classes
     # (student enrolled AND quest attached to the same class).
@@ -177,13 +190,9 @@ def list_submissions(user_id):
     if not matched:
         return empty()
 
-    # Review state (org-scoped; UNIQUE completion_id)
-    review_rows = (
-        admin.table('sis_submission_reviews')
-        .select('completion_id, reviewed_by, action, reviewed_at')
-        .eq('organization_id', org_id)
-        .execute()
-    ).data or []
+    # Review state (org-scoped; UNIQUE completion_id). One row per reviewed
+    # submission in the whole org, so it pages for the same reason.
+    review_rows = submissions_repo.org_reviews(org_id)
     reviews = {r['completion_id']: r for r in review_rows}
 
     new_items = [c for c in matched if c['id'] not in reviews]           # oldest first
@@ -191,6 +200,8 @@ def list_submissions(user_id):
     counts = {'new': len(new_items), 'reviewed': len(reviewed_items)}
 
     pool = new_items if scope == 'new' else reviewed_items
+    if search:
+        pool = _search_pool(submissions_repo, pool, search, all_students, all_quests)
     total = len(pool)
     page = pool[offset:offset + limit]
 
@@ -286,6 +297,28 @@ def list_submissions(user_id):
     return jsonify({'success': True, 'submissions': items, 'counts': counts,
                     'total': total, 'limit': limit, 'offset': offset})
 
+
+def _search_pool(repo, pool, needle, student_ids, quest_ids):
+    """The submissions in `pool` whose student name, quest title or task title
+    contains `needle` (already lower-cased).
+
+    Students and quests are bounded by the classes in scope, so their names
+    are read whole and matched here. Task titles are matched in the database
+    (SisSubmissionRepository.task_ids_titled_like).
+    """
+    matching_students = set()
+    for u in repo.people(student_ids):
+        names = [_display_name(u), u.get('first_name'), u.get('last_name'),
+                 ' '.join(filter(None, [u.get('first_name'), u.get('last_name')]))]
+        if any(needle in (n or '').lower() for n in names):
+            matching_students.add(u['id'])
+    matching_quests = {q['id'] for q in repo.quest_titles(quest_ids)
+                       if needle in (q.get('title') or '').lower()}
+    matching_tasks = repo.task_ids_titled_like(student_ids, quest_ids, needle)
+    return [c for c in pool
+            if c['user_id'] in matching_students
+            or c.get('quest_id') in matching_quests
+            or c.get('user_quest_task_id') in matching_tasks]
 
 @bp.route('/submissions/<completion_id>/review', methods=['POST'])
 @require_role(*STAFF_ROLES)

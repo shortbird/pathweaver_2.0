@@ -610,9 +610,11 @@ def end_quest(user_id: str, quest_id: str):
                     }
                 }), 400
 
-        # If not already inactive, mark it as such
-
-        user_quest_id = enrollment.data[0]['id']
+        # If not already inactive, mark it as such.
+        # End the enrollment chosen above, not simply the newest row. With a
+        # re-enrollment the newest row can be an older ended copy, and ending
+        # it left the live enrollment active on the dashboard (2026-09-23).
+        user_quest_id = current_enrollment['id']
 
         # Mark the quest as inactive (ended) and set completed_at timestamp
         supabase.table('user_quests')\

@@ -78,7 +78,9 @@ export default function MyEnrolledQuests({ className = '' }) {
           strip wraps to "Ready / to / Begin". Same card, room to breathe. */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
         {quests.map((q) => (
-          <QuestCardSimple key={q.id} quest={toCardQuest(q)} />
+          // ownOnly: these are this account's quests, whatever child the
+          // family scope names (iCreate, tickets 376cb2ce / bec3639e).
+          <QuestCardSimple key={q.id} quest={toCardQuest(q)} ownOnly />
         ))}
       </div>
     </section>

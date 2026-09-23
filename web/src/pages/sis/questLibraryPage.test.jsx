@@ -78,7 +78,10 @@ const rowAction = (i, label) => {
   fireEvent.click(screen.getByRole('menuitem', { name: label }))
 }
 
-const libraryLoads = () => api.get.mock.calls.filter(([url]) => !url.includes('/resources') && !url.includes('/roster'))
+// The Assign dialog also asks who already has the quest (/students,
+// ebfc9253); that read is not a library load either.
+const libraryLoads = () => api.get.mock.calls.filter(([url]) => !url.includes('/resources')
+  && !url.includes('/roster') && !url.endsWith('/students?organization_id=org-1'))
 
 describe('QuestsPanel (was QuestLibraryPage)', () => {
   it('lists the school\'s quests from the library endpoint, with where each is in use', async () => {
@@ -146,7 +149,13 @@ describe('QuestsPanel (was QuestLibraryPage)', () => {
     fireEvent.click(within(dialog).getByRole('button', { name: 'Assign' }))
 
     await waitFor(() => expect(api.post).toHaveBeenCalledWith(
-      '/api/sis/classes/cl-2/quests?organization_id=org-1', { quest_id: 'q2', due_date: '2026-11-01' }))
+      '/api/sis/classes/cl-2/quests?organization_id=org-1',
+      // attach_to_curricula: false -- from the library the quest goes on this
+      // one class and no curriculum (iCreate, 56dbc3ab, 2026-09-23: "it also
+      // adds it to the applied physics curriculum").
+      { quest_id: 'q2', due_date: '2026-11-01', attach_to_curricula: false }))
+    // The dialog says the class's curriculum is left alone.
+    expect(within(dialog).getByText(/curriculum the class follows stays as it is/)).toBeInTheDocument()
   })
 
   it('shows a school with more classes than the menu draws, and says it cut the list', async () => {
@@ -550,5 +559,115 @@ describe('editing and duplicating from the library row', () => {
     await waitFor(() => expect(api.post).toHaveBeenCalledWith(
       '/api/sis/quests/q2/duplicate?organization_id=org-1', {}))
     await waitFor(() => expect(libraryLoads().length).toBeGreaterThan(before))
+  })
+})
+
+describe('who already has the quest, in the Give picker (ebfc9253)', () => {
+  // iCreate, ebfc9253, 2026-09-23: "When assigning to a student, I can't tell
+  // if they already have it or not until I enter it in again."
+  const holdersFor = (ids) => (url) => Promise.resolve({
+    data: url.includes('/resources') ? RESOURCES
+      : url.includes('/roster') ? ROSTER
+      : url.startsWith('/api/sis/quests/q2/students') ? { success: true, student_ids: ids }
+      : LIBRARY,
+  })
+
+  it('marks a student who already has it before anyone presses Give', async () => {
+    api.get.mockImplementation(holdersFor(['s-ava']))
+    render(<QuestsPanel />)
+    await screen.findByText('Bridge Building')
+    rowAction(1, 'Assign')
+    const dialog = await screen.findByRole('dialog')
+    await waitFor(() => expect(api.get).toHaveBeenCalledWith('/api/sis/quests/q2/students?organization_id=org-1'))
+    const box = await within(dialog).findByPlaceholderText('Search students…')
+    fireEvent.focus(box)
+    fireEvent.change(box, { target: { value: 'Stone' } })
+    expect(await screen.findByRole('button', { name: 'Ava Stone (already has it)' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Ben Stone' })).toBeInTheDocument()
+  })
+
+  it('asks again after a Give, so the one just given is marked', async () => {
+    api.get.mockImplementation(holdersFor([]))
+    api.post.mockResolvedValue({ data: { success: true, enrolled: 1, already_had_it: 0 } })
+    render(<QuestsPanel />)
+    await screen.findByText('Bridge Building')
+    rowAction(1, 'Assign')
+    const dialog = await screen.findByRole('dialog')
+    const box = await within(dialog).findByPlaceholderText('Search students…')
+    fireEvent.focus(box)
+    fireEvent.change(box, { target: { value: 'Ben' } })
+    fireEvent.mouseDown(await screen.findByRole('button', { name: 'Ben Stone' }))
+    const holderReads = () => api.get.mock.calls.filter(([u]) => u.startsWith('/api/sis/quests/q2/students')).length
+    await waitFor(() => expect(holderReads()).toBe(1))
+    api.get.mockImplementation(holdersFor(['s-ben']))
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Give' }))
+    await waitFor(() => expect(holderReads()).toBe(2))
+    fireEvent.focus(box)
+    fireEvent.change(box, { target: { value: 'Ben' } })
+    expect(await screen.findByRole('button', { name: 'Ben Stone (already has it)' })).toBeInTheDocument()
+  })
+})
+
+describe('XP and links on the create form (b067c6c8)', () => {
+  // iCreate, b067c6c8, 2026-09-23: "add links and attachments when I first
+  // create the quest ... Also add the required xp and mark if the teacher can
+  // change that when first creating too."
+  const startQuest = async () => {
+    render(<QuestsPanel />)
+    await screen.findByText('Watercolor Basics')
+    fireEvent.click(screen.getByRole('button', { name: /Add quest/ }))
+    fireEvent.change(screen.getByLabelText('Quest title'), { target: { value: 'Robot Garden' } })
+  }
+
+  it('sends the XP required and a locked teacher setting with the new quest', async () => {
+    api.post.mockResolvedValue({ data: { success: true, quest_id: 'q-new', task_count: 0, tasks: [] } })
+    await startQuest()
+    fireEvent.change(screen.getByLabelText(/XP required to finish/), { target: { value: '300' } })
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Teachers may change the XP to finish' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Create quest' }))
+    await waitFor(() => expect(api.post).toHaveBeenCalledWith(
+      '/api/sis/quests?organization_id=org-1',
+      expect.objectContaining({ title: 'Robot Garden', xp_threshold: 300, teachers_may_change_xp: false }),
+    ))
+  })
+
+  it('leaves both out when the form does not change them', async () => {
+    api.post.mockResolvedValue({ data: { success: true, quest_id: 'q-new', task_count: 0, tasks: [] } })
+    await startQuest()
+    fireEvent.click(screen.getByRole('button', { name: 'Create quest' }))
+    await waitFor(() => expect(api.post).toHaveBeenCalled())
+    const body = api.post.mock.calls[0][1]
+    expect(body).not.toHaveProperty('xp_threshold')
+    expect(body).not.toHaveProperty('teachers_may_change_xp')
+  })
+
+  it('posts each link to the new quest\'s resources once it exists', async () => {
+    api.post.mockImplementation(async (url) => (url.startsWith('/api/sis/quests?')
+      ? { data: { success: true, quest_id: 'q-new', task_count: 0, tasks: [] } }
+      : { data: { success: true } }))
+    await startQuest()
+    fireEvent.click(screen.getByRole('button', { name: '+ Add a link' }))
+    fireEvent.change(screen.getByLabelText('Link 1 title'), { target: { value: 'Seed guide' } })
+    fireEvent.change(screen.getByLabelText('Link 1 URL'), { target: { value: 'https://example.com/seeds' } })
+    fireEvent.click(screen.getByRole('button', { name: '+ Add a link' }))
+    fireEvent.change(screen.getByLabelText('Link 2 URL'), { target: { value: 'https://youtu.be/abc' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Create quest' }))
+    await waitFor(() => expect(api.post).toHaveBeenCalledWith(
+      '/api/sis/quests/q-new/resources?organization_id=org-1',
+      { kind: 'link', title: 'Seed guide', url: 'https://example.com/seeds' }))
+    expect(api.post).toHaveBeenCalledWith(
+      '/api/sis/quests/q-new/resources?organization_id=org-1',
+      { kind: 'video', title: '', url: 'https://youtu.be/abc' })
+    // The quest itself is created first, then the links.
+    expect(api.post.mock.calls[0][0]).toBe('/api/sis/quests?organization_id=org-1')
+    expect(await screen.findByText('“Robot Garden” is in the library')).toBeInTheDocument()
+  })
+
+  it('will not create a quest with a negative XP requirement', async () => {
+    await startQuest()
+    fireEvent.change(screen.getByLabelText(/XP required to finish/), { target: { value: '-5' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Create quest' }))
+    await new Promise((r) => setTimeout(r, 20))
+    expect(api.post).not.toHaveBeenCalled()
   })
 })

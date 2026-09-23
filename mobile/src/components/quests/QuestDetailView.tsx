@@ -52,6 +52,7 @@ import { getSubject } from '@/src/components/class/SUBJECTS';
 import { EditMomentModal } from '@/src/components/journal/EditMomentModal';
 import { TaskEditModal } from '@/src/components/tasks/TaskEditModal';
 import { EditEvidenceTextSheet, replaceBlockText } from '@/src/components/quests/EditEvidenceTextSheet';
+import { TaskReviewChip } from '@/src/components/quests/TaskReviewChip';
 import type { LearningEvent } from '@/src/hooks/useJournal';
 import { useThemeColors } from '@/src/hooks/useThemeColors';
 import { showAlert, confirmAlert } from '@/src/utils/alerts';
@@ -694,6 +695,11 @@ function TaskItem({
                   Completed {new Date(task.completed_at).toLocaleDateString()}
                 </UIText>
               )}
+
+              {/* The teacher's accept, where the family sees the task (ticket
+                  650aa9b9: "Can we show somewhere on the task that I have
+                  accepted it, for the parents to see?"). */}
+              {task.is_completed && <TaskReviewChip review={task.review} />}
 
               {/* Edit a journal moment in place — add a title/details/more
                   evidence without leaving the quest (bug #16). */}

@@ -37,6 +37,13 @@ export interface QuestResource {
   url: string;
 }
 
+/** Written by the SIS submissions inbox (sis_submission_reviews). */
+export interface TaskReview {
+  action: string;
+  reviewed_at: string | null;
+  reviewer_name: string | null;
+}
+
 export interface QuestTask {
   id: string;
   title: string;
@@ -56,6 +63,9 @@ export interface QuestTask {
   evidence_url?: string;
   evidence_blocks?: any[];
   completed_at?: string;
+  /** A teacher's review of this task's submission, or null when nobody has
+   *  reviewed it (ticket 650aa9b9). Absent on a backend that predates it. */
+  review?: TaskReview | null;
   /** What the teacher attached to THIS task — the worksheet for step 3. */
   resources?: QuestResource[];
 }

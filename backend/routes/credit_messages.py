@@ -128,6 +128,116 @@ def _can_access(completion, user, roles, admin):
     return False
 
 
+def _task_title(admin, completion):
+    from repositories.task_repository import TaskRepository
+    task_id = completion.get('user_quest_task_id')
+    task = TaskRepository(client=admin).find_by_id(task_id) if task_id else None
+    return (task or {}).get('title') or 'a task'
+
+
+def _notify_guardians_of_feedback(admin, notifier, completion, author, sender):
+    """Tell every guardian that a teacher left feedback on their child's work.
+
+    iCreate, ticket 41474658: "I talked with a mom, and she was not getting a
+    notification when I left feedback on the task submitted. Can we have a
+    notification for that?" Feedback told the student only. It now also goes
+    to each guardian as child_task_reviewed (action 'feedback'), the same type
+    and link the SIS accept sends, so the parent's "Work reviewed" toggle
+    covers both. Best-effort: the message is saved already.
+    """
+    try:
+        _send_feedback_to_guardians(admin, notifier, completion, author, sender)
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f'guardian feedback notices skipped for {completion.get("id")}: {e}')
+
+
+def _send_feedback_to_guardians(admin, notifier, completion, author, sender):
+    from utils.class_membership import guardians_by_student
+
+    student_id = completion['user_id']
+    guardians = set(guardians_by_student([student_id]).get(student_id) or ())
+    # A teacher who is also the child's parent wrote the feedback; they do
+    # not need to be told about it.
+    guardians.discard(author['id'])
+    if not guardians:
+        return
+    from repositories.user_repository import UserRepository
+    student = UserRepository(client=admin).find_by_id(student_id) or {}
+    first = (student.get('first_name') or (student.get('display_name') or '').split(' ')[0]
+             or 'your child')
+    task_title = _task_title(admin, completion)
+    for guardian_id in sorted(guardians):
+        try:
+            notifier.create_notification(
+                user_id=guardian_id,
+                notification_type='child_task_reviewed',
+                title=f'Feedback on {first}\'s work',
+                message=f'{sender} left feedback on {first}\'s "{task_title}".',
+                link=f'/parent/quest/{student_id}/{completion.get("quest_id")}',
+                metadata={'student_id': student_id, 'completion_id': completion.get('id'),
+                          'action': 'feedback'},
+                organization_id=author.get('organization_id'),
+            )
+        except Exception as e:  # noqa: BLE001 -- one failed send must not lose the rest
+            logger.warning(f'feedback notice to guardian {guardian_id[:8]} failed: {e}')
+
+
+def _reply_recipients(admin, completion):
+    """{staff_id: link} for a reply from the student or a parent.
+
+    Replies used to go only to credit_reviewer_id / org_reviewer_id. The SIS
+    submissions review never sets either, so a teacher who left feedback from
+    the Submissions tab never heard the family answer (iCreate, ticket
+    41474658, 2026-09-23). The SIS reviewer now hears it; when nobody has
+    reviewed the submission in the SIS, the teachers of the class that holds
+    the quest do. The Optio credit reviewers keep their notice as before.
+    """
+    from repositories.sis_submission_repository import SisSubmissionRepository
+    from utils.class_membership import class_teacher_ids, student_class_ids
+
+    completion_id = completion['id']
+    sis_link = f'/submissions?completion_id={completion_id}'
+    recipients = {}
+    repo = SisSubmissionRepository(admin)
+    reviewer = repo.reviewer_of(completion_id)
+    if reviewer:
+        recipients[reviewer] = sis_link
+    else:
+        held_by = repo.classes_holding_quest(completion.get('quest_id'),
+                                             student_class_ids(completion['user_id']))
+        for cid in sorted(held_by):
+            for tid in class_teacher_ids(cid):
+                recipients[tid] = sis_link
+    for rid in (completion.get('credit_reviewer_id'), completion.get('org_reviewer_id')):
+        if rid and rid not in recipients:
+            recipients[rid] = '/credit-review'
+    return recipients
+
+
+def _notify_staff_of_reply(admin, notifier, completion, replier):
+    """Tell the staff on this submission that the family replied. Never the
+    replier: a teacher who is also the child's parent posts on the family's
+    side, and must not be told about their own message."""
+    recipients = _reply_recipients(admin, completion)
+    recipients.pop(replier['id'], None)
+    if not recipients:
+        return
+    name = _author_name(replier)
+    task_title = _task_title(admin, completion)
+    for rid, link in recipients.items():
+        try:
+            notifier.create_notification(
+                user_id=rid,
+                notification_type='message_received',
+                title='New reply on submitted work',
+                message=f'{name} replied on "{task_title}".',
+                link=link,
+                metadata={'completion_id': completion['id']},
+            )
+        except Exception as e:  # noqa: BLE001 -- one failed send must not lose the rest
+            logger.warning(f'reply notice to {rid[:8]} failed: {e}')
+
+
 @bp.route('/api/credit/<completion_id>/messages', methods=['GET'])
 @require_auth
 def get_credit_messages(user_id, completion_id):
@@ -209,18 +319,7 @@ def post_credit_message(user_id, completion_id):
             quest_id = completion.get('quest_id', '')
             task_id = completion.get('user_quest_task_id', '')
             if is_student:
-                # Notify the reviewer(s) who handled this credit
-                reviewer_ids = [r for r in [completion.get('credit_reviewer_id'),
-                                            completion.get('org_reviewer_id')] if r]
-                for rid in set(reviewer_ids):
-                    notifier.create_notification(
-                        user_id=rid,
-                        notification_type='message_received',
-                        title='New reply on credit review',
-                        message='A student replied on their submitted work.',
-                        link='/credit-review',
-                        metadata={'completion_id': completion_id},
-                    )
+                _notify_staff_of_reply(admin, notifier, completion, user)
             else:
                 # Name the sender the same way the thread itself does: only
                 # Optio's own (superadmin) review is branded "Optio"; a school's
@@ -230,14 +329,18 @@ def post_credit_message(user_id, completion_id):
                 sender = ('Optio' if _is_optio_voice(author_role)
                           else _author_name(user))
                 link = f'/quests/{quest_id}?task={task_id}' if quest_id else '/dashboard'
-                notifier.create_notification(
-                    user_id=completion['user_id'],
-                    notification_type='message_received',
-                    title=f'{sender} left feedback on your work',
-                    message=f'{sender} left feedback on your submitted work.',
-                    link=link,
-                    metadata={'completion_id': completion_id},
-                )
+                try:
+                    notifier.create_notification(
+                        user_id=completion['user_id'],
+                        notification_type='message_received',
+                        title=f'{sender} left feedback on your work',
+                        message=f'{sender} left feedback on your submitted work.',
+                        link=link,
+                        metadata={'completion_id': completion_id},
+                    )
+                finally:
+                    # The parents hear about it even if the student's notice failed.
+                    _notify_guardians_of_feedback(admin, notifier, completion, user, sender)
         except Exception as notify_err:
             logger.warning(f"Failed to notify credit message recipient: {notify_err}")
 

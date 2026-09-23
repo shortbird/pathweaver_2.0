@@ -1,7 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
-import { MemoryRouter } from 'react-router-dom'
+import { render, screen, waitFor, fireEvent } from '@testing-library/react'
+import { MemoryRouter, Routes, Route } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import MyEnrolledQuests from './MyEnrolledQuests'
+import FamilyScopeContext from '../../contexts/FamilyScopeContext'
 
 /**
  * Your own quests, on the homes that are not the student dashboard.
@@ -18,7 +20,6 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 const { api } = vi.hoisted(() => ({ api: { get: vi.fn() } }))
 vi.mock('../../services/api', () => ({ default: api }))
 
-import MyEnrolledQuests from './MyEnrolledQuests'
 
 const QUEST = {
   id: 'q-1', title: 'Staff onboarding',
@@ -77,4 +78,61 @@ it('counts what is in progress', async () => {
   api.get.mockResolvedValue({ data: { quests: [QUEST, { ...QUEST, id: 'q-3' }] } })
   renderCard()
   expect(await screen.findByText('2 in progress')).toBeInTheDocument()
+})
+
+// iCreate, Molly (org admin + parent), 2026-09-23, tickets 376cb2ce and
+// bec3639e: "I can't open the quests". With Brady picked in the family scope,
+// her OWN quest cards on her admin home read Brady's engagement and opened
+// her quests as Brady.
+describe('your own quests while a child is picked (376cb2ce / bec3639e)', () => {
+  const exitScope = vi.fn()
+  const scoped = {
+    hasFamily: true,
+    children: [{ id: 'brady', firstName: 'Brady' }],
+    isLoading: false,
+    selectedChild: { id: 'brady', firstName: 'Brady' },
+    selectedChildId: 'brady',
+    isScoped: true,
+    enterScope: vi.fn(),
+    exitScope,
+  }
+
+  const renderScoped = () => render(
+    <QueryClientProvider client={new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    })}>
+      <FamilyScopeContext.Provider value={scoped}>
+        <MemoryRouter initialEntries={['/dashboard']}>
+          <Routes>
+            <Route path="/dashboard" element={<MyEnrolledQuests />} />
+            <Route path="/quests/:id" element={<div>quest page</div>} />
+          </Routes>
+        </MemoryRouter>
+      </FamilyScopeContext.Provider>
+    </QueryClientProvider>
+  )
+
+  it('reads her own engagement, never the child\'s', async () => {
+    api.get.mockImplementation((url) => Promise.resolve(
+      url === '/api/quests/my-active' ? { data: { quests: [QUEST] } } : { data: { engagement: {} } },
+    ))
+    renderScoped()
+    await screen.findByText('Staff onboarding')
+    await waitFor(() => expect(api.get).toHaveBeenCalledWith('/api/quests/q-1/engagement', expect.anything()))
+    const engagementCall = api.get.mock.calls.find(([url]) => url === '/api/quests/q-1/engagement')
+    expect(engagementCall[1].params).toEqual({})
+    for (const [, config] of api.get.mock.calls) {
+      expect(config?.params?.student_id).toBeUndefined()
+    }
+  })
+
+  it('leaves the family scope before it opens her quest', async () => {
+    api.get.mockImplementation((url) => Promise.resolve(
+      url === '/api/quests/my-active' ? { data: { quests: [QUEST] } } : { data: { engagement: {} } },
+    ))
+    renderScoped()
+    fireEvent.click(await screen.findByText('Staff onboarding'))
+    expect(exitScope).toHaveBeenCalled()
+    expect(await screen.findByText('quest page')).toBeInTheDocument()
+  })
 })

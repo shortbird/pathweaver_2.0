@@ -345,7 +345,15 @@ export const useQuestProgress = (userId, questId, options = {}) => {
  * Used for the GitHub-style activity calendar and rhythm indicator
  */
 export const useQuestEngagement = (questId, options = {}) => {
-  const { params, scopeId } = useStudentScope()
+  // `ownOnly` reads the signed-in user's own engagement even while a family
+  // scope is set. An org admin who is also a parent sees her OWN assigned
+  // quests on her admin home (MyEnrolledQuests); with Brady picked, the
+  // scoped read sent ?student_id= and her card showed Brady's rhythm
+  // (iCreate, Molly, tickets 376cb2ce / bec3639e, 2026-09-23).
+  const { ownOnly = false, ...queryOptions } = options
+  const scope = useStudentScope()
+  const params = ownOnly ? {} : scope.params
+  const scopeId = ownOnly ? undefined : scope.scopeId
   return useQuery({
     queryKey: queryKeys.quests.engagement(questId, scopeId),
     queryFn: async () => {
@@ -355,7 +363,7 @@ export const useQuestEngagement = (questId, options = {}) => {
     enabled: !!questId,
     staleTime: 60 * 1000, // 1 minute
     cacheTime: 5 * 60 * 1000, // 5 minutes
-    ...options,
+    ...queryOptions,
   })
 }
 
