@@ -4,6 +4,7 @@ import api from '../../../services/api'
 import ModalOverlay from '../../ui/ModalOverlay'
 import { withOrg } from '../../../pages/sis/useSisOrg'
 import { INPUT_CLASS } from '../../ui/Input'
+import ClassRecipientFilter from './ClassRecipientFilter'
 
 /**
  * Assign a checklist to people.
@@ -26,6 +27,12 @@ export default function AssignChecklistModal({ orgId, onClose, onAssigned, templ
   const [recipients, setRecipients] = useState([])
   const [userIds, setUserIds] = useState([])
   const [q, setQ] = useState('')
+  // "Pick a class" (ticket a19d5660): null shows every family; a list shows
+  // that class's guardians. The selection from before the pick comes back when
+  // the class is cleared.
+  const [classPeople, setClassPeople] = useState(null)
+  const [beforeClass, setBeforeClass] = useState(null)
+  const [classId, setClassId] = useState('')
   const [assigning, setAssigning] = useState(false)
 
   useEffect(() => {
@@ -40,6 +47,9 @@ export default function AssignChecklistModal({ orgId, onClose, onAssigned, templ
 
   useEffect(() => {
     setUserIds([])
+    setClassPeople(null)
+    setBeforeClass(null)
+    setClassId('')
     if (!orgId || !assignTemplate) { setRecipients([]); return }
     api.get(withOrg(`/api/sis/staff-admin/onboarding/recipients?audience=${audience}`, orgId))
       .then((r) => setRecipients(r.data?.recipients || []))
@@ -49,10 +59,23 @@ export default function AssignChecklistModal({ orgId, onClose, onAssigned, templ
   const toggle = (id) => setUserIds((prev) => (
     prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
   ))
-  const allSelected = recipients.length > 0 && userIds.length === recipients.length
+  const pickClass = (people, id) => {
+    setClassId(id)
+    if (people === null) {
+      setClassPeople(null)
+      setUserIds(beforeClass || [])
+      setBeforeClass(null)
+      return
+    }
+    if (classPeople === null) setBeforeClass(userIds)
+    setClassPeople(people)
+    setUserIds(people.map((p) => p.id))
+  }
+  const listed = classPeople ?? recipients
+  const allSelected = listed.length > 0 && listed.every((r) => userIds.includes(r.id))
   const shown = q.trim()
-    ? recipients.filter((r) => (r.name || '').toLowerCase().includes(q.trim().toLowerCase()))
-    : recipients
+    ? listed.filter((r) => (r.name || '').toLowerCase().includes(q.trim().toLowerCase()))
+    : listed
 
   const assign = async () => {
     if (!assignTemplate || !userIds.length) { toast.error('Pick a template and at least one recipient'); return }
@@ -113,8 +136,8 @@ export default function AssignChecklistModal({ orgId, onClose, onAssigned, templ
               <span className="text-xs font-semibold uppercase tracking-wide text-neutral-500">
                 {audience === 'family' ? 'Assign to families' : 'Assign to staff'}
               </span>
-              {recipients.length > 0 && (
-                <button onClick={() => setUserIds(allSelected ? [] : recipients.map((r) => r.id))}
+              {listed.length > 0 && (
+                <button onClick={() => setUserIds(allSelected ? [] : listed.map((r) => r.id))}
                   className="text-xs text-optio-purple hover:underline">
                   {allSelected ? 'Clear all' : 'Select all'}
                 </button>
@@ -124,6 +147,7 @@ export default function AssignChecklistModal({ orgId, onClose, onAssigned, templ
               <p className="text-sm text-neutral-400">No {audience === 'family' ? 'families' : 'staff'} to assign to yet.</p>
             ) : (
               <>
+                {audience === 'family' && <ClassRecipientFilter orgId={orgId} value={classId} onPick={pickClass} />}
                 <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search by name"
                   className={`${inputClass} mb-2`} aria-label="Search recipients" />
                 <div className="max-h-52 overflow-y-auto divide-y divide-gray-50">
@@ -134,7 +158,11 @@ export default function AssignChecklistModal({ orgId, onClose, onAssigned, templ
                       <span className="text-neutral-800">{r.name}</span>
                     </label>
                   ))}
-                  {!shown.length && <p className="text-sm text-neutral-400 py-2">No match.</p>}
+                  {!shown.length && (
+                    <p className="text-sm text-neutral-400 py-2">
+                      {classPeople && !classPeople.length ? 'No families in this class yet.' : 'No match.'}
+                    </p>
+                  )}
                 </div>
               </>
             )}

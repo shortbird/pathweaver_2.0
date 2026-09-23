@@ -51,6 +51,34 @@ export const useOnboardingTemplates = (orgId) => useQuery({
   staleTime: 60 * 1000,
 })
 
+/**
+ * "Pick a class" on a family recipient list (ticket a19d5660). The class
+ * options, and the guardians of the students enrolled in one class -- already
+ * narrowed to the org's family recipients by the server, which also refuses a
+ * class from another org.
+ */
+export const useRecipientClasses = (orgId) => useQuery({
+  queryKey: queryKeys.sis.recipientClasses(orgId),
+  queryFn: async () => {
+    const r = await api.get(withOrg('/api/sis/classes', orgId))
+    return r.data?.classes || []
+  },
+  enabled: !!orgId,
+  staleTime: 60 * 1000,
+})
+
+export const useClassFamilies = (orgId, classId) => useQuery({
+  queryKey: queryKeys.sis.classFamilies(orgId, classId),
+  queryFn: async () => {
+    const r = await api.get(withOrg(
+      `/api/sis/staff-admin/onboarding/recipients?audience=family&class_id=${encodeURIComponent(classId)}`,
+      orgId))
+    return r.data?.recipients || []
+  },
+  enabled: !!orgId && !!classId,
+  staleTime: 30 * 1000,
+})
+
 export const sisOnboardingApi = {
   patchItem: (assignmentId, itemKey, orgId, fields) =>
     api.patch(`/api/sis/teacher/onboarding/${assignmentId}/items/${itemKey}`, {

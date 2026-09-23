@@ -496,12 +496,21 @@ def onboarding_admin_doc_url(user_id):
 @require_module('onboarding')
 def onboarding_recipients(user_id):
     """People an admin can assign a template to. ?audience=staff returns staff;
-    ?audience=family returns the org's guardians (parents) for family checklists."""
+    ?audience=family returns the org's guardians (parents) for family checklists.
+    ?audience=family&class_id=X narrows that to the guardians of the students
+    enrolled in class X (ticket a19d5660); a class outside the org is a 404."""
     org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     audience = (request.args.get('audience') or 'staff').strip().lower()
-    return jsonify({'success': True, 'recipients': onboarding.list_recipients(org_id, audience)})
+    class_id = (request.args.get('class_id') or '').strip() or None
+    if class_id and audience != 'family':
+        return jsonify({'success': False, 'error': 'A class filter only applies to families'}), 400
+    try:
+        people = onboarding.list_recipients(org_id, audience, class_id=class_id)
+    except onboarding.ClassNotInOrg:
+        return jsonify({'success': False, 'error': 'Class not found'}), 404
+    return jsonify({'success': True, 'recipients': people})
 
 
 # ── Documents sent for signature ─────────────────────────────────────────────

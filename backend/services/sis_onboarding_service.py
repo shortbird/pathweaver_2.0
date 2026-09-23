@@ -581,10 +581,49 @@ def assign_task(org_id: str, title: str, user_ids: List[str], assigned_by: str,
     return {'assigned': assigned, 'errors': errors}
 
 
-def list_recipients(org_id: str, audience: str = 'staff') -> List[Dict[str, Any]]:
+class ClassNotInOrg(Exception):
+    """The class asked for does not exist in the caller's organization."""
+
+
+def class_guardian_ids(org_id: str, class_id: str) -> set:
+    """Guardians of the students actively enrolled in one of this org's classes.
+
+    "Pick a class" on the family recipient list (ticket a19d5660: an iCreate
+    admin wanted to send a form to one class's parents without ticking them
+    one by one). Withdrawn enrollments are not the class any more, so their
+    families are not on it. Guardians come from every link type the platform
+    has -- parent_student_links AND household_members (the one the SIS
+    registration funnel writes) -- because asking only one of them silently
+    drops most of a microschool's families.
+
+    Raises ClassNotInOrg for a class id from another org (or none at all): the
+    roster of somebody else's class is exactly what this must never answer.
+    """
+    from repositories.sis_class_repository import SisClassRepository
+    from utils.class_membership import class_student_ids, parents_of_students
+    try:
+        cls = SisClassRepository(client=_admin()).find_by_id(class_id)
+    except Exception as e:  # noqa: BLE001 -- a malformed id is a missing class
+        logger.warning(f'[Onboarding] Class lookup failed for {str(class_id)[:8]}: {e}')
+        cls = None
+    if not cls or cls.get('organization_id') != org_id:
+        raise ClassNotInOrg('Class not found')
+    # One class's roster is bounded by that class, so a plain read is complete.
+    return parents_of_students(class_student_ids(class_id))
+
+
+def list_recipients(org_id: str, audience: str = 'staff',
+                    class_id: Optional[str] = None) -> List[Dict[str, Any]]:
     """People an admin can assign a template to, by audience. 'family' returns the
-    org's guardians (parents); 'staff' returns teachers/admins."""
+    org's guardians (parents); 'staff' returns teachers/admins.
+
+    `class_id` (family only) narrows the list to the guardians of that class's
+    enrolled students. The narrowing is an intersection with the org's family
+    list, not a replacement for it: assigning checks that every recipient
+    belongs to the org (assert_recipients_in_org), so a guardian who is not an
+    org member could be offered here and then refused on send."""
     audience = _clean_audience(audience)
+    only = class_guardian_ids(org_id, class_id) if (class_id and audience == 'family') else None
     rows = (_admin().table('users')
             .select('id, first_name, last_name, display_name, email, org_role, org_roles, role')
             .eq('organization_id', org_id).execute()).data or []
@@ -600,6 +639,7 @@ def list_recipients(org_id: str, audience: str = 'staff') -> List[Dict[str, Any]
 
     people = [u for u in rows
               if _holds_wanted(u)
+              and (only is None or u['id'] in only)
               # Placeholder staff (schedule-import rows with no real login) can
               # never open the portal to complete a checklist — don't offer them.
               and not sis_service.is_placeholder_staff_email(u.get('email'))]

@@ -5,6 +5,7 @@ import ModalOverlay from '../../ui/ModalOverlay'
 import PeoplePicker from '../ui/PeoplePicker'
 import { withOrg } from '../../../pages/sis/useSisOrg'
 import { INPUT_CLASS } from '../../ui/Input'
+import ClassRecipientFilter from './ClassRecipientFilter'
 
 /**
  * Assign — the one way to ask people to do something.
@@ -43,6 +44,12 @@ export default function AssignComposer({ orgId, sigEndpoint, allowHr = false,
   const [families, setFamilies] = useState([])
   const [staffIds, setStaffIds] = useState([])
   const [familyIds, setFamilyIds] = useState([])
+  // "Pick a class" (ticket a19d5660): null shows every family; a list shows
+  // that class's guardians. The family selection from before the pick comes
+  // back when the class is cleared.
+  const [classFamilies, setClassFamilies] = useState(null)
+  const [beforeClass, setBeforeClass] = useState(null)
+  const [classId, setClassId] = useState('')
   const [busy, setBusy] = useState(false)
 
   useEffect(() => {
@@ -52,6 +59,19 @@ export default function AssignComposer({ orgId, sigEndpoint, allowHr = false,
     api.get(withOrg('/api/sis/staff-admin/onboarding/recipients?audience=family', orgId))
       .then((r) => setFamilies(r.data?.recipients || [])).catch(() => setFamilies([]))
   }, [orgId])
+
+  const pickClass = (people, id) => {
+    setClassId(id)
+    if (people === null) {
+      setClassFamilies(null)
+      setFamilyIds(beforeClass || [])
+      setBeforeClass(null)
+      return
+    }
+    if (classFamilies === null) setBeforeClass(familyIds)
+    setClassFamilies(people)
+    setFamilyIds(people.map((p) => p.id))
+  }
 
   const total = staffIds.length + familyIds.length
   const signing = Boolean(signFile)
@@ -276,9 +296,13 @@ export default function AssignComposer({ orgId, sigEndpoint, allowHr = false,
                 searchLabel="Search recipients" maxHeight="max-h-44"
                 emptyLabel="No staff to assign to yet." />
             ) : (
-              <PeoplePicker people={families} selected={familyIds} onToggle={toggle(setFamilyIds)}
-                searchLabel="Search recipients" maxHeight="max-h-44"
-                emptyLabel="No families to assign to yet." />
+              <>
+                {families.length > 0 && <ClassRecipientFilter orgId={orgId} value={classId} onPick={pickClass} />}
+                <PeoplePicker people={classFamilies ?? families} selected={familyIds}
+                  onToggle={toggle(setFamilyIds)}
+                  searchLabel="Search recipients" maxHeight="max-h-44"
+                  emptyLabel={classFamilies ? 'No families in this class yet.' : 'No families to assign to yet.'} />
+              </>
             )}
           </div>
         </div>
