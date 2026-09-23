@@ -100,6 +100,45 @@ you start, and let them cut or reorder. Some tickets are not yours to decide
 (a feature request that changes product behaviour, anything touching money
 or roles).
 
+### 2a. Find the reporter's questions and ask the user
+
+While you read, pull out every question the reporter asked, whatever the
+ticket's `type`. A bug report often carries one ("Is this why her XP is
+missing?", "Should I re-enter the grades or wait?", "Can parents see
+this?"). Read `title`, `message`, `steps`, and for a Perch import the comment
+history in `extra`. Count a request phrased as a statement too ("I need to
+know whether..."). A rhetorical complaint ("why is this so slow??") is not a
+question; the fix answers it.
+
+The reporter is owed an answer, and the only place they will read it is the
+resolution email. That mail carries `resolution` and `verification` and
+nothing else; `triage_notes` never leaves the building. So an answer that
+lives only in `triage_notes`, or only in chat, never reaches them.
+
+Do not answer a policy, product, pricing, schedule or "will you..." question
+yourself. Those answers are the user's. Answer only a question the code or
+the data settles as fact ("Can parents see this?" when the RLS and the UI
+say no), and still show the user the answer you intend to send.
+
+Ask the user in one batch, with the grouped plan, not one ticket at a time.
+Use `AskUserQuestion` when the answer is a choice, and plain text otherwise.
+For each question give: the ticket id, the reporter, the question quoted
+verbatim, and your draft answer if the code or data settles it. Record each
+answer in `triage_notes` straight away ("Q: <question> A (from Tanner):
+<answer>"), so a session that stops before the fix keeps it.
+
+When you write `resolution` (step 3.6 or step 4), put the answer in it: the
+fix sentence first, then the answer, as one
+plain paragraph. "The roster export has the phone column again. And yes,
+parents can see this list, but only for their own children." Keep it short;
+the "one or two sentences" rule stretches to fit an answer, not further. A
+ticket whose only content is a question goes to step 4 with the answer as
+the whole `resolution`.
+
+A question the user has not answered blocks that ticket's `resolution`, not
+its fix. Mark it `fixing`, say so in the step 6 report, and leave it for the
+answer rather than send a mail that ignores the question.
+
 ### 3. Work each ticket
 
 1. `update bug_reports set status = 'fixing' where id = '...';` so the console
@@ -156,7 +195,9 @@ update bug_reports
 ```
 
 Write `resolution` and `verification` as if to the parent or teacher who
-filed it, because that is exactly who reads them. Plain, kind, specific.
+filed it, because that is exactly who reads them. Plain, kind, specific. If
+the reporter asked a question, the user's answer from step 2a goes in
+`resolution` after the fix sentence.
 "The phone column is back in the roster export." "Open Reports, export any
 roster, and check the last column." Not "Fixed the CSV serializer in
 sis_reports_service.py".
@@ -189,7 +230,8 @@ the same `fix_commit` and the same two sentences, and they are mailed too.
 ### 6. Finish the sweep
 
 Report to the user, as a table: ticket id, title, what you did in one line,
-the tests you added or changed, how to verify locally, and status. Then say which will email their reporters
+the tests you added or changed, how to verify locally, and status. List
+any reporter question still waiting on the user's answer. Then say which will email their reporters
 once the deploy is live and which already did (the cron ran). If any ticket
 is `fixed` with a commit that is not yet on `main` (your worktree branch),
 say so: the sweep cannot see it until it is merged with its SHA intact.
@@ -235,6 +277,8 @@ it ships; leave it null if not.
 - Do not put a SHA, a file name or a stack trace in `resolution` or
   `verification`. The reporter reads them.
 - Do not set `deployed_at` or `reporter_notified_at` by hand.
+- Do not mark a ticket `fixed` or `resolved` while the reporter's question
+  has no answer in `resolution`, and do not invent the answer.
 - Do not raise `POSTGREST_MAX_ROWS` or count rows in Python; the route uses
   `count='exact'` for a reason (CLAUDE.md).
 - Do not email anyone from here. The sweep sends the one mail there is.
