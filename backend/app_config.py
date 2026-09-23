@@ -447,6 +447,10 @@ class Config:
     # copy, so rotating it in the school's settings rotates it here too.
     OPTIO_BILLING_STRIPE_ORG_ID = os.getenv('OPTIO_BILLING_STRIPE_ORG_ID',
                                             '8ee22671-6e38-473c-a326-90ff86460310')
+    # Gets Optio's own copy of every invoice and reminder sent from
+    # /admin/billing. Stripe's API cannot CC an invoice email (CC is a
+    # per-customer dashboard setting), so Optio sends the copy itself.
+    OPTIO_BILLING_COPY_EMAIL = os.getenv('OPTIO_BILLING_COPY_EMAIL', 'accounting@optioeducation.com')
 
     # Rate Limiting - CONFIGURABLE
     # RATE_LIMIT_ENABLED is the emergency kill switch, honoured by the

@@ -145,7 +145,12 @@ class FakeStripe:
 @pytest.fixture
 def fake(monkeypatch):
     f = FakeStripe()
+    f.emails = []
     monkeypatch.setattr(ob, '_stripe', lambda: f)
+    monkeypatch.setattr('app_config.Config.OPTIO_BILLING_COPY_EMAIL', 'accounting@optio.test')
+    monkeypatch.setattr('services.email_service.EmailService.__init__', lambda self: None)
+    monkeypatch.setattr('services.email_service.EmailService.send_email',
+                        lambda self, to, subject, html, **kw: f.emails.append((to, subject, kw)) or True)
     monkeypatch.setattr(ob, '_key', lambda: 'rk_test_x')
     return f
 
@@ -329,3 +334,32 @@ class TestKey:
         with pytest.raises(ob.OrgBillingUnavailable):
             ob._key()
         assert ob.sweep()['skipped']
+
+
+class TestAccountingCopy:
+    def test_every_sent_invoice_is_copied_to_accounting(self, fake):
+        out = _invoice(fake, amount=12_345)
+        assert len(fake.emails) == 1
+        to, subject, kw = fake.emails[0]
+        assert to == 'accounting@optio.test'
+        assert 'Invoice sent' in subject and out['number'] in subject and '$123.45' in subject
+        assert kw['support_copy'] is False
+
+    def test_every_reminder_is_copied_too(self, fake):
+        out = _invoice(fake)
+        fake.emails.clear()
+        ob.resend_invoice(out['id'])
+        assert [e[0] for e in fake.emails] == ['accounting@optio.test']
+        assert 'Reminder sent' in fake.emails[0][1]
+
+    def test_a_failed_copy_does_not_fail_the_send(self, fake, monkeypatch):
+        def boom(self, *a, **k):
+            raise RuntimeError('sendgrid down')
+        monkeypatch.setattr('services.email_service.EmailService.send_email', boom)
+        out = _invoice(fake)
+        assert fake.invoices[out['id']]['status'] == 'open'
+
+    def test_no_copy_address_means_no_copy(self, fake, monkeypatch):
+        monkeypatch.setattr('app_config.Config.OPTIO_BILLING_COPY_EMAIL', '')
+        _invoice(fake)
+        assert fake.emails == []

@@ -21,6 +21,22 @@ export const useAdminInvoices = (orgId = '', options = {}) => useQuery({
 })
 
 /**
+ * Every organization an invoice can be linked to, archived ones included:
+ * an archived org can still owe Optio money. Its own read rather than the SIS
+ * org picker's list, which leaves out archived orgs and is not loaded at all
+ * when the superadmin's session carries an org of its own.
+ */
+export const useBillingOrgs = (options = {}) => useQuery({
+  queryKey: queryKeys.admin.billing.orgs(),
+  queryFn: async () => {
+    const res = await api.get('/api/admin/organizations', { params: { include_archived: true } })
+    return res.data?.organizations || []
+  },
+  staleTime: 5 * 60 * 1000,
+  ...options,
+})
+
+/**
  * One mutation for every write. `op` is one of:
  *   { kind: 'send', body: { recipient_email, recipient_name, organization_id, lines, memo, days_until_due } }
  *   { kind: 'remind' | 'void' | 'mark-paid', invoiceId, body? }

@@ -20,7 +20,9 @@ rate. Someone who must pay by card emails Optio, and a payment taken some other
 way is recorded with mark_paid_outside.
 
 The daily sweep sends the reminders (Stripe's own reminder schedule is a
-dashboard setting, and the point here is never opening the dashboard).
+dashboard setting, and the point here is never opening the dashboard). Every
+invoice and reminder also goes to Config.OPTIO_BILLING_COPY_EMAIL as a copy
+Optio sends itself, because Stripe's API has no CC.
 """
 
 from datetime import date, datetime, timezone
@@ -240,6 +242,7 @@ def create_invoice(*, recipient_email: str, recipient_name: str = '',
             logger.warning('[optio billing] could not delete draft %s: %s', inv.id, exc)
         raise
     inv = s.Invoice.send_invoice(inv.id, api_key=key)
+    _copy_to_accounting(inv, 'sent')
     logger.info('[optio billing] sent %s for %s (org %s)', inv.get('number'), inv.get('total'),
                 (organization_id or '-')[:8])
     return _invoice_dict(inv)
@@ -289,12 +292,58 @@ def mark_paid_outside(invoice_id: str, note: str = '') -> Dict[str, Any]:
     return _invoice_dict(inv)
 
 
+# ── Accounting copy ──────────────────────────────────────────────────────────
+
+def _copy_to_accounting(inv, kind: str) -> None:
+    """Email Optio's accounting inbox what Stripe just sent. Best effort: the
+    invoice is already out, so a failed copy is logged, never raised."""
+    to = Config.OPTIO_BILLING_COPY_EMAIL
+    if not to:
+        return
+    try:
+        from html import escape
+        from services.email_service import EmailService
+        from utils.money import format_cents
+        number = inv.get('number') or inv.id
+        recipient = inv.get('customer_name') or inv.get('customer_email') or 'the recipient'
+        email = inv.get('customer_email') or ''
+        due = _ts_to_date(inv.get('due_date')) or 'no due date'
+        amount = format_cents(inv.get('amount_remaining') if kind == 'reminder' else inv.get('total')) or ''
+        what = 'Reminder sent' if kind == 'reminder' else 'Invoice sent'
+        subject = f'[Copy] {what}: Optio invoice {number} to {recipient}, {amount}'
+        rows = [('To', f'{recipient} <{email}>' if email else recipient),
+                ('Amount' if kind != 'reminder' else 'Amount due', amount), ('Due', due)]
+        memo = (inv.get('metadata') or {}).get('memo')
+        if memo:
+            rows.append(('Memo', memo))
+        links = []
+        if inv.get('hosted_invoice_url'):
+            links.append(f'<a href="{escape(inv["hosted_invoice_url"])}">View invoice</a>')
+        if inv.get('invoice_pdf'):
+            links.append(f'<a href="{escape(inv["invoice_pdf"])}">PDF</a>')
+        html = (
+            f'<p>{what} from Optio billing. This is a copy for your records.</p>'
+            '<table cellpadding="4">'
+            + ''.join(f'<tr><td><b>{escape(k)}</b></td><td>{escape(v)}</td></tr>' for k, v in rows)
+            + '</table>'
+            + (f'<p>{" &middot; ".join(links)}</p>' if links else '')
+        )
+        text = '\n'.join([f'{what} from Optio billing. This is a copy for your records.', '']
+                         + [f'{k}: {v}' for k, v in rows]
+                         + ([f'Invoice: {inv["hosted_invoice_url"]}'] if inv.get('hosted_invoice_url') else []))
+        EmailService().send_email(to, subject, html, text_body=text, support_copy=False,
+                                  categories=['optio_billing_copy'])
+    except Exception as exc:  # noqa: BLE001
+        logger.error('[optio billing] accounting copy failed for %s: %s', inv.get('id'), exc, exc_info=True)
+
+
 # ── Reminders ────────────────────────────────────────────────────────────────
 
 def _send_reminder(inv) -> Dict[str, Any]:
     s, key = _stripe(), _key()
     # send_invoice on an open invoice emails it again.
     s.Invoice.send_invoice(inv.id, api_key=key)
+    _copy_to_accounting(inv, 'reminder')
     inv = s.Invoice.modify(inv.id, metadata={'last_reminder_on': date.today().isoformat()},
                            expand=['payment_intent'], api_key=key)
     return _invoice_dict(inv)

@@ -1,6 +1,5 @@
 import React, { useMemo, useState } from 'react'
-import { useAdminInvoiceAction, useAdminInvoices } from '../../hooks/api/useAdminBilling'
-import { useSisOrg } from '../sis/useSisOrg'
+import { useAdminInvoiceAction, useAdminInvoices, useBillingOrgs } from '../../hooks/api/useAdminBilling'
 import { ConfirmDialog } from '../../components/ui'
 import { formatCents } from '../../utils/money'
 
@@ -37,8 +36,25 @@ const toCents = (amount) => {
 
 const inputClass = 'w-full rounded-lg border px-3 py-2 text-sm'
 
+const isArchived = (o) => Boolean(o.archived_at) || o.is_active === false
+
+// Two orgs can share a name (there are two "iCreate"s), so a repeated name
+// carries its slug; an archived org says so.
+const orgLabels = (orgs) => {
+  const counts = {}
+  for (const o of orgs) {
+    const n = (o.name || '').trim()
+    counts[n] = (counts[n] || 0) + 1
+  }
+  return Object.fromEntries(orgs.map(o => {
+    const n = (o.name || '').trim() || o.slug || o.id
+    const withSlug = counts[n] > 1 && o.slug ? `${n} (${o.slug})` : n
+    return [o.id, isArchived(o) ? `${withSlug} [archived]` : withSlug]
+  }))
+}
+
 export default function AdminBillingPage() {
-  const { orgs } = useSisOrg()
+  const { data: orgs = [] } = useBillingOrgs()
   const [filterOrg, setFilterOrg] = useState('')
   const { data, error: loadError } = useAdminInvoices(filterOrg)
   // Unfiltered, for past recipients and the per-org email fill. Shares the
@@ -49,8 +65,10 @@ export default function AdminBillingPage() {
   const [error, setError] = useState(null)
   const [confirm, setConfirm] = useState(null)
 
-  const orgName = useMemo(() => Object.fromEntries((orgs || []).map(o => [o.id, o.name])), [orgs])
-  const sortedOrgs = useMemo(() => [...(orgs || [])].sort((a, b) => a.name.localeCompare(b.name)), [orgs])
+  const orgName = useMemo(() => orgLabels(orgs), [orgs])
+  // Active orgs first, then archived, each alphabetical.
+  const sortedOrgs = useMemo(() => [...orgs].sort((a, b) =>
+    (isArchived(a) - isArchived(b)) || orgName[a.id].localeCompare(orgName[b.id])), [orgs, orgName])
   const pastRecipients = useMemo(() => {
     const seen = new Map()
     for (const inv of everything?.invoices || []) {
@@ -154,7 +172,7 @@ export default function AdminBillingPage() {
             <span className="block text-gray-600 mb-1">Organization (optional)</span>
             <select value={form.orgId} onChange={e => pickOrg(e.target.value)} className={inputClass}>
               <option value="">None</option>
-              {sortedOrgs.map(o => <option key={o.id} value={o.id}>{o.name}</option>)}
+              {sortedOrgs.map(o => <option key={o.id} value={o.id}>{orgName[o.id]}</option>)}
             </select>
           </label>
         </div>
@@ -227,7 +245,7 @@ export default function AdminBillingPage() {
             className="rounded-lg border px-3 py-2 text-sm"
           >
             <option value="">All invoices</option>
-            {sortedOrgs.map(o => <option key={o.id} value={o.id}>{o.name}</option>)}
+            {sortedOrgs.map(o => <option key={o.id} value={o.id}>{orgName[o.id]}</option>)}
           </select>
         </div>
         {!data ? (

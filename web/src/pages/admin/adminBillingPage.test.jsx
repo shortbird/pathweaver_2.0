@@ -9,9 +9,13 @@ vi.mock('../../services/api', () => ({
   default: { get: vi.fn(), post: vi.fn() }
 }))
 
-vi.mock('../sis/useSisOrg', () => ({
-  useSisOrg: () => ({ orgs: [{ id: 'org-h', name: 'Hearthwood' }, { id: 'org-a', name: 'Arete' }] }),
-}))
+const ORGS = [
+  { id: 'org-h', name: 'Hearthwood', slug: 'hearthwood', is_active: true },
+  { id: 'org-a', name: 'Arete', slug: 'arete', is_active: true },
+  { id: 'org-i1', name: 'iCreate', slug: 'icreate', is_active: true },
+  { id: 'org-i2', name: 'iCreate', slug: 'icreate-2', is_active: true },
+  { id: 'org-old', name: 'Lily Lake', slug: 'lily-lake', is_active: false, archived_at: '2026-01-01' },
+]
 
 const HEARTHWOOD_INVOICE = {
   id: 'in_1', number: 'OPT-1', status: 'overdue', total_cents: 5000, created: '2026-09-01',
@@ -27,6 +31,10 @@ const listing = (invoices = []) => ({
   data: { invoices, default_days_until_due: 30 },
 })
 
+// The org list and the invoice list are the page's two reads.
+const serve = (invoices = []) => api.get.mockImplementation((url) =>
+  Promise.resolve(url === '/api/admin/organizations' ? { data: { organizations: ORGS } } : listing(invoices)))
+
 const mount = () => render(
   <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
     <AdminBillingPage />
@@ -37,7 +45,7 @@ describe('AdminBillingPage', () => {
   beforeEach(() => vi.clearAllMocks())
 
   it('sends an invoice to anyone, in cents, with no org when none is picked', async () => {
-    api.get.mockResolvedValue(listing())
+    serve()
     api.post.mockResolvedValue({ data: {} })
     mount()
 
@@ -64,7 +72,7 @@ describe('AdminBillingPage', () => {
   })
 
   it('picking an org links it and fills the recipient it was billed at last time', async () => {
-    api.get.mockResolvedValue(listing([HEARTHWOOD_INVOICE]))
+    serve([HEARTHWOOD_INVOICE])
     mount()
     await screen.findByText('OPT-1')
     await userEvent.selectOptions(screen.getByLabelText('Organization (optional)'), 'org-h')
@@ -73,7 +81,7 @@ describe('AdminBillingPage', () => {
   })
 
   it('will not send without a recipient', async () => {
-    api.get.mockResolvedValue(listing())
+    serve()
     mount()
     await userEvent.type(await screen.findByLabelText('Description'), 'Licenses')
     await userEvent.type(screen.getByLabelText('Amount'), '100')
@@ -81,7 +89,7 @@ describe('AdminBillingPage', () => {
   })
 
   it('lists recipients and org links, with actions only on unpaid invoices', async () => {
-    api.get.mockResolvedValue(listing([HEARTHWOOD_INVOICE, PAID_INVOICE]))
+    serve([HEARTHWOOD_INVOICE, PAID_INVOICE])
     mount()
     const rows = await screen.findAllByRole('row')
     expect(within(rows[1]).getByText('Hearthwood')).toBeInTheDocument()
@@ -91,8 +99,18 @@ describe('AdminBillingPage', () => {
     expect(within(rows[2]).getByText('by bank transfer')).toBeInTheDocument()
   })
 
+  it('offers every org, archived ones included, and tells same-named orgs apart', async () => {
+    serve()
+    mount()
+    await screen.findAllByText('Lily Lake [archived]', { selector: 'option' })
+    expect(api.get).toHaveBeenCalledWith('/api/admin/organizations', { params: { include_archived: true } })
+    const picker = screen.getByLabelText('Organization (optional)')
+    const names = [...picker.querySelectorAll('option')].map(o => o.textContent)
+    expect(names).toEqual(['None', 'Arete', 'Hearthwood', 'iCreate (icreate-2)', 'iCreate (icreate)', 'Lily Lake [archived]'])
+  })
+
   it('the filter asks the server for one org', async () => {
-    api.get.mockResolvedValue(listing([HEARTHWOOD_INVOICE]))
+    serve([HEARTHWOOD_INVOICE])
     mount()
     await screen.findByText('OPT-1')
     await userEvent.selectOptions(screen.getByLabelText('Filter by organization'), 'org-h')

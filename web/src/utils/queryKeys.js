@@ -180,6 +180,7 @@ export const queryKeys = {
     billing: {
       all: ['admin', 'billing'],
       invoices: (orgId) => [...queryKeys.admin.billing.all, 'invoices', orgId || ''],
+      orgs: () => [...queryKeys.admin.billing.all, 'orgs'],
     },
   },
 
