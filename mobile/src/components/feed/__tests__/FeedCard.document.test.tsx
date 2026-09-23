@@ -91,3 +91,26 @@ describe('FeedCard document tap', () => {
     expect(queryByText(`MODAL_OPEN:${DOC_URL}`)).toBeTruthy();
   });
 });
+
+describe('FeedCard with several documents', () => {
+  it('gives only the first document the page viewer; the rest are compact rows', () => {
+    const urls = [1, 2, 3].map((n) => `https://example.com/evidence/page${n}.pdf`);
+    const item = createMockFeedItem({
+      evidence: {
+        type: 'multi_format',
+        blocks: urls.map((url, i) => ({ type: 'document', url, title: `Page ${i + 1}` })),
+      } as any,
+    });
+    const { getAllByLabelText, queryByText, getByText } = render(<FeedCard item={item} />);
+
+    expect(getAllByLabelText('Open document')).toHaveLength(3);
+    // DocumentViewer is mocked to render nothing, so the first title is absent
+    // and the other two render as compact rows.
+    expect(queryByText('Page 1')).toBeNull();
+    expect(getByText('Page 2')).toBeTruthy();
+    expect(getByText('Page 3')).toBeTruthy();
+
+    fireEvent.press(getAllByLabelText('Open document')[2], { stopPropagation: jest.fn() });
+    expect(getByText(`MODAL_OPEN:${urls[2]}`)).toBeTruthy();
+  });
+});

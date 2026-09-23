@@ -44,6 +44,10 @@ import pytest
 BACKEND = Path(__file__).resolve().parents[2]
 
 # Measured 2026-09-03.
+# repositories/ raised 611 -> 612 for get_public_blocks_for_documents in
+# evidence_document_repository.py: the feed fills each task card with all of
+# its blocks instead of only the ones inside the page's time window. The feed
+# route would otherwise have made the call itself.
 # repositories/ raised 415 -> 417 for get_class_activity in
 # class_repository.py: the roster-wide week read for class check-ins, plus
 # _quest_titles beside it. The second call is not avoidable by embedding --
@@ -583,7 +587,7 @@ BASELINES = {
     # ticket 0e6cb0fc); two so a family's reply on a submission reaches the
     # SIS reviewer or the class teachers (sis_submission_reviews, class_quests;
     # ticket 41474658). routes/ went DOWN by the two moved reads.
-    'repositories': 611,
+    'repositories': 612,
     # 2026-09-09: 135 -> 136. class_membership.children_in_classes, the inverse
     # of parents_of_students: which of a guardian's children sit in each of a
     # set of classes. It answers "whose class chat is this?" for the messaging

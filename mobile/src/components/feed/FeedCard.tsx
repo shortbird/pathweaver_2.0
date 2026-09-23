@@ -180,6 +180,9 @@ interface EvidenceModel {
   hasImage: boolean;
   videoUrl?: string | null;
   videoPoster: string | null;
+  /** Second and later videos. Shown as posters that open the full-screen
+   *  player, so a card never runs more than one inline decoder. */
+  extraVideos: { url: string; poster: string | null }[];
   textContent?: string | null;
   documentBlocks: { type: string; content?: string; url?: string; title?: string }[];
   linkBlocks: { type: string; content?: string; url?: string; title?: string }[];
@@ -226,15 +229,21 @@ export function computeEvidenceModel(
     )
   );
 
-  const videoMedia = allMedia.find((m) => m.type === 'video');
-  const videoUrl = videoMedia?.url ||
-    (evidence?.type === 'video' ? evidence?.url : null) ||
-    evidence?.blocks?.find((b) => b.type === 'video')?.url;
+  // Every video, not just the first: a post with two clips used to show one.
   // Poster shown while the card is off-screen (see VideoPoster / lazy mount).
-  const videoPoster = videoMedia?.preview || null;
+  const videos: { url: string; poster: string | null }[] = [];
+  const addVideo = (url?: string | null, poster?: string | null) => {
+    if (url && !videos.some((v) => v.url === url)) videos.push({ url, poster: poster || null });
+  };
+  allMedia.filter((m) => m.type === 'video').forEach((m) => addVideo(m.url, m.preview));
+  if (evidence?.type === 'video') addVideo(evidence?.url);
+  evidence?.blocks?.filter((b) => b.type === 'video').forEach((b) => addVideo(b.url));
+  const videoUrl = videos[0]?.url || null;
+  const videoPoster = videos[0]?.poster || null;
 
+  // All of the student's writing, not just the first text block.
   const textContent = evidence?.preview_text ||
-    evidence?.blocks?.find((b) => b.type === 'text')?.content;
+    (evidence?.blocks?.filter((b) => b.type === 'text' && b.content).map((b) => b.content).join('\n\n') || null);
 
   // Filter HEIC files out of document/link blocks -- rendered as images above
   const documentBlocks = evidence?.blocks?.filter((b) => b.type === 'document' && !isHeicUrl(b.url)) || [];
@@ -254,6 +263,7 @@ export function computeEvidenceModel(
     hasImage: imageUrls.length > 0,
     videoUrl,
     videoPoster,
+    extraVideos: videos.slice(1),
     textContent,
     documentBlocks,
     linkBlocks,
@@ -332,14 +342,40 @@ function DocumentPoster({ title }: { title?: string }) {
   );
 }
 
+/** Compact row for the second and later documents on one post. Opens the
+ *  same full-screen viewer as the page preview above it. */
+function DocumentRow({ title }: { title?: string }) {
+  const c = useThemeColors();
+  return (
+    <View className="bg-surface-50 dark:bg-dark-surface-50 p-3 rounded-lg border border-surface-200 dark:border-dark-surface-300">
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+        <View className="w-9 h-9 rounded-lg bg-optio-purple/10 items-center justify-center">
+          <Ionicons name="document-text-outline" size={18} color={c.brand} />
+        </View>
+        <UIText size="sm" className="text-optio-purple font-poppins-medium flex-1" numberOfLines={1}>
+          {title || 'Document'}
+        </UIText>
+        <Ionicons name="expand-outline" size={16} color={c.brand} />
+      </View>
+    </View>
+  );
+}
+
 function EvidenceDisplayImpl({ evidence, media, description, isActive = true, uploadingPct }: { evidence: FeedItem['evidence']; media?: FeedItem['media']; description?: string | null; isActive?: boolean; uploadingPct?: number }) {
   const c = useThemeColors();
   const [modal, setModal] = useState<{ type: 'image' | 'video' | 'document'; uri: string; title?: string } | null>(null);
 
   const {
-    imageUrls, hasImage, videoUrl, videoPoster, textContent,
+    imageUrls, videoUrl, videoPoster, extraVideos, textContent,
     documentBlocks, linkBlocks, audioItems, isLink, isDocument,
   } = useMemo(() => computeEvidenceModel(evidence, media), [evidence, media]);
+  const documents = useMemo(() => {
+    const all = [
+      ...(isDocument ? [{ url: evidence.url!, title: evidence.title || undefined }] : []),
+      ...documentBlocks.map((b) => ({ url: b.url!, title: b.title || undefined })),
+    ];
+    return all.filter((d, i) => d.url && all.findIndex((o) => o.url === d.url) === i);
+  }, [isDocument, evidence, documentBlocks]);
 
   return (
     <VStack space="sm">
@@ -380,6 +416,10 @@ function EvidenceDisplayImpl({ evidence, media, description, isActive = true, up
         </View>
       )}
 
+      {extraVideos.map((v) => (
+        <VideoPoster key={v.url} uri={v.poster} onPress={() => setModal({ type: 'video', uri: v.url })} />
+      ))}
+
       {/* Background upload still in flight — show progress so the moment doesn't
           look like it failed before the video block lands. */}
       {!videoUrl && uploadingPct !== undefined && (
@@ -405,8 +445,10 @@ function EvidenceDisplayImpl({ evidence, media, description, isActive = true, up
         </Pressable>
       ))}
 
-      {/* Text evidence - expandable (skip if same as description, shown above) */}
-      {textContent && !hasImage && !videoUrl && textContent !== description && (
+      {/* Text evidence - expandable (skip if same as description, shown above).
+          Shown beside photos and video too: the student's writing used to
+          disappear as soon as the post also had a picture. */}
+      {textContent && textContent !== description && (
         <ExpandableText text={textContent} />
       )}
 
@@ -421,31 +463,23 @@ function EvidenceDisplayImpl({ evidence, media, description, isActive = true, up
       {/* Documents - tappable for full screen. stopPropagation so the tap opens
           the doc modal instead of bubbling to the card's onPress (which would
           navigate to the post detail and unmount the card before the modal
-          renders, making the tap appear to do nothing). Matches the audio block. */}
-      {isDocument && (
+          renders, making the tap appear to do nothing). Matches the audio block.
+          Only the FIRST document gets the full 3:4 page viewer; the rest are
+          compact rows. Stacking a full viewer per file turned a task with a
+          dozen PDFs into one post you had to scroll a long way past. */}
+      {documents.map((doc, i) => (
         <Pressable
+          key={doc.url}
           accessibilityRole="button"
           accessibilityLabel="Open document"
-          onPress={(e) => { e.stopPropagation?.(); setModal({ type: 'document', uri: evidence.url!, title: evidence.title || undefined }); }}
+          onPress={(e) => { e.stopPropagation?.(); setModal({ type: 'document', uri: doc.url, title: doc.title }); }}
         >
-          {isActive || !isPdfUrl(evidence.url) ? (
-            <DocumentViewer uri={evidence.url!} title={evidence.title || undefined} />
+          {i > 0 ? (
+            <DocumentRow title={doc.title} />
+          ) : isActive || !isPdfUrl(doc.url) ? (
+            <DocumentViewer uri={doc.url} title={doc.title} />
           ) : (
-            <DocumentPoster title={evidence.title || undefined} />
-          )}
-        </Pressable>
-      )}
-      {documentBlocks.map((block) => (
-        <Pressable
-          key={block.url}
-          accessibilityRole="button"
-          accessibilityLabel="Open document"
-          onPress={(e) => { e.stopPropagation?.(); setModal({ type: 'document', uri: block.url!, title: block.title || undefined }); }}
-        >
-          {isActive || !isPdfUrl(block.url) ? (
-            <DocumentViewer uri={block.url!} title={block.title || undefined} />
-          ) : (
-            <DocumentPoster title={block.title || undefined} />
+            <DocumentPoster title={doc.title} />
           )}
         </Pressable>
       ))}

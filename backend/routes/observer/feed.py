@@ -49,6 +49,63 @@ def is_empty_auto_evidence_moment(title, description, has_evidence):
     return any(desc.startswith(p) for p in AUTO_EVIDENCE_DESCRIPTION_PREFIXES)
 
 
+def block_files(content, file_url=None):
+    """Every file a block holds, as [{'url', 'title'}].
+
+    A block stores one file as `content.url` (legacy) or several as
+    `content.items` (the current uploader puts a whole multi-select into one
+    block). The feed used to read `items[0]` only, so a block with four photos
+    showed one of them -- over 300 blocks in production hold more than one file.
+    """
+    content = content or {}
+    files = [
+        {'url': i.get('url'), 'title': i.get('title') or i.get('filename')}
+        for i in (content.get('items') or [])
+        if isinstance(i, dict) and i.get('url')
+    ]
+    if not files and content.get('url'):
+        files = [{'url': content['url'], 'title': None}]
+    if not files and file_url:
+        files = [{'url': file_url, 'title': None}]
+    return files
+
+
+def block_to_feed_media(block):
+    """One evidence block (task or moment) as the feed's media dicts, one per
+    file. Text blocks return nothing here; callers read their text separately.
+    Shape: {type, url, title} plus the extras the card uses for video/audio."""
+    content = block.get('content') or {}
+    bt = block.get('block_type')
+    if bt not in ('image', 'video', 'link', 'document', 'audio'):
+        return []
+    block_title = content.get('title') or content.get('filename') or block.get('file_name')
+    out = []
+    for f in block_files(content, block.get('file_url')):
+        item = {'type': bt, 'url': f['url']}
+        if bt == 'image':
+            item['title'] = None
+        elif bt == 'video':
+            item['title'] = f['title'] or content.get('title')
+            item['thumbnail_url'] = content.get('thumbnail_url')
+            item['duration_seconds'] = content.get('duration_seconds')
+        elif bt == 'audio':
+            item['title'] = f['title'] or block_title
+            item['duration_ms'] = content.get('duration_ms')
+        else:
+            item['title'] = f['title'] or block_title
+        out.append(item)
+    return out
+
+
+def text_of_block(block):
+    """The student's writing in a text block, or ''. Same key fallbacks the
+    mobile block renderers use."""
+    if block.get('block_type') != 'text':
+        return ''
+    content = block.get('content') or {}
+    return (content.get('text') or content.get('body') or content.get('value') or '').strip()
+
+
 def register_routes(bp):
     """Register routes on the blueprint."""
     @bp.route('/api/observers/feed', methods=['GET'])
@@ -276,6 +333,17 @@ def register_routes(bp):
             # is only needed for legacy non-document completions and for view/comment counts.
             evidence_docs_by_id = {}
             evidence_block_rows = []
+            # Each source below reads `limit + 1` rows. When one comes back full,
+            # it has older rows this page did not read, so no item older than its
+            # oldest row can be trusted to be complete or in order. See `floor`
+            # where the page is cut.
+            floors = []
+
+            def note_floor(rows, col):
+                if len(rows) > limit:
+                    oldest = min((r.get(col) for r in rows if r.get(col)), default=None)
+                    if oldest:
+                        floors.append(oldest)
 
             if is_superadmin_global:
                 # Blocks-first to avoid scanning every doc on the platform: get the latest
@@ -290,6 +358,7 @@ def register_routes(bp):
                     blocks_query = blocks_query.lt('created_at', cursor)
 
                 blocks_response = blocks_query.execute()
+                note_floor(blocks_response.data or [], 'created_at')
                 referenced_doc_ids = list({b['document_id'] for b in (blocks_response.data or []) if b.get('document_id')})
 
                 if referenced_doc_ids:
@@ -327,6 +396,7 @@ def register_routes(bp):
                         blocks_query = blocks_query.lt('created_at', cursor)
 
                     blocks_response = blocks_query.execute()
+                    note_floor(blocks_response.data or [], 'created_at')
                     # Attach the parent doc onto each block in the shape expected downstream.
                     for b in (blocks_response.data or []):
                         doc = evidence_docs_by_id.get(b['document_id'])
@@ -370,6 +440,7 @@ def register_routes(bp):
                     completions = completions_query.execute()
             else:
                 completions = completions_query.execute()
+            note_floor(completions.data or [], 'completed_at')
 
             # Learning events for moments that aren't task evidence.
             # Task-attached learning_events (attached_task_id IS NOT NULL) represent the
@@ -395,6 +466,7 @@ def register_routes(bp):
                     learning_events = learning_events_query.execute()
             else:
                 learning_events = learning_events_query.execute()
+            note_floor(learning_events.data or [], 'created_at')
 
             # Get a primary topic name for each learning event from the junction table.
             # Used only as a display label on the feed card — first topic wins.
@@ -570,14 +642,6 @@ def register_routes(bp):
                         learning_event_blocks_map[le_id] = []
                     learning_event_blocks_map[le_id].append(block)
 
-            # Helper to extract URL from block content - handles both new format (items array)
-            # and legacy format (direct url property)
-            def get_content_url(content_obj):
-                items = content_obj.get('items', [])
-                if items and len(items) > 0:
-                    return items[0].get('url')
-                return content_obj.get('url')
-
             # Whether the viewer is allowed to create a public share link for a
             # given student's post. Kept in lockstep with _check_student_access in
             # routes/observer/sharing.py so the share button we render never hits a
@@ -615,6 +679,9 @@ def register_routes(bp):
             task_groups = {}        # (task_id, user_id) -> aggregated feed item
             task_group_order = []   # preserve first-seen (newest-first) order
 
+            # Pass 1: which task cards this page holds. The blocks read above are
+            # only the ones inside this page's time window, so they pick the
+            # cards but do not fill them.
             for block in evidence_block_rows:
                 doc = block.get('user_task_evidence_documents') or {}
                 doc_user_id = doc.get('user_id')
@@ -623,35 +690,6 @@ def register_routes(bp):
 
                 can_view = True if is_superadmin_global else evidence_permissions.get(doc_user_id, False)
                 if not can_view:
-                    continue
-
-                content = block.get('content', {}) or {}
-                bt = block.get('block_type')
-                block_url = get_content_url(content) or block.get('file_url')
-
-                # Shape each block exactly like the frontend expects in
-                # evidence.blocks ({type, url, title, content}). Text carries its
-                # string in `content`; audio carries {duration_ms} in `content`.
-                fe_block = None
-                if bt == 'image' and block_url:
-                    fe_block = {'type': 'image', 'url': block_url}
-                elif bt == 'video' and block_url:
-                    fe_block = {'type': 'video', 'url': block_url, 'title': content.get('title')}
-                elif bt == 'link' and block_url:
-                    fe_block = {'type': 'link', 'url': block_url, 'title': content.get('title')}
-                elif bt == 'text':
-                    text_val = content.get('text', '')
-                    if text_val:
-                        fe_block = {'type': 'text', 'content': text_val}
-                elif bt == 'document' and block_url:
-                    fe_block = {'type': 'document', 'url': block_url,
-                                'title': content.get('title') or content.get('filename') or block.get('file_name')}
-                elif bt == 'audio' and block_url:
-                    fe_block = {'type': 'audio', 'url': block_url,
-                                'title': content.get('filename') or block.get('file_name'),
-                                'content': {'duration_ms': content.get('duration_ms')}}
-
-                if not fe_block:
                     continue
 
                 key = (doc_task_id, doc_user_id)
@@ -665,9 +703,6 @@ def register_routes(bp):
                         f"{student_info.get('first_name', '')} {student_info.get('last_name', '')}".strip() or 'Student'
 
                     group = {
-                        # evidence_block_rows are newest-first, so the first block
-                        # we see for a task is the most recent → its timestamp sorts
-                        # the whole card.
                         'id': f"{(completion or {}).get('id', doc.get('id'))}",
                         'completion_id': completion['id'] if completion else None,
                         'block_id': block['id'],  # first block (draft block-scoped actions)
@@ -687,14 +722,55 @@ def register_routes(bp):
                         'evidence_preview': None,
                         'evidence_title': None,
                         'evidence_blocks': [],
+                        '_doc_ids': set(),
                     }
                     task_groups[key] = group
                     task_group_order.append(key)
+                if doc.get('id'):
+                    group['_doc_ids'].add(doc['id'])
 
-                group['evidence_blocks'].append(fe_block)
+            # Pass 2: fill every card with ALL of its task's visible blocks, in
+            # the student's order. A task whose files were uploaded over several
+            # days (or with more files than the page reads) used to show only the
+            # blocks inside this page's window, and the rest turned up later as a
+            # second, partial card for the same task.
+            group_doc_ids = sorted({d for g in task_groups.values() for d in g['_doc_ids']})
+            try:
+                from repositories.evidence_document_repository import EvidenceDocumentRepository
+                full_rows = EvidenceDocumentRepository(client=supabase) \
+                    .get_public_blocks_for_documents(group_doc_ids)
+            except Exception as fill_err:
+                logger.warning(f"Feed could not read full task evidence, showing the page window: {fill_err}")
+                full_rows = evidence_block_rows
+            rows_by_doc = {}
+            for r in full_rows:
+                rows_by_doc.setdefault(r.get('document_id'), []).append(r)
 
             for key in task_group_order:
-                raw_feed_items.append(task_groups[key])
+                group = task_groups[key]
+                rows = sorted(
+                    (r for d in group.pop('_doc_ids') for r in rows_by_doc.get(d, [])),
+                    key=lambda r: (r.get('order_index') or 0, r.get('created_at') or ''),
+                )
+                newest = max((r.get('created_at') or '' for r in rows), default='')
+                if newest > (group['timestamp'] or ''):
+                    group['timestamp'] = newest
+                # The card sorts by its newest block. If that is at or after the
+                # cursor, an earlier page already showed this card.
+                if cursor and group['timestamp'] >= cursor:
+                    continue
+                for r in rows:
+                    text_val = text_of_block(r)
+                    if text_val:
+                        group['evidence_blocks'].append({'type': 'text', 'content': text_val})
+                        continue
+                    for m in block_to_feed_media(r):
+                        fe_block = {'type': m['type'], 'url': m['url'], 'title': m.get('title')}
+                        if m['type'] == 'audio':
+                            fe_block['content'] = {'duration_ms': m.get('duration_ms')}
+                        group['evidence_blocks'].append(fe_block)
+                if group['evidence_blocks']:
+                    raw_feed_items.append(group)
 
             # Legacy: emit completions that have only evidence_text/evidence_url (no document).
             # Skip any completion whose task already has document-driven block items above.
@@ -782,60 +858,19 @@ def register_routes(bp):
                 # to the auto description and showed no student writing at all.
                 text_parts = []
 
-                if event_blocks:
-                    for block in event_blocks:
-                        content = block.get('content', {})
-                        media_item = None
-
-                        if block['block_type'] == 'text':
-                            # Same key fallbacks the mobile block renderers use.
-                            text_val = (
-                                content.get('text') or content.get('body') or content.get('value') or ''
-                            ).strip()
-                            if text_val:
-                                text_parts.append(text_val)
-                        elif block['block_type'] == 'image':
-                            media_item = {
-                                'type': 'image',
-                                'url': content.get('url') or block.get('file_url'),
-                                'title': None
+                for block in event_blocks:
+                    text_val = text_of_block(block)
+                    if text_val:
+                        text_parts.append(text_val)
+                        continue
+                    for media_item in block_to_feed_media(block):
+                        media_items.append(media_item)
+                        if primary_evidence is None:
+                            primary_evidence = {
+                                'type': media_item['type'],
+                                'preview': media_item['url'],
+                                'title': media_item.get('title')
                             }
-                        elif block['block_type'] == 'video':
-                            media_item = {
-                                'type': 'video',
-                                'url': content.get('url') or block.get('file_url'),
-                                'title': content.get('title'),
-                                'thumbnail_url': content.get('thumbnail_url'),
-                                'duration_seconds': content.get('duration_seconds'),
-                            }
-                        elif block['block_type'] == 'link':
-                            media_item = {
-                                'type': 'link',
-                                'url': content.get('url'),
-                                'title': content.get('title')
-                            }
-                        elif block['block_type'] == 'document':
-                            media_item = {
-                                'type': 'document',
-                                'url': content.get('url') or block.get('file_url'),
-                                'title': content.get('title') or content.get('filename') or block.get('file_name')
-                            }
-                        elif block['block_type'] == 'audio':
-                            media_item = {
-                                'type': 'audio',
-                                'url': content.get('url') or block.get('file_url'),
-                                'title': content.get('filename') or block.get('file_name'),
-                                'duration_ms': content.get('duration_ms'),
-                            }
-
-                        if media_item and media_item.get('url'):
-                            media_items.append(media_item)
-                            if primary_evidence is None:
-                                primary_evidence = {
-                                    'type': media_item['type'],
-                                    'preview': media_item['url'],
-                                    'title': media_item.get('title')
-                                }
 
                 # Create single feed item for this learning event
                 description = event.get('description', '')
@@ -875,6 +910,10 @@ def register_routes(bp):
                         'evidence_preview': primary_evidence['preview'] if primary_evidence
                             else (block_text or description),
                         'evidence_title': primary_evidence.get('title') if primary_evidence else None,
+                        # The student's writing, kept even when there is media.
+                        # evidence_preview holds a URL once a photo is attached,
+                        # so the text blocks of a photo moment used to vanish.
+                        'block_text': block_text,
                         # All media items for carousel display
                         'media_items': media_items,
                         'item_type': 'learning_moment'
@@ -883,8 +922,17 @@ def register_routes(bp):
             # Sort by timestamp descending and paginate
             raw_feed_items.sort(key=lambda x: x['timestamp'], reverse=True)
 
+            # A source that came back full has older rows this page did not
+            # read. Items older than the newest such floor may be missing
+            # evidence or out of order, so they wait for the next page. Without
+            # this a busy moments list could push the cursor past task evidence
+            # the block read never reached, and that evidence never showed.
+            floor = max(floors) if floors else None
+            if floor:
+                raw_feed_items = [i for i in raw_feed_items if (i['timestamp'] or '') >= floor]
+
             # Apply pagination
-            has_more = len(raw_feed_items) > limit
+            has_more = len(raw_feed_items) > limit or bool(floor)
             paginated_items = raw_feed_items[:limit]
 
             # Get view counts for task completions
@@ -1060,7 +1108,8 @@ def register_routes(bp):
                         'evidence': {
                             'type': item['evidence_type'],
                             'url': item['evidence_preview'] if item['evidence_type'] not in ('text',) else None,
-                            'preview_text': item['evidence_preview'] if item['evidence_type'] == 'text' else None,
+                            'preview_text': item['evidence_preview'] if item['evidence_type'] == 'text'
+                                else (item.get('block_text') or None),
                             'title': item.get('evidence_title')
                         },
                         # All media items for carousel display
@@ -1175,7 +1224,7 @@ def register_routes(bp):
                 logger.error(f"Failed to log feed access: {audit_error}")
 
             # Build next cursor
-            next_cursor = paginated_items[-1]['timestamp'] if paginated_items and has_more else None
+            next_cursor = (paginated_items[-1]['timestamp'] if paginated_items else floor) if has_more else None
 
             return jsonify({
                 'items': feed_items,

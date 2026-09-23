@@ -211,6 +211,41 @@ class EvidenceDocumentRepository(BaseRepository):
             logger.error(f"Error fetching blocks for document {document_id}: {e}")
             raise DatabaseError("Failed to fetch evidence blocks") from e
 
+    def get_public_blocks_for_documents(
+        self,
+        document_ids: List[str]
+    ) -> List[Dict[str, Any]]:
+        """
+        Every non-private block of several documents, for the feed.
+
+        The feed pages task evidence by block upload time, so one page holds
+        only the blocks that happened to land in its time window. A task with
+        files uploaded over several days showed a card with some of them. This
+        read fills each card in with the rest.
+
+        Paged with fetch_all_rows: a page of documents is bounded, but a
+        document has no block limit, and PostgREST truncates silently.
+
+        Args:
+            document_ids: Document IDs
+
+        Returns:
+            Block records ordered by id (callers sort by order_index)
+        """
+        if not document_ids:
+            return []
+        from utils.db_fetch import fetch_all_rows
+        try:
+            return fetch_all_rows(
+                lambda: self.client.table('evidence_document_blocks')
+                .select('id, document_id, block_type, content, order_index, created_at, is_private')
+                .in_('document_id', document_ids)
+                .eq('is_private', False)
+            )
+        except APIError as e:
+            logger.error(f"Error fetching feed blocks for {len(document_ids)} documents: {e}")
+            raise DatabaseError("Failed to fetch evidence blocks") from e
+
     def create_block(
         self,
         document_id: str,
