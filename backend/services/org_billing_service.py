@@ -180,7 +180,7 @@ def _clean_lines(lines: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     for li in lines:
         desc = str((li or {}).get('description') or '').strip()
         try:
-            amount = int(li.get('amount_cents'))
+            amount = int(li.get('amount_cents'))  # type: ignore[arg-type]  # None -> TypeError -> refusal
             qty = int(li.get('quantity') or 1)
         except (TypeError, ValueError):
             raise OrgBillingError('Each line needs a whole-cent amount') from None
@@ -203,7 +203,7 @@ def create_invoice(*, recipient_email: str, recipient_name: str = '',
     clean = _clean_lines(lines)
     memo = (memo or '').strip()[:500]
     try:
-        days = int(DEFAULT_DAYS_UNTIL_DUE if days_until_due in (None, '') else days_until_due)
+        days = DEFAULT_DAYS_UNTIL_DUE if days_until_due in (None, '') else int(days_until_due)  # type: ignore[arg-type]
     except (TypeError, ValueError):
         raise OrgBillingError('Days until due must be a whole number') from None
     if not 0 <= days <= 365:
