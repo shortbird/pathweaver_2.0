@@ -471,7 +471,8 @@ def school_group_access(user_id: str, group_id: str) -> Optional[Dict[str, Any]]
         return None
     if not group or not group.get('is_active'):
         return None
-    org = org_for_inbox_user(group.get('created_by'))
+    created_by = group.get('created_by')
+    org = org_for_inbox_user(created_by) if created_by else None
     if not org or not org.get('is_active') or org.get('id') != group.get('organization_id'):
         return None
     allowed = user_id in admin_recipient_ids(org['id'])
