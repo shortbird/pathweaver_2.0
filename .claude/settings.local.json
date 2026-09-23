@@ -9,8 +9,15 @@
       "Bash(docker --version)", "Bash(docker compose *)", "Bash(docker info *)",
       "mcp__supabase__execute_sql", "mcp__supabase__apply_migration", "mcp__supabase-optio__execute_sql",
       "mcp__claude_ai_Supabase__apply_migration", "mcp__claude_ai_Supabase__execute_sql",
+      "mcp__supabase-pathweaver__execute_sql", "mcp__supabase-pathweaver__apply_migration",
       "mcp__brevo__domains_get_domains", "mcp__brevo__attributes_get_attributes",
       "mcp__brevo__lists_get_lists", "mcp__brevo__folders_get_folders"
+    ]
+  },
+  "autoMode": {
+    "allow": [
+      "$defaults",
+      "Running SQL through the Supabase MCP (supabase-pathweaver or claude.ai Supabase) against the Optio production (vvfgxcykxjybtvpfzwyx) or staging (kltoyqefmcgolbplplsa) projects, including hand-applied additive migrations from supabase/migrations/ with their schema_migrations history row, when the user has asked for the migration or data change in this session."
     ]
   }
 }
