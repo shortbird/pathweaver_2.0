@@ -17,6 +17,8 @@ import toast from 'react-hot-toast';
 import GlassTabBar from '../ui/GlassTabBar';
 import ChildSettingsPanel from './ChildSettingsPanel';
 import { useConfirm } from '../../contexts/ConfirmContext'
+import useSchoolContext from '../../hooks/useSchoolContext'
+import DirectoryListingSettings, { directoryOrgs } from './DirectoryListingSettings'
 
 /**
  * FamilySettingsModal - the ONE settings surface for a family.
@@ -39,6 +41,12 @@ import { useConfirm } from '../../contexts/ConfirmContext'
  * here to the Family Dashboard instead. So a parent whose own name was entered
  * wrong at enrolment could not fix it anywhere in the product (2026-08-25).
  *
+ * Directory (2026-09-22, iCreate 2d456409): how the family is listed in the
+ * school's Family Directory. It was a switch on the directory page itself, and
+ * the school asked for it "in a more hidden place (Like settings.)". Offered
+ * only when the family is a guardian in a school that runs the directory.
+ * /family?settings=directory opens it; the directory page links there.
+ *
  * `family` is the list hooks/api/useFamilyChildren returns (one shape for
  * both kinds of child); `initialTab` may be 'you', 'observers', 'parents'
  * or a child's id, and `initialSection` names the row of a child's tab to
@@ -56,6 +64,8 @@ const FamilySettingsModal = ({
   const confirm = useConfirm()
   const { user, refreshUser } = useAuth();
   const [activeTab, setActiveTab] = useState(initialTab);
+  const { orgs: schoolOrgs, loading: loadingSchools } = useSchoolContext({ enabled: isOpen });
+  const dirOrgs = directoryOrgs(schoolOrgs);
 
   // Your own name.
   const [myFirstName, setMyFirstName] = useState('');
@@ -284,6 +294,7 @@ const FamilySettingsModal = ({
     ...family.map(childTab),
     { id: 'observers', label: 'Observers', badge: observers.length || undefined },
     { id: 'parents', label: 'Parents', badge: parents.length || undefined },
+    ...(dirOrgs.length ? [{ id: 'directory', label: 'Directory' }] : []),
   ];
   const activeChild = family.find((c) => c.id === activeTab) || null;
 
@@ -563,6 +574,14 @@ const FamilySettingsModal = ({
               </div>
             )}
           </div>
+        )}
+
+        {activeTab === 'directory' && (
+          dirOrgs.length
+            ? <DirectoryListingSettings orgs={dirOrgs} />
+            : <p className="text-base text-gray-500">
+                {loadingSchools ? 'Loading…' : 'Your school does not have a family directory.'}
+              </p>
         )}
 
         {/* Parents Tab */}

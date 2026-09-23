@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { toast } from 'react-hot-toast'
 import api from '../services/api'
 import useSchoolContext from '../hooks/useSchoolContext'
@@ -12,9 +13,16 @@ import BackToSchool from '../components/navigation/BackToSchool'
  * in it until they say otherwise. iCreate asked for the second — an opt-in
  * directory that nobody opts into is an empty directory.
  *
- * Readable by everyone in the school as of 2026-08-06, not only by other
- * guardians — students and staff too. The toggle's copy says so outright
- * rather than leaving families to assume a family-to-family audience.
+ * Readable by guardians and staff, not students, since 2026-09-22 (82485501:
+ * "should students have access to the entire family directory?" -- no). The
+ * route sends a student home and the backend refuses them.
+ *
+ * How a family is LISTED (the switch and which contact details show) is not
+ * on this page any more. iCreate asked for it "in a more hidden place (Like
+ * settings.)" (2d456409, 2026-09-22), so it lives in Family Settings, on the
+ * Directory tab (components/parent/DirectoryListingSettings), and this page
+ * links there. "Carpool message can remain on top": the carpool checkbox and
+ * filter stay here.
  *
  * Carpooling is the reason the city is shown: a family can flag that they're
  * open to sharing a drive, and the list filters down to those families.
@@ -27,7 +35,6 @@ const FamilyDirectoryPage = () => {
   const [defaultIn, setDefaultIn] = useState(false)
   const [carpool, setCarpool] = useState(false)
   const [carpoolOnly, setCarpoolOnly] = useState(false)
-  const [shares, setShares] = useState({ share_email: true, share_phone: true, share_address: false })
 
   useEffect(() => {
     if (orgs?.length && !orgId) setOrgId(orgs[0].organization_id)
@@ -43,66 +50,32 @@ const FamilyDirectoryPage = () => {
         setOptedIn(!!r.data?.opted_in)
         setDefaultIn(r.data?.default_in === true)
         setCarpool(r.data?.carpool_interest === true)
-        setShares({
-          share_email: r.data?.share_email !== false,
-          share_phone: r.data?.share_phone !== false,
-          share_address: r.data?.share_address === true,
-        })
       })
       .catch(() => setOptedIn(false))
   }, [orgId])
 
   /**
-   * Save a directory preference optimistically.
-   *
-   * The switch used to wait on a PUT and then a full re-fetch of every family
-   * before moving, while disabling the other switches and dimming itself — so
-   * one click looked like the page reloading. A preference toggle should move
-   * when you press it.
-   *
-   * The list still refreshes, because opting in or out changes who is in it —
-   * but in the background, without blocking or clearing anything. If the save
-   * fails, the switch goes back to where it was and says why.
+   * The carpool flag, saved optimistically: it moves on the click, and goes
+   * back and says why if the save fails. Only opted_in and carpool_interest
+   * are sent -- the backend writes the keys it is given, so the sharing
+   * choices made in Family Settings are left alone. The list refreshes in the
+   * background, because the Carpool chip is on it.
    */
-  const saveOptIn = async (nextOptedIn, nextShares, nextCarpool = carpool) => {
-    const prev = { optedIn, shares, carpool }
-    setOptedIn(nextOptedIn)
-    setShares(nextShares)
-    setCarpool(nextCarpool)
+  const toggleCarpool = async () => {
+    const next = !carpool
+    setCarpool(next)
     try {
       await api.put(`/api/sis/parent/directory/opt-in?organization_id=${orgId}`,
-        { opted_in: nextOptedIn, carpool_interest: nextCarpool, ...nextShares })
+        { opted_in: optedIn, carpool_interest: next })
       api.get(`/api/sis/parent/directory?organization_id=${orgId}`)
         .then((r) => setFamilies(r.data?.families || []))
         .catch(() => { /* the list is stale, not wrong — leave what's on screen */ })
-      return true
-    } catch (e) {
-      setOptedIn(prev.optedIn)
-      setShares(prev.shares)
-      setCarpool(prev.carpool)
-      toast.error(e?.response?.data?.error || 'Could not update your directory setting')
-      return false
-    }
-  }
-
-  const toggleOptIn = async () => {
-    const next = !optedIn
-    if (await saveOptIn(next, shares)) {
-      toast.success(next ? 'Your family is now in the directory' : 'Your family was removed from the directory')
-    }
-  }
-
-  const toggleShare = async (key) => {
-    const nextShares = { ...shares, [key]: !shares[key] }
-    if (await saveOptIn(optedIn, nextShares)) toast.success('Sharing preference saved')
-  }
-
-  const toggleCarpool = async () => {
-    const next = !carpool
-    if (await saveOptIn(optedIn, shares, next)) {
       toast.success(next
         ? 'Other families can see you are open to carpooling'
         : 'Carpooling interest removed')
+    } catch (e) {
+      setCarpool(!next)
+      toast.error(e?.response?.data?.error || 'Could not update your directory setting')
     }
   }
 
@@ -136,56 +109,27 @@ const FamilyDirectoryPage = () => {
 
       {orgId && isGuardian && optedIn !== null && (
         <div className="mb-6 rounded-xl border border-gray-200 bg-white px-4 py-3.5">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="min-w-0">
-              <div className="text-sm font-medium text-gray-900">
-                {defaultIn ? 'Our family is listed in the directory' : 'Include our family in the directory'}
-              </div>
-              <div className="text-xs text-gray-500">
-                Visible to everyone at {org?.organization_name || 'the school'} — families, students and staff.
-                Always shows your family name, parent names, and your kids' first names. You choose the rest below.
-                {defaultIn && ' Turn this off to be left out entirely.'}
-              </div>
-            </div>
-            <button
-              type="button" role="switch" aria-checked={optedIn} aria-label="Include our family in the directory"
-              onClick={toggleOptIn}
-              className={`relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors ${optedIn ? 'bg-optio-purple' : 'bg-neutral-300'}`}
-            >
-              <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${optedIn ? 'translate-x-5' : 'translate-x-0.5'}`} />
-            </button>
-          </div>
           {optedIn && (
-            <>
-              <div className="mt-3 pt-3 border-t border-gray-100 flex flex-wrap gap-x-5 gap-y-2">
-                {[['share_email', 'Parent emails'], ['share_phone', 'Family phone'], ['share_address', 'Street address']].map(([key, label]) => (
-                  <label key={key} className="inline-flex items-center gap-1.5 text-sm text-gray-700 cursor-pointer">
-                    <input
-                      type="checkbox" checked={!!shares[key]}
-                      onChange={() => toggleShare(key)}
-                      className="rounded border-gray-300 text-optio-purple focus:ring-optio-purple"
-                    />
-                    {label}
-                  </label>
-                ))}
-              </div>
-              <div className="mt-3 pt-3 border-t border-gray-100">
-                <label className="inline-flex items-start gap-2 text-sm text-gray-700 cursor-pointer">
-                  <input
-                    type="checkbox" checked={carpool}
-                    onChange={toggleCarpool}
-                    className="mt-0.5 rounded border-gray-300 text-optio-purple focus:ring-optio-purple"
-                  />
-                  <span>
-                    We're open to carpooling
-                    <span className="block text-xs text-gray-500">
-                      Other families can filter for this and reach out to arrange a ride share.
-                    </span>
-                  </span>
-                </label>
-              </div>
-            </>
+            <label className="mb-3 flex items-start gap-2 text-sm text-gray-700 cursor-pointer">
+              <input
+                type="checkbox" checked={carpool}
+                onChange={toggleCarpool}
+                className="mt-0.5 rounded border-gray-300 text-optio-purple focus:ring-optio-purple"
+              />
+              <span>
+                We're open to carpooling
+                <span className="block text-xs text-gray-500">
+                  Other families can filter for this and reach out to arrange a ride share.
+                </span>
+              </span>
+            </label>
           )}
+          <p className="text-xs text-gray-500">
+            {optedIn ? 'Your family is listed.' : 'Your family is not listed.'}{' '}
+            <Link to="/family?settings=directory" className="font-medium text-optio-purple hover:underline">
+              Change how your family is listed
+            </Link>
+          </p>
         </div>
       )}
 

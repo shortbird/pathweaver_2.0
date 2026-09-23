@@ -376,13 +376,16 @@ class TestTrainingLinksOnTheFamilyPortal:
             parent.org_resources('g1', 'org1')
         assert filters.get('is_training') is False
 
+    # The four tests below patched _is_org_member until 2026-09-22. Family
+    # training links moved to is_guardian_or_staff (82485501): a student is a
+    # member of the school but not the audience for these.
     def test_a_parent_can_only_finish_a_link_set_for_families(self):
         """A staff training's id is guessable. Marking one done as a parent
         would put a parent in the office's training report."""
         from services import sis_training_service
 
         staff_link = {'id': 'L1', 'organization_id': 'org1', 'audience': 'staff'}
-        with patch.object(parent, '_is_org_member', return_value=True), \
+        with patch.object(parent, 'is_guardian_or_staff', return_value=True), \
              patch.object(sis_training_service, 'owned_link', return_value=staff_link), \
              patch.object(sis_training_service, 'set_link_done') as marked:
             assert parent.set_training_link_done('g1', 'org1', 'L1', True) is None
@@ -392,7 +395,7 @@ class TestTrainingLinksOnTheFamilyPortal:
         from services import sis_training_service
 
         family_link = {'id': 'L2', 'organization_id': 'org1', 'audience': 'families'}
-        with patch.object(parent, '_is_org_member', return_value=True), \
+        with patch.object(parent, 'is_guardian_or_staff', return_value=True), \
              patch.object(sis_training_service, 'owned_link', return_value=family_link), \
              patch.object(sis_training_service, 'set_link_done',
                           return_value={'id': 'L2'}) as marked:
@@ -404,11 +407,11 @@ class TestTrainingLinksOnTheFamilyPortal:
     def test_a_link_from_another_school_is_not_found(self):
         from services import sis_training_service
 
-        with patch.object(parent, '_is_org_member', return_value=True), \
+        with patch.object(parent, 'is_guardian_or_staff', return_value=True), \
              patch.object(sis_training_service, 'owned_link', return_value=None):
             assert parent.set_training_link_done('g1', 'org1', 'L3', True) is None
 
     def test_somebody_outside_the_school_gets_nothing(self):
-        with patch.object(parent, '_is_org_member', return_value=False):
+        with patch.object(parent, 'is_guardian_or_staff', return_value=False):
             assert parent.training_links('nobody', 'org1') is None
             assert parent.set_training_link_done('nobody', 'org1', 'L2', True) is None

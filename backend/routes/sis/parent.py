@@ -928,6 +928,8 @@ def org_events_feed(user_id):
 
 
 # ── Family directory (opt-in) ─────────────────────────────────────────────────
+# Guardians and staff only since 2026-09-22 (82485501); students get 403 on the
+# list and on the listing settings (sis_parent_service.is_guardian_or_staff).
 @bp.route('/directory', methods=['GET'])
 @require_auth
 @require_module('community')
@@ -948,6 +950,10 @@ def directory_opt_in_status(user_id):
     org_id = sis_service.requested_org_id()
     if not org_id:
         return jsonify({'success': False, 'error': 'organization_id is required'}), 400
+    # A student has no family listing to manage (82485501): refused outright
+    # rather than answered "no family found", which reads like a bug.
+    if not parent.is_guardian_or_staff(user_id, org_id):
+        return jsonify({'success': False, 'error': 'Not authorized for this organization'}), 403
     result = parent.directory_opt_in_status(user_id, org_id)
     if result.get('error'):
         return jsonify({'success': False, 'error': result['error']}), 404
@@ -961,6 +967,8 @@ def set_directory_opt_in(user_id):
     org_id = sis_service.requested_org_id()
     if not org_id:
         return jsonify({'success': False, 'error': 'organization_id is required'}), 400
+    if not parent.is_guardian_or_staff(user_id, org_id):
+        return jsonify({'success': False, 'error': 'Not authorized for this organization'}), 403
     body = request.json or {}
     result = parent.set_directory_opt_in(user_id, org_id, bool(body.get('opted_in')),
                                          shares=body)

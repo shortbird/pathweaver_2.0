@@ -214,7 +214,11 @@ export default function SchoolPage() {
   // Since 2026-09-16 the page is a tab of the school shell, and a guardian
   // has a Calendar tab -- so the rail does not offer the calendar to them a
   // second time. A student or a teacher has no tabs and keeps the door.
-  const cardGroups = cardGroupsFor(schoolOrg)
+  // viewerRole decides the Directory card: guardians and staff, not students
+  // (82485501). A superadmin preview shows the role being previewed.
+  const cardGroups = cardGroupsFor(schoolOrg, {
+    viewerRole: isSuperadmin ? (viewAs === 'admin' ? 'org_admin' : viewAs) : effectiveRole,
+  })
     .filter((g) => g.id !== 'family' || isSuperadmin || isFamilyFirstHubOrg(schoolOrg))
     .map((g) => (g.id === 'school-life' && schoolOrg?.is_guardian && !isSuperadmin
       ? { ...g, cards: g.cards.filter((c) => c.path !== '/school-calendar') }

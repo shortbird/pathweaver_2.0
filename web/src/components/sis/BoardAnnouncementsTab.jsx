@@ -274,6 +274,9 @@ const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`
  * the office reads, so it is built from the same choices the payload is.
  */
 export const reachLines = ({ audience, destinations, notifyApp, someStaff, chosenCount }) => {
+  // No audience yet (a new post starts without one, 2f945974): there is no
+  // "who" to put in a sentence, and Post stays off until there is.
+  if (!audience) return ['Choose who it is for.']
   const reach = reachOf(audience)
   const people = someStaff ? `the ${plural(chosenCount, 'staff member', 'staff members')} you chose` : null
   const lines = []
@@ -298,7 +301,12 @@ const AnnouncementForm = ({ orgId, announcement, onDone, onCancel }) => {
     body: announcement?.body || '',
     pinned: Boolean(announcement?.pinned),
     priority: announcement?.priority || 'normal',
-    audience: LEGACY_AUDIENCE[announcement?.audience] || announcement?.audience || 'school',
+    // A new post has NO audience until the poster picks one (ticket 2f945974,
+    // 2026-09-22: a parent announcement appeared on the student board). The
+    // composer used to start on "Everyone at the school", so a post written
+    // for parents went to the students too unless someone remembered to
+    // change it. An existing post keeps the audience it was written for.
+    audience: isNew ? '' : (LEGACY_AUDIENCE[announcement?.audience] || announcement?.audience || 'school'),
     publish_at: announcement?.publish_at ? announcement.publish_at.slice(0, 16) : '',
     expires_at: announcement?.expires_at ? announcement.expires_at.slice(0, 16) : '',
     // The app notification rides on the board post it points at. Off by
@@ -352,6 +360,7 @@ const AnnouncementForm = ({ orgId, announcement, onDone, onCancel }) => {
 
   const save = async () => {
     if (!f.title.trim()) return toast.error('Title is required')
+    if (isNew && !f.audience) return toast.error('Choose who it is for')
     if (isNew && !destinations.size) return toast.error('Choose at least one place to send it')
     if (isNew && someStaff && !chosenStaff.size) return toast.error('Choose at least one person, or send to all staff')
     if (isNew && narrowedWithoutDelivery) return toast.error('Choose Optio inbox or Email to reach only the people you picked')
@@ -417,11 +426,17 @@ const AnnouncementForm = ({ orgId, announcement, onDone, onCancel }) => {
         <div className="rounded-lg border border-gray-200 bg-neutral-50 p-3 space-y-3">
           <label className="text-xs text-neutral-500 block">Who
             <select value={f.audience} onChange={(e) => changeAudience(e.target.value)} className={field}>
+              <option value="" disabled>Choose who it is for</option>
               {AUDIENCES.map((a) => (
                 <option key={a.value} value={a.value}>{a.label}</option>
               ))}
             </select>
           </label>
+          {/* Said before the choice, not after it: the students question is
+              the one people get wrong (2f945974, and 745e2857 before it). */}
+          <p className="text-xs text-neutral-500">
+            Students see posts for Everyone at the school. Choose Families for a post only parents should read.
+          </p>
           {staffOnly && (
             <div className="space-y-2">
               <div className="flex flex-wrap gap-4 text-sm text-neutral-700">
@@ -541,7 +556,7 @@ const AnnouncementForm = ({ orgId, announcement, onDone, onCancel }) => {
       )}
       <div className="flex gap-2">
         <Button size="sm" onClick={save} loading={saving}
-          disabled={isNew && !destinations.size}>
+          disabled={isNew && (!f.audience || !destinations.size)}>
           {isNew ? (onBoard ? 'Post' : 'Send') : 'Save changes'}
         </Button>
         <button onClick={onCancel} className="text-sm text-neutral-500 hover:underline">Cancel</button>

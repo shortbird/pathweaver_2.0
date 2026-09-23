@@ -336,8 +336,9 @@ def _has_org_access(user_id: str, org_id: str) -> bool:
 def _is_org_member(user_id: str, org_id: str) -> bool:
     """In this school at all — guardian, student, or staff.
 
-    The authorization floor for the school-wide reads (calendar, resources,
-    directory). Deliberately weaker than _has_org_access, and deliberately NOT
+    The authorization floor for the school-wide reads (calendar, resources).
+    The directory and family training links moved to is_guardian_or_staff on
+    2026-09-22 (82485501): students are members but not their audience. Deliberately weaker than _has_org_access, and deliberately NOT
     used by anything that acts on a family: being a member of the school is not
     grounds to open a household's billing or change its directory listing.
 
@@ -353,6 +354,35 @@ def _is_org_member(user_id: str, org_id: str) -> bool:
         return True
     # Last, so a real member never pays for this lookup.
     return sis_service.get_user_org_context(user_id).get('role') == 'superadmin'
+
+
+def is_guardian_or_staff(user_id: str, org_id: str) -> bool:
+    """A guardian of a student in this school, or one of its staff.
+
+    The floor for the reads that are about FAMILIES rather than the school as a
+    whole: the family directory and the training links a school sets for
+    families. Stricter than _is_org_member, which also admits students.
+
+    "should students have access to the entire family directory?" (iCreate,
+    82485501, 2026-09-22). The owner's answer was no -- parents and staff only.
+    Until then the directory was readable by every member of the school, so a
+    child could browse every other family's names, emails and phone numbers.
+
+    Staff means STAFF_ROLES held in THIS org (org_admin, campus coordinator,
+    advisor); a superadmin counts, as in _is_org_member, so the school-page
+    preview still opens. Role view applies (get_user_org_context), so an admin
+    viewing as a student is refused like one.
+    """
+    if _has_org_access(user_id, org_id):
+        return True
+    ctx = sis_service.get_user_org_context(user_id) or {}
+    if ctx.get('role') == 'superadmin':
+        return True
+    if ctx.get('organization_id') != org_id:
+        return False
+    from utils.sis_roles import STAFF_ROLES
+    staff = set(STAFF_ROLES) & set(sis_service._user_org_roles(ctx))
+    return bool(staff) and org_has_feature(org_id, 'sis_enabled')
 
 
 def _can_register(user_id: str, org_id: str, student_user_id: str) -> bool:
@@ -1345,8 +1375,9 @@ def org_resources(user_id: str, org_id: str) -> Optional[List[Dict[str, Any]]]:
 # org_resources now filters `is_training` so one video cannot appear on both.
 def training_links(user_id: str, org_id: str) -> Optional[List[Dict[str, Any]]]:
     """The school's family training links, with whether this person has done
-    each. None if they are not in this school."""
-    if not _is_org_member(user_id, org_id):
+    each. None unless they are a guardian or staff here: a student is in the
+    school but these are set for families (82485501)."""
+    if not is_guardian_or_staff(user_id, org_id):
         return None
     from services import sis_training_service
     return sis_training_service.list_links(org_id, user_id, audience='family')
@@ -1358,9 +1389,10 @@ def set_training_link_done(user_id: str, org_id: str, link_id: str,
 
     Self-scoped: `user_id` is the caller's own, from the decorator. The link
     has to be one of THIS school's AND one set for families -- a parent must
-    not be able to acknowledge a staff training by guessing its id.
+    not be able to acknowledge a staff training by guessing its id, and a
+    student is refused like the read above (82485501).
     """
-    if not _is_org_member(user_id, org_id):
+    if not is_guardian_or_staff(user_id, org_id):
         return None
     from services import sis_training_service
     link = sis_training_service.owned_link(org_id, link_id)
@@ -1504,10 +1536,11 @@ def family_directory(user_id: str, org_id: str) -> Optional[List[Dict[str, Any]]
     and student FIRST names. Staff always see everyone elsewhere; this is the
     school's directory, so opt-in is the hard filter.
 
-    Readable by any member of the school, not only guardians — see the opt-in
-    copy in FamilyDirectoryPage, which names that audience so families choose
-    with it in front of them."""
-    if not _is_org_member(user_id, org_id):
+    Readable by guardians and staff, not students (82485501, 2026-09-22: the
+    owner's answer to "should students have access to the entire family
+    directory?" was no). From 2026-08-06 until then every member of the school
+    could read it, students included."""
+    if not is_guardian_or_staff(user_id, org_id):
         return None
     default_in = directory_default_in(org_id)
     # Under the default-in model the filter can't be a WHERE clause — "listed"

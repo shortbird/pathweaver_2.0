@@ -117,10 +117,15 @@ describe('CommunityPage', () => {
     fireEvent.click(screen.getByRole('tab', { name: 'Announcements' }))
     fireEvent.click(await screen.findByText('Post announcement'))
     fireEvent.change(screen.getByPlaceholderText('Early dismissal Friday'), { target: { value: 'Snow day' } })
+    // A new post has no audience until one is picked, and Post stays off until
+    // then (2f945974: a parent announcement reached the student board because
+    // the composer started on "Everyone at the school").
+    expect(screen.getByRole('button', { name: 'Post' })).toBeDisabled()
+    fireEvent.change(screen.getByLabelText(/^Who/), { target: { value: 'families' } })
     fireEvent.click(screen.getByRole('button', { name: 'Post' }))
     await waitFor(() =>
       expect(api.post).toHaveBeenCalledWith('/api/sis/community/announcements',
-        expect.objectContaining({ title: 'Snow day', organization_id: 'org-1' })),
+        expect.objectContaining({ title: 'Snow day', organization_id: 'org-1', audience: 'families' })),
     )
   })
 

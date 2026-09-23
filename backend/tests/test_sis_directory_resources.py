@@ -126,13 +126,15 @@ class TestOrgResources:
 
 @pytest.mark.unit
 class TestFamilyDirectory:
+    # These patched _is_org_member until 2026-09-22. The directory is for
+    # guardians and staff since 82485501, so the gate is is_guardian_or_staff.
     def test_requires_org_membership(self):
-        with patch('services.sis_parent_service._is_org_member', return_value=False):
+        with patch('services.sis_parent_service.is_guardian_or_staff', return_value=False):
             assert parent.family_directory('stranger', 'org1') is None
 
     def test_lists_only_opted_in_households_with_guardians_and_kid_first_names(self):
         client, _ = _fake_admin(_resolver)
-        with patch('services.sis_parent_service._is_org_member', return_value=True), \
+        with patch('services.sis_parent_service.is_guardian_or_staff', return_value=True), \
              patch('services.sis_parent_service._admin', return_value=client):
             families = parent.family_directory('g1', 'org1')
         # Opt-in school: only h1 chose to be listed.

@@ -79,25 +79,59 @@ describe('family directory', () => {
     expect(screen.getByText('One Family')).toBeInTheDocument()
   })
 
-  it('saves carpool interest alongside the sharing choices', async () => {
+  // Was "saves carpool interest alongside the sharing choices". The sharing
+  // choices moved to Family Settings (2d456409), so the carpool save sends
+  // only the listing state and the flag -- sending the share keys from here
+  // would overwrite what the family chose there with whatever this page holds.
+  it('saves carpool interest without touching the sharing choices', async () => {
     render(<FamilyDirectoryPage />)
     const checkbox = await screen.findByRole('checkbox', { name: /open to carpooling/i })
     fireEvent.click(checkbox)
 
     await waitFor(() => expect(api.put).toHaveBeenCalled())
-    expect(api.put.mock.calls[0][1]).toMatchObject({ opted_in: true, carpool_interest: true })
+    expect(api.put.mock.calls[0][1]).toEqual({ opted_in: true, carpool_interest: true })
   })
 
+  // These two used to find the listing switch's own label ("Our family is
+  // listed..." / "Include our family..."); the switch is in Family Settings
+  // now (2d456409), so they check the page's summary line instead.
   it('says the family is already listed at an opt-out school', async () => {
     optIn = { ...optIn, default_in: true }
     render(<FamilyDirectoryPage />)
-    expect(await screen.findByText(/Our family is listed in the directory/)).toBeInTheDocument()
+    expect(await screen.findByText(/Your family is listed\./)).toBeInTheDocument()
     expect(screen.getByText(/unless they ask to be left out/)).toBeInTheDocument()
   })
 
-  it('invites a family to join at an opt-in school', async () => {
+  it('explains opt-in at an opt-in school', async () => {
+    optIn = { ...optIn, opted_in: false }
     render(<FamilyDirectoryPage />)
-    expect(await screen.findByText(/Include our family in the directory/)).toBeInTheDocument()
+    expect(await screen.findByText(/Your family is not listed\./)).toBeInTheDocument()
     expect(screen.getByText(/Only families who opt in appear here/)).toBeInTheDocument()
+  })
+})
+
+// iCreate, 2d456409 (2026-09-22): "I really wanted the directory to be opt OUT
+// instead of opt in. And preferably put this in a more hidden place (Like
+// settings.) Carpool message can remain on top."
+describe('the listing controls live in Family Settings (2d456409)', () => {
+  it('renders no listing switch and no sharing checkboxes', async () => {
+    render(<FamilyDirectoryPage />)
+    await screen.findByRole('checkbox', { name: /open to carpooling/i })
+    expect(screen.queryByRole('switch')).not.toBeInTheDocument()
+    for (const name of ['Parent emails', 'Family phone', 'Street address']) {
+      expect(screen.queryByRole('checkbox', { name })).not.toBeInTheDocument()
+    }
+  })
+
+  it('links to the Directory tab of Family Settings', async () => {
+    render(<FamilyDirectoryPage />)
+    const link = await screen.findByRole('link', { name: 'Change how your family is listed' })
+    expect(link).toHaveAttribute('href', '/family?settings=directory')
+  })
+
+  it('keeps the carpool checkbox and the carpool filter on the page', async () => {
+    render(<FamilyDirectoryPage />)
+    expect(await screen.findByRole('checkbox', { name: /open to carpooling/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Open to carpooling \(1\)/ })).toBeInTheDocument()
   })
 })

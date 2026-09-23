@@ -75,8 +75,10 @@ beforeEach(() => {
 
 describe('the audience a board post is written for', () => {
   it('offers Families', () => {
+    // The first option is the unpickable prompt: a new post starts with no
+    // audience since ticket 2f945974 (see the describe block below).
     expect(optionsOf(openComposer())).toEqual([
-      'Everyone at the school', 'Families', 'Staff only',
+      'Choose who it is for', 'Everyone at the school', 'Families', 'Staff only',
     ])
   })
 
@@ -191,7 +193,11 @@ describe('where a notice goes', () => {
   })
 
   it('starts on the community board and sends that alone', async () => {
-    openComposer()
+    // The audience is picked here because a new post no longer has one until
+    // somebody chooses (2f945974); this test was written against the old
+    // 'school' default and is about the destination, not the audience.
+    const select = openComposer()
+    fireEvent.change(select, { target: { value: 'school' } })
     titled()
     expect(await submit()).toMatchObject({ destinations: ['community_board'], audience: 'school' })
   })
@@ -217,7 +223,8 @@ describe('where a notice goes', () => {
   })
 
   it('sends them combined, and says what each will do', async () => {
-    openComposer()
+    // Whole school chosen explicitly: it used to be the default (2f945974).
+    fireEvent.change(openComposer(), { target: { value: 'school' } })
     fireEvent.click(box('Optio inbox'))
     fireEvent.click(box('Email'))
     fireEvent.click(screen.getByLabelText(/Also send an app notification/))
@@ -235,7 +242,7 @@ describe('where a notice goes', () => {
   })
 
   it('refuses to send with no destination', () => {
-    openComposer()
+    fireEvent.change(openComposer(), { target: { value: 'school' } })
     fireEvent.click(box('Community board'))
     expect(lines()).toEqual(['Choose at least one place to send it.'])
     expect(screen.getByRole('button', { name: 'Send' })).toBeDisabled()
@@ -368,5 +375,44 @@ describe('sorting and narrowing the board', () => {
     fireEvent.change(screen.getByLabelText('Filter announcements by audience'),
       { target: { value: 'teachers' } })
     expect(titlesShown()).toEqual(['Old note', 'Beta'])  // newest first
+  })
+})
+
+// Ticket 2f945974 (2026-09-22): a parent announcement appeared on the student
+// board. The composer started on "Everyone at the school", so a post meant for
+// parents reached students unless the poster remembered to change it. Now a
+// new post has no audience until one is picked, and Post stays off until then.
+describe('no default audience (2f945974)', () => {
+  const titled = () => fireEvent.change(
+    screen.getByPlaceholderText('Early dismissal Friday'), { target: { value: 'Gate code' } })
+
+  it('starts with no audience chosen and Post disabled', () => {
+    const select = openComposer()
+    expect(select.value).toBe('')
+    titled()
+    expect(screen.getByRole('button', { name: 'Post' })).toBeDisabled()
+    const lines = [...screen.getByRole('list', { name: 'What Post will do' }).querySelectorAll('li')]
+      .map((li) => li.textContent)
+    expect(lines).toEqual(['Choose who it is for.'])
+  })
+
+  it('says that students see whole-school posts', () => {
+    openComposer()
+    expect(screen.getByText(/Students see posts for Everyone at the school/)).toBeInTheDocument()
+  })
+
+  it.each([
+    ['school', 'Post'],
+    ['families', 'Post'],
+    ['teachers', 'Post'],
+  ])('enables Post once %s is chosen and sends that audience', async (audience, button) => {
+    const select = openComposer()
+    fireEvent.change(select, { target: { value: audience } })
+    titled()
+    const post = screen.getByRole('button', { name: button })
+    expect(post).not.toBeDisabled()
+    fireEvent.click(post)
+    await vi.waitFor(() => expect(saveAnnouncement).toHaveBeenCalled())
+    expect(saveAnnouncement.mock.calls[0][1].audience).toBe(audience)
   })
 })

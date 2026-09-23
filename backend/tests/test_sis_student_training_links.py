@@ -184,7 +184,8 @@ class TestDoneAndUndone:
 
     def test_a_parent_cannot_finish_a_student_link_on_the_family_route(self):
         student_link = {'id': 'L3', 'organization_id': 'org1', 'audience': 'students'}
-        with patch.object(parent, '_is_org_member', return_value=True), \
+        # is_guardian_or_staff, not _is_org_member, since 82485501 (2026-09-22).
+        with patch.object(parent, 'is_guardian_or_staff', return_value=True), \
              patch.object(sis_training_service, 'owned_link', return_value=student_link), \
              patch.object(sis_training_service, 'set_link_done') as marked:
             assert parent.set_training_link_done('g1', 'org1', 'L3', True) is None

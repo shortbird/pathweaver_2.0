@@ -26,8 +26,10 @@ let orgState = { school: { id: 'org-1', name: 'iCreate', homepage: true }, organ
 vi.mock('../contexts/OrganizationContext', () => ({
   useOrganization: () => orgState,
 }))
+// Mutable since 82485501: the Directory card depends on the viewer's role.
+let viewerRole = 'student'
 vi.mock('../contexts/AuthContext', () => ({
-  useAuth: () => ({ user: { id: 'u1' }, effectiveRole: 'student' }),
+  useAuth: () => ({ user: { id: 'u1' }, effectiveRole: viewerRole }),
 }))
 
 const ANNOUNCEMENT = {
@@ -94,6 +96,7 @@ const cardNames = async () => {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  viewerRole = 'student'
   get.mockImplementation(defaultGet)  // one test swaps it out for a failing call
   orgState = { school: { id: 'org-1', name: 'iCreate', homepage: true }, organization: null, loading: false }
   schoolContext = { success: true, orgs: [], is_guardian: false }
@@ -172,10 +175,23 @@ describe('what a student or teacher gets', () => {
     schoolContext = { success: true, orgs: [MEMBER_ORG], is_guardian: false }
   })
 
+  // Directory was in this list until 82485501 (2026-09-22): "should students
+  // have access to the entire family directory?" -- no, parents and staff
+  // only. A teacher keeps it; a student does not.
   it('offers the school-wide surfaces', async () => {
     expect(await cardNames()).toEqual(expect.arrayContaining([
-      'Calendar', 'Resources', 'Directory',
+      'Calendar', 'Resources',
     ]))
+  })
+
+  it('does not offer a student the Directory (82485501)', async () => {
+    viewerRole = 'student'
+    expect(await cardNames()).not.toContain('Directory')
+  })
+
+  it('offers a teacher the Directory', async () => {
+    viewerRole = 'advisor'
+    expect(await cardNames()).toContain('Directory')
   })
 
   it('never offers a family surface to someone who guards nobody', async () => {

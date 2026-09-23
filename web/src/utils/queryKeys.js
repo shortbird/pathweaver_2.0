@@ -60,6 +60,9 @@ export const queryKeys = {
     // Where this person is a MEMBER (/api/sis/school/context): the school's
     // own surfaces, guardian or not. The sidebar and /school read this.
     schoolContext: () => [...queryKeys.family.all, 'schoolContext'],
+    // How this family is listed in one school's directory
+    // (hooks/api/useDirectoryListing; Family Settings, Directory tab).
+    directoryListing: (orgId) => [...queryKeys.family.all, 'directoryListing', orgId],
     // The family's quests with who is on each (hooks/api/useFamilyQuests).
     quests: () => [...queryKeys.family.all, 'quests'],
     // The parent's family photo (hooks/api/useFamilyCover).
@@ -121,6 +124,10 @@ export const queryKeys = {
       [...queryKeys.sis.all, 'myOnboarding', orgId, previewUserId],
     onboardingAssignments: (orgId) => [...queryKeys.sis.all, 'onboardingAssignments', orgId],
     onboardingTemplates: (orgId) => [...queryKeys.sis.all, 'onboardingTemplates', orgId],
+    // "Pick a class" on a family recipient list (ticket a19d5660): the class
+    // options, and the guardians of one class's enrolled students.
+    recipientClasses: (orgId) => [...queryKeys.sis.all, 'recipientClasses', orgId],
+    classFamilies: (orgId, classId) => [...queryKeys.sis.all, 'classFamilies', orgId, classId],
     // Community console. `community(orgId)` is the PREFIX every tab's key
     // starts with, so one invalidate after a mutation reaches all of them --
     // which matters because /highlights is a server-side digest of the other

@@ -15,9 +15,12 @@ import { isFamilyFirstHubOrg } from '../../config/optioAcademy'
 /**
  * The rail cards, and who each is for.
  *
- * `guardianOnly` is the whole safety property of this file. Calendar, Resources
- * and Directory are the school's own content and belong to everyone in the
- * school. The rest act on a FAMILY — a household's invoices, a child's absence,
+ * `guardianOnly` is the whole safety property of this file. Calendar and
+ * Resources are the school's own content and belong to everyone in the
+ * school. Directory is `familiesAndStaff`: guardians and staff, not students
+ * (82485501, 2026-09-22 -- the owner's answer to "should students have access
+ * to the entire family directory?" was no; the backend refuses them too, in
+ * sis_parent_service.is_guardian_or_staff). The rest act on a FAMILY — a household's invoices, a child's absence,
  * the forms a guardian is asked to sign — and a student is a member of the
  * school without being a guardian in it. The backend enforces this too
  * (sis_parent_service authorizes those by family relationship); this list only
@@ -38,6 +41,7 @@ const SCHOOL_LIFE_CARDS = [
   {
     name: 'Directory', path: '/family-directory', Icon: UsersIcon,
     description: 'Contact details for families who opted in.', module: 'community',
+    familiesAndStaff: true,
   },
   // Everyone's card, not guardian-only: students see the board too (it may
   // explain their own ride) — the backend keeps posting adults-only.
@@ -91,8 +95,21 @@ const priorLearningCard = {
   guardianOnly: true, module: 'prior_learning',
 }
 
-/** The rail, grouped. A student gets only the School life group. */
-export function cardGroupsFor(org) {
+// Who counts as staff for a `familiesAndStaff` card. Mirrors
+// backend/utils/sis_roles.STAFF_ROLES, which is what the directory endpoint
+// admits beside guardians.
+const STAFF_ROLES = ['org_admin', 'campus_coordinator', 'advisor', 'superadmin']
+
+/** May this viewer have this card? Only `familiesAndStaff` cards depend on
+ *  the viewer; the rest are decided by the org alone. `viewerRole` is the
+ *  effective role (or the role a superadmin is previewing as). Left out, the
+ *  card is withheld from a non-guardian: a door that 403s is worse than none. */
+const viewerMayHave = (card, org, viewerRole) =>
+  !card.familiesAndStaff || org.is_guardian || STAFF_ROLES.includes(viewerRole)
+
+/** The rail, grouped. A student gets only the School life group, without the
+ *  Directory. */
+export function cardGroupsFor(org, { viewerRole } = {}) {
   if (!org) return []
   // A family-first school (sis_settings.family_first_home — Optio Academy is
   // the original) runs almost none of the school-community surfaces, so the
@@ -108,7 +125,10 @@ export function cardGroupsFor(org) {
   if (org.prior_learning_enabled) family.push(priorLearningCard)
   const groups = []
   if (org.is_guardian) groups.push({ id: 'family', title: 'My family', cards: family })
-  groups.push({ id: 'school-life', title: 'School life', cards: SCHOOL_LIFE_CARDS })
+  groups.push({
+    id: 'school-life', title: 'School life',
+    cards: SCHOOL_LIFE_CARDS.filter((c) => viewerMayHave(c, org, viewerRole)),
+  })
   // Blocks P3: the server names which family-surface modules this school runs
   // (school_context orgs[].modules); a card whose module is off disappears, and
   // a group left with no cards goes with it. An older payload without the list,
@@ -123,8 +143,8 @@ export function cardGroupsFor(org) {
 }
 
 /** Flat list — kept for callers that only care about which doors exist. */
-export function cardsFor(org) {
-  return cardGroupsFor(org).flatMap((g) => g.cards)
+export function cardsFor(org, options) {
+  return cardGroupsFor(org, options).flatMap((g) => g.cards)
 }
 
 

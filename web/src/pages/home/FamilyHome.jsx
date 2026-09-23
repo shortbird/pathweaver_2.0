@@ -131,7 +131,8 @@ export default function FamilyHome() {
   // ?settings=<tab> opens Family Settings on that tab -- 'you', 'observers',
   // 'parents' or a child's id. The account menu links here with
   // ?settings=you, because a parent has no /overview to change their own name
-  // on. The param is cleared once consumed so a refresh (or the back button)
+  // on; the Family Directory links here with ?settings=directory, where the
+  // family's listing lives since 2026-09-22 (2d456409). The param is cleared once consumed so a refresh (or the back button)
   // doesn't reopen the modal.
   useEffect(() => {
     const tab = searchParams.get('settings')

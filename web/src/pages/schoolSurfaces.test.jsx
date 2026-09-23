@@ -90,6 +90,9 @@ describe('a student opening the school-wide pages', () => {
   it('is not offered a family opt-in they have no family for', async () => {
     // The directory listing is per HOUSEHOLD. A student is in the school
     // without being a guardian of anyone in it, so the toggle is not theirs.
+    // Since 82485501 (2026-09-22) a student does not reach this page at all:
+    // the route sends them home and the backend refuses the read. This still
+    // holds the page's own rule for anyone who is not a guardian.
     renderIn(<FamilyDirectoryPage />)
     await screen.findByRole('heading', { name: /family directory/i })
     expect(screen.queryByRole('switch')).not.toBeInTheDocument()
@@ -97,12 +100,14 @@ describe('a student opening the school-wide pages', () => {
 })
 
 describe('the directory opt-in, for the guardian who owns it', () => {
-  it('says who will be able to see the listing', async () => {
-    // Families opted in when this read "so families can reach each other".
-    // Students and staff can see it now, so the toggle says so where the
-    // choice is actually made.
+  it('points the guardian at Family Settings, where the listing is chosen', async () => {
+    // This asserted the switch and its "families, students and staff" copy.
+    // The switch moved to Family Settings (2d456409) and students lost access
+    // (82485501), so the audience copy is asserted there now
+    // (components/parent/directoryListingSettings.test.jsx).
     renderIn(<FamilyDirectoryPage />)
-    expect(await screen.findByRole('switch')).toBeInTheDocument()
-    expect(screen.getByText(/families, students and staff/i)).toBeInTheDocument()
+    const link = await screen.findByRole('link', { name: 'Change how your family is listed' })
+    expect(link).toHaveAttribute('href', '/family?settings=directory')
+    expect(screen.queryByRole('switch')).not.toBeInTheDocument()
   })
 })

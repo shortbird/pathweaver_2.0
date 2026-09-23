@@ -204,8 +204,13 @@ class TestMembershipCheck:
 
 @pytest.mark.unit
 class TestSchoolWideReadsOpenToEveryMember:
-    """Calendar, resources and directory are the school's own content. Everyone
-    in the school sees them; the guardian-only surfaces are unaffected."""
+    """Calendar and resources are the school's own content. Everyone in the
+    school sees them; the guardian-only surfaces are unaffected.
+
+    The directory was in this class until 2026-09-22. 82485501 asked "should
+    students have access to the entire family directory?" and the owner said
+    no: guardians and staff only. Its tests moved to
+    TestDirectoryIsForGuardiansAndStaff below."""
 
     def _read(self, fn, is_member):
         rows = {
@@ -233,17 +238,12 @@ class TestSchoolWideReadsOpenToEveryMember:
     def test_events_open_to_a_non_guardian_member(self):
         assert self._read(parent.org_events, True) is not None
 
-    def test_directory_open_to_a_non_guardian_member(self):
-        assert self._read(parent.family_directory, True) is not None
-
     def test_resources_still_refuse_a_stranger(self):
         assert self._read(parent.org_resources, False) is None
 
     def test_events_still_refuse_a_stranger(self):
         assert self._read(parent.org_events, False) is None
 
-    def test_directory_still_refuses_a_stranger(self):
-        assert self._read(parent.family_directory, False) is None
 
 
 @pytest.mark.unit

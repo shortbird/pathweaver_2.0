@@ -696,7 +696,12 @@ function App() {
                 {/* School document library + opt-in family directory (SIS orgs):
                     doors on the feed tab's rail, not tabs. */}
                 <Route path="resources" element={<FamilyResourcesPage />} />
-                <Route path="family-directory" element={<FamilyDirectoryPage />} />
+                {/* Guardians and staff only (82485501, 2026-09-22): a student
+                    is sent home rather than shown a page the backend now
+                    refuses (sis_parent_service.is_guardian_or_staff). */}
+                <Route element={<PrivateRoute blockRoles={['student', 'observer']} />}>
+                  <Route path="family-directory" element={<FamilyDirectoryPage />} />
+                </Route>
                 <Route path="family/students/:studentId" element={<FamilyStudentPage />} />
                 {/* Printable class schedule — the paper copy families kept
                     asking the office for. */}
