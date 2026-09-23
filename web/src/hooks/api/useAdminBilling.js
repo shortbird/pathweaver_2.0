@@ -16,6 +16,9 @@ export const useAdminInvoices = (orgId = '', options = {}) => useQuery({
   queryKey: queryKeys.admin.billing.invoices(orgId),
   queryFn: async () => (await api.get(BASE, { params: orgId ? { organization_id: orgId } : {} })).data,
   staleTime: 30 * 1000,
+  // Payments change in Stripe, not here: a payer starts a bank transfer, it
+  // clears days later. Polling keeps an open page current without a reload.
+  refetchInterval: 60 * 1000,
   placeholderData: keepPreviousData,
   ...options,
 })

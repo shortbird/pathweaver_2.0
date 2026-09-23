@@ -451,6 +451,10 @@ class Config:
     # /admin/billing. Stripe's API cannot CC an invoice email (CC is a
     # per-customer dashboard setting), so Optio sends the copy itself.
     OPTIO_BILLING_COPY_EMAIL = os.getenv('OPTIO_BILLING_COPY_EMAIL', 'accounting@optioeducation.com')
+    # Hears when a bank payment on one of those invoices starts, clears or
+    # fails (org_billing_service.watch). Comma-separated.
+    OPTIO_BILLING_NOTIFY_EMAILS = os.getenv('OPTIO_BILLING_NOTIFY_EMAILS',
+                                            'tanner@optioeducation.com,accounting@optioeducation.com')
 
     # Rate Limiting - CONFIGURABLE
     # RATE_LIMIT_ENABLED is the emergency kill switch, honoured by the

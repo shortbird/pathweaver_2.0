@@ -22,7 +22,8 @@ way is recorded with mark_paid_outside.
 The daily sweep sends the reminders (Stripe's own reminder schedule is a
 dashboard setting, and the point here is never opening the dashboard). Every
 invoice and reminder also goes to Config.OPTIO_BILLING_COPY_EMAIL as a copy
-Optio sends itself, because Stripe's API has no CC.
+Optio sends itself, because Stripe's API has no CC. And Optio hears when a bank
+payment starts, clears or fails (watch), because Stripe tells nobody.
 """
 
 from datetime import date, datetime, timezone
@@ -292,27 +293,28 @@ def mark_paid_outside(invoice_id: str, note: str = '') -> Dict[str, Any]:
     return _invoice_dict(inv)
 
 
-# ── Accounting copy ──────────────────────────────────────────────────────────
+# ── Emails to Optio ──────────────────────────────────────────────────────────
 
-def _copy_to_accounting(inv, kind: str) -> None:
-    """Email Optio's accounting inbox what Stripe just sent. Best effort: the
-    invoice is already out, so a failed copy is logged, never raised."""
-    to = Config.OPTIO_BILLING_COPY_EMAIL
+def _recipient(inv) -> str:
+    return inv.get('customer_name') or inv.get('customer_email') or 'the recipient'
+
+
+def _recipient_row(inv, label: str):
+    email = inv.get('customer_email') or ''
+    return (label, f'{_recipient(inv)} <{email}>' if email else _recipient(inv))
+
+
+def _send_to_optio(to: List[str], subject: str, lead: str, inv, rows,
+                   category: str) -> None:
+    """Email Optio's own inboxes about one invoice. Best effort: whatever the
+    email is about has already happened in Stripe, so a failed send is logged,
+    never raised."""
     if not to:
         return
     try:
         from html import escape
         from services.email_service import EmailService
-        from utils.money import format_cents
-        number = inv.get('number') or inv.id
-        recipient = inv.get('customer_name') or inv.get('customer_email') or 'the recipient'
-        email = inv.get('customer_email') or ''
-        due = _ts_to_date(inv.get('due_date')) or 'no due date'
-        amount = format_cents(inv.get('amount_remaining') if kind == 'reminder' else inv.get('total')) or ''
-        what = 'Reminder sent' if kind == 'reminder' else 'Invoice sent'
-        subject = f'[Copy] {what}: Optio invoice {number} to {recipient}, {amount}'
-        rows = [('To', f'{recipient} <{email}>' if email else recipient),
-                ('Amount' if kind != 'reminder' else 'Amount due', amount), ('Due', due)]
+        rows = list(rows)
         memo = (inv.get('metadata') or {}).get('memo')
         if memo:
             rows.append(('Memo', memo))
@@ -322,19 +324,36 @@ def _copy_to_accounting(inv, kind: str) -> None:
         if inv.get('invoice_pdf'):
             links.append(f'<a href="{escape(inv["invoice_pdf"])}">PDF</a>')
         html = (
-            f'<p>{what} from Optio billing. This is a copy for your records.</p>'
+            f'<p>{escape(lead)}</p>'
             '<table cellpadding="4">'
-            + ''.join(f'<tr><td><b>{escape(k)}</b></td><td>{escape(v)}</td></tr>' for k, v in rows)
+            + ''.join(f'<tr><td><b>{escape(k)}</b></td><td>{escape(str(v))}</td></tr>' for k, v in rows)
             + '</table>'
             + (f'<p>{" &middot; ".join(links)}</p>' if links else '')
         )
-        text = '\n'.join([f'{what} from Optio billing. This is a copy for your records.', '']
-                         + [f'{k}: {v}' for k, v in rows]
+        text = '\n'.join([lead, ''] + [f'{k}: {v}' for k, v in rows]
                          + ([f'Invoice: {inv["hosted_invoice_url"]}'] if inv.get('hosted_invoice_url') else []))
-        EmailService().send_email(to, subject, html, text_body=text, support_copy=False,
-                                  categories=['optio_billing_copy'])
+        service = EmailService()
+        for addr in to:
+            service.send_email(addr, subject, html, text_body=text, support_copy=False,
+                               categories=[category])
     except Exception as exc:  # noqa: BLE001
-        logger.error('[optio billing] accounting copy failed for %s: %s', inv.get('id'), exc, exc_info=True)
+        logger.error('[optio billing] email to Optio failed for %s: %s', inv.get('id'), exc, exc_info=True)
+
+
+def _copy_to_accounting(inv, kind: str) -> None:
+    """Email Optio's accounting inbox what Stripe just sent."""
+    to = Config.OPTIO_BILLING_COPY_EMAIL
+    if not to:
+        return
+    from utils.money import format_cents
+    number = inv.get('number') or inv.id
+    what = 'Reminder sent' if kind == 'reminder' else 'Invoice sent'
+    amount = format_cents(inv.get('amount_remaining') if kind == 'reminder' else inv.get('total')) or ''
+    rows = [_recipient_row(inv, 'To'), ('Amount due' if kind == 'reminder' else 'Amount', amount),
+            ('Due', _ts_to_date(inv.get('due_date')) or 'no due date')]
+    _send_to_optio([to], f'[Copy] {what}: Optio invoice {number} to {_recipient(inv)}, {amount}',
+                   f'{what} from Optio billing. This is a copy for your records.', inv, rows,
+                   'optio_billing_copy')
 
 
 # ── Reminders ────────────────────────────────────────────────────────────────
@@ -387,3 +406,114 @@ def sweep(today: Optional[date] = None) -> Dict[str, Any]:
             failed += 1
             logger.error('[optio billing] sweep failed on %s: %s', inv.id, exc, exc_info=True)
     return {'reminders_sent': reminded, 'failed': failed}
+
+
+# ── Payment watch ────────────────────────────────────────────────────────────
+#
+# Stripe tells nobody at Optio when a bank payment starts, clears or bounces:
+# the dashboard shows it, and the point of this module is never opening the
+# dashboard. There is no Stripe webhook in this codebase, so a sweep every
+# cron tick reads the invoices and emails Config.OPTIO_BILLING_NOTIFY_EMAILS at
+# each step. What was already sent is recorded on the invoice's own metadata,
+# so there is still no table.
+#
+# The three steps of an ACH payment:
+#   started  -- the payer authorized the debit; the PaymentIntent is processing
+#               and the invoice is still open. Takes about 4 business days.
+#   cleared  -- the debit succeeded and Stripe marked the invoice paid. The
+#               money is in Optio's Stripe balance from here.
+#   failed   -- the debit was returned (closed account, insufficient funds).
+#               The invoice is open again and reminders resume.
+
+# Paid invoices are read back this far by creation date. An invoice is due in
+# at most 365 days and the debit takes days more.
+WATCH_PAID_CREATED_WITHIN_DAYS = 400
+
+
+def _notify_to() -> List[str]:
+    return [a.strip() for a in (Config.OPTIO_BILLING_NOTIFY_EMAILS or '').split(',') if a.strip()]
+
+
+def _notify(inv, step: str, pi=None) -> None:
+    from utils.money import format_cents
+    number = inv.get('number') or inv.id
+    who = _recipient(inv)
+    if step == 'started':
+        amount = format_cents((pi or {}).get('amount') or inv.get('amount_remaining')) or ''
+        subject = f'Payment started: {who} paid Optio invoice {number}, {amount}'
+        lead = (f'{who} paid invoice {number} by bank transfer. The transfer usually clears in '
+                'about 4 business days. You get another email when it clears.')
+    elif step == 'cleared':
+        amount = format_cents(inv.get('amount_paid') or inv.get('total')) or ''
+        subject = f'Payment received: Optio invoice {number} from {who}, {amount}'
+        lead = (f'The bank transfer for invoice {number} cleared, and Stripe marked the invoice '
+                'paid. The money is in the Stripe balance and goes to the bank on the next payout.')
+    else:
+        amount = format_cents(inv.get('amount_remaining')) or ''
+        err = (pi or {}).get('last_payment_error') or {}
+        reason = err.get('message') or err.get('code') or 'the bank returned the transfer'
+        subject = f'Payment failed: Optio invoice {number} from {who}, {amount}'
+        lead = (f'The bank transfer for invoice {number} failed: {reason}. The invoice is open '
+                'again, and reminders resume on their schedule.')
+    rows = [_recipient_row(inv, 'From'), ('Amount', amount)]
+    _send_to_optio(_notify_to(), subject, lead, inv, rows, 'optio_billing_payment')
+
+
+def _watch_step(inv) -> Optional[str]:
+    """The email this invoice owes Optio now, or None."""
+    md = inv.get('metadata') or {}
+    status = inv.get('status')
+    if status == 'paid':
+        if md.get('paid_outside_stripe') or md.get('notified_cleared'):
+            return None
+        return 'cleared'
+    if status != 'open':
+        return None
+    pi = inv.get('payment_intent')
+    if not isinstance(pi, dict):
+        return None
+    if pi.get('status') == 'processing':
+        return None if md.get('notified_started') else 'started'
+    charge = pi.get('latest_charge')
+    if pi.get('last_payment_error') and charge and md.get('notified_failed') != charge:
+        return 'failed'
+    return None
+
+
+def watch(now: Optional[datetime] = None) -> Dict[str, Any]:
+    """Email Optio when a bank payment on one of its invoices starts, clears or
+    fails. Runs every cron tick; each step emails once per invoice."""
+    if not is_available():
+        return {'skipped': 'no Stripe key on the Optio billing org'}
+    now = now or datetime.now(tz=timezone.utc)
+    s, key = _stripe(), _key()
+    since = int(now.timestamp()) - WATCH_PAID_CREATED_WITHIN_DAYS * 86400
+    sent: Dict[str, int] = {'started': 0, 'cleared': 0, 'failed': 0}
+    errors = 0
+    reads = (
+        s.Invoice.list(status='open', limit=100, expand=['data.payment_intent'], api_key=key),
+        s.Invoice.list(status='paid', created={'gte': since}, limit=100, api_key=key),
+    )
+    for page in reads:
+        for inv in page.auto_paging_iter():
+            if (inv.get('metadata') or {}).get('source') != SOURCE:
+                continue
+            try:
+                step = _watch_step(inv)
+                if not step:
+                    continue
+                pi = inv.get('payment_intent') if isinstance(inv.get('payment_intent'), dict) else None
+                # Record first: a lost email costs less than one sent every ten
+                # minutes because the metadata write keeps failing.
+                if step == 'failed':
+                    # A retry after a failure is a new start, so it emails again.
+                    md = {'notified_failed': (pi or {}).get('latest_charge'), 'notified_started': ''}
+                else:
+                    md = {f'notified_{step}': now.date().isoformat()}
+                s.Invoice.modify(inv.id, metadata=md, api_key=key)
+                _notify(inv, step, pi)
+                sent[step] += 1
+            except Exception as exc:  # noqa: BLE001
+                errors += 1
+                logger.error('[optio billing] watch failed on %s: %s', inv.id, exc, exc_info=True)
+    return {**sent, 'errors': errors}

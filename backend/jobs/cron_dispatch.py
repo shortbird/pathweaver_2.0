@@ -136,6 +136,12 @@ def main():
     _run("class-quest-publish-sweep",
          f"{base}/api/sis/internal/publish-class-quests", cron_secret, failures, base=base)
 
+    # Every run: Optio's own invoices (/admin/billing). Emails Optio when a
+    # bank payment starts, clears or fails. One Stripe list of open invoices
+    # and one of recent paid ones; each step emails once per invoice.
+    _run("optio-billing-watch", f"{base}/api/sis/internal/optio-billing-watch",
+         cron_secret, failures, base=base)
+
     # Every run: CRM funnel sweep (scheduled nurture/onboarding sends). The
     # send window (9-19 Denver), per-lead throttle, and postal-address gate
     # are all enforced server-side, so off-hours runs no-op cheaply.

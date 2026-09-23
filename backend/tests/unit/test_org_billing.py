@@ -261,6 +261,58 @@ class TestListAndActions:
         assert fake.invoices['in_foreign']['status'] == 'open'
 
 
+class TestWatch:
+    """Optio hears once at each step of a bank payment, and never about a
+    payment it recorded itself."""
+    NOW = datetime(2026, 10, 1, 15, tzinfo=timezone.utc)
+
+    @pytest.fixture(autouse=True)
+    def _to(self, monkeypatch):
+        monkeypatch.setattr('app_config.Config.OPTIO_BILLING_NOTIFY_EMAILS', 'a@optio.test, b@optio.test')
+
+    def _sent(self, fake):
+        out = _invoice(fake)
+        fake.emails.clear()
+        return fake.invoices[out['id']]
+
+    def _subjects(self, fake):
+        return [(to, subject.split(':')[0]) for to, subject, _ in fake.emails]
+
+    def test_started_then_cleared_each_email_once(self, fake):
+        inv = self._sent(fake)
+        inv['payment_intent'] = {'status': 'processing', 'amount': 100_000}
+        assert ob.watch(self.NOW)['started'] == 1
+        assert ob.watch(self.NOW)['started'] == 0
+        assert self._subjects(fake) == [('a@optio.test', 'Payment started'),
+                                        ('b@optio.test', 'Payment started')]
+        fake.emails.clear()
+        inv.update(status='paid', amount_paid=100_000, payment_intent='pi_1')
+        assert ob.watch(self.NOW)['cleared'] == 1
+        assert ob.watch(self.NOW)['cleared'] == 0
+        assert self._subjects(fake) == [('a@optio.test', 'Payment received'),
+                                        ('b@optio.test', 'Payment received')]
+
+    def test_a_failure_emails_and_a_retry_is_a_new_start(self, fake):
+        inv = self._sent(fake)
+        inv['payment_intent'] = {'status': 'processing'}
+        ob.watch(self.NOW)
+        inv['payment_intent'] = {'status': 'requires_payment_method', 'latest_charge': 'py_1',
+                                 'last_payment_error': {'message': 'Account closed'}}
+        assert ob.watch(self.NOW)['failed'] == 1
+        assert ob.watch(self.NOW)['failed'] == 0
+        assert fake.emails[-1][1].startswith('Payment failed')
+        inv['payment_intent'] = {'status': 'processing'}
+        assert ob.watch(self.NOW)['started'] == 1
+
+    def test_silent_on_an_unpaid_invoice_or_one_marked_paid_by_hand(self, fake):
+        inv = self._sent(fake)
+        assert ob.watch(self.NOW) == {'started': 0, 'cleared': 0, 'failed': 0, 'errors': 0}
+        ob.mark_paid_outside(inv['id'], 'check 1042')
+        fake.invoices['in_foreign'] = Obj(id='in_foreign', status='paid', metadata={})
+        ob.watch(self.NOW)
+        assert fake.emails == []
+
+
 @pytest.fixture
 def client(fake, monkeypatch):
     state = {'role': 'superadmin'}

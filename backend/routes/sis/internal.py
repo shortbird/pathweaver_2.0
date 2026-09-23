@@ -80,6 +80,14 @@ def _run_org_invoice_sweep():
         return {'error': 'failed'}
 
 
+def _run_optio_billing_watch():
+    """Email Optio when a bank payment on one of its own invoices starts,
+    clears or fails (org_billing_service.watch). Every tick, so the email
+    arrives within ten minutes of Stripe's change."""
+    from services import org_billing_service as org_billing
+    return org_billing.watch()
+
+
 def _run_tuition_autopay():
     """Charge every due auto-charge installment (saved-card payment plans)."""
     from services import sis_billing_service as billing
@@ -123,10 +131,11 @@ def _run_waitlist_offer_sweep():
 
 
 #: name -> the sweep. The path is /api/sis/internal/<name>; the dispatcher's
-#: schedule (jobs/cron_dispatch.py) names the same seven.
+#: schedule (jobs/cron_dispatch.py) names the same eight.
 CRON_SWEEPS = {
     'attendance-sweep': _run_attendance_sweep,
     'billing-reminders': _run_billing_reminders,
+    'optio-billing-watch': _run_optio_billing_watch,
     'tuition-autopay': _run_tuition_autopay,
     'recurring-tuition': _run_recurring_tuition,
     'engagement-sweep': _run_engagement_sweep,
