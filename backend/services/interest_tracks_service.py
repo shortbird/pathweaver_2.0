@@ -172,15 +172,18 @@ class InterestTracksService(BaseService):
             # admin client justified: service layer — called from multiple routes; access control is enforced by each calling route's decorators (@require_auth/@require_admin/etc.)
             supabase = get_supabase_admin_client()
 
-            # Get track
+            # Get track. maybe_single(): a track that is not this user's is
+            # "not found" (404), not PGRST116 surfacing as a 500. A parent who
+            # switched child with a sibling's topic open asked for exactly
+            # that (ticket bb7b5b20, 2026-09-24).
             track_response = supabase.table('interest_tracks') \
                 .select('*') \
                 .eq('id', track_id) \
                 .eq('user_id', user_id) \
-                .single() \
+                .maybe_single() \
                 .execute()
 
-            if not track_response.data:
+            if not track_response or not track_response.data:
                 return {
                     'success': False,
                     'error': 'Track not found'

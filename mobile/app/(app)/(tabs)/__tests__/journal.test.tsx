@@ -3,7 +3,7 @@
  */
 
 import React from 'react';
-import { render } from '@testing-library/react-native';
+import { render, act } from '@testing-library/react-native';
 import JournalScreen from '../journal';
 import {
   useUnifiedTopics, useUnassignedMoments, useTrackMoments, useQuestMoments, useQuestTasks,
@@ -24,8 +24,10 @@ jest.mock('@/src/hooks/useJournal', () => ({
   useQuestTasks: jest.fn(),
 }));
 
+// The sidebar is where a topic gets opened; capture its select handler.
+let sidebarProps: any = null;
 jest.mock('@/src/components/journal/TopicsSidebar', () => ({
-  TopicsSidebar: () => null,
+  TopicsSidebar: (props: any) => { sidebarProps = props; return null; },
 }));
 jest.mock('@/src/components/journal/LearningEventCard', () => ({
   LearningEventCard: () => null,
@@ -86,5 +88,59 @@ describe('JournalScreen', () => {
     expect(() => render(<JournalScreen />)).not.toThrow();
     expect(useUnifiedTopics).toHaveBeenCalled();
     expect(useUnassignedMoments).toHaveBeenCalled();
+  });
+});
+
+/**
+ * Tickets bb7b5b20 + 6d9a9c57 (Sentry, 2026-09-24): a parent had one child's
+ * "Think" topic open, switched the header to her other child, and the screen
+ * asked for the first child's topic under the second child's id -- a 500.
+ */
+describe('JournalScreen child switch', () => {
+  const CHILD_A = 'child-a';
+  const CHILD_B = 'child-b';
+  const TRACK = 'track-of-child-a';
+
+  beforeEach(() => {
+    sidebarProps = null;
+    (useUnifiedTopics as jest.Mock).mockReturnValue({ topics: [], loading: false, refetch: jest.fn() });
+    (useUnassignedMoments as jest.Mock).mockReturnValue({ moments: [], loading: false, refetch: jest.fn() });
+  });
+
+  const lastTrackCall = () => (useTrackMoments as jest.Mock).mock.calls.at(-1);
+
+  it('closes the open topic when the child changes, and never asks for it under the new child', () => {
+    const view = render(<JournalScreen studentId={CHILD_A} />);
+    act(() => { sidebarProps.onSelectTopic(TRACK, 'track'); });
+    expect(lastTrackCall()).toEqual([TRACK, CHILD_A]);
+
+    (useTrackMoments as jest.Mock).mockClear();
+    view.rerender(<JournalScreen studentId={CHILD_B} />);
+
+    const calls = (useTrackMoments as jest.Mock).mock.calls;
+    expect(calls).not.toContainEqual([TRACK, CHILD_B]);
+    expect(lastTrackCall()).toEqual([null, CHILD_B]);
+    expect(sidebarProps.selectedId).toBeNull();
+    expect(sidebarProps.selectedType).toBe('unassigned');
+  });
+
+  it('keeps an open topic when the child first arrives (no switch happened)', () => {
+    const view = render(<JournalScreen />);
+    act(() => { sidebarProps.onSelectTopic(TRACK, 'track'); });
+
+    view.rerender(<JournalScreen studentId={CHILD_A} />);
+
+    // (The phone layout hides the sidebar once a topic is open, so the hook
+    // call is the witness here.)
+    expect(lastTrackCall()).toEqual([TRACK, CHILD_A]);
+  });
+
+  it('keeps the open topic across a re-render for the same child', () => {
+    const view = render(<JournalScreen studentId={CHILD_A} />);
+    act(() => { sidebarProps.onSelectTopic(TRACK, 'track'); });
+
+    view.rerender(<JournalScreen studentId={CHILD_A} />);
+
+    expect(lastTrackCall()).toEqual([TRACK, CHILD_A]);
   });
 });

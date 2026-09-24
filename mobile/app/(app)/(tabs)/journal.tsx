@@ -77,9 +77,29 @@ export default function JournalScreen({ studentId: studentIdProp, headerTitle }:
   const currentUserId = useAuthStore((s) => s.user?.id);
   const c = useThemeColors();
 
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [selectedType, setSelectedType] = useState<ViewType>('unassigned');
+  const [selectedIdState, setSelectedId] = useState<string | null>(null);
+  const [selectedTypeState, setSelectedType] = useState<ViewType>('unassigned');
   const [mobileTab, setMobileTab] = useState<MobileTab>('topics');
+  // Switching child in the header closes the open topic. A topic belongs to
+  // one child: keeping it asked the backend for one child's topic under the
+  // other's id, which 500'd (tickets bb7b5b20 / 6d9a9c57, 2026-09-24). It is
+  // decided during render, not in an effect, because the data hooks below
+  // fetch in their own effects in the same commit -- a reset effect ran too
+  // late to stop the request. Only a switch from one child to another counts:
+  // the scoped child arriving after mount must not close a topic a Home deep
+  // link just opened.
+  const [selectionChild, setSelectionChild] = useState(studentId);
+  const switchedChild = !!selectionChild && selectionChild !== studentId;
+  if (selectionChild !== studentId) {
+    setSelectionChild(studentId);
+    if (switchedChild) {
+      setSelectedId(null);
+      setSelectedType('unassigned');
+      setMobileTab('topics');
+    }
+  }
+  const selectedId = switchedChild ? null : selectedIdState;
+  const selectedType: ViewType = switchedChild ? 'unassigned' : selectedTypeState;
   // When the Journal is opened by tapping a topic chip on Home, jump straight
   // into that topic and make the header back-arrow return to Home (bug #34).
   const { topicId: paramTopicId, topicType: paramTopicType } = useLocalSearchParams<{ topicId?: string; topicType?: string }>();
