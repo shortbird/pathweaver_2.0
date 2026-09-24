@@ -8,7 +8,7 @@ import { canSeeFinance } from './sisRole'
 import shapeReport from './reportsPage/shapeReport'
 import { printElement } from '../../utils/printView'
 import usePersistedChoice from '../../hooks/usePersistedChoice'
-import { downloadBlob } from '../../utils/csv'
+import { downloadBlob, downloadCsv as saveCsvText, toCsv } from '../../utils/csv'
 import { BlockRosters } from './reportsPage/BlockRosters'
 import { EMPTY_FILTER } from './reportsPage/rosterClassFilter'
 import { reportByKey, visibleReports } from './reportsPage/catalog'
@@ -16,6 +16,11 @@ import ReportNav from './reportsPage/ReportNav'
 import RosterClassPicker from './reportsPage/RosterClassPicker'
 import ReportTable from './reportsPage/ReportTable'
 import OverviewStats from './reportsPage/OverviewStats'
+import FamilyLocations, { familyLocationsSummary } from './reportsPage/FamilyLocations'
+import AnswerFilters from './reportsPage/AnswerFilters'
+import {
+  ANSWER_SORTS, EMPTY_ANSWER_FILTERS, answerRowCells, filterAnswerRows,
+} from './reportsPage/answerFilterRules'
 
 /**
  * ReportsPage -- every report the office runs, one at a time.
@@ -265,6 +270,8 @@ const ReportsPage = () => {
   // Which day the block rosters are showing. It drives the CSV too, so
   // downloading gives you the day on screen rather than the whole week.
   const [blockDay, setBlockDay] = useState('')
+  // Registration answers: filters over the loaded rows (ticket 50616794).
+  const [answerFilters, setAnswerFilters] = useState(EMPTY_ANSWER_FILTERS)
   const resultRef = useRef(null)
 
   const load = useCallback(() => {
@@ -323,10 +330,16 @@ const ReportsPage = () => {
   // Rows to render, sorted by the active columns in stack order. The field key
   // (report.selected, present on the field-picker reports) is what tells the
   // comparator a column holds days or times rather than plain text.
+  const baseRows = useMemo(() => {
+    if (!report) return []
+    if (report.kind !== 'question') return report.rows
+    return filterAnswerRows(report.raw, answerFilters).map(answerRowCells)
+  }, [report, answerFilters])
+
   const displayRows = useMemo(() => {
     if (!report) return []
-    if (!sort.length) return report.rows
-    return [...report.rows].sort((a, b) => {
+    if (!sort.length) return baseRows
+    return [...baseRows].sort((a, b) => {
       for (const { col, dir } of sort) {
         const key = report.selected?.[col] || report.columns?.[col]
         const n = compareCells(key, a[col], b[col])
@@ -334,7 +347,15 @@ const ReportsPage = () => {
       }
       return 0
     })
-  }, [report, sort])
+  }, [report, baseRows, sort])
+
+  // Which "Sort by" preset the table's sort stack is, or '' for a custom one.
+  const answerSortKey = sort.length === 1 && sort[0].dir === 'asc'
+    ? (ANSWER_SORTS.find((p) => p.col === sort[0].col)?.key || '') : ''
+  const pickAnswerSort = (key) => {
+    const preset = ANSWER_SORTS.find((p) => p.key === key)
+    if (preset) setSort([{ col: preset.col, dir: 'asc' }])
+  }
 
   // The class list's CSV must download exactly the columns on screen.
   const classPath = useCallback((cols) => (
@@ -380,6 +401,14 @@ const ReportsPage = () => {
                     csvPath: path, csvName: 'day-rosters.csv' })
         return
       }
+      if (type === 'family-locations') {
+        const data = res.data?.report || {}
+        setReport({ title: 'Where families live', kind: 'family-locations', locations: data,
+                    summary: familyLocationsSummary(data),
+                    columns: [], rows: [],
+                    csvPath: path, csvName: 'family-locations.csv' })
+        return
+      }
       if (type === 'block-rosters') {
         const days = res.data?.report?.days || []
         // Land on the day with the most classes: at iCreate that is Tuesday or
@@ -393,6 +422,7 @@ const ReportsPage = () => {
       }
       const label = questions.find((q) => q.key === key)?.label
       const shaped = shapeReport(type, res.data, label)
+      if (type === 'question') setAnswerFilters(EMPTY_ANSWER_FILTERS)
       setReport({
         ...shaped,
         csvPath: path,
@@ -461,6 +491,12 @@ const ReportsPage = () => {
 
   const downloadCsv = useCallback(async () => {
     if (!report) return
+    // The answers report downloads what is on screen -- filtered and sorted
+    // -- so the sheet matches the question the office just asked of it.
+    if (report.kind === 'question') {
+      saveCsvText(toCsv(report.columns, displayRows), report.csvName)
+      return
+    }
     // Block rosters download the day you are looking at -- a whole week of
     // grids in one file is not the sheet anyone asked for.
     const blockLabel = report.kind === 'block-rosters'
@@ -474,7 +510,7 @@ const ReportsPage = () => {
     } catch {
       toast.error('Failed to download CSV')
     }
-  }, [report, orgId, blockDay])
+  }, [report, orgId, blockDay, displayRows])
 
   // What the picked report needs from the office before (or after) it runs.
   const options = (() => {
@@ -624,10 +660,18 @@ const ReportsPage = () => {
                       <DayRosters days={report.days} />
                     ) : report.kind === 'block-rosters' ? (
                       <BlockRosters days={report.days} day={blockDay} onDayChange={setBlockDay} />
+                    ) : report.kind === 'family-locations' ? (
+                      <FamilyLocations report={report.locations} />
                     ) : (
+                      <>
+                      {report.kind === 'question' && (
+                        <AnswerFilters rows={report.raw} filters={answerFilters} setFilters={setAnswerFilters}
+                          shown={displayRows.length} sortKey={answerSortKey} onSort={pickAnswerSort} />
+                      )}
                       <ReportTable report={report} rows={displayRows} sort={sort}
                         onSort={toggleSort} onClearSort={() => setSort([])}
                         onToggleColumn={toggleClassCol} lockedColumn={lockedCol} statusCol={statusCol} />
+                      </>
                     )}
                   </div>
                 )}

@@ -15,9 +15,12 @@ scalar / list (family-level answer) OR an object mapping kid user_id -> value
 
 from flask import Blueprint, request, jsonify
 
+from utils.db_fetch import fetch_all_rows
 from utils.registration_config import get_registration_config
 from utils.auth.decorators import require_role
 from utils.logger import get_logger
+from services import sis_age
+from services import sis_payment_profile
 from services import sis_service
 from services import sis_reports_service as reports
 # Admin tier: this whole module is org management, not teacher-facing.
@@ -246,6 +249,31 @@ def block_rosters(user_id):
     return jsonify({'success': True, 'report': report})
 
 
+@bp.route('/reports/family-locations', methods=['GET'])
+@require_role(*ADMIN_ROLES)
+def family_locations(user_id):
+    """Where families live: families counted by city, with who would carpool.
+
+    iCreate (Katrine Myers), ticket 1a54e05a: "Is there a way I could see some
+    kind of aggregate list for where the families live? I have some families
+    asking whether others might be interested in carpooling ... it would be
+    convenient to know so I could help it along."
+
+    ADMIN_ROLES, so the campus coordinator has it: nothing here is money, and
+    nothing is more than the family record already shows staff (city, state,
+    ZIP, the family's people and its carpool answer -- never the street).
+    ?format=csv downloads one row per family.
+    """
+    org_id, err = sis_service.org_or_error(user_id)
+    if err:
+        return err
+    report = reports.family_locations_report(org_id)
+    if request.args.get('format') == 'csv':
+        return csv_response('family-locations.csv', reports.FAMILY_LOCATIONS_CSV_HEADER,
+                            reports.family_locations_csv_rows(report))
+    return jsonify({'success': True, 'report': report})
+
+
 # ── Information reports (registration data) ──────────────────────────────────
 
 # admin client justified: the SIS console acts for the whole school — this
@@ -282,12 +310,13 @@ def _latest_registrations(org_id):
     """One registration per parent: their LATEST completed one, or — if the
     parent has never completed — their latest in-progress row (kept so those
     families still show up, flagged via the status column)."""
-    rows = (_admin().table('registrations')
-            .select('id, parent_user_id, status, kids, answers, '
-                    'emergency_contacts, created_at, updated_at, completed_at')
-            .eq('organization_id', org_id)
-            .order('updated_at', desc=True)
-            .execute()).data or []
+    # Paged, then ordered newest-first here: fetch_all_rows pages by id.
+    rows = fetch_all_rows(lambda: (
+        _admin().table('registrations')
+        .select('id, parent_user_id, status, kids, answers, '
+                'emergency_contacts, created_at, updated_at, completed_at')
+        .eq('organization_id', org_id)))
+    rows.sort(key=lambda r: r.get('updated_at') or '', reverse=True)
     by_parent = {}
     for r in rows:  # newest-first, so the first completed row seen is the latest
         pid = r.get('parent_user_id')
@@ -305,9 +334,11 @@ def _users_by_id(user_ids):
     ids = [u for u in set(user_ids) if u]
     if not ids:
         return {}
-    rows = (_admin().table('users')
-            .select('id, first_name, last_name, display_name, email, medications, allergies')
-            .in_('id', ids).execute()).data or []
+    rows = fetch_all_rows(lambda: (
+        _admin().table('users')
+        .select('id, first_name, last_name, display_name, email, medications, allergies, '
+                'date_of_birth')
+        .in_('id', ids)))
     return {u['id']: u for u in rows}
 
 
@@ -319,15 +350,19 @@ def _user_name(u, fallback=''):
 
 
 def _household_by_user(org_id):
-    """user_id -> {name, phone} for everyone in an org household."""
+    """user_id -> {name, phone, city, state, postal_code} for everyone in an
+    org household. Both reads paged: the membership list passes 1,000 rows
+    long before a school's family count does."""
     admin = _admin()
-    hhs = (admin.table('households').select('id, name, phone')
-           .eq('organization_id', org_id).execute()).data or []
+    hhs = fetch_all_rows(lambda: (
+        admin.table('households').select('id, name, phone, city, state, postal_code')
+        .eq('organization_id', org_id)))
     if not hhs:
         return {}
     hh_by_id = {h['id']: h for h in hhs}
-    members = (admin.table('household_members').select('household_id, user_id')
-               .in_('household_id', list(hh_by_id.keys())).execute()).data or []
+    members = fetch_all_rows(lambda: (
+        admin.table('household_members').select('id, household_id, user_id')
+        .in_('household_id', list(hh_by_id.keys()))))
     return {m['user_id']: hh_by_id[m['household_id']]
             for m in members if m.get('household_id') in hh_by_id}
 
@@ -437,7 +472,25 @@ from utils.csv_response import csv_response
 @bp.route('/reports/registration-answers', methods=['GET'])
 @require_role(*ADMIN_ROLES)
 def registration_answers(user_id):
-    """Generic report: every family's (or student's) answer to one question."""
+    """Generic report: every family's (or student's) answer to one question.
+
+    Each row also carries what the office filters and sorts it by on the page
+    -- iCreate (Katrine Myers), ticket 50616794: "this would be the best spot
+    to be able to filter the families info by selection. So more questions
+    might be, sort families by age of children. Sort families by location, or
+    form of payment, or students who only come one day, etc." So a row has:
+
+      answer_values   the answer as a list (a multi-select is several values)
+      city, state     the family's household
+      payment_methods the family's own "Form of Payment" answer
+                      (answers.payment_intent via sis_payment_profile) -- never
+                      households.funding_source, the staff-set field
+      kids            [{name, age, days_per_week, days, unscheduled}], one per
+                      child the row covers (one on a per-student row)
+
+    Filtering happens on the page over the full set: the reads behind it are
+    paged, and one school's families is a few hundred rows at most.
+    """
     org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
@@ -450,6 +503,22 @@ def registration_answers(user_id):
     label = q_cfg['label'] if q_cfg else question_key
 
     regs, users, households = _reg_context(org_id)
+    age = sis_age.ages_for(org_id)
+    schedule = reports.school_days_by_student(org_id)
+
+    def kid_facts(kid):
+        kid_id = kid.get('user_id')
+        dob = (users.get(kid_id) or {}).get('date_of_birth') or kid.get('dob')
+        sched = schedule.get(kid_id) or {}
+        days = sched.get('days') or []
+        return {
+            'name': _kid_name(kid, users),
+            'age': age(dob),
+            'days_per_week': len(days),
+            'days': ' '.join(reports.DOW_SHORT.get(d, '') for d in days),
+            'unscheduled': bool(sched.get('unscheduled')),
+        }
+
     rows = []
     for reg in regs:
         answers = reg.get('answers') or {}
@@ -458,18 +527,30 @@ def registration_answers(user_id):
         parent = users.get(reg.get('parent_user_id')) or {}
         parent_name = _user_name(parent)
         parent_email = parent.get('email') or ''
-        family = (households.get(reg.get('parent_user_id')) or {}).get('name') or ''
+        household = households.get(reg.get('parent_user_id')) or {}
+        family = household.get('name') or ''
         status = reg.get('status') or ''
+        payment_methods = sis_payment_profile.read_answers(answers)['methods']
+
+        def place(hh):
+            return {'city': (hh.get('city') or '').strip(),
+                    'state': (hh.get('state') or '').strip()}
+
         # Per-student when stored as a kid map OR configured per_student.
         if isinstance(val, dict) or (q_cfg and q_cfg['per_student']):
             for kid in kids:
+                raw = val.get(kid.get('user_id')) if isinstance(val, dict) else val
                 rows.append({
                     'student': _kid_name(kid, users),
                     'family': family,
                     'parent': parent_name,
                     'parent_email': parent_email,
                     'answer': _answer_for_kid(answers, question_key, kid.get('user_id')),
+                    'answer_values': _answer_values(raw),
                     'status': status,
+                    **place(households.get(kid.get('user_id')) or household),
+                    'payment_methods': payment_methods,
+                    'kids': [kid_facts(kid)],
                 })
         else:
             rows.append({
@@ -478,7 +559,11 @@ def registration_answers(user_id):
                 'parent': parent_name,
                 'parent_email': parent_email,
                 'answer': _fmt_answer(val),
+                'answer_values': _answer_values(val),
                 'status': status,
+                **place(household),
+                'payment_methods': payment_methods,
+                'kids': [kid_facts(k) for k in kids],
             })
     # Only families/students who actually answered — an empty or "none" answer
     # isn't relevant to a per-question report.
@@ -488,14 +573,37 @@ def registration_answers(user_id):
     if request.args.get('format') == 'csv':
         return csv_response(
             f'registration-answers-{question_key}.csv',
-            ['Student', 'Family', 'Parent', 'Parent Email', 'Answer', 'Registration Status'],
-            [[r['student'], r['family'], r['parent'], r['parent_email'],
-              r['answer'], r['status']] for r in rows])
+            ['Student', 'Family', 'Parent', 'Parent Email', 'Answer', 'City', 'Ages',
+             'Days per week', 'Form of payment', 'Registration Status'],
+            [[r['student'], r['family'], r['parent'], r['parent_email'], r['answer'],
+              r['city'], _ages_text(r['kids']), _days_text(r['kids']),
+              '; '.join(r['payment_methods']), r['status']] for r in rows])
     return jsonify({'success': True, 'report': {
         'question': {'key': question_key, 'label': label,
                      'per_student': bool(q_cfg and q_cfg['per_student'])},
         'rows': rows,
     }})
+
+
+def _answer_values(val):
+    """The answer as a list of the values a family picked, for filtering: a
+    multi-select is several, a text answer is one, nothing is none."""
+    if val is None:
+        return []
+    if isinstance(val, dict):
+        return [v for x in val.values() for v in _answer_values(x)]
+    if isinstance(val, (list, tuple)):
+        return [str(v).strip() for v in val if str(v).strip()]
+    text = str(val).strip()
+    return [text] if text else []
+
+
+def _ages_text(kids):
+    return ', '.join(str(a) for a in sorted(k['age'] for k in kids if k.get('age') is not None))
+
+
+def _days_text(kids):
+    return ', '.join(str(k['days_per_week']) for k in kids)
 
 
 @bp.route('/reports/medications', methods=['GET'])

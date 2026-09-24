@@ -9,6 +9,7 @@ pattern per CLAUDE.md); cross-table roster aggregation lives in SisService.
 from typing import Optional, Dict, List, Any
 
 from repositories.base_repository import BaseRepository
+from utils.db_fetch import fetch_all_rows
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -18,14 +19,17 @@ class HouseholdRepository(BaseRepository):
     table_name = 'households'
 
     def list_for_org(self, organization_id: str) -> List[Dict[str, Any]]:
-        resp = (
+        # Paged by id (unique, so pages cannot skip or repeat), then sorted by
+        # name for display, as SisClassRepository.list_for_org does. One
+        # unpaged read stopped at PostgREST's 1,000-row cap without a word,
+        # and every family past it fell off the Families page and the reports
+        # built on this list.
+        rows = fetch_all_rows(lambda: (
             self.client.table(self.table_name)
             .select('*')
             .eq('organization_id', organization_id)
-            .order('name')
-            .execute()
-        )
-        return resp.data or []
+        ))
+        return sorted(rows, key=lambda h: (h.get('name') or '').lower())
 
     def create(self, organization_id: str, fields: Dict[str, Any]) -> Dict[str, Any]:
         payload = {'organization_id': organization_id, **fields}
@@ -78,13 +82,12 @@ class HouseholdRepository(BaseRepository):
     def members_for_households(self, household_ids: List[str]) -> List[Dict[str, Any]]:
         if not household_ids:
             return []
-        resp = (
+        # Paged: a school's memberships pass 1,000 long before its families do.
+        return fetch_all_rows(lambda: (
             self.client.table('household_members')
             .select('*')
             .in_('household_id', household_ids)
-            .execute()
-        )
-        return resp.data or []
+        ))
 
     def for_guardian(self, user_id: str, organization_id: str) -> Optional[str]:
         """The household this adult guards at one school, if any.

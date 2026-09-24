@@ -3,6 +3,8 @@
  * Moved verbatim -- no behaviour changed, only the address.
  */
 
+import { ANSWER_COLUMNS, answerRowCells } from './answerFilterRules'
+
 const shapeReport = (type, data, questionLabel) => {
   const report = data?.report || {}
   if (type === 'medications') {
@@ -133,12 +135,15 @@ const shapeReport = (type, data, questionLabel) => {
       ]),
     }
   }
+  // Registration answers: the rows keep their raw objects too, so the page can
+  // filter them by city, payment, age and days (ticket 50616794) without a
+  // refetch -- see answerFilterRules.js.
   return {
     title: report.question?.label || questionLabel || 'Question report',
-    columns: ['Student', 'Family', 'Parent', 'Parent email', 'Answer', 'Status'],
-    rows: (report.rows || []).map((r) => [
-      r.student, r.family, r.parent, r.parent_email, r.answer, r.status,
-    ]),
+    kind: 'question',
+    columns: ANSWER_COLUMNS,
+    rows: (report.rows || []).map(answerRowCells),
+    raw: report.rows || [],
   }
 }
 

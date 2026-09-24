@@ -736,6 +736,16 @@ def _meeting_slot(meeting: Dict[str, Any], blocks: List[Dict[str, Any]],
     return f'{label} ({when})' if with_times else label
 
 
+def _active_class_enrollments(class_ids: List[str]) -> List[Dict[str, Any]]:
+    """Every active {class_id, student_id} for these classes, paged: a school's
+    enrollments pass PostgREST's 1,000-row cap long before its classes do."""
+    if not class_ids:
+        return []
+    return fetch_all_rows(lambda: (
+        _admin().table('class_enrollments').select('class_id, student_id')
+        .in_('class_id', class_ids).eq('status', 'active')))
+
+
 def student_schedule_report(org_id: str) -> Dict[str, Any]:
     """Master list: every student, their age, the days they come, and the
     block each of their classes fills on each day.
@@ -773,9 +783,7 @@ def student_schedule_report(org_id: str) -> Dict[str, Any]:
             unscheduled_by_class[c['id']] = name
 
     class_ids = list(slots_by_class) + list(unscheduled_by_class)
-    enrollments = fetch_all_rows(lambda: (
-        _admin().table('class_enrollments').select('class_id, student_id')
-        .in_('class_id', class_ids).eq('status', 'active'))) if class_ids else []
+    enrollments = _active_class_enrollments(class_ids)
 
     by_student: Dict[str, Dict[int, List]] = {}
     unscheduled_by_student: Dict[str, List[str]] = {}
@@ -819,6 +827,150 @@ def student_schedule_report(org_id: str) -> Dict[str, Any]:
         'has_unscheduled': any(r['unscheduled'] for r in rows),
         'rows': rows,
     }
+
+
+# ── School days per student ───────────────────────────────────────────────────
+# iCreate (Katrine Myers), ticket 50616794: "sort families by age of children.
+# Sort families by location, or form of payment, or students who only come one
+# day, etc." How many days a child comes is not stored anywhere; it is read off
+# the schedule the same way the student schedule report above reads it -- the
+# distinct weekdays their active classes meet on.
+
+def school_days_by_student(org_id: str) -> Dict[str, Dict[str, Any]]:
+    """student_id -> {'days': [0..6, Monday-first], 'unscheduled': bool}.
+
+    `days` are the distinct weekdays the student's active classes meet.
+    `unscheduled` is True when they are also in a class with no meeting on the
+    schedule, so the count may be short: the report says so rather than guess.
+    A student in no class at all is simply absent from the map.
+    """
+    from services import sis_catalog_service
+
+    days_by_class: Dict[str, set] = {}
+    for c in sis_catalog_service.list_classes(org_id, audience='staff'):
+        days_by_class[c['id']] = {m.get('day_of_week') for m in (c.get('meetings') or [])
+                                  if m.get('day_of_week') is not None}
+    out: Dict[str, Dict[str, Any]] = {}
+    for e in _active_class_enrollments(list(days_by_class)):
+        sid = e.get('student_id')
+        if not sid:
+            continue
+        entry = out.setdefault(sid, {'days': set(), 'unscheduled': False})
+        days = days_by_class.get(e.get('class_id'), set())
+        if days:
+            entry['days'] |= days
+        else:
+            entry['unscheduled'] = True
+    for entry in out.values():
+        entry['days'] = sorted(entry['days'],
+                               key=lambda d: _SCHOOL_WEEK.index(d) if d in _SCHOOL_WEEK else d)
+    return out
+
+
+# ── Where families live (carpool matching) ────────────────────────────────────
+# iCreate (Katrine Myers, campus coordinator), ticket 1a54e05a: "Is there a way
+# I could see some kind of aggregate list for where the families live? I have
+# some families asking whether others might be interested in carpooling and
+# although that option is available to post, it would be convenient to know so
+# I could help it along."
+#
+# Staff only. It reads the same household rows the Families page shows staff
+# (households_with_members), and reports nothing a family record does not
+# already show them: the family's name, its people, city / state / ZIP, and the
+# carpool box the family ticked. No street address.
+
+NO_CITY_LABEL = 'No city on file'
+
+
+def _carpool_label(value: Optional[bool]) -> str:
+    if value is True:
+        return 'Yes'
+    if value is False:
+        return 'No'
+    return 'Not answered'
+
+
+def family_locations_report(org_id: str) -> Dict[str, Any]:
+    """Families counted by city, each city listing its families.
+
+    Cities group case- and space-insensitively ("lehi " and "Lehi" are one
+    town) under the spelling most families used. Families with no city are one
+    group, last. A former family -- every child withdrawn or graduated -- is
+    left out, as the other reports leave them out; so are withdrawn and
+    graduated children inside a current family.
+
+    `carpool_interest` is passed through as stored: True, False, or None when
+    the family never answered, which is not the same as saying no.
+    """
+    from services import sis_service
+    from services.sis_service import INACTIVE_ENROLLMENT_STATUSES
+
+    groups: Dict[Optional[str], Dict[str, Any]] = {}
+    for h in sis_service.households_with_members(org_id):
+        members = h.get('members') or []
+        students = [m for m in members if m.get('relationship') == 'student']
+        if students and all(m.get('status') in INACTIVE_ENROLLMENT_STATUSES for m in students):
+            continue
+        city = (h.get('city') or '').strip()
+        key = ' '.join(city.split()).casefold() or None
+        carpool = h.get('carpool_interest')
+        family = {
+            'household_id': h['id'],
+            'name': h.get('name') or '',
+            'city': city,
+            'state': (h.get('state') or '').strip(),
+            'postal_code': (h.get('postal_code') or '').strip(),
+            'carpool_interest': carpool if isinstance(carpool, bool) else None,
+            'guardians': sorted((m.get('name') or '' for m in members
+                                 if m.get('relationship') != 'student'), key=str.lower),
+            'students': sorted((m.get('name') or '' for m in students
+                                if m.get('status') not in INACTIVE_ENROLLMENT_STATUSES),
+                               key=str.lower),
+        }
+        g = groups.setdefault(key, {'spellings': {}, 'families': []})
+        if city:
+            g['spellings'][city] = g['spellings'].get(city, 0) + 1
+        g['families'].append(family)
+
+    cities = []
+    for key, g in groups.items():
+        families = sorted(g['families'], key=lambda f: f['name'].lower())
+        if key is None:
+            label = NO_CITY_LABEL
+        else:
+            # Most families' spelling wins; ties go to the alphabetically first.
+            label = sorted(g['spellings'].items(), key=lambda kv: (-kv[1], kv[0]))[0][0]
+        cities.append({
+            'city': label,
+            'no_city': key is None,
+            'states': sorted({f['state'] for f in families if f['state']}),
+            'family_count': len(families),
+            'carpool_count': sum(1 for f in families if f['carpool_interest'] is True),
+            'families': families,
+        })
+    # Biggest town first; ties alphabetical; "No city on file" always last.
+    cities.sort(key=lambda c: (c['no_city'], -c['family_count'], c['city'].lower()))
+    return {
+        'total_families': sum(c['family_count'] for c in cities),
+        'carpool_families': sum(c['carpool_count'] for c in cities),
+        'no_city_families': sum(c['family_count'] for c in cities if c['no_city']),
+        'cities': cities,
+    }
+
+
+FAMILY_LOCATIONS_CSV_HEADER = ['City', 'State', 'ZIP', 'Family', 'Guardians', 'Students',
+                               'Carpool interest']
+
+
+def family_locations_csv_rows(report: Dict[str, Any]) -> List[List[str]]:
+    """One row per family, in the report's order, city repeated on each."""
+    rows = []
+    for c in report.get('cities') or []:
+        for f in c['families']:
+            rows.append([c['city'], f['state'], f['postal_code'], f['name'],
+                         '; '.join(f['guardians']), '; '.join(f['students']),
+                         _carpool_label(f['carpool_interest'])])
+    return rows
 
 
 # ── Day rosters (where every child should be, hour by hour) ──────────────────

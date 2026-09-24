@@ -697,9 +697,16 @@ class TestStudentScheduleReport:
     def test_the_enrollment_read_is_paged(self):
         import inspect
 
+        # The read moved into _active_class_enrollments (2026-09-24) so the
+        # days-per-week filter on the registration answers report (ticket
+        # 50616794) reads enrollments the same paged way; the report must
+        # still go through it and it must still page.
         source = inspect.getsource(reports.student_schedule_report)
         assert '.execute()' not in source
-        assert 'fetch_all_rows' in source
+        assert '_active_class_enrollments' in source
+        helper = inspect.getsource(reports._active_class_enrollments)
+        assert '.execute()' not in helper
+        assert 'fetch_all_rows' in helper
 
 
 @pytest.mark.unit

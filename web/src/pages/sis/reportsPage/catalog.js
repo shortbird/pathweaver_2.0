@@ -18,6 +18,7 @@ export const GROUPS = [
   { key: 'rosters', label: 'Rosters & schedules' },
   { key: 'health', label: 'Health & safety' },
   { key: 'attendance', label: 'Attendance' },
+  { key: 'families', label: 'Families' },
   { key: 'registration', label: 'Registration' },
   { key: 'money', label: 'Money' },
 ]
@@ -74,8 +75,14 @@ export const REPORTS = [
     description: 'Every class for a range of days: who took the roll and when, whether that was the class’s teacher, and any substitute. For checking a pay period.',
   },
   {
+    // iCreate (Katrine Myers), ticket 1a54e05a: families asking about
+    // carpooling, and no way to see who lives near whom.
+    key: 'family-locations', group: 'families', title: 'Where families live', autoRun: true,
+    description: 'Families counted by city, with who said they want to carpool. Open a city to see its families. Staff only.',
+  },
+  {
     key: 'question', group: 'registration', title: 'Registration answers', autoRun: false,
-    description: 'Every family’s (or student’s) answer to one registration question.',
+    description: 'Every family’s (or student’s) answer to one registration question. Filter by the answer, city, form of payment, child age, or days per week, and sort by family, age, or city.',
   },
   {
     key: 'checklist-completion', group: 'registration', title: 'Task completion', autoRun: true,
