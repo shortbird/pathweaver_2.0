@@ -13,6 +13,14 @@ from utils.logger import get_logger
 
 logger = get_logger(__name__)
 
+# The table's columns are user_id (who acted) and changes (what changed).
+# This repository was written for an admin_id / metadata / request_path shape
+# the table never had, so every log_action and every read failed with PGRST204
+# until 2026-09-24 (ticket 278abb85: adding a CRM person). Callers still speak
+# admin_id / metadata, so reads alias the real columns back to those names.
+_SELECT = 'admin_id:user_id, metadata:changes, *'
+_SELECT_WITH_ADMIN = _SELECT + ', users!admin_audit_logs_user_id_fkey(first_name, last_name, email)'
+
 
 class AdminAuditRepository(BaseRepository):
     """
@@ -26,6 +34,11 @@ class AdminAuditRepository(BaseRepository):
     """
 
     table_name = 'admin_audit_logs'
+
+    def query(self):
+        """A fresh query on this table. BaseRepository has no query(); every
+        read below called it and failed with AttributeError until 2026-09-24."""
+        return self.client.table(self.table_name)
 
     def log_action(
         self,
@@ -61,7 +74,7 @@ class AdminAuditRepository(BaseRepository):
         """
         try:
             audit_data = {
-                'admin_id': admin_id,
+                'user_id': admin_id,
                 'action_type': action_type,
             }
 
@@ -76,10 +89,12 @@ class AdminAuditRepository(BaseRepository):
                 audit_data['ip_address'] = ip_address
             if user_agent:
                 audit_data['user_agent'] = user_agent
+            # No request_path column: it rides in `changes` with the metadata.
+            changes = dict(metadata or {})
             if request_path:
-                audit_data['request_path'] = request_path
-            if metadata:
-                audit_data['metadata'] = metadata
+                changes.setdefault('request_path', request_path)
+            if changes:
+                audit_data['changes'] = changes
 
             # Use admin client to bypass RLS
             record = self.create(audit_data)
@@ -122,7 +137,7 @@ class AdminAuditRepository(BaseRepository):
             List of audit log records
         """
         try:
-            query = self.query().select('*').eq('admin_id', admin_id)
+            query = self.query().select(_SELECT).eq('user_id', admin_id)
 
             if organization_id:
                 query = query.eq('organization_id', organization_id)
@@ -163,7 +178,7 @@ class AdminAuditRepository(BaseRepository):
         """
         try:
             query = self.query()\
-                .select('*, users!admin_id(first_name, last_name, email)')\
+                .select(_SELECT_WITH_ADMIN)\
                 .eq('resource_type', resource_type)\
                 .eq('resource_id', resource_id)
 
@@ -207,7 +222,7 @@ class AdminAuditRepository(BaseRepository):
         """
         try:
             query = self.query()\
-                .select('*, users!admin_id(first_name, last_name, email)')\
+                .select(_SELECT_WITH_ADMIN)\
                 .eq('organization_id', organization_id)
 
             if start_date:
@@ -242,12 +257,12 @@ class AdminAuditRepository(BaseRepository):
             Dictionary with 'logs' and 'total' count
         """
         try:
-            query = self.query().select('*, users!admin_id(first_name, last_name, email)', count='exact')
+            query = self.query().select(_SELECT_WITH_ADMIN, count='exact')
 
             # Apply filters if provided
             if filters:
                 if filters.get('admin_id'):
-                    query = query.eq('admin_id', filters['admin_id'])
+                    query = query.eq('user_id', filters['admin_id'])
                 if filters.get('action_type'):
                     query = query.eq('action_type', filters['action_type'])
                 if filters.get('resource_type'):
@@ -293,7 +308,7 @@ class AdminAuditRepository(BaseRepository):
             since = datetime.utcnow() - timedelta(hours=hours)
 
             response = self.query()\
-                .select('*, users!admin_id(first_name, last_name, email)')\
+                .select(_SELECT_WITH_ADMIN)\
                 .gte('created_at', since.isoformat())\
                 .order('created_at', desc=True)\
                 .limit(limit)\

@@ -35,6 +35,9 @@ class AdminAuditService(BaseService):
         """
         super().__init__()
         self.audit_repo = AdminAuditRepository(user_id=user_id)
+        # admin client justified: admin_audit_logs accepts INSERT from service_role only (policy "System can insert audit logs"); the audit row is a system record written after the calling route's own admin gate, never user-supplied data
+        from database import get_supabase_admin_client
+        self._audit_writer = AdminAuditRepository(client=get_supabase_admin_client())
 
     def log_action(
         self,
@@ -71,7 +74,9 @@ class AdminAuditService(BaseService):
             request_path = request.path
 
             # Log the action
-            audit_log = self.audit_repo.log_action(
+            # The service-role writer: under the caller's own client RLS
+            # refused every insert (tickets 278abb85 / 453af49a / a7a33143).
+            audit_log = self._audit_writer.log_action(
                 admin_id=admin_id,
                 action_type=action_type,
                 resource_type=resource_type,
