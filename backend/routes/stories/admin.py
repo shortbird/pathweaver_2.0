@@ -8,6 +8,7 @@
 - POST /api/admin/stories/<id>/regenerate
 - POST /api/admin/stories/<id>/publish               - from review; 400 with blockers
 - POST /api/admin/stories/<id>/unpublish
+- PUT  /api/admin/stories/featured                   - the three the www home page shows
 - .../candidates/*                                   - routes/stories/candidates.py
 
 Superadmin only. A story carries a student's id and private evidence pointers,
@@ -268,9 +269,75 @@ def eligibility(user_id: str, completion_id: str):
 @bp.route('/', methods=['GET'])
 @require_superadmin
 def list_stories(user_id: str):
-    story_repo, _, _ = _repos()
+    story_repo, asset_repo, _ = _repos()
     rows = story_repo.list_all()
-    return success_response(data={'stories': [_serialize(r) for r in rows]})
+    samples = _samples(story_repo, asset_repo)
+    return success_response(data={'stories': [
+        {**_serialize(r), 'sample': samples.get(r.get('id'))} for r in rows]})
+
+
+def _samples(story_repo, asset_repo) -> Dict[str, Dict[str, Any]]:
+    """What each published story's home page card shows, keyed by story id.
+
+    Built from the same projection www reads, so the list previews the card a
+    visitor would see: the hero still or the student's quote, the dek, the
+    receipt. Only published stories have public media; a draft gets nothing
+    here and the editor is where it is read. Never fails the list.
+    """
+    try:
+        rows = story_repo.list_published()
+        grouped: Dict[str, List[Dict[str, Any]]] = {}
+        for asset in asset_repo.for_stories([r['id'] for r in rows]):
+            grouped.setdefault(asset.get('story_id'), []).append(asset)
+        out: Dict[str, Dict[str, Any]] = {}
+        for row in rows:
+            view = publish.public_view(row, grouped.get(row['id'], []))
+            items = next((sec.get('items') or [] for sec in view.get('sections') or []
+                          if sec.get('kind') == 'evidence'), [])
+            quote = next((i.get('text') for i in items if i.get('type') == 'quote' and i.get('text')), None)
+            out[row['id']] = {
+                'image_url': view.get('hero_image_url'),
+                'image_alt': view.get('hero_alt'),
+                'quote': quote[:240] if quote else None,
+                'dek': view.get('dek'),
+                'course': (view.get('receipt') or {}).get('course'),
+                'credit': (view.get('receipt') or {}).get('credit'),
+                'evidence_count': len(items),
+            }
+        return out
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f'Story list samples failed: {e}')
+        return {}
+
+
+FEATURED_SLOTS = 3
+
+
+@bp.route('/featured', methods=['PUT'])
+@require_superadmin
+def set_featured(user_id: str):
+    """Replace the home page lineup. Body: {"story_ids": [slot1, slot2, slot3]}.
+
+    Up to three published stories, in slot order. An empty list clears the
+    lineup; the home page then shows the newest three, as it did before.
+    """
+    raw = (request.get_json(silent=True) or {}).get('story_ids')
+    if not isinstance(raw, list) or len(raw) > FEATURED_SLOTS:
+        return error_response(code='VALIDATION_ERROR',
+                              message=f'Send story_ids as a list of up to {FEATURED_SLOTS}.', status=400)
+    story_ids = [_uuid_or_none(v, 'story_id') for v in raw]
+    if any(v is None for v in story_ids) or len(set(story_ids)) != len(story_ids):
+        return error_response(code='VALIDATION_ERROR',
+                              message='Each slot needs a different story.', status=400)
+    story_repo, _, _ = _repos()
+    for story_id in story_ids:
+        story = story_repo.get(story_id)
+        if not story or story.get('status') != 'published':
+            return error_response(code='VALIDATION_ERROR',
+                                  message='Only a published story can go on the home page.', status=400)
+    story_repo.set_featured(story_ids)
+    marketing_site.request_rebuild('stories_featured')
+    return success_response(data={'featured': story_ids})
 
 
 @bp.route('/<story_id>', methods=['GET'])

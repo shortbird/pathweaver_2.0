@@ -377,6 +377,8 @@ def unpublish(story_id: str, *, user_id: Optional[str] = None, reason: str = 'st
         'status': 'unpublished',
         'unpublished_at': now_iso(),
         'body': body,
+        # A story off the site gives up its home page slot.
+        'featured_rank': None,
     }
     if user_id:
         update['updated_by'] = user_id
@@ -678,6 +680,8 @@ def public_view(story: Dict[str, Any], assets: List[Dict[str, Any]],
         'hero_alt': (hero.get('alt') if hero else None) if still_url else None,
         'og_image_url': still_url,
         'source': {'type': story.get('source_type')},
+        # 1-3: the slot on the www home page. Null when not featured.
+        'featured_rank': story.get('featured_rank'),
     }
 
 

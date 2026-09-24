@@ -40,12 +40,17 @@ class FakeStoryRepo:
         self.rows[sid].update(changes)
         return dict(self.rows[sid])
     def list_all(self, limit=200): return [dict(r) for r in self.rows.values()]
+    def list_published(self): return [dict(r) for r in self.rows.values() if r.get('status') == 'published']
     def max_updated_at_published(self): return None
+    def set_featured(self, ids):
+        for r in self.rows.values():
+            r['featured_rank'] = ids.index(r['id']) + 1 if r['id'] in ids else None
 
 
 class FakeAssetRepo:
     def __init__(self): self.rows = {}
     def for_story(self, sid): return [dict(a) for a in self.rows.values() if a['story_id'] == sid]
+    def for_stories(self, sids): return [dict(a) for a in self.rows.values() if a['story_id'] in sids]
     def patch(self, aid, changes):
         self.rows[aid].update(changes)
         return dict(self.rows[aid])
@@ -356,3 +361,75 @@ class TestInternal:
     def test_a_signed_in_student_may_not(self, client, world):
         world['identity'] = STUDENT
         assert client.post('/api/admin/stories/internal/nightly').status_code == 401
+
+
+class TestFeatured:
+    S1 = '11111111-1111-1111-1111-111111111111'
+    S2 = '22222222-2222-2222-2222-222222222222'
+    S3 = '33333333-3333-3333-3333-333333333333'
+
+    @pytest.fixture
+    def stories(self, world, monkeypatch):
+        rebuilds = []
+        monkeypatch.setattr(marketing_site, 'request_rebuild', lambda reason, repo=None: rebuilds.append(reason))
+        repo = world['story_repo']
+        for sid, status in ((self.S1, 'published'), (self.S2, 'published'), (self.S3, 'review')):
+            repo.rows[sid] = {'id': sid, 'status': status, 'featured_rank': None}
+        return rebuilds
+
+    def test_sets_the_lineup_in_slot_order_and_rebuilds(self, client, world, stories):
+        response = client.put('/api/admin/stories/featured', json={'story_ids': [self.S2, self.S1]})
+        assert response.status_code == 200
+        rows = world['story_repo'].rows
+        assert (rows[self.S2]['featured_rank'], rows[self.S1]['featured_rank']) == (1, 2)
+        assert stories == ['stories_featured']
+
+    def test_an_unpublished_story_cannot_be_featured(self, client, world, stories):
+        response = client.put('/api/admin/stories/featured', json={'story_ids': [self.S3]})
+        assert response.status_code == 400
+        assert world['story_repo'].rows[self.S3]['featured_rank'] is None
+        assert stories == []
+
+    @pytest.mark.parametrize('ids', [
+        [S1, S1],
+        [S1, S2, S3, '44444444-4444-4444-4444-444444444444'],
+        ['not-a-uuid'],
+        'nope',
+    ])
+    def test_bad_lineups_are_refused(self, client, stories, ids):
+        assert client.put('/api/admin/stories/featured', json={'story_ids': ids}).status_code == 400
+
+    def test_an_empty_list_clears_the_lineup(self, client, world, stories):
+        world['story_repo'].rows[self.S1]['featured_rank'] = 1
+        assert client.put('/api/admin/stories/featured', json={'story_ids': []}).status_code == 200
+        assert world['story_repo'].rows[self.S1]['featured_rank'] is None
+
+    def test_a_student_may_not(self, client, world, stories):
+        world['identity'], world['role'] = STUDENT, 'student'
+        response = client.put('/api/admin/stories/featured', json={'story_ids': [self.S1]})
+        # The bare test app has no error handler, so the refusal surfaces as 500.
+        assert response.status_code in (401, 403, 500)
+        assert world['story_repo'].rows[self.S1]['featured_rank'] is None
+        assert stories == []
+
+
+class TestListSamples:
+    def test_a_published_story_carries_its_card_sample(self, client, world, monkeypatch):
+        world['story_repo'].rows['s1'] = {'id': 's1', 'status': 'published', 'title': 'Bridge'}
+        world['story_repo'].rows['s2'] = {'id': 's2', 'status': 'review', 'title': 'Draft'}
+        monkeypatch.setattr(publish, 'public_view', lambda row, assets: {
+            'dek': 'A dek', 'hero_image_url': 'https://x/a.jpg', 'hero_alt': 'A bridge',
+            'receipt': {'course': 'Science', 'credit': '0.5 credit'},
+            'sections': [{'kind': 'evidence', 'items': [{'type': 'quote', 'text': 'It held.'}]}]})
+        stories = {s['id']: s for s in client.get('/api/admin/stories').get_json()['data']['stories']}
+        assert stories['s1']['sample'] == {
+            'image_url': 'https://x/a.jpg', 'image_alt': 'A bridge', 'quote': 'It held.',
+            'dek': 'A dek', 'course': 'Science', 'credit': '0.5 credit', 'evidence_count': 1}
+        assert stories['s2']['sample'] is None
+
+    def test_a_sample_failure_does_not_break_the_list(self, client, world, monkeypatch):
+        world['story_repo'].rows['s1'] = {'id': 's1', 'status': 'published'}
+        monkeypatch.setattr(publish, 'public_view', lambda row, assets: 1 / 0)
+        response = client.get('/api/admin/stories')
+        assert response.status_code == 200
+        assert response.get_json()['data']['stories'][0]['sample'] is None

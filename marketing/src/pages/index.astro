@@ -9,17 +9,13 @@ import WascBadge from '../components/WascBadge.astro'
 import { SITE } from '../data/site'
 import { ORG_ID, WEBSITE_ID, academyNode, graph, organizationNode } from '../data/schema'
 import { testimonials } from '../data/testimonials'
-import { byNewest, cardProps, isPublished } from '../lib/stories'
+import { cardProps, homeLineup } from '../lib/stories'
 
 // The "It counted" strip shows real stories once there are three to show.
 // Until then the three stock receipts stay: never a thin strip, never a
-// fixture on the home page.
-const recentStories = (await getCollection('stories'))
-  .map((e) => e.data)
-  .filter(isPublished)
-  .sort(byNewest)
-  .slice(0, 3)
-  .map(cardProps)
+// fixture on the home page. The featured picks (admin Stories list) lead;
+// the newest fill any empty slot.
+const recentStories = homeLineup((await getCollection('stories')).map((e) => e.data)).map(cardProps)
 const showStories = recentStories.length >= 3
 
 const schema = [

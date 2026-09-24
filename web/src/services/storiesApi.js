@@ -72,6 +72,10 @@ export const storiesApi = {
   unpublish: (storyId) =>
     api.post(`/api/admin/stories/${storyId}/unpublish`, {}).then(unwrap),
 
+  /** The www home page lineup: up to three published story ids, slot order. */
+  setFeatured: (storyIds) =>
+    api.put('/api/admin/stories/featured', { story_ids: storyIds }).then(unwrap),
+
   consentFor: (studentUserId) =>
     api.get(`/api/admin/stories/consents/${studentUserId}`).then(unwrap),
 

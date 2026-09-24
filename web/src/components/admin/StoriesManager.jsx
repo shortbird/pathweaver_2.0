@@ -31,6 +31,108 @@ const SOURCE_LABELS = {
 
 const when = (iso) => (iso ? new Date(iso).toLocaleDateString() : '')
 
+const FEATURED_SLOTS = [1, 2, 3]
+
+/**
+ * The lineup after putting `storyId` in `slot` (or taking it out, slot 0).
+ * Whoever held the slot gives it up. Gaps close up, because the home page
+ * reads the ranks in order and fills what is left with the newest stories.
+ */
+export const nextLineup = (stories, storyId, slot) => {
+  const lineup = FEATURED_SLOTS.map(n => stories.find(s => s.featured_rank === n)?.id || null)
+    .map(id => (id === storyId ? null : id))
+  if (slot) lineup[slot - 1] = storyId
+  return lineup.filter(Boolean)
+}
+
+/**
+ * The three www shows, as marketing/src/lib/stories.ts `homeLineup` picks
+ * them: the featured stories in slot order, then the newest published ones
+ * in any slot nobody picked. Each carries `picked` so the panel can say which.
+ */
+export const homeLineup = (stories, count = 3) => {
+  const published = stories.filter(s => s.status === 'published')
+  const picked = published.filter(s => s.featured_rank)
+    .sort((a, b) => a.featured_rank - b.featured_rank)
+    .map(s => ({ story: s, picked: true }))
+  const newest = published.filter(s => !s.featured_rank)
+    .sort((a, b) => (b.published_at || '').localeCompare(a.published_at || ''))
+    .map(s => ({ story: s, picked: false }))
+  return [...picked, ...newest].slice(0, count)
+}
+
+/** Featured stories first, in slot order; the rest keep the API's order. */
+export const featuredFirst = (stories) => [
+  ...stories.filter(s => s.featured_rank).sort((a, b) => a.featured_rank - b.featured_rank),
+  ...stories.filter(s => !s.featured_rank),
+]
+
+/** What leads the story's card on www: the hero still, else the student's words. */
+const SampleThumb = ({ sample, className = 'w-16 h-16' }) => {
+  if (sample?.image_url) {
+    return (
+      <img
+        src={sample.image_url}
+        alt={sample.image_alt || ''}
+        loading="lazy"
+        className={`${className} shrink-0 rounded-lg object-cover bg-gray-100`}
+      />
+    )
+  }
+  if (sample?.quote) {
+    return (
+      <div className={`${className} shrink-0 rounded-lg bg-optio-purple/10 text-optio-purple text-[10px] leading-tight p-1.5 overflow-hidden`}>
+        &ldquo;{sample.quote}&rdquo;
+      </div>
+    )
+  }
+  return <div className={`${className} shrink-0 rounded-lg bg-gray-100`} aria-hidden="true" />
+}
+
+/** The home page strip as it will look after the next rebuild. */
+const HomeLineupPreview = ({ stories, onOpen }) => {
+  const lineup = homeLineup(stories)
+  if (lineup.length === 0) return null
+  return (
+    <div className="px-6 py-4 border-b bg-gray-50">
+      <h3 className="text-sm font-semibold text-gray-900 mb-3">On the home page</h3>
+      {lineup.length < 3 && (
+        <p className="text-xs text-gray-500 mb-3">
+          The home page needs three published stories. Until then it shows the stock examples.
+        </p>
+      )}
+      <div className="grid md:grid-cols-3 gap-4">
+        {lineup.map(({ story, picked }, i) => (
+          <button
+            key={story.id}
+            type="button"
+            onClick={() => onOpen(story.id)}
+            className="text-left bg-white border border-gray-200 rounded-xl overflow-hidden hover:border-optio-purple"
+          >
+            {story.sample?.image_url ? (
+              <img src={story.sample.image_url} alt={story.sample.image_alt || ''} loading="lazy"
+                   className="w-full h-36 object-cover bg-gray-100" />
+            ) : story.sample?.quote ? (
+              <div className="h-36 p-4 bg-optio-purple/10 text-optio-purple text-sm overflow-hidden">
+                &ldquo;{story.sample.quote}&rdquo;
+              </div>
+            ) : (
+              <div className="h-36 bg-gray-100" aria-hidden="true" />
+            )}
+            <div className="p-3 space-y-1">
+              <div className="text-xs font-medium text-gray-500">
+                Slot {i + 1} · {picked ? 'Picked' : 'Newest, not picked'}
+              </div>
+              <div className="font-medium text-gray-900 line-clamp-2">{story.title || 'Untitled'}</div>
+              {story.sample?.dek && <p className="text-xs text-gray-600 line-clamp-3">{story.sample.dek}</p>}
+            </div>
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 /**
  * Every story on www, and the ones that never got there.
  *
@@ -52,6 +154,24 @@ const StoriesManager = () => {
   const [showNew, setShowNew] = useState(false)
   const [newForm, setNewForm] = useState({ source_type: 'quest', source_id: '' })
   const [creating, setCreating] = useState(false)
+  const [savingFeatured, setSavingFeatured] = useState(false)
+
+  const setFeatured = async (storyId, slot) => {
+    const ids = nextLineup(stories, storyId, slot)
+    setSavingFeatured(true)
+    try {
+      await storiesApi.setFeatured(ids)
+      setStories(prev => prev.map(s => {
+        const i = ids.indexOf(s.id)
+        return { ...s, featured_rank: i === -1 ? null : i + 1 }
+      }))
+      toast.success('Home page updated. www rebuilds in a few minutes.')
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Could not update the home page')
+    } finally {
+      setSavingFeatured(false)
+    }
+  }
 
   useEffect(() => {
     let cancelled = false
@@ -91,7 +211,12 @@ const StoriesManager = () => {
 
       <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 px-6 py-4 border-b">
-          <h2 className="font-semibold text-gray-900">Stories</h2>
+          <div>
+            <h2 className="font-semibold text-gray-900">Stories</h2>
+            <p className="text-xs text-gray-500 mt-0.5">
+              Pick up to three for the www home page. Empty slots show the newest stories.
+            </p>
+          </div>
           <div className="flex items-center gap-3">
             <label className="sr-only" htmlFor="stories-status-filter">Filter by status</label>
             <select
@@ -114,6 +239,10 @@ const StoriesManager = () => {
             </button>
           </div>
         </div>
+
+        {!loading && (
+          <HomeLineupPreview stories={stories} onOpen={id => navigate(`/admin/stories/${id}`)} />
+        )}
 
         {showNew && (
           <form onSubmit={createDraft} className="px-6 py-4 border-b bg-gray-50 space-y-3" aria-label="New story">
@@ -165,25 +294,43 @@ const StoriesManager = () => {
                   <th className="px-3 py-2.5 font-medium">Source</th>
                   <th className="px-3 py-2.5 font-medium">Tier</th>
                   <th className="px-3 py-2.5 font-medium">Status</th>
+                  <th className="px-3 py-2.5 font-medium">Home page</th>
                   <th className="px-3 py-2.5 font-medium">Updated</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {stories.map(story => (
+                {featuredFirst(stories).map(story => (
                   <tr
                     key={story.id}
                     onClick={() => navigate(`/admin/stories/${story.id}`)}
                     className="hover:bg-gray-50 cursor-pointer"
                   >
                     <td className="px-6 py-3">
-                      <button
-                        type="button"
-                        onClick={(e) => { e.stopPropagation(); navigate(`/admin/stories/${story.id}`) }}
-                        className="font-medium text-gray-900 hover:text-optio-purple text-left"
-                      >
-                        {story.title || 'Untitled'}
-                      </button>
-                      {story.slug && <div className="text-xs text-gray-400 font-mono">{story.slug}</div>}
+                      <div className="flex gap-3 items-start max-w-xl">
+                        <SampleThumb sample={story.sample} />
+                        <div className="min-w-0">
+                          <button
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); navigate(`/admin/stories/${story.id}`) }}
+                            className="font-medium text-gray-900 hover:text-optio-purple text-left"
+                          >
+                            {story.title || 'Untitled'}
+                          </button>
+                          {story.sample?.dek && (
+                            <p className="text-xs text-gray-600 line-clamp-2 mt-0.5">{story.sample.dek}</p>
+                          )}
+                          {story.sample?.course && (
+                            <div className="text-xs text-gray-400 mt-0.5">
+                              {story.sample.course}
+                              {story.sample.credit && ` · ${story.sample.credit}`}
+                              {story.sample.evidence_count > 0 && ` · ${story.sample.evidence_count} ${story.sample.evidence_count === 1 ? 'piece' : 'pieces'} of evidence`}
+                            </div>
+                          )}
+                          {!story.sample && story.slug && (
+                            <div className="text-xs text-gray-400 font-mono">{story.slug}</div>
+                          )}
+                        </div>
+                      </div>
                     </td>
                     <td className="px-3 py-3 text-gray-700 whitespace-nowrap">
                       {SETTING_OPTIONS.find(o => o.value === story.setting)?.label || story.setting || ''}
@@ -198,6 +345,20 @@ const StoriesManager = () => {
                       {story.mode === 'review' && <span className="text-gray-400"> · review</span>}
                     </td>
                     <td className="px-3 py-3"><StoryStatusPill status={story.status} /></td>
+                    <td className="px-3 py-3" onClick={e => e.stopPropagation()}>
+                      {story.status === 'published' && (
+                        <select
+                          value={story.featured_rank || 0}
+                          disabled={savingFeatured}
+                          onChange={e => setFeatured(story.id, Number(e.target.value))}
+                          aria-label={`Home page slot for ${story.title || 'this story'}`}
+                          className="text-sm border border-gray-300 rounded-lg px-2 py-1 focus:ring-2 focus:ring-optio-purple focus:border-optio-purple"
+                        >
+                          <option value={0}>Not featured</option>
+                          {FEATURED_SLOTS.map(n => <option key={n} value={n}>Slot {n}</option>)}
+                        </select>
+                      )}
+                    </td>
                     <td className="px-3 py-3 text-gray-500 whitespace-nowrap">
                       {when(story.published_at || story.updated_at)}
                     </td>

@@ -128,6 +128,8 @@ export const storySchema = z.object({
     credit: z.string(),
     icon: z.enum(RECEIPT_ICONS),
   }),
+  /** 1-3: the story's slot on the home page, chosen in the admin Stories list. Absent before 2026-09-23. */
+  featured_rank: z.number().int().min(1).max(3).nullable().optional(),
   subject: z.string(),
   subject_slug: z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/),
   subject_split: z.array(z.object({ subject: z.string(), xp: z.number().int().nonnegative() })),

@@ -30,7 +30,7 @@ ADMIN_COLUMNS = (
     'activity_label, receipt, subject, subject_split, xp_awarded, credit_fraction, '
     'hero_asset_id, og_image_url, author_name, author_title, ai_draft, safety, '
     'blockers, concerns, published_at, unpublished_at, error, attempts, started_at, '
-    'created_by, updated_by, created_at, updated_at'
+    'featured_rank, created_by, updated_by, created_at, updated_at'
 )
 
 #: What the public projection needs. No student id, no source id, no AI notes.
@@ -38,13 +38,13 @@ PUBLIC_COLUMNS = (
     'id, slug, status, source_type, tier, title, dek, body, student_label, setting, '
     'grade_band, activity_slug, activity_label, receipt, subject, subject_split, '
     'xp_awarded, credit_fraction, hero_asset_id, og_image_url, author_name, '
-    'author_title, published_at, updated_at'
+    'author_title, featured_rank, published_at, updated_at'
 )
 
 LIST_COLUMNS = (
     'id, slug, status, source_type, source_id, student_user_id, tier, mode, title, '
     'subject, activity_slug, setting, student_label, published_at, unpublished_at, '
-    'blockers, error, created_at, updated_at'
+    'blockers, error, featured_rank, created_at, updated_at'
 )
 
 
@@ -144,6 +144,18 @@ class StoryRepository(BaseRepository):
         rows = self.client.table(self.table_name).update(changes).eq(
             'id', story_id).execute().data
         return rows[0] if rows else None
+
+    def set_featured(self, story_ids: List[str]) -> None:
+        """Make ``story_ids`` the home page lineup, first id in slot 1.
+
+        Clears every rank first: the unique index on featured_rank would
+        refuse a story moving into a slot another still holds.
+        """
+        self.client.table(self.table_name).update({'featured_rank': None}).not_.is_(
+            'featured_rank', 'null').execute()
+        for rank, story_id in enumerate(story_ids, start=1):
+            self.client.table(self.table_name).update({'featured_rank': rank}).eq(
+                'id', story_id).execute()
 
     def claim_generating(self, story_id: str, token: str, started_at: str) -> bool:
         """Take an unclaimed generating row. False means somebody else has it.

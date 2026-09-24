@@ -25,6 +25,19 @@ export const listingNoindex = (stories: Story[]) => stories.some((s) => !isPubli
 
 export const byNewest = (a: Story, b: Story) => b.published_at.valueOf() - a.published_at.valueOf()
 
+/**
+ * The three the home page shows: the featured picks in slot order, then the
+ * newest published stories in any slot nobody picked.
+ */
+export function homeLineup(stories: Story[], count = 3): Story[] {
+  const published = stories.filter(isPublished)
+  const picked = published
+    .filter((s) => s.featured_rank != null)
+    .sort((a, b) => (a.featured_rank ?? 0) - (b.featured_rank ?? 0))
+  const rest = published.filter((s) => s.featured_rank == null).sort(byNewest)
+  return [...picked, ...rest].slice(0, count)
+}
+
 export function subjectSlug(subject: string): string {
   return subject
     .toLowerCase()
