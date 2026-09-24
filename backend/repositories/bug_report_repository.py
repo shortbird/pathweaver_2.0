@@ -246,6 +246,28 @@ class BugReportRepository(BaseRepository):
             logger.error(f"Error looking up bug_report for sentry issue {sentry_key}: {e}")
             raise DatabaseError("Failed to look up bug report") from e
 
+    def find_latest_by_canary_token(self, token: str) -> Optional[Dict[str, Any]]:
+        """The newest ticket a canarytoken has filed, open or closed, if any.
+
+        Same contract as find_latest_by_sentry_issue, keyed by the token
+        stored in extra.canary_token. No index: a canary fires rarely, and a
+        busy one is noted on its open ticket, not re-inserted.
+        """
+        try:
+            response = (
+                self.client.table(self.table_name)
+                .select('id, status, resolved_at, triage_notes')
+                .eq('source', 'canary')
+                .eq('extra->>canary_token', token)
+                .order('created_at', desc=True)
+                .limit(1)
+                .execute()
+            )
+            return response.data[0] if response.data else None
+        except APIError as e:
+            logger.error(f"Error looking up bug_report for canary token: {e}")
+            raise DatabaseError("Failed to look up bug report") from e
+
     def append_triage_note(self, report_id: str, note: str) -> Dict[str, Any]:
         """Add a line to triage_notes without touching what is already there.
 

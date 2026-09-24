@@ -68,6 +68,7 @@ const seed = (ticket) => ({
 // What the reporter will (or did) hear, in one line under the resolution.
 const noticeLine = (ticket) => {
   if (ticket.source === 'sentry') return 'Sentry tickets never email anyone.'
+  if (ticket.source === 'canary') return 'Canarytoken tickets never email anyone.'
   if (!ticket.user_email) return 'No reporter email on this ticket, so nothing is sent.'
   if (ticket.reporter_notified_at) return `Reporter emailed ${formatWhen(ticket.reporter_notified_at)}.`
   if (ticket.notify_reporter === false) return 'Reporter will not be emailed.'
@@ -351,7 +352,7 @@ function TicketBody({ ticket }) {
               type="checkbox"
               checked={form.notify_reporter}
               onChange={(e) => set('notify_reporter')(e.target.checked)}
-              disabled={ticket.source === 'sentry' || !ticket.user_email || !!ticket.reporter_notified_at}
+              disabled={ticket.source === 'sentry' || ticket.source === 'canary' || !ticket.user_email || !!ticket.reporter_notified_at}
             />
             Email the reporter when this resolves
           </label>

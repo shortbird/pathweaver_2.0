@@ -43,6 +43,7 @@ All API keys and secrets are accessed via the `Config` class in `app_config.py`.
 | `FLASK_SECRET_KEY_OLD` | Previous JWT key during a key rotation cutover (M5) | `Config.JWT_PREVIOUS_SECRET_KEY` | Set to the prior `JWT_SECRET_KEY` value |
 | `TOKEN_VERSION` | Token version baked into JWT claims; bump to invalidate all tokens (M5) | `Config.TOKEN_VERSION` | Default `v1` |
 | `POE_SHOWCASE_KEY` | Link key for the unauthenticated POE 2026 pilot showcase (`/poe/showcase?key=...`). Unset = the page 404s; rotate to revoke every link already sent | `Config.POE_SHOWCASE_KEY` | Self-generated (`secrets.token_urlsafe(24)`) |
+| `CANARY_RECORD_IDS` | Comma-separated ids of honey records; a JSON response carrying one to a non-superadmin is reported to Sentry (`middleware/canary_watch.py`). Unset = watch off. Prod only; the records exist only in prod | `Config.CANARY_RECORD_IDS` | The ids of the honey rows created by hand in prod |
 | `SESSION_TIMEOUT_HOURS` | Absolute session lifetime (M5) | `Config.SESSION_TIMEOUT_HOURS` | Default `24` |
 | `BACKEND_URL` | Absolute backend URL for worker contexts (M5) | `Config.BACKEND_URL` | Default empty (uses `request.host_url`) |
 | `SPARK_SSO_SECRET` | Spark LMS JWT SSO secret (M5) | `Config.SPARK_SSO_SECRET` | Provided by Spark integration |
@@ -52,6 +53,7 @@ All API keys and secrets are accessed via the `Config` class in `app_config.py`.
 | `SENTRY_DSN` | Backend error tracking (Sentry project `shortbird/optio-backend`) | `Config.SENTRY_DSN` | Sentry > Project Settings > Client Keys; unset = Sentry disabled (local dev) |
 | `SENTRY_ENVIRONMENT` | Sentry environment tag (`production` / `development`) | `Config.SENTRY_ENVIRONMENT` | Set per Render service; falls back to `FLASK_ENV` |
 | `SENTRY_WEBHOOK_SECRET` | Verifies Sentry's signed issue-alert webhook (`Sentry-Hook-Signature`) that opens tickets in `bug_reports` via `/api/webhooks/sentry`. Unset = the endpoint refuses everything. Prod backend only | `Config.SENTRY_WEBHOOK_SECRET` | Sentry → Settings → Developer Settings → Internal Integrations → Optio Tickets → Client Secret |
+| `CANARY_WEBHOOK_SECRET` | Shared secret in the canarytokens.org webhook URL (`/api/webhooks/canary?key=...`); each canarytoken alert opens an urgent ticket. canarytokens.org cannot sign, so this is the whole gate. Unset = refused. Prod backend only | `Config.CANARY_WEBHOOK_SECRET` | Self-generated (`secrets.token_urlsafe(32)`) |
 | `ACCOUNT_DELETION_SWEEP_BATCH` | Accounts erased per daily deletion sweep | `Config.ACCOUNT_DELETION_SWEEP_BATCH` | Default `50`; a backlog drains over successive runs |
 | `TUTOR_RETENTION_ENABLED` | Enable the AI tutor conversation retention purge | `Config.TUTOR_RETENTION_ENABLED` | Default `false`. **Leave unset unless the purge is genuinely wanted** — `true` deletes real customer data on a timer |
 | `TUTOR_RETENTION_MONTHS` | Retention window for AI tutor chat history | `Config.TUTOR_RETENTION_MONTHS` | Default `12` |

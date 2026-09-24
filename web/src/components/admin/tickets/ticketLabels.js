@@ -75,6 +75,7 @@ export const formatClock = (iso) => {
 // detail view shows that under the name, not as the name.
 export const reporterName = (ticket) => {
   if (ticket.source === 'sentry') return 'Sentry'
+  if (ticket.source === 'canary') return 'Canarytoken'
   const u = ticket.users
   const full = u ? [u.first_name, u.last_name].filter(Boolean).join(' ').trim() : ''
   return full || u?.display_name || ticket.user_email || 'unknown'

@@ -411,6 +411,10 @@ def register_all(app):
     from routes.sentry_webhook import bp as sentry_webhook_bp
     app.register_blueprint(sentry_webhook_bp)
 
+    # ── Canarytoken alerts -> urgent tickets (URL-secret webhook) ─────────────
+    from routes.canary_webhook import bp as canary_webhook_bp
+    app.register_blueprint(canary_webhook_bp)
+
     # ── SIS (Student Information System) — microschool management console ──────
     from routes.sis import register_sis_routes
     register_sis_routes(app)

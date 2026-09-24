@@ -213,6 +213,9 @@ def why_not_notify(ticket: Dict[str, Any]) -> Optional[str]:
     """
     if (ticket.get('source') or '') == 'sentry':
         return 'sentry'
+    if (ticket.get('source') or '') == 'canary':
+        # A canarytoken alert has no reporter; nobody asked to hear back.
+        return 'canary'
     if not ticket.get('notify_reporter', True):
         return 'notify_reporter off'
     email = (ticket.get('user_email') or '').strip()

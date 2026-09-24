@@ -428,6 +428,11 @@ class Config:
     # URL. Set on the prod backend only; dev errors do not file tickets.
     SENTRY_WEBHOOK_SECRET = os.getenv('SENTRY_WEBHOOK_SECRET')
 
+    # Shared secret in the canarytokens.org webhook URL
+    # (/api/webhooks/canary?key=...). canarytokens.org does not sign its
+    # webhooks, so this is the whole authorization. Unset = refused.
+    CANARY_WEBHOOK_SECRET = os.getenv('CANARY_WEBHOOK_SECRET')
+
     # File upload paths (M5) — UPLOAD_FOLDER below is the global default;
     # this is the evidence-specific subfolder used by routes/evidence_documents.
     EVIDENCE_UPLOAD_FOLDER = os.getenv('EVIDENCE_UPLOAD_FOLDER', 'uploads/evidence')
@@ -671,6 +676,11 @@ class Config:
     # except the one deploy that is meant to serve the link. Rotate the value to
     # revoke every link already sent.
     POE_SHOWCASE_KEY = os.getenv('POE_SHOWCASE_KEY')
+
+    # Comma-separated ids of honey records (middleware/canary_watch.py). Kept
+    # out of the repository so reading the source does not reveal the trap.
+    # Unset => the watch is off.
+    CANARY_RECORD_IDS = os.getenv('CANARY_RECORD_IDS', '')
 
     @classmethod
     def validate(cls) -> None:

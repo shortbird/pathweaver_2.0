@@ -885,6 +885,9 @@ class EmailService(BaseService):
             if report.get('reporter_email'):
                 who += f" (affected user: {report['reporter_email']})"
             sender = 'Sentry'
+        elif (report.get('source') or '').lower() == 'canary':
+            who = 'Canarytokens (possible breach)'
+            sender = 'Canarytokens'
         else:
             who = f"{reporter}"
             if report.get('reporter_role'):

@@ -156,6 +156,10 @@ CSRF_EXEMPT_ENDPOINTS = frozenset({
     # internal integration's client secret (Sentry-Hook-Signature), checked in
     # constant time before anything is read.
     'sentry_webhook.sentry_webhook',
+    # Canarytoken alert webhook (opens an urgent ticket in bug_reports).
+    # Server-to-server, no session. canarytokens.org cannot sign, so it is
+    # gated by a shared secret in the URL, compared in constant time.
+    'canary_webhook.canary_webhook',
     # The ticket deploy sweep. Called by release.yml (GitHub Actions, no
     # session) once production serves a commit, and by the cron every ten
     # minutes; both carry X-Cron-Secret. A superadmin may also trigger it from

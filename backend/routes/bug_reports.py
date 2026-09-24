@@ -52,7 +52,7 @@ ALLOWED_STATUSES = set(ALL_STATUSES)
 ALLOWED_TYPES = {'bug', 'feature', 'question', 'tweak'}
 ALLOWED_PRIORITIES = {'low', 'normal', 'high', 'urgent'}
 # What a sender may claim about itself. 'perch' and 'hq' are set by hand and
-# 'sentry' by the webhook, never over this API.
+# 'sentry' and 'canary' by their webhooks, never over this API.
 CLIENT_SOURCES = {'mobile', 'web'}
 TITLE_MAX = 120
 

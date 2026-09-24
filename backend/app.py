@@ -22,6 +22,7 @@ from middleware.error_handler import error_handler
 from middleware.memory_monitor import memory_monitor
 from middleware.activity_tracker import activity_tracker
 from middleware.api_hold_gate import api_hold_gate
+from middleware.canary_watch import canary_watch
 
 # CSRF protection is mandatory in production. In development we still tolerate
 # a missing Flask-WTF install so contributors don't hit hard failures before
@@ -113,6 +114,10 @@ activity_tracker.init_app(app)
 # expressed once cannot be forgotten on the next route somebody adds. One
 # middleware for every hold; a new hold is a provider in its HOLDS table.
 api_hold_gate.init_app(app)
+
+# Reports any response that carries a honey record to someone who should never
+# see it. The ids live in CANARY_RECORD_IDS; unset means off.
+canary_watch.init_app(app)
 
 # Configure rate limit headers for all responses
 from middleware.rate_limiter import add_rate_limit_headers
