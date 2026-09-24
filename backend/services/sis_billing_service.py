@@ -1062,6 +1062,9 @@ def billing_ledger(org_id: str, month: Optional[str] = None) -> List[Dict[str, A
                 'external_ref': p.get('external_ref'),
                 'note': p.get('note'),
                 'recorded_at': p.get('recorded_at'),
+                # Ticket 03226ede: the receipt prints "Visa ending 4242".
+                'card_brand': p.get('card_brand'),
+                'card_last4': p.get('card_last4'),
             } for p in pays_by_inv.get(inv['id'], [])],
         })
     # Outstanding (balance > 0) first, then by soonest due date.
@@ -1141,10 +1144,52 @@ def _recompute_invoice_status(invoice_id: str) -> Dict[str, Any]:
     return resp.data[0]
 
 
+def _attach_card_details(record: Dict[str, Any], card: Optional[Dict[str, Optional[str]]]) -> None:
+    """Stamp a card payment's brand + last four onto its record, for the receipt.
+
+    iCreate, ticket 03226ede (2026-09-24): families turn receipts in for
+    reimbursement and need "method of payment (card/check) and last four
+    digits of card number". A separate, best-effort write on purpose: the
+    payment is already recorded and must stay recorded whatever happens here.
+    """
+    brand = ((card or {}).get('brand') or '').strip() or None
+    last4 = ((card or {}).get('last4') or '').strip() or None
+    if not (brand or last4):
+        return
+    try:
+        SisPaymentRecordRepository(client=_admin()).update(
+            record['id'], {'card_brand': brand, 'card_last4': last4})
+        record['card_brand'], record['card_last4'] = brand, last4
+    except Exception as e:  # noqa: BLE001 - never fail a recorded payment over a receipt detail
+        logger.warning(f"[SIS billing] could not store card details on payment {record['id'][:8]}: {e}")
+
+
+def card_details_from_intent(secret: Optional[str], payment_intent_id: Optional[str]) -> Dict[str, Optional[str]]:
+    """{'brand', 'last4'} of the card a Stripe PaymentIntent charged, or {}.
+    Best-effort: a receipt without the last four beats a payment not recorded."""
+    if not secret or not payment_intent_id or not str(payment_intent_id).startswith('pi_'):
+        return {}
+    try:
+        import stripe
+        intent = stripe.PaymentIntent.retrieve(payment_intent_id, api_key=secret,
+                                               expand=['latest_charge'])
+        # Subscripts, not .get(): a StripeObject is a dict on the stripe 9.x
+        # prod pins, but not on newer releases, which have no .get() at all.
+        charge = intent['latest_charge']
+        if not charge or isinstance(charge, str):  # not expanded: an id only
+            return {}
+        card = charge['payment_method_details']['card']
+        return {'brand': card['brand'], 'last4': card['last4']}
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f'[SIS billing] could not read card details for {payment_intent_id}: {e}')
+        return {}
+
+
 def record_payment(org_id: str, invoice_id: str, amount_cents: int,
                    method: Optional[str], external_ref: Optional[str],
                    installment_id: Optional[str], recorded_by: Optional[str],
-                   note: Optional[str] = None) -> Dict[str, Any]:
+                   note: Optional[str] = None,
+                   card: Optional[Dict[str, Optional[str]]] = None) -> Dict[str, Any]:
     inv = (
         _admin().table('sis_invoices').select('id')
         .eq('id', invoice_id).eq('organization_id', org_id).limit(1).execute()
@@ -1163,6 +1208,7 @@ def record_payment(org_id: str, invoice_id: str, amount_cents: int,
             'note': note,
         }).execute()
     ).data[0]
+    _attach_card_details(record, card)
     if installment_id:
         _admin().table('sis_installments').update(
             {'status': 'paid', 'paid_at': _now(), 'updated_at': _now()}
@@ -1746,6 +1792,8 @@ def payment_receipt(user_id: str, payment_id: str) -> Dict[str, Any]:
             'external_ref': pay.get('external_ref'),
             'recorded_at': pay.get('recorded_at'),
             'note': pay.get('note'),
+            'card_brand': pay.get('card_brand'),
+            'card_last4': pay.get('card_last4'),
         },
         'installment': installment,
         'payer': {'household_name': household.get('name'),
@@ -2044,7 +2092,8 @@ def settle_invoice_from_stripe(invoice: Dict[str, Any],
             # is the family; attributing it to a staff member would be a lie in
             # the audit trail.
             recorded_by=recorded_by,
-            note='Online card payment (Stripe)')
+            note='Online card payment (Stripe)',
+            card=card_details_from_intent(secret, pi))
         _audit(org_id, invoice_id, recorded_by, 'online_payment',
                {'session_id': sid, 'amount_cents': amount_total})
         return {'paid': True, 'payment': result.get('payment'), 'invoice': result.get('invoice')}
@@ -2282,6 +2331,7 @@ def confirm_family_payment(user_id: str, household_id: str) -> Dict[str, Any]:
         # whole base, so that is what it has to be allocated over.
         fee_base = int(md.get('fee_base_cents') or base_total)
         covered = [i for i in invoices if sid in (i.get('stripe_session_ids') or [])]
+        card = card_details_from_intent(secret, pi)
         recorded = 0
         for inv in covered:
             base = amount_due_cents(inv)
@@ -2298,7 +2348,7 @@ def confirm_family_payment(user_id: str, household_id: str) -> Dict[str, Any]:
                 _apply_processing_fee(org_id, inv['id'], fee_share)
             record_payment(org_id, inv['id'], amount_cents=base + fee_share, method='card',
                            external_ref=ext, installment_id=None, recorded_by=user_id,
-                           note='Online card payment — whole family (Stripe)')
+                           note='Online card payment — whole family (Stripe)', card=card)
             _audit(org_id, inv['id'], user_id, 'online_payment',
                    {'session_id': sid, 'amount_cents': base + fee_share, 'family': True})
             recorded += 1
@@ -2671,7 +2721,8 @@ def _charge_installment(org_id: str, plan: Dict[str, Any], installment: Dict[str
         return {'status': 'charged', 'payment_intent': intent.get('id'), 'replayed': True}
     record_payment(org_id, invoice_id, amount_cents=amount, method='card',
                    external_ref=intent.get('id'), installment_id=installment['id'],
-                   recorded_by=recorded_by, note='Auto-charge (Stripe)')
+                   recorded_by=recorded_by, note='Auto-charge (Stripe)',
+                   card={'brand': saved_pm.get('card_brand'), 'last4': saved_pm.get('card_last4')})
     _admin().table('sis_installments').update({
         'charge_attempts': attempts, 'last_attempt_at': now, 'last_error': None, 'updated_at': now,
     }).eq('id', installment['id']).execute()
@@ -3265,5 +3316,6 @@ def charge_invoice_off_session(org_id: str, invoice: Dict[str, Any],
     record_payment(org_id, invoice['id'], amount_cents=amount, method='card',
                    external_ref=intent.get('id'), installment_id=None,
                    recorded_by=saved_pm.get('guardian_user_id'),
-                   note='Monthly tuition (auto-charge)')
+                   note='Monthly tuition (auto-charge)',
+                   card={'brand': saved_pm.get('card_brand'), 'last4': saved_pm.get('card_last4')})
     return {'status': 'charged', 'payment_intent': intent.get('id'), 'amount_cents': amount}

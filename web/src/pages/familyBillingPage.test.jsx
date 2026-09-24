@@ -218,6 +218,42 @@ describe('FamilyBillingPage', () => {
     await waitFor(() => expect(window.print).toHaveBeenCalled())
   })
 
+  // iCreate, ticket 03226ede (2026-09-24): families turn receipts in for
+  // reimbursement and need "method of payment (card/check) and last four
+  // digits of card number if paid by card".
+  it('prints the card and its last four on a card receipt, and in the payment list', async () => {
+    const card = { id: 'pay1', amount_cents: 50000, method: 'card', card_brand: 'visa',
+      card_last4: '4242', external_ref: 'pi_1', recorded_at: '2026-07-05T00:00:00Z' }
+    const base = api.get.getMockImplementation()
+    api.get.mockImplementation((url) => {
+      if (url.includes('/api/sis/parent/billing/receipts/')) {
+        return base(url).then((r) => ({ data: { receipt: { ...r.data.receipt, payment: card } } }))
+      }
+      if (url.includes('/api/sis/parent/billing')) {
+        return Promise.resolve({ data: { households: [{ ...HOUSEHOLD, payments: [card] }] } })
+      }
+      return base(url)
+    })
+    try {
+      render(<FamilyBillingPage />)
+      expect(await screen.findByText(/Card \(Visa ending 4242\)/)).toBeInTheDocument()
+      fireEvent.click(await screen.findByText('Print receipt'))
+      expect(await screen.findByText('RECEIPT')).toBeInTheDocument()
+      const method = screen.getByText('Method').closest('tr')
+      expect(within(method).getByText('Card (Visa ending 4242)')).toBeInTheDocument()
+    } finally {
+      api.get.mockImplementation(base)
+    }
+  })
+
+  it('prints a non-card method by its name on the receipt', async () => {
+    render(<FamilyBillingPage />)
+    fireEvent.click(await screen.findByText('Print receipt'))
+    expect(await screen.findByText('RECEIPT')).toBeInTheDocument()
+    const method = screen.getByText('Method').closest('tr')
+    expect(within(method).getByText('Zelle')).toBeInTheDocument()
+  })
+
   it('prints a statement with a running balance', async () => {
     render(<FamilyBillingPage />)
     fireEvent.click(await screen.findByText('Print statement'))

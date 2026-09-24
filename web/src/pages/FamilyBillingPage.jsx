@@ -4,6 +4,7 @@ import api from '../services/api'
 import Button from '../components/ui/Button'
 import { ChevronDownIcon, CreditCardIcon, PencilSquareIcon } from '@heroicons/react/24/outline'
 import { formatCents as money } from '../utils/money'
+import { methodLabel } from './sis/billingPage/payLabel'
 
 /**
  * Billing — a family's account balance with their school: invoices (line items
@@ -172,7 +173,7 @@ const ReceiptPrintView = ({ receipt }) => (
         )}
         <tr><td style={{ padding: '4px 0', color: '#555' }}>Payment date</td><td style={{ textAlign: 'right' }}>{shortDate(receipt.payment?.recorded_at)}</td></tr>
         <tr><td style={{ padding: '4px 0', color: '#555' }}>Amount paid</td><td style={{ textAlign: 'right', fontWeight: 'bold' }}>{money(receipt.payment?.amount_cents)}</td></tr>
-        <tr><td style={{ padding: '4px 0', color: '#555' }}>Method</td><td style={{ textAlign: 'right' }}>{receipt.payment?.method || '—'}</td></tr>
+        <tr><td style={{ padding: '4px 0', color: '#555' }}>Method</td><td style={{ textAlign: 'right' }}>{receipt.payment?.method ? methodLabel(receipt.payment) : '—'}</td></tr>
         {receipt.funding_source && (
           <tr><td style={{ padding: '4px 0', color: '#555' }}>Funding source</td><td style={{ textAlign: 'right' }}>{FUNDING_LABELS[receipt.funding_source] || receipt.funding_source}</td></tr>
         )}
@@ -222,7 +223,7 @@ const StatementPrintView = ({ household }) => {
       charge: i.total_cents || 0, credit: 0, key: `inv-${i.id}`,
     })),
     ...(household.payments || []).map((p) => ({
-      date: p.recorded_at, label: `Payment${p.method ? ` (${p.method})` : ''}${p.external_ref ? ` ref ${p.external_ref}` : ''}`,
+      date: p.recorded_at, label: `Payment${p.method ? ` (${methodLabel(p)})` : ''}${p.external_ref ? ` ref ${p.external_ref}` : ''}`,
       charge: 0, credit: p.amount_cents || 0, key: `pay-${p.id}`,
     })),
   ].sort((a, b) => String(a.date || '').localeCompare(String(b.date || '')))
@@ -738,7 +739,7 @@ const FamilyBillingPage = () => {
               <div key={p.id} className="flex items-center justify-between gap-3 px-4 py-3">
                 <div className="min-w-0 text-sm">
                   <span className="font-medium text-gray-900">{money(p.amount_cents)}</span>
-                  <span className="text-gray-500"> · {shortDate(p.recorded_at)}{p.method ? ` · ${p.method}` : ''}{p.external_ref ? ` · ref ${p.external_ref}` : ''}</span>
+                  <span className="text-gray-500"> · {shortDate(p.recorded_at)}{p.method ? ` · ${methodLabel(p)}` : ''}{p.external_ref ? ` · ref ${p.external_ref}` : ''}</span>
                 </div>
                 <Button size="sm" variant="secondary" onClick={() => printReceipt(p.id)}>Print receipt</Button>
               </div>
