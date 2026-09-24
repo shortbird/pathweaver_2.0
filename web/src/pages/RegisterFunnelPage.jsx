@@ -39,7 +39,7 @@ import useRegistrationQuote, { quoteRegistration, quoteByCode } from '../hooks/a
 //               "Book appointment" button), so this page never has to be found again.
 import {
   EMAIL_RE, isoToMdy, emptyKid, emptyContact, restoreContact, trimStr, mergeAutofilledFields,
-  FAMILY_INPUT_NAMES, firstQuestionError, firstDestinationError, PHOTO_TIPS,
+  FAMILY_INPUT_NAMES, firstQuestionError, firstDestinationError, PHOTO_TIPS, directoryDefaults, withDirectoryAnswers,
 } from './registerFunnel/funnelFields'
 // One component per step. The page owns the state -- a wizard's state genuinely
 // crosses its steps, and `kids` alone is read by four of them -- and each step
@@ -198,7 +198,7 @@ const RegisterFunnelPage = () => {
               name: c.name || '', relationship: c.relationship || '', phone: c.phone || '', email: c.email || '',
             })))
           }
-          if (Object.keys(regData.answers || {}).length) setAnswers(regData.answers)
+          setAnswers(withDirectoryAnswers(regData.answers || {}, r.data, directoryDefaults(regData.household)))
           if (Object.keys(regData.records_destinations || {}).length) {
             setDestinations(Object.fromEntries(
               Object.entries(regData.records_destinations).map(([id, d]) => [id, {
@@ -328,7 +328,7 @@ const RegisterFunnelPage = () => {
     if (status === 'family' || status === 'details') {
       const draftContacts = (d.contacts || []).filter((c) => (c.name || '').trim() || (c.phone || '').trim())
       if (draftContacts.length) setContacts(draftContacts.map(restoreContact))
-      if (d.answers && Object.keys(d.answers).length) setAnswers(d.answers)
+      if (d.answers && Object.keys(d.answers).length) setAnswers((a) => ({ ...a, ...d.answers }))
     }
   }
 
@@ -627,7 +627,7 @@ const RegisterFunnelPage = () => {
           name: trimStr(c.name), relationship: c.relationship || '', phone: trimStr(c.phone),
           email: trimStr(c.email),
         })),
-        answers,
+        answers: withDirectoryAnswers(answers, config),
       })
       if (recordsApply) setStep('records')
       else if ((config.paperwork || []).length) setStep('paperwork')

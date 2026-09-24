@@ -87,6 +87,7 @@ from middleware.rate_limiter import rate_limit
 from utils.auth.decorators import require_auth
 from utils.validation import sanitize_input
 from utils.registration_config import get_registration_config
+from modules.enabled import module_enabled, module_enabled_for_row
 from services import academy_enrollment_service as academy_enrollment
 from services import sis_attach_service
 from services import emergency_contacts_service as emergency_contacts
@@ -239,6 +240,10 @@ def _public_config(org, cfg, paperwork_urls=None):
         # What the family ticks to make a typed name a signature -- the same
         # sentence the server records against it (SignatureCapture, M9).
         'signature_statement': SIGNATURE_STATEMENT,
+        # Built-in family-directory questions (2026-09-24): list the family,
+        # and are they open to carpooling. Asked only where the school runs the
+        # directory (the community module), since that is where both show.
+        'directory_questions': module_enabled_for_row(org, 'community'),
         'questions': [
             {'key': q.get('key'), 'label': q.get('label'), 'help': q.get('help') or '',
              'type': q.get('type') or 'select', 'options': q.get('options') or [],
@@ -415,7 +420,8 @@ def my_registration(user_id):
 
     # Household address/phone (for prefilling the family step on back-edit).
     hh_rows = (admin.table('households')
-               .select('phone, address_line1, address_line2, city, state, postal_code')
+               .select('phone, address_line1, address_line2, city, state, postal_code, '
+                       'directory_opt_in, directory_opted_out, carpool_interest')
                .eq('organization_id', reg['organization_id'])
                .eq('primary_contact_user_id', user_id).limit(1).execute()).data or []
     household = hh_rows[0] if hh_rows else None
@@ -922,6 +928,15 @@ def submit_details(reg_id):
     if any('utah fits all' in str(x).lower() for x in pi_vals if x) and ufa_val in ('yes', 'no'):
         answers['ufa_private'] = 'Yes' if ufa_val == 'yes' else 'No'
 
+    # Built-in directory questions, same idea: not org-configured, so kept here
+    # by hand. Only where the school runs the directory, and only a real
+    # true/false -- a missing answer changes nothing on the family.
+    directory = {}
+    if module_enabled(reg['organization_id'], 'community'):
+        for key in ('directory_listed', 'carpool_interest'):
+            if isinstance(raw_answers.get(key), bool):
+                directory[key] = answers[key] = raw_answers[key]
+
     # Validate + store emergency contacts (snapshot on the registration, and real
     # emergency_contacts rows per kid so staff see them in the SIS immediately).
     raw_contacts = body.get('emergency_contacts') or []
@@ -961,8 +976,33 @@ def submit_details(reg_id):
     }).eq('id', reg_id).execute()
 
     _sync_household_payment(admin, reg, answers)
+    _sync_household_directory(reg, directory)
 
     return jsonify({'success': True, 'status': next_status}), 200
+
+
+def _sync_household_directory(reg, directory):
+    """Put the family's directory answers on the family.
+
+    Unlike the payment fields, this is the family's own choice about itself,
+    so it is written every time -- re-submitting the step is changing their
+    mind -- and it is the same write Family Settings makes, which records an
+    opt-out explicitly so it outlasts the school's default (iCreate lists
+    families by default from 2026-09-24).
+    """
+    if 'directory_listed' not in directory and 'carpool_interest' not in directory:
+        return
+    from services import sis_parent_service
+    try:
+        listed = directory.get('directory_listed', True)
+        shares = ({'carpool_interest': directory['carpool_interest']}
+                  if 'carpool_interest' in directory else None)
+        result = sis_parent_service.set_directory_opt_in(
+            reg['parent_user_id'], reg['organization_id'], listed, shares=shares)
+        if result.get('error'):
+            logger.warning(f'registration details: no household for directory answers on {reg["id"]}')
+    except Exception as e:  # noqa: BLE001 -- never fail a registration over this
+        logger.warning(f'registration details: directory sync failed for {reg["id"]}: {e}')
 
 
 def _sync_household_payment(admin, reg, answers):

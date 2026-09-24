@@ -137,3 +137,24 @@ export const PHOTO_TIPS = "That photo didn't come through. On iPhones this usual
   + 'photo has to download from iCloud first. Try taking a new photo with the camera '
   + 'instead of choosing from your library, connect to Wi-Fi and try again, or finish '
   + 'this form on a computer — your progress is saved.'
+
+// The family-directory questions on the details step (2026-09-24): listed in
+// the school's directory unless they untick it, and not carpooling unless
+// they tick it. A returning family starts from what it already chose -- an
+// explicit opt-out stays out -- so re-registering never quietly relists them.
+export const directoryDefaults = (household) => ({
+  directory_listed: !household?.directory_opted_out,
+  carpool_interest: household?.carpool_interest === true,
+})
+
+// The answers to send: what the family ticked, else the defaults. Only where
+// the school asks (config.directory_questions); otherwise untouched.
+export const withDirectoryAnswers = (answers, config, defaults) => {
+  if (!config?.directory_questions) return answers
+  const d = defaults || directoryDefaults(null)
+  return {
+    ...answers,
+    directory_listed: typeof answers?.directory_listed === 'boolean' ? answers.directory_listed : d.directory_listed,
+    carpool_interest: typeof answers?.carpool_interest === 'boolean' ? answers.carpool_interest : d.carpool_interest,
+  }
+}

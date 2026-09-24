@@ -3,7 +3,7 @@
 // why this step needs serverKids and not just the local `kids` rows.
 import React from 'react'
 import { field, QuestionField, Section, PrimaryButton } from '../../components/registration/funnelUi'
-import { CONTACT_RELATIONSHIPS, emptyContact } from './funnelFields'
+import { CONTACT_RELATIONSHIPS, emptyContact, withDirectoryAnswers } from './funnelFields'
 
 const DetailsStep = ({ answers, config, contacts, kids, previewMode, serverKids, setAnswers, setContact, setContacts, submitDetails, submitting }) => (
   <div className="space-y-6">
@@ -84,6 +84,43 @@ const DetailsStep = ({ answers, config, contacts, kids, previewMode, serverKids,
                 </div>
               </div>
             ))}
+          </div>
+        </Section>
+      )
+    })()}
+
+    {config.directory_questions && (() => {
+      // Tanner, 2026-09-24: carpool question plus the directory opt-out, the
+      // directory ticked by default. What shows is what will be sent.
+      const d = withDirectoryAnswers(answers, config)
+      const school = config.organization?.name || 'the school'
+      return (
+        <Section title="Family directory"
+          subtitle={`Other ${school} families and staff can find each other here. You can change this any time in Family Settings.`}>
+          <div className="space-y-4">
+            <label className="flex items-start gap-3 cursor-pointer">
+              <input type="checkbox" checked={d.directory_listed}
+                onChange={(e) => setAnswers((a) => ({ ...a, directory_listed: e.target.checked }))}
+                className="mt-1 h-4 w-4 rounded border-gray-300 text-optio-purple focus:ring-optio-purple" />
+              <span className="text-sm text-neutral-800">
+                List our family in the directory
+                <span className="block text-xs text-neutral-500">
+                  Shows your family name, parent names and emails, family phone, city, and your
+                  children&apos;s first names. Untick to leave your family out.
+                </span>
+              </span>
+            </label>
+            <label className="flex items-start gap-3 cursor-pointer">
+              <input type="checkbox" checked={d.carpool_interest}
+                onChange={(e) => setAnswers((a) => ({ ...a, carpool_interest: e.target.checked }))}
+                className="mt-1 h-4 w-4 rounded border-gray-300 text-optio-purple focus:ring-optio-purple" />
+              <span className="text-sm text-neutral-800">
+                We&apos;re open to carpooling
+                <span className="block text-xs text-neutral-500">
+                  Other families can find you to share rides, and the school can help connect you.
+                </span>
+              </span>
+            </label>
           </div>
         </Section>
       )

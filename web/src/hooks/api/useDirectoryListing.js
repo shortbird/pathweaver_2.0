@@ -20,6 +20,7 @@ const shape = (d = {}) => ({
   share_email: d.share_email !== false,
   share_phone: d.share_phone !== false,
   share_address: d.share_address === true,
+  carpool_interest: d.carpool_interest === true,
 })
 
 export function useDirectoryListing(orgId) {
@@ -37,9 +38,9 @@ export function useDirectoryListing(orgId) {
 
 /**
  * Save the listing, optimistically: the switch moves on the click and goes
- * back if the save fails. Never sends carpool_interest -- the backend writes
- * only the keys it is given, and the carpool flag belongs to the directory
- * page, which keeps it.
+ * back if the save fails. Sends carpool_interest too: the carpool checkbox
+ * sits beside the switch in Family Settings as well as on the directory page
+ * (2026-09-24), and both write the same household flag.
  */
 export function useSaveDirectoryListing(orgId) {
   const queryClient = useQueryClient()
@@ -50,6 +51,7 @@ export function useSaveDirectoryListing(orgId) {
       share_email: next.share_email,
       share_phone: next.share_phone,
       share_address: next.share_address,
+      carpool_interest: next.carpool_interest,
     }),
     onMutate: async (next) => {
       await queryClient.cancelQueries({ queryKey: key })

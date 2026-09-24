@@ -13,13 +13,12 @@ import { useDirectoryListing, useSaveDirectoryListing } from '../../hooks/api/us
  * And preferably put this in a more hidden place (Like settings.) Carpool
  * message can remain on top." Opt-out was already a per-school setting
  * (sis_settings.directory_default_in), so the default is untouched; what moved
- * is the control. The carpool checkbox stays on the directory page, where the
- * carpool filter is.
+ * is the control. The carpool checkbox is on the directory page, where the
+ * carpool filter is, and -- since 2026-09-24 -- here beside the switch too, so
+ * a family setting up its listing sees it (Tanner: "add carpool checkbox in
+ * family settings next to the directory switch"). Both write the same flag.
  *
- * Saves with the same endpoint the page used (hooks/api/useDirectoryListing),
- * and never sends carpool_interest: the backend writes only the keys it is
- * given, so leaving it out keeps whatever the family chose on the directory
- * page.
+ * Saves with the same endpoint the page used (hooks/api/useDirectoryListing).
  */
 
 /** The schools where this person is a guardian and the directory is on. */
@@ -91,6 +90,22 @@ const DirectoryListingSettings = ({ orgs }) => {
               <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${status.optedIn ? 'translate-x-5' : 'translate-x-0.5'}`} />
             </button>
           </div>
+          {status.optedIn && (
+            <label className="mt-3 pt-3 border-t border-gray-100 flex items-start gap-2 text-base text-gray-700 cursor-pointer">
+              <input
+                type="checkbox" checked={Boolean(status.carpool_interest)}
+                onChange={() => save({ ...status, carpool_interest: !status.carpool_interest },
+                  status.carpool_interest ? 'Carpool preference saved' : 'Other families can see you are open to carpooling')}
+                className="mt-1 rounded border-gray-300 text-optio-purple focus:ring-optio-purple"
+              />
+              <span>
+                We&apos;re open to carpooling
+                <span className="block text-sm text-gray-500">
+                  Other families can filter the directory for this and reach out to share a ride.
+                </span>
+              </span>
+            </label>
+          )}
           {status.optedIn && (
             <div className="mt-3 pt-3 border-t border-gray-100 flex flex-wrap gap-x-5 gap-y-2">
               {SHARES.map(([key, label]) => (

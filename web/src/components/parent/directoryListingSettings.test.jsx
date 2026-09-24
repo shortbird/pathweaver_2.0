@@ -11,12 +11,14 @@ import FamilySettingsModal from './FamilySettingsModal'
  * iCreate, 2d456409 (2026-09-22): "I really wanted the directory to be opt OUT
  * instead of opt in. And preferably put this in a more hidden place (Like
  * settings.) Carpool message can remain on top." The listing switch and the
- * sharing checkboxes moved off /family-directory into a Directory tab here;
- * the carpool checkbox stayed on the directory page.
+ * sharing checkboxes moved off /family-directory into a Directory tab here.
+ * The carpool checkbox stayed on the directory page, and since 2026-09-24 it
+ * is here too, beside the switch (Tanner: "add carpool checkbox in family
+ * settings next to the directory switch").
  *
  * What has to hold: the tab exists only for a guardian whose school runs the
  * directory, it shows what the family SAVED (not the defaults), and a change
- * saves without touching the carpool flag it no longer shows.
+ * saves with the rest of the saved values, carpool included.
  */
 
 const { api } = vi.hoisted(() => ({ api: { get: vi.fn(), put: vi.fn(), post: vi.fn() } }))
@@ -100,8 +102,8 @@ describe('the Directory tab of Family Settings (2d456409)', () => {
     expect(screen.getByRole('checkbox', { name: 'Parent emails' })).not.toBeChecked()
     expect(screen.getByRole('checkbox', { name: 'Family phone' })).toBeChecked()
     expect(screen.getByRole('checkbox', { name: 'Street address' })).toBeChecked()
-    // Carpool stays on the directory page ("Carpool message can remain on top").
-    expect(screen.queryByRole('checkbox', { name: /carpool/i })).not.toBeInTheDocument()
+    // Carpool sits beside the switch now (2026-09-24), showing the saved flag.
+    expect(screen.getByRole('checkbox', { name: /open to carpooling/i })).toBeChecked()
   })
 
   it('says students are not the audience any more (82485501)', async () => {
@@ -110,13 +112,16 @@ describe('the Directory tab of Family Settings (2d456409)', () => {
     expect(screen.queryByText(/students/i)).not.toBeInTheDocument()
   })
 
-  it('saves a sharing change with the rest of the saved values, and leaves carpool alone', async () => {
+  it('saves a sharing change with the rest of the saved values, carpool unchanged', async () => {
     renderModal({ initialTab: 'directory' })
     await userEvent.click(await screen.findByRole('checkbox', { name: 'Parent emails' }))
     await waitFor(() => expect(api.put).toHaveBeenCalled())
     const [url, body] = api.put.mock.calls[0]
     expect(url).toBe('/api/sis/parent/directory/opt-in?organization_id=org-1')
-    expect(body).toEqual({ opted_in: true, share_email: true, share_phone: true, share_address: true })
+    // carpool_interest now travels with every save (the tab shows it), and
+    // carries the saved value, so a sharing change cannot flip it.
+    expect(body).toEqual({ opted_in: true, share_email: true, share_phone: true, share_address: true,
+                           carpool_interest: true })
     expect(screen.getByRole('checkbox', { name: 'Parent emails' })).toBeChecked()
   })
 
@@ -128,6 +133,26 @@ describe('the Directory tab of Family Settings (2d456409)', () => {
     expect(screen.getByRole('switch')).toHaveAttribute('aria-checked', 'false')
     // Nothing to choose about a listing that is not shown.
     expect(screen.queryByRole('checkbox', { name: 'Parent emails' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('checkbox', { name: /open to carpooling/i })).not.toBeInTheDocument()
+  })
+
+  it('saves the carpool checkbox beside the switch', async () => {
+    saved = { ...saved, carpool_interest: false }
+    renderModal({ initialTab: 'directory' })
+    const box = await screen.findByRole('checkbox', { name: /open to carpooling/i })
+    expect(box).not.toBeChecked()
+    await userEvent.click(box)
+    await waitFor(() => expect(api.put).toHaveBeenCalled())
+    expect(api.put.mock.calls[0][1]).toEqual({ opted_in: true, share_email: false, share_phone: true,
+                                              share_address: true, carpool_interest: true })
+    expect(screen.getByRole('checkbox', { name: /open to carpooling/i })).toBeChecked()
+  })
+
+  it('reads a family that never answered carpool as not open to it', async () => {
+    const { carpool_interest: _omit, ...rest } = saved
+    saved = rest
+    renderModal({ initialTab: 'directory' })
+    expect(await screen.findByRole('checkbox', { name: /open to carpooling/i })).not.toBeChecked()
   })
 
   it('puts the switch back if the save fails', async () => {
