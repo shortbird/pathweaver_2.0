@@ -134,6 +134,7 @@ def main() -> int:
     svc = UploadScreenEval()
     failures = 0
     for name, expected, blob, *want_kinds in CASES:
+        assert isinstance(blob, bytes)
         part = load_image_bytes(blob, 'IMG_1616.jpeg', 'image/jpeg')
         if part is None:
             failures += 1

@@ -273,7 +273,7 @@ def list_stories(user_id: str):
     rows = story_repo.list_all()
     samples = _samples(story_repo, asset_repo)
     return success_response(data={'stories': [
-        {**_serialize(r), 'sample': samples.get(r.get('id'))} for r in rows]})
+        {**(_serialize(r) or {}), 'sample': samples.get(r.get('id'))} for r in rows]})
 
 
 def _samples(story_repo, asset_repo) -> Dict[str, Dict[str, Any]]:

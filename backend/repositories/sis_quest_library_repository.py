@@ -154,9 +154,10 @@ class SisQuestLibraryRepository(BaseRepository):
         seen = set()
         for i in range(0, len(org_ids), 200):
             chunk = org_ids[i:i + 200]
-            rows = fetch_all_rows(
-                lambda chunk=chunk: self.client.table('user_quests').select('id, user_id')
-                .eq('quest_id', quest_id).in_('user_id', chunk))
+            def holders_page(ids: List[str] = chunk) -> Any:
+                return (self.client.table('user_quests').select('id, user_id')
+                        .eq('quest_id', quest_id).in_('user_id', ids))
+            rows = fetch_all_rows(holders_page)
             for r in rows:
                 if r['user_id'] not in seen:
                     seen.add(r['user_id'])
