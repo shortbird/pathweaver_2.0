@@ -398,3 +398,57 @@ def task_schedule_grid(user_id, schedule_id):
     if result.get('error'):
         return jsonify({'success': False, 'error': result['error']}), result.get('status', 400)
     return jsonify({'success': True, **result})
+
+
+# ── Incident reports (any staff member files one) ─────────────────────────────
+#
+# Katrine Myers (iCreate), 2026-09-24, ticket a26d9daf: "Reporting an incident
+# used to be in task manager. I don't see it there anymore." Filing writes ONE
+# task for an office person through assign_task (services/
+# sis_incident_report_service.py says why and how). STAFF_ROLES, so a teacher
+# can file; the org is always the caller's own, and the service checks the
+# recipient and every student against it.
+
+@bp.route('/incident-reports/options', methods=['GET'])
+@require_role(*STAFF_ROLES)
+@require_module(*TASK_MODULES, any_of=True)
+def incident_report_options(user_id):
+    """What the form offers: the office people, the school's default one,
+    and (unless ?students=0) the school's students as id + name."""
+    org_id, err = sis_service.org_or_error(user_id)
+    if err:
+        return err
+    from services import sis_incident_report_service as incidents
+    include_students = request.args.get('students', '1') not in ('0', 'false', 'no')
+    return jsonify({'success': True,
+                    **incidents.form_options(org_id, include_students=include_students)})
+
+
+@bp.route('/incident-reports', methods=['POST'])
+@require_role(*STAFF_ROLES)
+@require_module(*TASK_MODULES, any_of=True)
+def file_incident_report(user_id):
+    """Body: student_ids[], occurred_at (local date-time), location,
+    what_happened (required), injury, response, parent_notified ('yes'|'no'),
+    parent_notified_detail, witnesses, recipient_id (defaults to the school's
+    setting; required when there is none)."""
+    org_id, err = sis_service.org_or_error(user_id)
+    if err:
+        return err
+    from services import sis_incident_report_service as incidents
+    result = incidents.file_report(org_id, user_id, request.get_json(silent=True) or {})
+    if result.get('error'):
+        return jsonify({'success': False, 'error': result['error']}), result.get('status', 400)
+    return jsonify({'success': True, **result}), 201
+
+
+@bp.route('/incident-reports/mine', methods=['GET'])
+@require_role(*STAFF_ROLES)
+@require_module(*TASK_MODULES, any_of=True)
+def my_incident_reports(user_id):
+    """The incident reports the caller filed, newest first."""
+    org_id, err = sis_service.org_or_error(user_id)
+    if err:
+        return err
+    from services import sis_incident_report_service as incidents
+    return jsonify({'success': True, 'reports': incidents.filed_by(org_id, user_id)})

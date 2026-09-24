@@ -7,6 +7,7 @@ import { withOrg, useSisOrg } from './useSisOrg'
 import { withPreview } from './teacherPreview'
 import { getHiddenModules } from './sisModules'
 import DashboardCard from '../../components/sis/DashboardCard'
+import ReportIncidentButton from '../../components/sis/incidents/ReportIncidentButton'
 
 /**
  * TeacherDashboard — the advisor home for the SIS teacher portal.
@@ -140,13 +141,19 @@ const TeacherDashboard = ({ orgId, userName, preview = null }) => {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-neutral-900">
-          {userName ? `Welcome, ${userName}` : 'Your classes'}
-        </h1>
-        <p className="text-neutral-500 mt-1">
-          {profile.position || 'Manage your classes, take attendance, and stay in touch with your families.'}
-        </p>
+      <div className="flex items-start justify-between gap-3 flex-wrap">
+        <div>
+          <h1 className="text-2xl font-bold text-neutral-900">
+            {userName ? `Welcome, ${userName}` : 'Your classes'}
+          </h1>
+          <p className="text-neutral-500 mt-1">
+            {profile.position || 'Manage your classes, take attendance, and stay in touch with your families.'}
+          </p>
+        </div>
+        {/* A teacher is here most of the day, and an incident is filed the
+            moment it happens (ticket a26d9daf). It files as the signed-in
+            person, so not under a preview: the report would be the admin's. */}
+        {!hidden.has('tasks') && !preview && <ReportIncidentButton orgId={orgId} />}
       </div>
 
       {/* The office has to be able to reach a teacher who has not turned up.

@@ -10,6 +10,7 @@ import HelpVideoCard from './cards/HelpVideoCard'
 import ParentDigestCard from './cards/ParentDigestCard'
 import PillarsCard from './cards/PillarsCard'
 import StepPrintingCard from './cards/StepPrintingCard'
+import IncidentReportsCard from './cards/IncidentReportsCard'
 import { moduleEnabled } from '../modules/moduleEnabled'
 
 /**
@@ -43,6 +44,9 @@ export const SETTINGS_CARDS = [
   { key: 'time-blocks', module: 'classes', surfaces: ['console'], Component: TimeBlocksCard },
   { key: 'calendar-categories', module: 'calendar', surfaces: ['console'], Component: CalendarCategoriesCard },
   { key: 'quick-links', surfaces: ['console'], Component: QuickLinksCard },
+  // Who gets a staff member's incident report by default (ticket a26d9daf).
+  // Console only: filing and working the reports both happen in the SIS.
+  { key: 'incident-reports', module: 'tasks', surfaces: ['console'], Component: IncidentReportsCard },
   // Console only, deliberately (owner's call, 2026-09-08): the weekly digest
   // reports on class work with due dates, which is a school's business, and the
   // people who decide whether a school emails its families sit in the SIS.

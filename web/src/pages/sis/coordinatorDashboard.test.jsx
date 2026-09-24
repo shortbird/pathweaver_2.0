@@ -17,8 +17,9 @@ vi.mock('react-hot-toast', () => ({
   default: { success: vi.fn(), error: vi.fn() },
 }))
 vi.mock('./SisOrgPicker', () => ({ default: () => null }))
+let activeOrg = null
 vi.mock('./useSisOrg', () => ({
-  useSisOrg: () => ({ orgId: 'org-1', setOrgId: vi.fn(), orgs: [], isSuperadmin: false, loading: false, activeOrg: null }),
+  useSisOrg: () => ({ orgId: 'org-1', setOrgId: vi.fn(), orgs: [], isSuperadmin: false, loading: false, activeOrg }),
   withOrg: (url, orgId) => `${url}${url.includes('?') ? '&' : '?'}organization_id=${orgId}`,
 }))
 vi.mock('./teacherPreview', () => ({
@@ -69,6 +70,7 @@ const DASHBOARD = {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  activeOrg = null
   api.get.mockImplementation((url) => {
     if (url.includes('/api/sis/coordinator/dashboard')) {
       return Promise.resolve({ data: { success: true, ...DASHBOARD } })
@@ -115,6 +117,24 @@ describe('coordinator dashboard', () => {
     const [url, body] = api.post.mock.calls[0]
     expect(url).toContain('/api/sis/attendance/alerts/a1/resolve')
     expect(body.resolution).toBe('late')
+  })
+
+  // Ticket a26d9daf (Katrine Myers): incident reports came back as a staff
+  // tool, and coordinators start their day here -- Tanner, 2026-09-24:
+  // "add to the coord dashboard".
+  it('offers Report an incident in the header', async () => {
+    renderPage()
+    await screen.findByText('Morning arrival duty')
+    fireEvent.click(screen.getByRole('button', { name: 'Report an incident' }))
+    await waitFor(() => expect(api.get).toHaveBeenCalledWith(
+      expect.stringContaining('/api/sis/incident-reports/options')))
+  })
+
+  it('does not offer it where the school runs no tasks', async () => {
+    activeOrg = { id: 'org-1', effective_modules: ['attendance', 'classes'] }
+    renderPage()
+    await screen.findByText('Morning arrival duty')
+    expect(screen.queryByRole('button', { name: 'Report an incident' })).not.toBeInTheDocument()
   })
 
   it('still gives an org admin the school dashboard', async () => {

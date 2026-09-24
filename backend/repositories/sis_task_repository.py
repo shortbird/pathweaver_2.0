@@ -93,6 +93,19 @@ class SisTaskRepository(BaseRepository):
                 .eq('status', 'in_progress')
                 .order('created_at', desc=True).limit(100).execute()).data or []
 
+    def filed_by(self, organization_id: str, assigned_by: str, title_prefix: str,
+                 limit: int = 100) -> List[Dict[str, Any]]:
+        """Tasks this person assigned whose title starts with `title_prefix`,
+        newest first -- the incident reports a staff member filed
+        (services/sis_incident_report_service). Bounded by one reporter and
+        capped; the office's Assigned view is where the whole history lives."""
+        escaped = title_prefix.replace('\\', '\\\\').replace('%', '\\%').replace('_', '\\_')
+        return (self.client.table(self.table_name).select('*')
+                .eq('organization_id', organization_id).eq('assigned_by', assigned_by)
+                .in_('kind', list(TASK_KINDS))
+                .ilike('template_name', f'{escaped}%')
+                .order('created_at', desc=True).limit(limit).execute()).data or []
+
     # ── comments ─────────────────────────────────────────────────────────────
 
     def list_comments(self, task_id: str) -> List[Dict[str, Any]]:

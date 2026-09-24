@@ -11,6 +11,8 @@ import AssignComposer from '../../components/sis/tasks/AssignComposer'
 import AssignedWork from '../../components/sis/tasks/AssignedWork'
 import { TaskTemplatesManager } from '../../components/sis/tasks/TaskTemplatesManager'
 import GlassTabBar from '../../components/ui/GlassTabBar'
+import ReportIncidentButton from '../../components/sis/incidents/ReportIncidentButton'
+import MyIncidentReports from '../../components/sis/incidents/MyIncidentReports'
 
 /**
  * Tasks -- one page, organized by direction, because that is how everyone
@@ -32,6 +34,10 @@ import GlassTabBar from '../../components/ui/GlassTabBar'
  *
  * Every office endpoint is gated server-side (ADMIN_ROLES), so showing the
  * office's tabs only to admins is chrome.
+ *
+ * "Report an incident" is the one thing every staff member can START here
+ * (ticket a26d9daf, 2026-09-24): it files a task for an office person, and the
+ * reporter finds it again under "Incident reports you filed" on My tasks.
  */
 
 const OWN_TABS = [['mine', 'My tasks']]
@@ -99,12 +105,15 @@ const TasksPage = () => {
         <BackToDashboard className="mb-1" />
         <div className="flex items-center justify-between gap-3 flex-wrap">
           <h1 className="text-2xl font-bold text-neutral-900">Tasks</h1>
-          {admin && (
-            <button type="button" onClick={() => setCreating(true)}
-              className="px-4 py-2 rounded-lg bg-gradient-primary text-white text-sm font-semibold">
-              Assign a task
-            </button>
-          )}
+          <div className="flex items-center gap-2 flex-wrap">
+            <ReportIncidentButton orgId={orgId} onFiled={() => setRefreshKey((k) => k + 1)} />
+            {admin && (
+              <button type="button" onClick={() => setCreating(true)}
+                className="px-4 py-2 rounded-lg bg-gradient-primary text-white text-sm font-semibold">
+                Assign a task
+              </button>
+            )}
+          </div>
         </div>
         <p className="text-sm text-neutral-500 mt-1">
           {admin
@@ -121,7 +130,8 @@ const TasksPage = () => {
         />
       )}
 
-      {tab === 'mine' && <MyTaskInbox orgId={orgId} preview={preview} openTaskId={openTaskId} />}
+      {tab === 'mine' && <MyTaskInbox key={refreshKey} orgId={orgId} preview={preview} openTaskId={openTaskId} />}
+      {tab === 'mine' && <MyIncidentReports orgId={orgId} reloadKey={refreshKey} />}
       {admin && tab === 'assigned' && (
         <AssignedWork orgId={orgId} sigEndpoint={sigEndpoint}
           reloadKey={refreshKey} onCount={countAssigned} />

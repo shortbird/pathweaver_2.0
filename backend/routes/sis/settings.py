@@ -23,7 +23,7 @@ sis_catalog_service.save_time_blocks, answering with the rows too
 
 from flask import Blueprint, jsonify, request
 
-from services import sis_catalog_service, sis_service
+from services import sis_catalog_service, sis_incident_report_service, sis_service
 from services.org_settings_service import FlagsRejected, patch_feature_flags
 from utils.auth.decorators import require_role
 from utils.sis_roles import ADMIN_ROLES
@@ -43,8 +43,18 @@ def patch_settings(user_id):
     # The school-day blocks are rows (sis_time_blocks, M8b), not a key in the
     # blob: a patch naming them writes the rows, and the null left in its
     # place removes the legacy JSON list from the blob on the way through.
+    # The incident-report default names a person who will be handed every
+    # report a teacher files (ticket a26d9daf). Only the front office of this
+    # school may hold it; a null clears it.
+    incident_key = sis_incident_report_service.SETTING_KEY
+    sis_patch = patch.get('sis_settings')
+    if isinstance(sis_patch, dict) and sis_patch.get(incident_key) is not None:
+        if not sis_incident_report_service.valid_recipient(org_id, sis_patch.get(incident_key)):
+            return jsonify({'success': False, 'fields': [incident_key],
+                            'error': 'Incident reports can only go to an org admin or '
+                                     'campus coordinator of this school'}), 400
     blocks = None
-    wanted = sis_catalog_service.take_time_blocks(patch)
+    wanted =sis_catalog_service.take_time_blocks(patch)
     if wanted != ():
         saved = sis_catalog_service.save_time_blocks(org_id, wanted)
         if saved.get('error'):

@@ -5,6 +5,8 @@ import { useSisOrg, withOrg } from './useSisOrg'
 import AttendanceAlerts from '../../components/sis/AttendanceAlerts'
 import TeachersToCheck from '../../components/sis/TeachersToCheck'
 import LeavingSoon from '../../components/sis/LeavingSoon'
+import ReportIncidentButton from '../../components/sis/incidents/ReportIncidentButton'
+import { getHiddenModules } from './sisModules'
 import { RollStatus, SubstituteControl } from '../../components/sis/RollStatus'
 import { range12h } from '../../utils/timeFormat'
 import DashboardCard from '../../components/sis/DashboardCard'
@@ -18,7 +20,7 @@ import DashboardCard from '../../components/sis/DashboardCard'
  */
 
 const CoordinatorDashboard = ({ userName }) => {
-  const { orgId } = useSisOrg()
+  const { orgId, activeOrg } = useSisOrg()
   const [data, setData] = useState(null)
   const [error, setError] = useState(null)
 
@@ -48,6 +50,9 @@ const CoordinatorDashboard = ({ userName }) => {
             <p className="text-neutral-500 mt-1">{data.organization.name} · {data.date}</p>
           )}
         </div>
+        {/* Coordinators start the day here, and an incident is filed the moment
+            it happens (ticket a26d9daf). Hidden where the school runs no tasks. */}
+        {!getHiddenModules(activeOrg).has('tasks') && <ReportIncidentButton orgId={orgId} />}
       </div>
 
       {(data.quick_links || []).length > 0 && (
