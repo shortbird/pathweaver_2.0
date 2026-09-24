@@ -64,6 +64,37 @@ def test_a_contact_detail_is_held_without_asking_the_model():
     assert out.status == 'flagged'
 
 
+LINK_TEXT = ('Here is the link to Base44 '
+             'https://app.base44.com/register?ref=FFJQD2WRXSWNSGAJ&source=referral_program')
+
+
+def test_an_adults_link_goes_to_the_model_not_a_regex_hold():
+    # A teacher sending the class a tool is the job (Viviana, 2026-09-24).
+    with patch.object(ts.Config, 'PEER_TEXT_SCREEN_ENABLED', True), \
+            patch.object(ts.PeerTextScreenService, '__init__', return_value=None), \
+            patch.object(ts.PeerTextScreenService, 'judge',
+                         return_value=ScreenResult(ts.VERDICT_CLEAR)) as judge:
+        out = ts.screen(LINK_TEXT, surface=ts.SURFACE_GROUP, author_kind=ts.AUTHOR_ADULT)
+    judge.assert_called_once()
+    assert judge.call_args.kwargs['prompt'] == ts.PeerTextScreenService.ADULT_PROMPT
+    assert not out.flagged
+
+
+def test_a_students_link_is_still_held_by_regex():
+    with patch.object(ts.PeerTextScreenService, 'judge') as judge:
+        out = ts.screen(LINK_TEXT, surface=ts.SURFACE_GROUP)
+    judge.assert_not_called()
+    assert out.flagged and out.reasons == ['shares a link']
+
+
+def test_an_adults_phone_number_is_still_held_by_regex():
+    with patch.object(ts.PeerTextScreenService, 'judge') as judge:
+        out = ts.screen('text me at 801-555-0199 ' + LINK_TEXT, surface=ts.SURFACE_MESSAGE,
+                        author_kind=ts.AUTHOR_ADULT)
+    judge.assert_not_called()
+    assert out.flagged and out.reasons == ['shares a phone number']
+
+
 def test_an_unknown_surface_is_a_programming_error():
     with pytest.raises(ValueError):
         ts.screen('hi', surface='tweet')

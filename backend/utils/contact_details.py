@@ -36,10 +36,19 @@ CONTACT_PATTERNS = (
 )
 
 
-def contact_details(text: str) -> List[str]:
-    """The kinds of contact detail this text carries, or []."""
+def contact_details(text: str, *, links: bool = True) -> List[str]:
+    """The kinds of contact detail this text carries, or [].
+
+    `links=False` leaves URLs out. A teacher sending a class a link to a
+    tool, a reading or a video is the job, not a way off the platform; the
+    regex held every one of them until 2026-09-24 (an iCreate teacher's
+    Base44 link to her five students, held five times). The adult prompt
+    still judges the link, with the words around it.
+    """
     found = []
     for label, pattern in CONTACT_PATTERNS:
+        if not links and pattern is _URL:
+            continue
         if pattern.search(text or ''):
             found.append(f'shares a {label}')
     return found

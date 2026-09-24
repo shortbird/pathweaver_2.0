@@ -181,6 +181,8 @@ class PeerTextScreenService(BaseAIService):
         '- asking the child to keep something from their parents or other staff\n'
         '- asking to talk somewhere else: another app, a phone number, an '
         'email, a username, or a meeting outside school\n'
+        '- a link to a private one-to-one chat, a personal social media '
+        'profile, or a private video call with the child alone\n'
         '- compliments about the child\'s body or looks, romantic or sexual '
         'language, or asking for photos\n'
         '- gifts, money, favours, or special treatment offered in private\n'
@@ -190,7 +192,10 @@ class PeerTextScreenService(BaseAIService):
         '- self-harm or suicide talk, drugs, alcohol, or weapons\n\n'
         'Answer "clear" for feedback on work, scheduling, encouragement, '
         'reminders, questions about the assignment, and ordinary warmth '
-        '("great job today", "see you Monday").\n\n'
+        '("great job today", "see you Monday"). Links for the class are '
+        'clear: a website or app to use for the work (a sign-up or referral '
+        'link included), a document, a reading, a video, a form, or a class '
+        'meeting link.\n\n'
         'If images are attached, judge them by the same rules.\n\n'
         'Reply with JSON only, in this exact shape: '
         '{"verdict": "clear" or "flagged", "reasons": ["short reason", ...]}. '
@@ -375,7 +380,8 @@ def screen(text: str, *, surface: str,
     """Screen one text and its image attachments. Never raises.
 
     The regex pass runs first and is final: contact details are held whatever
-    the model would have said, and without spending a model call.
+    the model would have said, and without spending a model call. An adult's
+    link is the exception: it goes to the model (2026-09-24).
 
     `attachments` is the stored shape ([{url, type, name, size}]); only the
     images go to the model. A file or a video is not screened.
@@ -390,7 +396,10 @@ def screen(text: str, *, surface: str,
     if not text and not image_attachments:
         return ScreenResult(VERDICT_CLEAR)
 
-    found = contact_details(text)
+    # An adult's link goes to the model, not straight to a hold: staff send
+    # students links to the work all day. A phone number, an email or an
+    # address from an adult to a child is still held on sight.
+    found = contact_details(text, links=author_kind != AUTHOR_ADULT)
     if found:
         return ScreenResult(VERDICT_FLAGGED, found, 'regex')
 
