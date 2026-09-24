@@ -104,6 +104,9 @@ class ScreenResult:
     verdict: str
     reasons: List[str] = field(default_factory=list)
     model: Optional[str] = None
+    #: Which rules a flagged image broke, from UploadScreenService only.
+    #: Empty for the text screen, and empty when the model left them out.
+    kinds: List[str] = field(default_factory=list)
 
     @property
     def flagged(self) -> bool:
@@ -230,10 +233,20 @@ class PeerTextScreenService(BaseAIService):
         'store number on a recipe card, a flyer, a receipt, packaging. Only '
         'a child\'s own contact details, or another child\'s, are flagged.\n\n'
         'Reply with JSON only, in this exact shape: '
-        '{"verdict": "clear" or "flagged", "reasons": ["short reason", ...]}. '
-        'reasons is an empty list when the verdict is clear.\n'
+        '{"verdict": "clear" or "flagged", "reasons": ["short reason", ...], '
+        '"kinds": [...]}. reasons is an empty list when the verdict is clear. '
+        'kinds names each rule the image breaks, from: "sexual", "violence", '
+        '"weapons_drugs_selfharm", "hate", "contact_details", "mockery". '
+        'kinds is an empty list when the verdict is clear.\n'
         '<<<\n{text}\n>>>'
     )
+
+    #: What the upload prompt's kinds are called. Only contact_details is read
+    #: by name (upload_safety_service softens a hold that is ONLY that); the
+    #: rest are there so the model has to say which rule it applied.
+    KIND_CONTACT_DETAILS = 'contact_details'
+    UPLOAD_KINDS = ['sexual', 'violence', 'weapons_drugs_selfharm', 'hate',
+                    KIND_CONTACT_DETAILS, 'mockery']
 
     #: The answer's shape, sent with the request. With a schema the SDK sets
     #: response_mime_type=application/json, and the model stops wrapping the
@@ -315,13 +328,41 @@ class PeerTextScreenService(BaseAIService):
         reasons = [str(r)[:120] for r in (raw_reasons if isinstance(raw_reasons, list) else []) if r][:5]
         if verdict == VERDICT_FLAGGED and not reasons:
             reasons = ['held by the safety check']
-        return ScreenResult(verdict, reasons if verdict == VERDICT_FLAGGED else [], model)
+        raw_kinds = answer.get('kinds')
+        kinds = [str(k) for k in (raw_kinds if isinstance(raw_kinds, list) else []) if k][:6]
+        if verdict != VERDICT_FLAGGED:
+            return ScreenResult(verdict, [], model)
+        return ScreenResult(verdict, reasons, model, kinds)
 
     def _safe_model_name(self) -> Optional[str]:
         try:
             return self.model_name
         except Exception:  # noqa: BLE001
             return None
+
+
+class UploadScreenService(PeerTextScreenService):
+    """The same model call for a picture a student uploaded on its own
+    (upload_safety_service), under its own name.
+
+    Two reasons it is a class and not a prompt argument. ai_usage_logs names
+    the class, and a clear upload leaves no other trace: under the parent's
+    name, the tracker could not tell an upload from a chat message and showed
+    "17 screened, 17 held" for a week in which it had cleared many more. And
+    the upload answer names the rule it applied (kinds), which the gate reads
+    to soften a hold that is only a child's own phone number on schoolwork.
+    """
+
+    RESPONSE_SCHEMA = {
+        'type': 'OBJECT',
+        'properties': {
+            'verdict': {'type': 'STRING', 'enum': ['clear', 'flagged']},
+            'reasons': {'type': 'ARRAY', 'items': {'type': 'STRING'}},
+            'kinds': {'type': 'ARRAY', 'items': {
+                'type': 'STRING', 'enum': PeerTextScreenService.UPLOAD_KINDS}},
+        },
+        'required': ['verdict', 'reasons', 'kinds'],
+    }
 
 
 AUTHOR_STUDENT = 'student'

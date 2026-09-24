@@ -353,7 +353,7 @@ class MediaUploadService:
                     return MediaUploadResult(
                         success=False,
                         error_message=verdict.message,
-                        error_code='SAFETY_HELD' if verdict.kind == gate.KIND_HELD else 'REJECTED',
+                        error_code=gate.error_code(verdict),
                     )
 
             # Single probe: codec/size check so we can skip the background
@@ -733,7 +733,7 @@ class MediaUploadService:
                 return MediaUploadResult(
                     success=False,
                     error_message=verdict.message,
-                    error_code='SAFETY_HELD' if verdict.kind == gate.KIND_HELD else 'REJECTED',
+                    error_code=gate.error_code(verdict),
                 )
 
         if block_type == 'image' and ext in ('heic', 'heif'):

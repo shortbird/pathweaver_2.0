@@ -29,7 +29,11 @@ const SURFACES = [
   { key: 'message', label: 'Direct messages' },
   { key: 'peer_comment', label: 'Friend comments' },
   // Pictures a student uploaded on their own (evidence, avatars, feed).
-  // Nothing is "screened" as a row here; a hold is the only trace.
+  // A clear upload leaves no row; the RPC counts the classifier's own calls
+  // (UploadScreenService in ai_usage_logs) and sends screened net of the
+  // holds, so rows + refused below is every upload judged. Before that
+  // (2026-09-23) this line read "17 screened, 17 held" and looked like a
+  // screen that held everything.
   { key: 'upload', label: 'Uploads' },
 ]
 

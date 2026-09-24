@@ -8,6 +8,7 @@ their child's work, a moderator actioning a report). This owns the queries and
 nothing else.
 """
 
+import json
 from typing import Any, Dict, List, Optional
 
 from repositories.base_repository import BaseRepository
@@ -73,6 +74,19 @@ class PeerTextScreenRepository(BaseRepository):
         elif recipient_id:
             q = q.eq('recipient_id', recipient_id)
         rows = q.order('created_at').limit(1).execute().data or []
+        return rows[0]['id'] if rows else None
+
+    def upload_hold_for_image(self, *, author_id: str, sha256: str,
+                              since_iso: str) -> Optional[str]:
+        """The id of an upload hold for the same image bytes from this child
+        since `since_iso`, or None. The filename cannot be the key: the upload
+        path prefixes it with a timestamp, so every retry looks new. The hash
+        rides in the held attachment (upload_safety_service._hold)."""
+        rows = self.client.table(self.table_name).select('id') \
+            .eq('author_id', author_id).eq('surface', 'upload') \
+            .filter('attachments', 'cs', json.dumps([{'sha256': sha256}])) \
+            .gte('created_at', since_iso) \
+            .order('created_at').limit(1).execute().data or []
         return rows[0]['id'] if rows else None
 
     def holds_by_author(self, author_id: str, since_iso: str) -> List[Dict[str, Any]]:

@@ -13,10 +13,16 @@ What must stay true:
   * a classifier hold keeps the picture for the parent under held/ and
     records a hold the parent is told about
   * a video or a document passes untouched
+  * schoolwork that shows ONLY contact details is refused with a sentence
+    that says what to cover, and no hold is written; an avatar keeps the hold
+  * the same image from the same student inside a day reuses its hold: no
+    model call, no second hold, no second message to the parent
 """
 
 import io
 from unittest.mock import Mock, patch
+
+import pytest
 
 from PIL import Image
 
@@ -138,9 +144,20 @@ def test_a_provider_outage_lets_the_upload_through_and_logs_it():
     log.assert_called_once()
 
 
+_REAL_EARLIER_HOLD = gate._earlier_hold
+
+
+@pytest.fixture(autouse=True)
+def _no_earlier_hold():
+    """No test reaches the database for the retry lookup unless it asks to."""
+    with patch.object(gate, '_earlier_hold', return_value=None):
+        yield
+
+
 def _judging(answer):
     svc = Mock()
     svc.UPLOAD_PROMPT = 'UPLOAD {text}'
+    svc.KIND_CONTACT_DETAILS = 'contact_details'
     svc.judge.return_value = answer
     return svc
 
@@ -149,7 +166,7 @@ def test_a_students_picture_goes_to_the_classifier_with_the_upload_rules():
     svc = _judging(ScreenResult('clear'))
     with patch.object(cm, 'match', return_value=cm.MatchResult(False, 'off', skipped=True)), \
          patch.object(gate, '_is_student', return_value=True), \
-         patch('services.peer_text_screen_service.PeerTextScreenService', return_value=svc):
+         patch('services.peer_text_screen_service.UploadScreenService', return_value=svc):
         out = gate.check_image(_png(), 'image/png', user_id='kid', purpose='evidence',
                                filename='volcano.png')
     assert out.allowed and out.kind == gate.KIND_CLEAR
@@ -163,11 +180,11 @@ def test_an_adults_picture_and_a_chat_attachment_skip_the_classifier():
     svc = _judging(ScreenResult('flagged', ['x'], 'm'))
     with patch.object(cm, 'match', return_value=cm.MatchResult(False, 'off', skipped=True)), \
          patch.object(gate, '_is_student', return_value=False), \
-         patch('services.peer_text_screen_service.PeerTextScreenService', return_value=svc):
+         patch('services.peer_text_screen_service.UploadScreenService', return_value=svc):
         assert gate.check_image(_png(), 'image/png', user_id='teacher', purpose='evidence').allowed
     with patch.object(cm, 'match', return_value=cm.MatchResult(False, 'off', skipped=True)), \
          patch.object(gate, '_is_student', return_value=True), \
-         patch('services.peer_text_screen_service.PeerTextScreenService', return_value=svc):
+         patch('services.peer_text_screen_service.UploadScreenService', return_value=svc):
         assert gate.check_image(_png(), 'image/png', user_id='kid', purpose='message_attachment',
                                 classify=False).allowed
     svc.judge.assert_not_called()
@@ -179,7 +196,7 @@ def test_a_flagged_picture_is_held_kept_for_the_parent_and_refused():
     admin = Mock(storage=storage)
     with patch.object(cm, 'match', return_value=cm.MatchResult(False, 'off', skipped=True)), \
          patch.object(gate, '_is_student', return_value=True), \
-         patch('services.peer_text_screen_service.PeerTextScreenService', return_value=svc), \
+         patch('services.peer_text_screen_service.UploadScreenService', return_value=svc), \
          patch('database.get_supabase_admin_client', return_value=admin), \
          patch('services.peer_text_screen_service.record_hold', return_value='h1') as hold:
         out = gate.check_image(_png(), 'image/png', user_id='kid', purpose='avatar',
@@ -195,11 +212,89 @@ def test_a_flagged_picture_is_held_kept_for_the_parent_and_refused():
     assert kw['result'].reasons == ['nudity']
 
 
+def _held_with(svc, purpose):
+    storage = Mock()
+    with patch.object(cm, 'match', return_value=cm.MatchResult(False, 'off', skipped=True)), \
+         patch.object(gate, '_is_student', return_value=True), \
+         patch('services.peer_text_screen_service.UploadScreenService', return_value=svc), \
+         patch('database.get_supabase_admin_client', return_value=Mock(storage=storage)), \
+         patch('services.peer_text_screen_service.record_hold', return_value='h1') as hold:
+        out = gate.check_image(_png(), 'image/png', user_id='kid', purpose=purpose,
+                               filename='choir.jpg')
+    return out, hold
+
+
+def test_contact_details_alone_on_schoolwork_say_what_to_cover_and_hold_nothing():
+    # The choir folder, 2026-09-22: the child's name and number on a label.
+    svc = _judging(ScreenResult('flagged', ["child's phone number"], 'm', ['contact_details']))
+    for purpose in ('evidence', 'learning_event'):
+        out, hold = _held_with(svc, purpose)
+        assert not out.allowed and out.kind == gate.KIND_CONTACT
+        assert out.message == gate.CONTACT_REFUSAL and out.hold_id is None
+        hold.assert_not_called()
+
+
+def test_contact_details_on_an_avatar_are_still_held_but_the_child_is_told_why():
+    svc = _judging(ScreenResult('flagged', ["child's phone number"], 'm', ['contact_details']))
+    out, hold = _held_with(svc, 'avatar')
+    assert out.kind == gate.KIND_HELD and out.hold_id == 'h1'
+    assert out.message == gate.CONTACT_REFUSAL
+    hold.assert_called_once()
+
+
+def test_contact_details_with_anything_else_is_a_hold_on_schoolwork_too():
+    svc = _judging(ScreenResult('flagged', ['x'], 'm', ['contact_details', 'sexual']))
+    out, hold = _held_with(svc, 'evidence')
+    assert out.kind == gate.KIND_HELD and out.message == gate.HELD_REFUSAL
+    hold.assert_called_once()
+
+
+def test_a_flag_that_names_no_rule_is_a_hold():
+    out, hold = _held_with(_judging(ScreenResult('flagged', ['x'], 'm')), 'evidence')
+    assert out.kind == gate.KIND_HELD
+    hold.assert_called_once()
+
+
+def test_the_held_picture_carries_the_original_uploads_hash():
+    blob = _png()
+    storage = Mock()
+    svc = _judging(ScreenResult('flagged', ['nudity'], 'm', ['sexual']))
+    with patch.object(cm, 'match', return_value=cm.MatchResult(False, 'off', skipped=True)), \
+         patch.object(gate, '_is_student', return_value=True), \
+         patch('services.peer_text_screen_service.UploadScreenService', return_value=svc), \
+         patch('database.get_supabase_admin_client', return_value=Mock(storage=storage)), \
+         patch('services.peer_text_screen_service.record_hold', return_value='h1') as hold:
+        gate.check_image(blob, 'image/png', user_id='kid', purpose='evidence')
+    import hashlib
+    assert hold.call_args.kwargs['attachments'][0]['sha256'] == hashlib.sha256(blob).hexdigest()
+
+
+def test_the_same_image_again_reuses_its_hold_without_a_model_call():
+    svc = _judging(ScreenResult('flagged', ['x'], 'm', ['sexual']))
+    with patch.object(cm, 'match', return_value=cm.MatchResult(False, 'off', skipped=True)), \
+         patch.object(gate, '_is_student', return_value=True), \
+         patch.object(gate, '_earlier_hold', return_value='h-first'), \
+         patch('services.peer_text_screen_service.UploadScreenService', return_value=svc), \
+         patch('services.peer_text_screen_service.record_hold') as hold:
+        out = gate.check_image(_png(), 'image/png', user_id='kid', purpose='evidence')
+    assert not out.allowed and out.kind == gate.KIND_HELD and out.hold_id == 'h-first'
+    svc.judge.assert_not_called()
+    hold.assert_not_called()
+
+
+def test_a_failed_retry_lookup_classifies_the_image_again():
+    broken = Mock()
+    broken.upload_hold_for_image.side_effect = RuntimeError('db down')
+    with patch('repositories.peer_text_screen_repository.PeerTextScreenRepository',
+               return_value=broken):
+        assert _REAL_EARLIER_HOLD('kid', 'abc') is None
+
+
 def test_a_classifier_outage_lets_the_upload_through():
     svc = _judging(ScreenResult('error'))
     with patch.object(cm, 'match', return_value=cm.MatchResult(False, 'off', skipped=True)), \
          patch.object(gate, '_is_student', return_value=True), \
-         patch('services.peer_text_screen_service.PeerTextScreenService', return_value=svc):
+         patch('services.peer_text_screen_service.UploadScreenService', return_value=svc):
         assert gate.check_image(_png(), 'image/png', user_id='kid', purpose='evidence').allowed
 
 
@@ -208,7 +303,7 @@ def test_the_switch_turns_the_classifier_off_but_not_the_match():
     with patch.object(gate.Config, 'UPLOAD_IMAGE_SCREEN_ENABLED', False), \
          patch.object(cm, 'match', return_value=cm.MatchResult(False, 'off', skipped=True)) as match, \
          patch.object(gate, '_is_student', return_value=True), \
-         patch('services.peer_text_screen_service.PeerTextScreenService', return_value=svc):
+         patch('services.peer_text_screen_service.UploadScreenService', return_value=svc):
         assert gate.check_image(_png(), 'image/png', user_id='kid', purpose='evidence').allowed
     match.assert_called_once()
     svc.judge.assert_not_called()

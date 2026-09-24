@@ -23,6 +23,12 @@ import TaskListPanel from './taskWorkspace/TaskListPanel';
 import TaskDetailsSection from './taskWorkspace/TaskDetailsSection';
 import TaskEvidenceSection from './taskWorkspace/TaskEvidenceSection';
 
+/** A refusal from the upload safety check (backend upload_safety_service).
+ * Its sentence stands alone: SAFETY_CONTACT says what to cover, SAFETY_HELD
+ * that the picture was held. */
+const isSafetyRefusal = (err) =>
+  String(err?.response?.data?.error_code || '').startsWith('SAFETY_');
+
 const TaskWorkspace = ({
   task,
   tasks = [],
@@ -273,6 +279,7 @@ const TaskWorkspace = ({
   const handleSaveEvidence = async (newItems) => {
     let uploadFailures = 0;
     const failureReasons = [];
+    const safetyReasons = [];
 
     const hasFiles = newItems.some(item =>
       item.content?.items?.some(ci => ci.file)
@@ -304,6 +311,7 @@ const TaskWorkspace = ({
                   uploadFailures++;
                   const reason = err.response?.data?.error || err.message || 'Upload failed';
                   failureReasons.push(reason);
+                  if (isSafetyRefusal(err)) safetyReasons.push(reason);
                   return null; // Mark for removal
                 }
               }
@@ -331,14 +339,19 @@ const TaskWorkspace = ({
       return true;
     });
 
-    if (uploadFailures > 0) {
+    if (safetyReasons.length > 0) {
+      // The safety check's sentence says what happened and what to do; it is
+      // the only toast. A second "No evidence was saved" under it read as
+      // two separate failures.
+      toast.error(safetyReasons[0]);
+    } else if (uploadFailures > 0) {
       const reason = failureReasons[0] || 'Unknown error';
       toast.error(`Upload failed: ${reason}`);
     }
 
     if (validProcessedItems.length === 0 && uploadFailures > 0) {
       if (uploadToastId) toast.dismiss(uploadToastId);
-      toast.error('No evidence was saved. Please try again.');
+      if (safetyReasons.length === 0) toast.error('No evidence was saved. Please try again.');
       return;
     }
 
@@ -439,6 +452,7 @@ const TaskWorkspace = ({
     let processedBlock = updatedBlock;
     let uploadFailures = 0;
     const failureReasons = [];
+    const safetyReasons = [];
 
     if ((updatedBlock.type === 'image' || updatedBlock.type === 'document') && updatedBlock.content?.items) {
       const uploadedItems = await Promise.all(
@@ -457,7 +471,9 @@ const TaskWorkspace = ({
             } catch (err) {
               logger.error('File upload failed:', err);
               uploadFailures++;
-              failureReasons.push(err.response?.data?.error || err.message || 'Upload failed');
+              const reason = err.response?.data?.error || err.message || 'Upload failed';
+              failureReasons.push(reason);
+              if (isSafetyRefusal(err)) safetyReasons.push(reason);
               return null;
             }
           }
@@ -474,7 +490,9 @@ const TaskWorkspace = ({
       processedBlock = { ...updatedBlock, content: { items: validItems } };
     }
 
-    if (uploadFailures > 0) {
+    if (safetyReasons.length > 0) {
+      toast.error(safetyReasons[0]);
+    } else if (uploadFailures > 0) {
       const reason = failureReasons[0] || 'Unknown error';
       toast.error(`Upload failed: ${reason}`);
     }

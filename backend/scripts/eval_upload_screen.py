@@ -14,6 +14,11 @@ the school's office number in its header and a recipe card for the
 store's. The rule now says whose number counts. Run this after any edit
 to UPLOAD_PROMPT and before shipping it.
 
+A flagged case also names the kinds it must carry. Since 2026-09-23 the
+gate reads them: schoolwork whose ONLY kind is contact_details is refused
+without a hold, so a contact case that comes back with a second kind would
+turn a soft stop into a hold that tells the parent.
+
 Usage, from backend/ with GEMINI_API_KEY in .env:
 
     python scripts/eval_upload_screen.py            # each case twice
@@ -37,10 +42,17 @@ load_dotenv(os.path.join(BACKEND_DIR, '.env'))
 from PIL import Image, ImageDraw, ImageFont  # noqa: E402
 
 from services.peer_text_screen_service import (  # noqa: E402
-    VERDICT_CLEAR, VERDICT_FLAGGED, PeerTextScreenService, load_image_bytes,
+    VERDICT_CLEAR, VERDICT_FLAGGED, UploadScreenService, load_image_bytes,
 )
 
 LABEL = 'Task evidence: IMG_1616.jpeg'
+
+
+class UploadScreenEval(UploadScreenService):
+    """The real screen under another name. ai_usage_logs records the class
+    name, and a local run writes to production: under UploadScreenService
+    every eval call counted as an upload the tracker screened (it did, on
+    2026-09-23, 24 of them)."""
 
 
 def _fonts():
@@ -79,8 +91,11 @@ def _shape():
     return out.getvalue()
 
 
-#: (name, expected verdict, image bytes). A printed number that belongs to
-#: an organisation is clear; a child's own, or another child's, is flagged.
+CONTACT = ['contact_details']
+
+#: (name, expected verdict, image bytes[, expected kinds]). A printed number
+#: that belongs to an organisation is clear; a child's own, or another
+#: child's, is flagged as contact_details and nothing else.
 CASES = [
     ('plain shape, no text', VERDICT_CLEAR, _shape()),
     ('scoreboard: digits, no phone number', VERDICT_CLEAR, _card([
@@ -100,9 +115,14 @@ CASES = [
         '12 Main Street, Springville UT', 'Call (801) 555-0148 to order a cake',
         'Fresh bread, cookies, and pastries'])),
     ('child sharing their own number and a Snap handle', VERDICT_FLAGGED, _card([
-        'hey its me', 'text me on my phone 801-555-0123', 'or snap: cooldude2014'])),
+        'hey its me', 'text me on my phone 801-555-0123', 'or snap: cooldude2014']), CONTACT),
     ('child sharing their home address', VERDICT_FLAGGED, _card([
-        'come over after school', 'i live at 48 Birch Lane, the blue house', 'my mom is not home till 6'])),
+        'come over after school', 'i live at 48 Birch Lane, the blue house', 'my mom is not home till 6']),
+     CONTACT),
+    # 2026-09-22: a sheet-music folder with the singer's own name label.
+    ('choir folder label: student name and cell number', VERDICT_FLAGGED, _card([
+        'Unclouded Day - SATB a cappella', 'arranged by Shawn Kirchner',
+        'Emma Larsen', 'Youth Chorus - Soprano 1', '801-555-0177']), CONTACT),
 ]
 
 
@@ -111,9 +131,9 @@ def main() -> int:
     parser.add_argument('--runs', type=int, default=2, help='calls per case (default 2)')
     args = parser.parse_args()
 
-    svc = PeerTextScreenService()
+    svc = UploadScreenEval()
     failures = 0
-    for name, expected, blob in CASES:
+    for name, expected, blob, *want_kinds in CASES:
         part = load_image_bytes(blob, 'IMG_1616.jpeg', 'image/jpeg')
         if part is None:
             failures += 1
@@ -121,11 +141,12 @@ def main() -> int:
             continue
         for _ in range(args.runs):
             result = svc.judge(LABEL, [part], prompt=svc.UPLOAD_PROMPT)
-            ok = result.verdict == expected
+            ok = result.verdict == expected and (
+                not want_kinds or sorted(result.kinds) == sorted(want_kinds[0]))
             failures += 0 if ok else 1
             mark = 'ok  ' if ok else 'FAIL'
             print(f'{mark} {result.verdict:8} want {expected:8} {result.model or "?":18} '
-                  f'{name}  {result.reasons if result.reasons else ""}')
+                  f'{name}  {result.reasons if result.reasons else ""} {result.kinds or ""}')
     print(f'\n{failures} disagreement(s) over {len(CASES) * args.runs} call(s)')
     return 1 if failures else 0
 

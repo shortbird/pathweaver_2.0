@@ -353,6 +353,10 @@ export function TaskEvidenceSheet({
     if (!hasAnything || saving) return;
     setSaving(true);
     recordAction('evidence:save-start', { mediaCount: media.length });
+    // The upload safety check's sentence (backend upload_safety_service),
+    // shown on its own: it says what to cover, which "check your connection"
+    // would contradict.
+    let safetyMessage: string | null = null;
     try {
       // Upload media in parallel via the task's signed-upload endpoints.
       const uploadResults = await Promise.all(
@@ -380,6 +384,12 @@ export function TaskEvidenceSheet({
               },
             };
           } catch (uploadErr) {
+            const data = (uploadErr as { response?: { data?: { error?: unknown; error_code?: unknown } } })
+              ?.response?.data;
+            if (String(data?.error_code || '').startsWith('SAFETY_') && typeof data?.error === 'string') {
+              safetyMessage = safetyMessage || data.error;
+              return null;
+            }
             // Report instead of silently dropping, so a failed upload surfaces to
             // the user rather than vanishing ("uploads disappear" complaint).
             recordAction('evidence:upload-failed', {
@@ -429,6 +439,11 @@ export function TaskEvidenceSheet({
         });
       }
 
+      if (newBlocks.length === 0 && safetyMessage) {
+        showAlert("Couldn't add that image", safetyMessage);
+        setSaving(false);
+        return;
+      }
       if (newBlocks.length === 0) {
         // Nothing actually saved. Distinguish "user added nothing" from "every
         // upload failed" so a failed upload doesn't read as an empty form.
@@ -458,7 +473,9 @@ export function TaskEvidenceSheet({
       } else {
         throw new Error('TaskEvidenceSheet: either onSave or taskId is required.');
       }
-      if (failedUploads > 0) {
+      if (safetyMessage) {
+        showAlert("Couldn't add that image", safetyMessage);
+      } else if (failedUploads > 0) {
         // Partial success: the rest saved, but tell the user some files didn't.
         showAlert(
           'Some files not saved',

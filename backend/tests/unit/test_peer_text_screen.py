@@ -104,6 +104,26 @@ def test_a_clear_answer_carries_no_reasons_even_if_the_model_sent_some():
     assert out.reasons == []
 
 
+def test_the_upload_screen_reads_which_rules_a_flagged_image_broke():
+    from services.base_ai_service import AIJsonResult
+    svc = ts.UploadScreenService.__new__(ts.UploadScreenService)
+    svc.generate_json_multimodal = Mock(return_value=AIJsonResult(
+        data={'verdict': 'flagged', 'reasons': ['phone'], 'kinds': ['contact_details']},
+        model_name='gemini-test'))
+    out = svc.judge('Task evidence: a.jpg', prompt=svc.UPLOAD_PROMPT)
+    assert out.kinds == ['contact_details']
+    # Its own schema, so the model must say which rule; and its own class
+    # name, which is what ai_usage_logs and the tracker count uploads by.
+    schema = svc.generate_json_multimodal.call_args.kwargs['response_schema']
+    assert 'kinds' in schema['required']
+    assert type(svc).__name__ == 'UploadScreenService'
+
+
+def test_a_clear_answer_carries_no_kinds():
+    svc = _service_answering({'verdict': 'clear', 'reasons': [], 'kinds': ['hate']})
+    assert svc.judge('x').kinds == []
+
+
 def test_a_flagged_answer_with_no_reasons_still_names_one():
     svc = _service_answering({'verdict': 'flagged', 'reasons': []})
     assert svc.judge('x').reasons == ['held by the safety check']

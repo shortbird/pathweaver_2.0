@@ -15,7 +15,7 @@ code stops at the line and tells you.
 |---|---|---|---|
 | Contact-detail regex | `utils/contact_details.py` | phone, email, link, address in any student text, name or bio | Held or refused on sight, no model call |
 | Per-message screen | `services/peer_text_screen_service.py` | a student's message or comment (peer rules); an adult's message to a student (grooming rules); images with the text | Held before it posts; the right adults are told; fails open to `pending` for the 10-minute sweep |
-| Upload gate | `services/upload_safety_service.py` | every user-uploaded image: known-CSAM hash match, then the classifier for a student's picture | CSAM: quarantined, recorded, superadmins alerted, refused with a neutral sentence. Classifier: held for the parent, refused |
+| Upload gate | `services/upload_safety_service.py` | every user-uploaded image: known-CSAM hash match, then the classifier for a student's picture | CSAM: quarantined, recorded, superadmins alerted, refused with a neutral sentence. Classifier: held for the parent, refused; schoolwork showing only the child's contact details is refused with what to cover and not held; the same image again within a day reuses its hold |
 | Nightly conversation review | `services/conversation_review_service.py` | the pattern no single message shows: grooming, sustained bullying, self-harm talk | A pending report in the moderation queue; superadmins notified |
 | Reports | `/api/moderation/report` | anything a person flags, including class chat messages | The moderation queue; "Action taken" hides the target |
 | Tracker | Superadmin home, "Safety screen" card | all of the above, per surface, with model cost and failed calls | Read it |

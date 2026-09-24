@@ -44,6 +44,10 @@ import pytest
 BACKEND = Path(__file__).resolve().parents[2]
 
 # Measured 2026-09-03.
+# repositories/ raised +1 for upload_hold_for_image in
+# peer_text_screen_repository.py: the same image from the same student
+# reuses its upload hold instead of writing a new one and telling the
+# parent again (fourteen holds for one photo on 2026-09-21).
 # repositories/ raised 611 -> 612 for get_public_blocks_for_documents in
 # evidence_document_repository.py: the feed fills each task card with all of
 # its blocks instead of only the ones inside the page's time window. The feed
@@ -587,7 +591,7 @@ BASELINES = {
     # ticket 0e6cb0fc); two so a family's reply on a submission reaches the
     # SIS reviewer or the class teachers (sis_submission_reviews, class_quests;
     # ticket 41474658). routes/ went DOWN by the two moved reads.
-    'repositories': 612,
+    'repositories': 613,
     # 2026-09-09: 135 -> 136. class_membership.children_in_classes, the inverse
     # of parents_of_students: which of a guardian's children sit in each of a
     # set of classes. It answers "whose class chat is this?" for the messaging

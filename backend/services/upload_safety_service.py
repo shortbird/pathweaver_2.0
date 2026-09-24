@@ -17,6 +17,20 @@ Two checks, in this order, and they are different in kind:
      held message gets. Adults' uploads are not classified: a teacher's photo
      of the class is the teacher's business, and the hash match still ran.
 
+     One exception to the hold: schoolwork (task evidence, a learning
+     moment) that breaks ONLY the contact-details rule is refused with a
+     sentence that says what to cover, and nothing is recorded. A child's
+     name and number on a choir folder label is a privacy slip, not a safety
+     event, and the parent was told about it once per retry. Evidence still
+     reaches friends' feeds and a public portfolio, so it is still refused.
+     An avatar, a feed post or a community post keeps the hold: there the
+     number is how someone reaches the child.
+
+     The same student sending the same bytes again inside a day gets the
+     first hold's answer without a model call or a second hold. On
+     2026-09-21 one photo was held fourteen times and each hold told the
+     parent.
+
 Fail-open, both. A provider outage must not refuse every photo of a science
 project, so an error is logged and counted (the tracker shows failed calls)
 and the upload proceeds. This is the trade the message screen made and for
@@ -48,11 +62,17 @@ logger = get_logger(__name__)
 NEUTRAL_REFUSAL = 'This file could not be uploaded.'
 #: What a student reads when the classifier holds a picture.
 HELD_REFUSAL = 'That image was held by our safety check.'
+#: What a student reads when the only problem is contact details. Unlike the
+#: hold above it says what is wrong: the student can fix it, and a refusal
+#: that gives no reason was retried fourteen times in an hour (2026-09-21).
+CONTACT_REFUSAL = ('That image shows a phone number, address or username. '
+                   'Cover or crop it and try again.')
 
 KIND_CLEAR = 'clear'
 KIND_SKIPPED = 'skipped'
 KIND_CSAM = 'csam'
 KIND_HELD = 'held'
+KIND_CONTACT = 'contact'
 
 #: Purposes whose uploads a student makes and other people see. Only these
 #: go to the classifier; a chat attachment is classified at send time with
@@ -61,6 +81,13 @@ CLASSIFIED_PURPOSES = frozenset({
     'evidence', 'learning_event', 'feed', 'avatar', 'portfolio', 'community',
     'bug_report', 'family_photo',
 })
+
+#: Schoolwork, where contact details alone are refused without a hold.
+SOFT_CONTACT_PURPOSES = frozenset({'evidence', 'learning_event'})
+
+#: How far back the same image from the same student reuses its hold. The
+#: message screen's window (peer_text_screen_service.HOLD_DEDUPE_HOURS).
+UPLOAD_DEDUPE_HOURS = 24
 
 HELD_PREFIX = 'held'
 HELD_BUCKET = 'user-uploads'
@@ -104,12 +131,20 @@ def check_image(blob: bytes, mime: Optional[str], *, user_id: Optional[str],
     if not Config.UPLOAD_IMAGE_SCREEN_ENABLED or not user_id or not _is_student(user_id):
         return UploadVerdict(True, KIND_CLEAR)
 
-    from services.peer_text_screen_service import PeerTextScreenService, load_image_bytes
+    from services.peer_text_screen_service import UploadScreenService, load_image_bytes
     part = load_image_bytes(blob, filename or 'upload', mime)
     if part is None:
         logger.warning('[upload-safety] could not open %s for the classifier; upload proceeds', filename)
         return UploadVerdict(True, KIND_CLEAR)
-    svc = PeerTextScreenService()
+
+    # After the open, so the bytes are known to be an image.
+    sha256 = hashlib.sha256(blob).hexdigest()
+    earlier = _earlier_hold(user_id, sha256)
+    if earlier:
+        logger.info('[upload-safety] same image held again for %s; hold %s stands, parents not re-told',
+                    str(user_id)[:8], earlier)
+        return UploadVerdict(False, KIND_HELD, HELD_REFUSAL, hold_id=earlier)
+    svc = UploadScreenService()
     result = svc.judge(f'{_purpose_label(purpose)}: {filename or "image"}', [part],
                        prompt=svc.UPLOAD_PROMPT)
     if result.failed:
@@ -118,9 +153,40 @@ def check_image(blob: bytes, mime: Optional[str], *, user_id: Optional[str],
     if not result.flagged:
         return UploadVerdict(True, KIND_CLEAR)
 
+    # A flag with no kinds is a hold: the model did not say which rule, so
+    # nothing here can call it only contact details.
+    contact_only = set(result.kinds) == {svc.KIND_CONTACT_DETAILS}
+    if contact_only and purpose in SOFT_CONTACT_PURPOSES:
+        logger.info('[upload-safety] contact details on %s refused without a hold', purpose)
+        return UploadVerdict(False, KIND_CONTACT, CONTACT_REFUSAL, reasons=result.reasons)
+
     hold_id = _hold(part['data'], user_id=user_id, purpose=purpose, filename=filename,
-                    reasons=result.reasons, model=result.model)
-    return UploadVerdict(False, KIND_HELD, HELD_REFUSAL, hold_id=hold_id, reasons=result.reasons)
+                    reasons=result.reasons, model=result.model, sha256=sha256)
+    return UploadVerdict(False, KIND_HELD, CONTACT_REFUSAL if contact_only else HELD_REFUSAL,
+                         hold_id=hold_id, reasons=result.reasons)
+
+
+def error_code(verdict: UploadVerdict) -> str:
+    """The error_code an upload route sends with a refusal. A client shows a
+    SAFETY_* refusal's sentence on its own: it already says what happened and
+    what to do, and a second "nothing was saved" toast under the cover-or-crop
+    sentence read as two separate failures (2026-09-23)."""
+    return {KIND_HELD: 'SAFETY_HELD', KIND_CONTACT: 'SAFETY_CONTACT'}.get(verdict.kind, 'REJECTED')
+
+
+def _earlier_hold(user_id: str, sha256: str) -> Optional[str]:
+    """The hold this student's identical image already has, or None.
+    Best-effort: a failed lookup classifies the image again."""
+    from datetime import timedelta
+    from repositories.peer_text_screen_repository import PeerTextScreenRepository
+    from utils.timestamps import utcnow
+    try:
+        since = (utcnow() - timedelta(hours=UPLOAD_DEDUPE_HOURS)).isoformat()
+        return PeerTextScreenRepository().upload_hold_for_image(
+            author_id=user_id, sha256=sha256, since_iso=since)
+    except Exception as e:  # noqa: BLE001
+        logger.warning('[upload-safety] earlier-hold lookup failed, classifying: %s', e)
+        return None
 
 
 # --- a hash match ---------------------------------------------------------------
@@ -226,7 +292,8 @@ def _ensure_private_bucket(admin, name: str) -> None:
 # --- a classifier hold ----------------------------------------------------------
 
 def _hold(jpeg: bytes, *, user_id: str, purpose: str, filename: Optional[str],
-          reasons: List[str], model: Optional[str]) -> Optional[str]:
+          reasons: List[str], model: Optional[str],
+          sha256: Optional[str] = None) -> Optional[str]:
     """Keep the picture under held/ so the parent can see it, then record
     the hold the way a held message is recorded (parents told once)."""
     from services import peer_text_screen_service as screen_svc
@@ -243,6 +310,10 @@ def _hold(jpeg: bytes, *, user_id: str, purpose: str, filename: Optional[str],
             path, jpeg, {'content-type': 'image/jpeg'})
         attachments = [{'url': public_object_url(HELD_BUCKET, path), 'type': 'image',
                         'name': filename or 'image.jpg', 'size': len(jpeg)}]
+        if sha256:
+            # The ORIGINAL upload's hash, not the re-encoded JPEG's: the
+            # next upload is compared before it is re-encoded.
+            attachments[0]['sha256'] = sha256
     except Exception as e:  # noqa: BLE001
         logger.warning('[upload-safety] could not keep a held image for the parent: %s', e)
 
