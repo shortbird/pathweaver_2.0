@@ -8,6 +8,7 @@ import { useSisOrg, withOrg } from '../useSisOrg'
 import SearchSelect from '../../../components/ui/SearchSelect'
 import { classLabel, meetingText } from '../../../components/sis/classLabel'
 import AttendanceAlerts from '../../../components/sis/AttendanceAlerts'
+import { RollStatus, SubstituteControl } from '../../../components/sis/RollStatus'
 import { isSisAdmin } from '../sisRole'
 import { statusTone } from '../../../components/sis/ui/statusMaps'
 import { INLINE_INPUT_CLASS } from '../../../components/ui/Input'
@@ -48,6 +49,8 @@ export default function AttendancePanel() {
   const [saving, setSaving] = useState(false)
   const [alreadyTaken, setAlreadyTaken] = useState(false)
   const [dirty, setDirty] = useState(false)
+  // Who took this date's roll, and any substitute (P7): the class session.
+  const [session, setSession] = useState(null)
   // "I would like to be able to search by student on the attendance page"
   // (iCreate, 2026-08-24). Filters the cards only — counts and Save always
   // work on the whole roster, so a filtered view still saves everyone.
@@ -85,7 +88,7 @@ export default function AttendancePanel() {
   }, [orgId, user?.id])
 
   const loadRoster = useCallback(() => {
-    if (!orgId || !classId || !date) { setRoster([]); setAlreadyTaken(false); setDirty(false); return }
+    if (!orgId || !classId || !date) { setRoster([]); setAlreadyTaken(false); setDirty(false); setSession(null); return }
     setLoading(true)
     api.get(`/api/sis/classes/${classId}/attendance?date=${date}&organization_id=${orgId}`)
       .then((r) => {
@@ -97,6 +100,7 @@ export default function AttendancePanel() {
         // child present. A status already recorded loads in and wins.
         setRoster(rows.map((s) => ({ ...s, mark: s.status || (s.planned_absence ? 'excused' : 'present') })))
         setAlreadyTaken(rows.some((s) => s.status != null))
+        setSession(r.data?.session || null)
         setDirty(false)
       })
       .catch(() => toast.error('Failed to load roster'))
@@ -146,7 +150,8 @@ export default function AttendancePanel() {
     if (!entries.length) return
     setSaving(true)
     try {
-      await api.post(`/api/sis/classes/${classId}/attendance`, { date, entries, organization_id: orgId })
+      const { data } = await api.post(`/api/sis/classes/${classId}/attendance`, { date, entries, organization_id: orgId })
+      if (data?.session) setSession(data.session)
       const exceptions = [
         absentCount && `${absentCount} absent`,
         lateCount && `${lateCount} late`,
@@ -276,7 +281,12 @@ export default function AttendancePanel() {
               {absentCount ? <> · <span className="text-red-600 font-medium">{absentCount} absent</span></> : null}
               {lateCount ? ` · ${lateCount} late` : ''}
               {excusedCount ? ` · ${excusedCount} excused` : ''}
+              <RollStatus session={session} />
             </div>
+            {admin && (
+              <SubstituteControl classId={classId} date={date} orgId={orgId}
+                session={session} onSaved={(s) => s && setSession(s)} />
+            )}
             {alreadyTaken && !dirty && (
               <span className="text-xs font-medium rounded-full px-2 py-0.5 bg-green-100 text-green-700">Attendance taken</span>
             )}

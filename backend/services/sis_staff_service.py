@@ -294,8 +294,17 @@ def _enrolled_counts(class_ids: List[str]) -> Dict[str, int]:
 
 
 def teacher_classes(user_id: str, org_id: str) -> List[Dict[str, Any]]:
-    """The advisor's classes with meeting times and enrollment counts."""
+    """The advisor's classes with meeting times and enrollment counts.
+
+    Also the classes the office marked this person to cover TODAY, with
+    my_role 'substitute' -- the way a substitute reaches the class page to
+    take its roll. Tomorrow the class is gone from the list again (P7).
+    """
     ids = sis_service.advisor_class_ids(user_id, org_id)
+    from services import sis_class_session_service as sessions
+    today = _org_now(org_id).date().isoformat()
+    covering = [c for c in sessions.covering_class_ids(user_id, org_id, today) if c not in ids]
+    ids = ids + covering
     classes = _classes_by_ids(org_id, ids)
     meetings = _meetings_for_classes(org_id, [c['id'] for c in classes])
     counts = _enrolled_counts([c['id'] for c in classes])
@@ -311,7 +320,8 @@ def teacher_classes(user_id: str, org_id: str) -> List[Dict[str, Any]]:
                                                       m.get('start_time') or '')),
                     # Assistants see the class in their portal, but shouldn't
                     # mistake it for one they lead.
-                    'my_role': ('assistant'
+                    'my_role': ('substitute' if c['id'] in covering
+                                else 'assistant'
                                 if c.get('primary_instructor_id') != user_id
                                 and user_id in (c.get('assistant_instructor_ids') or [])
                                 else 'teacher'),
@@ -478,12 +488,16 @@ def teacher_dashboard(user_id: str, org_id: str) -> Dict[str, Any]:
             (r.get('version_date') or '') > (acked.get(r['id']) or ''))
     ]
 
-    forms = (
-        _admin().table('sis_form_submissions')
-        .select('id, form_type, title, status, created_at')
-        .eq('organization_id', org_id).eq('submitted_by', user_id)
-        .order('created_at', desc=True).limit(5).execute()
-    ).data or []
+    # The teacher's own open tasks, which replaced the "Submit a form" card
+    # when forms were retired (iCreate meeting 2026-09-23): a teacher who needs
+    # something from the office messages it, and what the office needs from
+    # them arrives here.
+    from services import sis_tasks_service
+    try:
+        my_tasks = sis_tasks_service.open_tasks_for(org_id, user_id)[:6]
+    except Exception:  # noqa: BLE001 -- one card must not take the dashboard down
+        logger.warning('teacher dashboard: my tasks failed', exc_info=True)
+        my_tasks = []
 
     # Staff-facing resources (the mentor handbook and friends). These already
     # existed but only surfaced when an acknowledgment was outstanding, so a
@@ -509,7 +523,7 @@ def teacher_dashboard(user_id: str, org_id: str) -> Dict[str, Any]:
         'needs_phone': not (_user_phone(user_id) or '').strip(),
         'onboarding': onboarding,
         'pending_acks': pending_acks,
-        'recent_forms': forms,
+        'my_tasks': my_tasks,
         'staff_resources': staff_resources,
         'pinned_links': pinned_links,
     }
@@ -825,8 +839,7 @@ def _staff_history(org_id: str, staff_id: str) -> Dict[str, int]:
 
     return {
         'classes': _count('org_classes', 'primary_instructor_id', organization_id=org_id),
-        'forms': _count('sis_form_submissions', 'submitted_by', organization_id=org_id),
-        'onboarding': _onboarding_with_work(org_id, staff_id),
+        'tasks': _onboarding_with_work(org_id, staff_id),
         'attendance': _count('class_attendance', 'recorded_by'),
     }
 

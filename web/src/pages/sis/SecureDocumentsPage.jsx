@@ -319,7 +319,7 @@ export const SecureDocumentsPanel = ({ orgId }) => {
     if (ids.length === 0) return
     if (sign && !(await confirm(
       `Ask for a signature on ${ids.length === 1 ? 'this document' : `these ${ids.length} documents`}? `
-      + 'It becomes what their "sign your contract" checklist item asks for, and they will be '
+      + 'It becomes what their "sign your contract" task step asks for, and they will be '
       + 'able to open it.'))) return
     setSharingBulk(true)
     try {
@@ -654,7 +654,7 @@ export const SecureDocumentsPanel = ({ orgId }) => {
                           <div className="flex flex-col items-start gap-1">
                           {d.uploaded_by_owner ? (
                             <span className="text-xs px-2 py-0.5 rounded-full whitespace-nowrap bg-blue-100 text-blue-700">
-                              {d.source === 'checklist' ? 'From their checklist' : 'They sent this'}
+                              {d.source === 'checklist' ? 'From their tasks' : 'They sent this'}
                             </span>
                           ) : !d.owner_user_id ? (
                             <span className="text-xs text-neutral-400">—</span>
@@ -696,7 +696,7 @@ export const SecureDocumentsPanel = ({ orgId }) => {
                                   ? 'bg-optio-purple/10 text-optio-purple hover:bg-optio-purple/20'
                                   : 'bg-gray-100 text-neutral-500 hover:bg-gray-200'}`}
                               title={d.requires_signature
-                                ? 'Their checklist asks them to sign this — click to stop asking'
+                                ? 'A task asks them to sign this — click to stop asking'
                                 : 'Not something they sign — click to ask for their signature'}
                             >
                               {d.requires_signature ? 'Needs signature' : 'No signature'}

@@ -471,11 +471,22 @@ describe('schoolTabsFor (the hub\'s tabs, 2026-09-18)', () => {
     organization_id: 'org-1', organization_name: 'iCreate', is_guardian: true,
     post_registration_flow: 'schedule', logo_url: null, ...over,
   });
-  const keys = (o: unknown, have = { board: true, documents: true }) =>
+  const keys = (o: unknown, have: Record<string, boolean> = { board: true, documents: true }) =>
     schoolTabsFor(o, have).map((t: { key: string }) => t.key);
 
-  it('gives a guardian at a school with a board and documents all five', () => {
-    expect(keys(org())).toEqual(['feed', 'schedule', 'calendar', 'carpool', 'documents']);
+  it('gives a guardian at a school with a board and documents all six', () => {
+    expect(keys(org())).toEqual(['feed', 'todo', 'schedule', 'calendar', 'carpool', 'documents']);
+  });
+
+  it('gives To do to a guardian and a student, right after Feed, and to nobody else', () => {
+    const student = { board: true, documents: true, student: true };
+    expect(keys(org({ is_guardian: false }), student)).toEqual(['feed', 'todo', 'calendar', 'carpool', 'documents']);
+    // A staff member (not a guardian, not a student) and the superadmin preview.
+    expect(keys(org({ is_guardian: false }))).not.toContain('todo');
+    expect(keys(null, student)).not.toContain('todo');
+    // A school that does not run tasks has no To do.
+    expect(keys(org({ modules: ['classes', 'attendance'] }))).not.toContain('todo');
+    expect(keys(org({ modules: ['tasks'] }))).toContain('todo');
   });
 
   it('never lists billing, forms, absences or lost & found as tabs', () => {
@@ -513,8 +524,8 @@ describe('schoolTabsFor (the hub\'s tabs, 2026-09-18)', () => {
   });
 
   it('calendar and carpool wait for a board; documents wait for any', () => {
-    expect(keys(org(), { board: false, documents: false })).toEqual(['feed', 'schedule']);
-    expect(keys(org(), { board: false, documents: true })).toEqual(['feed', 'schedule', 'documents']);
+    expect(keys(org(), { board: false, documents: false })).toEqual(['feed', 'todo', 'schedule']);
+    expect(keys(org(), { board: false, documents: true })).toEqual(['feed', 'todo', 'schedule', 'documents']);
   });
 
   it('feed is always first', () => {

@@ -162,4 +162,29 @@ describe('GroupChatWindow', () => {
     expect(screen.getByPlaceholderText('Type a message...')).toBeInTheDocument()
     expect(screen.queryByText('Only teachers can post in this group')).not.toBeInTheDocument()
   })
+
+  // 9b46c748 (iCreate, 2026-09-23): the group's read receipt.
+  it('says how many members have read past our last message', () => {
+    groupMessages = { data: { messages: [
+      { id: 'm1', sender_id: 'u1', message_content: 'Room 4 is open', created_at: '2025-01-01T10:00:00Z' },
+    ] }, isLoading: false }
+    groupDetails = { data: { members: [
+      { user_id: 'u1', last_read_at: '2025-01-01T10:00:00Z', user: { first_name: 'Me' } },
+      { user_id: 'a', last_read_at: '2025-01-01T10:05:00Z', user: { first_name: 'Ada', last_name: 'L' } },
+      { user_id: 'b', last_read_at: '2025-01-01T09:00:00Z', user: { first_name: 'Bo', last_name: 'M' } },
+      { user_id: 'c', last_read_at: null, user: { first_name: 'Cy' } },
+    ] } }
+    render(<GroupChatWindow group={group} />)
+    expect(screen.getByText('· Seen by 1')).toHaveAttribute('title', 'Ada L')
+  })
+
+  it('offers Make a task on each message when the school reads it', () => {
+    groupMessages = { data: { messages: [
+      { id: 'm1', sender_id: 'other', message_content: 'Hi', sender: { first_name: 'Bo' }, created_at: '2025-01-01T10:00:00Z' },
+    ] }, isLoading: false }
+    const onMakeTask = vi.fn()
+    render(<GroupChatWindow group={group} source={{ school: true }} onMakeTask={onMakeTask} />)
+    screen.getByRole('button', { name: 'Make a task' }).click()
+    expect(onMakeTask).toHaveBeenCalledWith(expect.objectContaining({ id: 'm1' }))
+  })
 })

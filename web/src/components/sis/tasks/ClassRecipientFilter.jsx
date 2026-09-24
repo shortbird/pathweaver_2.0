@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import { INPUT_CLASS } from '../../ui/Input'
 import { useClassFamilies, useRecipientClasses } from '../../../hooks/api/useSisOnboarding'
+import { useClassStudents } from '../../../hooks/api/useTasks'
 
 /**
  * "Pick a class" above a family recipient list (ticket a19d5660).
@@ -12,16 +13,18 @@ import { useClassFamilies, useRecipientClasses } from '../../../hooks/api/useSis
  * which narrows its list to them and selects them. Choosing "All families"
  * hands back null, and the caller puts its full list back.
  *
- * Shared by AssignChecklistModal and AssignComposer so the two family lists
- * cannot drift apart. The class the caller has applied lives with the caller
+ * `audience` picks what a class means: its families (the guardians of its
+ * students) or, for a task to students, its students. The class the caller has applied lives with the caller
  * (`value`), because the composer unmounts this when you switch to the Staff
  * tab and the choice has to survive the trip back. `picked` is what the select
  * shows, which runs ahead of `value` while the class's families load.
  */
-export default function ClassRecipientFilter({ orgId, value = '', onPick }) {
+export default function ClassRecipientFilter({ orgId, value = '', onPick, audience = 'family' }) {
   const [picked, setPicked] = useState(value)
   const { data: classes = [] } = useRecipientClasses(orgId)
-  const families = useClassFamilies(orgId, picked)
+  const familyQuery = useClassFamilies(orgId, audience === 'family' ? picked : '')
+  const studentQuery = useClassStudents(orgId, audience === 'student' ? picked : '')
+  const families = audience === 'student' ? studentQuery : familyQuery
 
   // Hand the answer over once, when it is for the class on screen and the
   // caller has not applied it yet. The query key carries the class id, so a
@@ -46,13 +49,13 @@ export default function ClassRecipientFilter({ orgId, value = '', onPick }) {
       </span>
       <select value={picked} onChange={(e) => pick(e.target.value)}
         className={INPUT_CLASS} aria-label="Pick a class">
-        <option value="">All families</option>
+        <option value="">{audience === 'student' ? 'All students' : 'All families'}</option>
         {classes.map((c) => (
           <option key={c.id} value={c.id}>{c.name || 'Untitled class'}</option>
         ))}
       </select>
       {picked && picked !== value && families.isFetching && (
-        <span className="block text-xs text-neutral-400 mt-1">Loading families…</span>
+        <span className="block text-xs text-neutral-400 mt-1">Loading…</span>
       )}
     </label>
   )

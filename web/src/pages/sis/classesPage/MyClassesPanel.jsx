@@ -55,6 +55,13 @@ export default function MyClassesPanel() {
                     Assistant
                   </span>
                 )}
+                {/* The office marked this person to cover the class today; it
+                    leaves the list tomorrow (P7). */}
+                {c.my_role === 'substitute' && (
+                  <span className="mt-0.5 flex-shrink-0 text-[11px] font-semibold rounded-full px-2 py-0.5 bg-amber-100 text-amber-800">
+                    Substitute today
+                  </span>
+                )}
               </div>
               <p className="text-sm text-neutral-500 mb-2">
                 {c.enrolled_count} student{c.enrolled_count === 1 ? '' : 's'}

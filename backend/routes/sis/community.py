@@ -51,7 +51,10 @@ def list_announcements(user_id):
     org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
-    return jsonify({'success': True, 'announcements': community.list_announcements(org_id)})
+    rows = community.list_announcements(org_id)
+    # "Read by N of M" on the posts that were sent to people (9b46c748).
+    community.attach_read_counts(rows)
+    return jsonify({'success': True, 'announcements': rows})
 
 
 @bp.route('/announcements', methods=['POST'])

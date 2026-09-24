@@ -210,7 +210,7 @@ class TestTheFinanceModulesAreActuallyGated:
         used to sit beside it was removed on 2026-09-18 with the time clock)."""
         from routes.sis import staff_admin
         assert 'ADMIN_ROLES' in self._roles_on(staff_admin, 'list_templates')
-        assert 'ADMIN_ROLES' in self._roles_on(staff_admin, 'list_forms')
+        assert 'ADMIN_ROLES' in self._roles_on(staff_admin, 'list_onboarding_assignments')
         assert 'ADMIN_ROLES' in self._roles_on(staff_admin, 'get_profile')
 
 
@@ -249,7 +249,7 @@ class TestOnboardingOffersCoordinators:
         client = Mock()
         table = Mock()
         client.table.return_value = table
-        for chained in ('select', 'eq', 'limit', 'in_', 'order'):
+        for chained in ('select', 'eq', 'limit', 'in_', 'order', 'range'):
             getattr(table, chained).return_value = table
         table.execute.return_value = Mock(data=rows)
         return client

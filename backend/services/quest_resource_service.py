@@ -276,34 +276,16 @@ def copy_for_quest(source_quest_id: str, new_quest_id: str,
 def can_edit_quest(user_id: str, quest: Dict[str, Any], admin=None) -> bool:
     """Whether this person may attach things to this quest.
 
-    An org admin of the quest's own org, or a teacher who moderates a class the
-    quest is attached to -- the same gate routes/sis/class_quests.py applies to
-    editing the quest's tasks, since attaching a worksheet to a task is the same
-    act as writing the task.
+    The same rule as editing the quest itself (services/quest_edit_rules):
+    attaching a worksheet to a task is the same act as writing the task. Since
+    2026-09-23 that is the school office, or the teacher who wrote the quest --
+    a teacher of a class that merely carries the quest no longer counts, which
+    is the owner's rule for the one quest form (P6).
 
     A quest with no organization (the Optio library) is not editable here at
     all: those are shared across every school, and one school's teacher
     attaching their handout to one would put it in front of all of them.
+    `quest` must carry created_by for a teacher to pass.
     """
-    admin = admin or _admin()
-    org_id = quest.get('organization_id')
-    if not org_id:
-        return False
-
-    from services import sis_service
-    if sis_service.caller_is_admin(user_id):
-        return sis_service.resolve_org_id(user_id, org_id) == org_id
-
-    links = (admin.table('class_quests').select('class_id')
-             .eq('quest_id', quest['id']).execute()).data or []  # noqa: E501
-    if not links:
-        return False
-    class_ids = [row['class_id'] for row in links if row.get('class_id')]
-    if not class_ids:
-        return False
-
-    from utils import class_membership
-    for class_id in class_ids:
-        if user_id in class_membership.class_teacher_ids(class_id):
-            return True
-    return False
+    from services import quest_edit_rules
+    return quest_edit_rules.can_edit_quest(user_id, quest)

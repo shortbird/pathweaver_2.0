@@ -22,10 +22,18 @@ describe('sisModules', () => {
   })
 
   it('reads the legacy hidden_modules opt-outs', () => {
-    const hidden = getHiddenModules(orgWith(['clp', 'forms']))
+    const hidden = getHiddenModules(orgWith(['clp', 'onboarding']))
     expect(hidden.has('clp')).toBe(true)
-    expect(hidden.has('forms')).toBe(true)
+    expect(hidden.has('onboarding')).toBe(true)
     expect(hidden.has('billing')).toBe(false)
+  })
+
+  it('ignores a stored key for a module that no longer exists', () => {
+    // 'forms' was retired on 2026-09-24 (everything is a task); orgs that hid
+    // it still carry the key, and it hides nothing now.
+    const hidden = getHiddenModules(orgWith(['forms']))
+    expect(hidden.has('forms')).toBe(false)
+    expect(hidden.has('tasks')).toBe(false)
   })
 
   it('a null org hides nothing (superadmin before selecting)', () => {
@@ -46,10 +54,14 @@ describe('sisModules', () => {
   it('keeps paths whose module is not hidden (e.g. billing stays for Gryffin)', () => {
     // 'timesheets' is Gryffin's real stored array; the module was removed on
     // 2026-09-18 and an unregistered key is ignored.
+    // 'forms' went the same way on 2026-09-24: /forms redirects to /tasks and
+    // follows the tasks module, which Gryffin never hid.
     const gryffin = orgWith(['onboarding', 'timesheets', 'forms', 'clp'])
     expect(isPathHidden('/billing', gryffin)).toBe(false)
     expect(isPathHidden('/clp', gryffin)).toBe(true)
-    expect(isPathHidden('/forms', gryffin)).toBe(true)
+    expect(isPathHidden('/onboarding', gryffin)).toBe(true)
+    expect(isPathHidden('/forms', gryffin)).toBe(false)
+    expect(isPathHidden('/tasks', gryffin)).toBe(false)
   })
 
   it('hides the whole class surface (admin + teacher portal) under one key', () => {
@@ -72,10 +84,13 @@ describe('sisModules', () => {
   it('hides the Library page only when every one of its tabs is off', () => {
     // M22: /library is Documents (resources), Training and Curriculum/Quests
     // (curriculum) as tabs. Each tab hides on its own module; the page goes
-    // with the last of them.
+    // with the last of them. Since 2026-09-24 the Documents tab also holds a
+    // person's own documents and the HR store (secure_documents), which keep
+    // the page open on their own.
     expect(isPathHidden('/library', orgWith([]))).toBe(false)
     expect(isPathHidden('/library', orgWith(['resources', 'training']))).toBe(false)
-    expect(isPathHidden('/library', orgWith(['resources', 'training', 'curriculum']))).toBe(true)
+    expect(isPathHidden('/library', orgWith(['resources', 'training', 'curriculum']))).toBe(false)
+    expect(isPathHidden('/library', orgWith(['resources', 'training', 'curriculum', 'secure_documents']))).toBe(true)
     expect(isPathHidden('/library', null)).toBe(false)
   })
 
@@ -116,19 +131,26 @@ describe('sisModules', () => {
 
     it('leaves the task pages alone for an org that hid only forms', () => {
       /* An org that turned Forms off did not ask to lose the inbox where their
-         signatures and checklists now live. */
+         signatures and tasks live. Forms themselves are gone (2026-09-24), so
+         /forms is only a redirect to /tasks and follows the tasks module. */
       const org = orgWith(['forms'])
       expect(isPathHidden('/my-tasks', org)).toBe(false)
       expect(isPathHidden('/tasks', org)).toBe(false)
+      expect(isPathHidden('/forms', org)).toBe(false)
+      expect(SIS_MODULE_BY_PATH['/forms']).toBe('tasks')
+    })
+
+    it('follows tasks for /forms: an org that hid tasks loses the redirect too', () => {
+      const org = orgWith(['tasks'])
       expect(isPathHidden('/forms', org)).toBe(true)
     })
 
-    it('keeps the promise already made to orgs that hid forms or onboarding', () => {
-      /* Those keys stay meaningful rather than being folded into 'tasks': a
+    it('keeps the promise already made to orgs that hid onboarding', () => {
+      /* That key stays meaningful rather than being folded into 'tasks': a
          saved config is a promise, and reusing its name silently breaks it. */
       const org = orgWith(['forms', 'onboarding'])
-      expect(isPathHidden('/forms', org)).toBe(true)
       expect(isPathHidden('/onboarding', org)).toBe(true)
+      expect(isPathHidden('/tasks', org)).toBe(false)
     })
   })
 

@@ -128,6 +128,12 @@ export const queryKeys = {
     // options, and the guardians of one class's enrolled students.
     recipientClasses: (orgId) => [...queryKeys.sis.all, 'recipientClasses', orgId],
     classFamilies: (orgId, classId) => [...queryKeys.sis.all, 'classFamilies', orgId, classId],
+    // The same "Pick a class" for a STUDENT recipient list: the class's roster.
+    classStudents: (orgId, classId) => [...queryKeys.sis.all, 'classStudents', orgId, classId],
+    // Tasks (one table since 2026-09-24): the office's Assigned cards and the
+    // recurring schedules.
+    assignedTasks: (orgId) => [...queryKeys.sis.all, 'assignedTasks', orgId],
+    taskSchedules: (orgId) => [...queryKeys.sis.all, 'taskSchedules', orgId],
     // Community console. `community(orgId)` is the PREFIX every tab's key
     // starts with, so one invalidate after a mutation reaches all of them --
     // which matters because /highlights is a server-side digest of the other

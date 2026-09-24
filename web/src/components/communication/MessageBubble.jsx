@@ -22,6 +22,17 @@ import MessageText from './MessageText'
  * "Seen" once; the quiet one won ("Don't even know if he saw it", 4ae1c6d1,
  * is answered either way). `meta` is appended after it for what only one
  * surface has to say (" · Sent by Kate").
+ *
+ * Since 2026-09-23 (iCreate, 9b46c748: "add read receipts") the receipt says
+ * WHEN: pass the read time as `seen` and it reads " · Seen 2:14 PM" (`true`
+ * still reads " · Seen"). A group has no one reader, so `seenBy` is the list
+ * of members who have read past this message: " · Seen by 3", with their
+ * names on hover.
+ *
+ * `message.sender_label` ("Kate for iCreate") is set by the server on a school
+ * message a staff member wrote with their name shown -- a teacher answering a
+ * thread the office handed them (d93b24d2). It sits above the text, where a
+ * group chat puts the sender's name.
  */
 export const OWN_BUBBLE_CLASS = 'bg-optio-purple/10 border border-optio-purple/20 text-gray-900 rounded-2xl rounded-br-md'
 export const OTHER_BUBBLE_CLASS = 'bg-white border border-gray-200 text-gray-900 rounded-2xl rounded-bl-md'
@@ -34,8 +45,13 @@ const MessageBubble = ({
   onCancelEdit,
   savingEdit = false,
   seen = false,
+  seenBy = null,
   meta = null
 }) => {
+  const seenText = seen
+    ? (typeof seen === 'string' ? ` · Seen ${formatMessageTime(seen)}` : ' · Seen')
+    : ''
+  const seenByNames = (seenBy || []).filter(Boolean)
   const isDeleted = !!message.is_deleted
   return (
     <div
@@ -59,6 +75,9 @@ const MessageBubble = ({
               Deleted
             </span>
           )}
+          {message.sender_label && (
+            <p className="text-xs font-semibold text-optio-purple mb-0.5">{message.sender_label}</p>
+          )}
           <ReplyQuote replyTo={message.reply_to} />
           <MessageText text={message.message_content} />
           <AttachmentList attachments={message.attachments} />
@@ -70,7 +89,10 @@ const MessageBubble = ({
           {formatMessageTime(message.created_at)}
           {message.edited_at && !isDeleted && <span className="text-gray-400"> (edited)</span>}
           {message.isOptimistic && ' (Sending...)'}
-          {seen && ' · Seen'}
+          {seenText}
+          {seenByNames.length > 0 && (
+            <span title={seenByNames.join(', ')}>{` · Seen by ${seenByNames.length}`}</span>
+          )}
           {meta}
         </span>
       </p>

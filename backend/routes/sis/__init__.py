@@ -285,7 +285,7 @@ def remove_staff(user_id, staff_id):
     """Archive a staff member, or delete them outright with ?mode=delete.
 
     Archive is the default because it is always safe. Delete is refused by the
-    service when the person has attendance, forms, or onboarding attached —
+    service when the person has attendance or finished tasks attached —
     it exists for the placeholder rows schools create while hiring.
     """
     org_id, err = sis_service.org_or_error(user_id)
@@ -1092,7 +1092,7 @@ def register_sis_routes(app):
 
     staff_portal_bp / staff_admin_bp carry a blueprint-level 'sis' baseline
     here PLUS per-route @require_module tags for the specific feature
-    (classes/forms/tasks/onboarding/secure_documents) -- both
+    (classes/tasks/onboarding/secure_documents) -- both
     gates run, so a route needs its own module AND the sis parent on.
     """
     from modules.gate import module_guard
@@ -1129,7 +1129,6 @@ def register_sis_routes(app):
     # A student's own training links (ae16c5da): self-scoped, per-route gated.
     from routes.sis.student_training import bp as student_training_bp
     from routes.sis.secure_documents import bp as secure_documents_bp
-    from routes.sis.parent_forms import bp as parent_forms_bp
     from routes.sis.tasks import bp as sis_tasks_bp
     from routes.sis.parent_prior_learning import bp as parent_prior_learning_bp
     from routes.sis.prior_learning import bp as prior_learning_bp
@@ -1140,6 +1139,7 @@ def register_sis_routes(app):
     from routes.sis.community import bp as community_bp
     from routes.sis.messaging import bp as messaging_bp
     from routes.sis.quest_resources import bp as quest_resources_bp
+    from routes.sis.quest_editor import bp as quest_editor_bp
     from routes.sis.internal import bp as internal_bp
     from routes.sis.settings import bp as settings_bp
 
@@ -1160,6 +1160,7 @@ def register_sis_routes(app):
         (coordinator_bp, 'sis'),
         (messaging_bp, 'messaging'),
         (quest_resources_bp, 'quests'),
+        (quest_editor_bp, 'quests'),
         (submissions_bp, 'submissions'),
         (class_materials_bp, 'classes'),
         (class_quests_bp, 'classes'),
@@ -1170,7 +1171,6 @@ def register_sis_routes(app):
         (quest_library_bp, 'curriculum'),
         (staff_training_bp, 'training'),
         (secure_documents_bp, 'secure_documents'),
-        (sis_tasks_bp, 'tasks'),
         # prior_learning and community keep their bespoke enforced checks
         # (already live); the gate rides alongside so they join the same
         # telemetry and the bespoke checks can retire at P3.
@@ -1186,7 +1186,6 @@ def register_sis_routes(app):
         # join the table outright.
         (staff_portal_bp, 'sis'),
         (staff_admin_bp, 'sis'),
-        (parent_forms_bp, 'forms'),
         (parent_prior_learning_bp, 'prior_learning'),
     ):
         module_guard(blueprint, module_key)
@@ -1224,7 +1223,6 @@ def register_sis_routes(app):
     app.register_blueprint(staff_training_bp)
     app.register_blueprint(student_training_bp)
     app.register_blueprint(secure_documents_bp)
-    app.register_blueprint(parent_forms_bp)
     app.register_blueprint(sis_tasks_bp)
     app.register_blueprint(parent_prior_learning_bp)
     app.register_blueprint(prior_learning_bp)
@@ -1235,6 +1233,7 @@ def register_sis_routes(app):
     app.register_blueprint(community_bp)
     app.register_blueprint(messaging_bp)
     app.register_blueprint(quest_resources_bp)
+    app.register_blueprint(quest_editor_bp)
     # The seven cron sweeps, declared in one place and not module-gated: a
     # sweep is about every org at once (routes/sis/internal.py says why).
     app.register_blueprint(internal_bp)

@@ -29,40 +29,97 @@ import api from '../../services/api'
  * office ticks: the community board, the staff board, each staff member's
  * Optio inbox, email (ticket 214bbc12, 2026-09-22: "I want to be able to
  * message just SOME of the teachers, not all of them"). A staff-only send can
- * be narrowed to named people. Families are narrowed and messaged from
- * "Message Families", which writes from the school account.
+ * be narrowed to named people. Chosen families are messaged from Compose on
+ * the Messaging page, which writes from the school account.
  *
- * Lives in components/ rather than on either page because /community is opt-in
- * per org: a school with the Community Hub switched off still posts
- * announcements, from /inbox.
+ * Who a post is for is several roles at once since 2026-09-23 (iCreate,
+ * 9a335881: "announcements should have multi-role select options"): any mix
+ * of parents, students and teachers. The server stores the roles
+ * (sis_announcements.audiences) and the nearest single word beside them for
+ * older readers; this form works out that word the same way
+ * (audienceForRoles) because the destination rules are written in it.
+ *
+ * Announcements live on the Community page only (9a335881: "announcements
+ * should only be in the community page, not in /inbox"). An org that wants
+ * them turns Community on.
  */
 
 const field = INPUT_CLASS
 // Who can READ the board post, and -- because it is one vocabulary, not two --
 // who "Also notify people" reaches. Kept in step with services/sis_audiences.py
-// (BOARD_AUDIENCES and recipient_roles_for): the server derives the send from
-// this same choice, so a label here that disagrees with it is a lie about what
-// Post does.
-const AUDIENCES = [
-  { value: 'school', label: 'Everyone at the school', reach: 'parents, students and teachers' },
-  { value: 'families', label: 'Families', reach: 'parents' },
-  { value: 'teachers', label: 'Staff only', reach: 'teachers' },
+// (BOARD_ROLES, board_audience_for_roles, recipient_roles_for_board_roles):
+// the server derives the send from this same choice, so a label here that
+// disagrees with it is a lie about what Post does.
+export const ROLES = [
+  { value: 'parents', label: 'Parents', reach: 'parents' },
+  { value: 'students', label: 'Students', reach: 'students' },
+  { value: 'teachers', label: 'Teachers and staff', reach: 'teachers' },
 ]
+const ALL_ROLES = ROLES.map((r) => r.value)
 
-// "Admins only" was retired on 2026-09-13; it read the same as staff-only on the
-// board and had nobody to notify. Editing a post written before that must not
-// drop it back to the default, which is everyone at the school.
-const LEGACY_AUDIENCE = { admins: 'teachers' }
-
-const reachOf = (value) => AUDIENCES.find((a) => a.value === value)?.reach
-// The chip on a posted item saying who can see it. The whole-school default
-// needs no chip; a narrower post does, because the list otherwise gave no way
-// to tell a staff-only notice from one every family reads (iCreate, 597ba9a4).
-const audienceChip = (value) => {
-  const v = LEGACY_AUDIENCE[value] || value || 'school'
-  if (v === 'school') return null
-  return AUDIENCES.find((a) => a.value === v)?.label || v
+// What each single stored word always meant ("admins" was retired on
+// 2026-09-13 and reads as staff only: editing a post written before that must
+// not drop it back to everyone at the school).
+const ROLES_OF_AUDIENCE = {
+  school: ALL_ROLES, families: ['parents'], teachers: ['teachers'], admins: ['teachers'],
 }
+
+/** The roles a post is for: its `audiences`, or what its old word meant. */
+export const rolesOf = (a) => {
+  const listed = (a?.audiences || []).filter((r) => ALL_ROLES.includes(r))
+  if (listed.length) return ALL_ROLES.filter((r) => listed.includes(r))
+  return ROLES_OF_AUDIENCE[a?.audience] || ALL_ROLES
+}
+
+/**
+ * The single word the server stores beside the roles, and the one the
+ * destination rules below are written in: staff only is 'teachers', parents
+ * without students is 'families', anything with students is 'school'.
+ * Nothing chosen is '' -- no audience yet.
+ */
+export const audienceForRoles = (roles) => {
+  const set = new Set(roles)
+  if (!set.size) return ''
+  if (set.size === 1 && set.has('teachers')) return 'teachers'
+  if (!set.has('students')) return 'families'
+  return 'school'
+}
+
+const joinWords = (words) => (words.length <= 1 ? words.join('')
+  : `${words.slice(0, -1).join(', ')} and ${words[words.length - 1]}`)
+
+/** "parents, students and teachers", for the lines the office reads. */
+const reachOfRoles = (roles) => joinWords(ROLES.filter((r) => roles.includes(r.value)).map((r) => r.reach))
+
+// The chip on a posted item saying who can see it. The whole-school default
+// needs no chip; a narrower one does, because the list otherwise gave no way
+// to tell a staff-only notice from one every family reads (iCreate, 597ba9a4).
+const audienceChip = (a) => {
+  const roles = rolesOf(a)
+  if (roles.length === ALL_ROLES.length) return null
+  if (roles.length === 1 && roles[0] === 'teachers') return 'Staff only'
+  if (roles.length === 1 && roles[0] === 'parents') return 'Families'
+  const labels = ROLES.filter((r) => roles.includes(r.value)).map((r) => r.label)
+  return joinWords(labels.map((l, i) => (i ? l.toLowerCase() : l)))
+}
+
+/** The Who checkboxes, for a new post and for an edit. */
+const RoleChecks = ({ roles, onChange, legend }) => (
+  <fieldset>
+    <legend className="text-xs text-neutral-500 mb-1">{legend}</legend>
+    <div className="flex flex-wrap gap-4 text-sm text-neutral-700">
+      {ROLES.map((r) => (
+        <label key={r.value} className="flex items-center gap-1.5">
+          <input type="checkbox" checked={roles.includes(r.value)}
+            onChange={() => onChange(roles.includes(r.value)
+              ? roles.filter((x) => x !== r.value)
+              : ALL_ROLES.filter((x) => x === r.value || roles.includes(x)))} />
+          {r.label}
+        </label>
+      ))}
+    </div>
+  </fieldset>
+)
 
 // Posted / scheduled / expires stamps: a day-only value is a day, an instant
 // is an instant, both from utils/timeFormat.js (this file and CommunityPage
@@ -110,10 +167,10 @@ const AnnouncementItem = ({ a, admin, onEdit, onDelete }) => {
           <div className="flex items-center gap-2 flex-wrap">
             {a.pinned && <span className="text-[11px] font-medium rounded-full px-2 py-0.5 bg-optio-purple/10 text-optio-purple">Pinned</span>}
             {a.priority === 'urgent' && <span className="text-[11px] font-medium rounded-full px-2 py-0.5 bg-red-100 text-red-700">Urgent</span>}
-            {audienceChip(a.audience) && (
+            {audienceChip(a) && (
               <span className="text-[11px] font-medium rounded-full px-2 py-0.5 bg-gray-100 text-neutral-600"
-                title={`Seen by ${reachOf(LEGACY_AUDIENCE[a.audience] || a.audience)}`}>
-                {audienceChip(a.audience)}
+                title={`Seen by ${reachOfRoles(rolesOf(a))}`}>
+                {audienceChip(a)}
               </span>
             )}
             <h3 className="text-base font-semibold text-neutral-900">{a.title}</h3>
@@ -133,6 +190,10 @@ const AnnouncementItem = ({ a, admin, onEdit, onDelete }) => {
             {fmtDate(a.created_at)}
             {a.publish_at && new Date(a.publish_at) > new Date() ? ` \u00b7 Scheduled for ${fmtDateTime(a.publish_at)}` : ''}
             {a.expires_at ? ` \u00b7 Expires ${fmtDate(a.expires_at)}` : ''}
+            {/* The post's send recorded who it went to; the board never said
+                whether they had read it (9b46c748). A board-only post has no
+                count, not a zero. */}
+            {a.recipient_count ? ` \u00b7 Read by ${a.read_count || 0} of ${a.recipient_count}` : ''}
           </div>
         </div>
         {admin && (
@@ -169,9 +230,7 @@ const BoardAnnouncementsTab = ({ orgId, admin }) => {
   }
 
   const shown = sortItems(
-    audienceFilter
-      ? items.filter((a) => (LEGACY_AUDIENCE[a.audience] || a.audience || 'school') === audienceFilter)
-      : items,
+    audienceFilter ? items.filter((a) => rolesOf(a).includes(audienceFilter)) : items,
     sort,
   )
 
@@ -201,7 +260,7 @@ const BoardAnnouncementsTab = ({ orgId, admin }) => {
               aria-label="Filter announcements by audience"
               className="rounded-lg border border-gray-300 px-2 py-1 text-xs">
               <option value="">All announcements</option>
-              {AUDIENCES.map((a) => <option key={a.value} value={a.value}>{a.label}</option>)}
+              {ROLES.map((r) => <option key={r.value} value={r.value}>{`For ${r.label.toLowerCase()}`}</option>)}
             </select>
           </label>
           <span className="text-neutral-400">
@@ -263,7 +322,7 @@ const disabledReason = (dest, audience) => {
   if (dest === 'staff_board' && audience === 'school') return 'A post for everyone is on the staff board too. Staff read every post.'
   // Family messages come from the school account so replies land in the
   // School Inbox. A DM from here would come from you personally.
-  if (dest === 'inbox' && audience === 'families') return 'Families are messaged from "Message Families", not from here.'
+  if (dest === 'inbox' && audience === 'families') return 'Families are messaged from Compose on the Messaging page, not from here.'
   return null
 }
 
@@ -273,11 +332,12 @@ const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`
  * What Post will do, one sentence per destination. This line is the contract
  * the office reads, so it is built from the same choices the payload is.
  */
-export const reachLines = ({ audience, destinations, notifyApp, someStaff, chosenCount }) => {
+export const reachLines = ({ roles = [], destinations, notifyApp, someStaff, chosenCount }) => {
   // No audience yet (a new post starts without one, 2f945974): there is no
   // "who" to put in a sentence, and Post stays off until there is.
+  const audience = audienceForRoles(roles)
   if (!audience) return ['Choose who it is for.']
-  const reach = reachOf(audience)
+  const reach = reachOfRoles(roles)
   const people = someStaff ? `the ${plural(chosenCount, 'staff member', 'staff members')} you chose` : null
   const lines = []
   if (destinations.has('community_board')) lines.push(`Posts on the community board for ${reach}.`)
@@ -285,7 +345,7 @@ export const reachLines = ({ audience, destinations, notifyApp, someStaff, chose
   if (notifyApp && [...destinations].some(isBoard)) lines.push(`Sends an app notification to ${people || reach}.`)
   if (destinations.has('inbox')) {
     lines.push(`Sends a private message to ${people || 'every staff member'} in their Optio inbox.`)
-    if (audience === 'school') lines.push('Families get no inbox message from here. Use "Message Families" for that.')
+    if (roles.includes('parents')) lines.push('Families get no inbox message from here. Use Compose on the Messaging page for that.')
   }
   if (destinations.has('email')) lines.push(`Emails ${people || reach}.`)
   if (!lines.length) lines.push('Choose at least one place to send it.')
@@ -305,8 +365,8 @@ const AnnouncementForm = ({ orgId, announcement, onDone, onCancel }) => {
     // 2026-09-22: a parent announcement appeared on the student board). The
     // composer used to start on "Everyone at the school", so a post written
     // for parents went to the students too unless someone remembered to
-    // change it. An existing post keeps the audience it was written for.
-    audience: isNew ? '' : (LEGACY_AUDIENCE[announcement?.audience] || announcement?.audience || 'school'),
+    // change it. An existing post keeps the roles it was written for.
+    roles: isNew ? [] : rolesOf(announcement),
     publish_at: announcement?.publish_at ? announcement.publish_at.slice(0, 16) : '',
     expires_at: announcement?.expires_at ? announcement.expires_at.slice(0, 16) : '',
     // The app notification rides on the board post it points at. Off by
@@ -320,8 +380,10 @@ const AnnouncementForm = ({ orgId, announcement, onDone, onCancel }) => {
   const [staff, setStaff] = useState(null)
   const [saving, setSaving] = useState(false)
   const set = (k, v) => setF((p) => ({ ...p, [k]: v }))
+  // The single word the destination rules are written in (see audienceForRoles).
+  const audience = audienceForRoles(f.roles)
 
-  const staffOnly = f.audience === 'teachers'
+  const staffOnly = audience === 'teachers'
   const onBoard = !isNew || [...destinations].some(isBoard)
 
   useEffect(() => {
@@ -331,17 +393,19 @@ const AnnouncementForm = ({ orgId, announcement, onDone, onCancel }) => {
       .catch(() => { setStaff([]); toast.error('Could not load the staff list') })
   }, [isNew, staffOnly, someStaff, staff, orgId])
 
-  const changeAudience = (audience) => {
-    set('audience', audience)
-    // Keep the board ticked if it was, moved to the board this audience goes
-    // on; drop what this audience cannot have.
+  const changeRoles = (roles) => {
+    set('roles', roles)
+    const next = audienceForRoles(roles)
+    if (!next) return
+    // Keep the board ticked if it was, moved to the board these roles go on;
+    // drop what they cannot have.
     setDestinations((prev) => {
-      const next = new Set([...prev].filter((d) => !isBoard(d)))
-      if ([...prev].some(isBoard)) next.add(boardFor(audience))
-      if (audience === 'families') next.delete('inbox')
-      return next
+      const out = new Set([...prev].filter((d) => !isBoard(d)))
+      if ([...prev].some(isBoard)) out.add(boardFor(next))
+      if (next === 'families') out.delete('inbox')
+      return out
     })
-    if (audience !== 'teachers') { setSomeStaff(false); setChosenStaff(new Set()) }
+    if (next !== 'teachers') { setSomeStaff(false); setChosenStaff(new Set()) }
   }
 
   const toggleDestination = (d) => setDestinations((prev) => {
@@ -360,7 +424,7 @@ const AnnouncementForm = ({ orgId, announcement, onDone, onCancel }) => {
 
   const save = async () => {
     if (!f.title.trim()) return toast.error('Title is required')
-    if (isNew && !f.audience) return toast.error('Choose who it is for')
+    if (!audience) return toast.error('Choose who it is for')
     if (isNew && !destinations.size) return toast.error('Choose at least one place to send it')
     if (isNew && someStaff && !chosenStaff.size) return toast.error('Choose at least one person, or send to all staff')
     if (isNew && narrowedWithoutDelivery) return toast.error('Choose Optio inbox or Email to reach only the people you picked')
@@ -371,7 +435,10 @@ const AnnouncementForm = ({ orgId, announcement, onDone, onCancel }) => {
       body: f.body,
       pinned: f.pinned,
       priority: f.priority,
-      audience: f.audience,
+      // Both: the roles for the server that reads them, and the single word
+      // for anything older (the phone, the old code until the release).
+      audiences: f.roles,
+      audience,
       publish_at: f.publish_at ? new Date(f.publish_at).toISOString() : null,
       expires_at: f.expires_at ? new Date(f.expires_at).toISOString() : null,
     }
@@ -424,18 +491,11 @@ const AnnouncementForm = ({ orgId, announcement, onDone, onCancel }) => {
           the plain audience picker; the destinations are a sending choice. */}
       {isNew ? (
         <div className="rounded-lg border border-gray-200 bg-neutral-50 p-3 space-y-3">
-          <label className="text-xs text-neutral-500 block">Who
-            <select value={f.audience} onChange={(e) => changeAudience(e.target.value)} className={field}>
-              <option value="" disabled>Choose who it is for</option>
-              {AUDIENCES.map((a) => (
-                <option key={a.value} value={a.value}>{a.label}</option>
-              ))}
-            </select>
-          </label>
-          {/* Said before the choice, not after it: the students question is
-              the one people get wrong (2f945974, and 745e2857 before it). */}
+          <RoleChecks legend="Who it is for" roles={f.roles} onChange={changeRoles} />
+          {/* Said beside the choice: the students question is the one people
+              get wrong (2f945974, and 745e2857 before it). */}
           <p className="text-xs text-neutral-500">
-            Students see posts for Everyone at the school. Choose Families for a post only parents should read.
+            Students see a post only when Students is ticked. Staff can read every post.
           </p>
           {staffOnly && (
             <div className="space-y-2">
@@ -463,16 +523,16 @@ const AnnouncementForm = ({ orgId, announcement, onDone, onCancel }) => {
               )}
             </div>
           )}
-          {f.audience === 'families' && (
+          {f.roles.includes('parents') && (
             <p className="text-xs text-neutral-500">
-              To reach only some families, use &ldquo;Message Families&rdquo;.
+              To reach only some families, use Compose on the Messaging page.
             </p>
           )}
           <fieldset>
             <legend className="text-xs text-neutral-500 mb-1">Where it goes</legend>
             <div className="space-y-1.5">
               {DESTINATIONS.map((d) => {
-                const reason = disabledReason(d.value, f.audience)
+                const reason = disabledReason(d.value, audience)
                 return (
                   <label key={d.value} className={`flex items-start gap-2 text-sm ${reason ? 'text-neutral-400' : 'text-neutral-700'}`}>
                     <input type="checkbox" className="mt-0.5" disabled={Boolean(reason)}
@@ -498,7 +558,7 @@ const AnnouncementForm = ({ orgId, announcement, onDone, onCancel }) => {
               the teachers?" had no answer anywhere on the form, 745e2857). */}
           <ul aria-label="What Post will do" className="text-xs text-neutral-600 space-y-0.5">
             {reachLines({
-              audience: f.audience, destinations, notifyApp: f.notify_app,
+              roles: f.roles, destinations, notifyApp: f.notify_app,
               someStaff, chosenCount: chosenStaff.size,
             }).map((line) => <li key={line}>{line}</li>)}
             {narrowedWithoutDelivery && (
@@ -510,14 +570,12 @@ const AnnouncementForm = ({ orgId, announcement, onDone, onCancel }) => {
           </ul>
         </div>
       ) : (
-        <label className="text-xs text-neutral-500 block">Visible to
-          <select value={f.audience} onChange={(e) => set('audience', e.target.value)} className={field}>
-            {AUDIENCES.map((a) => (
-              <option key={a.value} value={a.value}>{a.label}</option>
-            ))}
-          </select>
-          <span className="block mt-1 text-neutral-400">Goes to {reachOf(f.audience)}.</span>
-        </label>
+        <div className="text-xs text-neutral-500">
+          <RoleChecks legend="Visible to" roles={f.roles} onChange={(roles) => set('roles', roles)} />
+          <span className="block mt-1 text-neutral-400">
+            {f.roles.length ? `Goes to ${reachOfRoles(f.roles)}.` : 'Choose who it is for.'}
+          </span>
+        </div>
       )}
 
       {/* Pinning, priority and dates belong to the board post. Without one
@@ -556,7 +614,7 @@ const AnnouncementForm = ({ orgId, announcement, onDone, onCancel }) => {
       )}
       <div className="flex gap-2">
         <Button size="sm" onClick={save} loading={saving}
-          disabled={isNew && (!f.audience || !destinations.size)}>
+          disabled={!audience || (isNew && !destinations.size)}>
           {isNew ? (onBoard ? 'Post' : 'Send') : 'Save changes'}
         </Button>
         <button onClick={onCancel} className="text-sm text-neutral-500 hover:underline">Cancel</button>

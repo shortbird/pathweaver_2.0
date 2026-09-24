@@ -14,6 +14,13 @@ What runs, by file type:
                       missing import when a request reaches that line: four
                       such bugs were live in production on 2026-09-02, each
                       reading as some other kind of 500.
+                      And mypy on the one file, with backend/mypy.ini (~2s
+                      warm). CI gates mypy too, and until 2026-09-23 nothing
+                      ran it earlier, so releases kept failing on it. A
+                      module exempted in mypy.ini stays exempt here. Errors
+                      this edit causes in OTHER files are not seen; the
+                      pre-push hook (.githooks/pre-push) checks the whole
+                      backend before a release.
   other **.py         pyflakes only. Scripts are not in the ruff gate.
   web/**, mobile/**   eslint, compared against the same file at HEAD.
   mobile/**.ts(x)     tsc --noEmit over the mobile project (~3s, and it is
@@ -61,6 +68,11 @@ PYFLAKES_FATAL = re.compile(
 )
 
 
+# The `exclude` patterns in backend/mypy.ini that can match a source file.
+# CI never checks these, so neither does this.
+MYPY_EXCLUDED = re.compile(r'migrations/|deprecated/|venv/|env/')
+
+
 def check_python(rel: Path) -> list[str]:
     problems: list[str] = []
     target = str(PROJECT_DIR / rel)
@@ -69,6 +81,17 @@ def check_python(rel: Path) -> list[str]:
         code, out = run([venv_bin('ruff'), 'check', target], timeout=60)
         if code not in (0, 127) and out.strip():
             problems.append('ruff:\n' + out.strip())
+
+    if rel.parts[0] == 'backend' and not MYPY_EXCLUDED.search(str(rel)):
+        # Relative path from the repo root: that is how CI names the module,
+        # and the per-module exemptions in mypy.ini match on that name.
+        code, out = run([venv_bin('mypy'), '--config-file', 'backend/mypy.ini', str(rel)],
+                        timeout=90)
+        # 124 is a timeout (a cold cache); 127 is no mypy. Neither is this edit's fault.
+        if code not in (0, 124, 127):
+            errors = [ln for ln in out.splitlines() if ': error:' in ln]
+            if errors:
+                problems.append('mypy (CI runs this too):\n' + '\n'.join(errors[:20]))
 
     code, out = run([venv_bin('python'), '-m', 'pyflakes', target], timeout=60)
     if code == 127:

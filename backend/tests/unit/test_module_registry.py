@@ -14,14 +14,15 @@ import pytest
 
 from modules.registry import CATEGORIES, DEFAULTS, GATES, MODULES, TIERS
 
-# The 13 opt-out keys are a promise already made: they are the values orgs
+# The 12 opt-out keys are a promise already made: they are the values orgs
 # carry in sis_settings.hidden_modules today (mirrors sisModules.js). Renaming
 # or removing one silently un-hides a module for a school that hid it. (The
-# 14th, 'timesheets', was removed with its feature on 2026-09-18 -- nothing to
-# un-hide; the stale key in three orgs' arrays is ignored.)
+# 14th, 'timesheets', was removed with its feature on 2026-09-18, and the
+# 13th, 'forms', with requests and forms on 2026-09-24 -- nothing to un-hide
+# in either case; a stale key in an org's array is ignored.)
 HIDDEN_MODULES_KEYS = {
     'attendance', 'billing', 'calendar', 'classes', 'clp', 'curriculum',
-    'forms', 'onboarding', 'reports', 'resources', 'secure_documents',
+    'onboarding', 'reports', 'resources', 'secure_documents',
     'tasks', 'training',
 }
 

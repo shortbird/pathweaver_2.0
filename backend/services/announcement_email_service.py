@@ -101,7 +101,7 @@ def send_announcement_emails(org_id, title, message, recipient_ids, link_path='/
         message: Full announcement body (plain text or sanitized editor HTML)
         recipient_ids: Iterable of user ids that received the in-app notification
         link_path: Where "Read in Optio" points. Announcements live on /school;
-            a message sent to families (sis_family_messaging_service) is
+            a message sent from the console Compose (message_compose_service) is
             answered from /messages, so that one says so.
 
     Returns:

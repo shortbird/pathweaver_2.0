@@ -1,8 +1,9 @@
-import React from 'react'
+import React, { useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useSisOrg } from './useSisOrg'
 import { useAuth } from '../../contexts/AuthContext'
-import { isSisAdmin } from './sisRole'
+import { canSeeHr, isSisAdmin } from './sisRole'
+import { getPreviewTeacher } from './teacherPreview'
 import { isPathHidden } from './sisModules'
 import BackToDashboard from '../../components/sis/BackToDashboard'
 import GlassTabBar from '../../components/ui/GlassTabBar'
@@ -10,12 +11,17 @@ import DocumentsPanel from './libraryPage/DocumentsPanel'
 import TrainingPanel from './libraryPage/TrainingPanel'
 import CurriculumPanel from './libraryPage/CurriculumPanel'
 import QuestsPanel from './libraryPage/QuestsPanel'
+import { MyDocumentsPanel } from './MyDocumentsPage'
+import { SecureDocumentsPanel } from './SecureDocumentsPage'
 
 /**
  * Library -- what the school keeps for people to read, do and teach from:
  *
  *   Documents   the school-wide document library: handbook, contract, links,
  *               with acknowledgments                          everyone
+ *               ...and, as its own views, My documents (what the school
+ *               shared with me, what I sent in)               staff
+ *               and Secure documents (the HR store)           HR only
  *   Training    quests and links the school sets, with progress; for admins
  *               the audiences and who has done what            everyone
  *   Curriculum  subject entries pointing at their Drive folder, carrying
@@ -47,7 +53,7 @@ import QuestsPanel from './libraryPage/QuestsPanel'
 // the org turned off is not offered (sisModules): the config is a promise
 // already made under the old path's name.
 const OWN_TABS = [
-  ['documents', 'Documents', '/resources'],
+  ['documents', 'Documents', null],
   ['training', 'Training', '/training'],
 ]
 
@@ -56,13 +62,52 @@ const OFFICE_TABS = [
   ['quests', 'Quests', '/quest-library'],
 ]
 
+// The Documents tab's views. My documents and Secure documents were tabs of
+// the Tasks page until 2026-09-24 (iCreate meeting 2026-09-23): documents are
+// something the school keeps, not something anybody was asked to do. The
+// secure store stays HR-only, as it was; /tasks?tab=documents|secure and
+// /secure-documents redirect here.
+const DOC_VIEWS = [
+  ['library', 'School library', '/resources'],
+  ['mine', 'My documents', '/secure-documents'],
+  ['secure', 'Secure documents', '/secure-documents'],
+]
+
+function DocumentsArea({ orgId, hr, activeOrg, view, onView }) {
+  const [preview] = useState(() => getPreviewTeacher())
+  const views = DOC_VIEWS
+    .filter(([key, , modulePath]) => !isPathHidden(modulePath, activeOrg) && (key !== 'secure' || hr))
+  const current = views.some(([k]) => k === view) ? view : (preview ? 'mine' : views[0]?.[0])
+  if (!views.length) return <p className="text-neutral-500">Nothing here is turned on for this school.</p>
+  return (
+    <div className="space-y-4">
+      {views.length > 1 && (
+        <div className="inline-flex rounded-lg border border-gray-200 p-0.5 bg-white" role="group" aria-label="Documents">
+          {views.map(([key, label]) => (
+            <button key={key} type="button" onClick={() => onView(key)} aria-pressed={current === key}
+              className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                current === key ? 'bg-optio-purple text-white' : 'text-neutral-600 hover:bg-neutral-50'}`}>
+              {label}
+            </button>
+          ))}
+        </div>
+      )}
+      {current === 'library' && <DocumentsPanel />}
+      {current === 'mine' && <MyDocumentsPanel orgId={orgId} preview={preview} />}
+      {current === 'secure' && hr && <SecureDocumentsPanel orgId={orgId} />}
+    </div>
+  )
+}
+
 const LibraryPage = () => {
   const { user } = useAuth()
-  const { activeOrg } = useSisOrg()
+  const { orgId, activeOrg } = useSisOrg()
   const [searchParams, setSearchParams] = useSearchParams()
   const admin = isSisAdmin(user)
+  const hr = canSeeHr(user)
+  const docsOn = DOC_VIEWS.some(([, , p]) => !isPathHidden(p, activeOrg))
   const TABS = [...OWN_TABS, ...(admin ? OFFICE_TABS : [])]
-    .filter(([, , modulePath]) => !isPathHidden(modulePath, activeOrg))
+    .filter(([key, , modulePath]) => (key === 'documents' ? docsOn : !isPathHidden(modulePath, activeOrg)))
   // An unknown ?tab= (an office tab reached by a teacher, a tab whose module
   // is off) lands on the first tab the reader has.
   const fallback = TABS[0]?.[0] || 'documents'
@@ -75,7 +120,15 @@ const LibraryPage = () => {
     else params.set('tab', next)
     // Deep-link state belongs to its own tab.
     if (next !== 'curriculum') params.delete('curriculum')
-    if (next !== 'documents') params.delete('highlight')
+    if (next !== 'documents') { params.delete('highlight'); params.delete('docs') }
+    setSearchParams(params, { replace: true })
+  }
+
+  const setDocsView = (next) => {
+    const params = new URLSearchParams(searchParams)
+    params.set('tab', 'documents')
+    if (next === 'library') params.delete('docs')
+    else params.set('docs', next)
     setSearchParams(params, { replace: true })
   }
 
@@ -96,7 +149,10 @@ const LibraryPage = () => {
         />
       )}
 
-      {tab === 'documents' && <DocumentsPanel />}
+      {tab === 'documents' && (
+        <DocumentsArea orgId={orgId} hr={hr} activeOrg={activeOrg}
+          view={searchParams.get('docs') || 'library'} onView={setDocsView} />
+      )}
       {tab === 'training' && <TrainingPanel />}
       {admin && tab === 'curriculum' && <CurriculumPanel />}
       {admin && tab === 'quests' && <QuestsPanel />}

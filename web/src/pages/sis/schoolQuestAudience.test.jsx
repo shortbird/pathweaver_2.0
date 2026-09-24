@@ -39,7 +39,7 @@ vi.mock('./useSisOrg', () => ({
 vi.mock('../../utils/appSurface', () => ({ switchSurfaceInApp: vi.fn() }))
 
 const { api } = vi.hoisted(() => ({
-  api: { get: vi.fn(), post: vi.fn(), delete: vi.fn(), patch: vi.fn() },
+  api: { get: vi.fn(), post: vi.fn(), delete: vi.fn(), patch: vi.fn(), put: vi.fn() },
 }))
 vi.mock('../../services/api', () => ({ default: api }))
 
@@ -130,47 +130,81 @@ describe('building a quest on the page', () => {
     expect(await screen.findByRole('tab', { name: 'Build a new one' })).toBeInTheDocument()
   })
 
-  it('builds the quest and sets it for the audience in one step', async () => {
+  // Since P6 (2026-09-23) building is the one quest editor: the draft is in
+  // the catalog, for this tab's audience, from the first click, and Publish
+  // takes it live through the catalog's own route.
+  const editorRoutes = () => {
+    api.post.mockImplementation((url) => Promise.resolve({ data: url.startsWith('/api/sis/quest-editor/drafts')
+      ? { success: true, quest_id: 'q-new', training_id: 't-new' } : { success: true } }))
+    const base = api.get.getMockImplementation()
+    api.get.mockImplementation((url) => {
+      if (url.startsWith('/api/sis/quest-editor/q-new')) {
+        return Promise.resolve({ data: { quest: { id: 'q-new', title: '', description: '', is_draft: true,
+          is_active: false, editable: true, can_lock_xp: true, tasks: [], xp_threshold: 0,
+          allow_custom_tasks: false } } })
+      }
+      if (url.startsWith('/api/sis/training/t-new/quest')) {
+        return Promise.resolve({ data: { training: { audience: 'family', audiences: ['family'], auto_assign: true } } })
+      }
+      return base(url)
+    })
+    api.put.mockImplementation((url, body) => Promise.resolve({ data: { quest: {
+      id: 'q-new', ...body, is_draft: true, editable: true, can_lock_xp: true,
+      tasks: (body.tasks || []).map((t, i) => ({ id: `t${i}`, ...t })) } } }))
+    api.patch.mockResolvedValue({ data: { success: true } })
+  }
+
+  it('builds the quest for this tab\'s audience and publishes it through the catalog', async () => {
+    editorRoutes()
     render(<TrainingPanel />)
     await screen.findByText('Classroom management')
     fireEvent.click(screen.getByRole('button', { name: 'For families' }))
     fireEvent.click(await screen.findByRole('button', { name: /Add a family quest/ }))
     fireEvent.click(await screen.findByRole('tab', { name: 'Build a new one' }))
 
-    fireEvent.change(screen.getByLabelText('Quest title'), { target: { value: 'Back to school night' } })
+    await waitFor(() => expect(api.post).toHaveBeenCalledWith(
+      '/api/sis/quest-editor/drafts?organization_id=org-1',
+      { context: 'training', audience: 'family' }))
+    fireEvent.change(await screen.findByLabelText('Quest title'), { target: { value: 'Back to school night' } })
     fireEvent.change(screen.getByLabelText('Quest description'), { target: { value: 'Come and meet us' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Build and add' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Publish' }))
 
     await waitFor(() => expect(api.post).toHaveBeenCalledWith(
-      '/api/sis/training/create',
-      expect.objectContaining({ title: 'Back to school night', audience: 'family' }),
-    ))
+      '/api/sis/training/t-new/publish?organization_id=org-1', {}))
+    expect(api.put).toHaveBeenCalledWith('/api/sis/quest-editor/q-new?organization_id=org-1',
+      expect.objectContaining({ title: 'Back to school night', description: 'Come and meet us' }))
+    // Who it is for goes on the catalog row before it goes live.
+    expect(api.patch).toHaveBeenCalledWith('/api/sis/training/t-new?organization_id=org-1',
+      expect.objectContaining({ audiences: ['family'], auto_assign: true }))
   })
 
-  it('carries preset tasks into the new quest', async () => {
+  it('carries preset tasks, with their subjects, into the new quest', async () => {
+    editorRoutes()
     render(<TrainingPanel />)
     await screen.findByText('Classroom management')
     fireEvent.click(screen.getByRole('button', { name: /Add training/ }))
     fireEvent.click(await screen.findByRole('tab', { name: 'Build a new one' }))
 
-    fireEvent.change(screen.getByLabelText('Quest title'), { target: { value: 'Classroom basics' } })
+    fireEvent.change(await screen.findByLabelText('Quest title'), { target: { value: 'Classroom basics' } })
     fireEvent.change(screen.getByPlaceholderText('Task 1 — what should they do?'), { target: { value: 'Watch the intro video' } })
     fireEvent.change(screen.getByLabelText('Task 1 XP'), { target: { value: '50' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Build and add' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Save draft' }))
 
-    await waitFor(() => expect(api.post).toHaveBeenCalledWith(
-      '/api/sis/training/create',
+    await waitFor(() => expect(api.put).toHaveBeenCalledWith(
+      '/api/sis/quest-editor/q-new?organization_id=org-1',
       expect.objectContaining({
-        tasks: [expect.objectContaining({ title: 'Watch the intro video', xp_value: '50' })],
+        tasks: [expect.objectContaining({ title: 'Watch the intro video', xp_value: 50,
+          diploma_subjects: expect.any(Array) })],
       }),
     ))
   })
 
-  it('will not build a quest with no title', async () => {
+  it('will not publish a quest with no title', async () => {
+    editorRoutes()
     render(<TrainingPanel />)
     await screen.findByText('Classroom management')
     fireEvent.click(screen.getByRole('button', { name: /Add training/ }))
     fireEvent.click(await screen.findByRole('tab', { name: 'Build a new one' }))
-    expect(screen.getByRole('button', { name: 'Build and add' })).toBeDisabled()
+    expect(await screen.findByRole('button', { name: 'Publish' })).toBeDisabled()
   })
 })

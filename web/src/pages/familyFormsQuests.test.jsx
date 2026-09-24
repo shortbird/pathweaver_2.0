@@ -1,5 +1,5 @@
 /**
- * The Forms page's own quests (the "To complete" half).
+ * The To do page's own quests (/family/forms, once the Forms page).
  *
  * iCreate, 2026-08-06: "back to school night with families will be a quest."
  *
@@ -42,14 +42,14 @@ const QUEST = {
   progress: { started: false, completed: false, done: 0, total: 0 },
 }
 
-const mockPortal = ({ quests = [QUEST], assignments = [], training = [], modules } = {}) => {
+const mockPortal = ({ quests = [QUEST], tasks = [], training = [], modules } = {}) => {
   api.get.mockImplementation((url) => {
     if (url.includes('/parent/context')) {
       const org = { organization_id: 'org-1', organization_name: 'iCreate' }
       return Promise.resolve({ data: { orgs: [modules ? { ...org, modules } : org] } })
     }
     if (url.includes('/parent/quests')) return Promise.resolve({ data: { quests } })
-    if (url.includes('/parent/onboarding')) return Promise.resolve({ data: { assignments } })
+    if (url.includes('/api/sis/tasks/mine')) return Promise.resolve({ data: { success: true, tasks, counts: { open: tasks.length } } })
     if (url.includes('/parent/training')) return Promise.resolve({ data: { training } })
     return Promise.resolve({ data: {} })
   })
@@ -58,7 +58,7 @@ const mockPortal = ({ quests = [QUEST], assignments = [], training = [], modules
 beforeEach(() => vi.clearAllMocks())
 
 describe('quests the school set for families', () => {
-  it('lists them under To complete', async () => {
+  it('lists them under To do', async () => {
     mockPortal()
     render(<FamilyFormsPage />)
     expect(await screen.findByText('Back to school night')).toBeInTheDocument()
@@ -88,15 +88,15 @@ describe('quests the school set for families', () => {
   it('shows nothing at a school that has set none', async () => {
     mockPortal({ quests: [] })
     render(<FamilyFormsPage />)
-    expect(await screen.findByText('Nothing to sign or complete right now.')).toBeInTheDocument()
+    expect(await screen.findByText('Nothing to do right now.')).toBeInTheDocument()
     expect(screen.queryByText('Quests from your school')).not.toBeInTheDocument()
   })
 
-  it('still shows the quests when there are no checklists', async () => {
-    mockPortal({ assignments: [] })
+  it('still shows the quests when there are no tasks', async () => {
+    mockPortal({ tasks: [] })
     render(<FamilyFormsPage />)
     expect(await screen.findByText('Back to school night')).toBeInTheDocument()
-    expect(screen.queryByText('Nothing to sign or complete right now.')).not.toBeInTheDocument()
+    expect(screen.queryByText('Nothing to do right now.')).not.toBeInTheDocument()
   })
 
   it('names the school, not "your school"', async () => {
@@ -107,7 +107,7 @@ describe('quests the school set for families', () => {
 })
 
 /**
- * Ending a school quest from the Forms page.
+ * Ending a school quest from the To do page.
  *
  * iCreate's Exploration Quest was auto-assigned to every parent (80 of them,
  * none finished), and the row offered Start and Continue and nothing else --
@@ -156,7 +156,7 @@ describe('ending a quest the school set', () => {
     expect(api.post).not.toHaveBeenCalled()
   })
 
-  it('re-reads the list afterwards, and a finished quest leaves To complete', async () => {
+  it('re-reads the list afterwards, and a finished quest leaves To do', async () => {
     let ended = false
     api.get.mockImplementation((url) => {
       if (url.includes('/parent/context')) {
@@ -167,13 +167,13 @@ describe('ending a quest the school set', () => {
           ? { ...started, progress: { ...started.progress, completed: true } }
           : started] } })
       }
-      if (url.includes('/parent/onboarding')) return Promise.resolve({ data: { assignments: [] } })
+      if (url.includes('/api/sis/tasks/mine')) return Promise.resolve({ data: { success: true, tasks: [], counts: { open: 0 } } })
       return Promise.resolve({ data: {} })
     })
     api.post.mockImplementation(async () => { ended = true; return { data: { success: true } } })
     render(<FamilyFormsPage />)
     fireEvent.click(await screen.findByRole('button', { name: 'End quest' }))
-    expect(await screen.findByText('Nothing to sign or complete right now.')).toBeInTheDocument()
+    expect(await screen.findByText('Nothing to do right now.')).toBeInTheDocument()
     expect(screen.queryByText('Back to school night')).not.toBeInTheDocument()
   })
 })
@@ -227,13 +227,13 @@ describe('family training links', () => {
     expect(screen.queryByText('Required')).toBeNull()
   })
 
-  // The route is @require_module('training'), not the checklist module's, so a
-  // school running training without onboarding checklists still sees them.
-  it('is asked for when the school runs training but no checklists', async () => {
+  // The route is @require_module('training'), not the tasks module's, so a
+  // school running training without tasks still sees them.
+  it('is asked for when the school runs training but no tasks', async () => {
     mockPortal({ quests: [], training: [LINK], modules: ['training'] })
     render(<FamilyFormsPage />)
     expect(await screen.findByText('Back to school night recording')).toBeInTheDocument()
-    expect(api.get).not.toHaveBeenCalledWith(expect.stringContaining('/parent/onboarding'))
+    expect(api.get).not.toHaveBeenCalledWith(expect.stringContaining('/api/sis/tasks/mine'))
   })
 
   it('is not asked for when the school does not run training', async () => {

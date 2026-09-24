@@ -1,9 +1,14 @@
 /**
- * The paperwork hold page is the family portal's checklist in a chrome-less
- * shell: the same ChecklistAssignments, the same PATCH, the same signature.
- * Until 2026-09-15 it carried its own copy of the list, and a family signing
- * here and a family signing on the portal went through two renderings of
- * one record.
+ * The paperwork hold page is the family To do page's task in a chrome-less
+ * shell: the same TaskCard, the same signature. Until 2026-09-15 it carried
+ * its own copy of the list, and a family signing here and a family signing on
+ * the portal went through two renderings of one record.
+ *
+ * The one difference is the door: the card gets familyTaskApi, so writes go
+ * through the family portal's own routes (/api/sis/parent/onboarding/...),
+ * which are the ones a family held by a required signature may still reach
+ * (middleware/api_hold_gate.py). And no comment thread: the hold is for
+ * signing, and the task routes behind comments are held.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render as rtlRender, screen, fireEvent, waitFor } from '@testing-library/react'
@@ -60,9 +65,12 @@ describe('the paperwork hold', () => {
     expect(screen.getByText('Back to school paperwork')).toBeInTheDocument()
     expect(screen.getByPlaceholderText('Type your full name to sign')).toBeInTheDocument()
     expect(screen.getByText(STATEMENT)).toBeInTheDocument()
+    // Signing is the step: no tick box beside it, and no comment thread here.
+    expect(screen.queryByRole('checkbox', { name: 'Done: Photo and media release' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /^Comments/ })).not.toBeInTheDocument()
   })
 
-  it('signs through the same parent endpoint the portal uses, then re-asks the gate', async () => {
+  it('signs through the parent endpoint the hold lets through, then re-asks the gate', async () => {
     render(<RequiredDocumentsPage />)
     fireEvent.change(await screen.findByPlaceholderText('Type your full name to sign'), { target: { value: 'Dana Myers' } })
     fireEvent.click(screen.getByRole('checkbox', { name: new RegExp('official signature') }))

@@ -78,7 +78,8 @@ describe('SchoolShell', () => {
     expect(screen.getByRole('heading', { level: 1, name: 'iCreate' })).toBeInTheDocument()
     const rail = await screen.findByRole('tablist', { name: 'School' })
     const labels = Array.from(rail.querySelectorAll('[role=tab]')).map((t) => t.textContent)
-    expect(labels).toEqual(['Feed', 'Calendar', 'Schedule', 'Absences', 'Billing', 'Forms'])
+    // "To do" was "Forms" until requests and forms were retired (2026-09-24).
+    expect(labels).toEqual(['Feed', 'Calendar', 'Schedule', 'Absences', 'Billing', 'To do'])
     expect(screen.getByRole('tab', { name: 'Billing' })).toHaveAttribute('aria-selected', 'true')
     expect(screen.getByTestId('where')).toHaveTextContent('/family/billing')
   })

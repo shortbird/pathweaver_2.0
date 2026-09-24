@@ -155,6 +155,11 @@ def record(org_id: str, class_id: str, on_date: str,
             .upsert(payloads, on_conflict='class_id,student_user_id,date').execute()
         )
         saved = resp.data or []
+        # Who took this roll: the class session keeps the FIRST saver, which
+        # recorded_by above cannot (every save overwrites it). Best-effort --
+        # record_roll swallows its own failures so the roll always saves (P7).
+        from services import sis_class_session_service as sessions
+        sessions.record_roll(org_id, class_id, on_date, recorded_by)
 
     newly_absent = [p['student_user_id'] for p in payloads
                     if p['status'] == 'absent' and prior.get(p['student_user_id']) != 'absent']
@@ -505,7 +510,9 @@ def student_day(org_id: str, student_user_id: str, on_date: str) -> Dict[str, An
             'location': (meeting or {}).get('location') or cls.get('location'),
             'teacher_name': teachers.get(cls.get('primary_instructor_id')),
             'status': rec.get('status'),  # None = roll not taken for this class
-            'notes': rec.get('notes'),
+            # The column is `note`. This read `notes` and so came back empty
+            # for every class, whatever the teacher wrote (P7).
+            'notes': rec.get('note'),
             'planned_absence': cover,
             'scheduled': meeting is not None,
         }

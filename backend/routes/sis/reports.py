@@ -688,6 +688,36 @@ def daily_attendance(user_id):
     return jsonify({'success': True, 'report': {'rows': rows, 'date': on_date}})
 
 
+@bp.route('/reports/roll-call', methods=['GET'])
+@require_role(*ADMIN_ROLES)
+def roll_call(user_id):
+    """Who took each class's roll between ?from= and ?to= (YYYY-MM-DD,
+    inclusive), with the substitute and what the coordinator decided -- one
+    row per class per day, so the office can review a pay period (P7, iCreate
+    2026-09-23). ?format=csv downloads it.
+
+    Both dates default to today. Admin tier like the other attendance
+    reports: it names who taught, not what they were paid.
+    """
+    org_id, err = sis_service.org_or_error(user_id)
+    if err:
+        return err
+    from services import sis_class_session_service as sessions
+    from services.sis_staff_service import _org_now
+    now = _org_now(org_id)
+    today = now.date().isoformat()
+    date_from = request.args.get('from') or today
+    date_to = request.args.get('to') or date_from
+    report = sessions.history(org_id, date_from, date_to, tz=now.tzinfo)
+    if report.get('error'):
+        return jsonify({'success': False, 'error': report['error']}), 400
+    if request.args.get('format') == 'csv':
+        return csv_response(f'roll-call-{date_from}-to-{date_to}.csv',
+                            sessions.HISTORY_CSV_HEADER,
+                            sessions.history_csv_rows(report))
+    return jsonify({'success': True, 'report': report})
+
+
 @bp.route('/reports/emergency-contacts', methods=['GET'])
 @require_role(*ADMIN_ROLES)
 def emergency_contacts(user_id):
@@ -731,7 +761,7 @@ def checklist_completion(user_id):
         outstanding_only=request.args.get('all') != '1')
     if request.args.get('format') == 'csv':
         header, rows = onboarding.completion_csv(report)
-        return csv_response('checklist-completion.csv', header, rows)
+        return csv_response('task-completion.csv', header, rows)
     # {'report': {'rows': [...]}} like every other report here, so the page's
     # generic shaper can read it.
     return jsonify({'success': True, 'report': {'rows': report}})

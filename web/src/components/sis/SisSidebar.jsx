@@ -104,7 +104,7 @@ export const NAV_SECTIONS = [
       // on its tab. Visible in preview: the page lands a preview on My
       // documents (which supports ?teacher_id=) and keeps the inbox -- always
       // the CALLER's own -- behind a banner naming whose list it is.
-      { name: 'Tasks', path: '/tasks', d: ICONS.check, keywords: ['to do', 'forms', 'paperwork', 'documents'] },
+      { name: 'Tasks', path: '/tasks', d: ICONS.check, keywords: ['to do', 'paperwork', 'assign', 'onboarding'] },
       { name: 'Registration', path: '/registration', adminOnly: true, d: ICONS.clipboard, keywords: ['enroll', 'enrollment', 'sign up', 'funnel', 'waitlist'] },
       { name: 'Reports', path: '/reports', adminOnly: true, d: ICONS.doc, keywords: ['export', 'csv', 'print'] },
       // One page for everyone (2026-09-18, M22): the document library and

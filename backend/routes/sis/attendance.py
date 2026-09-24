@@ -11,6 +11,7 @@ from utils.auth.relationships import require_relationship_to
 from utils.logger import get_logger
 from services import sis_service
 from services import sis_attendance_service as attendance
+from services import sis_class_session_service as sessions
 from repositories.sis_class_repository import SisClassRepository
 from database import get_supabase_admin_client
 from utils.sis_roles import STAFF_ROLES, ADMIN_ROLES
@@ -29,18 +30,26 @@ def _class_in_org(org_id, class_id):
 @bp.route('/classes/<class_id>/attendance', methods=['GET'])
 @require_role(*STAFF_ROLES)
 def get_attendance(user_id, class_id):
+    """The roster with each student's status for ?date=, plus the class
+    session for that date (who took the roll and when, and any substitute).
+
+    Scoped by date: a substitute the office marked for this class on this
+    date passes; the same person on any other date does not (P7).
+    """
     org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
-    scope = sis_service.class_scope(user_id, org_id)
-    if scope is not None and class_id not in scope:
-        return jsonify({'success': False, 'error': 'Class not found'}), 404
     on_date = request.args.get('date')
     if not on_date:
         return jsonify({'success': False, 'error': 'date query param is required (YYYY-MM-DD)'}), 400
+    scope = sis_service.class_scope(user_id, org_id, on_date=on_date)
+    if scope is not None and class_id not in scope:
+        return jsonify({'success': False, 'error': 'Class not found'}), 404
     if not _class_in_org(org_id, class_id):
         return jsonify({'success': False, 'error': 'Class not found'}), 404
-    return jsonify({'success': True, 'roster': attendance.get_for_date(org_id, class_id, on_date)})
+    return jsonify({'success': True,
+                    'roster': attendance.get_for_date(org_id, class_id, on_date),
+                    'session': sessions.session_for(org_id, class_id, on_date)})
 
 
 @bp.route('/classes/<class_id>/attendance', methods=['POST'])
@@ -49,19 +58,65 @@ def record_attendance(user_id, class_id):
     org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
-    scope = sis_service.class_scope(user_id, org_id)
-    if scope is not None and class_id not in scope:
-        return jsonify({'success': False, 'error': 'Class not found'}), 404
     data = request.json or {}
     on_date = data.get('date')
     entries = data.get('entries')
     if not on_date:
         return jsonify({'success': False, 'error': 'date is required'}), 400
+    # Scoped by the roll's date, so a planned substitute can save this class's
+    # roll on the day they cover it and on no other day (P7).
+    scope = sis_service.class_scope(user_id, org_id, on_date=on_date)
+    if scope is not None and class_id not in scope:
+        return jsonify({'success': False, 'error': 'Class not found'}), 404
     if not isinstance(entries, list) or not entries:
         return jsonify({'success': False, 'error': 'entries (list) is required'}), 400
     if not _class_in_org(org_id, class_id):
         return jsonify({'success': False, 'error': 'Class not found'}), 404
     result = attendance.record(org_id, class_id, on_date, entries, recorded_by=user_id)
+    return jsonify({'success': True, **result,
+                    'session': sessions.session_for(org_id, class_id, on_date)})
+
+
+@bp.route('/classes/<class_id>/substitute', methods=['PUT'])
+@require_role(*ADMIN_ROLES)
+def plan_substitute(user_id, class_id):
+    """Mark who covers a class on a date: {date, substitute_id}; a null
+    substitute_id clears it.
+
+    The substitute gets this class's roster and attendance for that date only
+    (sis_service.class_scope with on_date) and the start-of-class "take
+    attendance" reminder. No class membership is created (P7, iCreate
+    2026-09-23).
+    """
+    org_id, err = sis_service.org_or_error(user_id)
+    if err:
+        return err
+    if not _class_in_org(org_id, class_id):
+        return jsonify({'success': False, 'error': 'Class not found'}), 404
+    data = request.get_json(silent=True) or {}
+    if not data.get('date'):
+        return jsonify({'success': False, 'error': 'date is required'}), 400
+    result = sessions.plan_substitute(org_id, class_id, data['date'],
+                                      data.get('substitute_id') or None, actor_id=user_id)
+    if result.get('error'):
+        return jsonify({'success': False, 'error': result['error']}), 400
+    return jsonify({'success': True, **result})
+
+
+@bp.route('/attendance/sessions/<session_id>/resolve', methods=['POST'])
+@require_role(*ADMIN_ROLES)
+def resolve_session(user_id, session_id):
+    """A coordinator's answer to a flagged roll: {outcome, note}, outcome one
+    of sis_class_session_service.RESOLUTIONS ('other' needs a note)."""
+    org_id, err = sis_service.org_or_error(user_id)
+    if err:
+        return err
+    data = request.get_json(silent=True) or {}
+    result = sessions.resolve(org_id, session_id, data.get('outcome'),
+                              data.get('note'), actor_id=user_id)
+    if result.get('error'):
+        status = 404 if result['error'] == 'Session not found' else 400
+        return jsonify({'success': False, 'error': result['error']}), status
     return jsonify({'success': True, **result})
 
 

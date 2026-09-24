@@ -121,12 +121,41 @@ def list_announcements(org_id: str, include_hidden: bool = True) -> List[Dict[st
     if not include_hidden:
         now = datetime.utcnow()
         rows = [r for r in rows if _is_visible_announcement(r, now)]
+    for r in rows:
+        # The roles, whichever column the row was written with.
+        r['audiences'] = sis_audiences.row_board_roles(r)
     # Pinned float to the top; created_at desc preserved within each group.
     rows.sort(key=lambda r: (not r.get('pinned'),))
     return rows
 
 
-def _notify_audiences(data: Dict[str, Any], audience: str) -> List[str]:
+def attach_read_counts(rows: List[Dict[str, Any]]) -> None:
+    """"Read by 12 of 40" on the board posts that were sent to people.
+
+    The read receipts already existed (announcement_reads, snapshotted
+    recipients, announcement_read_stats; 20260823000000) and no board screen
+    showed them (9a335881 / 9b46c748). A post's reads are its send's -- the
+    announcements row linked by source_announcement_id -- so a post that went
+    only on the board has no count rather than a misleading zero. Staff view
+    only. Best-effort: counts are decoration, the board is not."""
+    if not rows:
+        return
+    try:
+        from repositories.message_send_repository import MessageSendRepository
+        stats = MessageSendRepository(client=_admin()).board_post_read_stats(
+            r['id'] for r in rows if r.get('id'))
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f'Board read counts unavailable: {e}')
+        return
+    for r in rows:
+        st = stats.get(r.get('id') or '')
+        if st:
+            r['read_count'] = st['read_count']
+            r['recipient_count'] = st['recipient_count']
+
+
+def _notify_audiences(data: Dict[str, Any], audience: str,
+                      roles: Optional[List[str]] = None) -> List[str]:
     """The role audiences a post should be sent to, or [] for board-only.
 
     Accepts the old explicit `notify_audiences` list for one release -- mobile
@@ -140,6 +169,8 @@ def _notify_audiences(data: Dict[str, Any], audience: str) -> List[str]:
         # The board audience already says who the notice is FOR; asking again
         # in a second vocabulary is how three composers with three audience
         # models came to exist. sis_audiences holds the one translation.
+        if roles is not None:
+            return sis_audiences.recipient_roles_for_board_roles(roles)
         return sis_audiences.recipient_roles_for(audience)
     return []
 
@@ -185,8 +216,24 @@ def _default_expires_at(org_id: str) -> Optional[str]:
         return None
 
 
+def _roles_and_audience(data: Dict[str, Any], fallback: Any = None):
+    """(roles, single word) for a post from what the composer sent.
+
+    The composer since 2026-09-24 sends `audiences`, any mix of parents,
+    students and teachers (9a335881); the phone and anything older send the
+    single `audience` word. Either way both columns are written: `audiences`
+    for new readers, and the nearest single word for old ones.
+    """
+    if data.get('audiences') is not None:
+        roles = sis_audiences.board_roles(data.get('audiences'), data.get('audience') or fallback)
+        return roles, sis_audiences.board_audience_for_roles(roles)
+    audience = _audience(data.get('audience') if 'audience' in data else fallback)
+    return sis_audiences.board_roles(None, audience), audience
+
+
 def _insert_board_row(org_id: str, user_id: str, data: Dict[str, Any],
-                      title: str, audience: str) -> Optional[Dict[str, Any]]:
+                      title: str, audience: str,
+                      roles: Optional[List[str]] = None) -> Optional[Dict[str, Any]]:
     """Put one post on the board and return the row."""
     priority = data.get('priority') or 'normal'
     if priority not in ANNOUNCEMENT_PRIORITIES:
@@ -198,6 +245,7 @@ def _insert_board_row(org_id: str, user_id: str, data: Dict[str, Any],
         'pinned': bool(data.get('pinned')),
         'priority': priority,
         'audience': audience,
+        'audiences': roles or sis_audiences.board_roles(None, audience),
         'publish_at': (str(data['publish_at']).strip() or None) if data.get('publish_at') else None,
         'expires_at': ((str(data['expires_at']).strip() or None) if data.get('expires_at')
                        else _default_expires_at(org_id)),
@@ -219,13 +267,19 @@ def create_announcement(org_id: str, user_id: str, data: Dict[str, Any]) -> Dict
     title = _text(data.get('title'))
     if not title:
         return {'error': 'A title is required'}
-    audience = _audience(data.get('audience'))
+    requested = data.get('audiences')
+    if requested is not None and not any(
+            r in sis_audiences.BOARD_ROLES for r in ([requested] if isinstance(requested, str) else requested or [])):
+        # An empty choice is not "everybody": the composer starts with nobody
+        # picked on purpose (2f945974), and Post must not guess.
+        return {'error': 'Choose who it is for'}
+    roles, audience = _roles_and_audience(data)
     # The composer since ticket 214bbc12 says WHERE as well as who. A caller
     # without `destinations` (the mobile app, anything older) keeps the
     # board-plus-optional-notify behaviour below, unchanged.
     if 'destinations' in data:
-        return _create_with_destinations(org_id, user_id, data, title, audience)
-    created = _insert_board_row(org_id, user_id, data, title, audience)
+        return _create_with_destinations(org_id, user_id, data, title, audience, roles)
+    created = _insert_board_row(org_id, user_id, data, title, audience, roles)
 
     # Posting puts it on the board, which families can now read (see
     # family_feed). Sending is the louder, separate act iCreate expected the
@@ -234,7 +288,7 @@ def create_announcement(org_id: str, user_id: str, data: Dict[str, Any]) -> Dict
     # announcement path — durable row, in-app notification, email. Best-effort —
     # a delivery problem must not lose the post that already succeeded.
     result: Dict[str, Any] = {'announcement': created}
-    audiences = _notify_audiences(data, audience)
+    audiences = _notify_audiences(data, audience, roles)
     if audiences:
         try:
             from services import announcement_service
@@ -259,7 +313,8 @@ def create_announcement(org_id: str, user_id: str, data: Dict[str, Any]) -> Dict
 
 
 def _create_with_destinations(org_id: str, user_id: str, data: Dict[str, Any],
-                              title: str, audience: str) -> Dict[str, Any]:
+                              title: str, audience: str,
+                              roles: Optional[List[str]] = None) -> Dict[str, Any]:
     """One notice, sent to each place the office ticked.
 
     Ticket 214bbc12 (iCreate, Molly, 2026-09-22): "I really think this needs to
@@ -273,7 +328,7 @@ def _create_with_destinations(org_id: str, user_id: str, data: Dict[str, Any],
                         see sis_audiences.DESTINATIONS).
       inbox             a private message to each chosen staff member, through
                         the staff compose path. Never families: they are
-                        messaged from Message Families.
+                        messaged from Compose on the Messaging page.
       email             the announcement send's email half, to the audience's
                         roles or to the chosen staff.
 
@@ -324,7 +379,7 @@ def _create_with_destinations(org_id: str, user_id: str, data: Dict[str, Any],
 
     result: Dict[str, Any] = {'announcement': None, 'destinations': destinations}
     on_board = any(d in destinations for d in sis_audiences.BOARD_DESTINATIONS)
-    created = _insert_board_row(org_id, user_id, data, title, audience) if on_board else None
+    created = _insert_board_row(org_id, user_id, data, title, audience, roles) if on_board else None
     result['announcement'] = created
 
     # The app notification rides on the board post (it points at it); email is
@@ -334,13 +389,14 @@ def _create_with_destinations(org_id: str, user_id: str, data: Dict[str, Any],
     send_email = 'email' in destinations
     if send_app or send_email:
         try:
-            roles = sis_audiences.recipient_roles_for(audience)
+            send_roles = (sis_audiences.recipient_roles_for_board_roles(roles)
+                          if roles is not None else sis_audiences.recipient_roles_for(audience))
             sent = _publish(
-                org_id, user_id, title, body or title, roles,
+                org_id, user_id, title, body or title, send_roles,
                 send_app=send_app, send_email=send_email,
                 advisor_ids=set(staff_ids or []) if narrowed else None,
                 source_announcement_id=(created or {}).get('id'))
-            result['notified'] = {**sent, 'audiences': roles}
+            result['notified'] = {**sent, 'audiences': send_roles}
         except Exception as e:  # noqa: BLE001
             logger.error(f'Announcement send failed: {e}', exc_info=True)
             result['notify_error'] = ('The post was saved, but the email or notification '
@@ -379,8 +435,10 @@ def update_announcement(org_id: str, announcement_id: str, data: Dict[str, Any])
         fields['pinned'] = bool(data.get('pinned'))
     if 'priority' in data:
         fields['priority'] = data['priority'] if data['priority'] in ANNOUNCEMENT_PRIORITIES else 'normal'
-    if 'audience' in data:
-        fields['audience'] = _audience(data['audience'])
+    if 'audiences' in data or 'audience' in data:
+        roles, audience = _roles_and_audience(data)
+        fields['audience'] = audience
+        fields['audiences'] = roles
     for k in ('publish_at', 'expires_at'):
         if k in data:
             fields[k] = (str(data[k]).strip() or None) if data.get(k) else None
@@ -860,12 +918,14 @@ def _project(rows: List[Dict[str, Any]], fields) -> List[Dict[str, Any]]:
     return [{k: r.get(k) for k in fields} for r in rows]
 
 
-#: The board audiences a family-side viewer may read, by whether they are the
-#: student or the household. A 'families' post says the parents, so it is the
-#: one the student does not get -- the alternative is a label that means one
-#: thing in the notification and another on the board.
-_FAMILY_READABLE = ('school', 'families')
-_STUDENT_READABLE = ('school',)
+#: The board role a family-side viewer reads as: the student, or the
+#: household. A post for the parents is the one the student does not get --
+#: the alternative is a label that means one thing in the notification and
+#: another on the board. Since 2026-09-24 a post names its roles
+#: (sis_audiences.row_board_roles), so a post can also be for the students
+#: and not their parents.
+_FAMILY_ROLE = 'parents'
+_STUDENT_ROLE = 'students'
 
 
 def visible_announcement_ids(org_id: str) -> set:
@@ -899,7 +959,7 @@ def family_feed(org_id: str, viewer_id: Optional[str] = None,
     resolves it, and fails closed to the student view when the role lookup
     breaks — a newsletter the parents see late beats one the students see first.
     """
-    readable = _STUDENT_READABLE if is_student else _FAMILY_READABLE
+    reads_as = _STUDENT_ROLE if is_student else _FAMILY_ROLE
     carpool_rows = list_carpool(org_id)
     carpool = _project(carpool_rows, _FAMILY_CARPOOL)
     for projected, raw in zip(carpool, carpool_rows, strict=False):
@@ -908,7 +968,7 @@ def family_feed(org_id: str, viewer_id: Optional[str] = None,
     return {
         'announcements': _project(
             [a for a in list_announcements(org_id, include_hidden=False)
-             if (a.get('audience') or 'school') in readable][:20],
+             if reads_as in sis_audiences.row_board_roles(a)][:20],
             _FAMILY_ANNOUNCEMENT),
         'lost_found': _project(
             list_lost_found(org_id, status='unclaimed')[:50], _FAMILY_LOST_FOUND),

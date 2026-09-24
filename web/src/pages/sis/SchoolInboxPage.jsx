@@ -1,15 +1,15 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { Navigate, useSearchParams } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
-import { toast } from 'react-hot-toast'
 import {
   AcademicCapIcon,
   ArrowLeftIcon,
   ChatBubbleLeftRightIcon,
   CheckCircleIcon,
+  ClipboardDocumentCheckIcon,
   InboxIcon,
+  PencilSquareIcon,
 } from '@heroicons/react/24/outline'
-import api from '../../services/api'
 import MessageBubble from '../../components/communication/MessageBubble'
 import MessageInput from '../../components/communication/MessageInput'
 import ThreadRow from '../../components/communication/ThreadRow'
@@ -25,20 +25,21 @@ import {
 } from '../../hooks/api/useDirectMessages'
 import useMessagingRealtime from '../../hooks/api/useMessagingRealtime'
 import { useGroups } from '../../hooks/api/useGroupMessages'
-import BoardAnnouncementsTab from '../../components/sis/BoardAnnouncementsTab'
-import SearchSelect from '../../components/ui/SearchSelect'
-import StaffComposeModal from '../../components/sis/StaffComposeModal'
+import ComposeMessageModal from '../../components/sis/ComposeMessageModal'
+import MakeTaskModal from '../../components/sis/MakeTaskModal'
+import SentMessagesPanel from '../../components/sis/SentMessagesPanel'
+import { useGrantedThreads } from '../../hooks/api/useSisMessaging'
+import { formatMessageTime } from '../../components/communication/MessageParts'
 import { useAuth } from '../../contexts/AuthContext'
 import { isSisAdmin } from './sisRole'
-import { useSisOrg, withOrg } from './useSisOrg'
+import { useSisOrg } from './useSisOrg'
 import { Spinner } from '../../components/ui/Spinner'
 import GlassTabBar from '../../components/ui/GlassTabBar'
 
 /**
- * SchoolInboxPage — messages and announcements in one place (/inbox).
+ * SchoolInboxPage — the console's messages (/inbox).
  *
- * Two tabs (messaging and the inbox merged, 2026-08-31; /messaging redirects
- * here):
+ * Tabs (messaging and the inbox merged, 2026-08-31):
  *
  * - Messages. For the front office (org admins + campus coordinators) this is
  *   the shared "{School Name}" inbox: every org member sees the school as a
@@ -49,9 +50,24 @@ import GlassTabBar from '../../components/ui/GlassTabBar'
  *   For a teacher this is their OWN thread list (/api/messages — the same
  *   threads as the learning app's Messages), read and answered as themselves:
  *   the inbox teachers didn't have (iCreate, 2026-08-31).
- * - Announcements. The group send that used to live at /messaging — audiences,
- *   class/teacher/age narrowing, optional email. A teacher's send stays scoped
- *   to their own classes by the backend.
+ * - Sent (the office). What went out with Compose, each with "Read by N of
+ *   M" and who (iCreate, 2026-09-23, 9b46c748).
+ *
+ * Announcements are not here any more. They live on the Community page only
+ * (9a335881: "announcements should only be in the community page, not in
+ * /inbox"); ?tab=announcements forwards there, so an old link still lands.
+ *
+ * Compose (ComposeMessageModal) is the one way to start a message: staff,
+ * families and students in one picker, one thread or a private thread each,
+ * push and email as toggles (bf8b754d, 8ee000b6). It replaced "New message"
+ * (one person) and "Message a group" (staff or families).
+ *
+ * "Make a task" turns a school thread, or one message in it, into a task for
+ * somebody on staff (bf8b754d). A teacher given one has no school inbox, so
+ * the School tab shows THEM just the threads they were handed (d93b24d2):
+ * the whole thread, answered as the school, with their name shown to the
+ * family. The server decides who may open what
+ * (school_inbox_service.thread_access); this page only lists it.
  *
  * Both thread sources go through the same React Query hooks, composer, row
  * and bubble as /messages (useDirectMessages with a `source`, MessageInput,
@@ -59,25 +75,11 @@ import GlassTabBar from '../../components/ui/GlassTabBar'
  * polled on its own timers and had no Realtime; a fix to the messenger
  * shipped to the messenger.
  *
- * Under a teacher preview the two halves differ, because only one of them CAN
- * be faithful:
- *   - Threads stay the admin's own. Both thread sources answer for the CALLER
- *     and take no ?teacher_id=, so a "faithful" preview would show the admin's
- *     own DMs behind the teacher's name — the trap hideInPreview guards on My
- *     Tasks.
- *   - Announcements are the previewed teacher's. GET /api/announcements does
- *     take ?teacher_id=, and answering as the admin meant the preview showed
- *     every announcement in the school — a send addressed to five named
- *     teachers, read as a teacher who was not one of them (iCreate,
- *     2026-08-31, 0a10f2ae). Where the preview can be honest it is.
+ * Under a teacher preview the threads stay the admin's own. Both thread
+ * sources answer for the CALLER and take no ?teacher_id=, so a "faithful"
+ * preview would show the admin's own DMs behind the teacher's name — the trap
+ * hideInPreview guards on My Tasks.
  */
-
-// The picker says who somebody is: two Bennetts in a school are a parent and
-// a teacher, and only the label tells them apart.
-const ROLE_LABELS = {
-  student: 'student', parent: 'parent', advisor: 'teacher',
-  org_admin: 'admin', campus_coordinator: 'coordinator', observer: 'observer',
-}
 
 // A stable empty list, so an effect keyed on `messages` does not re-run on
 // every render of a thread that has none.
@@ -110,14 +112,17 @@ const SchoolInboxPage = () => {
   // the console pretended the thread did not exist. It is a tab now, and both
   // halves are available to whoever the backend lets read them.
   const rawTab = searchParams.get('tab')
-  const tab = rawTab === 'announcements' ? 'announcements'
-    : rawTab === 'mine' ? 'mine'
+  const tab = rawTab === 'mine' ? 'mine'
+    : rawTab === 'sent' && admin ? 'sent'
       // Default: the office opens on the queue it works, a teacher on their own
       // threads (they have no school inbox to open).
       : rawTab === 'school' ? 'school' : (admin ? 'school' : 'mine')
   const isMessages = tab === 'school' || tab === 'mine'
-  // The school inbox is only ever read on the School tab.
+  // The school inbox is only ever read on the School tab. The office reads
+  // all of it; anybody else reads the threads handed to them with a task.
   const viewingSchool = admin && tab === 'school'
+  const viewingGranted = !admin && tab === 'school'
+  const schoolSide = viewingSchool || viewingGranted
   const setTab = (t) => setSearchParams({ tab: t }, { replace: true })
   const [selected, setSelected] = useState(null)
   // An open GROUP thread, in the same pane. A DM and a group are never open
@@ -125,19 +130,10 @@ const SchoolInboxPage = () => {
   const [selectedGroup, setSelectedGroupState] = useState(null)
   const setSelectedGroup = (g) => { setSelectedGroupState(g); if (g) setSelected(null) }
   const selectThread = (c) => { setSelected(c); if (c) setSelectedGroupState(null) }
-  // Starting a thread, rather than answering one. The inbox could only ever
-  // reply, so reaching ONE family meant an announcement to everybody or a
-  // phone call (iCreate, 2026-09-02: "allow us to message an individual person
-  // here too").
-  const [composing, setComposing] = useState(false)
-  const [people, setPeople] = useState([])
-  const [pickedPerson, setPickedPerson] = useState('')
-  // Writing to several people at once: 'staff' or 'families', or null when
-  // closed. Separate from `composing`, which starts a thread with ONE family
-  // or student as the school. Families was the gap Molly named from this very
-  // tab (iCreate, 2026-09-17, b32b2fca: "Right now we can only send to one
-  // person. I'm needing to message all the elementary school parents").
-  const [staffCompose, setStaffCompose] = useState(null)
+  // Compose open, and whether it sends as the school (School tab) or as me.
+  const [compose, setCompose] = useState(null)
+  // "Make a task": {conversationId | groupId, message?, label} or null.
+  const [taskFor, setTaskFor] = useState(null)
   const scrollerRef = useRef(null)
 
   // Which list the hooks read (see useDirectMessages). A superadmin names the
@@ -145,10 +141,11 @@ const SchoolInboxPage = () => {
   const schoolSource = useMemo(
     () => ({ school: true, orgId: isSuperadmin ? orgId : null }),
     [isSuperadmin, orgId])
-  const source = viewingSchool ? schoolSource : undefined
+  const source = schoolSide ? schoolSource : undefined
 
-  const listEnabled = isMessages && !!user?.id && !(viewingSchool && isSuperadmin && !orgId)
-  const { data: listData, isLoading: loading } = useConversations(user?.id, {
+  const listEnabled = isMessages && !viewingGranted && !!user?.id
+    && !(viewingSchool && isSuperadmin && !orgId)
+  const { data: listData, isLoading: listLoading } = useConversations(user?.id, {
     source,
     enabled: listEnabled,
     // The office works the school inbox as a queue, and only the OPEN thread is
@@ -157,17 +154,27 @@ const SchoolInboxPage = () => {
     // is one org's, so it can afford to look more often.
     refetchInterval: viewingSchool ? 30000 : 120000,
   })
-  const conversations = listData?.conversations || []
-  const inboxUserId = viewingSchool ? (listData?.inbox_user_id || null) : null
+  // The threads handed to a non-office staff member with a task (d93b24d2).
+  // Fetched for them on every tab so the School tab only appears when there
+  // is something on it.
+  const { data: grantedData, isLoading: grantedLoading } = useGrantedThreads(
+    user?.id, isSuperadmin ? orgId : null,
+    { enabled: !admin, refetchInterval: viewingGranted ? 30000 : 120000 })
+  const hasGranted = ((grantedData?.conversations || []).length + (grantedData?.groups || []).length) > 0
+  const loading = viewingGranted ? grantedLoading : listLoading
+  const conversations = (viewingGranted ? grantedData?.conversations : listData?.conversations) || []
+  const inboxUserId = viewingSchool ? (listData?.inbox_user_id || null)
+    : viewingGranted ? (grantedData?.inbox_user_id || null) : null
   // The school's name labels its tab from either tab, so once the school list
   // has loaded, read it back out of the cache rather than only off the list
   // that is on screen.
   const orgName = listData?.organization?.name
+    || grantedData?.organization?.name
     || queryClient.getQueryData(conversationsQueryKey(user?.id, schoolSource))?.organization?.name
     || ''
 
   // "Me" in a thread: the school on the School tab, myself on Mine.
-  const selfId = viewingSchool ? inboxUserId : user?.id
+  const selfId = schoolSide ? inboxUserId : user?.id
 
   const threadId = selected?.id || null
   const { data: threadData, isLoading: messagesLoading } = useConversationMessages(
@@ -182,31 +189,6 @@ const SchoolInboxPage = () => {
   const markRead = useMarkConversationAsRead()
   const resolveMutation = useSetConversationResolved()
 
-  useEffect(() => {
-    if (!composing || !viewingSchool || people.length) return
-    api.get(withOrg('/api/sis/roster', isSuperadmin ? orgId : null))
-      .then((r) => setPeople(r.data?.roster || []))
-      .catch(() => toast.error('Could not load the school directory'))
-  }, [composing, viewingSchool, isSuperadmin, orgId, people.length])
-
-  // Open a thread with somebody who has never written in. It has no
-  // conversation id until the first message lands, which handleSend adopts
-  // from the response.
-  const startThread = (person) => {
-    setSelected({
-      id: null,
-      other_user: {
-        id: person.student_id,
-        first_name: person.first_name,
-        last_name: person.last_name,
-        display_name: person.name,
-        avatar_url: person.avatar_url,
-      },
-    })
-    setComposing(false)
-    setPickedPerson('')
-  }
-
   // The school inbox marks a thread read on GET (shared read state: one
   // colleague reading it reads it for all). A teacher's own thread needs the
   // explicit mark, once per open and again whenever unread messages arrive
@@ -215,11 +197,11 @@ const SchoolInboxPage = () => {
   const markToken = `${threadId}:${unreadForMe}`
   const markedRef = useRef(null)
   useEffect(() => {
-    if (viewingSchool || !threadId || !threadData) return
+    if (schoolSide || !threadId || !threadData) return
     if (markedRef.current === markToken) return
     markedRef.current = markToken
     markRead.mutate(threadId)
-  }, [viewingSchool, threadId, threadData, markToken])
+  }, [schoolSide, threadId, threadData, markToken])
 
   // The badge on the row clears the moment the thread is on screen, without
   // waiting for the list's next poll to say so.
@@ -381,15 +363,22 @@ const SchoolInboxPage = () => {
   // Which groups depends on the tab, like the DM list: the School tab lists the
   // groups the SCHOOL owns (sent from that tab, ac84b6cd), read as the school;
   // My messages lists the caller's own groups, read as a member.
-  const groupsEnabled = isMessages && !!user?.id && !(viewingSchool && isSuperadmin && !orgId)
+  //
+  // Every group the school owns is on the School tab, whoever is in it: since
+  // Compose (2026-09-23) a school group can hold families and students too.
+  // My messages still lists only staff rooms -- a teacher's class chats have
+  // their own page.
+  const groupsEnabled = isMessages && !viewingGranted && !!user?.id
+    && !(viewingSchool && isSuperadmin && !orgId)
   const { data: groupsData } = useGroups(user?.id, { source, enabled: groupsEnabled })
   const staffGroups = useMemo(() => {
-    const rows = groupsData?.groups || (Array.isArray(groupsData) ? groupsData : []) || []
+    const rows = viewingGranted ? (grantedData?.groups || [])
+      : (groupsData?.groups || (Array.isArray(groupsData) ? groupsData : []) || [])
     return [...rows]
-      .filter((g) => (g.audience || 'staff') === 'staff')
+      .filter((g) => schoolSide || (g.audience || 'staff') === 'staff')
       .sort((a, b) => new Date(b.last_message_at || b.created_at || 0)
         - new Date(a.last_message_at || a.created_at || 0))
-  }, [groupsData])
+  }, [groupsData, grantedData, viewingGranted, schoolSide])
 
   // ?group=<id> opens that group, the same consume-once rule as ?conversation=
   // (the bell's link for a reply in a school group, 11f6ad24).
@@ -415,6 +404,14 @@ const SchoolInboxPage = () => {
     resolveMutation.mutate({ conversationId: convo.id, resolved, source, userId: user?.id })
   }
 
+  // Who on staff has opened this thread (9b46c748: the shared read state said
+  // somebody had; the office asked who). Me first is noise, so I am left out.
+  const openedBy = (threadData?.opened_by || []).filter((r) => r.user_id !== user?.id)
+
+  // Announcements moved to the Community page (9a335881). An old link, a
+  // bookmark or the /messaging redirect still carries ?tab=announcements.
+  if (rawTab === 'announcements') return <Navigate to="/community?tab=announcements" replace />
+
   return (
     <div>
       <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
@@ -424,10 +421,12 @@ const SchoolInboxPage = () => {
             {viewingSchool ? (
               <>Messages families and staff send to {orgName ? <span className="font-medium">{orgName}</span> : 'the school'} —
                 replies go out under the school&apos;s name.</>
+            ) : viewingGranted ? (
+              <>Threads the office gave you with a task. Your replies go out from {orgName || 'the school'} with your name.</>
             ) : tab === 'mine' ? (
               <>Your own threads — replies come from you, not the school.</>
             ) : (
-              <>Announcements to the families of your classes.</>
+              <>Messages sent with Compose, and who has read them.</>
             )}
             {isMessages && totalUnread > 0 && ` ${totalUnread} unread.`}
           </p>
@@ -437,91 +436,58 @@ const SchoolInboxPage = () => {
       <GlassTabBar
         align="start" size="md" className="mb-4" aria-label="Messaging sections"
         tabs={[
-          ...(admin ? [{ id: 'school', label: orgName || 'School',
+          ...(admin || hasGranted || viewingGranted ? [{ id: 'school', label: orgName || 'School',
             badge: tab === 'school' && totalUnread > 0 ? totalUnread : null }] : []),
           { id: 'mine', label: 'My messages', badge: tab === 'mine' && totalUnread > 0 ? totalUnread : null },
-          { id: 'announcements', label: 'Announcements' },
+          ...(admin ? [{ id: 'sent', label: 'Sent' }] : []),
         ]}
         active={tab} onSelect={setTab}
       />
 
-      <StaffComposeModal
-        isOpen={!!staffCompose}
-        initialAudience={staffCompose || 'staff'}
+      <ComposeMessageModal
+        isOpen={!!compose}
         orgId={isSuperadmin ? orgId : null}
-        onClose={() => setStaffCompose(null)}
-        asSchool={viewingSchool}
+        asSchool={compose === 'school'}
+        onClose={() => setCompose(null)}
         onSent={() => {
           queryClient.invalidateQueries({ queryKey: ['conversations'] })
           queryClient.invalidateQueries({ queryKey: ['groups'] })
         }}
       />
 
-      {tab === 'announcements' ? (
-        // The same board composer /community mounts. It used to be a second,
-        // different composer here -- a targeted SEND that could pick classes,
-        // teachers and age bands, next to a BOARD post that could not. Two
-        // composers for one act, and the office had to choose between them
-        // before writing anything. Reaching a chosen set of people is what the
-        // messaging tabs beside this one are for now.
-        //
-        // The tab gets the real orgId, not the withOrg-style "null for own org"
-        // idiom: it is a data gate there (useCommunityAnnouncements is enabled
-        // only with one), and null left every non-superadmin on "Loading…" for
-        // good (iCreate, 2026-09-15, 72dabff8 / 83092eae / 83c94d73). The
-        // server pins a non-superadmin to their own org whatever is sent.
-        <BoardAnnouncementsTab orgId={orgId} admin={admin} />
+      <MakeTaskModal
+        isOpen={!!taskFor}
+        orgId={isSuperadmin ? orgId : null}
+        conversationId={taskFor?.conversationId || null}
+        groupId={taskFor?.groupId || null}
+        message={taskFor?.message || null}
+        threadLabel={taskFor?.label || ''}
+        onClose={() => setTaskFor(null)}
+      />
+
+      {tab === 'sent' ? (
+        <div className="bg-white border border-gray-200 rounded-xl overflow-hidden min-h-[300px]">
+          <div className="border-b border-gray-100 p-3 flex justify-end">
+            <button type="button" onClick={() => setCompose('school')}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-optio-purple/40 px-3 py-2 text-sm font-semibold text-optio-purple hover:bg-optio-purple/5 transition-colors">
+              <PencilSquareIcon className="w-4 h-4" /> Compose
+            </button>
+          </div>
+          <SentMessagesPanel key={orgId || 'own'} orgId={isSuperadmin ? orgId : null} />
+        </div>
       ) : (
       <div className="flex h-[72vh] min-h-[440px] bg-white border border-gray-200 rounded-xl overflow-hidden">
         {/* Thread list */}
         <div className={`w-full md:w-[300px] lg:w-[340px] flex-shrink-0 border-r border-gray-200 flex flex-col ${
           selected || selectedGroup ? 'hidden md:flex' : 'flex'}`}>
-          {viewingSchool && (
+          {/* One Compose for everything (bf8b754d). From the School tab it
+              writes as the school; from My messages, as you (families and
+              students always hear from the school -- see the modal). */}
+          {admin && (
             <div className="border-b border-gray-100 p-3">
-              {composing ? (
-                <div>
-                  <label className="block text-xs text-neutral-500 mb-1" htmlFor="inbox-new-message">
-                    Message one person
-                  </label>
-                  <SearchSelect
-                    value={pickedPerson}
-                    onChange={(id) => {
-                      const person = people.find((p) => p.student_id === id)
-                      if (person) startThread(person)
-                    }}
-                    options={people.filter((p) => p.student_id !== inboxUserId)}
-                    getId={(p) => p.student_id}
-                    getLabel={(p) => (p.role ? `${p.name} (${ROLE_LABELS[p.role] || p.role})` : p.name)}
-                    placeholder="Search families and staff…"
-                  />
-                  <button type="button" onClick={() => { setComposing(false); setPickedPerson('') }}
-                    className="mt-2 text-xs text-neutral-500 hover:underline">
-                    Cancel
-                  </button>
-                </div>
-              ) : (
-                <div className="flex gap-2">
-                  <button type="button" onClick={() => setComposing(true)}
-                    className="flex-1 rounded-lg border border-optio-purple/40 px-3 py-2 text-sm font-semibold text-optio-purple hover:bg-optio-purple/5 transition-colors">
-                    New message
-                  </button>
-                  {/* "Message families" promised one audience and opened a
-                      composer with a Staff | Families toggle, so an org admin
-                      reported the label as wrong (2026-09-22). The composer is
-                      right; the button was describing half of it. */}
-                  <button type="button" onClick={() => setStaffCompose('families')}
-                    className="flex-1 rounded-lg border border-optio-purple/40 px-3 py-2 text-sm font-semibold text-optio-purple hover:bg-optio-purple/5 transition-colors">
-                    Message a group
-                  </button>
-                </div>
-              )}
-            </div>
-          )}
-          {admin && tab === 'mine' && (
-            <div className="border-b border-gray-100 p-3">
-              <button type="button" onClick={() => setStaffCompose('staff')}
-                className="w-full rounded-lg border border-optio-purple/40 px-3 py-2 text-sm font-semibold text-optio-purple hover:bg-optio-purple/5 transition-colors">
-                New message
+              <button type="button" onClick={() => setCompose(viewingSchool ? 'school' : 'mine')}
+                className="w-full inline-flex items-center justify-center gap-1.5 rounded-lg border border-optio-purple/40 px-3 py-2 text-sm font-semibold text-optio-purple hover:bg-optio-purple/5 transition-colors">
+                <PencilSquareIcon className="w-4 h-4" /> Compose
               </button>
             </div>
           )}
@@ -575,7 +541,9 @@ const SchoolInboxPage = () => {
                 <p className="text-xs text-neutral-500">
                   {viewingSchool
                     ? 'When a family or staff member messages the school, the thread shows up here.'
-                    : 'When someone messages you, the thread shows up here.'}
+                    : viewingGranted
+                      ? 'When the office gives you a thread with a task, it shows up here.'
+                      : 'When someone messages you, the thread shows up here.'}
                 </p>
               </div>
             ) : shownConversations.length === 0 ? (
@@ -613,12 +581,15 @@ const SchoolInboxPage = () => {
               group={selectedGroup}
               source={source}
               onBack={() => setSelectedGroup(null)}
+              onMakeTask={viewingSchool
+                ? (msg) => setTaskFor({ groupId: selectedGroup.id, message: msg, label: selectedGroup.name })
+                : null}
             />
           ) : !selected ? (
             <div className="flex-1 flex flex-col items-center justify-center bg-gray-50 p-6 text-center">
               <ChatBubbleLeftRightIcon className="w-10 h-10 text-gray-300 mb-3" />
               <p className="text-sm text-neutral-500">
-                {viewingSchool
+                {schoolSide
                   ? 'Pick a conversation to read and reply as the school.'
                   : 'Pick a conversation to read and reply.'}
               </p>
@@ -634,17 +605,34 @@ const SchoolInboxPage = () => {
                 </button>
                 <div className="min-w-0 flex-1">
                   <h2 className="text-base font-semibold text-neutral-900 truncate">{memberName(selectedRow)}</h2>
-                  {viewingSchool && (
+                  {schoolSide && (
                     <p className="text-xs text-neutral-500 flex items-center gap-1">
                       <AcademicCapIcon className="w-3.5 h-3.5" />
-                      Replying as {orgName || 'the school'}
+                      {viewingGranted
+                        ? `Replying as ${orgName || 'the school'}, with your name`
+                        : `Replying as ${orgName || 'the school'}`}
+                    </p>
+                  )}
+                  {schoolSide && openedBy.length > 0 && (
+                    <p className="text-xs text-neutral-400 truncate"
+                      title={openedBy.map((r) => `${r.name} ${formatMessageTime(r.last_read_at)}`).join(', ')}>
+                      Opened by {openedBy.slice(0, 3).map((r) => `${r.name} (${formatMessageTime(r.last_read_at)})`).join(', ')}
+                      {openedBy.length > 3 ? ` and ${openedBy.length - 3} more` : ''}
                     </p>
                   )}
                 </div>
+                {viewingSchool && selectedRow.id && (
+                  <button type="button"
+                    onClick={() => setTaskFor({ conversationId: selectedRow.id, label: memberName(selectedRow) })}
+                    title="Give this thread to somebody on staff as a task"
+                    className="shrink-0 inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border border-gray-300 text-xs text-neutral-600 hover:border-optio-purple hover:text-optio-purple">
+                    <ClipboardDocumentCheckIcon className="w-4 h-4" /> Make a task
+                  </button>
+                )}
                 {/* A thread answered somewhere else -- in person, from the
                     other inbox -- has no reply to send and would otherwise sit
                     under Needs a reply forever (iCreate, 5c858931). */}
-                {selectedRow.id && hasTraffic(selectedRow) && (
+                {!viewingGranted && selectedRow.id && hasTraffic(selectedRow) && (
                   isResolved(selectedRow) ? (
                     <button type="button" onClick={() => setResolved(selectedRow, false)} disabled={resolveMutation.isPending}
                       className="shrink-0 inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border border-gray-300 text-xs text-neutral-600 hover:bg-gray-50 disabled:opacity-50">
@@ -679,8 +667,8 @@ const SchoolInboxPage = () => {
                     // A member-side message with an author = forwarded in from
                     // Optio Support.
                     const meta = [
-                      viewingSchool && fromMe && message.sent_by_name && `Sent by ${message.sent_by_name}`,
-                      viewingSchool && !fromMe && message.sent_by_name && `Forwarded by ${message.sent_by_name}`,
+                      schoolSide && fromMe && message.sent_by_name && `Sent by ${message.sent_by_name}`,
+                      schoolSide && !fromMe && message.sent_by_name && `Forwarded by ${message.sent_by_name}`,
                     ].filter(Boolean).map((t) => ` · ${t}`).join('')
                     return (
                       <div key={message.id} className={`flex ${fromMe ? 'justify-end' : 'justify-start'}`}>
@@ -689,8 +677,19 @@ const SchoolInboxPage = () => {
                             message={message}
                             isOwn={fromMe}
                             meta={meta || null}
-                            seen={fromMe && i === messages.length - 1 && Boolean(message.read_at)}
+                            // The read time, so the receipt says when (9b46c748).
+                            seen={fromMe && i === messages.length - 1 && message.read_at ? message.read_at : false}
                           />
+                          {/* A family's message is how a request arrives now:
+                              the office turns it into a task for whoever should
+                              handle it (bf8b754d). */}
+                          {viewingSchool && !fromMe && selectedRow.id && !message.isOptimistic && (
+                            <button type="button"
+                              onClick={() => setTaskFor({ conversationId: selectedRow.id, message, label: memberName(selectedRow) })}
+                              className="mt-0.5 text-[11px] text-neutral-400 hover:text-optio-purple">
+                              Make a task
+                            </button>
+                          )}
                         </div>
                       </div>
                     )
@@ -705,7 +704,7 @@ const SchoolInboxPage = () => {
                 key={selected.id || `new:${selected.other_user?.id}`}
                 onSendMessage={handleSend}
                 disabled={sendMutation.isPending}
-                placeholder={viewingSchool ? `Reply as ${orgName || 'the school'}...` : 'Write a reply...'}
+                placeholder={schoolSide ? `Reply as ${orgName || 'the school'}...` : 'Write a reply...'}
               />
             </>
           )}

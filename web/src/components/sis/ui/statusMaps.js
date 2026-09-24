@@ -40,28 +40,23 @@ export const STATUS_MAPS = {
     draft: { label: 'Draft', tone: NEUTRAL },
     reviewed: { label: 'Reviewed', tone: 'bg-green-100 text-green-700' },
   },
-  /** A staff member's own task inbox (MyTasksPage). */
+  /** A task, on anybody's list (TaskCard) and on the office's Assigned cards. */
   task: {
     todo: { label: 'To do', tone: 'bg-optio-purple/10 text-optio-purple' },
     in_progress: { label: 'In progress', tone: 'bg-amber-100 text-amber-700' },
     waiting_on_admin: { label: 'With the office', tone: 'bg-blue-100 text-blue-700' },
     done: { label: 'Done', tone: 'bg-green-100 text-green-700' },
+    // A recurring task nobody finished on its day.
+    expired: { label: 'Expired', tone: NEUTRAL },
   },
-  /** One item on an onboarding checklist (OnboardingPage, ChecklistAssignments). */
+  /** One step of a task (TaskCard, the Assigned view). */
   checklist_item: {
     pending: { label: 'Pending', tone: NEUTRAL },
     complete: { label: 'Complete', tone: 'bg-blue-100 text-blue-700' },
     approved: { label: 'Approved', tone: 'bg-green-100 text-green-700' },
     rejected: { label: 'Rejected', tone: 'bg-red-100 text-red-700' },
   },
-  /** A staff form submission / request (StaffFormsPage, the Task Center queue). */
-  form_submission: {
-    submitted: { label: 'Submitted', tone: NEUTRAL },
-    under_review: { label: 'Under review', tone: 'bg-blue-100 text-blue-700' },
-    in_progress: { label: 'In progress', tone: 'bg-amber-100 text-amber-700' },
-    waiting: { label: 'Waiting', tone: 'bg-purple-100 text-purple-700' },
-    resolved: { label: 'Resolved', tone: 'bg-green-100 text-green-700' },
-  },
+
   /** What an invoice is for (BillingPage). */
   invoice_kind: {
     tuition: { label: 'Tuition', tone: 'bg-indigo-100 text-indigo-700' },

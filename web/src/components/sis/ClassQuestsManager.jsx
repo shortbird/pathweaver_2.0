@@ -5,12 +5,10 @@ import {
   CalendarDaysIcon, ClockIcon, UsersIcon,
 } from '@heroicons/react/24/outline'
 import api from '../../services/api'
-import QuestDraftForm, { blankTask } from './QuestDraftForm'
-import QuestAiDraftPanel from './QuestAiDraftPanel'
-import PresetTaskManager from './PresetTaskManager'
-import QuestResourcesPanel from './QuestResourcesPanel'
+import QuestEditor from './QuestEditor'
+import QuestDraftsList from './questEditor/QuestDraftsList'
 import { useConfirm } from '../../contexts/ConfirmContext'
-import GlassTabBar from '../ui/GlassTabBar'
+import { useRefreshAfterQuestEdit } from '../../hooks/api/useQuestEditor'
 import { INPUT_CLASS } from '../ui/Input'
 
 /**
@@ -26,11 +24,15 @@ import { INPUT_CLASS } from '../ui/Input'
  * who it is for -- everyone, or a picked set of students (Gryffin, 2026-09-10:
  * "some kids can only handle so many assignments" / "only assign certain
  * assignments to specific kids").
+ *
+ * Making and editing a quest is QuestEditor, the one quest form every SIS
+ * screen shares since P6 (2026-09-23). "Create new" starts a draft on this
+ * class; Publish puts it on the class with its dates and audience. A teacher
+ * edits only the quests they wrote (`can_edit` from the server); on anybody
+ * else's the editor is read-only with this class's settings still theirs.
  */
 
 const inputCls = INPUT_CLASS
-// Preset-task editing moved to PresetTaskManager (shared with the admin
-// curriculum page, 2026-08-31); this file passes it the class-scoped base URL.
 
 // The three tiers assignable-quests returns, in the order it returns them.
 const SCOPE_HEADING = {
@@ -39,7 +41,7 @@ const SCOPE_HEADING = {
   other: 'Elsewhere in your school and the Optio library',
 }
 
-export default function ClassQuestsManager({ classId, scheduledEnabled = false, canSaveToCurriculum = false }) {
+export default function ClassQuestsManager({ classId, orgId = null, scheduledEnabled = false, canSaveToCurriculum = false }) {
   const confirm = useConfirm()
   const [quests, setQuests] = useState([])
   // The class's active students, for the "who is this for" picker. Rides along
@@ -49,7 +51,9 @@ export default function ClassQuestsManager({ classId, scheduledEnabled = false, 
   const [expanded, setExpanded] = useState(null)
 
   // Assign panel state
-  const [mode, setMode] = useState(null) // null | 'existing' | 'new'
+  const [mode, setMode] = useState(null) // null | 'existing'
+  // The quest editor: {questId?} -- no questId starts a new draft on this class.
+  const [editing, setEditing] = useState(null)
   const [search, setSearch] = useState('')
   const [available, setAvailable] = useState([])
   // How many quests exist that this list is deliberately not showing — the rest
@@ -57,10 +61,6 @@ export default function ClassQuestsManager({ classId, scheduledEnabled = false, 
   // "narrowed" and not as "there is nothing else" (49ba6e08).
   const [hiddenCount, setHiddenCount] = useState(0)
   const [searching, setSearching] = useState(false)
-  const [newTitle, setNewTitle] = useState('')
-  const [newDesc, setNewDesc] = useState('')
-  const [newTasks, setNewTasks] = useState([blankTask()])
-  const [creating, setCreating] = useState(false)
   // Curriculum attached to this class, each with its saved quest set.
   const [curricula, setCurricula] = useState([])
   const [syncing, setSyncing] = useState(null) // curriculum id mid-copy/save
@@ -183,23 +183,7 @@ export default function ClassQuestsManager({ classId, scheduledEnabled = false, 
     }
   }
 
-  const createNew = async () => {
-    if (!newTitle.trim()) { toast.error('Give the quest a title'); return }
-    setCreating(true)
-    try {
-      const tasks = newTasks.filter((t) => t.title.trim())
-      await api.post(`/api/sis/classes/${classId}/quests/create`, {
-        title: newTitle.trim(), description: newDesc.trim(), tasks, ...releaseBody(),
-      })
-      assignedToast('Quest created and assigned')
-      setMode(null); setNewTitle(''); setNewDesc(''); setNewTasks([blankTask()]); setAssignRelease('')
-      await load()
-    } catch (err) {
-      toast.error(err?.response?.data?.error || 'Could not create the quest')
-    } finally {
-      setCreating(false)
-    }
-  }
+  const refreshDrafts = useRefreshAfterQuestEdit(orgId)
 
   // Two different things, kept visibly apart: unassign takes the quest off this
   // Due dates live on class_quests, so they are per-class: the same quest can be
@@ -370,13 +354,30 @@ export default function ClassQuestsManager({ classId, scheduledEnabled = false, 
           Quests you assign land in each student’s account like any other quest, preset tasks included.
           Each one can have a due date{scheduledEnabled ? ', a release date' : ''} and its own set of students.
         </p>
-        {!mode && (
-          <button onClick={() => setMode('existing')}
-            className="shrink-0 inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-gradient-primary text-white text-sm font-semibold">
-            <PlusIcon className="w-4 h-4" /> Assign a quest
+        <div className="shrink-0 flex items-center gap-2">
+          {!mode && (
+            <button onClick={() => setMode('existing')}
+              className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-optio-purple/40 text-optio-purple text-sm font-semibold hover:bg-optio-purple/5">
+              <PlusIcon className="w-4 h-4" /> Assign a quest
+            </button>
+          )}
+          <button onClick={() => setEditing({})} disabled={!!editing}
+            className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-gradient-primary text-white text-sm font-semibold disabled:opacity-50">
+            <PlusIcon className="w-4 h-4" /> Create new
           </button>
-        )}
+        </div>
       </div>
+
+      <QuestDraftsList orgId={orgId} context="class" classId={classId}
+        onResume={(d) => setEditing({ questId: d.id })} />
+
+      {editing && (
+        <QuestEditor key={editing.questId || 'new'} context="class" orgId={orgId} classId={classId}
+          questId={editing.questId || null}
+          classLink={editing.link || null} students={students} scheduledEnabled={scheduledEnabled}
+          onDone={() => { refreshDrafts(); load() }}
+          onClose={() => setEditing(null)} />
+      )}
 
       {/* The curriculum round trip. Only rendered when a curriculum is actually
           attached — the point is to make the reusable set obvious where the
@@ -420,11 +421,7 @@ export default function ClassQuestsManager({ classId, scheduledEnabled = false, 
       {mode && (
         <div className="bg-white rounded-xl border border-gray-200 p-4">
           <div className="flex items-center gap-3 mb-4">
-            <GlassTabBar
-              align="start" aria-label="How to assign a quest"
-              tabs={[{ id: 'existing', label: 'Assign existing' }, { id: 'new', label: 'Create new' }]}
-              active={mode} onSelect={setMode}
-            />
+            <h3 className="text-sm font-semibold text-neutral-900">Assign an existing quest</h3>
             <button onClick={() => setMode(null)} className="ml-auto text-sm text-neutral-400 hover:text-neutral-700">Cancel</button>
           </div>
 
@@ -452,7 +449,7 @@ export default function ClassQuestsManager({ classId, scheduledEnabled = false, 
               {!searching && available.length === 0 && (
                 <p className="text-sm text-neutral-500">
                   {search
-                    ? 'No quests match that. Try “Create new” instead.'
+                    ? 'No quests match that. Try “Create new” above instead.'
                     : 'Nothing on this class’s curriculum yet, and you haven’t written any. '
                       + 'Search to pull one from your school or the Optio library, or use “Create new”.'}
                 </p>
@@ -505,33 +502,6 @@ export default function ClassQuestsManager({ classId, scheduledEnabled = false, 
             </div>
           )}
 
-          {mode === 'new' && (
-            <div className="space-y-3">
-              {/* Teachers get the same AI head start admins get in the
-                  curriculum library — this is the screen where most quests are
-                  actually written. */}
-              <QuestAiDraftPanel
-                hasDraft={Boolean(newTitle.trim() || newDesc.trim() || newTasks.some((t) => t.title.trim()))}
-                onDrafted={({ title, description, tasks }) => {
-                  setNewTitle(title); setNewDesc(description); setNewTasks(tasks)
-                }}
-              />
-              <QuestDraftForm
-                title={newTitle} setTitle={setNewTitle}
-                description={newDesc} setDescription={setNewDesc}
-                tasks={newTasks} setTasks={setNewTasks}
-                titlePlaceholder="Quest title (e.g. Watercolor Basics)"
-                descriptionPlaceholder="What is this quest about? (optional)"
-                taskHint="Preset tasks are copied to each student when they start the quest. Leave it empty and they write their own. Every task needs evidence — a photo, a note or a link — before a student can mark it done."
-              />
-              <div className="flex justify-end">
-                <button onClick={createNew} disabled={creating || !newTitle.trim()}
-                  className="px-4 py-2 rounded-lg bg-gradient-primary text-white text-sm font-semibold disabled:opacity-50">
-                  {creating ? 'Creating…' : 'Create & assign'}
-                </button>
-              </div>
-            </div>
-          )}
         </div>
       )}
 
@@ -692,9 +662,10 @@ export default function ClassQuestsManager({ classId, scheduledEnabled = false, 
                       className="px-3 py-1.5 rounded-lg border border-gray-300 text-neutral-600 text-sm font-medium hover:bg-gray-50">
                       Unassign
                     </button>
-                    {/* Only the school's own quests can be deleted; library
-                        quests are shared with other schools. */}
-                    {q.editable_tasks && (
+                    {/* Only a quest the caller may change can be deleted: the
+                        office's, or one this teacher wrote. Library quests are
+                        shared with other schools. */}
+                    {q.can_edit && (
                       <button onClick={() => destroy(q)}
                         title="Delete it from your school's library for good"
                         className="p-1.5 text-gray-400 hover:text-red-500"
@@ -752,14 +723,21 @@ export default function ClassQuestsManager({ classId, scheduledEnabled = false, 
                         has its own below. "Is there a way to upload images into
                         quests for the kids to look over?" (Gryffin, 2026-09-14,
                         ac9bde84) -- there was, one task at a time. */}
-                    {q.editable_tasks && (
-                      <QuestInfoEditor classId={classId} quest={q}
-                        onSaved={(patch) => setQuests((prev) => prev.map((x) => (
-                          x.quest_id === q.quest_id ? { ...x, ...patch } : x)))} />
+                    {q.description && (
+                      <p className="mt-3 text-sm text-neutral-600 whitespace-pre-line">{q.description}</p>
                     )}
-                    {q.editable_tasks && <QuestResourcesPanel questId={q.quest_id} />}
-                    <PresetTaskManager base={`/api/sis/classes/${classId}/quests/${q.quest_id}/tasks`}
-                      questId={q.quest_id} />
+                    <div className="mt-3 flex items-center gap-3">
+                      <button type="button"
+                        onClick={() => setEditing({ questId: q.quest_id, link: q })}
+                        className="px-3 py-1.5 rounded-lg bg-optio-purple text-white text-sm font-medium">
+                        {q.can_edit ? 'Edit quest' : 'Open quest'}
+                      </button>
+                      <span className="text-xs text-neutral-500">
+                        {q.can_edit
+                          ? 'Title, picture, tasks, files and links, and this class’s dates.'
+                          : 'Its tasks are read-only to you. Its dates and who it is for on this class are yours.'}
+                      </span>
+                    </div>
                   </div>
                 )}
               </li>
@@ -767,72 +745,6 @@ export default function ClassQuestsManager({ classId, scheduledEnabled = false, 
           })}
         </ul>
       )}
-    </div>
-  )
-}
-
-/**
- * The quest itself -- title, description, and whether students may add tasks
- * of their own -- editable by the class's teacher on the school's own quests.
- *
- * iCreate, 93af5014, 2026-09-22: "Teachers can't seem to edit the quests. Once
- * they can edit, they should be able to select whether or not students can add
- * tasks." Tasks, attachments and XP were already editable here; the title and
- * description were only reachable from the office's library. The quest is one
- * row, so a change shows on every class carrying it -- said under the Save.
- */
-export function QuestInfoEditor({ classId, quest, onSaved }) {
-  const [title, setTitle] = useState(quest.title || '')
-  const [description, setDescription] = useState(quest.description || '')
-  const [allowCustom, setAllowCustom] = useState(quest.allow_custom_tasks !== false)
-  const [saving, setSaving] = useState(false)
-
-  const dirty = title.trim() !== (quest.title || '')
-    || description.trim() !== (quest.description || '')
-    || allowCustom !== (quest.allow_custom_tasks !== false)
-
-  const save = async () => {
-    if (!title.trim()) { toast.error('A quest needs a title'); return }
-    setSaving(true)
-    try {
-      const { data } = await api.patch(`/api/sis/classes/${classId}/quests/${quest.quest_id}/info`, {
-        title: title.trim(), description: description.trim(), allow_custom_tasks: allowCustom,
-      })
-      const q = data?.quest || {}
-      onSaved({ title: q.title ?? title.trim(), description: q.description ?? description.trim(),
-        allow_custom_tasks: q.allow_custom_tasks ?? allowCustom })
-      toast.success('Quest saved')
-    } catch (err) {
-      toast.error(err?.response?.data?.error || 'Could not save the quest')
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  return (
-    <div className="mt-3 mb-4 space-y-2">
-      <label className="block">
-        <span className="block text-xs font-medium text-neutral-600 mb-1">Quest title</span>
-        <input value={title} onChange={(e) => setTitle(e.target.value)} className={inputCls}
-          maxLength={200} />
-      </label>
-      <label className="block">
-        <span className="block text-xs font-medium text-neutral-600 mb-1">Description</span>
-        <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={3}
-          className={inputCls} />
-      </label>
-      <label className="flex items-center gap-2 text-sm text-neutral-700">
-        <input type="checkbox" checked={allowCustom} onChange={(e) => setAllowCustom(e.target.checked)}
-          className="rounded border-gray-300 text-optio-purple" />
-        Students can add their own tasks
-      </label>
-      <div className="flex items-center gap-3">
-        <button type="button" onClick={save} disabled={!dirty || saving}
-          className="px-3 py-1.5 rounded-lg bg-optio-purple text-white text-sm font-medium disabled:opacity-50">
-          {saving ? 'Saving\u2026' : 'Save quest'}
-        </button>
-        <span className="text-xs text-neutral-500">Changes show on every class that has this quest.</span>
-      </div>
     </div>
   )
 }

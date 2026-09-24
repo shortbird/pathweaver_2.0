@@ -36,7 +36,7 @@ describe('SisSearch', () => {
     fireEvent.change(input(), { target: { value: 'announce' } })
     const options = screen.getAllByRole('option')
     expect(options[0]).toHaveTextContent('Announcements')
-    expect(options[0]).toHaveTextContent('Messaging · Operations')
+    expect(options[0]).toHaveTextContent('Community')
     expect(options[0]).toHaveAttribute('aria-selected', 'true')
   })
 
@@ -44,21 +44,21 @@ describe('SisSearch', () => {
     renderSearch()
     fireEvent.change(input(), { target: { value: 'announcements' } })
     fireEvent.keyDown(input(), { key: 'Enter' })
-    expect(screen.getByTestId('where')).toHaveTextContent('/inbox?tab=announcements')
+    expect(screen.getByTestId('where')).toHaveTextContent('/community?tab=announcements')
     expect(input()).toHaveValue('')
     expect(screen.queryByRole('listbox')).not.toBeInTheDocument()
   })
 
   it('moves the highlight with the arrow keys', () => {
     renderSearch()
-    fireEvent.change(input(), { target: { value: 'announcements' } })
+    fireEvent.change(input(), { target: { value: 'class' } })
     fireEvent.keyDown(input(), { key: 'ArrowDown' })
     const options = screen.getAllByRole('option')
     expect(options[0]).toHaveAttribute('aria-selected', 'false')
     expect(options[1]).toHaveAttribute('aria-selected', 'true')
     expect(input()).toHaveAttribute('aria-activedescendant', options[1].id)
     fireEvent.keyDown(input(), { key: 'Enter' })
-    expect(screen.getByTestId('where')).toHaveTextContent('/community?tab=announcements')
+    expect(screen.getByTestId('where')).toHaveTextContent('/classes?tab=all')
   })
 
   it('opens a result on click', () => {

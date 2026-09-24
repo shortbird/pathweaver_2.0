@@ -149,7 +149,8 @@ const MessageThread = ({
                 onSaveEdit={(content) => handleSaveEdit(message, content)}
                 onCancelEdit={() => setEditingId(null)}
                 savingEdit={savingEdit}
-                seen={isSender && i === messages.length - 1 && Boolean(message.read_at)}
+                // The read time, so the receipt says when (9b46c748).
+                seen={isSender && i === messages.length - 1 && message.read_at ? message.read_at : false}
               />
 
               {/* Reactions */}

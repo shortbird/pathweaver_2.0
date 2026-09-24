@@ -26,6 +26,15 @@ vi.mock('../../pages/sis/useSisOrg', () => ({
 }))
 const { confirmSpy } = vi.hoisted(() => ({ confirmSpy: vi.fn(async () => true) }))
 vi.mock('../../contexts/ConfirmContext', () => ({ useConfirm: () => confirmSpy }))
+// The quest editor and its Drafts list (P6) read through react-query; these
+// tests are about the curricula panel, so both are stood in for.
+vi.mock('../../hooks/api/useQuestEditor', () => ({
+  useRefreshAfterQuestEdit: () => () => {},
+  useQuestDrafts: () => ({ data: [] }),
+  useDiscardQuestDraft: () => ({ mutateAsync: vi.fn() }),
+  questEditorApi: {},
+}))
+vi.mock('./questEditor/QuestDraftsList', () => ({ default: () => null }))
 
 import CurriculumResources from './CurriculumResources'
 

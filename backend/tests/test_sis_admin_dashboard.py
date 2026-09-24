@@ -17,7 +17,7 @@ opened the console. Two things about that are worth pinning down, and neither is
 """
 
 from datetime import datetime, timezone
-from unittest.mock import Mock, patch
+from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 
@@ -48,7 +48,7 @@ def _table_mock(counts, rows):
 
 
 def _run(*, roles=('org_admin',), sees_pay=True, settings=None, counts=None, rows=None,
-         alerts=None, requests=None, batches=None, assignments=None,
+         alerts=None, tasks=None, batches=None,
          unassigned=None, prior_enabled=False, prior_counts=None,
          invoices=None, invoices_error=None, tuition=0, overrides=None):
     """Build a dashboard with every subsystem stubbed.
@@ -76,11 +76,10 @@ def _run(*, roles=('org_admin',), sees_pay=True, settings=None, counts=None, row
         'unassigned': patch.object(dash.sis_service, 'unassigned_students',
                                    return_value=unassigned or []),
         'alerts': patch.object(dash.attendance, 'open_alerts', return_value=alerts or []),
-        'forms': patch.object(dash.forms, 'list_all', return_value=requests or []),
+        'tasks': patch('services.sis_tasks_service.dashboard_counts',
+                       return_value=tasks or {'tasks_open': 0, 'tasks_overdue': 0}),
         'batches': patch.object(dash.onboarding, 'list_signature_batches',
                                 return_value=batches or []),
-        'assignments': patch.object(dash.onboarding, 'list_assignments',
-                                    return_value=assignments or []),
         'schedule': patch.object(dash.coordinator, 'today_schedule', return_value=[]),
     }
     patches.update(overrides or {})
@@ -161,24 +160,29 @@ class TestHrPaperworkFollowsTheCaller:
 
 @pytest.mark.unit
 class TestTheQueues:
-    def test_requests_split_into_unassigned_and_overdue(self):
-        requests = [
-            {'status': 'submitted', 'assigned_to': None, 'due_date': None},
-            {'status': 'in_progress', 'assigned_to': 'kate', 'due_date': '2026-08-01'},
-            {'status': 'waiting', 'assigned_to': None, 'due_date': '2026-09-01'},
-            # Resolved work is not waiting on anybody, however old it is.
-            {'status': 'resolved', 'assigned_to': None, 'due_date': '2026-01-01'},
-        ]
-        data = _run(requests=requests)
-        assert data['attention']['requests_unassigned'] == 2
-        assert data['attention']['requests_overdue'] == 1
+    def test_open_and_overdue_tasks_are_two_tiles(self):
+        """Requests became tasks (iCreate meeting 2026-09-23): the office's
+        queue is the tasks still owed, and the ones past their date."""
+        with patch('services.sis_tasks_service.dashboard_counts',
+                   return_value={'tasks_open': 7, 'tasks_overdue': 2}) as counts:
+            data = _run(overrides={'tasks': patch('services.sis_tasks_service.dashboard_counts',
+                                                  new=counts)})
+        assert data['attention']['tasks_open'] == 7
+        assert data['attention']['tasks_overdue'] == 2
+        # Asked with the org's own today, not the server's.
+        assert counts.call_args.args == (ORG, '2026-08-14')
 
-    def test_a_checklist_counts_until_its_last_item_is_done(self):
-        data = _run(assignments=[
-            {'done_count': 1, 'total_count': 3},
-            {'done_count': 4, 'total_count': 4},
-        ])
-        assert data['attention']['onboarding_incomplete'] == 1
+    def test_the_task_counts_are_exact_counts(self):
+        """Postgres counts them: a school with a daily duty for 40 staff has
+        more task rows than PostgREST will return in one read."""
+        from services import sis_tasks_service
+        repo = MagicMock()
+        repo.count_open.return_value = 1500
+        repo.count_overdue.return_value = 3
+        with patch.object(sis_tasks_service, '_repo', return_value=repo):
+            got = sis_tasks_service.dashboard_counts(ORG, '2026-08-14')
+        assert got == {'tasks_open': 1500, 'tasks_overdue': 3}
+        repo.count_overdue.assert_called_once_with(ORG, '2026-08-14')
 
     def test_enrollment_queues_come_from_exact_counts(self):
         data = _run(counts={'sis_age_exception_requests': 2,
@@ -216,7 +220,7 @@ class TestOptInModulesStayOut:
                         overrides={'alerts': patch.object(dash.attendance,
                                                           'open_alerts', new=alerts)})
         assert 'attendance_alerts' not in data['attention']
-        assert 'requests_unassigned' not in data['attention']
+        assert 'tasks_open' not in data['attention']
         assert 'signatures_pending' not in data['attention']
         assert 'attendance' not in data['today']
         alerts.assert_not_called()
@@ -237,10 +241,11 @@ class TestOneBrokenSubsystemCostsOneTile:
         assert data['snapshot'] == SNAPSHOT
 
     def test_a_failing_count_never_reports_an_empty_queue(self):
-        boom = patch.object(dash.forms, 'list_all', side_effect=RuntimeError('down'))
-        data = _run(overrides={'forms': boom})
-        assert 'requests_unassigned' not in data['attention']
-        assert 'requests_overdue' not in data['attention']
+        boom = patch('services.sis_tasks_service.dashboard_counts',
+                     side_effect=RuntimeError('down'))
+        data = _run(overrides={'tasks': boom})
+        assert 'tasks_open' not in data['attention']
+        assert 'tasks_overdue' not in data['attention']
 
     def test_a_failing_finance_service_still_renders_the_dashboard(self):
         data = _run(invoices_error=RuntimeError('billing is down'), tuition=2)
@@ -261,8 +266,8 @@ class TestTheRestOfThePayload:
     def test_an_empty_school_is_all_zeroes_and_no_errors(self):
         data = _run()
         assert data['attention'] == {
-            'attendance_alerts': 0, 'requests_unassigned': 0, 'requests_overdue': 0,
-            'signatures_pending': 0, 'onboarding_incomplete': 0, 'age_exceptions': 0,
+            'attendance_alerts': 0, 'tasks_overdue': 0,
+            'signatures_pending': 0, 'tasks_open': 0, 'age_exceptions': 0,
             'waitlist_waiting': 0, 'students_no_family': 0,
         }
 

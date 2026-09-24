@@ -121,11 +121,13 @@ describe('CommunityPage', () => {
     // then (2f945974: a parent announcement reached the student board because
     // the composer started on "Everyone at the school").
     expect(screen.getByRole('button', { name: 'Post' })).toBeDisabled()
-    fireEvent.change(screen.getByLabelText(/^Who/), { target: { value: 'families' } })
+    // Several roles at once since 9a335881; parents alone is the old Families.
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Parents' }))
     fireEvent.click(screen.getByRole('button', { name: 'Post' }))
     await waitFor(() =>
       expect(api.post).toHaveBeenCalledWith('/api/sis/community/announcements',
-        expect.objectContaining({ title: 'Snow day', organization_id: 'org-1', audience: 'families' })),
+        expect.objectContaining({ title: 'Snow day', organization_id: 'org-1',
+          audiences: ['parents'], audience: 'families' })),
     )
   })
 

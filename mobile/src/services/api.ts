@@ -795,6 +795,17 @@ export function uploadChildAvatar(childId: string, file: PickedFile): Promise<{ 
 }
 
 /**
+ * Upload a file for one step of a school task (the To do tab). Returns the
+ * storage path; the caller then attaches it to the step with the item PATCH,
+ * which is what marks the step done. Two calls because the server keeps the
+ * upload and the step change separate -- a failed PATCH leaves an orphaned
+ * file, never a step marked done with nothing behind it.
+ */
+export function uploadTaskDocument(taskId: string, file: PickedFile): Promise<{ path?: string }> {
+  return uploadImage<{ path?: string }>(`/api/sis/tasks/${taskId}/upload`, 'file', file, 'File');
+}
+
+/**
  * The family photo across the top of the family dashboard
  * (/api/parent/family-cover: one per parent account, signed on read).
  */

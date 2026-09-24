@@ -1,5 +1,6 @@
 /**
- * Moving quests and tasks up and down, and attaching to the master quest.
+ * Moving quests up and down, and attaching to the master quest. (Moving tasks
+ * is the quest editor's since P6; see questEditor.test.jsx.)
  *
  * iCreate, 2026-09-14 (c7d1f7a5), three asks in one report:
  *   - "I would also really like to be able to move the quests up and down."
@@ -15,8 +16,15 @@
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import CurriculumResources from './CurriculumResources'
-import PresetTaskManager from './PresetTaskManager'
+
+// The curriculum panel lists its quest drafts through react-query (P6).
+const withQuery = (ui) => (
+  <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+    {ui}
+  </QueryClientProvider>
+)
 
 const { api } = vi.hoisted(() => ({
   api: { get: vi.fn(), post: vi.fn(), put: vi.fn(), patch: vi.fn(), delete: vi.fn() },
@@ -34,45 +42,8 @@ const task = (id, title, order_index) => ({
 })
 const TASKS = [task('t1', 'Sketch', 0), task('t2', 'Paint', 1), task('t3', 'Frame', 2)]
 
-describe('reordering preset tasks', () => {
-  beforeEach(() => vi.clearAllMocks())
-
-  const mount = async (editable = true) => {
-    api.get.mockResolvedValue({ data: { success: true, editable, tasks: TASKS } })
-    render(<PresetTaskManager base="/api/sis/curriculum/cur1/quests/q1/tasks" orgId="org1" questId="q1" />)
-    await screen.findByText('Paint')
-  }
-
-  it('sends the whole list in its new order when a task moves up', async () => {
-    await mount()
-    api.put.mockResolvedValue({ data: { success: true, tasks: [TASKS[1], TASKS[0], TASKS[2]] } })
-    fireEvent.click(screen.getByLabelText('Move Paint up'))
-    await waitFor(() => expect(api.put).toHaveBeenCalledWith(
-      '/api/sis/curriculum/cur1/quests/q1/tasks/order?organization_id=org1',
-      { task_ids: ['t2', 't1', 't3'] }))
-  })
-
-  it('the first task cannot go up and the last cannot go down', async () => {
-    await mount()
-    expect(screen.getByLabelText('Move Sketch up')).toBeDisabled()
-    expect(screen.getByLabelText('Move Frame down')).toBeDisabled()
-    expect(screen.getByLabelText('Move Paint down')).not.toBeDisabled()
-  })
-
-  it('puts the list back and says so when the server refuses', async () => {
-    await mount()
-    api.put.mockRejectedValue({ response: { data: { error: 'That is not the full task list' } } })
-    fireEvent.click(screen.getByLabelText('Move Frame up'))
-    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('That is not the full task list'))
-    const titles = [...document.querySelectorAll('li .truncate')].map((el) => el.textContent)
-    expect(titles).toEqual(['Sketch', 'Paint', 'Frame'])
-  })
-
-  it('offers no arrows on a library quest', async () => {
-    await mount(false)
-    expect(screen.queryByLabelText('Move Paint up')).not.toBeInTheDocument()
-  })
-})
+// Moving a preset task up and down is the quest editor's now, saved with the
+// whole list: components/sis/questEditor.test.jsx.
 
 describe('reordering the quests on a curriculum, and the master quest\'s resources', () => {
   beforeEach(() => vi.clearAllMocks())
@@ -81,6 +52,11 @@ describe('reordering the quests on a curriculum, and the master quest\'s resourc
   const mount = async () => {
     api.get.mockImplementation(async (url) => {
       if (url.includes('/api/sis/quests/')) return { data: { success: true, quest: [], by_task: {} } }
+      if (url.includes('/api/sis/quest-editor/drafts')) return { data: { drafts: [] } }
+      if (url.includes('/api/sis/quest-editor/q1')) {
+        return { data: { quest: { id: 'q1', title: 'Alpha', description: '', is_active: true, is_draft: false,
+          editable: true, can_lock_xp: true, tasks: [], xp_threshold: 0 } } }
+      }
       if (url.includes('/curriculum/cur1/resources')) return { data: { success: true, quests: QUESTS } }
       if (url.includes('/assignable-quests')) return { data: { success: true, quests: [] } }
       if (url.includes('/curricula')) return { data: { on: [], available: [] } }
@@ -89,7 +65,7 @@ describe('reordering the quests on a curriculum, and the master quest\'s resourc
       }
       return { data: { success: true } }
     })
-    render(<CurriculumResources orgId="org1" curriculumId="cur1" canManage onChanged={vi.fn()} />)
+    render(withQuery(<CurriculumResources orgId="org1" curriculumId="cur1" canManage onChanged={vi.fn()} />))
     await screen.findByText('Beta')
   }
 
@@ -105,8 +81,11 @@ describe('reordering the quests on a curriculum, and the master quest\'s resourc
   })
 
   it('shows the resources panel on the quest itself, not only on a class', async () => {
+    // Since P6 the quest's attachments are in the quest editor, opened from
+    // the curriculum's own row.
     await mount()
     fireEvent.click(screen.getByText('Alpha'))
+    fireEvent.click(await screen.findByLabelText('Edit Alpha'))
     expect(await screen.findByText('Resources')).toBeInTheDocument()
     expect(api.get).toHaveBeenCalledWith('/api/sis/quests/q1/resources')
   })

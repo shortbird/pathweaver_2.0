@@ -22,7 +22,7 @@ LMS_ON = {'journal', 'courses', 'bounties', 'observer', 'friends'}
 # once `sis` is on.
 SIS_DEFAULT_ON = {
     'attendance', 'billing', 'calendar', 'classes', 'clp', 'curriculum',
-    'forms', 'onboarding', 'reports', 'resources', 'secure_documents',
+    'onboarding', 'reports', 'resources', 'secure_documents',
     'tasks', 'training',
     'catalog', 'registration', 'submissions',
 }
@@ -44,8 +44,9 @@ def test_icreate_shape_everything_on_plus_community():
 
 
 def test_optio_academy_shape_twelve_hidden_plus_optins():
-    # 'timesheets' stays in the org's stored array: the module was removed on
-    # 2026-09-18, and a key nothing registers is ignored, not an error.
+    # 'timesheets' and 'forms' stay in the org's stored array: those modules
+    # were removed (2026-09-18, 2026-09-24), and a key nothing registers is
+    # ignored, not an error.
     hidden = ['attendance', 'calendar', 'classes', 'clp', 'curriculum',
               'forms', 'onboarding', 'reports', 'resources',
               'secure_documents', 'timesheets', 'training']

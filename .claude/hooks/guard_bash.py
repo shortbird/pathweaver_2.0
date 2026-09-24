@@ -23,6 +23,14 @@ Four families, each of which has already cost this repository something:
    a ban: once the user has said yes, prefix the command with
    OPTIO_HOOK_OVERRIDE=1 and it goes through.
 
+5. SKIPPING THE PRE-PUSH LINT GATE. .githooks/pre-push runs the backend lint
+   steps CI runs first (pyflakes, ruff, mypy) on the commit being pushed.
+   Until 2026-09-23 releases kept failing on mypy in CI because nothing ran it
+   earlier. An agent may not pass --no-verify, and may not push to main from a
+   clone where core.hooksPath does not point at .githooks. The release
+   override does not cover either: the user approving a release is not the
+   user approving an unlinted one.
+
 The override exists for exactly one reason: a gate a person cannot get past
 becomes a gate somebody deletes. It leaves a mark in the transcript, which is
 the point -- the same shape as the `--yes` flag on the production repair
@@ -179,15 +187,25 @@ def main() -> None:
             )
 
     push = re.search(r'\bgit\s+push\b([^|;&]*)', executable)
+    if push and re.search(r'--no-verify\b', push.group(1)):
+        block(
+            'BLOCKED by .claude/hooks/guard_bash.py\n\n'
+            '--no-verify skips .githooks/pre-push, the backend lint gate CI runs '
+            'first. Fix what it reports instead; pushing past it only moves the '
+            'failure to CI. There is no override for this.'
+        )
+    if push and _pushes_main(push.group(1)) and _hooks_path() != '.githooks':
+        block(
+            'BLOCKED by .claude/hooks/guard_bash.py\n\n'
+            'The pre-push lint gate is not installed in this clone, so this '
+            'release would reach CI unlinted. Run:\n\n'
+            '    git config core.hooksPath .githooks\n\n'
+            'then push again.'
+        )
     if push and not overridden:
         args = push.group(1)
         forced = re.search(r'(--force\b|--force-with-lease\b|\s-f\b)', args)
-        # `git push origin main`, and also a bare `git push` while main is
-        # checked out -- which is the same release with the branch left implicit.
-        names_a_branch = re.search(r'\borigin\b|\bHEAD\b|:', args)
-        to_main = bool(re.search(r'\bmain\b', args)) or (
-            not names_a_branch and _current_branch() == 'main'
-        )
+        to_main = _pushes_main(args)
         if forced:
             block(
                 'BLOCKED by .claude/hooks/guard_bash.py\n\n'
@@ -208,6 +226,21 @@ def main() -> None:
             )
 
     allow()
+
+
+def _pushes_main(args: str) -> bool:
+    # `git push origin main`, and also a bare `git push` while main is
+    # checked out -- which is the same release with the branch left implicit.
+    names_a_branch = re.search(r'\borigin\b|\bHEAD\b|:', args)
+    return bool(re.search(r'\bmain\b', args)) or (
+        not names_a_branch and _current_branch() == 'main'
+    )
+
+
+def _hooks_path() -> str:
+    from _common import run
+    code, out = run(['git', 'config', '--get', 'core.hooksPath'], timeout=10)
+    return out.strip() if code == 0 else ''
 
 
 def _current_branch() -> str:

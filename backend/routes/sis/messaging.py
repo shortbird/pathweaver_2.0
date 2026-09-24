@@ -9,10 +9,13 @@ The service (services/sis_messaging_service.py) explains the two modes and why
 these messages are sent by the staff member personally rather than by the
 school-inbox account.
 
-Families are the other half (services/sis_family_messaging_service.py): the
-audience is a set of students -- everyone, one class, an age range -- and the
-recipients are their guardians, each in a private thread from the school, so
-replies land in the School Inbox and no family sees another.
+Since 2026-09-23 (iCreate, bf8b754d / 8ee000b6 / 9b46c748) the console has ONE
+Compose (services/message_compose_service.py): staff, families and students in
+one picker, one send, push and email as toggles, and every send recorded so the
+Sent view can say who read it. The staff-only /compose, and the families-only
+/family-audience and /compose-families, went with the two composers that called
+them. /recipients stays: the announcement composer's "only some staff" picker
+reads it.
 """
 
 from flask import Blueprint, request, jsonify
@@ -20,7 +23,7 @@ from flask import Blueprint, request, jsonify
 from utils.auth.decorators import require_role
 from utils.logger import get_logger
 from services import sis_service
-from services import sis_family_messaging_service as families
+from services import message_compose_service as compose_service
 from services import sis_messaging_service as messaging
 from utils.sis_roles import ADMIN_ROLES
 
@@ -48,104 +51,81 @@ def recipients(user_id):
     })
 
 
-@bp.route('/compose', methods=['POST'])
+@bp.route('/audience', methods=['GET'])
 @require_role(*ADMIN_ROLES)
-def compose(user_id):
-    """Send to several staff: one group thread, or one DM each.
+def audience(user_id):
+    """Everybody Compose can write to, with the class split (teachers, aides,
+    students) and the staff quick picks. The client filters by role, class and
+    age over this one answer."""
+    org_id, err = sis_service.org_or_error(user_id)
+    if err:
+        return err
+    return jsonify({'success': True, **compose_service.audience(org_id)})
 
-    Body: {recipient_ids: [], group_keys: [], mode: 'group'|'separate',
-           subject?, body, name?, attachments?, as_school?: bool}
+
+@bp.route('/send', methods=['POST'])
+@require_role(*ADMIN_ROLES)
+def send(user_id):
+    """One Compose send.
+
+    Body: {recipient_ids: [], body, subject?, mode: 'group'|'separate',
+           name?, push?: bool (default true), email?: bool, as_school?: bool,
+           attachments?}
     """
     org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     data = request.get_json() or {}
+    recipient_ids = data.get('recipient_ids') or []
+    if not isinstance(recipient_ids, list):
+        return jsonify({'success': False, 'error': 'recipient_ids has to be a list'}), 400
     try:
-        result = messaging.compose(
+        result = compose_service.compose(
             org_id, user_id,
             body=data.get('body') or '',
-            recipient_ids=data.get('recipient_ids') or [],
-            group_keys=data.get('group_keys') or [],
-            mode=(data.get('mode') or 'group'),
+            recipient_ids=recipient_ids,
+            mode=(data.get('mode') or 'separate'),
             subject=data.get('subject'),
             name=data.get('name'),
-            attachments=data.get('attachments') or [],
-            # Sent from the School tab: the school owns the thread (ac84b6cd).
+            # Push is on unless the sender turned it off; email is off unless
+            # they turned it on (a send is an app message first).
+            push=data.get('push') is not False,
+            email=data.get('email') is True,
             as_school=data.get('as_school') is True,
-        )
-    except ValueError as e:
-        # Everything the sender can fix: no recipients, a stranger in the list,
-        # an empty body, an unknown preset.
-        return jsonify({'success': False, 'error': str(e)}), 400
-    except Exception as e:  # noqa: BLE001
-        logger.error(f'staff compose failed for org {str(org_id)[:8]}: {e}',
-                     exc_info=True)
-        return jsonify({'success': False, 'error': 'Could not send the message'}), 500
-    return jsonify({'success': True, **result})
-
-
-def _int_arg(name):
-    """An optional whole-number query arg, or None; anything else is a 400."""
-    raw = (request.args.get(name) or '').strip()
-    if not raw:
-        return None
-    if not raw.isdigit() or int(raw) > 120:
-        raise ValueError(f'{name} has to be a whole number of years')
-    return int(raw)
-
-
-@bp.route('/family-audience', methods=['GET'])
-@require_role(*ADMIN_ROLES)
-def family_audience(user_id):
-    """The guardians a family message would reach, for a filter.
-
-    ?class_id= narrows to one class's students; ?age_min= and ?age_max= to an
-    age range (the SIS's one age, as of the first day of school). The class
-    list rides along for the picker so the composer is one request per filter.
-    """
-    org_id, err = sis_service.org_or_error(user_id)
-    if err:
-        return err
-    try:
-        result = families.family_audience(
-            org_id,
-            class_id=(request.args.get('class_id') or '').strip() or None,
-            age_min=_int_arg('age_min'), age_max=_int_arg('age_max'),
-        )
-    except ValueError as e:
-        return jsonify({'success': False, 'error': str(e)}), 400
-    return jsonify({'success': True, **result})
-
-
-@bp.route('/compose-families', methods=['POST'])
-@require_role(*ADMIN_ROLES)
-def compose_families(user_id):
-    """One private message from the school to each guardian named.
-
-    Body: {recipient_ids: [], subject?, body, attachments?, email?: bool,
-           staff_ids?: [], audience_label?}.
-    No mode: families never share a thread. staff_ids are copied, each in a
-    DM from the sender (see the service docstring, ticket 77efe09b).
-    """
-    org_id, err = sis_service.org_or_error(user_id)
-    if err:
-        return err
-    data = request.get_json() or {}
-    try:
-        result = families.compose(
-            org_id, user_id,
-            body=data.get('body') or '',
-            recipient_ids=data.get('recipient_ids') or [],
-            subject=data.get('subject'),
             attachments=data.get('attachments') or [],
-            email=bool(data.get('email')),
-            staff_ids=data.get('staff_ids') or [],
-            audience_label=data.get('audience_label'),
         )
     except ValueError as e:
+        # Everything the sender can fix: nobody chosen, a stranger in the list,
+        # an empty body.
         return jsonify({'success': False, 'error': str(e)}), 400
-    except Exception as e:  # noqa: BLE001
-        logger.error(f'family compose failed for org {str(org_id)[:8]}: {e}',
-                     exc_info=True)
-        return jsonify({'success': False, 'error': 'Could not send the message'}), 500
     return jsonify({'success': True, **result})
+
+
+@bp.route('/sends', methods=['GET'])
+@require_role(*ADMIN_ROLES)
+def list_sends(user_id):
+    """Recent Compose sends, newest first, each with "read by N of M"."""
+    org_id, err = sis_service.org_or_error(user_id)
+    if err:
+        return err
+    try:
+        limit = max(1, min(int(request.args.get('limit', 30)), 100))
+        offset = max(0, int(request.args.get('offset', 0)))
+    except ValueError:
+        return jsonify({'success': False, 'error': 'limit and offset have to be numbers'}), 400
+    sends = compose_service.list_sends(org_id, limit=limit, offset=offset)
+    return jsonify({'success': True, 'sends': sends})
+
+
+@bp.route('/sends/<send_id>', methods=['GET'])
+@require_role(*ADMIN_ROLES)
+def send_detail(user_id, send_id):
+    """One send with every recipient and when they read it. Scoped to the
+    caller's org by the read itself."""
+    org_id, err = sis_service.org_or_error(user_id)
+    if err:
+        return err
+    detail = compose_service.send_detail(org_id, send_id)
+    if not detail:
+        return jsonify({'success': False, 'error': 'Send not found'}), 404
+    return jsonify({'success': True, 'send': detail})

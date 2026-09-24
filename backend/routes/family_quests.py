@@ -398,6 +398,13 @@ def enroll_children_in_family_quest(user_id, quest_id):
         #   - anything, if superadmin.
         # Private quests owned by other families stay blocked. Per-child access
         # is the intersection with children_of_parent below.
+        #
+        # Since 2026-09-24 a school quest is further narrowed per child by the
+        # direct-link rule (services/quest_visibility_service.py): the child,
+        # or the parent, must be able to open it -- assigned in the school,
+        # already enrolled, staff of that school -- so a parent cannot put a
+        # child on a school quest nobody assigned. Family-made quests are the
+        # family's and skip it.
         quest = supabase.table('quests').select('id, created_by, is_public, organization_id').eq('id', quest_id).single().execute()
         if not quest.data:
             return jsonify({'success': False, 'error': 'Quest not found'}), 404
@@ -418,6 +425,10 @@ def enroll_children_in_family_quest(user_id, quest_id):
         valid_template_ids = get_valid_source_template_ids(supabase, template_tasks)
         family_tasks = [] if template_tasks else _family_task_list(supabase, quest_id, family_ids)
 
+        from services.quest_visibility_service import may_open_quest
+        school_quest_gated = bool(quest.data.get('organization_id')) \
+            and quest.data.get('created_by') not in family_ids
+
         enrolled = []
         failed = []
 
@@ -425,6 +436,12 @@ def enroll_children_in_family_quest(user_id, quest_id):
             try:
                 if child_id not in my_children:
                     failed.append({'child_id': child_id, 'error': 'No access to this child'})
+                    continue
+
+                if school_quest_gated and not may_open_quest(
+                        user_id, quest.data, subject_id=child_id,
+                        include_linked_students=False):
+                    failed.append({'child_id': child_id, 'error': 'Quest not found'})
                     continue
 
                 # Enroll child using QuestRepository (no args = admin client)

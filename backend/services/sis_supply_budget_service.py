@@ -83,8 +83,17 @@ def _enrolled_counts(class_ids: List[str]) -> Dict[str, int]:
     return counts
 
 
+# The two request types that spent a class's supply budget. Requests were
+# retired into tasks on 2026-09-24 and nothing new is logged against a budget
+# (owner decision, 2026-09-23); what was filed before stays readable here, from
+# the old table, which the release left in place.
+PAST_SPEND_TYPES = frozenset({'supply_request', 'reimbursement'})
+
+
 def _spend_by_class(org_id: str, class_ids: List[str]) -> Dict[str, Dict[str, Any]]:
-    """{class_id: {spent, committed, items}} from the requests filed against it.
+    """{class_id: {spent, committed, items}} from the requests filed against it
+    before requests were retired. Read-only history: nothing writes these any
+    more.
 
     iCreate, 2026-09-01 (805cb3a3): "with the supply & reimbursement requests,
     it'd be super awesome if we could connect those to the classes. Then show
@@ -103,7 +112,6 @@ def _spend_by_class(org_id: str, class_ids: List[str]) -> Dict[str, Dict[str, An
     """
     if not class_ids:
         return {}
-    from services.sis_forms_service import SPEND_TYPES
     try:
         rows = fetch_all_rows(lambda: (
             _admin().table('sis_form_submissions')
@@ -111,7 +119,7 @@ def _spend_by_class(org_id: str, class_ids: List[str]) -> Dict[str, Dict[str, An
                     'payload, created_at, submitted_by')
             .eq('organization_id', org_id)
             .in_('class_id', class_ids)
-            .in_('form_type', sorted(SPEND_TYPES))
+            .in_('form_type', sorted(PAST_SPEND_TYPES))
         ))
     except Exception as e:  # noqa: BLE001 — the ceiling must survive a failed
         # spend read; a budget with no history is still a budget.

@@ -35,7 +35,7 @@ export default function QuestPreviewModal({
 }) {
   const real = tasks.filter((t) => (t.title || '').trim())
   const totalXp = real.reduce((sum, t) => sum + (Number(t.xp_value) || 0), 0)
-  const who = audience === 'family' ? 'families' : 'teachers'
+  const who = audience === 'family' ? 'families' : audience === 'student' ? 'students' : 'teachers'
 
   return (
     <Modal

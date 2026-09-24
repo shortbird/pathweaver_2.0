@@ -257,6 +257,28 @@
       "use_instead": "services/sis_audiences.py: BOARD_AUDIENCES, RECIPIENT_ROLES, EVENT_AUDIENCES, recipient_roles_for(board_audience), board_audience(value), normalize_recipient_roles(...). Import the words; never spell a vocabulary in a route or service."
     },
     {
+      "id": "message_compose",
+      "means": "Starting a message to several people from the SIS console. Until the iCreate meeting of 2026-09-23 there were three: \"New message\" (one person), a staff composer (sis_messaging_service, StaffComposeModal) and a families composer behind a Staff | Families switch (sis_family_messaging_service, FamilyAudiencePicker), and students could not be reached at all (bf8b754d, 8ee000b6). message_compose_service is the one send (staff, families and students in one picker; group or separate; push and email toggles; every send recorded in message_sends for read receipts), and ComposeMessageModal is the one form.",
+      "owner": {
+        "backend": ["services/message_compose_service.py"],
+        "web": ["components/sis/ComposeMessageModal.jsx"]
+      },
+      "forbid": {
+        "backend": {
+          "pattern": "(sis_family_messaging_service|/api/sis/messaging/compose)",
+          "dirs": ["routes", "services"]
+        },
+        "web": {
+          "pattern": "(StaffComposeModal|FamilyAudiencePicker|/api/sis/messaging/compose|/api/sis/messaging/family-audience)",
+          "dirs": ["components", "pages", "hooks"]
+        }
+      },
+      "baseline": { "backend": 0, "web": 0 },
+      "measured": "2026-09-24",
+      "lowered_by": "P5",
+      "use_instead": "message_compose_service.compose(org_id, actor_id, body=, recipient_ids=, mode='group'|'separate', push=, email=, as_school=) behind POST /api/sis/messaging/send; GET /api/sis/messaging/audience for the picker (people with kinds, the class split into teachers/aides/students, staff quick picks). On the web, open <ComposeMessageModal>. A staff-only compose from another service (the announcement's inbox destination) still calls sis_messaging_service.compose."
+    },
+    {
       "id": "school_sender",
       "means": "The account a school speaks as. Four callers resolved organizations.inbox_user_id themselves before sending until M1.",
       "owner": { "backend": ["services/school_inbox_service.py"] },
@@ -469,6 +491,22 @@
       "use_instead": "sis_age.school_age(org_id, dob) for one student, sis_age.ages_for(org_id) for a roster (one settings read). sis_eligibility.age_on(dob) when the question really is about today (an adult signing, a child old enough for her own login). The copies left are platform account policy and two 120-year sanity checks; fold them onto age_on when those files are next open."
     },
     {
+      "id": "class_session",
+      "means": "Who took a class's roll on a day, and whether someone other than its teacher covered it: one sis_class_sessions row per class per day (P7, 2026-09-24). taken_by is the FIRST saver and is never replaced; sis_attendance.recorded_by is the last saver and cannot answer the question. A planned substitute's one-day access to the class rides on the same row.",
+      "owner": {
+        "backend": ["services/sis_class_session_service.py", "repositories/sis_class_session_repository.py"],
+        "web": ["components/sis/RollStatus.jsx", "components/sis/TeachersToCheck.jsx"]
+      },
+      "forbid": {
+        "backend": { "pattern": "['\"]sis_class_sessions['\"]", "dirs": ["routes", "services", "repositories", "utils", "jobs"] },
+        "web": { "pattern": "Roll taken by \\$\\{|/substitute`|/attendance/sessions/", "dirs": ["pages", "components", "hooks"] }
+      },
+      "baseline": { "backend": 0, "web": 0 },
+      "measured": "2026-09-24",
+      "lowered_by": "P7",
+      "use_instead": "sis_class_session_service: record_roll (the attendance save calls it), plan_substitute, resolve, session_for / sessions_by_class, teachers_to_check, history; sis_service.class_scope(user, org, on_date=) for a substitute's access. On the web, <RollStatus session /> and <SubstituteControl /> from components/sis/RollStatus and <TeachersToCheck /> for the coordinator's section."
+    },
+    {
       "id": "status_map",
       "means": "A status word mapped to a pill colour. Fourteen private maps in fourteen files until M10 (STATUS_STYLES x5, ATT_COLORS twice verbatim, ITEM_BADGE copied and drifted by one token).",
       "owner": { "web": ["components/sis/ui/statusMaps.js"] },
@@ -497,7 +535,7 @@
     },
     {
       "id": "queue_double_mount",
-      "means": "The staff-forms admin queue rendered by two routes (/tasks and /forms) until M10; /forms now sends an admin to the Tasks page's Requests tab with the deep link intact (the Task Center and My Tasks became that one page on 2026-09-17).",
+      "means": "The staff-forms admin queue rendered by two routes (/tasks and /forms) until M10. Requests and forms were retired into tasks on 2026-09-24 (iCreate meeting 2026-09-23): there is no queue left to mount, /forms redirects to /tasks, and the Tasks page has no Requests tab.",
       "owner": { "web": ["pages/sis/TasksPage.jsx"] },
       "forbid": {
         "web": { "pattern": "<AdminQueue\\b", "dirs": ["pages/sis", "components/sis"] }
@@ -505,7 +543,7 @@
       "baseline": { "web": 0 },
       "measured": "2026-09-17",
       "lowered_by": "M10",
-      "use_instead": "AdminQueue mounts once, in TasksPage; /forms redirects there (M10)."
+      "use_instead": "There is no request queue. A task is assigned through sis_onboarding_service.assign_task and read through sis_tasks_service (see the task_record row)."
     },
     {
       "id": "dashboard_card",
@@ -871,6 +909,22 @@
       "use_instead": "toCsv(header, rows) and downloadCsv(text, filename) from utils/csv.js (downloadBlob for a file the server built). One quoting rule, CRLF, BOM."
     },
     {
+      "id": "quest_form",
+      "means": "Making or editing a school quest in the SIS console. Until P6 (2026-09-23) four create forms and five editors did it -- the library's NewQuestPanel and QuestEditModal, the class tab's Create new and QuestInfoEditor, the curriculum's create form and QuestDetail edit, TrainingForm's quest fields -- each with a different subset (only training uploaded a header image, only the library locked the XP to finish), and training had its own quests insert that dropped the diploma subjects. Now one editor opens everywhere, the quest is an inactive draft from the first click, and every create goes through sis_quest_authoring.create_org_quest.",
+      "owner": {
+        "backend": ["routes/sis/quest_editor.py", "services/sis_quest_editor.py", "services/sis_quest_authoring.py", "services/quest_edit_rules.py"],
+        "web": ["components/sis/QuestEditor.jsx", "hooks/api/useQuestEditor.js"]
+      },
+      "forbid": {
+        "backend": { "pattern": "table\\(['\"]quests['\"]\\)\\.insert\\(", "dirs": ["routes/sis"] },
+        "web": { "pattern": "function (NewQuestPanel|QuestEditModal|QuestInfoEditor|PresetTaskManager)\\b", "dirs": ["components/sis", "pages/sis"] }
+      },
+      "baseline": { "backend": 0, "web": 0 },
+      "measured": "2026-09-23",
+      "lowered_by": "P6",
+      "use_instead": "<QuestEditor context=\"library|class|curriculum|training\" ... /> from components/sis/QuestEditor.jsx; a new SIS create path calls sis_quest_authoring.create_org_quest (draft=True from the editor) and publishes with publish_draft plus its own attach step. Who may edit is quest_edit_rules.can_edit_quest: the office, or the teacher who wrote the quest."
+    },
+    {
       "id": "column_picker",
       "means": "The checkbox list behind a 'which columns' choice. Four pickers were hand-rolled with the same checkbox and different layouts until M17.",
       "owner": { "web": ["components/sis/ColumnPicker.jsx"] },
@@ -897,6 +951,22 @@
       "measured": "2026-09-17",
       "lowered_by": "M1",
       "use_instead": "sis_notifications.notify(user_id, title, message, link=..., organization_id=..., service=...) -- it carries the type. 'announcement' is for announcement_service.publish and nothing else."
+    },
+    {
+      "id": "task_record",
+      "means": "Somebody at the school was asked to do something: a one-step task, a multi-step list (what a checklist was), a document to sign, a recurring daily duty, the office's follow-up on a message. Requests, forms and checklists were three records until 2026-09-24 (iCreate meeting 2026-09-23); every one is a row of sis_onboarding_assignments now, assigned through one function and rendered by one card. A second task table, a second assign path or a revived form queue is the duplication this row exists to stop.",
+      "owner": {
+        "backend": ["services/sis_onboarding_service.py", "services/sis_tasks_service.py", "repositories/sis_task_repository.py"],
+        "web": ["components/sis/tasks/TaskCard.jsx", "hooks/api/useTasks.js"]
+      },
+      "forbid": {
+        "backend": { "pattern": "table\\(['\"]sis_form_(submissions|comments|templates)['\"]\\)", "dirs": ["services", "routes", "repositories"] },
+        "web": { "pattern": "/api/sis/(parent/forms|teacher/forms|staff-admin/forms|staff-admin/form-templates|staff-admin/form-routing)", "dirs": ["pages", "components", "hooks"] }
+      },
+      "baseline": { "backend": 1, "web": 0 },
+      "measured": "2026-09-24",
+      "lowered_by": "iCreate tasks P2 (2026-09-24)",
+      "use_instead": "backend: sis_onboarding_service.assign_task(org_id, assigner_id, recipients, title, ...) to assign; sis_tasks_service for a person's list, one task, its comments and the Assigned cards. web: TaskCard with taskApi (familyTaskApi on the hold screen). The one allowed read of sis_form_submissions is the supply budget's read-only past spend."
     }
   ]
 }

@@ -3,6 +3,8 @@ import { Link } from 'react-router-dom'
 import api from '../../services/api'
 import { useSisOrg, withOrg } from './useSisOrg'
 import AttendanceAlerts from '../../components/sis/AttendanceAlerts'
+import TeachersToCheck from '../../components/sis/TeachersToCheck'
+import { RollStatus, SubstituteControl } from '../../components/sis/RollStatus'
 import { range12h } from '../../utils/timeFormat'
 import DashboardCard from '../../components/sis/DashboardCard'
 
@@ -80,6 +82,10 @@ const CoordinatorDashboard = ({ userName }) => {
       <AttendanceAlerts alerts={att.open_alerts} resolutions={att.resolutions}
         orgId={orgId} onResolved={load} />
 
+      {/* Who is teaching each class: no roll N minutes in, or a roll taken by
+          someone who is not the class's teacher (P7, iCreate 2026-09-23). */}
+      <TeachersToCheck data={data.teachers_to_check} orgId={orgId} onChanged={load} />
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <DashboardCard title="Today's schedule" className="lg:col-span-2">
           {!(data.today_schedule || []).length && (
@@ -99,6 +105,11 @@ const CoordinatorDashboard = ({ userName }) => {
                     {[m.teacher_name, m.location, `${m.enrolled_count} students`]
                       .filter(Boolean).join(' · ')}
                   </span>
+                  <RollStatus session={m.roll} />
+                </span>
+                <span className="ml-auto shrink-0">
+                  <SubstituteControl classId={m.class_id} date={data.date} orgId={orgId}
+                    session={m.roll} onSaved={load} />
                 </span>
               </li>
             ))}
@@ -154,7 +165,8 @@ const CoordinatorDashboard = ({ userName }) => {
           <ul className="divide-y divide-gray-100">
             {(data.my_tasks || []).map((t) => (
               <li key={t.id} className="py-2 flex items-center gap-2">
-                <span className="text-sm text-neutral-800 truncate">{t.title}</span>
+                {/* Opens onto the task itself (My tasks scrolls to ?task=). */}
+                <Link to={`/tasks?task=${t.id}`} className="text-sm text-neutral-800 truncate hover:text-optio-purple hover:underline">{t.title}</Link>
                 {['high', 'urgent'].includes(t.priority) && (
                   <span className="text-xs px-2 py-0.5 rounded-full bg-red-100 text-red-700 capitalize shrink-0">{t.priority}</span>
                 )}

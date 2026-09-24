@@ -16,6 +16,24 @@ const message = {
 }
 
 describe('MessageBubble', () => {
+  // 9b46c748 (iCreate, 2026-09-23): "add read receipts" -- and say when.
+  it('says when an own message was seen, given the read time', () => {
+    const now = new Date()
+    render(<MessageBubble message={message} isOwn seen={now.toISOString()} />)
+    expect(screen.getByText(/· Seen \d{1,2}:\d{2}/)).toBeInTheDocument()
+  })
+
+  it('says how many of a group have read past a message, names on hover', () => {
+    render(<MessageBubble message={message} isOwn seenBy={['Ada L', 'Sam P']} />)
+    const seen = screen.getByText('· Seen by 2')
+    expect(seen).toHaveAttribute('title', 'Ada L, Sam P')
+  })
+
+  it('shows who wrote a school message the family was told about', () => {
+    render(<MessageBubble message={{ ...message, sender_label: 'Tam T for iCreate' }} />)
+    expect(screen.getByText('Tam T for iCreate')).toBeInTheDocument()
+  })
+
   it('puts an own message on the brand tint with dark text, not the gradient', () => {
     render(<MessageBubble message={message} isOwn />)
     const bubble = screen.getByText(/See/).closest('div')

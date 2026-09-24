@@ -1,31 +1,34 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render as rtlRender, screen, fireEvent, waitFor, within } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { MemoryRouter, Routes, Route, useLocation } from 'react-router-dom'
 
-// The Task Center embeds the onboarding checklist components, which read
-// through hooks/api (QF-03), so it needs a QueryClient. Fresh client per
-// render keeps one test's cache out of the next one's; retry:false makes a
-// failed query fail the assertion instead of hanging on backoff.
+// The Tasks page reads the office's tasks, schedules and templates through
+// hooks/api (QF-03), so it needs a QueryClient. Fresh client per render keeps
+// one test's cache out of the next one's; retry:false makes a failed query
+// fail the assertion instead of hanging on backoff.
 const render = (ui) => {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return rtlRender(<QueryClientProvider client={client}>{ui}</QueryClientProvider>)
 }
-import { MemoryRouter } from 'react-router-dom'
 
 /**
- * The office's side of the one Tasks page — organized by direction: Requests
- * (what people send us), Assigned (what we asked of people — tasks,
- * checklists and signatures in ONE list), Secure documents (the HR store).
- * These tabs sit after My tasks and My documents and exist only for admins
- * (2026-09-17: My Tasks and Task Center became one page).
+ * The office's side of the one Tasks page -- organized by direction: My tasks
+ * (what is waiting on me), Assigned (what we asked of people: one card per
+ * task with how many are done, documents out for signature, and repeating
+ * tasks with their grid), Templates (saved tasks to assign again). The last
+ * two exist only for admins.
+ *
+ * Everything the school asks of anybody is a task since 2026-09-24 (iCreate
+ * meeting 2026-09-23). Requests and forms are gone, and so is the Requests
+ * tab; a checklist is a task with steps. My documents and Secure documents
+ * moved to the Library, and their old ?tab= links redirect there.
  *
  * What is worth locking down: which endpoints a given role's page talks to
- * (that is where the HR line is drawn on the client — the server enforces it
- * regardless), that the unified Assigned list really carries all three kinds
- * of work, and that a retired tab name still lands somewhere sensible (it
- * lands on My tasks; nothing the platform sends links to an old name -- the
- * dashboard tiles name the live tabs and notifications link to /forms and
- * /tasks, checked against the notifications table on 2026-09-17).
+ * (that is where the HR line is drawn on the client -- the server enforces it
+ * regardless), what the one composer sends for each shape of task, that the
+ * Assigned list really carries every kind of work, and that no retired noun
+ * is left on the page.
  */
 
 const authState = { user: { id: 'admin-1', role: 'org_managed', org_roles: ['org_admin'] } }
@@ -52,6 +55,7 @@ const { api } = vi.hoisted(() => ({
     get: vi.fn(() => Promise.resolve({ data: {} })),
     post: vi.fn(() => Promise.resolve({ data: {} })),
     patch: vi.fn(() => Promise.resolve({ data: {} })),
+    put: vi.fn(() => Promise.resolve({ data: {} })),
     delete: vi.fn(() => Promise.resolve({ data: {} })),
   },
 }))
@@ -59,7 +63,7 @@ vi.mock('../../services/api', () => ({ default: api }))
 
 import TasksPage from './TasksPage'
 
-const BATCH = {
+const SIG_BATCH = {
   batch_id: 'b1', title: 'Employee handbook', sent_at: '2026-08-14T00:00:00Z',
   sensitivity: 'general', signed_count: 1, total_count: 2,
   recipients: [
@@ -70,48 +74,145 @@ const BATCH = {
   ],
 }
 
-const CHECKLIST_ASSIGNMENT = {
-  id: 'ca1', user_name: 'Sam Teacher', template_id: 't1', template_name: 'New teacher onboarding',
-  status: 'in_progress', done_count: 1, total_count: 3, created_at: '2026-08-20T00:00:00Z',
-  items: [], audience: 'staff',
+const FINISHED_AT = '2026-08-21T15:30:00Z'
+
+// A multi-step task sent to two people (what a checklist was): Kate is done,
+// Sam has one of three steps.
+const ONBOARDING_BATCH = {
+  key: 'batch-onb', title: 'New teacher onboarding', audiences: ['staff'], priority: null,
+  action: 'do', due_date: null, assigned_by_name: 'Ada Admin', created_at: '2026-08-20T00:00:00Z',
+  done: 1, total: 2, awaiting_review: 0, outstanding: true,
+  people: [
+    { id: 'ca1', user_id: 'kate', user_name: 'Kate Myers', title: 'New teacher onboarding',
+      audience: 'staff', status: 'done', native_status: 'complete', done_count: 3, total_count: 3,
+      finished_at: FINISHED_AT,
+      items: [
+        { key: 'badge', title: 'Pick up your badge', status: 'complete' },
+        { key: 'w4', title: 'W-4', status: 'complete', needs_document: true },
+        { key: 'handbook', title: 'Sign the handbook', status: 'complete', needs_signature: true,
+          signature: { name: 'Kate Myers', signed_at: '2026-08-21T15:30:00Z' } },
+      ] },
+    { id: 'ca2', user_id: 'sam', user_name: 'Sam Teacher', title: 'New teacher onboarding',
+      audience: 'staff', status: 'in_progress', native_status: 'in_progress', done_count: 1,
+      total_count: 3, finished_at: null,
+      items: [
+        { key: 'badge', title: 'Pick up your badge', status: 'complete' },
+        { key: 'w4', title: 'W-4', status: 'pending', needs_document: true },
+        { key: 'handbook', title: 'Sign the handbook', status: 'pending', needs_signature: true },
+      ] },
+  ],
 }
 
-const ADHOC_TASK = {
-  id: 'ta1', user_name: 'Kate Myers', template_id: null, template_name: 'Turn in your roster',
-  status: 'in_progress', done_count: 0, total_count: 1, created_at: '2026-08-25T00:00:00Z',
-  items: [], audience: 'staff',
+// A one-step task to one person.
+const ROSTER_BATCH = {
+  key: 'batch-roster', title: 'Turn in your roster', audiences: ['staff'], priority: 'high',
+  action: 'do', due_date: '2026-09-01', assigned_by_name: 'Ada Admin',
+  created_at: '2026-08-25T00:00:00Z', done: 0, total: 1, awaiting_review: 0, outstanding: true,
+  people: [
+    { id: 'ta1', user_id: 'sam', user_name: 'Sam Teacher', title: 'Turn in your roster',
+      audience: 'staff', status: 'todo', native_status: 'pending', done_count: 0, total_count: 1,
+      finished_at: null,
+      items: [{ key: 'roster', title: 'Turn in your roster', status: 'pending' }] },
+  ],
 }
 
-const RECIPIENTS = [{ id: 'kate', name: 'Kate Myers' }, { id: 'sam', name: 'Sam Teacher' }]
+const SCHEDULE = {
+  id: 's1', title: 'Lunch duty sign-in', days_label: 'Mon, Wed, Fri', recipient_count: 2,
+  start_date: '2026-09-01', end_date: null, state: 'active', created_at: '2026-08-30T00:00:00Z',
+}
+
+const GRID = {
+  dates: ['2026-09-21', '2026-09-23'],
+  people: [{ id: 'kate', name: 'Kate Myers' }],
+  cells: {
+    'kate:2026-09-21': { status: 'expired' },
+    'kate:2026-09-23': { status: 'done', finished_at: '2026-09-23T12:00:00Z' },
+  },
+}
+
+const STAFF = [{ id: 'kate', name: 'Kate Myers' }, { id: 'sam', name: 'Sam Teacher' }]
+const FAMILIES = [{ id: 'fam1', name: 'Rose Family' }]
+const STUDENTS = [{ id: 'stu1', name: 'Hattie Student' }, { id: 'stu2', name: 'Frankie Student' }]
+
+const TEMPLATES = [{
+  id: 'tmpl-1', name: 'Field trip prep', audience: 'staff', description: 'Before the zoo trip',
+  items: [
+    { key: 'slips', title: 'Collect permission slips', needs_document: true, required: true },
+    { key: 'bus', title: 'Book the bus', needs_approval: true, required: false },
+  ],
+}]
+
+const MY_TASKS = [{
+  id: 't-sign', type: 'task', title: 'Staff agreement', status: 'todo', native_status: 'pending',
+  action: 'do', done_count: 0, total_count: 2,
+  items: [
+    { key: 'read', title: 'Read the agreement', status: 'pending', required: true },
+    { key: 'sign', title: 'Sign it', status: 'pending', required: true, needs_signature: true,
+      sign_docs: [{ id: 'doc-1', title: 'Agreement.pdf' }] },
+  ],
+}]
 
 const mockGets = (over = {}) => {
   api.get.mockImplementation((url) => {
-    if (url.includes('signature-requests')) return Promise.resolve({ data: { batches: over.batches ?? [BATCH] } })
-    if (url.includes('/onboarding/assignments')) return Promise.resolve({ data: { assignments: over.assignments ?? [] } })
-    if (url.includes('/onboarding/recipients')) return Promise.resolve({ data: { recipients: RECIPIENTS } })
-    if (url.includes('/onboarding/templates')) return Promise.resolve({ data: { templates: [] } })
     for (const [needle, data] of Object.entries(over.extra || {})) {
       if (url.includes(needle)) return Promise.resolve({ data })
+    }
+    if (url.includes('signature-requests')) return Promise.resolve({ data: { batches: over.sigBatches ?? [SIG_BATCH] } })
+    if (url.startsWith('/api/sis/tasks/assigned')) return Promise.resolve({ data: { batches: over.batches ?? [] } })
+    if (url.startsWith('/api/sis/tasks/schedules/s1/grid')) return Promise.resolve({ data: GRID })
+    if (url.startsWith('/api/sis/tasks/schedules')) return Promise.resolve({ data: { schedules: over.schedules ?? [] } })
+    if (url.startsWith('/api/sis/my-tasks')) {
+      return Promise.resolve({ data: { tasks: over.myTasks ?? [], counts: { open: (over.myTasks ?? []).length } } })
+    }
+    if (url.includes('/onboarding/recipients?audience=student&class_id=c-robo')) {
+      return Promise.resolve({ data: { recipients: [STUDENTS[0]] } })
+    }
+    if (url.includes('/onboarding/recipients?audience=staff')) return Promise.resolve({ data: { recipients: STAFF } })
+    if (url.includes('/onboarding/recipients?audience=family')) return Promise.resolve({ data: { recipients: FAMILIES } })
+    if (url.includes('/onboarding/recipients?audience=student')) return Promise.resolve({ data: { recipients: STUDENTS } })
+    if (url.includes('/onboarding/templates')) return Promise.resolve({ data: { templates: over.templates ?? [] } })
+    if (url.includes('/onboarding/assignments')) return Promise.resolve({ data: { assignments: [] } })
+    if (url.startsWith('/api/sis/classes')) {
+      return Promise.resolve({ data: { classes: [{ id: 'c-robo', name: 'Robotics' }] } })
     }
     return Promise.resolve({ data: {} })
   })
 }
 
+const Where = () => {
+  const loc = useLocation()
+  return <div data-testid="where">{loc.pathname}{loc.search}</div>
+}
+
 const renderPage = (path = '/tasks?tab=assigned') => render(
-  <MemoryRouter initialEntries={[path]}><TasksPage /></MemoryRouter>)
+  <MemoryRouter initialEntries={[path]}>
+    <Routes>
+      <Route path="/tasks" element={<TasksPage />} />
+      <Route path="/library" element={<Where />} />
+    </Routes>
+  </MemoryRouter>)
+
+// A send's title on its card. The same words also name each person's own card
+// inside it (in a muted span), so match the card's title span.
+const CARD_TITLE = 'summary > span.font-medium'
+
+const fmtWhen = (iso) => new Date(iso).toLocaleString(undefined,
+  { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
 
 beforeEach(() => {
   vi.clearAllMocks()
   authState.user = { id: 'admin-1', role: 'org_managed', org_roles: ['org_admin'] }
+  api.post.mockResolvedValue({ data: {} })
+  api.patch.mockResolvedValue({ data: {} })
   mockGets()
 })
 
-describe('the assigned list carries all three kinds of work', () => {
+describe('the assigned list carries every kind of work', () => {
   it('shows a signature send with its signing progress', async () => {
     renderPage()
     expect(await screen.findByText('Employee handbook')).toBeInTheDocument()
     expect(screen.getByText('1/2 signed')).toBeInTheDocument()
-    expect(screen.getByText('Signature')).toBeInTheDocument()
+    expect(screen.getByText('To sign')).toBeInTheDocument()
   })
 
   it('names who has signed and who has not, with a reminder for the laggard', async () => {
@@ -123,55 +224,76 @@ describe('the assigned list carries all three kinds of work', () => {
     expect(screen.getAllByRole('button', { name: /^Remind$/ })).toHaveLength(1)
   })
 
-  it('shows checklists and ad-hoc tasks in the same list, labeled apart', async () => {
-    mockGets({ assignments: [CHECKLIST_ASSIGNMENT, ADHOC_TASK] })
+  it('shows one card per task with how many are done', async () => {
+    mockGets({ batches: [ONBOARDING_BATCH], sigBatches: [] })
     renderPage()
-    expect(await screen.findByText('New teacher onboarding')).toBeInTheDocument()
-    expect(screen.getByText('Turn in your roster')).toBeInTheDocument()
-    expect(screen.getByText('Employee handbook')).toBeInTheDocument()
-    expect(screen.getByText('Checklist')).toBeInTheDocument()
-    expect(screen.getByText('Task')).toBeInTheDocument()
-    expect(screen.getByText('Signature')).toBeInTheDocument()
+    const title = await screen.findByText('New teacher onboarding', { selector: CARD_TITLE })
+    const card = title.closest('details')
+    expect(within(card).getByText('1 of 2 done')).toBeInTheDocument()
   })
 
-  // iCreate, 2026-09-01: "what happened to the checklists?" — asked from the
-  // Documents tab. One list is still right, but the nouns have to be visible
-  // in it, and picking one is also the sort the same admin asked for on the
-  // same day ("this is listing some by the form ... and then the onboarding
-  // template is listed by person. Maybe we can have a way to sort this too").
-  it('narrows the one list to one kind of work', async () => {
-    mockGets({ assignments: [CHECKLIST_ASSIGNMENT, ADHOC_TASK] })
+  it('opens a task card onto each person\'s status and when they finished', async () => {
+    mockGets({ batches: [ONBOARDING_BATCH], sigBatches: [] })
     renderPage()
-    await screen.findByText('New teacher onboarding')
+    await screen.findByText('New teacher onboarding', { selector: CARD_TITLE })
+    const table = screen.getByRole('table')
+    const headers = within(table).getAllByRole('columnheader').map((h) => h.textContent)
+    expect(headers).toEqual(['Person', 'Status', 'Steps', 'Finished'])
+    const [, kate, sam] = within(table).getAllByRole('row')
+    expect(within(kate).getByText('Kate Myers')).toBeInTheDocument()
+    expect(within(kate).getByText('Done')).toBeInTheDocument()
+    expect(within(kate).getByText('3 of 3')).toBeInTheDocument()
+    expect(within(kate).getByText(fmtWhen(FINISHED_AT))).toBeInTheDocument()
+    expect(within(sam).getByText('Sam Teacher')).toBeInTheDocument()
+    expect(within(sam).getByText('In progress')).toBeInTheDocument()
+    expect(within(sam).getByText('1 of 3')).toBeInTheDocument()
+    // Not finished, so no finished time.
+    expect(within(sam).getAllByRole('cell')[3]).toHaveTextContent('')
+  })
 
-    fireEvent.click(screen.getByRole('button', { name: 'Checklists (1)' }))
+  // iCreate, 2026-09-01: "what happened to the checklists?" One list is still
+  // right, but the kinds have to be visible in it, and picking one is also the
+  // sort the same admin asked for on the same day.
+  it('narrows the one list to one kind of work', async () => {
+    mockGets({ batches: [ROSTER_BATCH], schedules: [SCHEDULE] })
+    renderPage()
+    await screen.findByText('Turn in your roster', { selector: CARD_TITLE })
+    const roster = () => screen.queryByText('Turn in your roster', { selector: CARD_TITLE })
 
-    expect(screen.getByText('New teacher onboarding')).toBeInTheDocument()
-    expect(screen.queryByText('Turn in your roster')).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Tasks (1)' }))
+    expect(roster()).toBeInTheDocument()
     expect(screen.queryByText('Employee handbook')).not.toBeInTheDocument()
+    expect(screen.queryByText('Lunch duty sign-in')).not.toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'Signatures (1)' }))
     expect(screen.getByText('Employee handbook')).toBeInTheDocument()
-    expect(screen.queryByText('New teacher onboarding')).not.toBeInTheDocument()
+    expect(roster()).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Repeating (1)' }))
+    expect(screen.getByText('Lunch duty sign-in')).toBeInTheDocument()
+    expect(screen.queryByText('Employee handbook')).not.toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'Every kind' }))
-    expect(screen.getByText('Turn in your roster')).toBeInTheDocument()
+    expect(roster()).toBeInTheDocument()
+    expect(screen.getByText('Employee handbook')).toBeInTheDocument()
   })
 
-  it('says which kind is empty rather than that everything is done', async () => {
-    mockGets({ assignments: [ADHOC_TASK], batches: [] })
+  it('does not call an empty kind "everything is done" while other work is outstanding', async () => {
+    mockGets({ batches: [ROSTER_BATCH], sigBatches: [] })
     renderPage()
-    await screen.findByText('Turn in your roster')
+    await screen.findByText('Turn in your roster', { selector: CARD_TITLE })
 
-    fireEvent.click(screen.getByRole('button', { name: 'Checklists (0)' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Repeating (0)' }))
 
-    expect(screen.getByText('No checklists here.')).toBeInTheDocument()
+    expect(screen.queryByText('Turn in your roster', { selector: CARD_TITLE })).not.toBeInTheDocument()
+    // Sam's roster is still outstanding, so "everything is done" is untrue.
+    expect(screen.queryByText('Everything assigned is done.')).not.toBeInTheDocument()
   })
 
   it('defaults to outstanding and can show everything', async () => {
-    const done = { ...BATCH, batch_id: 'b2', title: 'Fire drill policy', signed_count: 2, total_count: 2,
-      recipients: BATCH.recipients.map((p) => ({ ...p, signed: true })) }
-    mockGets({ batches: [BATCH, done] })
+    const done = { ...SIG_BATCH, batch_id: 'b2', title: 'Fire drill policy', signed_count: 2, total_count: 2,
+      recipients: SIG_BATCH.recipients.map((p) => ({ ...p, signed: true })) }
+    mockGets({ sigBatches: [SIG_BATCH, done] })
     renderPage()
     expect(await screen.findByText('Employee handbook')).toBeInTheDocument()
     // A fully-signed send is finished business and would otherwise sit at the
@@ -182,9 +304,41 @@ describe('the assigned list carries all three kinds of work', () => {
   })
 
   it('says so when nothing has been assigned', async () => {
-    mockGets({ batches: [] })
+    mockGets({ sigBatches: [] })
     renderPage()
     expect(await screen.findByText(/Nothing assigned yet/i)).toBeInTheDocument()
+  })
+})
+
+describe('a repeating task', () => {
+  it('pauses from its row', async () => {
+    mockGets({ schedules: [SCHEDULE], sigBatches: [] })
+    renderPage()
+    await screen.findByText('Lunch duty sign-in')
+    expect(screen.getByText('Mon, Wed, Fri')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Pause' }))
+    await waitFor(() => expect(api.patch).toHaveBeenCalledWith(
+      '/api/sis/tasks/schedules/s1', { organization_id: 'org-1', active: false }))
+  })
+
+  it('resumes a paused one', async () => {
+    mockGets({ schedules: [{ ...SCHEDULE, state: 'paused' }], sigBatches: [] })
+    renderPage()
+    fireEvent.click(await screen.findByRole('button', { name: 'Resume' }))
+    await waitFor(() => expect(api.patch).toHaveBeenCalledWith(
+      '/api/sis/tasks/schedules/s1', { organization_id: 'org-1', active: true }))
+  })
+
+  it('opens onto its grid of days and people', async () => {
+    mockGets({ schedules: [SCHEDULE], sigBatches: [] })
+    renderPage()
+    const row = await screen.findByRole('button', { name: 'Lunch duty sign-in' })
+    expect(screen.queryByText('Missed')).not.toBeInTheDocument()
+    fireEvent.click(row)
+    expect(await screen.findByText('Missed')).toBeInTheDocument()
+    expect(screen.getByText('Done')).toBeInTheDocument()
+    expect(screen.getByText('Kate Myers')).toBeInTheDocument()
+    expect(api.get.mock.calls.some(([u]) => u.startsWith('/api/sis/tasks/schedules/s1/grid'))).toBe(true)
   })
 })
 
@@ -215,17 +369,22 @@ describe('which door the page uses', () => {
 
 /**
  * One composer for everything the office assigns. It opens as the simplest
- * thing — a title and some people — and the options change what it is: steps
- * make it a checklist, an attached document makes it a signature send. Nobody
- * picks a noun first, which is what "requests, tasks, checklists, forms,
- * paperwork — no idea what does what" was about (2026-08-31).
+ * thing -- a title and some people -- and the options change what it is:
+ * steps make it a multi-step task, an attached document makes it a signature
+ * send, Repeat makes it a daily duty. Nobody picks a noun first, which is what
+ * "requests, tasks, checklists, forms, paperwork -- no idea what does what"
+ * was about (2026-08-31).
  */
 describe('the assign composer', () => {
-  const openComposer = async () => {
+  const openComposer = async (over) => {
+    if (over) mockGets(over)
     renderPage('/tasks?tab=assigned')
     fireEvent.click(await screen.findByRole('button', { name: /^Assign a task$/ }))
-    return screen.findByRole('dialog', { name: /^Assign$/ })
+    const dialog = await screen.findByRole('dialog', { name: 'Assign a task' })
+    await within(dialog).findByText('Kate Myers')
+    return dialog
   }
+  const lastTaskPost = () => api.post.mock.calls.filter(([u]) => u === '/api/sis/tasks').at(-1)
 
   it('assigns a plain task with a title, a due date and recipients', async () => {
     const dialog = await openComposer()
@@ -233,34 +392,167 @@ describe('the assign composer', () => {
     fireEvent.change(d.getByLabelText('Title'), {
       target: { value: 'Turn in your field trip roster' } })
     fireEvent.change(d.getByLabelText('Due date'), { target: { value: '2026-09-15' } })
-    fireEvent.click(await d.findByText('Kate Myers'))
+    fireEvent.click(d.getByText('Kate Myers'))
     fireEvent.click(d.getByRole('button', { name: /^Assign$/ }))
-    await waitFor(() => expect(api.post).toHaveBeenCalled())
-    const [url, body] = api.post.mock.calls[0]
-    expect(url).toBe('/api/sis/staff-admin/onboarding/assignments')
-    expect(body.title).toBe('Turn in your field trip roster')
-    expect(body.due_date).toBe('2026-09-15')
-    expect(body.audience).toBe('staff')
-    expect(body.user_ids).toEqual(['kate'])
-    expect(body.template_id).toBeUndefined()
+    await waitFor(() => expect(lastTaskPost()).toBeTruthy())
+    const [, body] = lastTaskPost()
+    expect(body).toMatchObject({
+      organization_id: 'org-1',
+      title: 'Turn in your field trip roster',
+      due_date: '2026-09-15',
+      recipients: [{ id: 'kate', audience: 'staff' }],
+      blocks_access: false,
+      needs_document: false,
+    })
+    expect(body.items).toBeUndefined()
+    expect(body.repeat).toBeUndefined()
+    expect(body.save_as_template).toBeUndefined()
   })
 
-  it('adding steps turns it into a checklist', async () => {
+  it('sends each step with what that step asks for', async () => {
     const dialog = await openComposer()
     const d = within(dialog)
     fireEvent.change(d.getByLabelText('Title'), { target: { value: 'Field trip prep' } })
     fireEvent.click(d.getByRole('button', { name: /Add steps/ }))
-    fireEvent.change(d.getByLabelText('Step 1'), { target: { value: 'Collect permission slips' } })
+    fireEvent.change(d.getByLabelText('Step 1'), { target: { value: 'Sign the permission slip' } })
+    fireEvent.click(d.getByLabelText('Step 1: They sign it'))
     fireEvent.click(d.getByRole('button', { name: /Another step/ }))
-    fireEvent.change(d.getByLabelText('Step 2'), { target: { value: 'Book the bus' } })
-    fireEvent.click(await d.findByText('Kate Myers'))
+    fireEvent.change(d.getByLabelText('Step 2'), { target: { value: 'Upload the bus quote' } })
+    fireEvent.click(d.getByLabelText('Step 2: They upload a file'))
+    fireEvent.click(d.getByLabelText('Step 2: Office approves it'))
+    fireEvent.click(d.getByText('Kate Myers'))
     fireEvent.click(d.getByRole('button', { name: /^Assign$/ }))
-    await waitFor(() => expect(api.post).toHaveBeenCalled())
-    const [, body] = api.post.mock.calls[0]
+    await waitFor(() => expect(lastTaskPost()).toBeTruthy())
+    const [, body] = lastTaskPost()
     expect(body.items).toEqual([
-      { title: 'Collect permission slips', needs_document: false },
-      { title: 'Book the bus', needs_document: false },
+      expect.objectContaining({ title: 'Sign the permission slip', required: true,
+        needs_signature: true, needs_document: false, needs_approval: false }),
+      expect.objectContaining({ title: 'Upload the bus quote', required: true,
+        needs_signature: false, needs_document: true, needs_approval: true }),
     ])
+    expect(body.needs_document).toBeUndefined()
+  })
+
+  it('repeats on the weekdays picked, with no due date', async () => {
+    const dialog = await openComposer()
+    const d = within(dialog)
+    fireEvent.change(d.getByLabelText('Title'), { target: { value: 'Lunch duty sign-in' } })
+    fireEvent.click(d.getByLabelText('Repeat'))
+    // Each day's task is due that day, so the task-level date goes away.
+    expect(d.queryByLabelText('Due date')).not.toBeInTheDocument()
+    const days = within(d.getByRole('group', { name: 'Days' }))
+    // Weekdays by default; make it Mon, Wed, Fri.
+    expect(days.getByRole('button', { name: 'Tue' })).toHaveAttribute('aria-pressed', 'true')
+    fireEvent.click(days.getByRole('button', { name: 'Tue' }))
+    fireEvent.click(days.getByRole('button', { name: 'Thu' }))
+    expect(days.getByRole('button', { name: 'Tue' })).toHaveAttribute('aria-pressed', 'false')
+    fireEvent.change(d.getByLabelText('Starts'), { target: { value: '2026-09-28' } })
+    fireEvent.change(d.getByLabelText('Ends'), { target: { value: '2026-12-18' } })
+    fireEvent.click(d.getByText('Kate Myers'))
+    fireEvent.click(d.getByRole('button', { name: 'Save repeating task' }))
+    await waitFor(() => expect(lastTaskPost()).toBeTruthy())
+    const [, body] = lastTaskPost()
+    expect(body.repeat).toEqual({ days_of_week: [0, 2, 4], start_date: '2026-09-28', end_date: '2026-12-18' })
+    expect('due_date' in body).toBe(false)
+  })
+
+  it('lists students on their own tab and sends them as students', async () => {
+    const dialog = await openComposer()
+    const d = within(dialog)
+    fireEvent.change(d.getByLabelText('Title'), { target: { value: 'Bring your lab notebook' } })
+    fireEvent.click(d.getByRole('button', { name: /^Students/ }))
+    expect(await d.findByText('Hattie Student')).toBeInTheDocument()
+    expect(d.getByText('Frankie Student')).toBeInTheDocument()
+    fireEvent.click(d.getByText('Hattie Student'))
+    expect(d.getByRole('button', { name: 'Students (1)' })).toBeInTheDocument()
+    fireEvent.click(d.getByRole('button', { name: /^Assign$/ }))
+    await waitFor(() => expect(lastTaskPost()).toBeTruthy())
+    expect(lastTaskPost()[1].recipients).toEqual([{ id: 'stu1', audience: 'student' }])
+  })
+
+  it('picks a class of students at once', async () => {
+    const dialog = await openComposer()
+    const d = within(dialog)
+    fireEvent.click(d.getByRole('button', { name: /^Students/ }))
+    await d.findByText('Frankie Student')
+    fireEvent.change(await d.findByLabelText('Pick a class'), { target: { value: 'c-robo' } })
+    await waitFor(() => expect(d.queryByText('Frankie Student')).not.toBeInTheDocument())
+    expect(d.getByLabelText('Select Hattie Student')).toBeChecked()
+    expect(d.getByRole('button', { name: 'Students (1)' })).toBeInTheDocument()
+  })
+
+  it('offers the hold only for families, and never on a repeating task', async () => {
+    const dialog = await openComposer()
+    const d = within(dialog)
+    const hold = () => d.queryByText('Require this before they can use Optio')
+    fireEvent.change(d.getByLabelText('Title'), { target: { value: 'Enrollment packet' } })
+    fireEvent.click(d.getByRole('button', { name: /Add steps/ }))
+    fireEvent.change(d.getByLabelText('Step 1'), { target: { value: 'Upload proof of address' } })
+    // Staff only: a teacher is not locked out of their classroom over paperwork.
+    fireEvent.click(d.getByText('Kate Myers'))
+    expect(hold()).not.toBeInTheDocument()
+
+    fireEvent.click(d.getByRole('button', { name: /^Families/ }))
+    fireEvent.click(await d.findByText('Rose Family'))
+    expect(hold()).toBeInTheDocument()
+    fireEvent.click(hold())
+
+    fireEvent.click(d.getByLabelText('Repeat'))
+    expect(hold()).not.toBeInTheDocument()
+    fireEvent.click(d.getByLabelText('Repeat'))
+    // Turning Repeat off again does not quietly bring back a tick nobody saw.
+    fireEvent.click(d.getByRole('button', { name: /^Assign$/ }))
+    await waitFor(() => expect(lastTaskPost()).toBeTruthy())
+    expect(lastTaskPost()[1].blocks_access).toBe(false)
+  })
+
+  it('sends the hold when it is ticked', async () => {
+    const dialog = await openComposer()
+    const d = within(dialog)
+    fireEvent.change(d.getByLabelText('Title'), { target: { value: 'Enrollment packet' } })
+    fireEvent.click(d.getByRole('button', { name: /Add steps/ }))
+    fireEvent.change(d.getByLabelText('Step 1'), { target: { value: 'Upload proof of address' } })
+    fireEvent.click(d.getByRole('button', { name: /^Families/ }))
+    fireEvent.click(await d.findByText('Rose Family'))
+    fireEvent.click(d.getByText('Require this before they can use Optio'))
+    fireEvent.click(d.getByRole('button', { name: /^Assign$/ }))
+    await waitFor(() => expect(lastTaskPost()).toBeTruthy())
+    const [, body] = lastTaskPost()
+    expect(body.blocks_access).toBe(true)
+    expect(body.recipients).toEqual([{ id: 'fam1', audience: 'family' }])
+  })
+
+  it('fills the title and steps from a template', async () => {
+    const dialog = await openComposer({ templates: TEMPLATES })
+    const d = within(dialog)
+    fireEvent.change(await d.findByLabelText('Start from a template'), { target: { value: 'tmpl-1' } })
+    expect(d.getByLabelText('Title')).toHaveValue('Field trip prep')
+    expect(d.getByLabelText('Directions')).toHaveValue('Before the zoo trip')
+    expect(d.getByLabelText('Step 1')).toHaveValue('Collect permission slips')
+    expect(d.getByLabelText('Step 1: They upload a file')).toBeChecked()
+    expect(d.getByLabelText('Step 2')).toHaveValue('Book the bus')
+    expect(d.getByLabelText('Step 2: Office approves it')).toBeChecked()
+    // A template is already saved; offering to save it again would duplicate it.
+    expect(d.queryByText('Save as a template')).not.toBeInTheDocument()
+    fireEvent.click(d.getByText('Kate Myers'))
+    fireEvent.click(d.getByRole('button', { name: /^Assign$/ }))
+    await waitFor(() => expect(lastTaskPost()).toBeTruthy())
+    const [, body] = lastTaskPost()
+    expect(body.items.map((i) => [i.title, i.needs_document, i.needs_approval, i.required])).toEqual([
+      ['Collect permission slips', true, false, true],
+      ['Book the bus', false, true, false],
+    ])
+  })
+
+  it('saves what it sends as a template when asked', async () => {
+    const dialog = await openComposer()
+    const d = within(dialog)
+    fireEvent.change(d.getByLabelText('Title'), { target: { value: 'Classroom opening checks' } })
+    fireEvent.click(d.getByText('Kate Myers'))
+    fireEvent.click(d.getByText('Save as a template'))
+    fireEvent.click(d.getByRole('button', { name: /^Assign$/ }))
+    await waitFor(() => expect(lastTaskPost()).toBeTruthy())
+    expect(lastTaskPost()[1].save_as_template).toBe(true)
   })
 
   it('attaching a document turns it into a signature send', async () => {
@@ -272,10 +564,14 @@ describe('the assign composer', () => {
     // An HR administrator is offered the sensitivity choice; the send button
     // says what will actually happen.
     expect(await d.findByText(/administrators only/i)).toBeInTheDocument()
-    fireEvent.click(await d.findByText('Kate Myers'))
+    fireEvent.click(d.getByText('Kate Myers'))
     fireEvent.click(d.getByRole('button', { name: /Send for signature/ }))
     await waitFor(() => expect(api.post).toHaveBeenCalled())
-    expect(api.post.mock.calls[0][0]).toContain('/api/sis/secure-documents/signature-requests')
+    const [url, form] = api.post.mock.calls[0]
+    expect(url).toContain('/api/sis/secure-documents/signature-requests')
+    expect(form.get('file')).toBe(file)
+    expect(form.getAll('staff_user_id')).toEqual(['kate'])
+    expect(api.post.mock.calls.some(([u]) => u === '/api/sis/tasks')).toBe(false)
   })
 
   it('a coordinator is never offered the HR sensitivity choice', async () => {
@@ -289,42 +585,23 @@ describe('the assign composer', () => {
   })
 
   it('will not assign with nobody picked', async () => {
-    await openComposer()
-    fireEvent.change(screen.getByLabelText('Title'), { target: { value: 'Do the thing' } })
-    expect(screen.getByRole('button', { name: /^Assign$/ })).toBeDisabled()
+    const dialog = await openComposer()
+    const d = within(dialog)
+    fireEvent.change(d.getByLabelText('Title'), { target: { value: 'Do the thing' } })
+    expect(d.getByRole('button', { name: /^Assign$/ })).toBeDisabled()
   })
 
-  it('offers the saved checklists one link away', async () => {
-    await openComposer()
-    fireEvent.click(screen.getByRole('button', { name: /Use a saved checklist/ }))
-    expect(await screen.findByRole('dialog', { name: /Assign a checklist/i })).toBeInTheDocument()
-  })
-})
-
-describe('starting a piece of work', () => {
-  it('puts this tab\'s own action on the button', async () => {
-    renderPage('/tasks?tab=assigned')
-    expect(await screen.findByRole('button', { name: /^Assign a task$/ })).toBeInTheDocument()
-  })
-
-  it('changes the button with the tab', async () => {
-    renderPage('/tasks?tab=requests')
-    expect(await screen.findByRole('button', { name: /New request/i })).toBeInTheDocument()
-  })
-
-  it('keeps the other action one click away', async () => {
-    renderPage('/tasks?tab=assigned')
-    fireEvent.click(await screen.findByRole('button', { name: /Other things to assign or send/i }))
-    expect(await screen.findByRole('menuitem', { name: /New request/i })).toBeInTheDocument()
-    // The one already on the button is not repeated in the menu.
-    expect(screen.queryByRole('menuitem', { name: /Assign a task/i })).not.toBeInTheDocument()
-  })
-
-  it('files a request without leaving the page', async () => {
-    mockGets({ extra: { '/api/sis/teacher/forms': { form_types: { maintenance: 'Maintenance request' } } } })
-    renderPage('/tasks?tab=requests')
-    fireEvent.click(await screen.findByRole('button', { name: /New request/i }))
-    expect(await screen.findByRole('dialog', { name: /New request/i })).toBeInTheDocument()
+  it('lands on Assigned after sending', async () => {
+    api.post.mockResolvedValue({ data: { assigned: 1, batch_id: 'b9' } })
+    renderPage('/tasks')
+    fireEvent.click(await screen.findByRole('button', { name: /^Assign a task$/ }))
+    const dialog = await screen.findByRole('dialog', { name: 'Assign a task' })
+    const d = within(dialog)
+    fireEvent.change(d.getByLabelText('Title'), { target: { value: 'Do the thing' } })
+    fireEvent.click(await d.findByText('Kate Myers'))
+    fireEvent.click(d.getByRole('button', { name: /^Assign$/ }))
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    expect(screen.getByRole('tab', { name: 'Assigned' })).toHaveAttribute('aria-selected', 'true')
   })
 })
 
@@ -332,138 +609,161 @@ describe('the tabs', () => {
   it('opens on My tasks by default, with the office tabs beside it', async () => {
     renderPage('/tasks')
     expect(await screen.findByRole('tab', { name: 'My tasks' })).toHaveAttribute('aria-selected', 'true')
-    expect(screen.getByRole('tab', { name: 'Requests' })).toBeInTheDocument()
-    // The office's counts are fetched for the badges even while the admin is
+    expect(screen.getAllByRole('tab').map((t) => t.textContent.trim())).toEqual(['My tasks', 'Assigned', 'Templates'])
+    // The office's count is fetched for the badge even while the admin is
     // looking at their own inbox.
     await waitFor(() => expect(
-      api.get.mock.calls.some(([u]) => u.includes('/api/sis/staff-admin/forms'))).toBe(true))
+      api.get.mock.calls.some(([u]) => u.startsWith('/api/sis/tasks/assigned'))).toBe(true))
   })
 
-  it('sends the requests queue to Templates for authoring', async () => {
-    mockGets({ extra: { '/form-templates': { templates: [] } } })
+  it('badges Assigned with the steps waiting on the office', async () => {
+    mockGets({ batches: [
+      { ...ROSTER_BATCH, awaiting_review: 2 }, { ...ONBOARDING_BATCH, awaiting_review: 1 },
+    ] })
+    renderPage('/tasks')
+    const tab = await screen.findByRole('tab', { name: /Assigned/ })
+    await waitFor(() => expect(tab).toHaveTextContent('3'))
+  })
+
+  it('has no Requests tab and no "New request" anywhere', async () => {
     renderPage('/tasks?tab=requests')
-    const manage = await screen.findByRole('button', { name: /Manage forms/i })
-    // Authoring is not on the triage screen; the link is the whole of it there.
-    expect(screen.queryByRole('button', { name: '+ New form' })).not.toBeInTheDocument()
-    fireEvent.click(manage)
-    // Templates opens the builder outright -- an accordion behind a tab called
-    // Templates is one click of nothing (iCreate 51efdb7c).
-    expect(await screen.findByRole('button', { name: '+ New form' })).toBeInTheDocument()
+    // An old Requests link lands on My tasks.
+    expect(await screen.findByRole('tab', { name: 'My tasks' })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.queryByRole('tab', { name: /Requests/ })).not.toBeInTheDocument()
+    expect(screen.queryByText(/New request/i)).not.toBeInTheDocument()
+    expect(api.get.mock.calls.some(([u]) => u.includes('/forms'))).toBe(false)
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Assigned' }))
+    await screen.findByText('Employee handbook')
+    expect(screen.queryByText(/New request/i)).not.toBeInTheDocument()
+    expect(screen.queryByRole('tab', { name: /Requests/ })).not.toBeInTheDocument()
   })
 
-  it('opens the routing editor from the templates tab', async () => {
-    mockGets({ extra: {
-      '/form-routing': {
-        routing: { substitute_request: 'julia-1' },
-        form_types: { substitute_request: 'Substitute request' },
-      },
-      '/api/sis/staff': { staff: [{ id: 'julia-1', name: 'Julia' }] },
-    } })
+  it('opens the template library outright on Templates', async () => {
+    mockGets({ templates: TEMPLATES })
     renderPage('/tasks?tab=templates')
-    fireEvent.click(await screen.findByRole('button', { name: /Where requests go/i }))
-    expect(await screen.findByRole('dialog', { name: /Where forms go/i })).toBeInTheDocument()
-    expect(await screen.findByLabelText('Who receives Substitute request')).toHaveValue('julia-1')
+    // An accordion behind a tab called Templates is one click of nothing
+    // (iCreate 51efdb7c).
+    expect(await screen.findByText('Field trip prep')).toBeInTheDocument()
+    expect(screen.getByText('Task templates')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: '+ New template' }))
+    expect(await screen.findByRole('dialog', { name: 'Task template' })).toBeInTheDocument()
+    expect(screen.getByText('New task template')).toBeInTheDocument()
   })
 
   it('lands a retired tab name on My tasks rather than nowhere', async () => {
-    // ?tab=paperwork was a tab once; a bookmark may still say so. The page
-    // used to carry a remap for every name it ever had (M10 retired it: the
-    // tiles link to the live names, and no sent notification uses an old
-    // one), so an unknown tab is simply the first tab.
+    // ?tab=paperwork was a tab once; a bookmark may still say so.
     renderPage('/tasks?tab=paperwork')
     expect(await screen.findByRole('tab', { name: 'My tasks' })).toHaveAttribute('aria-selected', 'true')
     expect(screen.queryByText('Employee handbook')).not.toBeInTheDocument()
-  })
-
-  it('opens manage forms from the new form template action menu', async () => {
-    mockGets({ extra: { '/form-templates': { templates: [] } } })
-    renderPage('/tasks?tab=assigned')
-    fireEvent.click(await screen.findByRole('button', { name: /Other things to assign or send/i }))
-    fireEvent.click(await screen.findByRole('menuitem', { name: /New form template/i }))
-    expect(await screen.findByRole('button', { name: '+ New form' })).toBeInTheDocument()
   })
 })
 
 /**
  * Secure documents is the filing cabinet, and it is HR's: contracts and
- * background checks live there. A coordinator does not get an emptier version
- * of the tab — they get no tab, because signature tracking (the one thing
- * they had on the old paperwork tab) now lives on Assigned. My documents,
- * the person's own, is a different tab for everybody.
+ * background checks live there. It moved to the Library's Documents area on
+ * 2026-09-24 with My documents; the Library decides who may see it
+ * (libraryPage.test), and Tasks only forwards the old links.
  */
-describe('the secure documents tab', () => {
-  it('shows the secure store to an HR administrator', async () => {
+describe('the documents that moved to the Library', () => {
+  it('sends ?tab=secure to the secure store in the Library', async () => {
     renderPage('/tasks?tab=secure')
-    expect(await screen.findByText('Upload a document')).toBeInTheDocument()
-    await waitFor(() => expect(api.get.mock.calls.some(
-      ([u]) => u.includes('/api/sis/secure-documents?'))).toBe(true))
+    expect(await screen.findByTestId('where')).toHaveTextContent('/library?tab=documents&docs=secure')
+    expect(api.get.mock.calls.some(([u]) => u.includes('/api/sis/secure-documents?'))).toBe(false)
   })
 
-  it('does not exist for a campus coordinator', async () => {
-    authState.user = { id: 'kate', role: 'org_managed', org_roles: ['campus_coordinator'] }
-    renderPage('/tasks?tab=secure')
-    // The tab is gone and the deep link falls back to My tasks.
-    expect(await screen.findByRole('tab', { name: 'My tasks' })).toHaveAttribute('aria-selected', 'true')
-    expect(screen.getByRole('tab', { name: 'Requests' })).toBeInTheDocument()
-    expect(screen.queryByRole('tab', { name: 'Secure documents' })).not.toBeInTheDocument()
-    expect(screen.getByRole('tab', { name: 'My documents' })).toBeInTheDocument()
-    expect(api.get.mock.calls.some(([u]) => u.includes('/api/sis/secure-documents?'))).toBe(false)
+  it('sends ?tab=documents to My documents in the Library', async () => {
+    renderPage('/tasks?tab=documents')
+    expect(await screen.findByTestId('where')).toHaveTextContent('/library?tab=documents&docs=mine')
+  })
+
+  it('offers neither as a tab here', async () => {
+    renderPage('/tasks')
+    await screen.findByRole('tab', { name: 'My tasks' })
+    expect(screen.queryByRole('tab', { name: /documents/i })).not.toBeInTheDocument()
   })
 })
 
 /**
  * iCreate, 2026-09-05: "Can you make the task center pages sortable so it is
  * easier to find what one is looking for?"
- *
- * The list only ever came back newest-first. That is the right order for what
- * was just sent and the wrong one for chasing one teacher's paperwork through
- * two hundred assignments.
  */
 describe('finding one thing in the assigned list', () => {
   it('defaults to newest first', async () => {
-    mockGets({ assignments: [CHECKLIST_ASSIGNMENT, ADHOC_TASK], batches: [] })
+    mockGets({ batches: [ONBOARDING_BATCH, ROSTER_BATCH], sigBatches: [] })
     renderPage()
-    await screen.findByText('Turn in your roster')
-    const shown = screen.getByText('Turn in your roster').compareDocumentPosition(
-      screen.getByText('New teacher onboarding'))
-    // Kate's task (Aug 25) precedes Sam's checklist (Aug 20).
-    expect(shown & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    const roster = await screen.findByText('Turn in your roster', { selector: CARD_TITLE })
+    const onboarding = screen.getByText('New teacher onboarding', { selector: CARD_TITLE })
+    // The roster (Aug 25) precedes the onboarding (Aug 20).
+    expect(roster.compareDocumentPosition(onboarding) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 
-  it('orders by person when the office is working down a name list', async () => {
-    mockGets({ assignments: [CHECKLIST_ASSIGNMENT, ADHOC_TASK], batches: [] })
+  it('sorts oldest first and by title', async () => {
+    mockGets({ batches: [ONBOARDING_BATCH, ROSTER_BATCH], sigBatches: [] })
     renderPage()
-    await screen.findByText('Turn in your roster')
-    fireEvent.change(screen.getByLabelText('Sort assigned work'), { target: { value: 'person' } })
-    // Kate Myers before Sam Teacher, regardless of when either was sent.
-    const pos = screen.getByText('Kate Myers').compareDocumentPosition(
-      screen.getByText('Sam Teacher'))
-    expect(pos & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    await screen.findByText('Turn in your roster', { selector: CARD_TITLE })
+    const order = () => screen.getAllByText(/^(Turn in your roster|New teacher onboarding)$/, { selector: CARD_TITLE })
+      .map((el) => el.textContent)
+    fireEvent.change(screen.getByLabelText('Sort assigned tasks'), { target: { value: 'oldest' } })
+    expect(order()).toEqual(['New teacher onboarding', 'Turn in your roster'])
+    fireEvent.change(screen.getByLabelText('Sort assigned tasks'), { target: { value: 'title' } })
+    expect(order()).toEqual(['New teacher onboarding', 'Turn in your roster'])
+    fireEvent.change(screen.getByLabelText('Sort assigned tasks'), { target: { value: 'newest' } })
+    expect(order()).toEqual(['Turn in your roster', 'New teacher onboarding'])
   })
 
   it('narrows to one person by name', async () => {
-    mockGets({ assignments: [CHECKLIST_ASSIGNMENT, ADHOC_TASK], batches: [] })
+    mockGets({ batches: [ONBOARDING_BATCH, ROSTER_BATCH], sigBatches: [] })
     renderPage()
-    await screen.findByText('Turn in your roster')
-    fireEvent.change(screen.getByLabelText('Search assigned work'), { target: { value: 'kate' } })
-    expect(screen.getByText('Turn in your roster')).toBeInTheDocument()
-    expect(screen.queryByText('New teacher onboarding')).not.toBeInTheDocument()
+    await screen.findByText('Turn in your roster', { selector: CARD_TITLE })
+    fireEvent.change(screen.getByLabelText('Search assigned tasks'), { target: { value: 'kate' } })
+    expect(screen.getByText('New teacher onboarding', { selector: CARD_TITLE })).toBeInTheDocument()
+    expect(screen.queryByText('Turn in your roster', { selector: CARD_TITLE })).not.toBeInTheDocument()
   })
 
   it('finds a signature send by the document it went out under', async () => {
-    mockGets({ assignments: [ADHOC_TASK] })
+    mockGets({ batches: [ROSTER_BATCH] })
     renderPage()
     await screen.findByText('Employee handbook')
-    fireEvent.change(screen.getByLabelText('Search assigned work'), { target: { value: 'handbook' } })
+    fireEvent.change(screen.getByLabelText('Search assigned tasks'), { target: { value: 'handbook' } })
     expect(screen.getByText('Employee handbook')).toBeInTheDocument()
-    expect(screen.queryByText('Turn in your roster')).not.toBeInTheDocument()
+    expect(screen.queryByText('Turn in your roster', { selector: CARD_TITLE })).not.toBeInTheDocument()
   })
 
   it('says the search came up empty rather than looking finished', async () => {
-    mockGets({ assignments: [ADHOC_TASK], batches: [] })
+    mockGets({ batches: [ROSTER_BATCH], sigBatches: [] })
     renderPage()
-    await screen.findByText('Turn in your roster')
-    fireEvent.change(screen.getByLabelText('Search assigned work'), { target: { value: 'zzz' } })
+    await screen.findByText('Turn in your roster', { selector: CARD_TITLE })
+    fireEvent.change(screen.getByLabelText('Search assigned tasks'), { target: { value: 'zzz' } })
     expect(screen.getByText('Nothing here matches "zzz".')).toBeInTheDocument()
+  })
+})
+
+/**
+ * iCreate meeting 2026-09-23: everything is a task, and the page never says
+ * "checklist" (or "request", or "form") for one. The word survives in code
+ * and comments; this is about what a person reads.
+ */
+describe('the words on the page', () => {
+  it('never says checklist on My tasks or Assigned', async () => {
+    mockGets({
+      myTasks: MY_TASKS, batches: [ONBOARDING_BATCH, ROSTER_BATCH], schedules: [SCHEDULE],
+      templates: TEMPLATES,
+    })
+    renderPage('/tasks')
+    await screen.findByText('Staff agreement')
+    expect(document.body.textContent).not.toMatch(/checklist/i)
+
+    fireEvent.click(screen.getByRole('tab', { name: /Assigned/ }))
+    await screen.findByText('New teacher onboarding', { selector: CARD_TITLE })
+    // Open every card, so what is inside them is read too.
+    document.querySelectorAll('details').forEach((el) => { el.open = true })
+    expect(document.body.textContent).not.toMatch(/checklist/i)
+
+    fireEvent.click(screen.getByRole('button', { name: /^Assign a task$/ }))
+    const dialog = await screen.findByRole('dialog', { name: 'Assign a task' })
+    fireEvent.click(within(dialog).getByRole('button', { name: /Add steps/ }))
+    expect(document.body.textContent).not.toMatch(/checklist/i)
+    expect(document.body.textContent).not.toMatch(/\brequests?\b/i)
   })
 })

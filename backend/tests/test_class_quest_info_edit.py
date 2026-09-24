@@ -186,7 +186,8 @@ def test_the_class_list_reports_the_student_tasks_switch():
     with patch.object(class_quests, '_authorize',
                       return_value=({'id': CLASS, 'organization_id': ORG}, client, None)), \
          patch.object(class_quests, '_template_task_count', return_value={}), \
-         patch.object(class_quests, '_roster', return_value=[]):
+         patch.object(class_quests, '_roster', return_value=[]), \
+         patch.object(class_quests.quest_edit_rules, 'is_school_admin', return_value=False):
         payload, status = _call(class_quests.list_class_quests, CLASS)
     assert status == 200
     assert {q['quest_id']: q['allow_custom_tasks'] for q in payload['quests']} == {'qa': False, 'qb': True}
@@ -251,7 +252,8 @@ class TestTeachersMayChangeXp:
         with patch.object(class_quests, '_authorize',
                           return_value=({'id': CLASS, 'organization_id': ORG}, client, None)), \
              patch.object(class_quests, '_template_task_count', return_value={}), \
-             patch.object(class_quests, '_roster', return_value=[]):
+             patch.object(class_quests, '_roster', return_value=[]), \
+             patch.object(class_quests.quest_edit_rules, 'is_school_admin', return_value=False):
             payload, status = _call(class_quests.list_class_quests, CLASS)
         assert status == 200
         assert {q['quest_id']: q['teachers_may_change_xp'] for q in payload['quests']} == \

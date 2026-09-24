@@ -104,7 +104,7 @@ class TestSigning:
         rows = [{'id': ASSIGNMENT_ID, 'user_id': SIGNER, 'items': [_item()]}]
         client = Mock()
         table = Mock()
-        for chained in ('select', 'eq', 'order', 'in_'):
+        for chained in ('select', 'eq', 'order', 'in_', 'range'):
             getattr(table, chained).return_value = table
         table.execute.return_value = Mock(data=rows)
         client.table.return_value = table
@@ -199,7 +199,7 @@ class TestSigningNeedsTheDocument:
                  'items': [_item()]}]
         client = Mock()
         table = Mock()
-        for chained in ('select', 'eq', 'order', 'in_'):
+        for chained in ('select', 'eq', 'order', 'in_', 'range'):
             getattr(table, chained).return_value = table
         table.execute.return_value = Mock(data=rows)
         client.table.return_value = table
@@ -216,7 +216,7 @@ class TestSigningNeedsTheDocument:
                  'items': [_item()]}]
         client = Mock()
         table = Mock()
-        for chained in ('select', 'eq', 'order', 'in_'):
+        for chained in ('select', 'eq', 'order', 'in_', 'range'):
             getattr(table, chained).return_value = table
         table.execute.return_value = Mock(data=rows)
         client.table.return_value = table
@@ -247,7 +247,7 @@ class TestTheTemplateFlag:
                                'needs_signature': True, 'required': True}]}
         client = Mock()
         table = Mock()
-        for chained in ('select', 'eq', 'limit', 'order', 'insert'):
+        for chained in ('select', 'eq', 'limit', 'order', 'insert', 'in_'):
             getattr(table, chained).return_value = table
         # Reads in order: the template, the checklist the signer may already
         # hold (none -- assign hands back an existing one), then the insert.

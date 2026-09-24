@@ -3,7 +3,7 @@
  * titled with the school's name. The mobile counterpart of the web /school
  * page.
  *
- * One page, a strip of tabs (2026-09-18): Feed · Schedule · Calendar ·
+ * One page, a strip of tabs (2026-09-18): Feed · To do · Schedule · Calendar ·
  * Carpool · Documents, each shown only when the school runs the thing and
  * this member may use it (schoolTabsFor). Until then the hub was the feed
  * under a row of six chips, four of which pushed a screen and two of which
@@ -15,7 +15,8 @@
  *
  * Feed-first, still (2026-08-23 redesign): a parent opens this page for what
  * the school said, so the feed is the first tab and the one a bare /school
- * lands on. ?tab= picks another; ?student= carries a child into Schedule.
+ * lands on. ?tab= picks another; ?student= carries a child into Schedule;
+ * ?task= opens one task on To do (a task notification's link).
  *
  * Copy note (iCreate, 2026-08-06): the word "school" is unwelcome — "iCreate
  * is an education center". Where a sentence needs a subject, use the org's own
@@ -40,6 +41,9 @@ import { ScheduleTab } from '@/src/components/school/ScheduleTab';
 import { CalendarTab } from '@/src/components/school/CalendarTab';
 import { CarpoolTab } from '@/src/components/school/CarpoolTab';
 import { DocumentsTab } from '@/src/components/school/DocumentsTab';
+import { TodoTab } from '@/src/components/school/TodoTab';
+import { useAuthStore } from '@/src/stores/authStore';
+import { effectiveRoleOf } from '@/src/utils/effectiveRole';
 
 /** A door that still opens on the web (Goal Setting, Prior Learning) — a
  *  chip on the Feed tab, not a tab, since a tab that launches a browser is a
@@ -67,7 +71,7 @@ function WebDoorChip({ icon, label, onPress, testID }: {
   );
 }
 
-const TAB_KEYS: SchoolTabKey[] = ['feed', 'schedule', 'calendar', 'carpool', 'documents'];
+const TAB_KEYS: SchoolTabKey[] = ['feed', 'todo', 'schedule', 'calendar', 'carpool', 'documents'];
 const isTabKey = (v: unknown): v is SchoolTabKey => TAB_KEYS.includes(v as SchoolTabKey);
 
 export default function SchoolScreen() {
@@ -76,7 +80,10 @@ export default function SchoolScreen() {
   const { org, feed, messages, carpool, loading, refreshing, refresh, schoolName } =
     useSchoolHub({ markRead: true });
   const { resources } = useSchoolResources(org?.organization_id);
-  const params = useLocalSearchParams<{ tab?: string; student?: string }>();
+  const params = useLocalSearchParams<{ tab?: string; student?: string; task?: string }>();
+  // The context row knows guardianship only; being a student is the account's
+  // own role. A guardian who is somehow also a student gets the family list.
+  const isStudent = useAuthStore((s) => effectiveRoleOf(s.user) === 'student');
 
   // The tab: the one asked for while it exists, else Feed. Derived, so a tab
   // that disappears (a board that goes away) can never leave a blank page.
@@ -92,7 +99,9 @@ export default function SchoolScreen() {
   }
   const pickedTab = tabState.picked;
   const setPickedTab = (key: SchoolTabKey) => setTabState((s) => ({ ...s, picked: key }));
-  const tabs = schoolTabsFor(org, { board: feed !== null, documents: resources.length > 0 });
+  const tabs = schoolTabsFor(org, {
+    board: feed !== null, documents: resources.length > 0, student: isStudent,
+  });
   const activeTab: SchoolTabKey = pickedTab && tabs.some((t) => t.key === pickedTab)
     ? pickedTab
     : 'feed';
@@ -233,6 +242,14 @@ export default function SchoolScreen() {
                 </View>
               )}
             </ScrollView>
+          )}
+
+          {activeTab === 'todo' && (
+            <TodoTab
+              organizationId={org?.organization_id}
+              audience={org?.is_guardian ? 'family' : 'student'}
+              initialTaskId={typeof params.task === 'string' ? params.task : null}
+            />
           )}
 
           {activeTab === 'schedule' && (

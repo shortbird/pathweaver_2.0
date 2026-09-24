@@ -56,6 +56,83 @@ _NOTIFY: Dict[str, Tuple[str, ...]] = {
     'teachers': ('advisors',),
 }
 
+#: The roles a board post can name, several at once (iCreate, 2026-09-23,
+#: 9a335881: "announcements should have multi-role select options"). Stored in
+#: sis_announcements.audiences (text[]); the single `audience` word above keeps
+#: being written beside it -- the nearest word that covers the roles -- so old
+#: code and older app builds read what they always read.
+#:
+#: Staff read every post on the board whatever it names (the staff list is not
+#: filtered by audience), so 'teachers' decides who is NOTIFIED and whether the
+#: post is staff-only, not who may read it in the console.
+BOARD_ROLES: Tuple[str, ...] = ('parents', 'students', 'teachers')
+BOARD_ROLE_LABELS: Dict[str, str] = {
+    'parents': 'Parents',
+    'students': 'Students',
+    'teachers': 'Teachers and staff',
+}
+
+#: The roles each single board word always meant. 'school' is everybody;
+#: 'families' is the parents only (students read 'school' posts, never
+#: 'families' ones -- sis_community_service.family_feed).
+_ROLES_OF_AUDIENCE: Dict[str, Tuple[str, ...]] = {
+    'school': ('parents', 'students', 'teachers'),
+    'families': ('parents',),
+    'teachers': ('teachers',),
+}
+
+#: A board role, as the send's recipient role.
+_RECIPIENT_OF_BOARD_ROLE: Dict[str, str] = {
+    'parents': 'parents', 'students': 'students', 'teachers': 'advisors',
+}
+
+
+def board_roles(value, fallback_audience=None) -> List[str]:
+    """Clean a requested role list, in BOARD_ROLES order. Nothing usable falls
+    back to the roles of `fallback_audience` (the old single word), and then to
+    everybody -- the same default the single word has always had."""
+    if isinstance(value, str):
+        value = [value]
+    chosen = {v for v in (value or []) if v in BOARD_ROLES}
+    if chosen:
+        return [r for r in BOARD_ROLES if r in chosen]
+    return list(_ROLES_OF_AUDIENCE[board_audience(fallback_audience)])
+
+
+def row_board_roles(row) -> List[str]:
+    """The roles a stored board post is for: its `audiences` when it has them,
+    otherwise what its single word meant (a row written before 2026-09-24)."""
+    return board_roles((row or {}).get('audiences'), (row or {}).get('audience'))
+
+
+def board_audience_for_roles(roles) -> str:
+    """The single word to store beside a role list, for readers of the old
+    column. The narrowest word that covers every chosen role: staff-only is
+    'teachers', parents without students is 'families' (staff read every post
+    anyway), and anything with students is 'school'."""
+    roles = set(board_roles(roles))
+    if roles == {'teachers'}:
+        return 'teachers'
+    if 'students' not in roles:
+        return 'families'
+    return 'school'
+
+
+def recipient_roles_for_board_roles(roles) -> List[str]:
+    """The send's recipient roles for a board post's roles, in RECIPIENT_ROLES
+    order."""
+    wanted = {_RECIPIENT_OF_BOARD_ROLE[r] for r in board_roles(roles)}
+    return [r for r in RECIPIENT_ROLES if r in wanted]
+
+
+def board_roles_label(roles) -> str:
+    """"Parents and students", for a line the office reads."""
+    labels = [BOARD_ROLE_LABELS[r] for r in board_roles(roles)]
+    if len(labels) <= 1:
+        return ''.join(labels)
+    return ', '.join(labels[:-1]) + ' and ' + labels[-1]
+
+
 #: What a calendar event is for. The calendar's readers filter on these
 #: (routes/sis/events.py): a teacher never sees an admins-only event, a
 #: family sees school events only.
@@ -109,7 +186,7 @@ def event_audience(value) -> str:
 #: the 2026-09-17 audit spent a section on (D1); this vocabulary cannot ask
 #: for one.
 #:
-#: The inbox is staff only. A family is messaged from "Message Families",
+#: The inbox is staff only. A family is messaged from Compose on the Messaging page,
 #: which writes from the school account so replies land in the School Inbox;
 #: a DM from here would come from the office member personally and bypass it.
 DESTINATIONS: Tuple[str, ...] = ('community_board', 'staff_board', 'inbox', 'email')
@@ -147,7 +224,7 @@ def destination_error(destinations, audience: str, narrowed: bool = False):
         return ('A post for everyone goes on the community board, which staff '
                 'read too. Choose "Staff only" for the staff board')
     if 'inbox' in chosen and audience == 'families':
-        return 'Families are messaged from "Message Families", not from here'
+        return "Families are messaged from Compose on the Messaging page, not from here"
     if narrowed:
         if audience != 'teachers':
             return 'Choosing people is for staff-only sends'

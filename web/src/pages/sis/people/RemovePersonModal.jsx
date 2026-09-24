@@ -8,10 +8,9 @@ const HISTORY_LABELS = {
   attendance: 'attendance record',
   completed_work: 'completed task',
   registrations: 'registration',
-  forms: 'submitted form',
+  tasks: 'finished task',
   dependents: 'linked student',
   classes: 'class taught',
-  onboarding: 'onboarding task',
 }
 
 const historyLine = (history = {}) => Object.entries(history)

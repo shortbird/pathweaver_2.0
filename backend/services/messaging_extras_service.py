@@ -497,8 +497,41 @@ def enrich_messages(message_type: str, messages: List[Dict[str, Any]],
                 dict(a) if isinstance(a, dict) else a for a in row['attachments']
             ]
         out.append(row)
+    if message_type == 'dm':
+        attach_sender_labels(out)
     # The viewer is an established participant by the time we get here, so this
     # is exactly the right place to mint their short-lived attachment URLs — one
     # batched signing call for the whole page of messages.
     sign_attachments(out)
     return out
+
+
+def attach_sender_labels(messages: List[Dict[str, Any]]) -> None:
+    """"Kate for iCreate" on a school message a staff member wrote as the school
+    with their name shown (`show_sender_name`).
+
+    The office hands a family's thread to a teacher with a task; the teacher's
+    reply goes out as the school, and the family is told who wrote it (owner
+    decision, 2026-09-23, d93b24d2). The office's own replies carry no flag and
+    get no label, exactly as before. Set here, on every page and every send, so
+    the phone, the web messenger and the realtime broadcast all read one field.
+    Best-effort: a missing name leaves the message under the school's name.
+    """
+    flagged = [m for m in messages if m.get('show_sender_name') and m.get('sent_by_user_id')]
+    if not flagged:
+        return
+    try:
+        from repositories.school_thread_repository import SchoolThreadRepository
+        from utils.person_name import full_name
+        repo = SchoolThreadRepository(client=_admin())
+        names = repo.user_names(m['sent_by_user_id'] for m in flagged)
+        orgs = repo.orgs_by_inbox_user(m.get('sender_id') for m in flagged)
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f'sender labels unavailable: {e}')
+        return
+    for m in flagged:
+        org = orgs.get(m.get('sender_id'))
+        person = names.get(m['sent_by_user_id'])
+        if not org or not person:
+            continue
+        m['sender_label'] = f"{full_name(person, 'Staff')} for {org.get('name') or 'the school'}"

@@ -235,10 +235,15 @@ twice as "cannot be measured".
 working in this repository. All three fail open: a hook that raises exits 1, the
 work continues, and the failure is visible.
 
+One more is a git hook, not a Claude hook, so it guards a person's push as well
+as an agent's: `.githooks/pre-push`, installed once per clone with
+`git config core.hooksPath .githooks`.
+
 | Hook | Event | Refuses |
 |---|---|---|
-| `guard_bash.py` | PreToolUse (Bash) | `git reset --hard`, `checkout --`, `restore`, `stash`, `clean`; `killall`/`pkill node`; `git add -A`/`commit -a`; emoji in a commit message. Stops a push to `main` and a force-push for confirmation, with an `OPTIO_HOOK_OVERRIDE=1` escape |
-| `fast_gate.py` | PostToolUse (Edit/Write) | ruff + pyflakes on Python, eslint (against the file at HEAD) on JS/TS, `tsc --noEmit` on mobile TS |
+| `guard_bash.py` | PreToolUse (Bash) | `git reset --hard`, `checkout --`, `restore`, `stash`, `clean`; `killall`/`pkill node`; `git add -A`/`commit -a`; emoji in a commit message. Stops a push to `main` and a force-push for confirmation, with an `OPTIO_HOOK_OVERRIDE=1` escape. Refuses `git push --no-verify`, and a push to `main` from a clone where `core.hooksPath` is not `.githooks`; the override covers neither |
+| `fast_gate.py` | PostToolUse (Edit/Write) | ruff + pyflakes + mypy (that one file, `backend/mypy.ini`) on backend Python, eslint (against the file at HEAD) on JS/TS, `tsc --noEmit` on mobile TS |
+| `.githooks/pre-push` | git pre-push, to `main` or `develop` | The three backend lint steps `tests-backend.yml` runs first (pyflakes undefined names, ruff, mypy), on the pushed commit extracted to `.git/prepush/tree`, not on the shared working tree. About 8s warm. Added 2026-09-23 after release 35942962126 and dc71bb42 failed on mypy in CI |
 | `related_tests.py` | Stop | Runs the tests belonging to the files the session touched; blocks the stop if they fail |
 
 The destructive-git family has **no override**. Everything else does, because a

@@ -102,7 +102,11 @@ def _history(org_id: str, target_id: str) -> Dict[str, int]:
         'attendance': _count('sis_attendance', 'student_user_id'),
         'completed_work': _count('quest_task_completions', 'user_id'),
         'registrations': _count('sis_registration_items', 'student_user_id'),
-        'forms': _count('sis_form_submissions', 'submitted_by'),
+        # Finished tasks: a signed family agreement, an uploaded document.
+        # Deleting the account cascades the task away with its evidence.
+        # (Requests they filed used to be counted here; requests became tasks
+        # on 2026-09-24 and keep their row when the person goes.)
+        'tasks': _count('sis_onboarding_assignments', 'user_id', status='complete'),
     }
 
 

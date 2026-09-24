@@ -7,7 +7,9 @@ because I originally created the quest while logged in as an administrator?"
 
 It was. The rule was `created_by == you` and nothing else, so the teacher of a
 class could not edit the coursework attached to their own class as soon as
-somebody else had typed it in. A class they teach now counts too.
+somebody else had typed it in. A class they teach counted too from then until
+2026-09-23, when the owner put the rule back to the author or the office (P6):
+a teacher keeps the class settings, not the quest.
 
 The rule also read `org_role` by hand, which silently excluded campus
 coordinators and anyone carrying their admin role in `org_roles`.
@@ -85,12 +87,15 @@ class TestTeachers:
         db = _supabase(users=[_user()])
         assert _quest_edit_rights(db, 'u1', _quest(created_by='u1')) == (True, False)
 
-    def test_a_teacher_can_edit_a_quest_on_a_class_they_teach(self, monkeypatch):
-        """The reported bug: an admin wrote it, the teacher owns the class."""
+    def test_a_teacher_cannot_edit_the_offices_quest_on_a_class_they_teach(self, monkeypatch):
+        """Owner decision 2026-09-23 (P6): the quest is its author's or the
+        office's. Teaching a class that carries it gives the teacher the class
+        settings, not the quest -- the 2026-08-27 allowance is withdrawn, and
+        this editor must agree with the SIS (services/quest_edit_rules)."""
         from services import sis_service
         monkeypatch.setattr(sis_service, 'advisor_class_ids', lambda *_: ['c1'])
         db = _supabase(users=[_user()], class_quests=[{'class_id': 'c1'}])
-        assert _quest_edit_rights(db, 'u1', _quest()) == (True, False)
+        assert _quest_edit_rights(db, 'u1', _quest()) == (False, False)
 
     def test_a_teacher_cannot_edit_a_quest_on_a_class_they_do_not_teach(self, monkeypatch):
         from services import sis_service

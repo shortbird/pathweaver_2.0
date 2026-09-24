@@ -4,14 +4,14 @@ import { toast } from 'react-hot-toast'
 import { BookOpenIcon, EllipsisVerticalIcon, PlusIcon } from '@heroicons/react/24/outline'
 import { useSisOrg } from '../useSisOrg'
 import {
-  useSisQuestLibrary, useAddQuestToCurriculum, useAssignQuestToClass, useCreateLibraryQuest,
-  useGiveQuestToStudents, useUpdateLibraryQuest, useDuplicateLibraryQuest, useQuestHolders,
+  useSisQuestLibrary, useAddQuestToCurriculum, useAssignQuestToClass,
+  useGiveQuestToStudents, useDuplicateLibraryQuest, useQuestHolders,
 } from '../../../hooks/api/useSisQuestLibrary'
+import { useRefreshAfterQuestEdit } from '../../../hooks/api/useQuestEditor'
 import { useSisRoster } from '../../../hooks/api/useSisRoster'
-import QuestDraftForm, { blankTask } from '../../../components/sis/QuestDraftForm'
-import QuestAiDraftPanel from '../../../components/sis/QuestAiDraftPanel'
 import QuestResourcesPanel from '../../../components/sis/QuestResourcesPanel'
-import PresetTaskManager from '../../../components/sis/PresetTaskManager'
+import QuestEditor from '../../../components/sis/QuestEditor'
+import QuestDraftsList from '../../../components/sis/questEditor/QuestDraftsList'
 import { Input } from '../../../components/ui/Input'
 import { Modal } from '../../../components/ui/Modal'
 import SearchSelect from '../../../components/ui/SearchSelect'
@@ -43,9 +43,11 @@ import PopMenu from '../../../components/sis/ui/PopMenu'
  * curriculum the quest sat on, which meant the quests this page exists for --
  * the ones on no curriculum -- had no editor anywhere. Molly again: "There's
  * no way to edit a quest that I can see. I'd also love to be able to
- * duplicate quests." Edit opens the same PresetTaskManager the curriculum tab
- * and the class tab use, over routes that differ from theirs only in the
- * gate.
+ * duplicate quests." Add quest and Edit both open QuestEditor, the one quest
+ * form every SIS screen shares since P6 (2026-09-23). Add quest starts an
+ * inactive draft at once, so its files and links work from the first minute;
+ * Drafts lists every unpublished quest in the school, including a teacher's
+ * class draft, until somebody publishes or discards it.
  *
  * Attachments (a video, a link, a file, on the quest or on one task) are the
  * same QuestResourcesPanel the curriculum editor shows. They were reachable
@@ -304,114 +306,6 @@ export function QuestAttachments({ questId, tasks }) {
   )
 }
 
-/**
- * Rename a quest, rewrite its description, and edit its task list.
- *
- * PresetTaskManager is the task editor the curriculum tab and the class tab
- * already use; it derives every verb from `base`, so pointing it at the
- * library routes is the whole integration. It reads `editable` off the server
- * and hides its own controls when the answer is no, which is how a shared
- * Optio-library quest stays readable here without becoming editable.
- */
-export function QuestEditModal({ quest, orgId, onClose }) {
-  const [title, setTitle] = useState(quest.title || '')
-  const [description, setDescription] = useState(quest.description || '')
-  // The XP a learner has to earn before the quest counts as finished
-  // (quests.xp_threshold). The staff-training and class-quest editors have had
-  // this field for weeks; the library editor did not, so a quest made here
-  // could only be given a finish line by opening it from somewhere else
-  // ("I'd like to be able to add the required XP per quest" -- iCreate,
-  // 2026-09-22, 3d926fc3). Blank means no requirement, which is how every
-  // quest behaved before anyone set one.
-  const [requiredXp, setRequiredXp] = useState(
-    quest.xp_threshold ? String(quest.xp_threshold) : '')
-  // Whether a class's teacher may move that number from the class page
-  // (quests.teachers_may_change_xp, default on). Molly, iCreate, 3d926fc3:
-  // "I think it'd be good to click on 'teachers may change' if we want
-  // teachers to change it." Only the office's editors write it.
-  const savedTeachersMay = quest.teachers_may_change_xp !== false
-  const [teachersMay, setTeachersMay] = useState(savedTeachersMay)
-  const save = useUpdateLibraryQuest(orgId)
-
-  const saveInfo = async () => {
-    if (!title.trim()) { toast.error('A title is required'); return }
-    if (requiredXp !== '' && !(Number(requiredXp) >= 0)) {
-      toast.error('XP required has to be a number, or empty for no requirement')
-      return
-    }
-    try {
-      await save.mutateAsync({
-        questId: quest.id, title: title.trim(), description,
-        xp_threshold: requiredXp === '' ? null : Number(requiredXp),
-        teachers_may_change_xp: teachersMay,
-      })
-      toast.success('Saved')
-    } catch (e) {
-      toast.error(e?.response?.data?.error || 'Could not save that')
-    }
-  }
-
-  const dirty = title !== (quest.title || '')
-    || description !== (quest.description || '')
-    || requiredXp !== (quest.xp_threshold ? String(quest.xp_threshold) : '')
-    || teachersMay !== savedTeachersMay
-
-  return (
-    <Modal isOpen onClose={onClose} title={`Edit “${quest.title}”`} size="lg">
-      <div className="space-y-5">
-        <div className="space-y-2">
-          <Input value={title} onChange={(e) => setTitle(e.target.value)}
-            aria-label="Quest title" placeholder="Quest title" />
-          <textarea value={description} onChange={(e) => setDescription(e.target.value)}
-            aria-label="Quest description" placeholder="What is this quest about?" rows={3}
-            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-optio-purple" />
-          <div>
-            <label className="block text-xs font-medium text-neutral-500 mb-1" htmlFor="quest-required-xp">
-              XP required to finish <span className="text-neutral-400">(optional)</span>
-            </label>
-            <input id="quest-required-xp" type="number" min="0" step="25"
-              value={requiredXp} onChange={(e) => setRequiredXp(e.target.value)}
-              placeholder="No requirement"
-              className="w-40 rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-optio-purple" />
-            <p className="mt-1 text-xs text-neutral-400">
-              A learner sees how far off they are while they work, and cannot mark the
-              quest finished below this. Leave it empty and any amount finishes it.
-            </p>
-            <label className="mt-2 flex items-center gap-2 text-sm text-neutral-700">
-              <input type="checkbox" checked={teachersMay}
-                onChange={(e) => setTeachersMay(e.target.checked)}
-                className="rounded border-gray-300 text-optio-purple focus:ring-optio-purple" />
-              Teachers may change the XP to finish
-            </label>
-          </div>
-          <div className="flex justify-end">
-            <Button size="xs" onClick={saveInfo} disabled={!dirty || save.isPending}>
-              {save.isPending ? 'Saving…' : 'Save'}
-            </Button>
-          </div>
-        </div>
-
-        <div className="border-t border-gray-100 pt-4">
-          {/* A quest is one task list wherever it is used, so an edit here
-              reaches every class and curriculum carrying it, and every student
-              already on it. The chips on the row say where that is. */}
-          {(quest.curricula?.length > 0 || quest.classes?.length > 0) && (
-            <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-3">
-              This quest is in use. Changes reach everyone already on it. To change it for one
-              class only, duplicate it first.
-            </p>
-          )}
-          <PresetTaskManager base={`/api/sis/quests/${quest.id}/tasks`} orgId={orgId}
-            questId={quest.id} />
-        </div>
-      </div>
-      <div className="mt-6 flex justify-end">
-        <Button size="xs" onClick={onClose}>Done</Button>
-      </div>
-    </Modal>
-  )
-}
-
 export function QuestAttachmentsModal({ quest, onClose }) {
   return (
     <Modal isOpen onClose={onClose} title={`Attachments for “${quest.title}”`} size="md">
@@ -420,159 +314,6 @@ export function QuestAttachmentsModal({ quest, onClose }) {
         <Button size="xs" onClick={onClose}>Done</Button>
       </div>
     </Modal>
-  )
-}
-
-/**
- * Building a quest from the library. The same form as the curriculum and
- * class builders (QuestDraftForm) and the same document-to-draft panel, so a
- * quest reads the same wherever it was written; the one difference is that
- * nothing has to exist to hang it on. A curriculum is optional here and the
- * new quest is placed on it in the same request.
- */
-export function NewQuestPanel({ curricula, orgId, onDone, onCancel }) {
-  const [title, setTitle] = useState('')
-  const [description, setDescription] = useState('')
-  const [tasks, setTasks] = useState([blankTask()])
-  const [curriculumId, setCurriculumId] = useState('')
-  // The finish line, who may move it, and links, on the create form itself.
-  // iCreate, b067c6c8, 2026-09-23: "add links and attachments when I first
-  // create the quest ... Also add the required xp and mark if the teacher can
-  // change that when first creating too." The XP fields are the edit
-  // dialog's (QuestEditModal); links are posted to the quest's resources once
-  // it has an id. Files still need the id first, so they stay on the step
-  // that opens after Create.
-  const [requiredXp, setRequiredXp] = useState('')
-  const [teachersMay, setTeachersMay] = useState(true)
-  const [links, setLinks] = useState([])
-  // The quest once it exists: the form gives way to its attachments, because
-  // nothing can be attached to a quest that has no id yet, and closing the
-  // panel on save left no way back to it (5a20862f).
-  const [created, setCreated] = useState(null) // { id, title, tasks: [{id, title}] }
-  const create = useCreateLibraryQuest(orgId)
-  const hasDraft = Boolean(title.trim() || tasks.some((t) => t.title.trim()))
-
-  const save = async () => {
-    if (!title.trim()) { toast.error('Give the quest a title'); return }
-    if (requiredXp !== '' && !(Number(requiredXp) >= 0)) {
-      toast.error('XP required has to be a number, or empty for no requirement')
-      return
-    }
-    try {
-      const data = await create.mutateAsync({
-        title: title.trim(), description: description.trim(),
-        tasks: tasks.filter((t) => t.title.trim()), curriculumId: curriculumId || null,
-        xpThreshold: requiredXp === '' ? undefined : Number(requiredXp),
-        // Sent only when unticked: on is the column default, and leaving it
-        // out keeps a plain create the request it always was.
-        teachersMayChangeXp: teachersMay ? undefined : false,
-        links,
-      })
-      const where = data?.curriculum?.title
-      toast.success(where
-        ? `Quest created and added to ${where}`
-        : 'Quest created. Assign it from its row when you are ready.')
-      if (data?.links_failed) {
-        toast.error(`${data.links_failed} ${data.links_failed === 1 ? 'link' : 'links'} could not be added. Add them below.`)
-      }
-      if (data?.quest_id) {
-        setCreated({ id: data.quest_id, title: title.trim(), tasks: data.tasks || [] })
-      } else {
-        onDone?.()
-      }
-    } catch (e) {
-      toast.error(e?.response?.data?.error || 'Could not create the quest')
-    }
-  }
-
-  if (created) {
-    return (
-      <div className="border border-optio-purple/30 rounded-xl p-4 space-y-4 bg-optio-purple/5 mb-6">
-        <div>
-          <h2 className="text-sm font-semibold text-neutral-900">“{created.title}” is in the library</h2>
-          <p className="text-xs text-neutral-500">
-            Add videos, links and files now, or later from Attachments on its row.
-          </p>
-        </div>
-        <QuestAttachments questId={created.id} tasks={created.tasks} />
-        <div className="flex justify-end">
-          <Button size="xs" onClick={() => onDone?.()}>Done</Button>
-        </div>
-      </div>
-    )
-  }
-
-  return (
-    <div className="border border-optio-purple/30 rounded-xl p-4 space-y-4 bg-optio-purple/5 mb-6">
-      <div>
-        <h2 className="text-sm font-semibold text-neutral-900">New quest</h2>
-        <p className="text-xs text-neutral-500">
-          Write it here, or draft it from a document. It lands in this list; put it on a curriculum now or later.
-        </p>
-      </div>
-      <QuestAiDraftPanel alwaysOpen hasDraft={hasDraft}
-        onDrafted={(d) => { setTitle(d.title); setDescription(d.description); setTasks(d.tasks) }} />
-      <QuestDraftForm
-        title={title} setTitle={setTitle}
-        description={description} setDescription={setDescription}
-        tasks={tasks} setTasks={setTasks}
-      />
-      <div>
-        <label className="block text-xs font-medium text-neutral-600 mb-1" htmlFor="new-quest-required-xp">
-          XP required to finish <span className="text-neutral-400">(optional)</span>
-        </label>
-        <input id="new-quest-required-xp" type="number" min="0" step="25"
-          value={requiredXp} onChange={(e) => setRequiredXp(e.target.value)}
-          placeholder="No requirement"
-          className="w-40 rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-optio-purple" />
-        <label className="mt-2 flex items-center gap-2 text-sm text-neutral-700">
-          <input type="checkbox" checked={teachersMay}
-            onChange={(e) => setTeachersMay(e.target.checked)}
-            className="rounded border-gray-300 text-optio-purple focus:ring-optio-purple" />
-          Teachers may change the XP to finish
-        </label>
-      </div>
-      <div>
-        <span className="block text-xs font-medium text-neutral-600 mb-1">Links (optional)</span>
-        {links.map((l, i) => (
-          <div key={i} className="flex flex-wrap items-center gap-2 mb-2">
-            <input value={l.title} aria-label={`Link ${i + 1} title`} placeholder="Title"
-              onChange={(e) => setLinks((prev) => prev.map((x, j) => (j === i ? { ...x, title: e.target.value } : x)))}
-              className="w-48 rounded-lg border border-gray-300 px-3 py-2 text-sm" />
-            <input value={l.url} aria-label={`Link ${i + 1} URL`} placeholder="https://…"
-              onChange={(e) => setLinks((prev) => prev.map((x, j) => (j === i ? { ...x, url: e.target.value } : x)))}
-              className="flex-1 min-w-[12rem] rounded-lg border border-gray-300 px-3 py-2 text-sm" />
-            <button type="button" aria-label={`Remove link ${i + 1}`}
-              onClick={() => setLinks((prev) => prev.filter((_, j) => j !== i))}
-              className="text-sm text-neutral-500 hover:text-red-600">×</button>
-          </div>
-        ))}
-        <button type="button" onClick={() => setLinks((prev) => [...prev, { title: '', url: '' }])}
-          className="text-sm text-optio-purple hover:underline">
-          + Add a link
-        </button>
-        <p className="mt-1 text-xs text-neutral-400">
-          Files, and anything for one task, can be added on the next step.
-        </p>
-      </div>
-      <div className="flex flex-wrap items-end gap-3">
-        <div className="flex-1 min-w-[14rem]">
-          <span className="block text-xs font-medium text-neutral-600 mb-1">Put it on a curriculum (optional)</span>
-          <SearchSelect value={curriculumId} onChange={setCurriculumId} options={curricula}
-            getId={(c) => c.id} getLabel={(c) => c.title}
-            placeholder="Search curriculum…" emptyLabel="Not yet" />
-        </div>
-        <div className="flex gap-2">
-          <button type="button" onClick={onCancel}
-            className="px-3 py-2 rounded-lg border border-gray-300 text-sm text-neutral-700 hover:bg-gray-50">
-            Cancel
-          </button>
-          <Button size="xs" onClick={save} disabled={create.isPending || !title.trim()}>
-            {create.isPending ? 'Creating…' : 'Create quest'}
-          </Button>
-        </div>
-      </div>
-    </div>
   )
 }
 
@@ -716,6 +457,9 @@ export default function QuestsPanel() {
     }
   }
   const [adding, setAdding] = useState(false)
+  // A draft being resumed: {id, context, target_id}.
+  const [resuming, setResuming] = useState(null)
+  const refresh = useRefreshAfterQuestEdit(orgId)
 
   // Filtered here rather than by ?search= so typing does not fire a request
   // per keystroke over a list that fits in one response.
@@ -751,8 +495,8 @@ export default function QuestsPanel() {
     <div>
       <p className="text-sm text-neutral-500 mb-6">
         Every quest your school has made, wherever it was made. Put one on a curriculum to keep it
-        for next term, or assign it straight to a class. Edit changes its title, description and
-        tasks. Attachments adds videos, links and files to a quest or to one of its tasks.
+        for next term, or assign it straight to a class. Edit changes anything about it: its
+        picture, tasks, files and links, and the XP to finish.
         Duplicate copies the whole thing, which is how you change one without changing it for
         everyone already on it.
       </p>
@@ -773,16 +517,25 @@ export default function QuestsPanel() {
             </button>
           ))}
         </div>
-        {!adding && (
-          <Button size="xs" onClick={() => setAdding(true)} className="shrink-0">
-            <PlusIcon className="w-4 h-4 mr-1.5" /> Add quest
-          </Button>
-        )}
+        <Button size="xs" onClick={() => setAdding(true)} disabled={adding} className="shrink-0">
+          <PlusIcon className="w-4 h-4 mr-1.5" /> Add quest
+        </Button>
       </div>
 
       {adding && (
-        <NewQuestPanel curricula={curricula} orgId={orgId}
-          onDone={() => setAdding(false)} onCancel={() => setAdding(false)} />
+        <QuestEditor context="library" orgId={orgId} curricula={curricula}
+          onDone={refresh} onClose={() => setAdding(false)} />
+      )}
+
+      <QuestDraftsList orgId={orgId} context="all" showWhere
+        onResume={(d) => setResuming(d)} />
+      {resuming && (
+        <QuestEditor key={resuming.id} orgId={orgId} questId={resuming.id}
+          context={resuming.context || 'library'}
+          classId={resuming.context === 'class' ? resuming.target_id : null}
+          curriculumId={resuming.context === 'curriculum' ? resuming.target_id : null}
+          curricula={curricula}
+          onDone={refresh} onClose={() => setResuming(null)} />
       )}
 
       {loading && <p className="text-neutral-500">Loading…</p>}
@@ -826,7 +579,9 @@ export default function QuestsPanel() {
         <QuestAttachmentsModal quest={attachingQuest} onClose={() => setAttaching(null)} />
       )}
       {editingQuest && (
-        <QuestEditModal quest={editingQuest} orgId={orgId} onClose={() => setEditing(null)} />
+        <QuestEditor key={editingQuest.id} context="library" orgId={orgId} questId={editingQuest.id}
+          inUse={Boolean(editingQuest.curricula?.length || editingQuest.classes?.length)}
+          curricula={curricula} onDone={refresh} onClose={() => setEditing(null)} />
       )}
     </div>
   )

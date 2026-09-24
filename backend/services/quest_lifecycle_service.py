@@ -33,13 +33,21 @@ class QuestLifecycleService:
     # =========================================================================
 
     def get_quest(self, quest_id: str) -> Optional[Dict[str, Any]]:
-        """Get quest by ID."""
-        result = self.user_client.table('quests')\
+        """Get quest by ID, as the caller may see it under RLS.
+
+        limit(1), not single(): the quests SELECT policy
+        (supabase/migrations/20260924150000_quests_select_mirrors_backend_rule.sql)
+        hides a quest the caller is not on, did not make, does not belong to
+        the school of and cannot reach through a course, and single() turns
+        a hidden row into a PGRST116 error -- a 500 -- rather than the 404 a
+        missing quest gets.
+        """
+        rows = self.user_client.table('quests')\
             .select('id, title, quest_type')\
             .eq('id', quest_id)\
-            .single()\
-            .execute()
-        return result.data if result.data else None
+            .limit(1)\
+            .execute().data or []
+        return rows[0] if rows else None
 
     def get_user_quest(self, user_id: str, quest_id: str) -> Optional[Dict[str, Any]]:
         """Get user's enrollment record for a quest."""
@@ -77,8 +85,14 @@ class QuestLifecycleService:
 
         if existing:
             return self._pickup_existing_quest(existing, quest_type)
-        else:
-            return self._pickup_new_quest(user_id, quest_id, quest_type)
+
+        # Picking up a quest for the first time enrolls in it, so it is held to
+        # the same direct-link rule as POST /api/quests/<id>/enroll (owner
+        # decision 2026-09-24, services/quest_visibility_service.py).
+        from services.quest_visibility_service import may_open_quest_id
+        if not may_open_quest_id(user_id, quest_id, include_linked_students=False):
+            return {'error': 'Quest not found', 'status': 404}
+        return self._pickup_new_quest(user_id, quest_id, quest_type)
 
     def _pickup_existing_quest(
         self, user_quest: Dict, quest_type: str

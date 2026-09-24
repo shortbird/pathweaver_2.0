@@ -54,13 +54,28 @@ const TuitionRedirect = () => {
   return <Navigate to={`/billing?${params.toString()}`} replace />
 }
 
-const TasksRedirect = ({ view = null }) => {
+// Old task links: ?tab=checklist and ?view=checklist were the checklist view
+// of My tasks, which is simply My tasks now (every task is a card with its
+// steps); ?submission= was a request, which is a task since 2026-09-24 and has
+// a new id, so it lands on the list.
+const TasksRedirect = () => {
   const { search } = useLocation()
   const params = new URLSearchParams(search)
-  if (params.get('tab') === 'checklist') { params.delete('tab'); params.set('view', 'checklist') }
-  if (view) params.set('view', view)
+  if (params.get('tab') === 'checklist') params.delete('tab')
+  for (const stale of ['view', 'submission', 'item', 'assignment']) params.delete(stale)
   const query = params.toString()
   return <Navigate to={`/tasks${query ? `?${query}` : ''}`} replace />
+}
+
+// My documents moved to the Library's Documents area on 2026-09-24. The
+// teacher preview rides along in session storage, not the URL, so nothing
+// else needs carrying.
+const LibraryDocsRedirect = ({ docs }) => {
+  const { search } = useLocation()
+  const params = new URLSearchParams(search)
+  params.set('tab', 'documents')
+  params.set('docs', docs)
+  return <Navigate to={`/library?${params.toString()}`} replace />
 }
 
 const ModuleGate = ({ path, children }) => {
@@ -159,9 +174,7 @@ const LibraryPage = lazy(() => import('../pages/sis/LibraryPage'))
 const TeacherClassPage = lazy(() => import('../pages/sis/TeacherClassPage'))
 const MyProfilePage = lazy(() => import('../pages/sis/MyProfilePage'))
 const DirectoryPage = lazy(() => import('../pages/sis/DirectoryPage'))
-const StaffFormsPage = lazy(() => import('../pages/sis/StaffFormsPage'))
 const TasksPage = lazy(() => import('../pages/sis/TasksPage'))
-const MyDocumentsPage = lazy(() => import('../pages/sis/MyDocumentsPage'))
 
 // Carved-out admin surfaces — re-registered at their ORIGINAL paths so the moved
 // components' internal links keep working on the SIS host. Same lazy chunks as the
@@ -209,12 +222,14 @@ const SisRoutes = () => (
       <Route path="submissions" element={<ClassesRedirect tab="submissions" />} />
       <Route path="prior-learning" element={<AdminRoute><ModuleGate path="/prior-learning"><PriorLearningPage /></ModuleGate></AdminRoute>} />
       <Route path="reports" element={<AdminRoute><ModuleGate path="/reports"><ReportsPage /></ModuleGate></AdminRoute>} />
-      {/* The HR document store is the Tasks page's Secure documents tab; this
-          was a second door to the same panel that nothing linked to (M10). */}
-      <Route path="secure-documents" element={<HrRoute><Navigate to="/tasks?tab=secure" replace /></HrRoute>} />
-      {/* Messaging merged into the inbox (2026-08-31) — the old path keeps
-          working for bookmarks and old notification links. */}
-      <Route path="messaging" element={<Navigate to="/inbox?tab=announcements" replace />} />
+      {/* The HR document store is a view of the Library's Documents area
+          (moved off Tasks on 2026-09-24); this is an old door to it. */}
+      <Route path="secure-documents" element={<HrRoute><Navigate to="/library?tab=documents&docs=secure" replace /></HrRoute>} />
+      {/* /messaging was the announcement send until it merged into the inbox
+          (2026-08-31); announcements live on the Community page now
+          (2026-09-23, 9a335881). The old path keeps working for bookmarks and
+          old notification links. */}
+      <Route path="messaging" element={<Navigate to="/community?tab=announcements" replace />} />
       <Route path="inbox" element={<SchoolInboxPage />} />
       <Route path="registration" element={<AdminRoute><ModuleGate path="/registration"><RegistrationPage /></ModuleGate></AdminRoute>} />
       <Route path="calendar" element={<ModuleGate path="/calendar"><CalendarPage /></ModuleGate>} />
@@ -238,15 +253,13 @@ const SisRoutes = () => (
       <Route path="my-profile" element={<MyProfilePage />} />
       <Route path="directory" element={<DirectoryPage />} />
       {/* The one task surface (TasksRedirect above says what /my-tasks and
-          /onboarding became). /forms stays mounted rather than redirecting: it
-          owns the deep-linked completion flow the task inbox links into
-          (?submission=), and every notification sent before this shipped
-          points at it. It is simply off the nav. */}
+          /onboarding became). /forms redirects too: forms were retired on
+          2026-09-24, and 156 notifications sent before then point at it. */}
       <Route path="tasks" element={<ModuleGate path="/tasks"><TasksPage /></ModuleGate>} />
       <Route path="my-tasks" element={<TasksRedirect />} />
-      <Route path="forms" element={<ModuleGate path="/forms"><StaffFormsPage /></ModuleGate>} />
-      <Route path="onboarding" element={<ModuleGate path="/onboarding"><TasksRedirect view="checklist" /></ModuleGate>} />
-      <Route path="my-documents" element={<MyDocumentsPage />} />
+      <Route path="forms" element={<TasksRedirect />} />
+      <Route path="onboarding" element={<ModuleGate path="/onboarding"><TasksRedirect /></ModuleGate>} />
+      <Route path="my-documents" element={<LibraryDocsRedirect docs="mine" />} />
 
       {/* Carved-out admin surfaces (original paths preserved) */}
       <Route path="advisor/checkin/:studentId" element={<AdvisorCheckinPage />} />

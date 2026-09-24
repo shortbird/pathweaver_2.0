@@ -34,6 +34,7 @@ from routes.personalization_validators import (
     VALID_CHALLENGE_LEVELS
 )
 from utils.auth.relationships import current_student_scope, student_scope
+from routes.personalization_gates import quest_not_openable, quest_not_workable
 from utils.personalization_helpers import (
     check_and_complete_personalization,
     normalize_diploma_subjects,
@@ -330,6 +331,10 @@ def start_personalization(user_id: str, quest_id: str):
             profile and wrote her challenge preference over his.
     """
     try:
+        refused = quest_not_workable(user_id, quest_id)
+        if refused:
+            return refused
+
         # admin client justified: reads one quests row's allow_custom_tasks flag to
         # authorize the caller's own request under @require_auth; no user data touched
         blocked = _custom_tasks_blocked(get_supabase_admin_client(), quest_id)
@@ -394,6 +399,10 @@ def generate_tasks(user_id: str, quest_id: str):
     }
     """
     try:
+        refused = quest_not_workable(user_id, quest_id)
+        if refused:
+            return refused
+
         # admin client justified: reads one quests row's allow_custom_tasks flag to
         # authorize the caller's own request under @require_auth; no user data touched
         blocked = _custom_tasks_blocked(get_supabase_admin_client(), quest_id)
@@ -550,8 +559,15 @@ def generate_tasks(user_id: str, quest_id: str):
 def refine_tasks(user_id: str, quest_id: str):
     """
     Regenerate tasks with different interests/subjects.
+
+    Sends the quest's text to the AI vendor exactly as generate-tasks does, so
+    it asks the same question first (routes/personalization_gates.py).
     """
     try:
+        refused = quest_not_workable(user_id, quest_id)
+        if refused:
+            return refused
+
         data = request.get_json()
 
         session_id = data.get('session_id')
@@ -765,6 +781,10 @@ def add_manual_tasks_batch(user_id: str, quest_id: str):
     All tasks are approved immediately - students have full control of their learning.
     """
     try:
+        refused = quest_not_openable(user_id, quest_id)
+        if refused:
+            return refused
+
         from utils.pillar_utils import normalize_pillar_name
         from utils.school_subjects import pillar_for_subject
         from services.subject_classification_service import SubjectClassificationService
@@ -946,6 +966,10 @@ def add_path_tasks(user_id: str, quest_id: str):
     }
     """
     try:
+        refused = quest_not_openable(user_id, quest_id)
+        if refused:
+            return refused
+
         from utils.pillar_utils import normalize_pillar_name, PILLAR_KEYS
         from utils.school_subjects import PILLAR_TO_SUBJECTS
         from app_config import Config
@@ -1099,6 +1123,10 @@ def finalize_tasks(user_id: str, quest_id: str):
     }
     """
     try:
+        refused = quest_not_openable(user_id, quest_id)
+        if refused:
+            return refused
+
         # admin client justified: reads one quests row's allow_custom_tasks flag to
         # authorize the caller's own request under @require_auth; no user data touched
         blocked = _custom_tasks_blocked(get_supabase_admin_client(), quest_id)
@@ -1164,6 +1192,10 @@ def accept_task_immediate(user_id: str, quest_id: str):
     }
     """
     try:
+        refused = quest_not_openable(user_id, quest_id)
+        if refused:
+            return refused
+
         from services.subject_classification_service import SubjectClassificationService
 
         # admin client justified: AI-personalized quest creation writes user_quests + user_quest_tasks scoped to caller (self) under @require_auth

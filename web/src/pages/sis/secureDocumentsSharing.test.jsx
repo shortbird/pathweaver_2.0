@@ -347,7 +347,7 @@ describe('checklist attachments in the cabinet', () => {
     DOCS = [BG_CHECK]
     render(<SecureDocumentsPanel orgId="org-1" />)
     await screen.findAllByText('Background Check')
-    expect(screen.getByText('From their checklist')).toBeInTheDocument()
+    expect(screen.getByText('From their tasks')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Rename' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Delete' })).not.toBeInTheDocument()
   })

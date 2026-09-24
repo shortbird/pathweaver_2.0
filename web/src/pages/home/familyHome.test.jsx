@@ -300,35 +300,44 @@ describe('FamilyHome', () => {
   })
 
   describe('needs your attention', () => {
+    // One item since 2026-09-24: the family's open tasks, counted by the
+    // server (/api/sis/tasks/mine counts.open), linking to the To do page.
+    // The "open requests" item went with requests (iCreate, 2026-09-23).
+    const TODO_URL = '/api/sis/tasks/mine?audience=family&organization_id=org-1'
     beforeEach(() => {
       mockApiRoutes({
         '/api/sis/parent/context': {
           orgs: [{ organization_id: 'org-1', organization_name: 'iCreate' }],
         },
-        '/api/sis/parent/onboarding': {
-          assignments: [{ id: 'a1', total_count: 5, done_count: 3 }],
-        },
-        '/api/sis/parent/forms': {
-          submissions: [
-            { id: 'f1', status: 'submitted' },
-            { id: 'f2', status: 'resolved' },
-          ],
-        },
+        '/api/sis/tasks/mine': { success: true, tasks: [], counts: { open: 2 } },
         '/api/sis/parent/billing': {
           households: [{ household_id: 'hh1', totals: { balance_cents: 12550 } }],
         },
       })
     })
 
-    it('aggregates checklist and request items, each deep-linking to its page', async () => {
+    it('counts the family’s open tasks and links to the To do page', async () => {
       renderFamilyHome()
       expect(await screen.findByText('Needs your attention')).toBeInTheDocument()
+      const todo = await screen.findByText('2 things to do')
+      expect(todo.closest('a')).toHaveAttribute('href', '/family/forms')
+      expect(api.get).toHaveBeenCalledWith(TODO_URL)
+    })
 
-      const checklist = await screen.findByText('2 form items to complete')
-      expect(checklist.closest('a')).toHaveAttribute('href', '/family/forms')
+    it('says "thing" for one', async () => {
+      mockApiRoutes({
+        '/api/sis/parent/context': { orgs: [{ organization_id: 'org-1', organization_name: 'iCreate' }] },
+        '/api/sis/tasks/mine': { success: true, tasks: [], counts: { open: 1 } },
+      })
+      renderFamilyHome()
+      expect(await screen.findByText('1 thing to do')).toBeInTheDocument()
+    })
 
-      const request = screen.getByText('1 request waiting on iCreate')
-      expect(request.closest('a')).toHaveAttribute('href', '/family/forms#requests')
+    it('has no requests item, and never asks for the retired forms route', async () => {
+      renderFamilyHome()
+      await screen.findByText('2 things to do')
+      expect(screen.queryByText(/request/)).not.toBeInTheDocument()
+      expect(api.get.mock.calls.some(([url]) => url.startsWith('/api/sis/parent/forms'))).toBe(false)
     })
 
     // The balance due lived here as a third card until 2026-09-16. It is the
@@ -346,31 +355,47 @@ describe('FamilyHome', () => {
         '/api/sis/parent/context': {
           orgs: [{ organization_id: 'org-1', organization_name: 'iCreate' }],
         },
-        '/api/sis/parent/onboarding': { assignments: [{ id: 'a1', total_count: 3, done_count: 3 }] },
-        '/api/sis/parent/forms': { submissions: [{ id: 'f2', status: 'resolved' }] },
+        '/api/sis/tasks/mine': { success: true, tasks: [], counts: { open: 0 } },
         '/api/sis/parent/billing': { households: [{ household_id: 'hh1', totals: { balance_cents: 0 } }] },
       })
       renderFamilyHome()
       await screen.findByText('Welcome back, Dana')
+      await waitFor(() => expect(api.get).toHaveBeenCalledWith(TODO_URL))
       await waitFor(() => {
         expect(screen.queryByText('Needs your attention')).not.toBeInTheDocument()
       })
     })
 
-    it('degrades silently when an attention source fails', async () => {
+    it('degrades silently when the task source fails', async () => {
       api.get.mockImplementation((url) => {
         if (url.startsWith('/api/sis/parent/context')) {
           return Promise.resolve({ data: { orgs: [{ organization_id: 'org-1', organization_name: 'iCreate' }] } })
         }
-        if (url.startsWith('/api/sis/parent/forms')) {
-          return Promise.resolve({ data: { submissions: [{ id: 'f1', status: 'submitted' }] } })
-        }
         return Promise.reject(new Error('boom'))
       })
       renderFamilyHome()
-      // The failed checklist source shows nothing; the request still lands.
-      expect(await screen.findByText('1 request waiting on iCreate')).toBeInTheDocument()
-      expect(screen.queryByText(/form item/)).not.toBeInTheDocument()
+      await screen.findByText('Welcome back, Dana')
+      await waitFor(() => expect(api.get).toHaveBeenCalledWith(TODO_URL))
+      // No error wall and no strip: the To do page owns error display.
+      expect(screen.queryByText('Needs your attention')).not.toBeInTheDocument()
+      expect(screen.queryByText(/to do$/)).not.toBeInTheDocument()
+      expect(screen.getByText('Welcome back, Dana')).toBeInTheDocument()
+    })
+
+    it('does not ask when the school has the tasks block off', async () => {
+      mockApiRoutes({
+        '/api/sis/parent/context': {
+          orgs: [{ organization_id: 'org-1', organization_name: 'iCreate', effective_modules: ['sis', 'billing'] }],
+        },
+        '/api/sis/tasks/mine': { success: true, tasks: [], counts: { open: 2 } },
+      })
+      renderFamilyHome()
+      await screen.findByText('Welcome back, Dana')
+      await waitFor(() => expect(api.get).toHaveBeenCalledWith(expect.stringContaining('/api/sis/parent/context')))
+      // Let the context answer settle before asserting the absence.
+      await new Promise((r) => setTimeout(r, 50))
+      expect(api.get.mock.calls.some(([url]) => url.startsWith('/api/sis/tasks/mine'))).toBe(false)
+      expect(screen.queryByText('2 things to do')).not.toBeInTheDocument()
     })
   })
 

@@ -36,7 +36,7 @@ def _chain(execute_result):
     and terminates in the given ``execute()`` return value."""
     chain = MagicMock()
     for method in ('select', 'eq', 'in_', 'order', 'limit', 'range',
-                   'gte', 'lte', 'single'):
+                   'gte', 'lte', 'single', 'maybe_single'):
         getattr(chain, method).return_value = chain
     chain.execute.return_value = execute_result
     return chain
@@ -67,6 +67,10 @@ def enrolled_quest_supabase():
                 'approach_examples': [],
                 'is_active': True,
                 'organization_id': None,
+                # A catalog quest: the direct-link rule
+                # (services/quest_visibility_service.py) opens it for anyone.
+                'is_public': True,
+                'created_by': None,
                 'lms_course_id': None,
                 'created_at': '2026-01-01T00:00:00+00:00',
                 'course_quests': [],

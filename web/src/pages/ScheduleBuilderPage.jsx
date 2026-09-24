@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState, useCallback } from 'react'
-import { useParams, useSearchParams } from 'react-router-dom'
+import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { toast } from 'react-hot-toast'
 import api from '../services/api'
 import WeeklySchedule from '../components/schedule/WeeklySchedule'
@@ -17,7 +17,9 @@ import StudentClasses from '../components/parent/StudentClasses'
 // (feature_flags.sis_settings.first_day_of_school); after that, changes are
 // staff-only and this page is read-only. During the school's add/drop window
 // (sis_settings.add_drop_deadline) the read-only page still has one action:
-// "Request an add/drop", which files a task in the office's Task Center.
+// "Request an add/drop", which sends the school a message with the changes
+// (requests were retired on 2026-09-24; the office turns the message into a
+// task if it needs one).
 //
 // Once the year has started the page is a reference, not a builder: no
 // running tuition total (that is on the billing page now), no "the school
@@ -74,7 +76,8 @@ const ScheduleBuilderPage = () => {
   const [myAvatar, setMyAvatar] = useState(null)
   const [photoBusy, setPhotoBusy] = useState(null) // student_id or 'me' mid-upload
   const [addDropOpen, setAddDropOpen] = useState(false) // add/drop request modal
-  const [myRequests, setMyRequests] = useState([])      // this family's open form submissions
+  // student_id -> the school contact an add/drop message went to this visit.
+  const [sentAddDrop, setSentAddDrop] = useState({})
   const confirm = useConfirm()
   // Which child: family scope, picked in the school shell's student rail
   // above this panel (pages/school/SchoolShell). A ?student= link enters
@@ -173,11 +176,6 @@ const ScheduleBuilderPage = () => {
     api.get(`/api/sis/parent/classes?organization_id=${orgId}`)
       .then((r) => setCatalog(r.data?.classes || []))
       .catch(() => { /* catalog list is supplementary */ })
-    // So a family that already asked sees "we have your request" instead of a
-    // button that invites them to file the same one again.
-    api.get(`/api/sis/parent/forms?organization_id=${orgId}`)
-      .then((r) => setMyRequests(r.data?.submissions || []))
-      .catch(() => { /* the button still works without this */ })
   }, [orgId, studentId, previewCode])
 
   useEffect(() => { reload() }, [reload])
@@ -205,8 +203,7 @@ const ScheduleBuilderPage = () => {
   }, [previewCode, previewClassKey])
   const canRequestAddDrop = !previewCode && !!schedule?.add_drop_open
   const addDropDeadline = schedule?.add_drop_deadline
-  const pendingAddDrop = myRequests.find((r) => r.form_type === 'schedule_change'
-    && r.status !== 'resolved' && r.student_user_id === studentId)
+  const pendingAddDrop = sentAddDrop[studentId] || null
 
   const enrolled = schedule?.classes || []
   const waitlist = schedule?.waitlist || []
@@ -441,31 +438,36 @@ const ScheduleBuilderPage = () => {
   }
 
   // Ask the office to add or drop classes for this child, once the year has
-  // started and the builder is read-only. It files a parent-tagged submission
-  // in the same queue the office already triages (Task Center -> Requests),
-  // rather than an email to a person who may be out.
+  // started and the builder is read-only. It is a message to the school's
+  // inbox (the "{School}" contact every family has in Messages): requests were
+  // retired on 2026-09-24, and the office turns a message into a task when it
+  // needs one. The school's reply comes back in the same thread.
   const submitAddDrop = async ({ drops, adds, note }) => {
     const name = (c) => `${c.name}${meetingText(c.meetings) ? ` (${meetingText(c.meetings)})` : ''}`
     const lines = [
+      `Add/drop request for ${student?.name || 'my student'}`,
+      '',
       ...drops.map((c) => `Drop: ${name(c)}`),
       ...adds.map((c) => `Add: ${name(c)}`),
     ]
     if (note.trim()) lines.push('', note.trim())
     setBusy('add-drop')
     try {
-      await api.post('/api/sis/parent/forms', {
-        organization_id: orgId,
-        form_type: 'schedule_change',
-        title: `Add/drop — ${student?.name || 'student'}`,
-        body: lines.join('\n'),
-        student_user_id: studentId,
-      })
-      toast.success(`Request sent — ${org?.organization_name || 'the office'} will make the change and follow up.`)
+      const contacts = await api.get('/api/messages/contacts')
+      // success_response nests the payload under `data`.
+      const list = contacts.data?.data?.contacts || contacts.data?.contacts || []
+      const school = (Array.isArray(list) ? list : []).find((c) => c?.is_school)
+      if (!school) {
+        toast.error(`Could not find ${org?.organization_name || 'the school'} in Messages. Message the office from Messages.`)
+        return false
+      }
+      await api.post(`/api/messages/conversations/${school.id}/send`, { content: lines.join('\n') })
+      toast.success(`Sent to ${org?.organization_name || 'the office'}. Their reply comes to your Messages.`)
+      setSentAddDrop((prev) => ({ ...prev, [studentId]: school.id }))
       setAddDropOpen(false)
-      reload()
       return true
     } catch (e) {
-      toast.error(e.response?.data?.error || 'Could not send the request')
+      toast.error(e.response?.data?.error || 'Could not send the message')
       return false
     } finally { setBusy(null) }
   }
@@ -708,12 +710,14 @@ const ScheduleBuilderPage = () => {
       {canRequestAddDrop && student && (
         pendingAddDrop ? (
           <div className="mb-5 rounded-lg border border-optio-purple/20 bg-optio-purple/5 px-4 py-3 text-sm text-gray-600">
-            <span className="font-medium text-gray-800">Your add/drop request is in.</span>{' '}
-            {org?.organization_name || 'The school'} will make the change and follow up. Need to
-            change something else?{' '}
+            <span className="font-medium text-gray-800">Your add/drop message is with {org?.organization_name || 'the school'}.</span>{' '}
+            Their reply comes to{' '}
+            <Link to={`/messages?user=${pendingAddDrop}`} className="font-medium text-optio-purple hover:underline">
+              your Messages
+            </Link>. Need to change something else?{' '}
             <button type="button" onClick={() => setAddDropOpen(true)}
               className="font-medium text-optio-purple hover:underline">
-              Send another request
+              Send another
             </button>.
           </div>
         ) : (

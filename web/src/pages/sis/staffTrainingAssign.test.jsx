@@ -41,7 +41,7 @@ vi.mock('./sisRole', () => ({ isSisAdmin: () => true }))
 vi.mock('../../utils/appSurface', () => ({ switchSurfaceInApp: vi.fn() }))
 
 const { api } = vi.hoisted(() => ({
-  api: { get: vi.fn(), post: vi.fn(), delete: vi.fn() },
+  api: { get: vi.fn(), post: vi.fn(), delete: vi.fn(), put: vi.fn(), patch: vi.fn() },
 }))
 vi.mock('../../services/api', () => ({ default: api }))
 
@@ -75,6 +75,42 @@ const mockGets = (training = [ITEM]) => {
     return Promise.resolve({ data: { training } })
   })
 }
+
+
+// The quest editor (P6, 2026-09-23) behind "Build a new one" and Edit: a
+// draft exists from the first click (POST /quest-editor/drafts, filed in the
+// catalog as tr-new), the form saves through PUT /quest-editor/<id>, the
+// catalog settings through PATCH /training/<id>, and Publish is the catalog's
+// own POST /training/<id>/publish.
+const HEADER_URL = 'https://s/storage/v1/object/public/quest-headers/x.png'
+const blankDraft = {
+  id: 'q-new', title: '', description: '', header_image_url: '', is_draft: true, is_active: false,
+  editable: true, can_lock_xp: true, tasks: [], xp_threshold: 0, allow_custom_tasks: false,
+  teachers_may_change_xp: true,
+}
+const editorBackend = ({ quest = blankDraft, training = { audience: 'family', audiences: ['family'], auto_assign: true } } = {}) => {
+  const base = api.get.getMockImplementation()
+  api.get.mockImplementation((url) => {
+    if (url.startsWith('/api/sis/quest-editor/')) return Promise.resolve({ data: { quest } })
+    if (url.includes('/resources')) return Promise.resolve({ data: { quest: [], by_task: {} } })
+    if (/\/api\/sis\/training\/[^/?]+\/quest/.test(url)) return Promise.resolve({ data: { training } })
+    return base(url)
+  })
+  api.post.mockImplementation((url) => {
+    if (url.startsWith('/api/sis/quest-editor/drafts')) {
+      return Promise.resolve({ data: { quest_id: 'q-new', training_id: 'tr-new' } })
+    }
+    if (url.includes('/header-image')) return Promise.resolve({ data: { header_image_url: HEADER_URL } })
+    return Promise.resolve({ data: { success: true, assigned: { enrolled: 2, already: 0 } } })
+  })
+  api.put.mockImplementation((url, body) => Promise.resolve({ data: { quest: {
+    ...quest, ...body, tasks: (body.tasks || []).map((t, i) => ({ id: t.id || `t${i}`, ...t })) } } }))
+  api.patch.mockResolvedValue({ data: { success: true } })
+  api.delete.mockResolvedValue({ data: { success: true, discarded: false } })
+}
+const putBody = () => api.put.mock.calls.at(-1)?.[1]
+const patchBody = () => api.patch.mock.calls.at(-1)?.[1]
+const posted = (fragment) => api.post.mock.calls.filter(([url]) => url.includes(fragment))
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -152,10 +188,18 @@ describe('previewing the quest before committing to it', () => {
   // Previewed on the family side, since that is the audience whose quest an
   // admin has least ability to check by just opening it themselves.
   const openBuilder = async () => {
+    editorBackend()
     render(<TrainingPanel />)
     fireEvent.click(await screen.findByRole('button', { name: /for families/i }))
     fireEvent.click(await screen.findByRole('button', { name: /add a family quest/i }))
     fireEvent.click(await screen.findByRole('tab', { name: /build a new one/i }))
+    await screen.findByPlaceholderText(/quest title/i)
+  }
+  const preview = async () => {
+    fireEvent.click(screen.getByRole('button', { name: /preview quest/i }))
+    await screen.findByText(/what families will see/i)
+    const dialogs = screen.getAllByRole('dialog')
+    return dialogs[dialogs.length - 1]
   }
 
   it('shows the draft the way the people doing it will meet it', async () => {
@@ -169,9 +213,7 @@ describe('previewing the quest before committing to it', () => {
     fireEvent.change(screen.getByPlaceholderText(/task 1 —/i), {
       target: { value: 'Read the handbook' },
     })
-    fireEvent.click(screen.getByRole('button', { name: /preview quest/i }))
-
-    const dialog = await screen.findByRole('dialog')
+    const dialog = await preview()
     expect(within(dialog).getByText('Family orientation')).toBeInTheDocument()
     expect(within(dialog).getByText('Everything you need for week one')).toBeInTheDocument()
     expect(within(dialog).getByText('Read the handbook')).toBeInTheDocument()
@@ -179,8 +221,7 @@ describe('previewing the quest before committing to it', () => {
 
   it('names the audience it is previewing for', async () => {
     await openBuilder()
-    fireEvent.click(screen.getByRole('button', { name: /preview quest/i }))
-    const dialog = await screen.findByRole('dialog')
+    const dialog = await preview()
     expect(within(dialog).getByText(/what families will see/i)).toBeInTheDocument()
   })
 
@@ -190,9 +231,7 @@ describe('previewing the quest before committing to it', () => {
       target: { value: 'Read the handbook' },
     })
     fireEvent.change(screen.getByLabelText(/task 1 xp/i), { target: { value: '200' } })
-    fireEvent.click(screen.getByRole('button', { name: /preview quest/i }))
-
-    const dialog = await screen.findByRole('dialog')
+    const dialog = await preview()
     expect(within(dialog).getByText('200 XP needed to finish')).toBeInTheDocument()
   })
 
@@ -207,82 +246,62 @@ describe('previewing the quest before committing to it', () => {
     fireEvent.change(screen.getByLabelText(/xp required to finish/i), {
       target: { value: '900' },
     })
-    fireEvent.click(screen.getByRole('button', { name: /preview quest/i }))
-
-    const dialog = await screen.findByRole('dialog')
+    const dialog = await preview()
     expect(within(dialog).getByText(/could not be completed/i)).toBeInTheDocument()
   })
 
-  it('closes on Escape like every other modal on the site', async () => {
-    // Comes from the shared ui/Modal rather than being hand-rolled here, along
-    // with the focus trap, the scroll lock and the backdrop.
+  it('closes on Escape, and only the preview closes', async () => {
+    // The preview sits over the quest editor; Escape must not take the quest
+    // with it.
     await openBuilder()
-    fireEvent.click(screen.getByRole('button', { name: /preview quest/i }))
-    await screen.findByRole('dialog')
-
+    await preview()
     fireEvent.keyDown(document, { key: 'Escape' })
-    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    await waitFor(() => expect(screen.queryByText(/what families will see/i)).not.toBeInTheDocument())
+    expect(screen.getByPlaceholderText(/quest title/i)).toBeInTheDocument()
   })
 
   it('closes again to keep editing', async () => {
     await openBuilder()
-    fireEvent.click(screen.getByRole('button', { name: /preview quest/i }))
-    const dialog = await screen.findByRole('dialog')
+    const dialog = await preview()
     fireEvent.click(within(dialog).getByRole('button', { name: /back to editing/i }))
-    await waitFor(() =>
-      expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    await waitFor(() => expect(screen.queryByText(/what families will see/i)).not.toBeInTheDocument())
+    expect(screen.getByPlaceholderText(/quest title/i)).toBeInTheDocument()
   })
 })
 
 describe('the header image', () => {
   const openBuilder = async () => {
+    editorBackend()
     render(<TrainingPanel />)
     fireEvent.click(await screen.findByRole('button', { name: /add a family quest|add training/i }))
     fireEvent.click(await screen.findByRole('tab', { name: /build a new one/i }))
+    await screen.findByPlaceholderText(/quest title/i)
   }
 
-  const choose = async () => {
+  const choose = () => {
     const input = screen.getByLabelText(/upload a header image/i)
     const file = new File(['x'], 'welcome.png', { type: 'image/png' })
     fireEvent.change(input, { target: { files: [file] } })
   }
 
-  it('uploads as soon as it is chosen, so the preview can show it', async () => {
-    api.post.mockResolvedValue({ data: { url: 'https://s/storage/v1/object/public/quest-headers/x.png' } })
+  it('goes straight onto the quest as soon as it is chosen', async () => {
+    // The quest exists from the first click, so there is nothing to hold the
+    // picture for: it is uploaded to the quest itself.
     await openBuilder()
-    await choose()
-
-    await waitFor(() => expect(api.post).toHaveBeenCalled())
-    expect(api.post.mock.calls[0][0]).toContain('/api/sis/training/header-image')
+    choose()
+    await waitFor(() => expect(posted('/header-image')).toHaveLength(1))
+    expect(posted('/header-image')[0][0]).toContain('/api/sis/quest-editor/q-new/header-image')
+    await waitFor(() => expect(document.querySelector(`img[src="${HEADER_URL}"]`)).toBeTruthy())
   })
 
-  it('sends the uploaded image with the new quest', async () => {
-    const url = 'https://s/storage/v1/object/public/quest-headers/x.png'
-    api.post.mockResolvedValue({ data: { url } })
-    await openBuilder()
-    await choose()
-    await waitFor(() => expect(api.post).toHaveBeenCalled())
-
-    api.post.mockResolvedValue({ data: { quest_id: 'q-new' } })
-    fireEvent.change(screen.getByPlaceholderText(/quest title/i), {
-      target: { value: 'Family orientation' },
-    })
-    fireEvent.click(screen.getByRole('button', { name: /build and add/i }))
-
-    await waitFor(() => expect(api.post).toHaveBeenCalledTimes(2))
-    expect(api.post.mock.calls[1][1].image_url).toBe(url)
-  })
-
-  it('is optional — without one the backend finds a stock image', async () => {
-    api.post.mockResolvedValue({ data: { quest_id: 'q-new' } })
+  it('is optional — without one the catalog finds the logo or a stock image', async () => {
     await openBuilder()
     fireEvent.change(screen.getByPlaceholderText(/quest title/i), {
       target: { value: 'Family orientation' },
     })
-    fireEvent.click(screen.getByRole('button', { name: /build and add/i }))
-
-    await waitFor(() => expect(api.post).toHaveBeenCalled())
-    expect(api.post.mock.calls[0][1].image_url).toBeUndefined()
+    fireEvent.click(screen.getByRole('button', { name: /^publish$/i }))
+    await waitFor(() => expect(posted('/training/tr-new/publish')).toHaveLength(1))
+    expect(posted('/header-image')).toHaveLength(0)
   })
 
   it('falls back to the school logo, so training looks like the school', async () => {
@@ -297,45 +316,40 @@ describe('the header image', () => {
       target: { files: [new File(['x'], 'handbook.pdf', { type: 'application/pdf' })] },
     })
     await waitFor(() => expect(toast.error).toHaveBeenCalledWith('Choose an image file'))
-    expect(api.post).not.toHaveBeenCalled()
+    expect(posted('/header-image')).toHaveLength(0)
   })
 })
 
 describe('saving a quest as a draft', () => {
   const openBuilder = async () => {
+    editorBackend()
     render(<TrainingPanel />)
     fireEvent.click(await screen.findByRole('button', { name: /add a family quest|add training/i }))
     fireEvent.click(await screen.findByRole('tab', { name: /build a new one/i }))
+    await screen.findByPlaceholderText(/quest title/i)
   }
 
   it('builds it without putting it on anybody', async () => {
-    api.post.mockResolvedValue({ data: { quest_id: 'q-new', is_draft: true } })
     await openBuilder()
     fireEvent.change(screen.getByPlaceholderText(/quest title/i), { target: { value: 'Later' } })
-    fireEvent.click(screen.getByRole('button', { name: /save as draft/i }))
+    fireEvent.click(screen.getByRole('button', { name: /save draft/i }))
 
-    await waitFor(() => expect(api.post).toHaveBeenCalled())
-    expect(api.post.mock.calls[0][1].is_draft).toBe(true)
+    await waitFor(() => expect(api.put).toHaveBeenCalled())
+    expect(putBody().title).toBe('Later')
+    expect(posted('/publish')).toHaveLength(0)
   })
 
   it('says plainly that nobody can see it yet', async () => {
-    api.post.mockResolvedValue({ data: { quest_id: 'q-new', is_draft: true } })
     await openBuilder()
-    fireEvent.change(screen.getByPlaceholderText(/quest title/i), { target: { value: 'Later' } })
-    fireEvent.click(screen.getByRole('button', { name: /save as draft/i }))
-
-    await waitFor(() => expect(toast.success).toHaveBeenCalled())
-    expect(toast.success.mock.calls[0][0]).toMatch(/nobody can see it until you publish/i)
+    expect(screen.getByText(/nobody else sees it until you publish it/i)).toBeInTheDocument()
   })
 
-  it('still publishes immediately with the other button', async () => {
-    api.post.mockResolvedValue({ data: { quest_id: 'q-new' } })
+  it('publishes with the other button', async () => {
     await openBuilder()
     fireEvent.change(screen.getByPlaceholderText(/quest title/i), { target: { value: 'Now' } })
-    fireEvent.click(screen.getByRole('button', { name: /build and add/i }))
+    fireEvent.click(screen.getByRole('button', { name: /^publish$/i }))
 
-    await waitFor(() => expect(api.post).toHaveBeenCalled())
-    expect(api.post.mock.calls[0][1].is_draft).toBe(false)
+    await waitFor(() => expect(posted('/training/tr-new/publish')).toHaveLength(1))
   })
 
   it('marks a draft in the list and offers to publish it, saying who it goes to', async () => {
@@ -413,44 +427,37 @@ describe('saving a quest as a draft', () => {
 
 describe('reopening a quest for more editing', () => {
   const QUEST = {
-    quest_id: 'q-1', title: 'Family orientation', description: 'Week one',
-    image_url: '', xp_threshold: 300, allow_custom_tasks: true,
-    is_draft: true, quest_is_ours: true,
-    tasks: [{ title: 'Read the handbook', pillar: 'art', xp_value: 150, is_required: true }],
+    ...blankDraft, id: 'q-1', title: 'Family orientation', description: 'Week one',
+    xp_threshold: 300, allow_custom_tasks: true,
+    tasks: [{ id: 'tk-1', title: 'Read the handbook', pillar: 'art', xp_value: 150, is_required: true,
+      diploma_subjects: [], subject_xp_distribution: {} }],
   }
   const TRAINING = { category: 'Onboarding', is_required: true, auto_assign: true,
-    visible_to_roles: null, audience: 'family' }
+    visible_to_roles: null, audience: 'family', audiences: ['family'] }
 
   const openEditor = async () => {
-    api.get.mockImplementation((url) => {
-      // The editor also loads the saved quest's resources (per quest and per
-      // task) -- a different payload from the quest itself.
-      if (url.includes('/resources')) return Promise.resolve({ data: { quest: [], by_task: {} } })
-      if (url.includes('/quest')) return Promise.resolve({ data: { quest: QUEST, training: TRAINING } })
-      if (url.includes('/training/progress')) {
-        return Promise.resolve({ data: { training: [], staff: [], required_total: 0 } })
-      }
-      if (url.includes('/assignable-quests')) return Promise.resolve({ data: { quests: [] } })
-      return Promise.resolve({ data: { training: [{ ...ITEM, is_draft: true, quest_is_ours: true }] } })
-    })
+    mockGets([{ ...ITEM, is_draft: true, quest_is_ours: true }])
+    editorBackend({ quest: QUEST, training: TRAINING })
     render(<TrainingPanel />)
     fireEvent.click(await screen.findByRole('button', { name: /^edit$/i }))
+    await waitFor(() =>
+      expect(screen.getByPlaceholderText(/quest title/i)).toHaveValue('Family orientation'))
   }
 
   it('loads what was already built back into the form', async () => {
     await openEditor()
-    await waitFor(() =>
-      expect(screen.getByPlaceholderText(/quest title/i)).toHaveValue('Family orientation'))
+    expect(api.get).toHaveBeenCalledWith('/api/sis/quest-editor/q-1?organization_id=org-1')
     expect(screen.getByPlaceholderText(/task 1 —/i)).toHaveValue('Read the handbook')
     expect(screen.getByLabelText(/task 1 xp/i)).toHaveValue(150)
+    // Reopening starts nothing new.
+    expect(posted('/quest-editor/drafts')).toHaveLength(0)
   })
 
   it('keeps the finish line that was already decided', async () => {
     // Reopening must not silently move it back to the task total. Matched
     // exactly: the list row carries its own "XP required to finish <title>".
     await openEditor()
-    await waitFor(() =>
-      expect(screen.getByLabelText('XP required to finish')).toHaveValue(300))
+    expect(screen.getByLabelText('XP required to finish (optional)')).toHaveValue(300)
   })
 
   it('restores the catalog settings too', async () => {
@@ -461,29 +468,26 @@ describe('reopening a quest for more editing', () => {
     expect(screen.getByRole('checkbox', { name: /put it on their accounts/i })).toBeChecked()
   })
 
-  it('saves the changes back to the same quest', async () => {
-    api.put = vi.fn(() => Promise.resolve({ data: { success: true } }))
+  it('saves the changes back to the same quest, tasks by id', async () => {
     await openEditor()
-    await waitFor(() =>
-      expect(screen.getByPlaceholderText(/quest title/i)).toHaveValue('Family orientation'))
     fireEvent.change(screen.getByPlaceholderText(/quest title/i), {
       target: { value: 'Family orientation 2026' },
     })
-    fireEvent.click(screen.getByRole('button', { name: /save changes/i }))
+    fireEvent.click(screen.getByRole('button', { name: /save draft/i }))
 
     await waitFor(() => expect(api.put).toHaveBeenCalled())
     const [url, body] = api.put.mock.calls[0]
-    expect(url).toContain('/api/sis/training/tr-1/quest')
+    expect(url).toContain('/api/sis/quest-editor/q-1')
     expect(body.title).toBe('Family orientation 2026')
-    expect(body.tasks).toHaveLength(1)
+    expect(body.tasks).toEqual([expect.objectContaining({ id: 'tk-1', title: 'Read the handbook' })])
+    // ...and who it is for, on the catalog row.
+    await waitFor(() => expect(api.patch).toHaveBeenCalled())
+    expect(api.patch.mock.calls[0][0]).toContain('/api/sis/training/tr-1')
+    expect(patchBody().category).toBe('Onboarding')
   })
 
-  it('does not offer to rebuild it from a document', async () => {
-    // Reopening is about changing the details. A panel whose job is to
-    // overwrite the whole form is the last thing wanted there.
+  it('keeps the document panel folded away, so it cannot overwrite the quest by accident', async () => {
     await openEditor()
-    await waitFor(() =>
-      expect(screen.getByPlaceholderText(/quest title/i)).toHaveValue('Family orientation'))
     expect(screen.queryByLabelText(/upload a document/i)).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /generate draft/i })).not.toBeInTheDocument()
   })
@@ -600,10 +604,21 @@ describe('the XP finish line on the list', () => {
 
 describe('building a training quest', () => {
   const openBuilder = async () => {
+    editorBackend()
     render(<TrainingPanel />)
     fireEvent.click(await screen.findByRole('button', { name: /add a family quest|add training/i }))
     fireEvent.click(await screen.findByRole('tab', { name: /build a new one/i }))
+    await screen.findByPlaceholderText(/quest title/i)
   }
+  const publish = async () => {
+    fireEvent.click(screen.getByRole('button', { name: /^publish$/i }))
+    await waitFor(() => expect(posted('/publish')).toHaveLength(1))
+  }
+
+  it('starts the draft in the catalog for the tab it was opened from', async () => {
+    await openBuilder()
+    expect(posted('/quest-editor/drafts')[0][1]).toEqual({ context: 'training', audience: 'staff' })
+  })
 
   it('offers the document upload, so a handbook does not have to be retyped', async () => {
     await openBuilder()
@@ -617,31 +632,24 @@ describe('building a training quest', () => {
     expect(box).toBeChecked()
   })
 
-  it('sends auto_assign with the new quest', async () => {
-    api.post.mockResolvedValue({ data: { quest_id: 'q-new', assigned: { enrolled: 2, already: 0 } } })
+  it('files auto_assign on the catalog row before publishing', async () => {
     await openBuilder()
     fireEvent.change(screen.getByPlaceholderText(/quest title/i), {
       target: { value: 'Family orientation' },
     })
-    fireEvent.click(screen.getByRole('button', { name: /build and add/i }))
-
-    await waitFor(() => expect(api.post).toHaveBeenCalled())
-    const [url, body] = api.post.mock.calls[0]
-    expect(url).toBe('/api/sis/training/create')
-    expect(body.auto_assign).toBe(true)
-    expect(body.title).toBe('Family orientation')
+    await publish()
+    expect(patchBody().auto_assign).toBe(true)
+    expect(putBody().title).toBe('Family orientation')
+    // The catalog row is written before the publish that reads it.
+    const patchAt = api.patch.mock.invocationCallOrder[0]
+    const publishAt = api.post.mock.invocationCallOrder[api.post.mock.calls.findIndex(([u]) => u.includes('/publish'))]
+    expect(patchAt).toBeLessThan(publishAt)
   })
 
   it('lets an admin choose which pillar a task grows', async () => {
-    // This used to assert the opposite. The pillar chip is genuinely noise on a
-    // staff handbook, so the LEARNER's page still hides it (QuestDetail reads
-    // quest.is_training) — but hiding the control here did not remove the
-    // pillar, it silently kept blankTask()'s default. Ten of iCreate's sixteen
-    // orientation tasks went in as Art, "Find the Absences feature in Optio"
-    // among them, and that is the pillar their XP landed in. An admin editing
-    // the quest has to be able to reach it.
+    // The learner's page hides the pillar chip on a training quest, but the
+    // stored value decides where the XP lands, so the admin must reach it.
     await openBuilder()
-    await screen.findByPlaceholderText(/quest title/i)
     expect(screen.getByLabelText(/task 1 pillar/i)).toBeInTheDocument()
   })
 
@@ -651,28 +659,25 @@ describe('building a training quest', () => {
   })
 
   it('defaults the finish line to every task the quest is worth', async () => {
-    // "Do all of it" is what training means, and it saves an admin adding the
-    // task XP up by hand.
+    // "Do all of it" is what training means.
     await openBuilder()
-    fireEvent.change(await screen.findByPlaceholderText(/task 1 —/i), {
+    fireEvent.change(screen.getByPlaceholderText(/task 1 —/i), {
       target: { value: 'Read the handbook' },
     })
     fireEvent.change(screen.getByLabelText(/task 1 xp/i), { target: { value: '150' } })
-
     await waitFor(() =>
       expect(screen.getByLabelText(/xp required to finish/i)).toHaveValue(150))
   })
 
   it('follows the tasks as they change, until an admin sets their own number', async () => {
     await openBuilder()
-    fireEvent.change(await screen.findByPlaceholderText(/task 1 —/i), {
+    fireEvent.change(screen.getByPlaceholderText(/task 1 —/i), {
       target: { value: 'Read the handbook' },
     })
     fireEvent.change(screen.getByLabelText(/task 1 xp/i), { target: { value: '100' } })
     await waitFor(() =>
       expect(screen.getByLabelText(/xp required to finish/i)).toHaveValue(100))
 
-    // Once they type their own, the tasks must stop moving it underneath them.
     fireEvent.change(screen.getByLabelText(/xp required to finish/i), {
       target: { value: '50' },
     })
@@ -682,7 +687,7 @@ describe('building a training quest', () => {
 
   it('can be handed back to the tasks after an override', async () => {
     await openBuilder()
-    fireEvent.change(await screen.findByPlaceholderText(/task 1 —/i), {
+    fireEvent.change(screen.getByPlaceholderText(/task 1 —/i), {
       target: { value: 'Read the handbook' },
     })
     fireEvent.change(screen.getByLabelText(/task 1 xp/i), { target: { value: '200' } })
@@ -693,8 +698,7 @@ describe('building a training quest', () => {
     expect(screen.getByLabelText(/xp required to finish/i)).toHaveValue(200)
   })
 
-  it('sends the XP finish line with the new quest', async () => {
-    api.post.mockResolvedValue({ data: { quest_id: 'q-new' } })
+  it('saves the XP finish line with the quest', async () => {
     await openBuilder()
     fireEvent.change(screen.getByPlaceholderText(/quest title/i), {
       target: { value: 'Family orientation' },
@@ -702,58 +706,52 @@ describe('building a training quest', () => {
     fireEvent.change(screen.getByLabelText(/xp required to finish/i), {
       target: { value: '300' },
     })
-    fireEvent.click(screen.getByRole('button', { name: /build and add/i }))
-
-    await waitFor(() => expect(api.post).toHaveBeenCalled())
-    expect(api.post.mock.calls[0][1].xp_threshold).toBe(300)
+    await publish()
+    expect(putBody().xp_threshold).toBe(300)
   })
 
-  it('sends no finish line when the field is left blank', async () => {
-    api.post.mockResolvedValue({ data: { quest_id: 'q-new' } })
+  it('saves no finish line when the field is left blank', async () => {
     await openBuilder()
     fireEvent.change(screen.getByPlaceholderText(/quest title/i), {
       target: { value: 'Optional course' },
     })
-    fireEvent.click(screen.getByRole('button', { name: /build and add/i }))
-
-    await waitFor(() => expect(api.post).toHaveBeenCalled())
-    expect(api.post.mock.calls[0][1].xp_threshold).toBeNull()
+    await publish()
+    expect(putBody().xp_threshold).toBeNull()
   })
 
   it('does not let people write their own tasks unless asked', async () => {
     // Training is a set list of things the school needs done.
-    api.post.mockResolvedValue({ data: { quest_id: 'q-new' } })
     await openBuilder()
     const box = screen.getByRole('checkbox', { name: /let them add tasks of their own/i })
     expect(box).not.toBeChecked()
-
     fireEvent.change(screen.getByPlaceholderText(/quest title/i), { target: { value: 'T' } })
-    fireEvent.click(screen.getByRole('button', { name: /build and add/i }))
-    await waitFor(() => expect(api.post).toHaveBeenCalled())
-    expect(api.post.mock.calls[0][1].allow_custom_tasks).toBe(false)
+    await publish()
+    expect(putBody().allow_custom_tasks).toBe(false)
   })
 
-  it('lets learners generate against the uploaded document when turned on', async () => {
-    api.post.mockResolvedValue({ data: { quest_id: 'q-new' } })
+  it('lets learners write their own when turned on', async () => {
     await openBuilder()
     fireEvent.click(screen.getByRole('checkbox', { name: /let them add tasks of their own/i }))
     fireEvent.change(screen.getByPlaceholderText(/quest title/i), { target: { value: 'T' } })
-    fireEvent.click(screen.getByRole('button', { name: /build and add/i }))
-
-    await waitFor(() => expect(api.post).toHaveBeenCalled())
-    expect(api.post.mock.calls[0][1].allow_custom_tasks).toBe(true)
+    await publish()
+    expect(putBody().allow_custom_tasks).toBe(true)
   })
 
   it('can be unticked for training people opt into', async () => {
-    api.post.mockResolvedValue({ data: { quest_id: 'q-new' } })
     await openBuilder()
     fireEvent.click(screen.getByRole('checkbox', { name: /put it on their accounts/i }))
     fireEvent.change(screen.getByPlaceholderText(/quest title/i), {
       target: { value: 'Optional course' },
     })
-    fireEvent.click(screen.getByRole('button', { name: /build and add/i }))
+    await publish()
+    expect(patchBody().auto_assign).toBe(false)
+  })
 
-    await waitFor(() => expect(api.post).toHaveBeenCalled())
-    expect(api.post.mock.calls[0][1].auto_assign).toBe(false)
+  it('closing a draft nobody wrote in leaves nothing behind in the catalog', async () => {
+    await openBuilder()
+    // The footer's Close, after the dialog's own and the document panel's.
+    fireEvent.click(screen.getAllByRole('button', { name: /^close$/i }).at(-1))
+    await waitFor(() => expect(api.delete).toHaveBeenCalledWith(
+      '/api/sis/quest-editor/q-new?organization_id=org-1&if_empty=1'))
   })
 })

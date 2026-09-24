@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render as rtlRender, screen, fireEvent, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 
 /**
  * The curriculum library as a sortable table.
@@ -12,7 +13,12 @@ import { MemoryRouter } from 'react-router-dom'
  * if it needed more info?"
  */
 
-const render = (ui) => rtlRender(<MemoryRouter>{ui}</MemoryRouter>)
+// The quest editor's Drafts list reads through react-query (P6).
+const render = (ui) => rtlRender(
+  <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+    <MemoryRouter>{ui}</MemoryRouter>
+  </QueryClientProvider>,
+)
 
 vi.mock('react-hot-toast', () => ({
   toast: { success: vi.fn(), error: vi.fn() },

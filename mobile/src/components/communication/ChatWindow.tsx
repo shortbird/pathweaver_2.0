@@ -45,6 +45,8 @@ import {
   ReactionPills,
   ReplyQuote,
   SentFromTag,
+  SenderLabel,
+  ReceiptLine,
   MessageAttachments,
   ComposerBanner,
   PendingAttachmentChips,
@@ -394,8 +396,13 @@ export function ChatWindow({ contact, conversationId, onBack, onRead }: Props) {
           </UIText>
         </View>
       ) : (
-        messages.map((msg) => {
+        messages.map((msg, index) => {
           const isMine = msg.sender_id === user?.id;
+          // The one read receipt, with its time, under our last message once
+          // the other side has opened it (iCreate, 2026-09-23, 9b46c748) --
+          // the same rule the web messenger follows.
+          const seenAt = isMine && index === messages.length - 1 && !msg.isOptimistic
+            ? msg.read_at : null;
           return (
             <View key={msg.id}>
               <View className={`flex-row ${isMine ? 'justify-end' : 'justify-start'}`}>
@@ -449,6 +456,7 @@ export function ChatWindow({ contact, conversationId, onBack, onRead }: Props) {
                           DELETED
                         </UIText>
                       ) : null}
+                      <SenderLabel label={msg.sender_label} isMine={isMine} />
                       <ReplyQuote replyTo={msg.reply_to} isMine={isMine} />
                       <MessageAttachments attachments={msg.attachments} isMine={isMine} />
                       {msg.message_content ? (
@@ -496,6 +504,7 @@ export function ChatWindow({ contact, conversationId, onBack, onRead }: Props) {
                   </View>
                 </Pressable>
               </View>
+              <ReceiptLine text={seenAt ? `Seen ${formatTime(seenAt)}` : null} />
               {!msg.is_deleted && (
                 <ReactionPills
                   reactions={msg.reactions}

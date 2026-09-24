@@ -10,7 +10,7 @@ import { familyNavItemsFor } from './schoolCards'
 
 /**
  * The school, as one page. The letterhead, then a glass tab rail — Feed,
- * Calendar, Schedule (or Goal Setting), Absences, Billing, Forms, Prior
+ * Calendar, Schedule (or Goal Setting), Absences, Billing, To do, Prior
  * Learning — then the tab's own content. Each tab keeps the URL it always had
  * (/school, /school-calendar, /schedule-builder, /absences, /family/billing,
  * /family/forms, /family/prior-learning), so every emailed link, notification

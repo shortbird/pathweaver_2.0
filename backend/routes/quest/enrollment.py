@@ -69,6 +69,19 @@ def enroll_in_quest(user_id: str, quest_id: str):
         # Check if quest exists and is active using repository
         quest = quest_repo.find_by_id(quest_id)
 
+        # A school quest the learner may not open is "not found" here too, so
+        # a guessed or shared id cannot enroll anyone in an unassigned or
+        # another school's quest (owner decision 2026-09-24,
+        # services/quest_visibility_service.py). Asked before the is_active
+        # check so an inactive foreign quest does not reveal itself either.
+        # The office's own paths (class assignment, curriculum push,
+        # give-to-students, training) enroll through services, not this door.
+        from services.quest_visibility_service import may_open_quest
+        caller_id = scope.caller_id if scope else user_id
+        if quest and not may_open_quest(caller_id, quest, subject_id=user_id,
+                                        include_linked_students=False, repo=quest_repo):
+            quest = None
+
         if not quest:
             return error_response(
                 code='QUEST_NOT_FOUND',

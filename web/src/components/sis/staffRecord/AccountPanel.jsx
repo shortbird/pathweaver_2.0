@@ -93,7 +93,7 @@ const AccountPanel = ({ orgId, staff, onSaved, onViewPortal, onRemoved }) => {
       if (data.can_delete) {
         const choice = await confirm({
           title: `Delete ${staff.name} permanently?`,
-          body: `They have no attendance, forms, or onboarding on record, so nothing is lost.${classLine}`,
+          body: `They have no attendance or finished tasks on record, so nothing is lost.${classLine}`,
           confirmLabel: 'Delete permanently',
           cancelLabel: 'Keep them',
         })

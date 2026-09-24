@@ -10,6 +10,8 @@ import { range12h } from '../../utils/timeFormat'
 import TeacherDashboard from './TeacherDashboard'
 import CoordinatorDashboard from './CoordinatorDashboard'
 import DashboardCard from '../../components/sis/DashboardCard'
+import TeachersToCheck from '../../components/sis/TeachersToCheck'
+import { RollStatus, SubstituteControl } from '../../components/sis/RollStatus'
 import { fmtEventWhen } from '../../utils/timeFormat'
 import { formatCents as money } from '../../utils/money'
 
@@ -51,13 +53,11 @@ const StatCard = ({ label, value, accent, note }) => (
 const ATTENTION_TILES = [
   { key: 'attendance_alerts', label: 'Not accounted for', to: '/classes?tab=attendance',
     module: '/attendance', urgent: true },
-  { key: 'requests_overdue', label: 'Overdue requests', to: '/tasks?tab=requests',
+  { key: 'tasks_overdue', label: 'Overdue tasks', to: '/tasks?tab=assigned',
     module: '/tasks', urgent: true },
-  { key: 'requests_unassigned', label: 'Unassigned requests', to: '/tasks?tab=requests',
-    module: '/tasks' },
   { key: 'signatures_pending', label: 'Signatures pending', to: '/tasks?tab=assigned',
     module: '/tasks' },
-  { key: 'onboarding_incomplete', label: 'Checklists in progress', to: '/tasks?tab=assigned',
+  { key: 'tasks_open', label: 'Tasks in progress', to: '/tasks?tab=assigned',
     module: '/tasks' },
   { key: 'age_exceptions', label: 'Age exception requests', to: '/registration?tab=queues' },
   { key: 'waitlist_waiting', label: 'Waiting for a place', to: '/registration?tab=queues' },
@@ -81,7 +81,9 @@ const QUICK_ACTIONS = [
   // Named for where it lands. It said "Message families" and opened the
   // announcements board, which is a third thing again from the inbox button
   // of the same name and from the composer that button opens (2026-09-22).
-  { label: 'Post an announcement', to: '/inbox?tab=announcements' },
+  // Announcements live on the Community page only since 2026-09-23
+  // (9a335881), so the shortcut goes there and hides with it.
+  { label: 'Post an announcement', to: '/community?tab=announcements', module: '/community' },
   { label: 'Send for signature', to: '/tasks?tab=assigned', module: '/tasks' },
   { label: 'Reports', to: '/reports', module: '/reports' },
 ]
@@ -122,6 +124,10 @@ const SisDashboard = () => {
   const [error, setError] = useState(null)
   // Read once per mount — exiting preview reloads the page.
   const [preview] = useState(() => (isSisAdmin(user) ? getPreviewTeacher() : null))
+  // Bumped after a substitute is marked or a flagged roll is resolved, so the
+  // dashboard re-reads the day (P7).
+  const [reloadTick, setReloadTick] = useState(0)
+  const reload = () => setReloadTick((n) => n + 1)
 
   useEffect(() => {
     if (!admin || coordinator || preview) return
@@ -131,7 +137,7 @@ const SisDashboard = () => {
       .then((r) => { setData(r.data?.data); setError(null) })
       .catch((e) => setError(e.response?.data?.error || 'Failed to load dashboard'))
       .finally(() => setLoading(false))
-  }, [orgId])
+  }, [orgId, reloadTick])
 
   if (!admin || preview) {
     return (
@@ -228,6 +234,10 @@ const SisDashboard = () => {
             </section>
           )}
 
+          {/* The coordinator dashboard's "Teachers to check", the same
+              component: an org admin is a superset of a coordinator (P7). */}
+          <TeachersToCheck data={today.teachers_to_check} orgId={orgId} onChanged={reload} />
+
           {/* Masonry, via CSS multi-column rather than grid.
               A grid row stretches every card to the tallest one and pins each to
               its own cell, so a short class list left a tall empty box and the
@@ -263,7 +273,14 @@ const SisDashboard = () => {
                             {[m.teacher_name, m.location, `${m.enrolled_count} students`]
                               .filter(Boolean).join(' · ')}
                           </span>
+                          {'roll' in m && <RollStatus session={m.roll} />}
                         </span>
+                        {'roll' in m && (
+                          <span className="ml-auto shrink-0">
+                            <SubstituteControl classId={m.class_id} date={today.date} orgId={orgId}
+                              session={m.roll} onSaved={reload} />
+                          </span>
+                        )}
                       </li>
                     ))}
                   </ul>

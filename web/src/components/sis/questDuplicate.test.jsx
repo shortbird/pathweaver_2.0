@@ -1,5 +1,6 @@
 /**
- * Duplicating a quest, and duplicating one preset task.
+ * Duplicating a quest. (Duplicating one preset task moved to the quest
+ * editor with P6; see questEditor.test.jsx.)
  *
  * iCreate, 2026-09-07, twice in half an hour on the same screen:
  *   45c7ced1  "Can I please duplicate quests so I don't have to start over
@@ -17,6 +18,7 @@
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 
 const { api } = vi.hoisted(() => ({
   api: { get: vi.fn(), post: vi.fn(), put: vi.fn(), patch: vi.fn(), delete: vi.fn() },
@@ -30,7 +32,13 @@ vi.mock('../../pages/sis/useSisOrg', () => ({
 vi.mock('../../contexts/ConfirmContext', () => ({ useConfirm: () => vi.fn(async () => true) }))
 
 import CurriculumResources from './CurriculumResources'
-import PresetTaskManager from './PresetTaskManager'
+
+// The curriculum panel lists its quest drafts through react-query (P6).
+const withQuery = (ui) => (
+  <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+    {ui}
+  </QueryClientProvider>
+)
 
 const QUEST = { id: 'q1', title: 'Watercolor Basics', can_manage: true }
 const TASK = {
@@ -56,8 +64,8 @@ const routeGet = (url, { editable = true, quests = [QUEST] } = {}) => {
 
 const openQuest = async (opts) => {
   api.get.mockImplementation(async (url) => routeGet(url, opts))
-  render(<CurriculumResources orgId="org1" curriculumId="cur-academic" canManage
-    onChanged={vi.fn()} />)
+  render(withQuery(<CurriculumResources orgId="org1" curriculumId="cur-academic" canManage
+    onChanged={vi.fn()} />))
   await screen.findByText(QUEST.title)
   fireEvent.click(screen.getByText(QUEST.title))
   return screen.findByLabelText(`Duplicate ${QUEST.title}`)
@@ -112,43 +120,5 @@ describe('duplicating a quest', () => {
   })
 })
 
-describe('duplicating a preset task', () => {
-  beforeEach(() => vi.clearAllMocks())
-
-  const mountTasks = async ({ editable = true } = {}) => {
-    api.get.mockResolvedValue({ data: { success: true, editable, tasks: [TASK] } })
-    render(<PresetTaskManager base="/api/sis/curriculum/cur-academic/quests/q1/tasks" />)
-    return screen.findByText(TASK.title)
-  }
-
-  it('posts to the task and appends the copy to the list', async () => {
-    await mountTasks()
-    api.post.mockResolvedValue({
-      data: { success: true, task: { ...TASK, id: 't2', order_index: 1 } },
-    })
-
-    fireEvent.click(screen.getByLabelText(`Duplicate ${TASK.title}`))
-
-    await waitFor(() => expect(api.post).toHaveBeenCalledWith(
-      `/api/sis/curriculum/cur-academic/quests/q1/tasks/${TASK.id}/duplicate`, {}))
-    // Two rows with the same title: the copy is deliberately not renamed, so
-    // the count is what proves it landed.
-    await waitFor(() => expect(screen.getAllByText(TASK.title)).toHaveLength(2))
-  })
-
-  it('leaves the list alone when the copy is refused', async () => {
-    await mountTasks()
-    api.post.mockRejectedValue({ response: { data: { error: 'Task not found.' } } })
-
-    fireEvent.click(screen.getByLabelText(`Duplicate ${TASK.title}`))
-
-    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('Task not found.'))
-    expect(screen.getAllByText(TASK.title)).toHaveLength(1)
-  })
-
-  it('is not offered on a library quest, whose tasks are shared', async () => {
-    // Unlike the quest copy, this one writes INTO the shared quest.
-    await mountTasks({ editable: false })
-    expect(screen.queryByLabelText(`Duplicate ${TASK.title}`)).not.toBeInTheDocument()
-  })
-})
+// Duplicating one preset task is the quest editor's now (a copy at the end of
+// the list, saved with the quest): components/sis/questEditor.test.jsx.

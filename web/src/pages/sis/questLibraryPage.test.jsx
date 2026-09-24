@@ -15,6 +15,10 @@
  * Added 2026-09-18 (Molly, 5a20862f and 4579be68): a new quest opens on its
  * attachments the moment it exists, every row can open them, and the office's
  * library and teacher-made quests read as two lists with a filter.
+ *
+ * Since P6 (owner decision 2026-09-23) Add quest and Edit are QuestEditor,
+ * the one quest form: Add quest starts an inactive draft at once, Publish
+ * files it (optionally on a curriculum), and Drafts lists what is unpublished.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render as rtlRender, screen, fireEvent, waitFor, within } from '@testing-library/react'
@@ -64,11 +68,41 @@ const ROSTER = { roster: [
   { student_id: 'p-mum', name: 'Mum Stone', is_student: false },
 ] }
 
+// What the quest editor reads for each quest (GET /api/sis/quest-editor/<id>).
+const editorQuest = (id, extra = {}) => ({
+  id, title: '', description: '', header_image_url: '', is_active: false, is_draft: true,
+  draft: { context: 'library', target_id: null }, is_library: false, xp_threshold: 0,
+  teachers_may_change_xp: true, allow_custom_tasks: true, tasks: [], editable: true,
+  can_lock_xp: true, ...extra,
+})
+const EDITOR = {
+  'q-new': editorQuest('q-new'),
+  q1: editorQuest('q1', { title: 'Watercolor Basics', is_active: true, is_draft: false, draft: null,
+    tasks: [{ id: 't1', title: 'Stretch the paper', pillar: 'art', xp_value: 100, is_required: true,
+      diploma_subjects: ['fine_arts'], subject_xp_distribution: { fine_arts: 100 } }] }),
+  q2: editorQuest('q2', { title: 'Bridge Building', is_active: true, is_draft: false, draft: null }),
+}
+let DRAFTS = []
+
+const routeGet = (url) => {
+  if (url.startsWith('/api/sis/quest-editor/drafts')) return { drafts: DRAFTS }
+  const m = url.match(/^\/api\/sis\/quest-editor\/([^/?]+)/)
+  if (m) return { quest: EDITOR[m[1]] }
+  if (url.includes('/resources')) return RESOURCES
+  if (url.includes('/roster')) return ROSTER
+  return LIBRARY
+}
+
 beforeEach(() => {
   vi.clearAllMocks()
-  api.get.mockImplementation((url) => Promise.resolve({
-    data: url.includes('/resources') ? RESOURCES : url.includes('/roster') ? ROSTER : LIBRARY,
-  }))
+  DRAFTS = []
+  api.get.mockImplementation((url) => Promise.resolve({ data: routeGet(url) }))
+  api.put.mockImplementation((url, body) => {
+    const id = url.match(/quest-editor\/([^/?]+)/)[1]
+    return Promise.resolve({ data: { quest: { ...EDITOR[id], ...body,
+      tasks: (body.tasks || []).map((t, i) => ({ id: t.id || `t-saved-${i}`, ...t })) } } })
+  })
+  api.delete.mockResolvedValue({ data: { success: true, discarded: false } })
 })
 
 // Each row's actions sit behind one kebab menu: open the i-th row's menu,
@@ -81,7 +115,8 @@ const rowAction = (i, label) => {
 // The Assign dialog also asks who already has the quest (/students,
 // ebfc9253); that read is not a library load either.
 const libraryLoads = () => api.get.mock.calls.filter(([url]) => !url.includes('/resources')
-  && !url.includes('/roster') && !url.endsWith('/students?organization_id=org-1'))
+  && !url.includes('/roster') && !url.endsWith('/students?organization_id=org-1')
+  && !url.startsWith('/api/sis/quest-editor'))
 
 describe('QuestsPanel (was QuestLibraryPage)', () => {
   it('lists the school\'s quests from the library endpoint, with where each is in use', async () => {
@@ -106,7 +141,7 @@ describe('QuestsPanel (was QuestLibraryPage)', () => {
     fireEvent.change(screen.getByLabelText('Search quests'), { target: { value: 'expeditions' } })
     expect(screen.getByText('Watercolor Basics')).toBeInTheDocument()
     expect(screen.queryByText('Bridge Building')).toBeNull()
-    expect(api.get).toHaveBeenCalledTimes(1)
+    expect(libraryLoads()).toHaveLength(1)
   })
 
   it('puts a quest on a curriculum through the quest-scoped route, and reloads', async () => {
@@ -248,50 +283,45 @@ describe('QuestsPanel (was QuestLibraryPage)', () => {
     expect(within(menu).getByRole('button', { name: 'STEM' })).toBeInTheDocument()
   })
 
-  it('builds a new quest from the top of the page and lands it in the list', async () => {
-    api.post.mockResolvedValue({ data: { success: true, quest_id: 'q-new', task_count: 1,
-      tasks: [{ id: 't-new', title: 'Plant a seed' }] } })
+  it('Add quest starts a draft at once, and Publish files it', async () => {
+    api.post.mockImplementation(async (url) => (url.startsWith('/api/sis/quest-editor/drafts')
+      ? { data: { success: true, quest_id: 'q-new' } }
+      : { data: { success: true, quest_id: 'q-new' } }))
     render(<QuestsPanel />)
     await screen.findByText('Watercolor Basics')
     fireEvent.click(screen.getByRole('button', { name: /Add quest/ }))
 
-    fireEvent.change(screen.getByLabelText('Quest title'), { target: { value: 'Robot Garden' } })
-    fireEvent.change(screen.getByLabelText('Quest description'), { target: { value: 'Grow something with a robot.' } })
-    fireEvent.change(screen.getByPlaceholderText(/Task 1 /), { target: { value: 'Plant a seed' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Create quest' }))
-
+    // The quest exists before a word is typed: an inactive draft for the library.
     await waitFor(() => expect(api.post).toHaveBeenCalledWith(
-      '/api/sis/quests?organization_id=org-1',
+      '/api/sis/quest-editor/drafts?organization_id=org-1', { context: 'library' }))
+    const dialog = await screen.findByRole('dialog')
+    fireEvent.change(await within(dialog).findByLabelText('Quest title'), { target: { value: 'Robot Garden' } })
+    fireEvent.change(within(dialog).getByLabelText('Quest description'), { target: { value: 'Grow something with a robot.' } })
+    fireEvent.change(within(dialog).getByPlaceholderText(/Task 1 /), { target: { value: 'Plant a seed' } })
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Publish' }))
+
+    await waitFor(() => expect(api.put).toHaveBeenCalledWith(
+      '/api/sis/quest-editor/q-new?organization_id=org-1',
       expect.objectContaining({
         title: 'Robot Garden', description: 'Grow something with a robot.',
         tasks: [expect.objectContaining({ title: 'Plant a seed' })],
       }),
     ))
-    // No curriculum was chosen: none is sent, and the list is refetched.
-    expect(api.post.mock.calls[0][1]).not.toHaveProperty('curriculum_id')
-    await waitFor(() => expect(libraryLoads()).toHaveLength(2))
-    expect(screen.queryByRole('button', { name: 'Create quest' })).toBeNull()
+    // No curriculum was chosen: none is sent.
+    await waitFor(() => expect(api.post).toHaveBeenCalledWith(
+      '/api/sis/quests/q-new/publish?organization_id=org-1', {}))
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
   })
 
-  it('opens the new quest on its attachments, quest and each task, before closing', async () => {
-    api.post.mockResolvedValue({ data: { success: true, quest_id: 'q-new', task_count: 1,
-      tasks: [{ id: 't-new', title: 'Plant a seed' }] } })
+  it('a new quest takes files and links on the quest before it is saved', async () => {
+    api.post.mockResolvedValue({ data: { success: true, quest_id: 'q-new' } })
     render(<QuestsPanel />)
     await screen.findByText('Watercolor Basics')
     fireEvent.click(screen.getByRole('button', { name: /Add quest/ }))
-    fireEvent.change(screen.getByLabelText('Quest title'), { target: { value: 'Robot Garden' } })
-    fireEvent.change(screen.getByPlaceholderText(/Task 1 /), { target: { value: 'Plant a seed' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Create quest' }))
-
-    expect(await screen.findByText('“Robot Garden” is in the library')).toBeInTheDocument()
-    // The quest's own attachments and the task's are both loaded from the
-    // resources route, which is the panel the curriculum editor uses.
+    const dialog = await screen.findByRole('dialog')
+    // The quest's own attachments load from the resources route straight away.
     await waitFor(() => expect(api.get).toHaveBeenCalledWith('/api/sis/quests/q-new/resources'))
-    expect(screen.getByText('Plant a seed')).toBeInTheDocument()
-    // One add control for the quest, one per task.
-    await waitFor(() => expect(screen.getAllByRole('button', { name: /Add a resource/ })).toHaveLength(2))
-    fireEvent.click(screen.getByRole('button', { name: 'Done' }))
-    expect(screen.queryByText('“Robot Garden” is in the library')).toBeNull()
+    expect(await within(dialog).findByRole('button', { name: /Add a resource/ })).toBeInTheDocument()
   })
 
   it('puts every row action behind one menu', async () => {
@@ -344,29 +374,41 @@ describe('QuestsPanel (was QuestLibraryPage)', () => {
     expect(screen.queryByRole('heading', { name: /Teacher-made/ })).toBeNull()
   })
 
-  it('can put the new quest straight onto a curriculum', async () => {
-    api.post.mockResolvedValue({ data: { success: true, quest_id: 'q-new', task_count: 0,
+  it('can put the new quest onto a curriculum when it is published', async () => {
+    api.post.mockResolvedValue({ data: { success: true, quest_id: 'q-new',
       curriculum: { id: 'cur-stem', title: 'STEM' }, added: true, pushed_to_classes: 0 } })
     render(<QuestsPanel />)
     await screen.findByText('Watercolor Basics')
     fireEvent.click(screen.getByRole('button', { name: /Add quest/ }))
-    fireEvent.change(screen.getByLabelText('Quest title'), { target: { value: 'Robot Garden' } })
-    const picker = screen.getByPlaceholderText('Search curriculum…')
+    const dialog = await screen.findByRole('dialog')
+    fireEvent.change(await within(dialog).findByLabelText('Quest title'), { target: { value: 'Robot Garden' } })
+    const picker = within(dialog).getByPlaceholderText('Search curriculum…')
     fireEvent.focus(picker)
     fireEvent.change(picker, { target: { value: 'STE' } })
     fireEvent.mouseDown(await screen.findByRole('button', { name: 'STEM' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Create quest' }))
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Publish' }))
     await waitFor(() => expect(api.post).toHaveBeenCalledWith(
-      '/api/sis/quests?organization_id=org-1',
-      expect.objectContaining({ title: 'Robot Garden', curriculum_id: 'cur-stem' }),
-    ))
+      '/api/sis/quests/q-new/publish?organization_id=org-1', { curriculum_id: 'cur-stem' }))
   })
 
-  it('will not create a quest with no title', async () => {
+  it('will not publish a quest with no title', async () => {
+    api.post.mockResolvedValue({ data: { success: true, quest_id: 'q-new' } })
     render(<QuestsPanel />)
     await screen.findByText('Watercolor Basics')
     fireEvent.click(screen.getByRole('button', { name: /Add quest/ }))
-    expect(screen.getByRole('button', { name: 'Create quest' })).toBeDisabled()
+    const dialog = await screen.findByRole('dialog')
+    expect(await within(dialog).findByRole('button', { name: 'Publish' })).toBeDisabled()
+  })
+
+  it('lists the school\'s drafts, and Resume opens one where it was started', async () => {
+    DRAFTS = [{ id: 'q-new', title: 'Half-done garden', context: 'library', target_id: null,
+      created_by_name: 'Molly Christensen', updated_at: '2026-09-20T12:00:00Z' }]
+    render(<QuestsPanel />)
+    const drafts = await screen.findByRole('region', { name: 'Drafts' })
+    expect(within(drafts).getByText('Half-done garden')).toBeInTheDocument()
+    expect(api.get).toHaveBeenCalledWith('/api/sis/quest-editor/drafts?context=all&organization_id=org-1')
+    fireEvent.click(within(drafts).getByRole('button', { name: 'Resume' }))
+    await waitFor(() => expect(api.get).toHaveBeenCalledWith('/api/sis/quest-editor/q-new?organization_id=org-1'))
     expect(api.post).not.toHaveBeenCalled()
   })
 
@@ -386,38 +428,34 @@ describe('editing and duplicating from the library row', () => {
     api.patch.mockResolvedValue({ data: { success: true, quest: { id: 'q2', title: 'Renamed' } } })
   })
 
-  it('opens an editor on a quest that is on no curriculum at all', async () => {
+  it('opens the one quest editor on a quest that is on no curriculum at all', async () => {
     render(<QuestsPanel />)
     // q2 has no curricula and no classes.
     await screen.findByText('Not on a curriculum')
     rowAction(1, 'Edit')
 
     const dialog = await screen.findByRole('dialog')
-    expect(within(dialog).getByLabelText('Quest title')).toHaveValue('Bridge Building')
-    // The task editor reads the library's own task route, not a curriculum one.
-    await waitFor(() => expect(api.get).toHaveBeenCalledWith(
-      expect.stringContaining('/api/sis/quests/q2/tasks')))
+    expect(await within(dialog).findByLabelText('Quest title')).toHaveValue('Bridge Building')
+    expect(api.get).toHaveBeenCalledWith('/api/sis/quest-editor/q2?organization_id=org-1')
+    // Editing an existing quest starts nothing new.
+    expect(api.post).not.toHaveBeenCalled()
   })
 
-  it('saves a new title and description through the quest-scoped route', async () => {
+  it('saves the title, description and finish line through the editor', async () => {
     render(<QuestsPanel />)
     await screen.findByText('Bridge Building')
     rowAction(1, 'Edit')
     const dialog = await screen.findByRole('dialog')
 
-    fireEvent.change(within(dialog).getByLabelText('Quest title'), { target: { value: 'Bridges' } })
+    fireEvent.change(await within(dialog).findByLabelText('Quest title'), { target: { value: 'Bridges' } })
     fireEvent.change(within(dialog).getByLabelText('Quest description'), { target: { value: 'Build one.' } })
+    fireEvent.change(within(dialog).getByLabelText(/XP required to finish/), { target: { value: '500' } })
     fireEvent.click(within(dialog).getByRole('button', { name: 'Save' }))
 
-    await waitFor(() => expect(api.patch).toHaveBeenCalledWith(
-      '/api/sis/quests/q2?organization_id=org-1',
-      // xp_threshold rides along from 2026-09-22: the editor gained the
-      // required-XP field the training and class-quest editors already had
-      // (3d926fc3). null is "no requirement", which is what the box was.
-      // teachers_may_change_xp joined it the same day: the checkbox opens on
-      // the saved value (absent reads as the default, on) and is always sent.
-      { title: 'Bridges', description: 'Build one.', xp_threshold: null,
-        teachers_may_change_xp: true }))
+    await waitFor(() => expect(api.put).toHaveBeenCalledWith(
+      '/api/sis/quest-editor/q2?organization_id=org-1',
+      expect.objectContaining({ title: 'Bridges', description: 'Build one.', xp_threshold: 500,
+        teachers_may_change_xp: true })))
   })
 
   // 3d926fc3, Molly: "Then I think it'd be good to click on 'teachers may
@@ -428,47 +466,27 @@ describe('editing and duplicating from the library row', () => {
     rowAction(1, 'Edit')
     const dialog = await screen.findByRole('dialog')
 
-    const box = within(dialog).getByLabelText('Teachers may change the XP to finish')
+    const box = await within(dialog).findByLabelText('Teachers may change the XP to finish')
     expect(box).toBeChecked()
     fireEvent.click(box)
     fireEvent.click(within(dialog).getByRole('button', { name: 'Save' }))
 
-    await waitFor(() => expect(api.patch).toHaveBeenCalledWith(
-      '/api/sis/quests/q2?organization_id=org-1',
+    await waitFor(() => expect(api.put).toHaveBeenCalledWith(
+      '/api/sis/quest-editor/q2?organization_id=org-1',
       expect.objectContaining({ teachers_may_change_xp: false })))
   })
 
   it('opens the checkbox on the saved value', async () => {
-    api.get.mockImplementation((url) => Promise.resolve({
-      data: url.includes('/resources') ? RESOURCES : url.includes('/roster') ? ROSTER : {
-        ...LIBRARY,
-        quests: LIBRARY.quests.map((q) => (q.id === 'q2' ? { ...q, teachers_may_change_xp: false } : q)),
-      },
-    }))
-    render(<QuestsPanel />)
-    await screen.findByText('Bridge Building')
-    rowAction(1, 'Edit')
-    const dialog = await screen.findByRole('dialog')
-
-    expect(within(dialog).getByLabelText('Teachers may change the XP to finish')).not.toBeChecked()
-  })
-
-  // 3d926fc3: quests.xp_threshold already existed and POST /api/quests/:id/end
-  // already enforced it; the library editor was the one of the three that
-  // could not set it.
-  it('saves the XP a quest requires to finish', async () => {
-    render(<QuestsPanel />)
-    await screen.findByText('Bridge Building')
-    rowAction(1, 'Edit')
-    const dialog = await screen.findByRole('dialog')
-
-    fireEvent.change(within(dialog).getByLabelText(/XP required to finish/),
-      { target: { value: '500' } })
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Save' }))
-
-    await waitFor(() => expect(api.patch).toHaveBeenCalledWith(
-      '/api/sis/quests/q2?organization_id=org-1',
-      expect.objectContaining({ xp_threshold: 500 })))
+    EDITOR.q2 = { ...EDITOR.q2, teachers_may_change_xp: false }
+    try {
+      render(<QuestsPanel />)
+      await screen.findByText('Bridge Building')
+      rowAction(1, 'Edit')
+      const dialog = await screen.findByRole('dialog')
+      expect(await within(dialog).findByLabelText('Teachers may change the XP to finish')).not.toBeChecked()
+    } finally {
+      EDITOR.q2 = { ...EDITOR.q2, teachers_may_change_xp: true }
+    }
   })
 
   it('clearing the box means no requirement, not zero XP', async () => {
@@ -477,25 +495,36 @@ describe('editing and duplicating from the library row', () => {
     rowAction(1, 'Edit')
     const dialog = await screen.findByRole('dialog')
 
-    const box = within(dialog).getByLabelText(/XP required to finish/)
+    const box = await within(dialog).findByLabelText(/XP required to finish/)
     fireEvent.change(box, { target: { value: '500' } })
     fireEvent.change(box, { target: { value: '' } })
-    fireEvent.change(within(dialog).getByLabelText('Quest title'), { target: { value: 'Bridges' } })
     fireEvent.click(within(dialog).getByRole('button', { name: 'Save' }))
 
-    await waitFor(() => expect(api.patch).toHaveBeenCalledWith(
-      '/api/sis/quests/q2?organization_id=org-1',
+    await waitFor(() => expect(api.put).toHaveBeenCalledWith(
+      '/api/sis/quest-editor/q2?organization_id=org-1',
       expect.objectContaining({ xp_threshold: null })))
   })
 
-  it('will not save a quest with no title', async () => {
+  it('will not save a live quest with no title', async () => {
     render(<QuestsPanel />)
     await screen.findByText('Bridge Building')
     rowAction(1, 'Edit')
     const dialog = await screen.findByRole('dialog')
-    fireEvent.change(within(dialog).getByLabelText('Quest title'), { target: { value: '  ' } })
+    fireEvent.change(await within(dialog).findByLabelText('Quest title'), { target: { value: '  ' } })
     fireEvent.click(within(dialog).getByRole('button', { name: 'Save' }))
-    expect(api.patch).not.toHaveBeenCalled()
+    await new Promise((r) => setTimeout(r, 20))
+    expect(api.put).not.toHaveBeenCalled()
+  })
+
+  it('will not save a negative XP requirement', async () => {
+    render(<QuestsPanel />)
+    await screen.findByText('Bridge Building')
+    rowAction(1, 'Edit')
+    const dialog = await screen.findByRole('dialog')
+    fireEvent.change(await within(dialog).findByLabelText(/XP required to finish/), { target: { value: '-5' } })
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Save' }))
+    await new Promise((r) => setTimeout(r, 20))
+    expect(api.put).not.toHaveBeenCalled()
   })
 
   it('warns that an edit reaches everyone when the quest is already in use', async () => {
@@ -504,7 +533,7 @@ describe('editing and duplicating from the library row', () => {
     // q1 is on a curriculum and a class.
     rowAction(0, 'Edit')
     const dialog = await screen.findByRole('dialog')
-    expect(within(dialog).getByText(/reach everyone already on it/i)).toBeInTheDocument()
+    expect(await within(dialog).findByText(/reach everyone already on it/i)).toBeInTheDocument()
   })
 
   it('says nothing about blast radius for a quest nobody is on', async () => {
@@ -512,6 +541,7 @@ describe('editing and duplicating from the library row', () => {
     await screen.findByText('Bridge Building')
     rowAction(1, 'Edit')
     const dialog = await screen.findByRole('dialog')
+    await within(dialog).findByLabelText('Quest title')
     expect(within(dialog).queryByText(/reach everyone already on it/i)).toBeNull()
   })
 
@@ -608,66 +638,7 @@ describe('who already has the quest, in the Give picker (ebfc9253)', () => {
   })
 })
 
-describe('XP and links on the create form (b067c6c8)', () => {
-  // iCreate, b067c6c8, 2026-09-23: "add links and attachments when I first
-  // create the quest ... Also add the required xp and mark if the teacher can
-  // change that when first creating too."
-  const startQuest = async () => {
-    render(<QuestsPanel />)
-    await screen.findByText('Watercolor Basics')
-    fireEvent.click(screen.getByRole('button', { name: /Add quest/ }))
-    fireEvent.change(screen.getByLabelText('Quest title'), { target: { value: 'Robot Garden' } })
-  }
-
-  it('sends the XP required and a locked teacher setting with the new quest', async () => {
-    api.post.mockResolvedValue({ data: { success: true, quest_id: 'q-new', task_count: 0, tasks: [] } })
-    await startQuest()
-    fireEvent.change(screen.getByLabelText(/XP required to finish/), { target: { value: '300' } })
-    fireEvent.click(screen.getByRole('checkbox', { name: 'Teachers may change the XP to finish' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Create quest' }))
-    await waitFor(() => expect(api.post).toHaveBeenCalledWith(
-      '/api/sis/quests?organization_id=org-1',
-      expect.objectContaining({ title: 'Robot Garden', xp_threshold: 300, teachers_may_change_xp: false }),
-    ))
-  })
-
-  it('leaves both out when the form does not change them', async () => {
-    api.post.mockResolvedValue({ data: { success: true, quest_id: 'q-new', task_count: 0, tasks: [] } })
-    await startQuest()
-    fireEvent.click(screen.getByRole('button', { name: 'Create quest' }))
-    await waitFor(() => expect(api.post).toHaveBeenCalled())
-    const body = api.post.mock.calls[0][1]
-    expect(body).not.toHaveProperty('xp_threshold')
-    expect(body).not.toHaveProperty('teachers_may_change_xp')
-  })
-
-  it('posts each link to the new quest\'s resources once it exists', async () => {
-    api.post.mockImplementation(async (url) => (url.startsWith('/api/sis/quests?')
-      ? { data: { success: true, quest_id: 'q-new', task_count: 0, tasks: [] } }
-      : { data: { success: true } }))
-    await startQuest()
-    fireEvent.click(screen.getByRole('button', { name: '+ Add a link' }))
-    fireEvent.change(screen.getByLabelText('Link 1 title'), { target: { value: 'Seed guide' } })
-    fireEvent.change(screen.getByLabelText('Link 1 URL'), { target: { value: 'https://example.com/seeds' } })
-    fireEvent.click(screen.getByRole('button', { name: '+ Add a link' }))
-    fireEvent.change(screen.getByLabelText('Link 2 URL'), { target: { value: 'https://youtu.be/abc' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Create quest' }))
-    await waitFor(() => expect(api.post).toHaveBeenCalledWith(
-      '/api/sis/quests/q-new/resources?organization_id=org-1',
-      { kind: 'link', title: 'Seed guide', url: 'https://example.com/seeds' }))
-    expect(api.post).toHaveBeenCalledWith(
-      '/api/sis/quests/q-new/resources?organization_id=org-1',
-      { kind: 'video', title: '', url: 'https://youtu.be/abc' })
-    // The quest itself is created first, then the links.
-    expect(api.post.mock.calls[0][0]).toBe('/api/sis/quests?organization_id=org-1')
-    expect(await screen.findByText('“Robot Garden” is in the library')).toBeInTheDocument()
-  })
-
-  it('will not create a quest with a negative XP requirement', async () => {
-    await startQuest()
-    fireEvent.change(screen.getByLabelText(/XP required to finish/), { target: { value: '-5' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Create quest' }))
-    await new Promise((r) => setTimeout(r, 20))
-    expect(api.post).not.toHaveBeenCalled()
-  })
-})
+// The b067c6c8 create-form fields (XP required, teachers may change it, links
+// at create time) are the quest editor's now; a draft has an id from the
+// first minute, so links and files go on through the attachments panel.
+// components/sis/questEditor.test.jsx holds that behaviour.

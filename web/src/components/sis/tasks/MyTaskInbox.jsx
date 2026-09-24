@@ -3,254 +3,66 @@ import { Link } from 'react-router-dom'
 import { toast } from 'react-hot-toast'
 import api from '../../../services/api'
 import { withOrg } from '../../../pages/sis/useSisOrg'
-import ChecklistSignature from '../ChecklistSignature'
-import MyChecklists from './MyChecklists'
-import { useConfirm } from '../../../contexts/ConfirmContext'
-import AnnouncementBody from '../../announcements/AnnouncementBody'
 import StatusPill from '../ui/StatusPill'
+import TaskCard from './TaskCard'
+import { taskApi } from '../../../hooks/api/useTasks'
 
 /**
- * My tasks -- everything the school is currently asking this person to do.
+ * My tasks -- everything the school is asking this staff member to do.
  *
- * Before this list there were four places: a request assigned to you lived in
- * Forms, a checklist item in Onboarding, a document sent for your signature
- * nowhere in particular, and a policy to acknowledge in Resources. Nobody
- * checks four places, so things sat.
+ * One card per task (iCreate meeting 2026-09-23): a one-step "do this", a
+ * multi-step list, a document to sign, today's daily duty, a message the
+ * office turned into a task for them. Every step is done in place on the
+ * card, and each card has its own comment thread. Policies to acknowledge
+ * are the one other kind of thing on the list, and they stay one-line rows:
+ * reading and ticking IS the whole task.
  *
- * Tasks are completed HERE wherever the whole interaction fits -- signing,
- * ticking an item, uploading a document, acknowledging a policy. A request
- * (which is a conversation, with a status and a comment thread) keeps its own
- * page and this list links into it. The rule is: if finishing it takes one
- * interaction, finish it here.
+ * Until 2026-09-24 this was an inbox of items with a second "By checklist"
+ * view, because a request, a checklist item and a signature were three
+ * records. They are one record now, so the card is the checklist view and the
+ * list is the inbox at the same time.
  *
- * Two views of the same rows. The list is an inbox: what is outstanding,
- * finished work behind "Show completed". "By checklist" is the whole
- * checklist, ticks and all, grouped the way it was assigned -- the one list
- * people go looking for on purpose ("which of my documents are in, which are
- * still owed", iCreate 2026-09-10), which an inbox cannot answer. It was its
- * own page (/onboarding), then its own tab; a checklist item is a task, so
- * it is a view here (2026-09-17).
- *
- * The inbox is always the CALLER's own (routes/sis/tasks.py takes no
- * ?teacher_id=), so under a teacher preview the list says whose it would be
- * showing; the checklist view does support the preview.
+ * The list is always the CALLER's own (routes/sis/tasks.py takes no
+ * ?teacher_id=), so under a teacher preview it says whose it is showing.
  */
 
-const TYPE_LABEL = {
-  request: 'Request',
-  signature: 'Signature',
-  document_upload: 'Upload',
-  checklist_item: 'Checklist',
-  ack: 'Acknowledge',
-}
-
-
-const PRIORITY_STYLES = {
-  high: 'bg-orange-100 text-orange-700',
-  urgent: 'bg-red-100 text-red-700',
-}
-
-// "onb:<assignment_id>:<item_key>" — the inbox's id for a checklist item is the
-// pair the onboarding API needs to update it, so completing in place needs no
-// second lookup.
-const parseOnboardingId = (id) => {
-  const parts = String(id || '').split(':')
-  return parts[0] === 'onb' ? { assignmentId: parts[1], itemKey: parts.slice(2).join(':') } : null
-}
-
-const TaskStatus = ({ status }) => <StatusPill domain="task" status={status} fallback="todo" />
-
-const TaskRow = ({ task, orgId, busy, onChanged, setBusy }) => {
-  const confirm = useConfirm()
-  const onb = parseOnboardingId(task.id)
-
-  const patchItem = async (fields) => {
-    if (!onb) return
-    setBusy(task.id)
-    try {
-      await api.patch(`/api/sis/teacher/onboarding/${onb.assignmentId}/items/${onb.itemKey}`, {
-        organization_id: orgId, ...fields,
-      })
-      onChanged()
-    } catch (err) {
-      toast.error(err?.response?.data?.error || 'Could not update the task')
-    } finally {
-      setBusy(null)
-    }
-  }
-
-  const uploadDoc = async (file) => {
-    if (!onb) return
-    setBusy(task.id)
-    try {
-      const form = new FormData()
-      form.append('file', file)
-      const r = await api.post(withOrg('/api/sis/teacher/onboarding/upload', orgId), form)
-      await api.patch(`/api/sis/teacher/onboarding/${onb.assignmentId}/items/${onb.itemKey}`, {
-        organization_id: orgId,
-        add_document: { path: r.data?.path, filename: file.name },
-        status: 'complete',
-      })
-      toast.success('Document sent')
-      onChanged()
-    } catch (err) {
-      toast.error(err?.response?.data?.error || 'Upload failed')
-    } finally {
-      setBusy(null)
-    }
-  }
-
-  const removeDoc = async (doc) => {
-    if (!onb) return
-    if (!(await confirm(`Remove ${doc.filename || 'this document'}?`))) return
-    setBusy(task.id)
-    try {
-      await api.patch(`/api/sis/teacher/onboarding/${onb.assignmentId}/items/${onb.itemKey}`, {
-        organization_id: orgId, remove_document: doc.path,
-      })
-      toast.success('Document removed')
-      onChanged()
-    } catch (err) {
-      toast.error(err?.response?.data?.error || 'Could not remove document')
-    } finally {
-      setBusy(null)
-    }
-  }
-
-  const openDoc = async (path) => {
-    try {
-      const r = await api.get(withOrg(`/api/sis/teacher/onboarding/doc-url?path=${encodeURIComponent(path)}`, orgId))
-      if (r.data?.url) window.open(r.data.url, '_blank', 'noopener')
-    } catch {
-      toast.error('Could not open the document')
-    }
-  }
-
+function AckRow({ task, orgId, onChanged }) {
+  const [busy, setBusy] = useState(false)
   const acknowledge = async () => {
-    setBusy(task.id)
+    setBusy(true)
     try {
       await api.post('/api/sis/my-tasks/acknowledge', {
         organization_id: orgId, resource_id: task.resource_id,
       })
-      toast.success('Thanks — recorded')
+      toast.success('Thanks, recorded')
       onChanged()
     } catch (err) {
       toast.error(err?.response?.data?.error || 'Could not record that')
     } finally {
-      setBusy(null)
+      setBusy(false)
     }
   }
-
-  // The document the office shared to sign — same signed-URL door My Documents uses.
-  const openSignDoc = async (doc) => {
-    try {
-      const r = await api.get(withOrg(`/api/sis/teacher/my-documents/${doc.id}/url`, orgId))
-      if (r.data?.url) window.open(r.data.url, '_blank', 'noopener')
-    } catch {
-      toast.error('Could not open the document')
-    }
-  }
-
   return (
-    <li className="py-3">
-      <div className="flex items-start gap-3">
-        {/* A signature or an upload is completed by doing it, not by ticking a
-            box — the backend refuses a bare tick on both, so no checkbox. */}
-        {task.type === 'checklist_item' ? (
-          <input type="checkbox" checked={task.status === 'done'} disabled={busy}
-            onChange={(e) => patchItem({ status: e.target.checked ? 'complete' : 'pending' })}
-            className="mt-1 h-4 w-4 accent-purple-700" />
-        ) : (
-          <span className="mt-1 h-4 w-4 shrink-0" aria-hidden="true" />
-        )}
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-sm font-medium text-neutral-900">{task.title}</span>
-            <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-neutral-600">
-              {TYPE_LABEL[task.type] || 'Task'}
-            </span>
-            <TaskStatus status={task.status} />
-            {PRIORITY_STYLES[task.priority] && (
-              <span className={`text-xs px-2 py-0.5 rounded-full capitalize ${PRIORITY_STYLES[task.priority]}`}>
-                {task.priority}
-              </span>
-            )}
-            {task.due_date && (
-              <span className={`text-xs ${task.overdue ? 'text-red-600 font-medium' : 'text-neutral-400'}`}>
-                {task.overdue ? 'Overdue — due' : 'Due'} {task.due_date}
-              </span>
-            )}
-          </div>
-          {task.context && <p className="text-xs text-neutral-400 mt-0.5">{task.context}</p>}
-          {/* The office writes "the form is at https://..." into a task note,
-              and a URL that is not a link is a URL somebody retypes by hand
-              (iCreate e92b18ca). AnnouncementBody already turns every http(s)
-              URL in a plain body into a labeled button; this is the same text
-              in a different queue. */}
-          {task.admin_notes && (
-            <div className="text-sm text-amber-700 mt-0.5">
-              Note: <AnnouncementBody text={task.admin_notes} className="inline text-amber-700" />
-            </div>
-          )}
-
-          {task.type === 'signature' && (
-            <ChecklistSignature
-              item={{ sign_docs: task.sign_docs, signature: null }}
-              statement={task.signature_statement}
-              busy={busy}
-              onSign={(fields) => patchItem(fields)}
-              onOpenDoc={openSignDoc}
-            />
-          )}
-
-          {task.type === 'document_upload' && (
-            <div className="mt-1.5 space-y-1">
-              {(task.documents || []).map((doc) => (
-                <div key={doc.path} className="flex items-center gap-3">
-                  <button onClick={() => openDoc(doc.path)} className="text-sm text-optio-purple hover:underline">
-                    {doc.filename || 'View document'}
-                  </button>
-                  <button onClick={() => removeDoc(doc)}
-                    className="text-xs text-red-600 hover:underline">Remove</button>
-                </div>
-              ))}
-              <label className="inline-block text-sm text-optio-purple hover:underline cursor-pointer">
-                {(task.documents || []).length ? 'Add another document' : 'Upload document'}
-                <input type="file" className="hidden" disabled={busy}
-                  onChange={(e) => e.target.files?.[0] && uploadDoc(e.target.files[0])} />
-              </label>
-            </div>
-          )}
-
-          {task.type === 'ack' && (
-            <div className="mt-1.5 flex items-center gap-3">
-              <Link to={task.link} className="text-sm text-optio-purple hover:underline">Read it</Link>
-              <button onClick={acknowledge} disabled={busy}
-                className="px-3 py-1.5 rounded-lg bg-gradient-primary text-white text-sm font-semibold disabled:opacity-50">
-                {busy ? 'Saving…' : 'I have read this'}
-              </button>
-            </div>
-          )}
-
-          {task.type === 'request' && (
-            <Link to={task.link} className="mt-1.5 inline-block text-sm text-optio-purple hover:underline">
-              Open request
-            </Link>
-          )}
-        </div>
-      </div>
+    <li className="bg-white rounded-xl border border-gray-200 p-4 flex items-center gap-3 flex-wrap">
+      <span className="text-sm font-medium text-neutral-900 flex-1 min-w-0">{task.title}</span>
+      <StatusPill domain="task" status={task.status} fallback="todo" />
+      {task.status !== 'done' && (
+        <>
+          <Link to={task.link} className="text-sm text-optio-purple hover:underline">Read it</Link>
+          <button type="button" onClick={acknowledge} disabled={busy}
+            className="px-3 py-1.5 rounded-lg bg-gradient-primary text-white text-sm font-semibold disabled:opacity-50">
+            {busy ? 'Saving…' : 'I have read this'}
+          </button>
+        </>
+      )}
     </li>
   )
 }
 
-const VIEWS = [['list', 'List'], ['checklist', 'By checklist']]
-
-export default function MyTaskInbox({ orgId, preview = null, view = 'list', onViewChange,
-  openItemKey = null, checklistHidden = false }) {
+export default function MyTaskInbox({ orgId, preview = null, openTaskId = null }) {
   const [data, setData] = useState({ tasks: [], counts: {} })
   const [showDone, setShowDone] = useState(false)
   const [loading, setLoading] = useState(true)
-  const [busyId, setBusyId] = useState(null)
 
   const load = useCallback(() => {
     if (!orgId) return
@@ -267,103 +79,57 @@ export default function MyTaskInbox({ orgId, preview = null, view = 'list', onVi
 
   useEffect(() => { load() }, [load])
 
-  const { open, done } = useMemo(() => ({
-    open: data.tasks.filter((t) => t.status !== 'done'),
-    done: data.tasks.filter((t) => t.status === 'done'),
+  const { open, finished } = useMemo(() => ({
+    open: data.tasks.filter((t) => !['done', 'expired'].includes(t.status)),
+    finished: data.tasks.filter((t) => ['done', 'expired'].includes(t.status)),
   }), [data.tasks])
 
   const counts = data.counts || {}
-  const byChecklist = view === 'checklist' && !checklistHidden
+  const card = (t) => (t.type === 'ack'
+    ? <AckRow key={t.id} task={t} orgId={orgId} onChanged={load} />
+    : (
+      <li key={t.id}>
+        <TaskCard task={t} api={taskApi} statement={data.signature_statement}
+          onChanged={load} highlighted={openTaskId === t.id} showThreadLink />
+      </li>
+    ))
 
   return (
     <div className="space-y-4">
-      {preview && !byChecklist && (
+      {preview && (
         <p className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 text-sm text-amber-800">
-          These are your own tasks, not {preview.name}&apos;s — the teacher preview does not cover
-          the task inbox. Their checklist is under &quot;By checklist&quot;; their documents are on
-          the My documents tab.
+          These are your own tasks, not {preview.name}&apos;s. The teacher preview does not cover
+          anybody else&apos;s task list.
         </p>
       )}
 
       <div className="flex items-center gap-3 flex-wrap">
-        {!checklistHidden && (
-          <div className="inline-flex rounded-lg border border-gray-200 p-0.5 bg-white" role="group" aria-label="How to see your tasks">
-            {VIEWS.map(([key, label]) => (
-              <button key={key} type="button" onClick={() => onViewChange?.(key)} aria-pressed={byChecklist ? key === 'checklist' : key === 'list'}
-                className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
-                  (byChecklist ? key === 'checklist' : key === 'list')
-                    ? 'bg-optio-purple text-white' : 'text-neutral-600 hover:bg-neutral-50'}`}>
-                {label}
-              </button>
-            ))}
-          </div>
+        <span className="text-sm text-neutral-600">
+          <span className="font-semibold text-neutral-900">{counts.open ?? 0}</span> open
+        </span>
+        {counts.overdue > 0 && (
+          <span className="text-sm text-red-600 font-medium">{counts.overdue} overdue</span>
         )}
-        {!byChecklist && (
-          <>
-            <span className="text-sm text-neutral-600">
-              <span className="font-semibold text-neutral-900">{counts.open ?? 0}</span> open
-            </span>
-            {counts.overdue > 0 && (
-              <span className="text-sm text-red-600 font-medium">{counts.overdue} overdue</span>
-            )}
-            <label className="ml-auto flex items-center gap-2 text-sm text-neutral-600 cursor-pointer">
-              <input type="checkbox" checked={showDone} onChange={(e) => setShowDone(e.target.checked)}
-                className="h-4 w-4 accent-purple-700" />
-              Show completed
-            </label>
-          </>
-        )}
+        <label className="ml-auto flex items-center gap-2 text-sm text-neutral-600 cursor-pointer">
+          <input type="checkbox" checked={showDone} onChange={(e) => setShowDone(e.target.checked)}
+            className="h-4 w-4 accent-purple-700" />
+          Show finished
+        </label>
       </div>
 
-      {byChecklist && <MyChecklists orgId={orgId} preview={preview} openItemKey={openItemKey} />}
+      {loading && !data.tasks.length && <p className="text-sm text-neutral-500">Loading…</p>}
+      {!loading && !open.length && (
+        <p className="text-sm text-neutral-500">
+          {finished.length ? 'You are all caught up.' : 'Nothing is waiting on you right now.'}
+        </p>
+      )}
+      <ul className="space-y-3">{open.map(card)}</ul>
 
-      {!byChecklist && (
-        <>
-          <div className="bg-white rounded-xl border border-gray-200 p-4">
-            {loading && <p className="text-sm text-neutral-500">Loading…</p>}
-            {!loading && !open.length && !done.length && (
-              <p className="text-sm text-neutral-500">Nothing is waiting on you right now.</p>
-            )}
-            {!loading && !open.length && done.length > 0 && (
-              <p className="text-sm text-neutral-500">You are all caught up.</p>
-            )}
-            <ul className="divide-y divide-gray-100">
-              {open.map((t) => (
-                <TaskRow key={t.id} task={{ ...t, signature_statement: data.signature_statement }}
-                  orgId={orgId} busy={busyId === t.id} setBusy={setBusyId} onChanged={load} />
-              ))}
-            </ul>
-            {/* This list drops finished work, which is right for an inbox and
-                wrong for the question people actually bring to it: "which of my
-                documents are in, and which do I still owe?". Answering that
-                needs the whole checklist, ticks and all, so say where it is
-                rather than leaving an empty page to imply there was never
-                anything here (iCreate, 2026-09-10). */}
-            {!loading && !preview && !checklistHidden && (
-              <p className="text-sm text-neutral-500 mt-3 pt-3 border-t border-gray-100">
-                <button type="button" onClick={() => onViewChange?.('checklist')}
-                  className="text-optio-purple hover:underline">
-                  See your full checklist
-                </button>
-                {' '}— every item, including the ones you have already finished.
-              </p>
-            )}
-          </div>
-
-          {showDone && done.length > 0 && (
-            <div className="bg-white rounded-xl border border-gray-200 p-4">
-              <h2 className="font-semibold text-neutral-900 mb-2">Completed</h2>
-              <ul className="divide-y divide-gray-100">
-                {done.map((t) => (
-                  <li key={t.id} className="py-2.5 flex items-center gap-2">
-                    <span className="text-sm text-neutral-400 line-through truncate">{t.title}</span>
-                    <span className="ml-auto"><TaskStatus status="done" /></span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-        </>
+      {showDone && finished.length > 0 && (
+        <div className="space-y-3">
+          <h2 className="font-semibold text-neutral-900">Finished</h2>
+          <ul className="space-y-3">{finished.map(card)}</ul>
+        </div>
       )}
     </div>
   )

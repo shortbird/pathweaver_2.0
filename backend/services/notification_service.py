@@ -85,10 +85,16 @@ class NotificationService(BaseService):
         message: str,
         link: Optional[str] = None,
         metadata: Optional[Dict[str, Any]] = None,
-        organization_id: Optional[str] = None
+        organization_id: Optional[str] = None,
+        push: bool = True
     ) -> Dict[str, Any]:
         """
         Create a notification for a user.
+
+        `push=False` keeps the bell row and the realtime update and skips the
+        web and mobile push. The console's Compose offers push as a per-send
+        toggle (iCreate, 2026-09-23, bf8b754d): a note to forty families about
+        tomorrow's supply list does not need to buzz forty phones.
 
         Args:
             user_id: Target user ID
@@ -136,7 +142,7 @@ class NotificationService(BaseService):
                 self._broadcast_realtime(user_id, notification)
 
             # Send web push notification for supported types
-            if notification and notification_type in WEB_PUSH_NOTIFICATION_TYPES:
+            if push and notification and notification_type in WEB_PUSH_NOTIFICATION_TYPES:
                 self._send_push_notification(
                     user_id=user_id,
                     title=title,
@@ -145,7 +151,7 @@ class NotificationService(BaseService):
                 )
 
             # Send mobile push notification (Expo) for broader set of types
-            if notification and notification_type in MOBILE_PUSH_NOTIFICATION_TYPES:
+            if push and notification and notification_type in MOBILE_PUSH_NOTIFICATION_TYPES:
                 self._send_expo_push_notification(
                     user_id=user_id,
                     title=title,

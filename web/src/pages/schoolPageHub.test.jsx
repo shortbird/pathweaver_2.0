@@ -15,7 +15,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
  *
  * 1. Which cards a given person gets. Calendar, Resources and Directory are the
  *    school's own content and belong to everyone in it. Billing, Absences,
- *    Forms and the Schedule Builder act on a FAMILY, and a student is
+ *    To do and the Schedule Builder act on a FAMILY, and a student is
  *    a member of the school without being a guardian in it. Erring permissive
  *    here puts a Billing tile in front of a fourteen-year-old.
  *
@@ -109,7 +109,7 @@ describe('what a guardian gets', () => {
     schoolContext = { success: true, orgs: [GUARDIAN_ORG], is_guardian: true }
   })
 
-  // The family doors (billing, absences, forms, schedule) are
+  // The family doors (billing, absences, to do, schedule) are
   // sidebar items under the school's name since 2026-09-15 (see
   // familyNavItemsFor in ./school/schoolCards); the rail here keeps the
   // school-life cards only, so the same door is not offered twice on one screen.
@@ -120,7 +120,7 @@ describe('what a guardian gets', () => {
     // rail does not offer the same door a second time.
     expect(names).not.toContain('Calendar')
     expect(names).not.toContain('Billing')
-    expect(names).not.toContain('Forms')
+    expect(names).not.toContain('To do')
     expect(names).not.toContain('Schedule')
   })
 
@@ -149,8 +149,16 @@ describe('what a guardian gets', () => {
       Schedule: '/schedule-builder',
       Absences: '/absences',
       Billing: '/family/billing',
-      Forms: '/family/forms',
+      // "Forms" until 2026-09-24; the path stays for the links already sent.
+      'To do': '/family/forms',
     })
+  })
+
+  // The To do door serves two blocks: the tasks block, and onboarding (the
+  // signature paperwork that became tasks). Either one is enough.
+  it.each([['tasks'], ['onboarding']])('offers To do where the school runs %s', (mod) => {
+    const names = familyNavItemsFor({ ...GUARDIAN_ORG, modules: [mod] }).map((i) => i.name)
+    expect(names).toContain('To do')
   })
 
   it('offers Goal Setting instead where the school runs goals', () => {

@@ -8,8 +8,9 @@
  */
 
 import React from 'react';
-import { render, fireEvent, screen } from '@testing-library/react-native';
+import { render, fireEvent, screen, act } from '@testing-library/react-native';
 import SchoolScreen from '../index';
+import { useAuthStore } from '@/src/stores/authStore';
 
 let mockParams: Record<string, string> = {};
 const mockPush = jest.fn();
@@ -54,6 +55,13 @@ jest.mock('@/src/components/school/CarpoolTab', () => ({
     return <Text testID="school-tab-carpool">carpool</Text>;
   },
 }));
+jest.mock('@/src/components/school/TodoTab', () => ({
+  TodoTab: ({ audience, initialTaskId }: { audience: string; initialTaskId?: string | null }) => {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const { Text } = require('react-native');
+    return <Text testID="school-tab-todo">todo:{audience}:{initialTaskId || ''}</Text>;
+  },
+}));
 jest.mock('@/src/components/school/DocumentsTab', () => ({
   DocumentsTab: () => {
     // eslint-disable-next-line @typescript-eslint/no-var-requires
@@ -85,16 +93,16 @@ beforeEach(() => {
 });
 
 describe('the tab strip', () => {
-  it('lists Feed, Schedule, Calendar, Carpool, Documents for an iCreate parent', () => {
+  it('lists Feed, To do, Schedule, Calendar, Carpool, Documents for an iCreate parent', () => {
     render(<SchoolScreen />);
-    for (const key of ['feed', 'schedule', 'calendar', 'carpool', 'documents']) {
+    for (const key of ['feed', 'todo', 'schedule', 'calendar', 'carpool', 'documents']) {
       expect(screen.getByTestId(`school-tab-${key}-button`)).toBeTruthy();
     }
     expect(screen.queryByText('Absence')).toBeNull();
     expect(screen.queryByText('Billing')).toBeNull();
     expect(screen.queryByText('Forms')).toBeNull();
     // Lost & found is on the page as a feed filter, not as a tab.
-    expect(screen.getAllByRole('tab')).toHaveLength(5);
+    expect(screen.getAllByRole('tab')).toHaveLength(6);
     expect(screen.getByTestId('feed-filter-lostfound')).toBeTruthy();
   });
 
@@ -144,6 +152,42 @@ describe('the tab strip', () => {
     render(<SchoolScreen />);
     expect(screen.queryByTestId('school-tabs')).toBeNull();
     expect(screen.getByTestId('school-tab-feed')).toBeTruthy();
+  });
+});
+
+describe('the To do tab', () => {
+  afterEach(() => {
+    act(() => { useAuthStore.setState({ user: null }); });
+  });
+
+  it('sits right after Feed, and opens the family list for a guardian', () => {
+    render(<SchoolScreen />);
+    const keys = screen.getAllByRole('tab').map((t) => t.props.testID);
+    expect(keys.slice(0, 2)).toEqual(['school-tab-feed-button', 'school-tab-todo-button']);
+    fireEvent.press(screen.getByTestId('school-tab-todo-button'));
+    expect(screen.getByText('todo:family:')).toBeTruthy();
+  });
+
+  it('appears for a student, who is a member without being a guardian', () => {
+    act(() => { useAuthStore.setState({ user: { id: 's1', role: 'student' } as any }); });
+    mockHub = guardianHub({ org: { ...guardianHub().org, is_guardian: false } });
+    mockParams = { tab: 'todo' };
+    render(<SchoolScreen />);
+    expect(screen.getByText('todo:student:')).toBeTruthy();
+    expect(screen.queryByTestId('school-tab-schedule-button')).toBeNull();
+  });
+
+  it('is absent for a member who is neither a guardian nor a student', () => {
+    act(() => { useAuthStore.setState({ user: { id: 'a1', role: 'org_managed', org_role: 'advisor' } as any }); });
+    mockHub = guardianHub({ org: { ...guardianHub().org, is_guardian: false } });
+    render(<SchoolScreen />);
+    expect(screen.queryByTestId('school-tab-todo-button')).toBeNull();
+  });
+
+  it('opens on the task a notification names', () => {
+    mockParams = { tab: 'todo', task: 't-9' };
+    render(<SchoolScreen />);
+    expect(screen.getByText('todo:family:t-9')).toBeTruthy();
   });
 });
 

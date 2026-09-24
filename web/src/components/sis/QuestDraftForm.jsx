@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { PlusIcon, TrashIcon, ChevronUpIcon, ChevronDownIcon } from '@heroicons/react/24/outline'
+import { PlusIcon, TrashIcon, ChevronUpIcon, ChevronDownIcon, DocumentDuplicateIcon } from '@heroicons/react/24/outline'
 import { PILLARS as PILLAR_CONFIG } from '../../config/pillars'
 import TaskSubjectPicker from './TaskSubjectPicker'
 import QuestResourcesPanel from './QuestResourcesPanel'
@@ -93,9 +93,17 @@ export function followPillar(task, pillar) {
  * "Find the Absences feature in Optio" among them. Hide it only where the
  * default is genuinely as good as any answer.
  */
-export function TaskRows({ tasks, setTasks, addLabel = 'Add a preset task', showPillars = true, showSubjects = true, questId = null }) {
+export function TaskRows({ tasks, setTasks, addLabel = 'Add a preset task', showPillars = true, showSubjects = true, questId = null, onSaveForAttachments = null }) {
   const update = (i, patch) => setTasks((prev) => prev.map((t, idx) => (idx === i ? { ...t, ...patch } : t)))
   const remove = (i) => setTasks((prev) => prev.filter((_, idx) => idx !== i))
+  // iCreate, 2026-09-07 (4da3680d): "I'd also like to be able to duplicate
+  // tasks." The copy lands at the end of the list, not next to its source, so
+  // the list being read does not reshuffle. It has no id until the next save:
+  // it is a new task, with its own attachments to come.
+  const duplicate = (i) => setTasks((prev) => {
+    const { id: _id, ...copy } = prev[i]
+    return [...prev, { ...copy }]
+  })
   // Order is the order learners see, and the row's order_index is just its
   // position in this list. A sixteen-station orientation walks a building in
   // sequence, and rewriting every title to reshuffle two of them is not an edit
@@ -153,8 +161,14 @@ export function TaskRows({ tasks, setTasks, addLabel = 'Add a preset task', show
                 onChange={(e) => update(i, { is_required: e.target.checked })} />
               Required
             </label>
+            <button type="button" onClick={() => duplicate(i)} disabled={!t.title.trim()}
+              className="ml-auto p-1 text-gray-400 hover:text-optio-purple disabled:opacity-30"
+              title="Make a copy of this task at the end of the list"
+              aria-label={`Duplicate task ${i + 1}`}>
+              <DocumentDuplicateIcon className="w-4 h-4" />
+            </button>
             <button type="button" onClick={() => remove(i)}
-              className="ml-auto p-1 text-gray-400 hover:text-red-500" aria-label={`Remove task ${i + 1}`}>
+              className="p-1 text-gray-400 hover:text-red-500" aria-label={`Remove task ${i + 1}`}>
               <TrashIcon className="w-4 h-4" />
             </button>
           </div>
@@ -169,6 +183,14 @@ export function TaskRows({ tasks, setTasks, addLabel = 'Add a preset task', show
               waits for the save. */}
           {questId && t.id && (
             <QuestResourcesPanel questId={questId} taskId={t.id} compact />
+          )}
+          {/* The quest editor (P6) saves the whole draft on this click, which
+              gives the new task its id, so its files can go on straight away. */}
+          {questId && !t.id && onSaveForAttachments && t.title.trim() && (
+            <button type="button" onClick={onSaveForAttachments}
+              className="text-xs text-optio-purple hover:underline">
+              Save to add files and links to this task
+            </button>
           )}
         </div>
       ))}
@@ -185,6 +207,30 @@ export function TaskRows({ tasks, setTasks, addLabel = 'Add a preset task', show
         number is raised to it when you save.
       </p>
     </div>
+  )
+}
+
+/**
+ * A quest's tasks for somebody who may read them and not change them: a
+ * teacher looking at the office's quest on their class (P6, 2026-09-23).
+ */
+export function ReadOnlyTasks({ tasks }) {
+  const real = (tasks || []).filter((t) => (t.title || '').trim())
+  if (!real.length) {
+    return <p className="text-sm text-neutral-500">No preset tasks. Students write their own.</p>
+  }
+  return (
+    <ol className="space-y-1.5" aria-label="Tasks">
+      {real.map((t, i) => (
+        <li key={t.id || i} className="text-sm">
+          <span className="text-neutral-400 mr-1.5">{i + 1}.</span>
+          <span className="text-neutral-800">{t.title}</span>
+          <span className="ml-2 text-[11px] px-2 py-0.5 rounded-full bg-gray-100 text-neutral-500">
+            {PILLAR_LABEL[t.pillar] || t.pillar} · {t.xp_value} XP{t.is_required ? ' · required' : ''}
+          </span>
+        </li>
+      ))}
+    </ol>
   )
 }
 
@@ -225,6 +271,11 @@ export default function QuestDraftForm({
   // iCreate asked to lose (Molly, 2026-09-17, 1aed3f6c). A quest whose tasks
   // already carry chosen subjects starts on whatever the caller says.
   creditDefault = true,
+  // Called by a task row that has no id yet when its author wants to attach
+  // something to it: the quest editor saves, and the row comes back with one.
+  onSaveForAttachments = null,
+  // Where the rows get read-only: a teacher looking at the office's quest.
+  readOnly = false,
 }) {
   const [countsForCredit, setCountsForCredit] = useState(
     () => tasksCarryChosenSubjects(tasks) || creditDefault
@@ -248,6 +299,17 @@ export default function QuestDraftForm({
       const next = [defaultSubjectForPillar(t.pillar)]
       return { ...t, diploma_subjects: next, subject_xp_distribution: evenSplit(next, t.xp_value) }
     }))
+  }
+  if (readOnly) {
+    return (
+      <div className="space-y-3">
+        <div>
+          <p className="text-base font-semibold text-neutral-900">{title || 'Untitled quest'}</p>
+          {description && <p className="text-sm text-neutral-600 mt-1 whitespace-pre-line">{description}</p>}
+        </div>
+        <ReadOnlyTasks tasks={tasks} />
+      </div>
+    )
   }
   return (
     <div className="space-y-3">
@@ -279,7 +341,8 @@ export default function QuestDraftForm({
       <div>
         <p className="text-xs text-neutral-400 mb-2">{taskHint}</p>
         <TaskRows tasks={tasks} setTasks={setTasks} addLabel={addLabel} showPillars={showPillars}
-          showSubjects={countsForCredit} questId={questId} />
+          showSubjects={countsForCredit} questId={questId}
+          onSaveForAttachments={onSaveForAttachments} />
       </div>
     </div>
   )

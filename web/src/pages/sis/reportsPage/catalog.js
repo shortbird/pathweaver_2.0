@@ -68,12 +68,18 @@ export const REPORTS = [
     description: 'Who was present, absent, late or excused on one day, class by class.',
   },
   {
+    // P7, iCreate 2026-09-23: "verify whether the assigned teacher taught a
+    // class or a substitute did" -- for a pay period, not only today.
+    key: 'roll-call', group: 'attendance', title: 'Who took roll', autoRun: false,
+    description: 'Every class for a range of days: who took the roll and when, whether that was the class’s teacher, and any substitute. For checking a pay period.',
+  },
+  {
     key: 'question', group: 'registration', title: 'Registration answers', autoRun: false,
     description: 'Every family’s (or student’s) answer to one registration question.',
   },
   {
-    key: 'checklist-completion', group: 'registration', title: 'Checklist completion', autoRun: true,
-    description: 'Who has finished the onboarding checklist and who still has items open.',
+    key: 'checklist-completion', group: 'registration', title: 'Task completion', autoRun: true,
+    description: 'Who has finished the tasks the school assigned, and who still has steps open.',
   },
   {
     key: 'payments', group: 'money', title: 'Payments', autoRun: true, money: true,

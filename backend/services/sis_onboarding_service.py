@@ -1,5 +1,15 @@
 """
-SIS staff onboarding — role-specific checklists (iCreate request #12).
+SIS tasks — the one record for "somebody was asked to do something".
+
+It began as staff onboarding checklists (iCreate request #12) and is now every
+task in the SIS (iCreate meeting 2026-09-23): a one-step "do this", a
+multi-step list with uploads, signatures and approvals per step, a document
+sent for signature, a recurring daily duty, and the office's follow-up on a
+message a family sent. Requests and forms were retired into it. The table keeps
+its old name (sis_onboarding_assignments) because the signature hold
+(utils/signature_hold.py) is keyed on it; `kind` is 'task' for new rows and
+'checklist' for rows written before the merge, and the two mean the same thing
+(TASK_KINDS).
 
 Admins define templates (name + item list); assigning one snapshots the items
 onto the assignment so later template edits don't rewrite in-flight checklists.
@@ -34,6 +44,16 @@ logger = get_logger(__name__)
 
 ITEM_STATUSES = ('pending', 'complete', 'approved', 'rejected')
 
+# The kinds that are "a task" as opposed to a document sent for signature.
+# 'checklist' is what every row written before 2026-09-24 says; new rows say
+# 'task'. The additive migration deliberately left the old rows alone (the old
+# code filters on 'checklist' until the release), so every reader here asks for
+# both.
+TASK_KINDS = ('checklist', 'task')
+
+PRIORITIES = ('low', 'normal', 'high', 'urgent')
+ACTIONS = ('do', 'reply')
+
 
 # admin client justified: the SIS console acts for the whole school — this
 #   reads/writes rows belonging to every family in the org, which no single
@@ -47,7 +67,10 @@ from utils.timestamps import now_iso as _now  # noqa: E402
 # The two checklist upload routes each write to their own private bucket
 # (staff_portal.py and parent.py). Removing an attachment has to reach the same
 # one the audience uploaded to.
-CHECKLIST_BUCKETS = {'staff': 'staff-documents', 'family': 'family-documents'}
+# A student's uploads share the family bucket: both are the learning app's
+# side of the school, and the path is {org}/{user}/... either way.
+CHECKLIST_BUCKETS = {'staff': 'staff-documents', 'family': 'family-documents',
+                     'student': 'family-documents'}
 
 
 def _remove_document_blob(assignment: Dict[str, Any], path: str) -> None:
@@ -146,9 +169,20 @@ def _clean_items(items: Any) -> Optional[List[Dict[str, Any]]]:
     return cleaned
 
 
-# A template targets either staff (the SIS console "My checklists") or families
-# (their portal in the web platform). Defaults to staff to preserve existing rows.
-AUDIENCES = ('staff', 'family')
+# A task goes to staff (the SIS console's My tasks), a family (the To do page
+# in the web platform) or a student (their To do on /school and in the app).
+# Defaults to staff to preserve existing rows.
+AUDIENCES = ('staff', 'family', 'student')
+
+# Where each audience does its tasks. A notification carries the task id so the
+# page can open straight onto it.
+TASK_PAGES = {'staff': '/tasks', 'family': '/family/forms', 'student': '/school'}
+
+
+def task_link(audience: Any, task_id: Optional[str] = None) -> str:
+    """The page a person of this audience works a task on."""
+    base = TASK_PAGES.get(_clean_audience(audience), '/tasks')
+    return f'{base}?task={task_id}' if task_id else base
 
 
 def _clean_audience(value: Any) -> str:
@@ -215,7 +249,7 @@ def duplicate_template(org_id: str, template_id: str, actor_id: str) -> Dict[str
     src = rows[0]
 
     taken = {(t.get('name') or '').strip().lower() for t in list_templates(org_id)}
-    base = f"{(src.get('name') or 'Checklist').strip()} (Copy)"
+    base = f"{(src.get('name') or 'Task').strip()} (Copy)"
     name = base
     n = 2
     while name.strip().lower() in taken:
@@ -287,12 +321,14 @@ def sync_assignments(org_id: str, template_id: str) -> Dict[str, Any]:
 
     assignments = (admin.table('sis_onboarding_assignments').select('*')
                    .eq('organization_id', org_id).eq('template_id', template_id)
-                   .eq('kind', 'checklist').execute()).data or []
+                   .in_('kind', list(TASK_KINDS)).execute()).data or []
 
     added = updated = removed = synced = skipped = 0
 
     for a in assignments:
-        if a.get('status') == 'complete':
+        # A finished task is left alone, and so is an expired occurrence: its
+        # day is over.
+        if a.get('status') in ('complete', 'expired'):
             skipped += 1
             continue
         existing = {i.get('key'): i for i in (a.get('items') or []) if isinstance(i, dict)}
@@ -375,7 +411,7 @@ def delete_template(org_id: str, template_id: str,
     if assigned and not force:
         return {'error': (f'This template is assigned to {assigned} '
                           f'{"person" if assigned == 1 else "people"}. '
-                          'Delete it anyway? Their checklists will be kept.'),
+                          'Delete it anyway? Their tasks will be kept.'),
                 'assigned_count': assigned, 'status': 409}
     _admin().table('sis_onboarding_templates').delete().eq('id', template_id).execute()
     return {'deleted': True, 'assigned_count': assigned}
@@ -424,122 +460,141 @@ def assert_recipients_in_org(org_id: str, user_ids: List[str]) -> None:
             else 'That person is not part of this organization')
 
 
-def assign(org_id: str, template_id: str, user_id: str, assigned_by: str) -> Dict[str, Any]:
+def _fresh(item: Dict[str, Any]) -> Dict[str, Any]:
+    """A step as it arrives on somebody's task: its rules, and no progress."""
+    return {**item, 'status': 'pending', 'document_url': None, 'documents': [],
+            'submitted_at': None, 'approved_by': None, 'approved_at': None,
+            'admin_notes': None, 'signature': None}
+
+
+def _clean_recipients(recipients: Any, audience: str) -> List[Dict[str, str]]:
+    """[{'id', 'audience'}], de-duplicated by person, in the order given.
+
+    Callers pass either bare user ids (every one in `audience`) or dicts that
+    carry their own audience -- the Assign dialog sends staff, families and
+    students in one list, and each lands on the page their audience works on.
+    """
+    out: List[Dict[str, str]] = []
+    seen = set()
+    for r in recipients or []:
+        if isinstance(r, dict):
+            uid, aud = r.get('id') or r.get('user_id'), r.get('audience') or audience
+        else:
+            uid, aud = r, audience
+        if not uid or str(uid) in seen:
+            continue
+        seen.add(str(uid))
+        out.append({'id': str(uid), 'audience': _clean_audience(aud)})
+    return out
+
+
+def _load_template(org_id: str, template_id: str) -> Optional[Dict[str, Any]]:
     rows = (_admin().table('sis_onboarding_templates').select('*')
             .eq('id', template_id).limit(1).execute()).data
     if not rows or rows[0].get('organization_id') != org_id:
-        return {'error': 'Template not found'}
-    # The template is confirmed to be this org's; the recipient is not, until
-    # here. Both halves have to be checked, or the row lands in another tenant.
-    try:
-        assert_recipients_in_org(org_id, [user_id])
-    except RecipientNotInOrg as e:
-        return {'error': str(e)}
-    template = rows[0]
-    # One checklist per person per template. Assigning is a snapshot with every
-    # item pending, so assigning the same template to somebody who already holds
-    # it minted a second, blank copy beside the one they had worked through --
-    # and the dashboard banner, the completion report and the roll-up all read
-    # the newest row. iCreate bulk-assigned a renamed template to 13 staff on
-    # 2026-09-10; six already had it, five of those complete, and every one of
-    # them was told they had done none of it (ticket 8670a5e9). Hand back the
-    # row they have instead. Pushing an edited template onto existing
-    # checklists is sync_assignments, deliberately a separate button.
+        return None
+    return rows[0]
+
+
+def _held_from_template(org_id: str, user_id: str, template_id: str) -> Optional[Dict[str, Any]]:
+    """The task this person already holds from this template, if any.
+
+    One per person per template. Assigning is a snapshot with every step
+    pending, so assigning the same template to somebody who already holds it
+    minted a second, blank copy beside the one they had worked through -- and
+    the dashboard banner, the completion report and the roll-up all read the
+    newest row. iCreate bulk-assigned a renamed template to 13 staff on
+    2026-09-10; six already had it, five of those complete, and every one of
+    them was told they had done none of it (ticket 8670a5e9). Pushing an
+    edited template onto existing tasks is sync_assignments, deliberately a
+    separate button.
+    """
     held = (_admin().table('sis_onboarding_assignments').select('*')
             .eq('organization_id', org_id).eq('user_id', user_id)
-            .eq('template_id', template_id).eq('kind', 'checklist')
+            .eq('template_id', template_id).in_('kind', list(TASK_KINDS))
             .order('created_at', desc=True).limit(1).execute()).data
-    if held:
-        return {'assignment': held[0], 'already_assigned': True}
-    # Family checklists live in the learning-app family portal; staff ones in the
-    # SIS console — point the notification at the right place.
-    is_family = _clean_audience(template.get('audience')) == 'family'
-    link = '/family/portal' if is_family else '/tasks?view=checklist'
-    items = [{**i, 'status': 'pending', 'document_url': None,
-              'submitted_at': None, 'approved_by': None, 'approved_at': None,
-              'admin_notes': None, 'signature': None}
-             for i in (template.get('items') or [])]
-    row = (_admin().table('sis_onboarding_assignments').insert({
-        'organization_id': org_id, 'user_id': user_id,
-        'template_id': template_id, 'template_name': template['name'],
-        # Snapshotted like the items: a later template edit must not rewrite the
-        # directions under somebody already working through the checklist.
-        'description': template.get('description'),
-        # Snapshotted alongside the items: the portal a checklist belongs to must
-        # not change when someone edits or deletes the template it came from.
-        'audience': 'family' if is_family else 'staff',
-        # Copied, not referenced — same reason the items are (see the 20260818
-        # migration): editing a template later must not retroactively lock out
-        # families who were assigned the version that didn't.
-        'blocks_access': bool(template.get('blocks_access')) and is_family,
-        'items': items, 'assigned_by': assigned_by,
-    }).execute()).data
-    label = 'Checklist assigned' if is_family else 'Onboarding checklist assigned'
-    sis_notifications.notify(
-        user_id, label,
-        f'"{template["name"]}" has {len(items)} item{"s" if len(items) != 1 else ""} to complete.',
-        link=link, organization_id=org_id)
-    return {'assignment': row[0] if row else None}
+    return held[0] if held else None
 
 
-def assign_many(org_id: str, template_id: str, user_ids: List[str],
-                assigned_by: str) -> Dict[str, Any]:
-    """Assign a template to several people at once (bulk). Returns how many were
-    assigned and how many already held it; skips ids that error so one bad id
-    doesn't sink the batch."""
-    assigned, already, errors = 0, 0, []
-    for uid in dict.fromkeys(uid for uid in user_ids if uid):  # de-dupe, keep order
-        result = assign(org_id, template_id, uid, assigned_by)
-        if result.get('error'):
-            errors.append(result['error'])
-        elif result.get('already_assigned'):
-            already += 1
-        else:
-            assigned += 1
-    return {'assigned': assigned, 'already_assigned': already, 'errors': errors}
+def assign_task(org_id: str, assigner_id: Optional[str], recipients: Any,
+                title: Optional[str] = None, description: Optional[str] = None,
+                items: Optional[List[Dict[str, Any]]] = None,
+                due_date: Optional[str] = None, priority: Optional[str] = None,
+                action: str = 'do',
+                source_conversation_id: Optional[str] = None,
+                source_group_id: Optional[str] = None,
+                source_message_id: Optional[str] = None,
+                *, audience: str = 'staff', needs_document: bool = False,
+                template_id: Optional[str] = None, blocks_access: bool = False,
+                schedule_id: Optional[str] = None, occurrence_date: Optional[str] = None,
+                expires_at: Optional[str] = None, batch_id: Optional[str] = None,
+                skip_held: Optional[bool] = None, notify: bool = True) -> Dict[str, Any]:
+    """Assign one task to one or more people. The single door every task
+    goes through: the Assign dialog, a saved template, a recurring schedule's
+    daily occurrence, and the school inbox's "Make a task" (the messaging
+    stream calls this directly).
 
+    One call is one BATCH: every row it creates shares a batch_id, which is
+    what the office's Assigned view counts as "12 of 30 done".
 
-def assign_task(org_id: str, title: str, user_ids: List[str], assigned_by: str,
-                description: Optional[str] = None, due_date: Optional[str] = None,
-                audience: str = 'staff', items: Optional[List[Dict[str, Any]]] = None,
-                needs_document: bool = False) -> Dict[str, Any]:
-    """An ad-hoc task: "do this thing (or these few things), tick when done."
+    With no `items`, the title IS the single step (plus `needs_document` when
+    the task is "send me a file"). With `items`, each becomes a step and keeps
+    its own abilities -- an upload, a typed signature, office approval --
+    which is all a checklist ever was. `template_id` fills title, directions
+    and steps from a saved template.
 
-    Stored as an assignment with no template — the same record a checklist
-    uses, so it shows up in My Tasks, the admin roll-up and the completion flow
-    without any of them learning a new shape. The template_name carries the
-    task's title, which is what the roll-up displays.
+    `action='reply'` is a task made from a message: the work is answering the
+    thread named by the source ids, and the task page links back to it.
 
-    With no `items`, the title IS the single item (plus `needs_document` when
-    the task is "send me a file"). With `items`, each becomes a step — the
-    composer's "add steps", which is all a checklist ever was.
+    `blocks_access` holds a FAMILY out of the platform until the task is done
+    (services/sis_access_gate.py). It never applies to staff or students:
+    holding a teacher out of their classroom over paperwork is a different
+    decision from holding a family out, and nobody has made it.
+
+    Returns {'assigned', 'already_assigned', 'errors', 'batch_id', 'tasks'}.
     """
-    title = (title or '').strip()
+    template = None
+    if template_id:
+        template = _load_template(org_id, template_id)
+        if not template:
+            return {'error': 'Template not found'}
+        audience = template.get('audience') or audience
+    title = (title or (template or {}).get('name') or '').strip()
     if not title:
         return {'error': 'The task needs a title'}
-    ids = [u for u in dict.fromkeys(user_ids or []) if u]
-    if not ids:
+    people = _clean_recipients(recipients, audience)
+    if not people:
         return {'error': 'Pick at least one person'}
+    if priority is not None and priority not in PRIORITIES:
+        return {'error': 'Invalid priority'}
+    action = action or 'do'
+    if action not in ACTIONS:
+        return {'error': 'Invalid action'}
+    if action == 'reply' and not (source_conversation_id or source_group_id):
+        return {'error': 'A reply task needs the conversation it answers'}
     try:
-        assert_recipients_in_org(org_id, ids)
+        assert_recipients_in_org(org_id, [p['id'] for p in people])
     except RecipientNotInOrg as e:
         return {'error': str(e)}
-    audience = _clean_audience(audience)
-    is_family = audience == 'family'
-    link = '/family/portal' if is_family else '/tasks'
 
-    if items:
+    cleaned: Optional[List[Dict[str, Any]]]
+    if template is not None:
+        # A snapshot, copied not referenced (see the 20260818 migration):
+        # editing the template later must not rewrite the steps -- or the
+        # hold -- under somebody already working through them.
+        cleaned = [dict(i) for i in (template.get('items') or []) if isinstance(i, dict)]
+        if description is None:
+            description = template.get('description')
+        blocks_access = bool(blocks_access or template.get('blocks_access'))
+    elif items:
         cleaned = _clean_items(items)
         if cleaned is None:
             return {'error': 'Every step needs a title'}
-        # A step never signs (that is the signature-send flow, which brings the
-        # document) and never demands office approval — the whole point of an
-        # ad-hoc task is that ticking it is the end of it.
         for it in cleaned:
-            it['needs_signature'] = False
-            it['needs_approval'] = False
+            # A document_id names ONE person's copy of a document; on a send
+            # to several people it would have everybody sign the first
+            # person's contract. Per-person documents are the signature send.
             it['document_id'] = None
-            it['due_date'] = it['due_date'] or due_date or None
     else:
         cleaned = [{
             'key': f'item_{_uuid.uuid4().hex[:12]}',
@@ -548,37 +603,157 @@ def assign_task(org_id: str, title: str, user_ids: List[str], assigned_by: str,
             'required': True,
             'needs_document': bool(needs_document),
             'needs_signature': False, 'needs_approval': False,
-            'due_date': due_date or None, 'link': None, 'document_id': None,
+            'due_date': None, 'link': None, 'document_id': None,
         }]
-    fresh = [{**it, 'status': 'pending', 'document_url': None, 'documents': [],
-              'submitted_at': None, 'approved_by': None, 'approved_at': None,
-              'admin_notes': None, 'signature': None}
-             for it in cleaned]
+    if not cleaned:
+        return {'error': 'Add at least one step'}
+    for it in cleaned:
+        it['due_date'] = it.get('due_date') or due_date or None
+    fresh = [_fresh(it) for it in cleaned]
+    # A one-step task carries its note on the step; a multi-step one carries
+    # the directions above the steps.
+    row_description = ((description or '').strip() or None) if (items or template) else None
 
-    assigned, errors = 0, []
-    for uid in ids:
+    batch_id = batch_id or str(_uuid.uuid4())
+    if skip_held is None:
+        skip_held = bool(template_id) and not schedule_id
+
+    tasks: List[Dict[str, Any]] = []
+    already, errors = 0, []
+    for person in people:
+        if skip_held and template_id:
+            held = _held_from_template(org_id, person['id'], template_id)
+            if held:
+                already += 1
+                tasks.append({**held, 'already_assigned': True})
+                continue
+        is_family = person['audience'] == 'family'
+        row = {
+            'organization_id': org_id, 'user_id': person['id'],
+            'template_id': template_id, 'template_name': title,
+            'description': row_description,
+            'audience': person['audience'], 'kind': 'task',
+            'batch_id': batch_id,
+            'blocks_access': bool(blocks_access) and is_family,
+            'items': [dict(it) for it in fresh], 'assigned_by': assigner_id,
+            'priority': priority, 'due_date': due_date or None, 'action': action,
+            'source_conversation_id': source_conversation_id,
+            'source_group_id': source_group_id,
+            'source_message_id': source_message_id,
+        }
+        if schedule_id:
+            row.update({'schedule_id': schedule_id, 'occurrence_date': occurrence_date,
+                        'expires_at': expires_at})
         try:
-            (_admin().table('sis_onboarding_assignments').insert({
-                'organization_id': org_id, 'user_id': uid,
-                'template_id': None, 'template_name': title,
-                'description': (description or '').strip() or None if items else None,
-                'audience': audience,
-                # An ad-hoc task never gates the portal.
-                'blocks_access': False,
-                'items': [dict(it) for it in fresh], 'assigned_by': assigned_by,
-            }).execute())
+            inserted = (_admin().table('sis_onboarding_assignments')
+                        .insert(row).execute()).data
         except Exception as e:  # noqa: BLE001
-            logger.error(f'[Onboarding] Ad-hoc task insert failed for org {org_id}: {e}')
+            logger.error(f'[Tasks] insert failed for org {org_id}: {e}')
             errors.append('Could not assign to one recipient')
             continue
-        assigned += 1
-        n = len(fresh)
-        sis_notifications.notify(
-            uid, 'New task',
-            f'"{title}"' + (f' — {n} steps' if n > 1 else '')
-            + (f' — due {due_date}' if due_date else ''),
-            link=link, organization_id=org_id)
-    return {'assigned': assigned, 'errors': errors}
+        saved = {**row, **((inserted or [{}])[0])}
+        tasks.append(saved)
+        if row['blocks_access']:
+            # The gate caches "this person is clear" for a minute; a new hold
+            # has to bite now.
+            sis_access_gate.clear_cache(person['id'])
+        if notify:
+            _notify_assigned(org_id, saved, title, len(fresh), due_date,
+                             occurrence=bool(schedule_id))
+
+    assigned = len(tasks) - already
+    return {'assigned': assigned, 'already_assigned': already, 'errors': errors,
+            'batch_id': batch_id, 'tasks': tasks}
+
+
+def _notify_assigned(org_id: str, row: Dict[str, Any], title: str, steps: int,
+                     due_date: Optional[str], occurrence: bool = False) -> None:
+    """Tell one person about a task that just landed on them."""
+    link = task_link(row.get('audience'), row.get('id'))
+    if occurrence:
+        sis_notifications.notify(row['user_id'], 'For today', f'"{title}"',
+                                 link=link, organization_id=org_id)
+        return
+    body = (f'"{title}"' + (f' -- {steps} steps' if steps > 1 else '')
+            + (f' -- due {due_date}' if due_date else ''))
+    if row.get('blocks_access'):
+        sis_notifications.notify(row['user_id'], 'Required before you continue', body,
+                                 link='/family/required-documents', organization_id=org_id)
+        return
+    sis_notifications.notify(row['user_id'], 'New task', body, link=link,
+                             organization_id=org_id)
+    if _clean_audience(row.get('audience')) == 'staff':
+        email_assignment(row['user_id'], org_id, title, due_date)
+
+
+# The SIS console. Task links have to leave the app entirely, so they cannot be
+# relative the way an in-app notification link is.
+SIS_TASKS_URL = 'https://sis.optioeducation.com/tasks'
+
+
+def email_assignment(user_id: str, org_id: str, title: str,
+                     due_date: Optional[str] = None) -> None:
+    """Email the staff member a task was just assigned to.
+
+    The in-app notification alone assumed staff open the SIS every day.
+    "When I get assigned a task, can I get an email? I have a hard time keeping
+    track" (iCreate a6d09acd). It lived on the request queue until requests
+    became tasks. Best-effort: a task is assigned whether or not the mail goes
+    out, so nothing here may raise into the caller.
+    """
+    try:
+        # Repositories, not .table() here: both questions already have a method
+        # (tests/unit/test_direct_db_calls_do_not_grow).
+        from repositories.user_repository import UserRepository
+        from repositories.organization_repository import OrganizationRepository
+        client = _admin()
+        person = UserRepository(client=client).find_by_ids(
+            [user_id], select_fields='id, email, first_name').get(user_id) or {}
+        email = (person.get('email') or '').strip()
+        if not email or sis_service.is_placeholder_staff_email(email):
+            return
+        org = OrganizationRepository(client=client).find_by_id(org_id) or {}
+        org_name = org.get('name') or 'your school'
+        first = (person.get('first_name') or '').strip() or 'there'
+        due_line = f'<p>Due <strong>{due_date}</strong>.</p>' if due_date else ''
+        html = (
+            f'<p>Hi {first},</p>'
+            f'<p>A new task is assigned to you at {org_name}:</p>'
+            f'<p><strong>{title}</strong></p>'
+            f'{due_line}'
+            f'<p><a href="{SIS_TASKS_URL}">Open My tasks</a> to work it.</p>'
+        )
+        from services.email_service import email_service
+        email_service.send_email(email, f'{org_name}: a task is assigned to you', html)
+    except Exception as e:  # noqa: BLE001 - delivery is never the caller's problem
+        logger.warning(f'task-assignment email skipped for {str(user_id)[:8]}: {e}')
+
+
+def assign(org_id: str, template_id: str, user_id: str, assigned_by: str,
+           batch_id: Optional[str] = None) -> Dict[str, Any]:
+    """Assign a saved template to one person. Somebody who already holds it
+    gets their own task back (`already_assigned`), not a second blank copy."""
+    result = assign_task(org_id, assigned_by, [user_id], template_id=template_id,
+                         batch_id=batch_id)
+    if result.get('error'):
+        return {'error': result['error']}
+    if result.get('errors') and not result.get('tasks'):
+        return {'error': result['errors'][0]}
+    task = (result.get('tasks') or [None])[0]
+    if task and task.pop('already_assigned', False):
+        return {'assignment': task, 'already_assigned': True}
+    return {'assignment': task}
+
+
+def assign_many(org_id: str, template_id: str, user_ids: List[str],
+                assigned_by: str) -> Dict[str, Any]:
+    """Assign a template to several people at once: one batch. Returns how many
+    were assigned and how many already held it."""
+    result = assign_task(org_id, assigned_by, list(user_ids or []), template_id=template_id)
+    if result.get('error'):
+        return {'assigned': 0, 'already_assigned': 0, 'errors': [result['error']]}
+    return {'assigned': result['assigned'], 'already_assigned': result['already_assigned'],
+            'errors': result['errors'], 'batch_id': result['batch_id']}
 
 
 class ClassNotInOrg(Exception):
@@ -612,25 +787,52 @@ def class_guardian_ids(org_id: str, class_id: str) -> set:
     return parents_of_students(class_student_ids(class_id))
 
 
+def class_student_ids_in_org(org_id: str, class_id: str) -> set:
+    """Students actively enrolled in one of this org's classes -- "Pick a
+    class" on the student recipient list. Same org check as the family
+    version: another school's roster is never an answer."""
+    from repositories.sis_class_repository import SisClassRepository
+    from utils.class_membership import class_student_ids
+    try:
+        cls = SisClassRepository(client=_admin()).find_by_id(class_id)
+    except Exception as e:  # noqa: BLE001 -- a malformed id is a missing class
+        logger.warning(f'[Onboarding] Class lookup failed for {str(class_id)[:8]}: {e}')
+        cls = None
+    if not cls or cls.get('organization_id') != org_id:
+        raise ClassNotInOrg('Class not found')
+    return set(class_student_ids(class_id))
+
+
+# Who each audience's recipient list offers.
+_AUDIENCE_ROLES = {
+    'family': {'parent'},
+    'student': {'student'},
+    'staff': {'advisor', 'org_admin', 'campus_coordinator'},
+}
+
+
 def list_recipients(org_id: str, audience: str = 'staff',
                     class_id: Optional[str] = None) -> List[Dict[str, Any]]:
-    """People an admin can assign a template to, by audience. 'family' returns the
-    org's guardians (parents); 'staff' returns teachers/admins.
+    """People an admin can assign a task to, by audience: the org's guardians
+    ('family'), its students ('student'), or its teachers and admins ('staff').
 
-    `class_id` (family only) narrows the list to the guardians of that class's
-    enrolled students. The narrowing is an intersection with the org's family
-    list, not a replacement for it: assigning checks that every recipient
-    belongs to the org (assert_recipients_in_org), so a guardian who is not an
-    org member could be offered here and then refused on send."""
+    `class_id` (family and student) narrows the list to that class: the
+    guardians of its enrolled students, or the students themselves. The
+    narrowing is an intersection with the org's list, not a replacement for
+    it: assigning checks that every recipient belongs to the org
+    (assert_recipients_in_org), so a guardian who is not an org member could
+    be offered here and then refused on send."""
     audience = _clean_audience(audience)
-    only = class_guardian_ids(org_id, class_id) if (class_id and audience == 'family') else None
-    rows = (_admin().table('users')
-            .select('id, first_name, last_name, display_name, email, org_role, org_roles, role')
-            .eq('organization_id', org_id).execute()).data or []
-    if audience == 'family':
-        wanted = {'parent'}
-    else:
-        wanted = {'advisor', 'org_admin', 'campus_coordinator'}
+    only = None
+    if class_id and audience == 'family':
+        only = class_guardian_ids(org_id, class_id)
+    elif class_id and audience == 'student':
+        only = class_student_ids_in_org(org_id, class_id)
+    rows = fetch_all_rows(lambda: (
+        _admin().table('users')
+        .select('id, first_name, last_name, display_name, email, org_role, org_roles, role')
+        .eq('organization_id', org_id)))
+    wanted = _AUDIENCE_ROLES[audience]
 
     def _holds_wanted(u):
         held = set(u.get('org_roles') or [])
@@ -641,7 +843,7 @@ def list_recipients(org_id: str, audience: str = 'staff',
               if _holds_wanted(u)
               and (only is None or u['id'] in only)
               # Placeholder staff (schedule-import rows with no real login) can
-              # never open the portal to complete a checklist — don't offer them.
+              # never open the portal to complete a task -- don't offer them.
               and not sis_service.is_placeholder_staff_email(u.get('email'))]
     out = [{
         'id': u['id'],
@@ -656,7 +858,7 @@ def list_recipients(org_id: str, audience: str = 'staff',
 def list_assignments(org_id: str, user_id: Optional[str] = None,
                      audience: Optional[str] = None,
                      kind: Optional[str] = None) -> List[Dict[str, Any]]:
-    """Checklists in this org, optionally for one person and one portal.
+    """Tasks in this org, optionally for one person and one portal.
 
     `audience` matters because one person can hold both kinds: an org admin who
     also has a child is staff in the SIS console and a guardian in the family
@@ -664,20 +866,28 @@ def list_assignments(org_id: str, user_id: Optional[str] = None,
     portal (reported 2026-08-05). The admin roll-up passes None on purpose — it
     is the one view that should see everything it assigned.
 
-    `kind` separates assigned templates from one-off documents sent for
-    signature. The checklist admin view passes 'checklist' so a handbook sent to
-    40 people doesn't bury the onboarding roll-up in 40 rows; a person's own
-    inbox passes None, because from where they stand both are just things to do.
+    `kind` separates tasks from one-off documents sent for signature. The
+    office's view passes 'task' so a handbook sent to 40 people doesn't bury the
+    roll-up in 40 rows; a person's own inbox passes None, because from where
+    they stand both are just things to do. 'task' and the pre-merge 'checklist'
+    are the same kind (TASK_KINDS), so asking for either returns both.
     """
-    q = (_admin().table('sis_onboarding_assignments').select('*')
-         .eq('organization_id', org_id).order('created_at', desc=True))
-    if user_id:
-        q = q.eq('user_id', user_id)
-    if audience:
-        q = q.eq('audience', _clean_audience(audience))
-    if kind:
-        q = q.eq('kind', kind)
-    rows = q.execute().data or []
+    def _query():
+        q = (_admin().table('sis_onboarding_assignments').select('*')
+             .eq('organization_id', org_id))
+        if user_id:
+            q = q.eq('user_id', user_id)
+        if audience:
+            q = q.eq('audience', _clean_audience(audience))
+        if kind in TASK_KINDS:
+            q = q.in_('kind', list(TASK_KINDS))
+        elif kind:
+            q = q.eq('kind', kind)
+        return q
+    # One person's list is bounded by that person; the office's roll-up grows
+    # with the school and a recurring task adds a row per person per day.
+    rows = (_query().order('created_at', desc=True).execute().data or []) if user_id \
+        else sorted(fetch_all_rows(_query), key=lambda r: r.get('created_at') or '', reverse=True)
     ids = list({r['user_id'] for r in rows})
     names = {}
     if ids:
@@ -714,7 +924,7 @@ def completion_report(org_id: str, audience: Optional[str] = None,
     PERSON. `outstanding_only` is the default because a list of everyone who is
     already done is not a chase list.
     """
-    rows = list_assignments(org_id, audience=audience, kind='checklist')
+    rows = list_assignments(org_id, audience=audience, kind='task')
     if not rows:
         return []
     # UserRepository.find_by_ids, not .table(): one batched read, and new code
@@ -739,7 +949,7 @@ def completion_report(org_id: str, audience: Optional[str] = None,
             'total_count': 0,
             'missing': [],
         })
-        person['checklists'].append(r.get('template_name') or 'Checklist')
+        person['checklists'].append(r.get('template_name') or 'Task')
         person['done_count'] += r.get('done_count') or 0
         person['total_count'] += r.get('total_count') or 0
         for item in (r.get('items') or []):
@@ -760,7 +970,7 @@ def completion_report(org_id: str, audience: Optional[str] = None,
 def completion_csv(report: List[Dict[str, Any]]):
     """(header, rows) for completion_report. Email is a column because the
     point of the export is to contact these people."""
-    header = ['Name', 'Email', 'Checklists', 'Done', 'Total', 'Outstanding', 'Still missing']
+    header = ['Name', 'Email', 'Tasks', 'Done', 'Total', 'Outstanding', 'Still missing']
     rows = [[
         p['name'], p.get('email') or '', '; '.join(p['checklists']),
         p['done_count'], p['total_count'], p['outstanding_count'],
@@ -1284,7 +1494,7 @@ def unassign(org_id: str, assignment_id: str) -> Dict[str, Any]:
             .select('id, organization_id, user_id, items, template_name, blocks_access')
             .eq('id', assignment_id).limit(1).execute()).data
     if not rows or rows[0].get('organization_id') != org_id:
-        return {'error': 'Checklist not found'}
+        return {'error': 'Task not found'}
     items = rows[0].get('items') or []
     docs = len([i for i in items if i.get('document_url')])
     done = len([i for i in items if i.get('status') in ('complete', 'approved')])
@@ -1397,9 +1607,13 @@ def update_item(org_id: str, assignment_id: str, item_key: str,
     """Teacher: mark complete / attach document / sign. Admin: approve/reject/notes."""
     assignment = _load_assignment(org_id, assignment_id)
     if not assignment:
-        return {'error': 'Checklist not found'}
+        return {'error': 'Task not found'}
     if not is_admin and assignment.get('user_id') != actor_id:
-        return {'error': 'Checklist not found'}
+        return {'error': 'Task not found'}
+    if assignment.get('status') == 'expired':
+        # A recurring occurrence belongs to its day. Ticking yesterday's
+        # "lock the doors" today would record something that did not happen.
+        return {'error': 'This task has expired'}
     items = assignment.get('items') or []
     target = next((i for i in items if i.get('key') == item_key), None)
     if not target:
@@ -1524,16 +1738,17 @@ def update_item(org_id: str, assignment_id: str, item_key: str,
             if target.get('needs_approval'):
                 for admin_id in sis_service.org_admin_ids(org_id):
                     sis_notifications.notify(
-                        admin_id, 'Onboarding item ready for review',
-                        f'{target["title"]} — {assignment.get("template_name") or "onboarding"}',
+                        admin_id, 'Ready for your review',
+                        f'{target["title"]} — {assignment.get("template_name") or "task"}',
                         link='/tasks?tab=assigned', organization_id=org_id)
         if status in ('approved', 'rejected'):
             target['approved_by'] = actor_id
             target['approved_at'] = _now()
             sis_notifications.notify(
                 assignment['user_id'],
-                f'Onboarding item {status}', target['title'],
-                link='/tasks?view=checklist', organization_id=org_id)
+                f'Step {status}', target['title'],
+                link=task_link(assignment.get('audience'), assignment.get('id')),
+                organization_id=org_id)
     if is_admin and 'admin_notes' in fields:
         target['admin_notes'] = (fields.get('admin_notes') or '').strip() or None
 

@@ -185,7 +185,11 @@ const COMPONENTS = path.resolve(__dirname, '../components')
 // stop counting under this scan's file-level rule. Those calls are still
 // hand-rolled; the funnel's step posts are one-shot mutations that a hook
 // would not improve, and the tab's reads are M13f's.
-const CALL_SITE_BASELINE = 739
+// 739 -> 693 on 2026-09-24 (everything is a task): forms and requests were
+// retired, and StaffFormsPage, FormBuilder, FormRoutingModal, the paperwork
+// and checklist-assignment components and MyChecklists went with their calls;
+// the new task components read through hooks/api/useTasks.
+const CALL_SITE_BASELINE = 693
 const SLACK = 40
 
 const USES_HOOK = /useQuery|useMutation|hooks\/api/

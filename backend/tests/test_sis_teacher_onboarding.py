@@ -23,7 +23,7 @@ def _admin_with(responses):
     client = Mock()
     table = Mock()
     client.table.return_value = table
-    for chained in ('select', 'eq', 'limit', 'update', 'delete', 'insert', 'in_', 'order'):
+    for chained in ('select', 'eq', 'limit', 'update', 'delete', 'insert', 'in_', 'order', 'range'):
         getattr(table, chained).return_value = table
     table.execute.side_effect = [Mock(data=d) for d in responses] + [Mock(data=[])] * 10
     return client, table
@@ -490,22 +490,40 @@ class TestOneChecklistPerPersonPerTemplate:
             res = svc.assign(ORG, 't1', 'user-1', assigned_by='admin-1')
         filters = [c[0] for c in table.eq.call_args_list]
         for f in (('organization_id', ORG), ('user_id', 'user-1'),
-                  ('template_id', 't1'), ('kind', 'checklist')):
+                  ('template_id', 't1')):
             assert f in filters
-        assert res['assignment'] == {'id': 'a-new'}
+        # Both task kinds count as holding it -- rows written before the merge
+        # say 'checklist', new ones 'task' -- and a signature send does not.
+        assert ('kind', ['checklist', 'task']) in [c[0] for c in table.in_.call_args_list]
+        assert res['assignment']['id'] == 'a-new'
         assert not res.get('already_assigned')
 
     def test_bulk_assign_counts_the_people_who_already_had_it(self):
+        """One template to three people: one new, one who already holds it,
+        one whose row could not be written. One batch, counted honestly."""
         from services import sis_onboarding_service as svc
-        outcomes = {
-            'u-1': {'assignment': {'id': 'a1'}},
-            'u-2': {'assignment': {'id': 'a-old'}, 'already_assigned': True},
-            'u-3': {'error': 'That person is not part of this organization'},
-        }
-        with patch.object(svc, 'assign', side_effect=lambda o, t, u, a: outcomes[u]):
+        held = {'id': 'a-old', 'user_id': 'u-2', 'template_id': 't1', 'status': 'complete'}
+        # template; then per person: held lookup, insert.
+        client, table = _admin_with([[self.TEMPLATE],
+                                     [], [{'id': 'a1'}],
+                                     [held]])
+        calls = {'n': 0}
+        real_execute = table.execute.side_effect
+
+        def _execute(*a, **k):
+            calls['n'] += 1
+            if calls['n'] == 6:  # u-3's insert
+                raise RuntimeError('insert failed')
+            return next(real_execute)
+        table.execute.side_effect = _execute
+        with patch.object(svc, '_admin', return_value=client), \
+             patch.object(svc, 'assert_recipients_in_org'), \
+             patch.object(svc, 'email_assignment'), \
+             patch.object(svc, 'sis_notifications'):
             res = svc.assign_many(ORG, 't1', ['u-1', 'u-2', 'u-3'], assigned_by='admin-1')
-        assert res == {'assigned': 1, 'already_assigned': 1,
-                       'errors': ['That person is not part of this organization']}
+        assert res['assigned'] == 1 and res['already_assigned'] == 1
+        assert res['errors'] == ['Could not assign to one recipient']
+        assert res['batch_id']
 
 
 @pytest.mark.unit

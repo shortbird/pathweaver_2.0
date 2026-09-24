@@ -112,6 +112,11 @@ class _Query:
     def order(self, *_a, **_k):
         return self
 
+    def range(self, start, end):
+        # fetch_all_rows pages the org-wide users read.
+        self._rows = self._rows[start:end + 1]
+        return self
+
     def execute(self):
         return type('R', (), {'data': [dict(r) for r in self._rows]})()
 

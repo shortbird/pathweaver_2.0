@@ -652,7 +652,7 @@ def my_required_documents(user_id):
 # templates). A guardian only ever sees checklists assigned to their own user id.
 @bp.route('/onboarding', methods=['GET'])
 @require_auth
-@require_module('onboarding')
+@require_module('tasks', 'onboarding', any_of=True)
 def my_family_checklists(user_id):
     org_id = sis_service.requested_org_id()
     if not org_id:
@@ -690,7 +690,7 @@ def family_office_document_url(user_id, doc_id):
 
 @bp.route('/onboarding/<assignment_id>/items/<item_key>', methods=['PATCH'])
 @require_auth
-@require_module('onboarding')
+@require_module('tasks', 'onboarding', any_of=True)
 def update_family_checklist_item(user_id, assignment_id, item_key):
     org_id = sis_service.requested_org_id()
     if not org_id:
@@ -702,7 +702,7 @@ def update_family_checklist_item(user_id, assignment_id, item_key):
 
 @bp.route('/onboarding/upload', methods=['POST'])
 @require_auth
-@require_module('onboarding')
+@require_module('tasks', 'onboarding', any_of=True)
 def upload_family_checklist_doc(user_id):
     """Upload a document for a family checklist item to the PRIVATE family-documents
     bucket. Returns the storage path (read back via /onboarding/doc-url)."""
@@ -714,7 +714,7 @@ def upload_family_checklist_doc(user_id):
 
 @bp.route('/onboarding/doc-url', methods=['GET'])
 @require_auth
-@require_module('onboarding')
+@require_module('tasks', 'onboarding', any_of=True)
 def family_checklist_doc_url(user_id):
     """A short-lived signed URL for one of the guardian's own uploaded docs."""
     org_id = sis_service.requested_org_id()

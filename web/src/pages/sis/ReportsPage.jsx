@@ -238,6 +238,10 @@ const ReportsPage = () => {
   // ClassesTable). Starts on the first column ascending, as it always has.
   const [sort, setSort] = useState([{ col: 0, dir: 'asc' }])
   const [attendanceDate, setAttendanceDate] = useState(() => new Date().toISOString().slice(0, 10))
+  // The "Who took roll" range (P7). Starts at the last two weeks: roughly a
+  // pay period, and the window the dashboard flags.
+  const [rollFrom, setRollFrom] = useState(() => new Date(Date.now() - 13 * 86400000).toISOString().slice(0, 10))
+  const [rollTo, setRollTo] = useState(() => new Date().toISOString().slice(0, 10))
   const [classCols, setClassCols] = usePersistedChoice(CLASS_COLS_KEY, null, { validate: savedCols })
   const [includeArchived, setIncludeArchived] = useState(false)
   // Roster report: which classes, and whether waitlisted students come too.
@@ -348,6 +352,7 @@ const ReportsPage = () => {
     let path = `/api/sis/reports/${type}`
     if (type === 'question') path = `/api/sis/reports/registration-answers?question_key=${encodeURIComponent(key)}`
     else if (type === 'daily-attendance') path = `/api/sis/reports/daily-attendance?date=${attendanceDate}`
+    else if (type === 'roll-call') path = `/api/sis/reports/roll-call?from=${rollFrom}&to=${rollTo}`
     else if (type === 'classes') path = classPath(classCols)
     else if (type === 'rosters') path = rosterPath(rosterCols)
     setReportLoading(true)
@@ -392,14 +397,15 @@ const ReportsPage = () => {
         ...shaped,
         csvPath: path,
         csvName: type === 'question' ? `registration-answers-${key}.csv`
-          : type === 'daily-attendance' ? `daily-attendance-${attendanceDate}.csv` : `${type}.csv`,
+          : type === 'daily-attendance' ? `daily-attendance-${attendanceDate}.csv`
+          : type === 'roll-call' ? `roll-call-${rollFrom}-to-${rollTo}.csv` : `${type}.csv`,
       })
     } catch {
       toast.error('Failed to load report')
     } finally {
       setReportLoading(false)
     }
-  }, [orgId, questions, attendanceDate, classCols, classPath, rosterCols, rosterPath,
+  }, [orgId, questions, attendanceDate, rollFrom, rollTo, classCols, classPath, rosterCols, rosterPath,
       rosterClassIds, includeWaitlist])
 
   // Picking a report clears the last one's sheet; a report with nothing to
@@ -514,6 +520,24 @@ const ReportsPage = () => {
               onChange={(e) => setAttendanceDate(e.target.value)}
               className="border border-gray-300 rounded-lg px-3 py-2 text-sm" />
             <RunButton disabled={busy} onClick={() => runReport('daily-attendance')} />
+          </div>
+        )
+      case 'roll-call':
+        return (
+          <div className="flex items-center gap-3 flex-wrap">
+            <label className="text-sm text-neutral-600 flex items-center gap-2">
+              From
+              <input type="date" value={rollFrom} aria-label="From date"
+                onChange={(e) => setRollFrom(e.target.value)}
+                className="border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+            </label>
+            <label className="text-sm text-neutral-600 flex items-center gap-2">
+              To
+              <input type="date" value={rollTo} aria-label="To date"
+                onChange={(e) => setRollTo(e.target.value)}
+                className="border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+            </label>
+            <RunButton disabled={busy || !rollFrom || !rollTo} onClick={() => runReport('roll-call')} />
           </div>
         )
       case 'question':

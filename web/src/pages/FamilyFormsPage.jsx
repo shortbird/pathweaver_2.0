@@ -1,64 +1,31 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
-import { Link, useLocation } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { toast } from 'react-hot-toast'
 import QuestListItem from '../components/quest/QuestListItem'
 import api from '../services/api'
-import ChecklistAssignments from '../components/sis/ChecklistAssignments'
+import TaskCard from '../components/sis/tasks/TaskCard'
+import { taskApi } from '../hooks/api/useTasks'
 import { useFamilyOrgSelection } from '../hooks/api/useSchoolContext'
 import { useEndMemberQuest } from '../hooks/api/useFamilyQuests'
 import { useConfirm } from '../contexts/ConfirmContext'
 
 /**
- * Forms (Learning app) — the one page for paperwork between a family and its
- * school, in the order a parent needs it:
+ * To do (Learning app) -- what the school is waiting on this family for, in
+ * one list: tasks from the office (a step to tick, a document to upload, a
+ * form to sign by typing a name), the quests the school set for families, and
+ * the videos and documents it asked them to watch or read.
  *
- *   1. To complete — what the school needs from you. Checklists to tick,
- *      documents to upload, forms to sign by typed name (all of it in
- *      components/sis/ChecklistAssignments over /api/sis/parent/onboarding),
- *      and quests the school set for families (/api/sis/parent/quests).
- *   2. Your requests — what you need from the school. A request lands in the
- *      same staff queue the office already works (tagged as from a parent),
- *      and the office's reply shows up under it here. /api/sis/parent/forms.
+ * Renamed from Forms on 2026-09-24 (iCreate meeting 2026-09-23). Families no
+ * longer file forms or requests: they message the school, and the office turns
+ * the message into a task on its side. So the "Your requests" half of this
+ * page went, and what is left is a to-do list, named for what it is. The path
+ * stays /family/forms because every notification and email sent before the
+ * rename carries it; /family/portal redirects here too.
  *
- * Until 2026-09-16 these were two sidebar items: "Checklists" (/family/portal,
- * titled "Your portal") and "Requests" (this path). The split was by
- * direction — school-to-family versus family-to-school — which is how the
- * backend is organised and not how a parent thinks about it. An iCreate parent
- * met two abstract nouns side by side, one of which was empty for most
- * families; and a "checklist" at iCreate is a form to sign (Family Service
- * Program Form, Student Behavior Agreement Form), so the word matched nothing
- * they had been sent. One door, named for what the office calls all of it.
- * /family/portal redirects here; older notifications still carry it.
- *
- * Each half is gated by its own building block (onboarding, forms) off the
- * org's family-surface module list, so a school that runs only one sees only
- * that one, without a heading over an empty room.
+ * Each task is a TaskCard (components/sis/tasks), the same card a teacher and
+ * a student work their tasks on, with its comment thread: a family can read
+ * and answer what the office wrote on their task.
  */
-
-const STATUS_STYLES = {
-  submitted: 'bg-gray-100 text-gray-600',
-  under_review: 'bg-blue-100 text-blue-700',
-  in_progress: 'bg-blue-100 text-blue-700',
-  waiting: 'bg-amber-100 text-amber-800',
-  resolved: 'bg-green-100 text-green-700',
-}
-
-// The office's vocabulary is a work queue (submitted, under review, in
-// progress, waiting, resolved); a parent only needs to know whether the
-// office has it, or has answered.
-const STATUS_LABELS = {
-  submitted: 'Sent',
-  under_review: 'With the office',
-  in_progress: 'With the office',
-  waiting: 'Waiting',
-  resolved: 'Answered',
-}
-
-const StatusPill = ({ status }) => (
-  <span className={`text-xs px-2 py-0.5 rounded-full shrink-0 ${STATUS_STYLES[status] || STATUS_STYLES.submitted}`}>
-    {STATUS_LABELS[status] || String(status || '').replace('_', ' ')}
-  </span>
-)
 
 // Same wording the staff training page uses, so a parent who is also a teacher
 // reads one vocabulary across both portals.
@@ -80,7 +47,6 @@ const questProgressStyle = (p) => {
 // everything", the same fallback the school hub uses (school/schoolCards).
 const moduleOn = (org, key) => !Array.isArray(org?.modules) || org.modules.includes(key)
 
-const inputClass = 'w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-optio-purple'
 
 /** Quests the school set for families — back to school night and the like.
  *  Yours, on your own account: this is not your child's work.
@@ -196,62 +162,50 @@ function FamilyTrainingLinks({ links, orgName, onToggleDone, busyId }) {
 
 const FamilyFormsPage = () => {
   // One shared read of where this person is a guardian (hooks/api/
-  // useSchoolContext); the student picker starts on the child the parent
-  // already picked on the family dashboard, or blank for the whole family.
-  const { orgs, org, orgId, setOrgId, students, scopedStudentId, loading, isError } = useFamilyOrgSelection()
-  const location = useLocation()
+  // useSchoolContext).
+  const { orgs, org, orgId, setOrgId, loading, isError } = useFamilyOrgSelection()
+  const [searchParams] = useSearchParams()
+  const openTaskId = searchParams.get('task')
   const confirm = useConfirm()
   const endQuest = useEndMemberQuest()
   const orgName = org?.organization_name || 'your school'
-  const showChecklists = moduleOn(org, 'onboarding')
-  const showRequests = moduleOn(org, 'forms')
-  // Training links are the `training` module's, not the checklist module's --
-  // the route says so (@require_module('training')). A school that runs
-  // training without onboarding checklists would otherwise never see the
-  // video it set for its families.
+  const showTasks = moduleOn(org, 'tasks') || moduleOn(org, 'onboarding')
+  // Training links are the `training` module's, not the tasks module's -- the
+  // route says so (@require_module('training')). A school that runs training
+  // without tasks would otherwise never see the video it set for families.
   const showTraining = moduleOn(org, 'training')
 
-  // To complete.
-  const [assignments, setAssignments] = useState([])
+  const [tasks, setTasks] = useState([])
+  const [signatureStatement, setSignatureStatement] = useState(null)
+  const [showDone, setShowDone] = useState(false)
   const [quests, setQuests] = useState([])
   const [trainingLinks, setTrainingLinks] = useState([])
   const [markingTraining, setMarkingTraining] = useState(null)
-
-  // Your requests.
-  const [studentId, setStudentId] = useState('')
-  const [formTypes, setFormTypes] = useState({})
-  const [submissions, setSubmissions] = useState(null) // null until the first answer
-  const [form, setForm] = useState({ form_type: '', title: '', body: '' })
-  const [composing, setComposing] = useState(false)
-  const [busy, setBusy] = useState(false)
 
   useEffect(() => {
     if (isError) toast.error('Could not load your family')
   }, [isError])
 
-  // Start on the scoped child; keep the selection valid when the org changes
-  // (blank = whole family).
-  useEffect(() => {
-    if (scopedStudentId) setStudentId((cur) => cur || scopedStudentId)
-  }, [scopedStudentId])
-  useEffect(() => {
-    if (studentId && !students.some((s) => s.student_id === studentId)) setStudentId('')
-  }, [students, studentId])
+  const loadTasks = useCallback(() => {
+    if (!orgId || !showTasks) { setTasks([]); return }
+    api.get(`/api/sis/tasks/mine?audience=family&organization_id=${orgId}${showDone ? '&include_done=1' : ''}`)
+      .then((r) => {
+        setTasks(r.data?.tasks || [])
+        setSignatureStatement(r.data?.signature_statement || null)
+      })
+      .catch(() => toast.error('Could not load your tasks'))
+  }, [orgId, showTasks, showDone])
 
-  const loadChecklists = useCallback(() => {
-    if (!orgId) { setAssignments([]); setQuests([]); setTrainingLinks([]); return }
-    if (!showChecklists) { setAssignments([]); setQuests([]) }
-    if (showChecklists) {
-      api.get(`/api/sis/parent/onboarding?organization_id=${orgId}`)
-        .then((r) => setAssignments(r.data?.assignments || []))
-        .catch(() => toast.error('Could not load your checklists'))
-    }
+  const loadRest = useCallback(() => {
+    if (!orgId) { setQuests([]); setTrainingLinks([]); return }
     // A school with no family quests set is the normal case, so this failing
-    // must not take the checklists down with it.
-    if (showChecklists) {
+    // must not take the tasks down with it.
+    if (showTasks) {
       api.get(`/api/sis/parent/quests?organization_id=${orgId}`)
         .then((r) => setQuests(r.data?.quests || []))
         .catch(() => setQuests([]))
+    } else {
+      setQuests([])
     }
     // Same reasoning as the quests above: a school that has set no family
     // training links is the normal case, so this failing is quiet.
@@ -262,28 +216,10 @@ const FamilyFormsPage = () => {
     } else {
       setTrainingLinks([])
     }
-  }, [orgId, showChecklists, showTraining])
+  }, [orgId, showTasks, showTraining])
 
-  const loadRequests = useCallback(() => {
-    if (!orgId || !showRequests) { setSubmissions([]); setFormTypes({}); return }
-    api.get(`/api/sis/parent/forms?organization_id=${orgId}`)
-      .then((r) => {
-        setSubmissions(r.data?.submissions || [])
-        const types = r.data?.form_types || {}
-        setFormTypes(types)
-        setForm((f) => ({ ...f, form_type: f.form_type || Object.keys(types)[0] || '' }))
-      })
-      .catch(() => toast.error('Could not load your requests'))
-  }, [orgId, showRequests])
-
-  useEffect(() => { loadChecklists() }, [loadChecklists])
-  useEffect(() => { loadRequests() }, [loadRequests])
-
-  // The family home's "open requests" card lands on the second half.
-  useEffect(() => {
-    if (location.hash !== '#requests' || submissions === null) return
-    document.getElementById('requests')?.scrollIntoView({ block: 'start' })
-  }, [location.hash, submissions])
+  useEffect(() => { loadTasks() }, [loadTasks])
+  useEffect(() => { loadRest() }, [loadRest])
 
   const endFamilyQuest = async (q) => {
     const remaining = Math.max((q.progress?.total || 0) - (q.progress?.done || 0), 0)
@@ -293,57 +229,10 @@ const FamilyFormsPage = () => {
     if (!(await confirm(message))) return
     // force: leaving, not finishing for credit -- see useEndMemberQuest.
     endQuest.mutate({ questId: q.quest_id, studentId: null, force: true }, {
-      onSuccess: () => { toast.success(`You ended ${q.title}`); loadChecklists() },
+      onSuccess: () => { toast.success(`You ended ${q.title}`); loadRest() },
       onError: (err) => toast.error(err?.response?.data?.error || 'Could not end the quest'),
     })
   }
-
-  const submit = async (e) => {
-    e.preventDefault()
-    if (!form.form_type) { toast.error('Pick a request type'); return }
-    if (!form.body.trim()) { toast.error('Please describe your request'); return }
-    setBusy(true)
-    try {
-      await api.post('/api/sis/parent/forms', {
-        organization_id: orgId,
-        form_type: form.form_type,
-        title: form.title.trim() || undefined,
-        body: form.body.trim(),
-        student_user_id: studentId || undefined,
-      })
-      toast.success(`Sent — ${orgName} has been notified`)
-      setForm({ form_type: Object.keys(formTypes)[0] || '', title: '', body: '' })
-      setStudentId('')
-      setComposing(false)
-      loadRequests()
-    } catch (err) {
-      toast.error(err?.response?.data?.error || 'Could not send your request')
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  const studentNameById = useMemo(
-    () => Object.fromEntries(students.map((s) => [s.student_id, s.name])),
-    [students],
-  )
-
-  if (loading) {
-    return <div className="max-w-3xl mx-auto py-10 text-gray-500">Loading…</div>
-  }
-
-  if (isError || !orgs.length) {
-    return (
-      <div className="max-w-2xl mx-auto py-16 text-center">
-        <p className="text-gray-500">
-          Nothing here yet. If your school uses Optio, ask them to add your family.
-        </p>
-      </div>
-    )
-  }
-
-  const openQuests = quests.filter((q) => !q.progress?.completed)
-  const nothingToComplete = !assignments.length && !openQuests.length && !trainingLinks.length
 
   // Optimistic, then reconciled from the server's own row: the button is the
   // whole interaction, so it has to answer immediately.
@@ -363,19 +252,37 @@ const FamilyFormsPage = () => {
       setMarkingTraining(null)
     }
   }
-  // A parent with no request on file came here to send one: the composer is
-  // open. Once there is history, the history is the page and the composer is a
-  // button, so the list of what the office has answered is not pushed below a
-  // blank form.
-  const composerOpen = composing || (submissions !== null && submissions.length === 0)
+
+  const { open, finished } = useMemo(() => ({
+    open: tasks.filter((t) => !['done', 'expired'].includes(t.status)),
+    finished: tasks.filter((t) => ['done', 'expired'].includes(t.status)),
+  }), [tasks])
+
+  if (loading) {
+    return <div className="max-w-3xl mx-auto py-10 text-gray-500">Loading…</div>
+  }
+
+  if (isError || !orgs.length) {
+    return (
+      <div className="max-w-2xl mx-auto py-16 text-center">
+        <p className="text-gray-500">
+          Nothing here yet. If your school uses Optio, ask them to add your family.
+        </p>
+      </div>
+    )
+  }
+
+  const openQuests = quests.filter((q) => !q.progress?.completed)
+  const nothingToDo = !open.length && !openQuests.length && !trainingLinks.length
 
   // A tab of the school page (pages/school/SchoolShell): the shell carries
   // the letterhead and the rail, this is the panel.
   return (
     <div className="max-w-3xl mx-auto">
-      <div className="flex items-center justify-between mb-8 gap-3">
+      <div className="flex items-center justify-between mb-6 gap-3">
         <p className="text-sm text-gray-500">
-          What {orgName} needs from you, and what you need from {orgName}.
+          What {orgName} is waiting on you for. Need something from {orgName}?{' '}
+          <Link to="/messages" className="text-optio-purple hover:underline">Send them a message</Link>.
         </p>
         {orgs.length > 1 && (
           <select value={orgId} onChange={(e) => setOrgId(e.target.value)}
@@ -386,109 +293,47 @@ const FamilyFormsPage = () => {
         )}
       </div>
 
-      {(showChecklists || showTraining) && (
-        <section id="to-complete" aria-labelledby="to-complete-heading" className="mb-10 space-y-4">
-          <h2 id="to-complete-heading" className="text-lg font-semibold text-gray-900">To complete</h2>
-          {nothingToComplete ? (
-            <p className="text-sm text-gray-400">Nothing to sign or complete right now.</p>
-          ) : (
-            <>
-              {assignments.length > 0 && (
-                <ChecklistAssignments orgId={orgId} assignments={assignments} onChanged={loadChecklists} />
-              )}
-              <FamilyQuests quests={quests} orgName={orgName} onEnd={endFamilyQuest} ending={endQuest.isPending} />
-              <FamilyTrainingLinks links={trainingLinks} orgName={orgName}
-                onToggleDone={toggleTrainingDone} busyId={markingTraining} />
-            </>
+      <section id="to-do" aria-labelledby="to-do-heading" className="mb-10 space-y-4">
+        <div className="flex items-center justify-between gap-3">
+          <h2 id="to-do-heading" className="text-lg font-semibold text-gray-900">To do</h2>
+          {showTasks && (
+            <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer">
+              <input type="checkbox" checked={showDone} onChange={(e) => setShowDone(e.target.checked)}
+                className="h-4 w-4 accent-optio-purple" />
+              Show finished
+            </label>
           )}
-        </section>
-      )}
-
-      {showRequests && (
-        <section id="requests" aria-labelledby="requests-heading" className="scroll-mt-6">
-          <div className="flex items-center justify-between gap-3 mb-3">
-            <h2 id="requests-heading" className="text-lg font-semibold text-gray-900">Your requests</h2>
-            {!composerOpen && (
-              <button type="button" onClick={() => setComposing(true)} className="btn-primary">
-                New request
-              </button>
-            )}
-          </div>
-
-          {composerOpen && (
-            <form onSubmit={submit} className="bg-white rounded-xl border border-gray-200 p-4 mb-6 space-y-3">
-              <p className="text-sm text-gray-500">
-                Ask {orgName} for what you need. They see it come in and reply here.
-              </p>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <label className="text-sm">
-                  <span className="block text-gray-500 mb-1">What is it about?</span>
-                  <select value={form.form_type} onChange={(e) => setForm({ ...form, form_type: e.target.value })} className={inputClass}>
-                    {Object.entries(formTypes).map(([k, label]) => <option key={k} value={k}>{label}</option>)}
-                  </select>
-                </label>
-                {students.length > 0 && (
-                  <label className="text-sm">
-                    <span className="block text-gray-500 mb-1">Which child? (optional)</span>
-                    <select value={studentId} onChange={(e) => setStudentId(e.target.value)} className={inputClass}>
-                      <option value="">Not about a specific child</option>
-                      {students.map((s) => <option key={s.student_id} value={s.student_id}>{s.name}</option>)}
-                    </select>
-                  </label>
-                )}
-              </div>
-              <label className="text-sm block">
-                <span className="block text-gray-500 mb-1">Short title (optional)</span>
-                <input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })}
-                  maxLength={120} placeholder="e.g. Receipt for the enrollment fee" className={inputClass} />
-              </label>
-              <label className="text-sm block">
-                <span className="block text-gray-500 mb-1">Details</span>
-                <textarea value={form.body} onChange={(e) => setForm({ ...form, body: e.target.value })}
-                  rows={4} placeholder={`Tell ${orgName} what you need.`}
-                  className={`${inputClass} resize-none`} />
-              </label>
-              <div className="flex justify-end gap-2">
-                {submissions?.length > 0 && (
-                  <button type="button" onClick={() => setComposing(false)} className="btn-secondary">
-                    Cancel
-                  </button>
-                )}
-                <button type="submit" disabled={busy} className="btn-primary">
-                  {busy ? 'Sending…' : 'Send request'}
-                </button>
-              </div>
-            </form>
-          )}
-
-          {submissions !== null && !submissions.length && !composerOpen && (
-            <p className="text-sm text-gray-400">You have not sent a request yet.</p>
-          )}
-          <ul className="space-y-2">
-            {(submissions || []).map((f) => (
-              <li key={f.id} className="bg-white rounded-xl border border-gray-200 p-3">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-600">{f.form_type_label}</span>
-                  <span className="font-medium text-gray-900">{f.title}</span>
-                  <StatusPill status={f.status} />
-                  <span className="text-xs text-gray-400 ml-auto">{new Date(f.created_at).toLocaleDateString()}</span>
-                </div>
-                {f.student_user_id && (
-                  <p className="text-xs text-gray-400 mt-1">
-                    About {f.student_name || studentNameById[f.student_user_id] || 'a child'}
-                  </p>
-                )}
-                {f.payload?.body && <p className="text-sm text-gray-600 mt-1 whitespace-pre-wrap">{f.payload.body}</p>}
-                {f.resolution_notes && (
-                  <p className="text-sm text-green-800 mt-2 pl-3 border-l-2 border-green-300 whitespace-pre-wrap">
-                    {orgName} replied: {f.resolution_notes}
-                  </p>
-                )}
+        </div>
+        {nothingToDo && (
+          <p className="text-sm text-gray-400">Nothing to do right now.</p>
+        )}
+        {open.length > 0 && (
+          <ul className="space-y-3">
+            {open.map((t) => (
+              <li key={t.id}>
+                <TaskCard task={t} api={taskApi} statement={signatureStatement}
+                  onChanged={loadTasks} highlighted={openTaskId === t.id} />
               </li>
             ))}
           </ul>
-        </section>
-      )}
+        )}
+        <FamilyQuests quests={quests} orgName={orgName} onEnd={endFamilyQuest} ending={endQuest.isPending} />
+        <FamilyTrainingLinks links={trainingLinks} orgName={orgName}
+          onToggleDone={toggleTrainingDone} busyId={markingTraining} />
+        {showDone && finished.length > 0 && (
+          <div className="space-y-3">
+            <h3 className="text-sm font-semibold text-gray-900">Finished</h3>
+            <ul className="space-y-3">
+              {finished.map((t) => (
+                <li key={t.id}>
+                  <TaskCard task={t} api={taskApi} statement={signatureStatement}
+                    onChanged={loadTasks} highlighted={openTaskId === t.id} />
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+      </section>
     </div>
   )
 }

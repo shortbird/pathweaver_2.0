@@ -644,7 +644,7 @@ def test_a_family_link_is_visible_to_the_family_and_not_to_a_partner_school(
 
 
 # ---------------------------------------------------------------------------
-# Quests and organizations -- the two tables that are public on purpose
+# Quests and organizations -- the catalog and the org directory are public on purpose
 # ---------------------------------------------------------------------------
 
 
@@ -670,13 +670,56 @@ def school_quests(db, make_quest, northgate, southvale, north, south):
 
 
 @pytest.mark.integration
-def test_an_active_quest_is_public_on_purpose(anon_client, school_quests):
-    """"Quests are viewable by everyone" is `USING (is_active = true)`, with no
-    role and no org. That is intentional -- the catalogue is browsable -- and it
-    is pinned here so a later change to that policy is a visible one."""
+@pytest.mark.authorization
+def test_the_public_catalog_is_readable_by_anyone_and_school_quests_are_not(
+    anon_client, make_quest, school_quests
+):
+    """`quests_select_visible` (20260924150000) replaced "Quests are viewable
+    by everyone", which was `USING (is_active = true)` for every role: the
+    anon key read every school's quests. The catalog -- global AND public --
+    stays browsable; a school's quest does not leave the school."""
+    catalog = make_quest(title='Catalog quest', is_public=True)
     visible = ids(anon_client.table('quests').select('id').execute().data)
-    assert school_quests['north']['active']['id'] in visible
-    assert school_quests['south']['active']['id'] in visible
+    assert catalog['id'] in visible  # positive control
+    assert school_quests['north']['active']['id'] not in visible
+    assert school_quests['south']['active']['id'] not in visible
+
+
+@pytest.mark.integration
+@pytest.mark.authorization
+@pytest.mark.critical
+def test_a_school_quest_is_readable_by_its_own_school_only(north, south, school_quests, rls_client):
+    north_quest = school_quests['north']['active']['id']
+    assert north_quest in ids(
+        rls_client(north['student']).table('quests').select('id').execute().data)
+    assert north_quest not in ids(
+        rls_client(south['student']).table('quests').select('id').execute().data)
+    assert north_quest not in ids(
+        rls_client(south['advisor']).table('quests').select('id').execute().data)
+
+
+@pytest.mark.integration
+@pytest.mark.authorization
+@pytest.mark.critical
+def test_a_personal_quest_is_readable_by_its_creator_and_whoever_is_on_it(
+    db, north, south, make_quest, rls_client
+):
+    """A global quest that is not public is someone's own (/api/quests/create).
+    It used to be readable by everyone holding the anon key."""
+    mine = make_quest(title='Fix the van brake light', created_by=north['student']['id'])
+
+    assert mine['id'] in ids(
+        rls_client(north['student']).table('quests').select('id').execute().data)
+    assert mine['id'] not in ids(
+        rls_client(south['student']).table('quests').select('id').execute().data)
+
+    db.table('user_quests').insert({
+        'id': str(uuid.uuid4()),
+        'user_id': south['student']['id'],
+        'quest_id': mine['id'],
+    }).execute()
+    assert mine['id'] in ids(
+        rls_client(south['student']).table('quests').select('id').execute().data)
 
 
 @pytest.mark.integration
@@ -695,10 +738,10 @@ def test_a_retired_quest_is_not_public(anon_client, school_quests):
 def test_an_org_admin_reads_their_own_retired_quests_and_not_the_partner_school_s(
     north, school_quests, rls_client
 ):
-    """`admin_full_access_quests` scopes an org admin to their own org (or to
-    platform quests, which have no org). Retired quests are the readable
-    difference between the two schools, since active ones are public to
-    everybody."""
+    """`admin_full_access_quests` scopes an org admin to their own org (and,
+    since 2026-09-24, never to quests with no org). Retired quests are the
+    difference that policy alone makes, since active ones of their own school
+    are readable to every member through `quests_select_visible`."""
     visible = ids(rls_client(north['admin']).table('quests').select('id').execute().data)
     assert school_quests['north']['retired']['id'] in visible
     assert school_quests['south']['retired']['id'] not in visible
@@ -723,6 +766,57 @@ def test_an_org_admin_cannot_retire_a_partner_school_s_quest(db, north, school_q
         .eq('id', own).execute()
     assert db.table('quests').select('is_active').eq('id', own) \
         .single().execute().data['is_active'] is False
+
+
+@pytest.fixture
+def platform_quests(make_quest, south):
+    """Quests with no organization: an Optio catalog quest, and a retired
+    personal quest a student at the other school made for themselves."""
+    return {
+        'catalog': make_quest(title='Optio catalog quest', organization_id=None,
+                              is_public=True),
+        'personal_retired': make_quest(title='A student\'s own quest', organization_id=None,
+                                       is_public=False, is_active=False,
+                                       created_by=south['student']['id']),
+    }
+
+
+@pytest.mark.integration
+@pytest.mark.authorization
+def test_an_org_admin_cannot_change_a_quest_with_no_org(db, north, platform_quests, rls_client):
+    """Until 2026-09-24 `admin_full_access_quests` also admitted every quest
+    with no organization, so any school's admin could retire the Optio
+    catalog through the Data API."""
+    target = platform_quests['catalog']['id']
+
+    rls_client(north['admin']).table('quests').update({'is_active': False}) \
+        .eq('id', target).execute()
+
+    after = db.table('quests').select('is_active').eq('id', target).single().execute().data
+    assert after['is_active'] is True
+
+
+@pytest.mark.integration
+@pytest.mark.authorization
+def test_an_org_admin_cannot_read_another_family_s_personal_quest(
+    north, platform_quests, rls_client
+):
+    """A retired personal quest is readable only through the admin policy, so
+    this is the read the old "no organization" arm gave every org admin."""
+    visible = ids(rls_client(north['admin']).table('quests').select('id').execute().data)
+    assert platform_quests['personal_retired']['id'] not in visible
+
+
+@pytest.mark.integration
+@pytest.mark.authorization
+def test_a_quest_s_creator_can_still_update_it(db, south, school_quests, rls_client):
+    """`quests_update` admitted users.role = 'admin', which is not a role, and
+    is now the creator only. Positive control: the creator keeps the update."""
+    own = school_quests['south']['active']
+    rls_client(south['admin']).table('quests').update({'title': 'renamed by its creator'}) \
+        .eq('id', own['id']).execute()
+    assert db.table('quests').select('title').eq('id', own['id']) \
+        .single().execute().data['title'] == 'renamed by its creator'
 
 
 @pytest.mark.integration

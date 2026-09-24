@@ -311,14 +311,17 @@ def _quest_edit_rights(supabase, user_id, quest):
       everything. Reading `org_role` alone missed a coordinator, and missed
       anyone whose admin role sits in `org_roles` — the flag columns disagree
       often enough that get_effective_role exists for exactly this.
-    - A teacher: may edit a quest they wrote, AND a quest attached to a class
-      they teach. Publishing is never theirs to toggle.
+    - A teacher: may edit a quest they wrote. Publishing is never theirs to
+      toggle.
 
-    That second half is the fix for iCreate 2026-08-27: "I am logged in as a
-    teacher and made changes to a quest. When I saved, it said I am not
-    authorized ... Is it because I originally created the quest while logged in
-    as an administrator?" It was. A class's own teacher could not edit the
-    coursework on their own class because somebody else had typed it in.
+    A teacher could also edit any school quest attached to a class they teach
+    from 2026-08-27 (iCreate: "Is it because I originally created the quest
+    while logged in as an administrator?") until 2026-09-23, when the owner
+    decided the quest itself is its author's or the office's and a teacher
+    keeps only their class's settings for it (P6,
+    docs/icreate/TASKS_MESSAGING_QUESTS_PLAN_2026-09-23.md). The SIS applies
+    the same rule through services/quest_edit_rules; this editor has to agree
+    with it, or it is the way round it.
     """
     from utils.sis_roles import ADMIN_ROLES
 
@@ -335,7 +338,7 @@ def _quest_edit_rights(supabase, user_id, quest):
     if effective_role in ADMIN_ROLES and quest_org_id and quest_org_id == user_org_id:
         return True, True
     # An org admin holds every capability a teacher holds, so the teacher rules
-    # below (your own quest, or one on a class you teach) apply to them too.
+    # below (your own quest) apply to them too.
     if effective_role not in ('advisor', 'org_admin'):
         return False, False
 
@@ -351,16 +354,6 @@ def _quest_edit_rights(supabase, user_id, quest):
             not quest_org_id or quest_org_id == user_org_id):
         return True, False
 
-    # Or a quest assigned to a class they teach.
-    if user_org_id and quest_org_id == user_org_id:
-        from services import sis_service
-        class_ids = sis_service.advisor_class_ids(user_id, user_org_id)
-        if class_ids:
-            linked = (supabase.table('class_quests').select('class_id')
-                      .eq('quest_id', quest.get('id'))
-                      .in_('class_id', class_ids).limit(1).execute()).data
-            if linked:
-                return True, False
     return False, False
 
 

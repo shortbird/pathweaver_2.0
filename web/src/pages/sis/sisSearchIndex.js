@@ -28,10 +28,11 @@ const settingsCard = (key, name, keywords, extra = {}) => ({
 })
 
 export const SUB_ENTRIES = [
-  // Messaging. The tab keys are SchoolInboxPage's.
-  { under: '/inbox', name: 'Announcements', to: '/inbox?tab=announcements', keywords: ['announce', 'broadcast', 'email families', 'message a class', 'school wide'] },
-  { under: '/inbox', name: 'School inbox', to: '/inbox?tab=school', adminOnly: true, keywords: ['office inbox', 'threads', 'replies', 'waiting'] },
+  // Messaging. The tab keys are SchoolInboxPage's. Announcements are not
+  // here: they live on the Community page (9a335881), below.
+  { under: '/inbox', name: 'School inbox', to: '/inbox?tab=school', adminOnly: true, keywords: ['office inbox', 'threads', 'replies', 'waiting', 'compose', 'message families', 'message a class'] },
   { under: '/inbox', name: 'My messages', to: '/inbox?tab=mine', keywords: ['direct messages', 'dm', 'threads', 'conversations'] },
+  { under: '/inbox', name: 'Sent messages', to: '/inbox?tab=sent', adminOnly: true, keywords: ['read receipts', 'who read it', 'sent', 'outbox'] },
 
   // Classes. The tab keys are ClassesPage's; the two office tabs carry their
   // old paths' modules so an org that hid them stays hidden.
@@ -42,14 +43,11 @@ export const SUB_ENTRIES = [
   { under: '/classes', name: 'Optio courses', to: '/classes?tab=courses', adminOnly: true, keywords: ['online courses', 'course library'] },
   { under: '/classes', name: 'Attendance', to: '/classes?tab=attendance', adminOnly: true, path: '/attendance', keywords: ['present', 'absent', 'roll call', 'check in', 'late', 'excused'] },
 
-  // Tasks. The tab keys are TasksPage's; Secure documents is the HR store.
-  { under: '/tasks', name: 'My tasks', to: '/tasks', keywords: ['to do', 'waiting on me', 'my forms', 'my checklist'] },
-  { under: '/tasks', name: 'My documents', to: '/tasks?tab=documents', keywords: ['my files', 'signed', 'uploads', 'my paperwork'] },
-  { under: '/tasks', name: 'Onboarding checklist', to: '/tasks?view=checklist', path: '/onboarding', keywords: ['new hire', 'checklist', 'onboarding'] },
-  { under: '/tasks', name: 'Requests', to: '/tasks?tab=requests', adminOnly: true, keywords: ['task requests', 'submissions queue', 'office queue', 'new request'] },
-  { under: '/tasks', name: 'Assigned tasks', to: '/tasks?tab=assigned', adminOnly: true, keywords: ['assign a task', 'who owes what', 'assignments'] },
-  { under: '/tasks', name: 'Task templates', to: '/tasks?tab=templates', adminOnly: true, keywords: ['form templates', 'form builder', 'new form', 'checklist templates'] },
-  { under: '/tasks', name: 'Secure documents', to: '/tasks?tab=secure', adminOnly: true, hrOnly: true, path: '/secure-documents', keywords: ['hr', 'contracts', 'background checks', 'confidential', 'personnel files'] },
+  // Tasks. The tab keys are TasksPage's. My documents and Secure documents (the
+  // HR store) moved to the Library's Documents area on 2026-09-24.
+  { under: '/tasks', name: 'My tasks', to: '/tasks', keywords: ['to do', 'waiting on me', 'onboarding', 'sign'] },
+  { under: '/tasks', name: 'Assigned tasks', to: '/tasks?tab=assigned', adminOnly: true, keywords: ['assign a task', 'who owes what', 'assignments', 'repeating tasks', 'daily tasks', 'onboarding'] },
+  { under: '/tasks', name: 'Task templates', to: '/tasks?tab=templates', adminOnly: true, keywords: ['templates', 'saved tasks', 'onboarding templates'] },
 
   // People. Filters live in the URL (PeoplePage), so a lens is a link.
   { under: '/people', name: 'Students', to: '/people?role=student', keywords: ['student list', 'kids', 'learners', 'enrolled'] },
@@ -73,13 +71,15 @@ export const SUB_ENTRIES = [
   // Library (M22). The tab keys are LibraryPage's; each tab carries its old
   // path's module so an org that hid one stays hidden.
   { under: '/library', name: 'Documents', to: '/library', path: '/resources', keywords: ['resources', 'handbook', 'policies', 'readings', 'acknowledgments', 'family guidebook', 'contract'] },
+  { under: '/library', name: 'My documents', to: '/library?tab=documents&docs=mine', path: '/secure-documents', keywords: ['my files', 'signed', 'uploads', 'my paperwork'] },
+  { under: '/library', name: 'Secure documents', to: '/library?tab=documents&docs=secure', adminOnly: true, hrOnly: true, path: '/secure-documents', keywords: ['hr', 'contracts', 'background checks', 'confidential', 'personnel files'] },
   { under: '/library', name: 'Training', to: '/library?tab=training', path: '/training', keywords: ['staff training', 'videos', 'modules', 'who has done what', 'orientation'] },
   { under: '/library', name: 'Curriculum', to: '/library?tab=curriculum', adminOnly: true, path: '/curriculum', keywords: ['syllabus', 'materials', 'lesson plans', 'drive folder', 'subjects'] },
   { under: '/library', name: 'Quests', to: '/library?tab=quests', adminOnly: true, path: '/quest-library', keywords: ['quest library', 'projects', 'assign quest', 'new quest'] },
 
   // Community. The tab keys are CommunityPage's.
   { under: '/community', name: 'Highlights', to: '/community?tab=highlights', keywords: ['community highlights', 'what is new'] },
-  { under: '/community', name: 'Board announcements', to: '/community?tab=announcements', keywords: ['community board', 'post announcement'] },
+  { under: '/community', name: 'Announcements', to: '/community?tab=announcements', keywords: ['announce', 'community board', 'post announcement', 'broadcast', 'school wide'] },
   { under: '/community', name: 'Lost and found', to: '/community?tab=lost-found', keywords: ['lost & found', 'missing items', 'found'] },
   { under: '/community', name: 'Recognition', to: '/community?tab=recognition', keywords: ['shout out', 'shout-out', 'spotlight', 'weekly win', 'thank you', 'kudos'] },
   { under: '/community', name: 'Community events', to: '/community?tab=events', keywords: ['upcoming events', 'rsvp'] },

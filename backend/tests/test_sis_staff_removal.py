@@ -205,7 +205,7 @@ class TestOnboardingDoesNotBlockDeletionUntilSomebodyFillsItIn:
         rows = [{'status': 'in_progress', 'items': [{'status': 'pending'}]}]
         with patch.object(staff, '_admin', return_value=_client([], [], onboarding_rows=rows)):
             history = staff._staff_history(ORG, STAFF)
-        assert history['onboarding'] == 0, 'an untouched checklist must not block deletion'
+        assert history['tasks'] == 0, 'an untouched task must not block deletion'
 
     def test_a_broken_probe_does_not_block_removal(self):
         """These probes fail open by design — a missing table must not make

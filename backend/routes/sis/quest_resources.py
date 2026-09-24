@@ -1,9 +1,9 @@
 """Attaching files, links and videos to a quest and to its individual tasks.
 
-Who may write: an org admin of the quest's own org, or a teacher who moderates a
-class the quest is attached to. That is the same gate class_quests.py applies to
-editing the quest's tasks -- attaching a worksheet to a task is the same act as
-writing the task, so it should not be a different permission.
+Who may write: the one rule for editing a quest (services/quest_edit_rules) --
+an org admin of the quest's own org, or the teacher who wrote it. Attaching a
+worksheet to a task is the same act as writing the task, so it is not a
+different permission.
 
 Who may read: anyone who may read the quest. Students and their guardians get
 these inside the quest detail payload (routes/quest/detail.py) rather than here;
@@ -27,7 +27,7 @@ bp = Blueprint('sis_quest_resources', __name__, url_prefix='/api/sis/quests')
 
 
 def _load_quest(admin, quest_id):
-    rows = (admin.table('quests').select('id, organization_id, title')
+    rows = (admin.table('quests').select('id, organization_id, title, created_by')
             .eq('id', quest_id).limit(1).execute()).data
     return rows[0] if rows else None
 

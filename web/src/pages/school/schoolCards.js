@@ -21,7 +21,7 @@ import { isFamilyFirstHubOrg } from '../../config/optioAcademy'
  * (82485501, 2026-09-22 -- the owner's answer to "should students have access
  * to the entire family directory?" was no; the backend refuses them too, in
  * sis_parent_service.is_guardian_or_staff). The rest act on a FAMILY — a household's invoices, a child's absence,
- * the forms a guardian is asked to sign — and a student is a member of the
+ * the tasks a guardian is asked to do — and a student is a member of the
  * school without being a guardian in it. The backend enforces this too
  * (sis_parent_service authorizes those by family relationship); this list only
  * decides what to offer.
@@ -60,15 +60,15 @@ const FAMILY_CARDS = [
     name: 'Billing', path: '/family/billing', Icon: CreditCardIcon,
     description: 'Your balance, invoices and receipts.', guardianOnly: true, module: 'billing',
   },
-  // One door for the paperwork in both directions: what the school needs
-  // signed or completed (the onboarding block) and what the family asks the
-  // office for (the forms block). Two doors, "Checklists" and "Requests",
-  // until 2026-09-16 -- see pages/FamilyFormsPage for why. Offered while
-  // either block is on; the page shows the half that is.
+  // What the school is waiting on the family for. It was "Forms" (and before
+  // that "Checklists" and "Requests") until 2026-09-24, when requests and
+  // forms were retired: a family messages the school now, and this is their
+  // to-do list -- see pages/FamilyFormsPage. The path stays for the links
+  // already sent.
   {
-    name: 'Forms', path: '/family/forms', Icon: DocumentTextIcon,
-    description: 'Sign what the office sends you, and send requests to the office.',
-    guardianOnly: true, modules: ['onboarding', 'forms'],
+    name: 'To do', path: '/family/forms', Icon: DocumentTextIcon,
+    description: 'What the office needs from you: things to sign, send in or finish.',
+    guardianOnly: true, modules: ['tasks', 'onboarding'],
   },
 ]
 
@@ -135,7 +135,7 @@ export function cardGroupsFor(org, { viewerRole } = {}) {
   // or a card the registry has no key for (Carpool), keeps showing.
   if (!Array.isArray(org.modules)) return groups
   // `module` names the one block a card needs; `modules` names several, of
-  // which any one is enough (the Forms door serves two blocks).
+  // which any one is enough (the To do door serves two blocks).
   const wanted = (c) => c.modules || (c.module ? [c.module] : [])
   return groups
     .map((g) => ({ ...g, cards: g.cards.filter((c) => !wanted(c).length || wanted(c).some((m) => org.modules.includes(m))) }))

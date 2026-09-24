@@ -107,14 +107,6 @@
     "requires": [],
     "requires_any": []
   },
-  "forms": {
-    "default": "on",
-    "gate": "flags",
-    "legacy": "hidden_modules",
-    "parent": "sis",
-    "requires": [],
-    "requires_any": []
-  },
   "friends": {
     "default": "on",
     "gate": "flags",

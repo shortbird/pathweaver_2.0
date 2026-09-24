@@ -9,14 +9,15 @@
  * form gave no way to say otherwise -- and no way to find out, either, which is
  * how the question arrived: "does the newsletter really go to the teachers?"
  *
- * So these assertions are about the answer being on the form: Families is an
- * audience, and ticking "Also notify people" states in words who that is. The
- * reach line is derived from the same table the option list is, because the
+ * So these assertions are about the answer being on the form: parents are an
+ * audience, and the lines under the form state in words who that is. The
+ * reach line is derived from the same table the checkboxes are, because the
  * server derives the send from this one choice -- a label that disagrees with
- * it is a lie about what Post does.
+ * it is a lie about what Post does. Since 2026-09-23 (9a335881) a post names
+ * any mix of parents, students and teachers.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render as rtlRender, screen, fireEvent } from '@testing-library/react'
+import { render as rtlRender, screen, fireEvent, within } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 
 const { announcements, saveAnnouncement, apiGet } = vi.hoisted(() => ({
@@ -59,12 +60,19 @@ const render = (ui) => {
 const openComposer = () => {
   render(<BoardAnnouncementsTab orgId="org-1" admin />)
   fireEvent.click(screen.getByRole('button', { name: 'Post announcement' }))
-  // "Who" since ticket 214bbc12: the new composer asks who, then where. The
-  // edit form keeps "Visible to", because editing changes the post only.
-  return screen.getByLabelText(/^Who/)
+  // "Who it is for" since ticket 214bbc12 (who, then where), and several roles
+  // at once since 9a335881. The edit form says "Visible to".
+  return screen.getByRole('group', { name: 'Who it is for' })
 }
 
-const optionsOf = (select) => [...select.querySelectorAll('option')].map((o) => o.textContent)
+// The three single words the board used to offer, as the roles they are now.
+const ROLE_LABELS = { parents: 'Parents', students: 'Students', teachers: 'Teachers and staff' }
+const WORD_ROLES = { school: ['parents', 'students', 'teachers'], families: ['parents'], teachers: ['teachers'] }
+const pick = (roles) => {
+  const list = typeof roles === 'string' ? WORD_ROLES[roles] : roles
+  list.forEach((r) => fireEvent.click(screen.getByRole('checkbox', { name: ROLE_LABELS[r] })))
+}
+const checksOf = (group) => [...group.querySelectorAll('label')].map((l) => l.textContent)
 
 beforeEach(() => {
   announcements.current = []
@@ -74,41 +82,70 @@ beforeEach(() => {
 })
 
 describe('the audience a board post is written for', () => {
-  it('offers Families', () => {
-    // The first option is the unpickable prompt: a new post starts with no
-    // audience since ticket 2f945974 (see the describe block below).
-    expect(optionsOf(openComposer())).toEqual([
-      'Choose who it is for', 'Everyone at the school', 'Families', 'Staff only',
-    ])
+  it('offers the three roles, none of them ticked', () => {
+    // A new post starts with no audience since ticket 2f945974 (see the
+    // describe block below), and "Admins only" is gone: it read the same as
+    // staff-only on the board and had nobody to notify.
+    const group = openComposer()
+    expect(checksOf(group)).toEqual(['Parents', 'Students', 'Teachers and staff'])
+    group.querySelectorAll('input').forEach((box) => expect(box).not.toBeChecked())
   })
 
-  it('no longer offers Admins only', () => {
-    /* It read the same as staff-only on the board -- the staff list is not
-       filtered by audience -- and it was the one value with nobody to notify,
-       which the composer had to grey a checkbox out to explain. */
-    expect(optionsOf(openComposer())).not.toContain('Admins only')
-  })
-
-  it('posts the chosen audience', async () => {
-    const select = openComposer()
-    fireEvent.change(select, { target: { value: 'families' } })
+  it('posts the chosen roles, and the single word beside them', async () => {
+    openComposer()
+    pick('families')
     fireEvent.change(screen.getByPlaceholderText('Early dismissal Friday'),
       { target: { value: 'Weekly newsletter' } })
     fireEvent.click(screen.getByRole('button', { name: 'Post' }))
     await vi.waitFor(() => expect(saveAnnouncement).toHaveBeenCalled())
     expect(saveAnnouncement.mock.calls[0][1]).toMatchObject({
-      audience: 'families', title: 'Weekly newsletter',
+      audiences: ['parents'], audience: 'families', title: 'Weekly newsletter',
+    })
+  })
+
+  // 9a335881: "announcements should have multi-role select options".
+  it('posts a mix the single word could not say', async () => {
+    openComposer()
+    pick(['students', 'teachers'])
+    fireEvent.change(screen.getByPlaceholderText('Early dismissal Friday'),
+      { target: { value: 'Robotics tryouts' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Post' }))
+    await vi.waitFor(() => expect(saveAnnouncement).toHaveBeenCalled())
+    expect(saveAnnouncement.mock.calls[0][1]).toMatchObject({
+      audiences: ['students', 'teachers'], audience: 'school',
     })
   })
 
   it('opens a post written for admins as staff only', () => {
-    /* Editing sends the audience back with the rest of the form. A value the
-       select no longer has would fall through to the default on save, which is
+    /* Editing sends the roles back with the rest of the form. A value the
+       form no longer has would fall through to the default on save, which is
        every family -- the one mistake this column exists to prevent. */
     announcements.current = [{ id: 'a1', title: 'Payroll cutoff', audience: 'admins' }]
     render(<BoardAnnouncementsTab orgId="org-1" admin />)
     fireEvent.click(screen.getByRole('button', { name: 'Edit' }))
-    expect(screen.getByLabelText(/Visible to/).value).toBe('teachers')
+    const group = screen.getByRole('group', { name: 'Visible to' })
+    expect(within(group).getByRole('checkbox', { name: 'Teachers and staff' })).toBeChecked()
+    expect(within(group).getByRole('checkbox', { name: 'Parents' })).not.toBeChecked()
+  })
+
+  it('opens a post with stored roles as those roles', () => {
+    announcements.current = [{ id: 'a1', title: 'x', audience: 'school', audiences: ['students'] }]
+    render(<BoardAnnouncementsTab orgId="org-1" admin />)
+    fireEvent.click(screen.getByRole('button', { name: 'Edit' }))
+    const group = screen.getByRole('group', { name: 'Visible to' })
+    expect(within(group).getByRole('checkbox', { name: 'Students' })).toBeChecked()
+    expect(within(group).getByRole('checkbox', { name: 'Parents' })).not.toBeChecked()
+  })
+
+  // 9b46c748: read counts existed for a post's send; the board never showed them.
+  it('says how many of the people a post was sent to have read it', () => {
+    announcements.current = [
+      { id: 'a1', title: 'Picture day', audience: 'school', read_count: 12, recipient_count: 40 },
+      { id: 'a2', title: 'Board only', audience: 'school' },
+    ]
+    render(<BoardAnnouncementsTab orgId="org-1" admin />)
+    expect(screen.getByText(/Read by 12 of 40/)).toBeInTheDocument()
+    expect(screen.getByText('Board only').closest('div').parentElement.textContent).not.toContain('Read by')
   })
 
   it('says on each posted item who can see it', () => {
@@ -128,7 +165,7 @@ describe('the audience a board post is written for', () => {
     const chip = { selector: 'span' }
     expect(screen.getAllByText('Staff only', chip)).toHaveLength(2)
     expect(screen.getByText('Families', chip)).toBeInTheDocument()
-    expect(screen.getByText('Assembly').closest('div').textContent).not.toContain('Everyone at the school')
+    expect(screen.getByText('Assembly').closest('div').textContent).not.toContain('Staff only')
   })
 })
 
@@ -141,8 +178,8 @@ describe('the audience a board post is written for', () => {
 // the edit form still says "Goes to", because it only changes the post.
 describe('who the composer says a post reaches', () => {
   const linesFor = (audience) => {
-    const select = openComposer()
-    fireEvent.change(select, { target: { value: audience } })
+    openComposer()
+    pick(audience)
     return [...screen.getByRole('list', { name: 'What Post will do' }).querySelectorAll('li')]
       .map((li) => li.textContent)
   }
@@ -164,6 +201,10 @@ describe('who the composer says a post reaches', () => {
     render(<BoardAnnouncementsTab orgId="org-1" admin />)
     fireEvent.click(screen.getByRole('button', { name: 'Edit' }))
     expect(screen.getByText(/^Goes to /).textContent).toBe('Goes to parents.')
+  })
+
+  it('names a mix in words', () => {
+    expect(linesFor(['parents', 'students'])).toEqual(['Posts on the community board for parents and students.'])
   })
 })
 
@@ -196,8 +237,8 @@ describe('where a notice goes', () => {
     // The audience is picked here because a new post no longer has one until
     // somebody chooses (2f945974); this test was written against the old
     // 'school' default and is about the destination, not the audience.
-    const select = openComposer()
-    fireEvent.change(select, { target: { value: 'school' } })
+    openComposer()
+    pick('school')
     titled()
     expect(await submit()).toMatchObject({ destinations: ['community_board'], audience: 'school' })
   })
@@ -211,7 +252,7 @@ describe('where a notice goes', () => {
       saveAnnouncement.mockClear()
       const { unmount } = render(<BoardAnnouncementsTab orgId="org-1" admin />)
       fireEvent.click(screen.getByRole('button', { name: 'Post announcement' }))
-      fireEvent.change(screen.getByLabelText(/^Who/), { target: { value: audience } })
+      pick(audience)
       if (dest !== 'Staff board') fireEvent.click(box(audience === 'teachers' ? 'Staff board' : 'Community board'))
       if (dest !== 'Staff board') fireEvent.click(box(dest))
       titled()
@@ -224,7 +265,8 @@ describe('where a notice goes', () => {
 
   it('sends them combined, and says what each will do', async () => {
     // Whole school chosen explicitly: it used to be the default (2f945974).
-    fireEvent.change(openComposer(), { target: { value: 'school' } })
+    openComposer()
+    pick('school')
     fireEvent.click(box('Optio inbox'))
     fireEvent.click(box('Email'))
     fireEvent.click(screen.getByLabelText(/Also send an app notification/))
@@ -232,7 +274,7 @@ describe('where a notice goes', () => {
       'Posts on the community board for parents, students and teachers.',
       'Sends an app notification to parents, students and teachers.',
       'Sends a private message to every staff member in their Optio inbox.',
-      'Families get no inbox message from here. Use "Message Families" for that.',
+      'Families get no inbox message from here. Use Compose on the Messaging page for that.',
       'Emails parents, students and teachers.',
     ])
     titled()
@@ -242,22 +284,23 @@ describe('where a notice goes', () => {
   })
 
   it('refuses to send with no destination', () => {
-    fireEvent.change(openComposer(), { target: { value: 'school' } })
+    openComposer()
+    pick('school')
     fireEvent.click(box('Community board'))
     expect(lines()).toEqual(['Choose at least one place to send it.'])
     expect(screen.getByRole('button', { name: 'Send' })).toBeDisabled()
   })
 
   it('never offers the inbox for families, and says where to go instead', () => {
-    const select = openComposer()
-    fireEvent.change(select, { target: { value: 'families' } })
+    openComposer()
+    pick('families')
     expect(box('Optio inbox')).toBeDisabled()
-    expect(screen.getByText('Families are messaged from "Message Families", not from here.')).toBeInTheDocument()
+    expect(screen.getByText('Families are messaged from Compose on the Messaging page, not from here.')).toBeInTheDocument()
   })
 
   it('moves a staff post to the staff board, which is the same board', () => {
-    const select = openComposer()
-    fireEvent.change(select, { target: { value: 'teachers' } })
+    openComposer()
+    pick('teachers')
     expect(box('Community board')).toBeDisabled()
     expect(box('Staff board')).toBeChecked()
   })
@@ -268,8 +311,8 @@ describe('where a notice goes', () => {
       { id: 's2', name: 'Sam Teacher', role_labels: ['Teacher'] },
       { id: 's3', name: 'Kim Office', role_labels: ['Admin'] },
     ] } })
-    const select = openComposer()
-    fireEvent.change(select, { target: { value: 'teachers' } })
+    openComposer()
+    pick('teachers')
     fireEvent.click(box('Staff board'))
     fireEvent.click(box('Optio inbox'))
     fireEvent.click(screen.getByLabelText('Only some staff'))
@@ -285,8 +328,8 @@ describe('where a notice goes', () => {
   })
 
   it('warns that the staff board reaches everyone when people are picked', async () => {
-    const select = openComposer()
-    fireEvent.change(select, { target: { value: 'teachers' } })
+    openComposer()
+    pick('teachers')
     fireEvent.click(screen.getByLabelText('Only some staff'))
     expect(screen.getByText(/Every staff member reads the staff board/)).toBeInTheDocument()
   })
@@ -351,20 +394,20 @@ describe('sorting and narrowing the board', () => {
     }
   })
 
-  it('narrows to one audience and says how many that is', () => {
+  // A role filter shows what that role reads: parents read the whole-school
+  // post too.
+  it('narrows to one role and says how many that is', () => {
     board()
     fireEvent.change(screen.getByLabelText('Filter announcements by audience'),
-      { target: { value: 'families' } })
-    expect(titlesShown()).toEqual(['Gamma', 'Alpha'])
-    expect(screen.getByText('2 of 4')).toBeInTheDocument()
+      { target: { value: 'parents' } })
+    expect(titlesShown()).toEqual(['Gamma', 'Alpha', 'Delta'])
+    expect(screen.getByText('3 of 4')).toBeInTheDocument()
   })
 
-  it('says so when a filter leaves nothing', () => {
+  it('shows the students only what names them', () => {
     board()
     fireEvent.change(screen.getByLabelText('Filter announcements by audience'),
-      { target: { value: 'teachers' } })
-    fireEvent.change(screen.getByLabelText('Filter announcements by audience'),
-      { target: { value: 'school' } })
+      { target: { value: 'students' } })
     expect(titlesShown()).toEqual(['Delta'])
   })
 
@@ -374,7 +417,8 @@ describe('sorting and narrowing the board', () => {
     board([...four, { id: 'a5', title: 'Old note', audience: 'admins', created_at: '2026-09-02T00:00:00Z' }])
     fireEvent.change(screen.getByLabelText('Filter announcements by audience'),
       { target: { value: 'teachers' } })
-    expect(titlesShown()).toEqual(['Old note', 'Beta'])  // newest first
+    // Staff read the whole-school post as well.
+    expect(titlesShown()).toEqual(['Delta', 'Old note', 'Beta'])  // newest first
   })
 })
 
@@ -387,8 +431,8 @@ describe('no default audience (2f945974)', () => {
     screen.getByPlaceholderText('Early dismissal Friday'), { target: { value: 'Gate code' } })
 
   it('starts with no audience chosen and Post disabled', () => {
-    const select = openComposer()
-    expect(select.value).toBe('')
+    const group = openComposer()
+    group.querySelectorAll('input').forEach((b) => expect(b).not.toBeChecked())
     titled()
     expect(screen.getByRole('button', { name: 'Post' })).toBeDisabled()
     const lines = [...screen.getByRole('list', { name: 'What Post will do' }).querySelectorAll('li')]
@@ -396,9 +440,9 @@ describe('no default audience (2f945974)', () => {
     expect(lines).toEqual(['Choose who it is for.'])
   })
 
-  it('says that students see whole-school posts', () => {
+  it('says that students see a post only when they are ticked', () => {
     openComposer()
-    expect(screen.getByText(/Students see posts for Everyone at the school/)).toBeInTheDocument()
+    expect(screen.getByText(/Students see a post only when Students is ticked/)).toBeInTheDocument()
   })
 
   it.each([
@@ -406,8 +450,8 @@ describe('no default audience (2f945974)', () => {
     ['families', 'Post'],
     ['teachers', 'Post'],
   ])('enables Post once %s is chosen and sends that audience', async (audience, button) => {
-    const select = openComposer()
-    fireEvent.change(select, { target: { value: audience } })
+    openComposer()
+    pick(audience)
     titled()
     const post = screen.getByRole('button', { name: button })
     expect(post).not.toBeDisabled()

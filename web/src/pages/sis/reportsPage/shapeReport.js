@@ -42,11 +42,11 @@ const shapeReport = (type, data, questionLabel) => {
     // The chase list. Email is a column because the point of it is to contact
     // these people (iCreate 42c4acde).
     return {
-      title: 'Checklist completion',
+      title: 'Task completion',
       summary: (report.rows || []).length
         ? `${(report.rows || []).length} people still have outstanding checklist items.`
-        : 'Everyone has finished their checklists.',
-      columns: ['Name', 'Email', 'Checklists', 'Done', 'Total', 'Outstanding', 'Still missing'],
+        : 'Everyone has finished their tasks.',
+      columns: ['Name', 'Email', 'Tasks', 'Done', 'Total', 'Outstanding', 'Still missing'],
       rows: (report.rows || []).map((r) => [
         r.name, r.email || '', (r.checklists || []).join('; '),
         r.done_count, r.total_count, r.outstanding_count, (r.missing || []).join('; '),
@@ -58,6 +58,26 @@ const shapeReport = (type, data, questionLabel) => {
       title: `Daily attendance${report.date ? ` — ${report.date}` : ''}`,
       columns: ['Student', 'Class', 'Status', 'Excused?', 'Reason'],
       rows: (report.rows || []).map((r) => [r.student, r.class, r.status, r.excused, r.reason]),
+    }
+  }
+  if (type === 'roll-call') {
+    // One row per class per day (P7). The same columns as the CSV the backend
+    // writes (sis_class_session_service.HISTORY_CSV_HEADER).
+    const yesNo = (v) => (v == null ? '' : v ? 'Yes' : 'No')
+    const rows = report.rows || []
+    const toCheck = rows.filter((r) => r.sub_status === 'flagged').length
+    return {
+      title: `Who took roll${report.from ? ` — ${report.from}${report.to && report.to !== report.from ? ` to ${report.to}` : ''}` : ''}`,
+      summary: rows.length
+        ? `${rows.length} class day${rows.length === 1 ? "" : "s"}${toCheck ? `, ${toCheck} still to check` : ''}.`
+        : 'No roll was taken in these days.',
+      columns: ['Date', 'Class', 'Assigned teacher', 'Roll taken by', 'Taken at',
+        'Assigned teacher took roll?', 'Substitute', 'Status', 'Planned by', 'Decided by', 'Note'],
+      rows: rows.map((r) => [
+        r.date, r.class_name, r.teacher_name, r.taken_by_name || '', r.taken_at_local || '',
+        yesNo(r.taker_is_teacher), r.substitute_name || '', r.status_label || '',
+        r.planned_by_name || '', r.confirmed_by_name || '', r.sub_note || '',
+      ]),
     }
   }
   if (type === 'student-schedule') {

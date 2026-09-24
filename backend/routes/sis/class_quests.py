@@ -45,6 +45,7 @@ from utils.quest_completion import is_quest_done
 from utils.validation import validate_uuid
 from services import sis_service
 from services import sis_notifications
+from services import quest_edit_rules
 from services.sis_quest_authoring import (
     QuestAuthoringError,
     clean_task as _clean_task,
@@ -321,7 +322,7 @@ def list_class_quests(user_id, class_id):
             .select('id, quest_id, sequence_order, publish_at, due_date, student_ids, '
                     'quests(id, title, description, quest_type, is_active, '
                     'organization_id, xp_threshold, allow_custom_tasks, '
-                    'teachers_may_change_xp)')
+                    'teachers_may_change_xp, created_by)')
             .eq('class_id', class_row['id']).order('sequence_order').execute()).data or []
     quest_ids = [r['quest_id'] for r in rows]
     counts = _template_task_count(admin, quest_ids)
@@ -331,6 +332,7 @@ def list_class_quests(user_id, class_id):
     # actually still in the class.
     roster = _roster(admin, class_row['id'])
     roster_ids = [r['student_id'] for r in roster]
+    is_admin = quest_edit_rules.is_school_admin(user_id, org_id)
     out = []
     for r in rows:
         q = r.get('quests') or {}
@@ -355,8 +357,13 @@ def list_class_quests(user_id, class_id):
             # Whether a teacher may move xp_threshold here (the office sets it
             # in the library). Null reads as the column default, on.
             'teachers_may_change_xp': q.get('teachers_may_change_xp') is not False,
-            # Only the org's own quests may have their preset tasks edited here.
+            # The school's own quest: its XP to finish is a class setting a
+            # teacher may move (unless the office locked it).
             'editable_tasks': q.get('organization_id') == org_id,
+            # Whether the caller may change the quest itself -- the office, or
+            # the teacher who wrote it (quest_edit_rules, 2026-09-23).
+            'can_edit': q.get('organization_id') == org_id and (
+                is_admin or (bool(q.get('created_by')) and q.get('created_by') == user_id)),
         })
     return jsonify({'success': True, 'quests': out, 'students': roster})
 
@@ -476,9 +483,13 @@ def assign_quest(user_id, class_id):
              .eq('id', quest_id).limit(1).execute()).data
     quest = quest[0] if quest else None
     org_id = class_row['organization_id']
-    # Only the org's own quests or the public Optio library are assignable.
-    if not quest or not (quest.get('organization_id') == org_id
-                         or (quest.get('organization_id') is None and quest.get('is_public'))):
+    # Only the org's own quests or the public Optio library are assignable, and
+    # only live ones. A draft (or a retired quest) is inactive: the picker never
+    # offered one, but this route did not check, so a stale id or a hand-made
+    # request put an unpublished quest in front of a class (P6, 2026-09-23).
+    if not quest or not quest.get('is_active') or not (
+            quest.get('organization_id') == org_id
+            or (quest.get('organization_id') is None and quest.get('is_public'))):
         return jsonify({'success': False, 'error': 'That quest is not available to assign.'}), 404
 
     # A release date, a due date and an audience can all be set at assign time.
@@ -490,14 +501,6 @@ def assign_quest(user_id, class_id):
     if err:
         return err
 
-    existing = (admin.table('class_quests').select('sequence_order')
-                .eq('class_id', class_row['id']).order('sequence_order', desc=True)
-                .limit(1).execute()).data
-    next_order = ((existing[0]['sequence_order'] or 0) + 1) if existing else 0
-    admin.table('class_quests').upsert({
-        'class_id': class_row['id'], 'quest_id': quest_id,
-        'added_by': user_id, 'sequence_order': next_order, **row,
-    }, on_conflict='class_id,quest_id').execute()
     # The class page's own "add a quest" keeps the curriculum in step (see
     # _attach_quest_to_class_curricula). The quest library's Assign dialog
     # sends attach_to_curricula=false: it assigns to ONE class, and a class
@@ -505,12 +508,8 @@ def assign_quest(user_id, class_id):
     # "when I assign this quest (us history) to the class: independent study
     # it also adds it to the applied physics curriculum." Tanner's call: the
     # library Assign stops attaching; the class page keeps attaching.
-    if data.get('attach_to_curricula', True) is not False:
-        _attach_quest_to_class_curricula(admin, class_row['id'], quest_id, user_id)
-    # An assigned quest is a quest: enroll the class so it lands in each
-    # student's account like any other, not in a separate "assigned" tray.
-    # (Only the students it is for, and only once its release date has come.)
-    enrolled = enroll_safe(enroll_class_in_quests, admin, class_row['id'], [quest_id])
+    enrolled = _put_on_class(admin, class_row, quest_id, user_id, row,
+                             attach_to_curricula=data.get('attach_to_curricula', True) is not False)
     return jsonify({'success': True, 'students_enrolled': enrolled['enrolled'],
                     'publish_at': row.get('publish_at'), 'student_ids': row.get('student_ids')})
 
@@ -535,6 +534,31 @@ def _assignment_fields(admin, class_row, data):
         if ids is not None:
             row['student_ids'] = ids
     return row, None
+
+
+def _put_on_class(admin, class_row, quest_id, user_id, row, *, attach_to_curricula=True):
+    """The class's attach step: the class_quests link (at the end of the
+    order, with any release date, due date and audience in `row`), the class's
+    curricula kept in step, and the class enrolled. Returns the enroll counts.
+
+    One copy for the three doors that put a quest on a class: assigning an
+    existing one, the old create-and-assign, and publishing a draft from the
+    quest editor (P6).
+    """
+    existing = (admin.table('class_quests').select('sequence_order')
+                .eq('class_id', class_row['id']).order('sequence_order', desc=True)
+                .limit(1).execute()).data
+    next_order = ((existing[0]['sequence_order'] or 0) + 1) if existing else 0
+    admin.table('class_quests').upsert({
+        'class_id': class_row['id'], 'quest_id': quest_id,
+        'added_by': user_id, 'sequence_order': next_order, **row,
+    }, on_conflict='class_id,quest_id').execute()
+    if attach_to_curricula:
+        _attach_quest_to_class_curricula(admin, class_row['id'], quest_id, user_id)
+    # An assigned quest is a quest: enroll the class so it lands in each
+    # student's account like any other, not in a separate "assigned" tray.
+    # (Only the students it is for, and only once its release date has come.)
+    return enroll_safe(enroll_class_in_quests, admin, class_row['id'], [quest_id])
 
 
 # ── The curriculum round trip ─────────────────────────────────────────────────
@@ -765,7 +789,7 @@ def delete_class_quest(user_id, class_id, quest_id):
     if _bad_uuid(quest_id):
         return jsonify({'success': False, 'error': 'Invalid quest id'}), 400
 
-    quest = (admin.table('quests').select('id, title, organization_id')
+    quest = (admin.table('quests').select('id, title, organization_id, created_by')
              .eq('id', quest_id).limit(1).execute()).data
     quest = quest[0] if quest else None
     if not quest:
@@ -776,6 +800,10 @@ def delete_class_quest(user_id, class_id, quest_id):
             'error': ('This quest comes from the Optio library and is shared with other '
                       'schools, so it can only be removed from your class, not deleted.'),
         }), 403
+    # Deleting is the furthest an edit goes, so it follows the same rule: the
+    # office, or the teacher who wrote it (quest_edit_rules, 2026-09-23).
+    if not quest_edit_rules.can_edit_quest(user_id, quest):
+        return jsonify({'success': False, 'error': quest_edit_rules.refusal(quest)}), 403
 
     started = (admin.table('user_quests').select('id')
                .eq('quest_id', quest_id).limit(50).execute()).data or []
@@ -827,18 +855,49 @@ def create_quest_with_tasks(user_id, class_id):
     if err:
         return err
 
-    existing = (admin.table('class_quests').select('sequence_order')
-                .eq('class_id', class_row['id']).order('sequence_order', desc=True)
-                .limit(1).execute()).data
-    next_order = ((existing[0]['sequence_order'] or 0) + 1) if existing else 0
-    admin.table('class_quests').upsert({
-        'class_id': class_row['id'], 'quest_id': quest_id,
-        'added_by': user_id, 'sequence_order': next_order, **row,
-    }, on_conflict='class_id,quest_id').execute()
-    _attach_quest_to_class_curricula(admin, class_row['id'], quest_id, user_id)
-    enrolled = enroll_safe(enroll_class_in_quests, admin, class_row['id'], [quest_id])
+    enrolled = _put_on_class(admin, class_row, quest_id, user_id, row)
 
     return jsonify({'success': True, 'quest_id': quest_id, 'task_count': created['task_count'],
+                    'students_enrolled': enrolled['enrolled'],
+                    'publish_at': row.get('publish_at')})
+
+
+@bp.route('/classes/<class_id>/quests/<quest_id>/publish', methods=['POST'])
+@require_auth
+def publish_class_quest(user_id, class_id, quest_id):
+    """Publish a draft from the quest editor onto this class (P6).
+
+    Body: {publish_at?, due_date?, student_ids?} -- the class section of the
+    form, checked before anything is written so a bad date leaves the draft a
+    draft. Then the draft goes live and takes the same attach step as an
+    assign: the class link, the class's curricula, and enrollment of the
+    students it is for (once its release date has come).
+
+    Only the draft's author or the office may publish it; a class's other
+    teacher can see the class, not somebody else's unfinished quest.
+    """
+    class_row, admin, err = _authorize(user_id, class_id)
+    if err:
+        return err
+    if _bad_uuid(quest_id):
+        return jsonify({'success': False, 'error': 'Invalid quest id'}), 400
+    from repositories.quest_editor_repository import QuestEditorRepository
+    from services.sis_quest_authoring import publish_draft
+    quest = QuestEditorRepository(client=admin).get_quest(quest_id)
+    if not quest or quest.get('organization_id') != class_row['organization_id']:
+        return jsonify({'success': False, 'error': 'Quest not found'}), 404
+    if not quest_edit_rules.can_edit_quest(user_id, quest):
+        return jsonify({'success': False, 'error': quest_edit_rules.refusal(quest)}), 403
+    data = request.get_json(silent=True) or {}
+    row, err = _assignment_fields(admin, class_row, data)
+    if err:
+        return err
+    try:
+        publish_draft(admin, quest)
+    except QuestAuthoringError as e:
+        return jsonify({'success': False, 'error': e.message}), e.status
+    enrolled = _put_on_class(admin, class_row, quest_id, user_id, row)
+    return jsonify({'success': True, 'quest_id': quest_id,
                     'students_enrolled': enrolled['enrolled'],
                     'publish_at': row.get('publish_at')})
 
@@ -857,7 +916,7 @@ def _authorize_editable_quest(user_id, class_id, quest_id):
             .eq('class_id', class_row['id']).eq('quest_id', quest_id).limit(1).execute()).data
     if not link:
         return None, None, None, (jsonify({'success': False, 'error': 'That quest is not assigned to this class.'}), 404)
-    quest = (admin.table('quests').select('id, organization_id')
+    quest = (admin.table('quests').select('id, organization_id, created_by')
              .eq('id', quest_id).limit(1).execute()).data
     quest = quest[0] if quest else None
     if not quest or quest.get('organization_id') != class_row['organization_id']:
@@ -865,6 +924,13 @@ def _authorize_editable_quest(user_id, class_id, quest_id):
             'success': False,
             'error': 'Preset tasks can only be edited on your school\'s own quests.'
         }), 403)
+    # The quest itself is its author's or the office's (owner, 2026-09-23). A
+    # teacher of this class keeps the class settings -- dates, audience, the
+    # XP to finish when unlocked -- on update_class_quest and the /students
+    # routes, which do not come through here.
+    if not quest_edit_rules.can_edit_quest(user_id, quest):
+        return None, None, None, (jsonify({
+            'success': False, 'error': quest_edit_rules.refusal(quest)}), 403)
     return class_row, admin, quest, None
 
 
@@ -920,9 +986,10 @@ def list_preset_tasks(user_id, class_id, quest_id):
             .eq('class_id', class_row['id']).eq('quest_id', quest_id).limit(1).execute()).data
     if not link:
         return jsonify({'success': False, 'error': 'That quest is not assigned to this class.'}), 404
-    quest = (admin.table('quests').select('organization_id')
+    quest = (admin.table('quests').select('organization_id, created_by')
              .eq('id', quest_id).limit(1).execute()).data
-    editable = bool(quest) and quest[0].get('organization_id') == class_row['organization_id']
+    editable = (bool(quest) and quest[0].get('organization_id') == class_row['organization_id']
+                and quest_edit_rules.can_edit_quest(user_id, quest[0]))
     rows = (admin.table('quest_template_tasks').select('*')
             .eq('quest_id', quest_id).order('order_index').execute()).data or []
     return jsonify({'success': True, 'editable': editable,

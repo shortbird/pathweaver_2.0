@@ -37,7 +37,7 @@ describe('buildSearchIndex', () => {
     pages.forEach((p) => expect(ids(index)).toContain(p.path))
     // A tab sits right after its page, in nav order.
     const messaging = ids(index).indexOf('/inbox')
-    expect(index[messaging + 1]).toMatchObject({ name: 'Announcements', to: '/inbox?tab=announcements', hint: 'Messaging · Operations', parent: 'Messaging' })
+    expect(index[messaging + 1]).toMatchObject({ name: 'School inbox', to: '/inbox?tab=school', hint: 'Messaging · Operations', parent: 'Messaging' })
   })
 
   it('offers a teacher only what the sidebar offers a teacher', () => {
@@ -142,11 +142,11 @@ describe('searchFeatures', () => {
     expect(searchFeatures(index, '   ')).toEqual([])
   })
 
-  it('finds the Messaging tab for "announcements"', () => {
-    const [first, second] = searchFeatures(index, 'announcements')
-    expect(first.to).toBe('/inbox?tab=announcements')
-    // The community board's announcements are there too, behind the exact hit.
-    expect(second.to).toBe('/community?tab=announcements')
+  it('finds the Community board for "announcements", and nothing in Messaging', () => {
+    // Announcements live on the Community page only (9a335881, 2026-09-23).
+    const results = searchFeatures(index, 'announcements')
+    expect(results[0].to).toBe('/community?tab=announcements')
+    expect(results.map((r) => r.to)).not.toContain('/inbox?tab=announcements')
   })
 
   it('ranks a name that starts with the query over one that merely contains it', () => {

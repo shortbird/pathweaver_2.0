@@ -41,8 +41,10 @@ export interface SchoolOrg {
  * Feed rather than a place of its own. Billing and Forms are absent on
  * purpose: both only opened a browser, and a tab that is really a web link
  * is worse than no tab on a phone. They come back when they have screens.
+ * Forms never will: the school retired it into Tasks (2026-09-24), and To do
+ * is that screen.
  */
-export type SchoolTabKey = 'feed' | 'schedule' | 'calendar' | 'carpool' | 'documents';
+export type SchoolTabKey = 'feed' | 'todo' | 'schedule' | 'calendar' | 'carpool' | 'documents';
 
 export interface SchoolTab {
   key: SchoolTabKey;
@@ -51,10 +53,19 @@ export interface SchoolTab {
 
 export function schoolTabsFor(
   org: SchoolOrg | null | undefined,
-  have: { board: boolean; documents: boolean },
+  have: { board: boolean; documents: boolean; student?: boolean },
 ): SchoolTab[] {
   const on = (mod: string) => !org || !Array.isArray(org.modules) || org.modules.includes(mod);
   const tabs: SchoolTab[] = [{ key: 'feed', label: 'Feed' }];
+  // To do (2026-09-23): the tasks the school assigned to this person. Right
+  // after Feed because it is the one tab that asks something of them. For a
+  // guardian (their family's tasks) and a student (their own); staff tasks
+  // live in the SIS console, and the superadmin preview is neither. The
+  // student flag comes from the caller because the context row only knows
+  // guardianship -- a student is a member who guards nobody.
+  if (org && (org.is_guardian || have.student) && on('tasks')) {
+    tabs.push({ key: 'todo', label: 'To do' });
+  }
   // Schedules and absences act on a FAMILY: a student is a member without
   // being a guardian, so no Schedule tab for them (the backend enforces the
   // same by family relationship).

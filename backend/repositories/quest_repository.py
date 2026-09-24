@@ -5,6 +5,7 @@ Handles all quest-related database queries with RLS enforcement.
 """
 
 import logging
+import time
 from typing import Optional, Dict, List, Any
 from repositories.base_repository import BaseRepository, DatabaseError, NotFoundError
 from postgrest.exceptions import APIError
@@ -13,6 +14,7 @@ from utils.logger import get_logger
 from utils.pagination import fetch_page
 from utils.validation.sanitizers import (
     sanitize_search_input,
+    pgrst_enum,
     pgrst_pattern,
     pgrst_uuid,
     pgrst_uuid_list,
@@ -21,6 +23,82 @@ from utils.validation.sanitizers import (
 logger = get_logger(__name__)
 
 logger = logging.getLogger(__name__)
+
+
+# Quest discovery hides a school quest nobody assigned (owner decision,
+# 2026-09-24): a school quest lists only when it is on a class, a curriculum or
+# the training catalog. "Assigned" is answered in the database by the
+# quest_is_assigned(quests) computed field
+# (supabase/migrations/20260924140000_quest_is_assigned.sql), because the set of
+# assigned ids grows with the org and neither a 1,000-row read nor a query
+# string can carry it. Until that migration is applied, PostgREST answers
+# 42703 for the field; discovery then falls back to the old listing (every
+# active school quest) and does not ask again for a while, so an unapplied
+# migration costs one extra request per interval, not one per page.
+QUEST_ASSIGNED_FIELD = 'quest_is_assigned'
+# require_assigned -> the condition ANDed with organization_id.eq.<org>.
+_SCHOOL_QUEST_RULES = {
+    True: f'{QUEST_ASSIGNED_FIELD}.is.true',
+    False: 'organization_id.not.is.null',
+}
+_ASSIGNED_FIELD_RETRY_SECONDS = 300.0
+_assigned_field_missing_until = 0.0
+
+
+def _assigned_field_available() -> bool:
+    return time.monotonic() >= _assigned_field_missing_until
+
+
+def _mark_assigned_field_missing() -> None:
+    global _assigned_field_missing_until
+    _assigned_field_missing_until = time.monotonic() + _ASSIGNED_FIELD_RETRY_SECONDS
+
+
+def _is_missing_assigned_field(error: APIError) -> bool:
+    """True when PostgREST rejected the query because quest_is_assigned does not exist."""
+    message = str(getattr(error, 'message', '') or error)
+    return getattr(error, 'code', None) == '42703' and QUEST_ASSIGNED_FIELD in message
+
+
+#: The users columns is_school_staff and the direct-link check read.
+VISIBILITY_USER_COLUMNS = 'id, role, org_role, org_roles, organization_id'
+
+
+def is_school_staff(user_row: Optional[Dict[str, Any]]) -> bool:
+    """The staff exemption from the assigned-only rule, for discovery and for
+    direct links alike (services/quest_visibility_service.py).
+
+    Staff is utils.sis_roles.STAFF_ROLES, resolved with get_effective_roles, so
+    a staff member previewing the platform "as a student" sees what a student
+    sees. This says only that the person works at A school; which school is
+    the caller's question (discovery lists the caller's own org, a direct link
+    compares against the quest's org).
+    """
+    if not user_row:
+        return False
+    from utils.roles import get_effective_roles
+    from utils.sis_roles import STAFF_ROLES
+    return any(r in STAFF_ROLES for r in get_effective_roles(user_row))
+
+
+def course_is_open_to(course: Dict[str, Any], user_org_id: Optional[str]) -> bool:
+    """May a person in `user_org_id` see this PUBLISHED course without being
+    enrolled in it?
+
+    The rule list_courses (routes/courses/crud.py) applies by default: the
+    person's own org's courses, Optio's global courses, and other orgs' public
+    published ones. Narrowed to published here, because a direct link must not
+    open a project in a course its author has not released yet; list_courses
+    still shows a draft org course to the org, which is a separate question.
+    """
+    if course.get('status') != 'published':
+        return False
+    course_org = course.get('organization_id')
+    if course_org is None:
+        return True
+    if user_org_id and course_org == user_org_id:
+        return True
+    return course.get('visibility') == 'public'
 
 
 class QuestRepository(BaseRepository):
@@ -531,118 +609,278 @@ class QuestRepository(BaseRepository):
                     .execute()
                 curated_quest_ids = [q['quest_id'] for q in curated.data] if curated.data else []
 
-            def build_query(select_cols: str = '*'):
-                """
-                Build a FRESH filtered quests query (supabase-py builders are
-                single-use once ranged). No ordering/pagination applied here.
-                """
-                # Base query: only active quests
-                # Use admin client to bypass RLS and apply our own visibility logic
-                # NOTE: is_public filter is applied per-category below, not globally
-                # Organization quests should be visible to org members even if not "public"
-                query = admin.table('quests').select(select_cols, count='exact').eq('is_active', True)
-
-                # Apply search FIRST (before org filtering) to reduce result set
-                # Search in title and big_idea
-                if search_term:
-                    query = query.or_(
-                        f'title.ilike.%{pgrst_pattern(search_term)}%,'
-                        f'big_idea.ilike.%{pgrst_pattern(search_term)}%'
-                    )
-
-                # Apply organization visibility policy
-                # Note: Since we applied search first, the org filtering now operates on a smaller set
-                # is_public only applies to global Optio quests (organization_id IS NULL)
-                # Organization quests are visible to org members regardless of is_public
-                # User's own created quests are always visible to them
-                if policy == 'all_optio':
-                    if org_id:
-                        # Global PUBLIC quests (NULL org_id + is_public) + organization quests (any is_public) + user's own created quests
-                        query = query.or_(
-                            f'and(organization_id.is.null,is_public.eq.true),'
-                            f'organization_id.eq.{pgrst_uuid(org_id, "organization_id")},'
-                            f'created_by.eq.{pgrst_uuid(user_id, "user_id")}'
-                        )
-                    else:
-                        # No organization - global PUBLIC quests + user's own created quests
-                        query = query.or_(
-                            f'and(organization_id.is.null,is_public.eq.true),'
-                            f'created_by.eq.{pgrst_uuid(user_id, "user_id")}'
-                        )
-
-                elif policy == 'curated':
-                    if not org_id:
-                        # No organization - fallback to global PUBLIC quests only
-                        query = query.is_('organization_id', 'null').eq('is_public', True)
-                    elif curated_quest_ids:
-                        # Curated quests + organization quests + user's own created quests
-                        query = query.or_(
-                            f'id.in.({pgrst_uuid_list(curated_quest_ids, "quest_id")}),'
-                            f'organization_id.eq.{pgrst_uuid(org_id, "organization_id")},'
-                            f'created_by.eq.{pgrst_uuid(user_id, "user_id")}'
-                        )
-                    else:
-                        # No curated quests, only org quests + user's created quests
-                        query = query.or_(
-                            f'organization_id.eq.{pgrst_uuid(org_id, "organization_id")},'
-                            f'created_by.eq.{pgrst_uuid(user_id, "user_id")}'
-                        )
-
-                elif policy == 'private_only':
-                    if not org_id:
-                        # No organization - only user's own created quests
-                        query = query.eq('created_by', user_id)
-                    else:
-                        # Only organization quests + user's own created quests
-                        query = query.or_(
-                            f'organization_id.eq.{pgrst_uuid(org_id, "organization_id")},'
-                            f'created_by.eq.{pgrst_uuid(user_id, "user_id")}'
-                        )
-
-                # Apply additional non-search filters
-                if filters.get('pillar'):
-                    query = query.eq('pillar_primary', filters['pillar'])
-                if filters.get('quest_type'):
-                    query = query.eq('quest_type', filters['quest_type'])
-                if filters.get('topic'):
-                    query = query.eq('topic_primary', filters['topic'])
-                if filters.get('subtopic'):
-                    query = query.contains('topics', [filters['subtopic']])
-
-                return query
-
-            if sort == 'popular':
-                # "Exciting first": curated featured quests first, then newest.
-                # Ranks all matching ids truncation-safely, fetches one page.
-                from utils.quest_popularity import paginate_quests_by_popularity
-                quests, total = paginate_quests_by_popularity(
-                    build_query, page, limit
+            def list_page(require_assigned: bool) -> Dict[str, Any]:
+                return self._discovery_page(
+                    admin, user_id, org_id, policy, require_assigned, curated_quest_ids,
+                    search_term, filters, page, limit, sort,
                 )
-                return {
-                    'quests': quests,
-                    'total': total,
-                    'page': page,
-                    'limit': limit
-                }
 
-            # Default ordering: newest first. The explicit order also makes
-            # infinite-scroll pagination deterministic (an unordered .range()
-            # can repeat or skip quests between pages). fetch_page turns a page
-            # past the last row into an empty page with the real total, which
-            # is what PostgREST's 416 actually means.
-            response = fetch_page(
-                lambda: build_query().order('created_at', desc=True), page, limit)
-
-            return {
-                'quests': response.data if response.data else [],
-                'total': response.count if response.count else 0,
-                'page': page,
-                'limit': limit
-            }
+            if not org_id or not _assigned_field_available() \
+                    or self._sees_unassigned_school_quests(admin, user_id):
+                return list_page(require_assigned=False)
+            try:
+                return list_page(require_assigned=True)
+            except APIError as e:
+                if not _is_missing_assigned_field(e):
+                    raise
+                logger.warning(
+                    "quest_is_assigned is missing (migration 20260924140000 not "
+                    "applied); quest discovery lists every active school quest"
+                )
+                _mark_assigned_field_missing()
+                return list_page(require_assigned=False)
 
         except APIError as e:
             logger.error(f"Error fetching quests for user {user_id}: {e}")
             raise DatabaseError("Failed to fetch quests for user") from e
+
+    @staticmethod
+    def _sees_unassigned_school_quests(admin: Any, user_id: str) -> bool:
+        """
+        Staff still list every active quest of their school: the same endpoint
+        is the picker the course builder (web AddQuestModal) adds quests from,
+        and a quest nobody has assigned yet is exactly what staff go looking
+        for there. The assigned-only rule is for learners and families.
+
+        The rule itself is is_school_staff, shared with the direct-link check
+        (services/quest_visibility_service.py).
+        """
+        row = admin.table('users')\
+            .select('id, role, org_role, org_roles')\
+            .eq('id', user_id)\
+            .execute()
+        return is_school_staff(row.data[0] if row.data else None)
+
+    # ── Direct-link visibility reads (services/quest_visibility_service.py) ──
+    # Each read is bounded by one user or one quest, so the 1,000-row cap
+    # cannot bite.
+
+    def get_visibility_user(self, user_id: str) -> Optional[Dict[str, Any]]:
+        """The users row the direct-link check reasons about, or None."""
+        rows = self.client.table('users')\
+            .select(VISIBILITY_USER_COLUMNS)\
+            .eq('id', user_id)\
+            .limit(1)\
+            .execute().data or []
+        return rows[0] if rows else None
+
+    def has_any_enrollment(self, user_id: str, quest_id: str) -> bool:
+        """Any user_quests row at all: active, set down or completed."""
+        rows = self.client.table('user_quests')\
+            .select('id')\
+            .eq('user_id', user_id)\
+            .eq('quest_id', quest_id)\
+            .limit(1)\
+            .execute().data or []
+        return bool(rows)
+
+    def enrolled_user_ids(self, quest_id: str, limit: int = 25) -> List[str]:
+        """Up to `limit` people with a user_quests row for this quest, for the
+        personal-quest relationship check. Deliberately capped: the caller
+        walks each one through relationship_between."""
+        rows = self.client.table('user_quests')\
+            .select('user_id')\
+            .eq('quest_id', quest_id)\
+            .limit(limit)\
+            .execute().data or []
+        out: List[str] = []
+        for row in rows:
+            uid = row.get('user_id')
+            if uid and uid not in out:
+                out.append(uid)
+        return out
+
+    def is_quest_assigned(self, quest_id: str) -> bool:
+        """quest_is_assigned for one quest: on a class, a curriculum or training.
+
+        Same fallback as discovery: while the function is missing the answer
+        is True (the old behaviour) with a warning, and the miss is remembered
+        for _ASSIGNED_FIELD_RETRY_SECONDS so every page load does not re-ask.
+        """
+        if not _assigned_field_available():
+            return True
+        try:
+            rows = self.client.table('quests')\
+                .select(f'id, {QUEST_ASSIGNED_FIELD}')\
+                .eq('id', quest_id)\
+                .limit(1)\
+                .execute().data or []
+        except APIError as e:
+            if not _is_missing_assigned_field(e):
+                raise
+            logger.warning(
+                "quest_is_assigned is missing (migration 20260924140000 not "
+                "applied); direct quest links treat every school quest as assigned"
+            )
+            _mark_assigned_field_missing()
+            return True
+        return bool(rows and rows[0].get(QUEST_ASSIGNED_FIELD))
+
+    def reachable_through_course(self, user_id: str, user_org_id: Optional[str],
+                                 quest_id: str) -> bool:
+        """Is this quest a released Project in a course the user can reach?
+
+        quest_is_assigned does not count course_quests, yet a student opens a
+        Project from the course page before, or while, enrolling in it. A
+        course is reachable when the user has a course_enrollments row for it
+        (any status) or course_is_open_to says so. An unpublished project
+        (course_quests.is_published false) is skipped, as the course homepage
+        skips it.
+        """
+        links = self.client.table('course_quests')\
+            .select('course_id, is_published, courses(id, organization_id, status, visibility)')\
+            .eq('quest_id', quest_id)\
+            .execute().data or []
+        courses = [link.get('courses') for link in links
+                   if link.get('is_published') is not False and link.get('courses')]
+        if not courses:
+            return False
+        if any(course_is_open_to(c, user_org_id) for c in courses):
+            return True
+        enrolled = self.client.table('course_enrollments')\
+            .select('id')\
+            .eq('user_id', user_id)\
+            .in_('course_id', [c['id'] for c in courses])\
+            .limit(1)\
+            .execute().data or []
+        return bool(enrolled)
+
+    @staticmethod
+    def _discovery_page(
+        admin: Any,
+        user_id: str,
+        org_id: Optional[str],
+        policy: str,
+        require_assigned: bool,
+        curated_quest_ids: Optional[List[str]],
+        search_term: Optional[str],
+        filters: Dict[str, Any],
+        page: int,
+        limit: int,
+        sort: Optional[str],
+    ) -> Dict[str, Any]:
+        """
+        One page of get_quests_for_user's discovery listing.
+
+        require_assigned hides the org's own quests that are not on a class, a
+        curriculum or the training catalog; see QUEST_ASSIGNED_FIELD above.
+        """
+        # The second half of the condition that admits the org's own quests.
+        # Unrestricted, it is a tautology for a row that already matched
+        # organization_id.eq.<org>, so both shapes are one and(...) group.
+        school_rule = _SCHOOL_QUEST_RULES[require_assigned]
+
+        def build_query(select_cols: str = '*'):
+            """
+            Build a FRESH filtered quests query (supabase-py builders are
+            single-use once ranged). No ordering/pagination applied here.
+            """
+            # Base query: only active quests
+            # Use admin client to bypass RLS and apply our own visibility logic
+            # NOTE: is_public filter is applied per-category below, not globally
+            query = admin.table('quests').select(select_cols, count='exact').eq('is_active', True)
+
+            # Apply search FIRST (before org filtering) to reduce result set
+            # Search in title and big_idea
+            if search_term:
+                query = query.or_(
+                    f'title.ilike.%{pgrst_pattern(search_term)}%,'
+                    f'big_idea.ilike.%{pgrst_pattern(search_term)}%'
+                )
+
+            # Apply organization visibility policy
+            # is_public only applies to global Optio quests (organization_id IS NULL).
+            # Organization quests are visible to org members regardless of
+            # is_public, but only once assigned (school_rule carries that rule).
+            # User's own created quests are always visible to them.
+            if policy == 'all_optio':
+                if org_id:
+                    # Global PUBLIC quests + (assigned) organization quests + user's own created quests
+                    query = query.or_(
+                        f'and(organization_id.is.null,is_public.eq.true),'
+                        f'and(organization_id.eq.{pgrst_uuid(org_id, "organization_id")},'
+                        f'{pgrst_enum(school_rule, _SCHOOL_QUEST_RULES.values())}),'
+                        f'created_by.eq.{pgrst_uuid(user_id, "user_id")}'
+                    )
+                else:
+                    # No organization - global PUBLIC quests + user's own created quests
+                    query = query.or_(
+                        f'and(organization_id.is.null,is_public.eq.true),'
+                        f'created_by.eq.{pgrst_uuid(user_id, "user_id")}'
+                    )
+
+            elif policy == 'curated':
+                if not org_id:
+                    # No organization - fallback to global PUBLIC quests only
+                    query = query.is_('organization_id', 'null').eq('is_public', True)
+                elif curated_quest_ids:
+                    # Curated quests + (assigned) organization quests + user's own created quests
+                    query = query.or_(
+                        f'id.in.({pgrst_uuid_list(curated_quest_ids, "quest_id")}),'
+                        f'and(organization_id.eq.{pgrst_uuid(org_id, "organization_id")},'
+                        f'{pgrst_enum(school_rule, _SCHOOL_QUEST_RULES.values())}),'
+                        f'created_by.eq.{pgrst_uuid(user_id, "user_id")}'
+                    )
+                else:
+                    # No curated quests, only (assigned) org quests + user's created quests
+                    query = query.or_(
+                        f'and(organization_id.eq.{pgrst_uuid(org_id, "organization_id")},'
+                        f'{pgrst_enum(school_rule, _SCHOOL_QUEST_RULES.values())}),'
+                        f'created_by.eq.{pgrst_uuid(user_id, "user_id")}'
+                    )
+
+            elif policy == 'private_only':
+                if not org_id:
+                    # No organization - only user's own created quests
+                    query = query.eq('created_by', user_id)
+                else:
+                    # Only (assigned) organization quests + user's own created quests
+                    query = query.or_(
+                        f'and(organization_id.eq.{pgrst_uuid(org_id, "organization_id")},'
+                        f'{pgrst_enum(school_rule, _SCHOOL_QUEST_RULES.values())}),'
+                        f'created_by.eq.{pgrst_uuid(user_id, "user_id")}'
+                    )
+
+            # Apply additional non-search filters
+            if filters.get('pillar'):
+                query = query.eq('pillar_primary', filters['pillar'])
+            if filters.get('quest_type'):
+                query = query.eq('quest_type', filters['quest_type'])
+            if filters.get('topic'):
+                query = query.eq('topic_primary', filters['topic'])
+            if filters.get('subtopic'):
+                query = query.contains('topics', [filters['subtopic']])
+
+            return query
+
+        if sort == 'popular':
+            # "Exciting first": curated featured quests first, then newest.
+            # Ranks all matching ids truncation-safely, fetches one page.
+            from utils.quest_popularity import paginate_quests_by_popularity
+            quests, total = paginate_quests_by_popularity(
+                build_query, page, limit
+            )
+            return {
+                'quests': quests,
+                'total': total,
+                'page': page,
+                'limit': limit
+            }
+
+        # Default ordering: newest first. The explicit order also makes
+        # infinite-scroll pagination deterministic (an unordered .range()
+        # can repeat or skip quests between pages). fetch_page turns a page
+        # past the last row into an empty page with the real total, which
+        # is what PostgREST's 416 actually means.
+        response = fetch_page(
+            lambda: build_query().order('created_at', desc=True), page, limit)
+
+        return {
+            'quests': response.data if response.data else [],
+            'total': response.count if response.count else 0,
+            'page': page,
+            'limit': limit
+        }
 
     def search_similar_quests(
         self,
@@ -708,19 +946,31 @@ class QuestRepository(BaseRepository):
                 .eq('is_active', True)\
                 .ilike('title', f'%{search_term}%')
 
-            # Apply organization visibility policy
+            # Apply organization visibility policy. A global quest that is not
+            # public is somebody's own (/api/quests/create,
+            # /api/family/quests/create): it autocompletes for its creator only,
+            # as in discovery, and a direct link opens it only for them and the
+            # people around them (services/quest_visibility_service.py). It used
+            # to autocomplete for everyone, titles and all.
             if policy == 'all_optio':
                 if org_id:
                     query = query.or_(
-                        f'organization_id.is.null,'
+                        f'and(organization_id.is.null,is_public.eq.true),'
+                        f'created_by.eq.{pgrst_uuid(user_id, "user_id")},'
                         f'organization_id.eq.{pgrst_uuid(org_id, "organization_id")}'
                     )
                 else:
-                    query = query.is_('organization_id', 'null')
+                    query = query.or_(
+                        f'and(organization_id.is.null,is_public.eq.true),'
+                        f'created_by.eq.{pgrst_uuid(user_id, "user_id")}'
+                    )
 
             elif policy == 'curated':
                 if not org_id:
-                    query = query.is_('organization_id', 'null')
+                    query = query.or_(
+                        f'and(organization_id.is.null,is_public.eq.true),'
+                        f'created_by.eq.{pgrst_uuid(user_id, "user_id")}'
+                    )
                 else:
                     curated = admin.table('organization_quest_access')\
                         .select('quest_id')\

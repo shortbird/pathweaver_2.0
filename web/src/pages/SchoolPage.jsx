@@ -9,6 +9,7 @@ import { useSisOrg } from './sis/useSisOrg'
 import { isFamilyFirstHubOrg } from '../config/optioAcademy'
 import { cardGroupsFor, cardsFor } from './school/schoolCards'
 import MySchoolTraining from '../components/school/MySchoolTraining'
+import MySchoolTodo from '../components/school/MySchoolTodo'
 
 // The card catalog lives in ./school/schoolCards (shared with the sidebar).
 export { cardGroupsFor, cardsFor }
@@ -355,6 +356,10 @@ export default function SchoolPage() {
               button (ae16c5da). Empty -- so nothing -- for anyone who is not a
               student, and hidden in the preview for the same reason as above. */}
           {!previewOrgId && <MySchoolTraining />}
+          {/* The student's own tasks from the school, done in place. Empty --
+              so nothing -- for anyone who is not a student, and hidden in the
+              preview for the same reason as above. */}
+          {!previewOrgId && <MySchoolTodo />}
 
           {!cardsOnly && (
             <UnifiedFeed

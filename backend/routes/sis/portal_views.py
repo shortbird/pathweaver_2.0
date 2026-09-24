@@ -22,7 +22,6 @@ import uuid
 from flask import request, jsonify
 
 from database import get_supabase_admin_client
-from services import sis_forms_service as forms
 from services import sis_onboarding_service as onboarding
 from services import sis_secure_docs_service
 from services import sis_tasks_service
@@ -145,7 +144,7 @@ def office_document_url(org_id, owner_user_id, doc_id):
     return jsonify({'success': True, 'url': url})
 
 
-# ── Tasks and forms ────────────────────────────────────────────────────────────
+# ── Tasks ────────────────────────────────────────────────────────────
 
 def list_tasks(org_id, user_id, audience, *, include_done=False):
     """One person's side of the unified inbox: their checklists and any
@@ -156,22 +155,6 @@ def list_tasks(org_id, user_id, audience, *, include_done=False):
 
 
 def list_assigned_tasks(org_id, target_user_id):
-    """Open requests assigned to a staff member."""
-    return jsonify({'success': True, 'tasks': forms.list_assigned(org_id, target_user_id)})
-
-
-def list_my_forms(org_id, target_user_id, roles):
-    """A staff member's own submissions, the built-in form types and the
-    school's own forms with the questions each one asks."""
-    from services import sis_form_template_service as form_templates
+    """Open tasks assigned to a staff member."""
     return jsonify({'success': True,
-                    'submissions': forms.list_mine(org_id, target_user_id),
-                    'form_types': forms.FORM_TYPES,
-                    'forms': form_templates.submittable_forms(org_id, 'staff', roles=roles)})
-
-
-def submit_form(org_id, user_id):
-    result = forms.submit(org_id, user_id, request.get_json() or {})
-    if result.get('error'):
-        return jsonify({'success': False, 'error': result['error']}), 400
-    return jsonify({'success': True, **result}), 201
+                    'tasks': sis_tasks_service.open_tasks_for(org_id, target_user_id)})

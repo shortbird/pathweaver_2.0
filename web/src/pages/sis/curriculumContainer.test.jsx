@@ -23,8 +23,14 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render as rtlRender, screen, fireEvent, waitFor } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 
-const render = (ui) => rtlRender(<MemoryRouter>{ui}</MemoryRouter>)
+// The quest editor's Drafts list reads through react-query (P6).
+const render = (ui) => rtlRender(
+  <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+    <MemoryRouter>{ui}</MemoryRouter>
+  </QueryClientProvider>,
+)
 
 let authState = { user: { id: 'u1', role: 'org_admin' } }
 vi.mock('../../contexts/AuthContext', () => ({ useAuth: () => authState }))
@@ -70,6 +76,13 @@ beforeEach(() => {
     }
     if (url.includes('/assignable-courses')) {
       return Promise.resolve({ data: { courses: [{ course_id: 'co2', title: 'Poetry basics', status: 'published', source: 'library' }] } })
+    }
+    if (url.startsWith('/api/sis/quest-editor/drafts')) return Promise.resolve({ data: { drafts: [] } })
+    if (url.startsWith('/api/sis/quest-editor/q9')) {
+      return Promise.resolve({ data: { quest: {
+        id: 'q9', title: '', description: '', is_draft: true, is_active: false, editable: true,
+        can_lock_xp: true, tasks: [], xp_threshold: 0, draft: { context: 'curriculum', target_id: 'cur1' },
+      } } })
     }
     if (url.includes('/resources')) return Promise.resolve({ data: RESOURCES })
     if (url.includes('/api/sis/curriculum')) return Promise.resolve({ data: { curriculum: [ENTRY] } })
@@ -169,48 +182,58 @@ describe('building a quest from the curriculum page', () => {
     await screen.findByText('Reading log')
   }
 
-  it('creates a quest and adds it to the curriculum in one step', async () => {
-    api.post.mockResolvedValue({ data: { success: true, quest_id: 'q9', task_count: 1 } })
+  // Since P6 (2026-09-23) this is the one quest editor: the quest is a draft
+  // on this curriculum from the first click, and Publish appends it and pushes
+  // it to the curriculum's classes.
+  it('starts a draft on this curriculum and publishes it onto the curriculum', async () => {
+    api.post.mockResolvedValue({ data: { success: true, quest_id: 'q9', pushed_to_classes: 1 } })
+    api.put.mockImplementation((url, body) => Promise.resolve({ data: { quest: {
+      id: 'q9', ...body, is_draft: true, editable: true, tasks: body.tasks || [] } } }))
     await open()
     fireEvent.click(screen.getByRole('button', { name: /Create a new quest/i }))
 
-    fireEvent.change(screen.getByLabelText('Quest title'), { target: { value: 'Watercolor Basics' } })
+    await waitFor(() => expect(api.post).toHaveBeenCalledWith(
+      '/api/sis/quest-editor/drafts?organization_id=org-1',
+      { context: 'curriculum', curriculum_id: 'cur1' }))
+    fireEvent.change(await screen.findByLabelText('Quest title'), { target: { value: 'Watercolor Basics' } })
     fireEvent.change(screen.getByLabelText('Quest description'), { target: { value: 'Paint something' } })
     fireEvent.change(screen.getByPlaceholderText(/Task 1 — what should they do\?/), {
       target: { value: 'Mix three colors' },
     })
-    fireEvent.click(screen.getByRole('button', { name: /Create & add/i }))
+    fireEvent.click(screen.getByRole('button', { name: 'Publish to curriculum' }))
 
-    await waitFor(() => expect(api.post).toHaveBeenCalledWith(
-      '/api/sis/curriculum/cur1/quests/create?organization_id=org-1',
+    await waitFor(() => expect(api.put).toHaveBeenCalledWith(
+      '/api/sis/quest-editor/q9?organization_id=org-1',
       expect.objectContaining({
         title: 'Watercolor Basics',
         description: 'Paint something',
         tasks: [expect.objectContaining({ title: 'Mix three colors' })],
       }),
     ))
+    await waitFor(() => expect(api.post).toHaveBeenCalledWith(
+      '/api/sis/curriculum/cur1/quests/q9/publish?organization_id=org-1', {}))
   })
 
-  it('will not post a quest with no title', async () => {
+  it('will not publish a quest with no title', async () => {
+    api.post.mockResolvedValue({ data: { success: true, quest_id: 'q9' } })
     await open()
     fireEvent.click(screen.getByRole('button', { name: /Create a new quest/i }))
-    expect(screen.getByRole('button', { name: /Create & add/i })).toBeDisabled()
+    expect(await screen.findByRole('button', { name: 'Publish to curriculum' })).toBeDisabled()
   })
 
   it('an AI draft fills the form and saves nothing on its own', async () => {
-    api.post.mockResolvedValue({
-      data: {
-        success: true,
-        quest: {
-          title: 'Bridge Building',
-          description: 'Build and test a bridge',
-          tasks: [{ title: 'Sketch a design', pillar: 'stem', xp_value: 50, is_required: true }],
-        },
-      },
-    })
+    api.post.mockImplementation((url) => Promise.resolve({ data: url.startsWith('/api/sis/quest-editor')
+      ? { success: true, quest_id: 'q9' }
+      : { success: true, quest: {
+        title: 'Bridge Building',
+        description: 'Build and test a bridge',
+        tasks: [{ title: 'Sketch a design', pillar: 'stem', xp_value: 50, is_required: true }],
+      } } }))
     await open()
+    fireEvent.click(screen.getByRole('button', { name: /Create a new quest/i }))
 
-    fireEvent.change(screen.getByLabelText('Source material'), {
+    // A blank new quest opens with the document panel ready.
+    fireEvent.change(await screen.findByLabelText('Source material'), {
       target: { value: 'Week 1: sketch a bridge. Week 2: build it.' },
     })
     fireEvent.click(screen.getByRole('button', { name: /Generate draft/i }))
@@ -218,9 +241,12 @@ describe('building a quest from the curriculum page', () => {
     // The draft lands in the form the admin will review...
     expect(await screen.findByDisplayValue('Bridge Building')).toBeInTheDocument()
     expect(screen.getByDisplayValue('Sketch a design')).toBeInTheDocument()
-    // ...and generating is the only call made; creating is a separate click.
-    expect(api.post).toHaveBeenCalledTimes(1)
-    expect(api.post.mock.calls[0][0]).toBe('/api/sis/quest-drafts/generate')
+    // ...and generating is the only call after the draft itself; publishing is
+    // a separate click, and nothing was saved.
+    const calls = api.post.mock.calls.map(([url]) => url)
+    expect(calls).toEqual([
+      '/api/sis/quest-editor/drafts?organization_id=org-1', '/api/sis/quest-drafts/generate'])
+    expect(api.put).not.toHaveBeenCalled()
   })
 })
 

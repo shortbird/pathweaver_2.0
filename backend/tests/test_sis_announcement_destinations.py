@@ -11,7 +11,7 @@ The findings behind the shape: announcement_service.publish already narrowed
 by advisor_ids and nothing passed them; there was no inbox channel at all; and
 the "Teacher & Staff board" is the staff audience of the one board, not a
 second table. So one composer, four destinations, one board row at most, and
-the inbox is staff only -- families are messaged from "Message Families".
+the inbox is staff only -- families are messaged from Compose on the Messaging page.
 """
 
 from unittest.mock import Mock, patch
@@ -192,7 +192,7 @@ class TestRefusals:
     def test_the_inbox_never_messages_families(self):
         result, board, _, compose = _send({'audience': 'families',
                                            'destinations': ['inbox']})
-        assert 'Message Families' in result['error']
+        assert 'Compose' in result['error']
         compose.assert_not_called()
         assert board == []
 

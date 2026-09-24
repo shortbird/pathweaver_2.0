@@ -1049,12 +1049,25 @@ def advisor_class_ids(user_id: str, org_id: str) -> List[str]:
     ))
 
 
-def class_scope(user_id: str, org_id: str) -> Optional[List[str]]:
+def class_scope(user_id: str, org_id: str,
+                on_date: Optional[str] = None) -> Optional[List[str]]:
     """None = unrestricted (org_admin/superadmin); otherwise the advisor's class ids.
-    Route handlers use this to keep teachers inside their own classes."""
+    Route handlers use this to keep teachers inside their own classes.
+
+    `on_date` (YYYY-MM-DD) also admits the classes this person was marked to
+    cover as a substitute on that date (sis_class_sessions.planned_by, P7).
+    Only the routes a substitute needs pass it -- the roster and the
+    attendance for that day -- so the grant is one class, one date, and never
+    a class membership: the gradebook, submissions and every other scoped
+    route still see only the person's own classes.
+    """
     if caller_is_admin(user_id):
         return None
-    return advisor_class_ids(user_id, org_id)
+    ids = advisor_class_ids(user_id, org_id)
+    if on_date:
+        from services import sis_class_session_service as sessions
+        ids = list(dict.fromkeys(ids + sessions.covering_class_ids(user_id, org_id, on_date)))
+    return ids
 
 
 def org_admin_ids(org_id: str) -> List[str]:

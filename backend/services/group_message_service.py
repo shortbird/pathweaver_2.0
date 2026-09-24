@@ -393,8 +393,11 @@ class GroupMessageService(BaseService):
         school_group_access), exactly as it reads the school's DMs.
 
         The caller has already checked the actor is front-office staff of this
-        org and that every member is staff of it (sis_messaging_service.
-        resolve_recipients), which is why this does not run can_add_member: that
+        org and that every member belongs to it -- staff
+        (sis_messaging_service.resolve_recipients), or, from the console's one
+        Compose, staff, current students and their guardians
+        (message_compose_service._universe) -- which is why this does not run
+        can_add_member: that
         rule asks whether the CREATOR shares an org with the target, and the
         inbox account deliberately has no organization_id.
         """
@@ -452,8 +455,10 @@ class GroupMessageService(BaseService):
                 raise ValueError("Group not found")
 
             # Get members with user info
+            # last_read_at is the group's read receipt: "Seen by 3" on a
+            # message is the members whose marker is at or past it (9b46c748).
             members = supabase.table('group_members').select(
-                'id, user_id, role, joined_at, added_by'
+                'id, user_id, role, joined_at, added_by, last_read_at'
             ).eq('group_id', group_id).execute()
 
             member_list = []
@@ -919,7 +924,8 @@ class GroupMessageService(BaseService):
                      reply_to_message_id: Optional[str] = None,
                      attachments: Optional[list] = None,
                      sent_from: Optional[str] = None,
-                     on_behalf_of: Optional[str] = None) -> Dict[str, Any]:
+                     on_behalf_of: Optional[str] = None,
+                     push: bool = True) -> Dict[str, Any]:
         """
         Send a message to a group. Supports replying to a message and attachments.
         Announcement-only groups accept messages from group admins only.
@@ -1013,7 +1019,10 @@ class GroupMessageService(BaseService):
             }).eq('group_id', group_id).eq('user_id', member_id).execute()
 
             # Notify other group members
-            self._notify_group_members(user_id, group_id, content or 'Sent an attachment')
+            # push=False: the members' bells still ring, their phones do not
+            # (the console Compose's per-send toggle, bf8b754d).
+            self._notify_group_members(user_id, group_id, content or 'Sent an attachment',
+                                       **({} if push else {'push': False}))
 
             row = result.data[0] if result.data else {}
             enriched = extras.enrich_messages('group', [row], user_id)[0] if row else {}
@@ -1182,7 +1191,8 @@ class GroupMessageService(BaseService):
         except:
             return {'id': user_id, 'display_name': 'Unknown User'}
 
-    def _notify_group_members(self, sender_id: str, group_id: str, content: str) -> None:
+    def _notify_group_members(self, sender_id: str, group_id: str, content: str,
+                              push: bool = True) -> None:
         """
         Send notifications to all group members except the sender.
 
@@ -1264,7 +1274,8 @@ class GroupMessageService(BaseService):
                             'sender_id': sender_id,
                             'sender_name': sender_name
                         },
-                        organization_id=organization_id
+                        organization_id=organization_id,
+                        **({} if push else {'push': False})
                     )
                 except Exception as e:
                     logger.warning(f"Failed to notify user {member['user_id']}: {str(e)}")

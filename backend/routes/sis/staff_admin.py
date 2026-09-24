@@ -1,11 +1,11 @@
 """
-SIS staff-operations admin routes — employment profiles, duties, form review,
-onboarding templates, and the staff roster export.
+SIS staff-operations admin routes — employment profiles, duties, task
+templates and their review actions, and the staff roster export.
 
 ADMIN-ONLY: this is the employer side of the teacher portal. Teachers reach
 their own slice via routes/sis/staff_portal.py.
 
-Campus coordinators run onboarding and form review without seeing what anyone
+Campus coordinators run onboarding and task review without seeing what anyone
 is paid: pay fields on the employment profile are redacted for them rather
 than the whole profile withheld -- it also carries the emergency contact and
 work schedule, which they do need. (The timesheets and payroll CSV routes that
@@ -21,9 +21,7 @@ from modules.gate import require_module
 from utils.logger import get_logger
 from services import sis_service
 from services import sis_staff_service as staff
-from services import sis_forms_service as forms
 from services import sis_onboarding_service as onboarding
-from services import sis_form_template_service as form_templates
 from routes.sis import signature_request_views
 from database import get_supabase_admin_client
 from utils.sis_roles import ADMIN_ROLES
@@ -97,204 +95,17 @@ def delete_assignment(user_id, assignment_id):
     return jsonify({'success': True})
 
 
-# ── Forms review ─────────────────────────────────────────────────────────────
-
-@bp.route('/forms', methods=['GET'])
-@require_role(*ADMIN_ROLES)
-@require_module('forms')
-def list_forms(user_id):
-    org_id, err = sis_service.org_or_error(user_id)
-    if err:
-        return err
-    return jsonify({'success': True,
-                    'submissions': forms.list_all(org_id, request.args.get('status')),
-                    'counts': forms.status_counts(org_id),
-                    'form_types': forms.FORM_TYPES})
-
-
-@bp.route('/forms/<submission_id>', methods=['PATCH'])
-@require_role(*ADMIN_ROLES)
-@require_module('forms')
-def update_form(user_id, submission_id):
-    org_id, err = sis_service.org_or_error(user_id)
-    if err:
-        return err
-    result = forms.update_status(org_id, submission_id, request.get_json() or {},
-                                 actor_id=user_id)
-    if result.get('error'):
-        return jsonify({'success': False, 'error': result['error']}), 400
-    return jsonify({'success': True, **result})
-
-
-@bp.route('/forms', methods=['POST'])
-@require_role(*ADMIN_ROLES)
-@require_module('forms')
-def create_form(user_id):
-    """Admin files a request/task, optionally already assigned, prioritised and
-    dated — the internal task system's create door (iCreate Phase 2)."""
-    org_id, err = sis_service.org_or_error(user_id)
-    if err:
-        return err
-    result = forms.submit(org_id, user_id, request.get_json() or {},
-                          submitter_role='staff', allow_assign=True)
-    if result.get('error'):
-        return jsonify({'success': False, 'error': result['error']}), 400
-    return jsonify({'success': True, **result}), 201
-
-
-@bp.route('/form-routing', methods=['GET'])
-@require_role(*ADMIN_ROLES)
-@require_module('forms')
-def get_form_routing(user_id):
-    """Which form type is auto-assigned to whom.
-
-    ADMIN_ROLES, coordinators included: deciding that substitute requests go to
-    the person who covers classes is running the campus, not spending money.
-    """
-    org_id, err = sis_service.org_or_error(user_id)
-    if err:
-        return err
-    return jsonify({'success': True,
-                    'routing': forms.routing(org_id),
-                    'form_types': forms.ALL_FORM_TYPES})
-
-
-@bp.route('/form-routing', methods=['PUT'])
-@require_role(*ADMIN_ROLES)
-@require_module('forms')
-def put_form_routing(user_id):
-    org_id, err = sis_service.org_or_error(user_id)
-    if err:
-        return err
-    data = request.get_json(silent=True) or {}
-    result = forms.set_routing(org_id, data.get('routing') or {})
-    if result.get('error'):
-        return jsonify({'success': False, 'error': result['error']}), 400
-    return jsonify({'success': True, **result})
-
-
-@bp.route('/forms/<submission_id>/comments', methods=['GET'])
-@require_role(*ADMIN_ROLES)
-@require_module('forms')
-def list_form_comments(user_id, submission_id):
-    org_id, err = sis_service.org_or_error(user_id)
-    if err:
-        return err
-    return jsonify({'success': True,
-                    'comments': forms.list_comments(org_id, submission_id)})
-
-
-@bp.route('/forms/<submission_id>/comments', methods=['POST'])
-@require_role(*ADMIN_ROLES)
-@require_module('forms')
-def add_form_comment(user_id, submission_id):
-    org_id, err = sis_service.org_or_error(user_id)
-    if err:
-        return err
-    data = request.get_json(silent=True) or {}
-    result = forms.add_comment(org_id, submission_id, user_id, data.get('body'))
-    if result.get('error'):
-        return jsonify({'success': False, 'error': result['error']}), 400
-    return jsonify({'success': True, **result}), 201
-
-
-# ── Onboarding admin ─────────────────────────────────────────────────────────
-
-# ── Form templates (the builder) ─────────────────────────────────────────────
-# ADMIN_ROLES: building a form is operational, not financial, so a campus
-# coordinator authors them like any other front-office work.
-
-@bp.route('/form-templates', methods=['GET'])
-@require_role(*ADMIN_ROLES)
-@require_module('forms')
-def list_form_templates(user_id):
-    org_id, err = sis_service.org_or_error(user_id)
-    if err:
-        return err
-    return jsonify({'success': True,
-                    'templates': form_templates.list_templates(org_id),
-                    # The shared built-ins, each with whether this school hides
-                    # it, so the Forms panel can list what staff actually see.
-                    'builtins': form_templates.builtin_forms(org_id),
-                    'field_types': list(form_templates.FIELD_TYPES)})
-
-
-@bp.route('/form-templates/builtin/<key>', methods=['PATCH'])
-@require_role(*ADMIN_ROLES)
-def set_builtin_form_visibility(user_id, key):
-    """Hide or restore one built-in form for this school. The list is shared by
-    every org, so a school that never files reimbursements switches it off for
-    itself rather than deleting it (iCreate, 2026-09-02)."""
-    org_id, err = sis_service.org_or_error(user_id)
-    if err:
-        return err
-    from services.sis_forms_service import FORM_TYPES, PARENT_FORM_TYPES
-    if key not in {**FORM_TYPES, **PARENT_FORM_TYPES}:
-        return jsonify({'success': False, 'error': 'Unknown form'}), 404
-    hidden = bool((request.get_json(silent=True) or {}).get('hidden'))
-    return jsonify({'success': True,
-                    'hidden_form_types': form_templates.set_builtin_hidden(org_id, key, hidden)})
-
-
-@bp.route('/form-templates', methods=['POST'])
-@require_role(*ADMIN_ROLES)
-@require_module('forms')
-def create_form_template(user_id):
-    org_id, err = sis_service.org_or_error(user_id)
-    if err:
-        return err
-    result = form_templates.save_template(org_id, request.get_json() or {}, actor_id=user_id)
-    if result.get('error'):
-        return jsonify({'success': False, 'error': result['error']}), result.get('status', 400)
-    return jsonify({'success': True, **result}), 201
-
-
-@bp.route('/form-templates/<template_id>', methods=['PUT'])
-@require_role(*ADMIN_ROLES)
-@require_module('forms')
-def update_form_template(user_id, template_id):
-    org_id, err = sis_service.org_or_error(user_id)
-    if err:
-        return err
-    result = form_templates.save_template(org_id, request.get_json() or {},
-                                          actor_id=user_id, template_id=template_id)
-    if result.get('error'):
-        return jsonify({'success': False, 'error': result['error']}), result.get('status', 400)
-    return jsonify({'success': True, **result})
-
-
-@bp.route('/form-templates/<template_id>/duplicate', methods=['POST'])
-@require_role(*ADMIN_ROLES)
-@require_module('forms')
-def duplicate_form_template(user_id, template_id):
-    org_id, err = sis_service.org_or_error(user_id)
-    if err:
-        return err
-    result = form_templates.duplicate_template(org_id, template_id, actor_id=user_id)
-    if result.get('error'):
-        return jsonify({'success': False, 'error': result['error']}), result.get('status', 400)
-    return jsonify({'success': True, **result}), 201
-
-
-@bp.route('/form-templates/<template_id>', methods=['DELETE'])
-@require_role(*ADMIN_ROLES)
-@require_module('forms')
-def delete_form_template(user_id, template_id):
-    """409 with submission_count when submissions exist, unless ?force=1."""
-    org_id, err = sis_service.org_or_error(user_id)
-    if err:
-        return err
-    force = str(request.args.get('force', '')).lower() in ('1', 'true', 'yes')
-    result = form_templates.delete_template(org_id, template_id, force=force)
-    if result.get('error'):
-        return jsonify({'success': False, 'error': result['error'],
-                        'submission_count': result.get('submission_count')}), result.get('status', 400)
-    return jsonify({'success': True, **result})
-
+# ── Task templates and assignments ──────────────────────────────────────────
+# Requests, forms and their builder were retired into tasks on 2026-09-24
+# (iCreate meeting 2026-09-23); the office assigns from routes/sis/tasks.py and
+# these older onboarding paths keep working for the templates, the recipient
+# lists and the review actions. They serve every task now, not only
+# onboarding, so either block keeps them open: an org that hid onboarding
+# before the merge still assigns tasks.
 
 @bp.route('/onboarding/templates', methods=['GET'])
 @require_role(*ADMIN_ROLES)
-@require_module('onboarding')
+@require_module('tasks', 'onboarding', any_of=True)
 def list_templates(user_id):
     org_id, err = sis_service.org_or_error(user_id)
     if err:
@@ -304,7 +115,7 @@ def list_templates(user_id):
 
 @bp.route('/onboarding/templates', methods=['POST'])
 @require_role(*ADMIN_ROLES)
-@require_module('onboarding')
+@require_module('tasks', 'onboarding', any_of=True)
 def create_template(user_id):
     org_id, err = sis_service.org_or_error(user_id)
     if err:
@@ -317,7 +128,7 @@ def create_template(user_id):
 
 @bp.route('/onboarding/templates/<template_id>', methods=['PUT'])
 @require_role(*ADMIN_ROLES)
-@require_module('onboarding')
+@require_module('tasks', 'onboarding', any_of=True)
 def update_template(user_id, template_id):
     org_id, err = sis_service.org_or_error(user_id)
     if err:
@@ -331,7 +142,7 @@ def update_template(user_id, template_id):
 
 @bp.route('/onboarding/templates/<template_id>/duplicate', methods=['POST'])
 @require_role(*ADMIN_ROLES)
-@require_module('onboarding')
+@require_module('tasks', 'onboarding', any_of=True)
 def duplicate_template(user_id, template_id):
     """Copy a template under a free "(Copy)" name. Server-side so the copy keeps
     blocks_access and drops the original's per-person document bindings."""
@@ -346,7 +157,7 @@ def duplicate_template(user_id, template_id):
 
 @bp.route('/onboarding/templates/<template_id>/sync', methods=['POST'])
 @require_role(*ADMIN_ROLES)
-@require_module('onboarding')
+@require_module('tasks', 'onboarding', any_of=True)
 def sync_template_assignments(user_id, template_id):
     """Push this template's current items onto checklists already assigned.
     Returns counts: what was added, updated, removed, and how many finished
@@ -362,7 +173,7 @@ def sync_template_assignments(user_id, template_id):
 
 @bp.route('/onboarding/templates/<template_id>', methods=['DELETE'])
 @require_role(*ADMIN_ROLES)
-@require_module('onboarding')
+@require_module('tasks', 'onboarding', any_of=True)
 def delete_template(user_id, template_id):
     """Delete a template. 409 (with assigned_count) when people still hold a
     checklist from it, unless the caller passes ?force=1 after confirming."""
@@ -379,39 +190,41 @@ def delete_template(user_id, template_id):
 
 @bp.route('/onboarding/assignments', methods=['GET'])
 @require_role(*ADMIN_ROLES)
-@require_module('onboarding')
+@require_module('tasks', 'onboarding', any_of=True)
 def list_onboarding_assignments(user_id):
     org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
-    # 'checklist' only: a document sent to 40 people for signature is 40
-    # assignment rows, and burying the onboarding roll-up under them is exactly
-    # what the Sent-paperwork view exists to avoid.
+    # Tasks only: a document sent to 40 people for signature is 40 assignment
+    # rows, and burying the roll-up under them is exactly what the signature
+    # cards exist to avoid.
     return jsonify({'success': True,
-                    'assignments': onboarding.list_assignments(org_id, kind='checklist')})
+                    'assignments': onboarding.list_assignments(org_id, kind='task')})
 
 
 @bp.route('/onboarding/assignments', methods=['POST'])
 @require_role(*ADMIN_ROLES)
-@require_module('onboarding')
+@require_module('tasks', 'onboarding', any_of=True)
 def assign_onboarding(user_id):
     org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     data = request.get_json() or {}
     if not data.get('template_id'):
-        # No template: a one-off task ("do this one thing"). Same record as a
-        # checklist underneath, so the recipient's inbox and the roll-up need
-        # no new shape — see onboarding.assign_task.
+        # No template: a one-off task ("do this one thing"). The Assign dialog
+        # posts to /api/sis/tasks now; this door stays for older clients and
+        # goes through the same assign_task.
         if data.get('title'):
             result = onboarding.assign_task(
-                org_id, data['title'], data.get('user_ids') or [], assigned_by=user_id,
+                org_id, user_id, data.get('user_ids') or [], title=data['title'],
                 description=data.get('description'), due_date=data.get('due_date'),
+                priority=data.get('priority') or None,
                 audience=data.get('audience') or 'staff',
                 items=data.get('items') or None,
                 needs_document=bool(data.get('needs_document')))
             if result.get('error'):
                 return jsonify({'success': False, 'error': result['error']}), 400
+            result.pop('tasks', None)
             return jsonify({'success': True, **result}), 201
         return jsonify({'success': False, 'error': 'template_id or title is required'}), 400
     # Accept a single user_id OR a list of user_ids (bulk assign).
@@ -430,7 +243,7 @@ def assign_onboarding(user_id):
 
 @bp.route('/onboarding/assignments/<assignment_id>', methods=['DELETE'])
 @require_role(*ADMIN_ROLES)
-@require_module('onboarding')
+@require_module('tasks', 'onboarding', any_of=True)
 def unassign_onboarding(user_id, assignment_id):
     """Take a checklist back off someone. Their uploaded documents are kept."""
     org_id, err = sis_service.org_or_error(user_id)
@@ -444,7 +257,7 @@ def unassign_onboarding(user_id, assignment_id):
 
 @bp.route('/onboarding/assignments/<assignment_id>/attachable-documents', methods=['GET'])
 @require_role(*ADMIN_ROLES)
-@require_module('onboarding')
+@require_module('tasks', 'onboarding', any_of=True)
 def onboarding_attachable_documents(user_id, assignment_id):
     """What the office already holds for this person, to file against an item.
 
@@ -457,7 +270,7 @@ def onboarding_attachable_documents(user_id, assignment_id):
         return err
     assignment = onboarding.load_assignment_for_admin(org_id, assignment_id)
     if not assignment:
-        return jsonify({'success': False, 'error': 'Checklist not found'}), 404
+        return jsonify({'success': False, 'error': 'Task not found'}), 404
     return jsonify({'success': True,
                     'documents': onboarding.attachable_documents(
                         org_id, assignment.get('user_id'))})
@@ -493,19 +306,20 @@ def onboarding_admin_doc_url(user_id):
 
 @bp.route('/onboarding/recipients', methods=['GET'])
 @require_role(*ADMIN_ROLES)
-@require_module('onboarding')
+@require_module('tasks', 'onboarding', any_of=True)
 def onboarding_recipients(user_id):
-    """People an admin can assign a template to. ?audience=staff returns staff;
-    ?audience=family returns the org's guardians (parents) for family checklists.
-    ?audience=family&class_id=X narrows that to the guardians of the students
-    enrolled in class X (ticket a19d5660); a class outside the org is a 404."""
+    """People an admin can assign a task to. ?audience=staff returns staff,
+    ?audience=family the org's guardians, ?audience=student its students.
+    &class_id=X narrows families to the guardians of the students enrolled in
+    class X (ticket a19d5660), and students to that class's roster; a class
+    outside the org is a 404."""
     org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     audience = (request.args.get('audience') or 'staff').strip().lower()
     class_id = (request.args.get('class_id') or '').strip() or None
-    if class_id and audience != 'family':
-        return jsonify({'success': False, 'error': 'A class filter only applies to families'}), 400
+    if class_id and audience not in ('family', 'student'):
+        return jsonify({'success': False, 'error': 'A class filter only applies to families and students'}), 400
     try:
         people = onboarding.list_recipients(org_id, audience, class_id=class_id)
     except onboarding.ClassNotInOrg:

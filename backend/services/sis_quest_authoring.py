@@ -216,12 +216,75 @@ def validate_draft(title, raw_tasks):
         raise QuestAuthoringError(f'A quest can have at most {MAX_TASKS} tasks.')
 
 
-def create_org_quest(admin, *, org_id, user_id, title, description, raw_tasks=None):
+# Where a draft will go when it is published. The editor opens from four
+# places and each one attaches the finished quest to something different
+# (services/sis_quest_editor.py, P6 of the 2026-09-23 plan).
+DRAFT_CONTEXTS = ('library', 'class', 'curriculum', 'training')
+
+
+def is_draft(quest):
+    """A quest the editor started and nobody has published yet.
+
+    Inactive alone is not enough: a quest the school retired is inactive too,
+    and must not reappear in anybody's Drafts list.
+    """
+    meta = (quest or {}).get('metadata') or {}
+    return not (quest or {}).get('is_active') and isinstance(meta.get('draft'), dict)
+
+
+def without_draft_marker(metadata):
+    """The metadata a published (or copied) quest keeps: everything but the
+    draft marker."""
+    meta = dict(metadata or {})
+    meta.pop('draft', None)
+    return meta
+
+
+def fallback_header(admin, org_id, title, description, *, prefer_logo=False):
+    """(image_url, header_style) for a quest nobody uploaded a picture for.
+
+    Training prefers the school's own logo: it is the school talking to its own
+    people, so its badge beats a stock photo of somebody else's classroom, and
+    metadata.header_style='org_logo' tells the card to contain it rather than
+    crop it. Everything else gets the stock search from the title, as every
+    class and curriculum quest always has.
+    """
+    if prefer_logo:
+        from repositories.quest_editor_repository import QuestEditorRepository
+        logo = QuestEditorRepository(client=admin).org_logo(org_id)
+        if logo:
+            return logo, 'org_logo'
+    try:
+        from services.image_service import search_quest_image
+        return search_quest_image(title, description), None
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f'Quest image lookup failed (non-fatal): {e}')
+        return None, None
+
+
+def create_org_quest(admin, *, org_id, user_id, title, description, raw_tasks=None,
+                     draft=False, draft_context=None, draft_target_id=None,
+                     image_url=None, header_style=None, extra_fields=None):
     """Create a school-owned quest and its preset tasks.
 
     The quest is private to the org (is_public False, organization_id set), which
     is what keeps a school's own material out of the shared Optio library and out
     of every other school's picker.
+
+    draft=True is the quest editor's door (P6, 2026-09-23). The quest is written
+    INACTIVE the moment somebody starts one, so its header image, its files and
+    each task's attachments can be added straight away with the same editor that
+    edits it later -- a form that could only attach things after a first save
+    was the gap iCreate kept hitting (5a20862f, b067c6c8). Inactive also keeps it
+    out of student discovery, which shows every ACTIVE school quest to the
+    school's students (repositories/quest_repository), and out of enrollment,
+    until somebody presses Publish. A draft may have no title yet; publish_draft
+    insists on one. Drafts are never deleted automatically.
+
+    Every SIS create goes through here: the library, a class, a curriculum and,
+    since P6, staff training -- which had its own insert that dropped the
+    diploma subjects (so every task fell to Electives) and defaulted tasks to
+    optional.
 
     Returns {'quest_id', 'task_count', 'tasks': [{'id', 'title'}]}. Raises
     QuestAuthoringError on a bad draft or a failed insert; the caller decides
@@ -231,29 +294,46 @@ def create_org_quest(admin, *, org_id, user_id, title, description, raw_tasks=No
     title = (title or '').strip()
     description = (description or '').strip()
     raw_tasks = raw_tasks or []
-    validate_draft(title, raw_tasks)
+    if draft:
+        if len(title) > MAX_TITLE_LEN:
+            raise QuestAuthoringError('Title is too long.')
+        if len(raw_tasks) > MAX_TASKS:
+            raise QuestAuthoringError(f'A quest can have at most {MAX_TASKS} tasks.')
+        if draft_context not in DRAFT_CONTEXTS:
+            raise QuestAuthoringError('Unknown place for this quest.')
+    else:
+        validate_draft(title, raw_tasks)
 
-    image_url = None
-    try:
-        from services.image_service import search_quest_image
-        image_url = search_quest_image(title, description)
-    except Exception as e:
-        logger.warning(f'Quest image lookup failed (non-fatal): {e}')
+    metadata = {}
+    if header_style:
+        metadata['header_style'] = header_style
+    if draft:
+        metadata['draft'] = {'context': draft_context, 'target_id': draft_target_id,
+                             'started_by': user_id}
+    elif not image_url:
+        # A draft picks its artwork at publish time, when it has a title to
+        # search on; a quest created whole picks it now.
+        image_url, style = fallback_header(admin, org_id, title, description)
+        if style:
+            metadata['header_style'] = style
 
-    quest_row = admin.table('quests').insert({
+    row = {
         'title': title,
         'big_idea': description,
         'description': description,
         'is_v3': True,
-        'is_active': True,
+        'is_active': not draft,
         'is_public': False,
         'quest_type': 'optio',
         'header_image_url': image_url,
         'image_url': image_url,
+        'metadata': metadata,
         'created_by': user_id,
         'created_at': now_iso(),
         'organization_id': org_id,
-    }).execute().data
+    }
+    row.update(extra_fields or {})
+    quest_row = admin.table('quests').insert(row).execute().data
     if not quest_row:
         raise QuestAuthoringError('Could not create the quest.', 500)
     quest_id = quest_row[0]['id']
@@ -270,6 +350,38 @@ def create_org_quest(admin, *, org_id, user_id, title, description, raw_tasks=No
         'task_count': len(cleaned),
         'tasks': [{'id': r.get('id'), 'title': r.get('title') or ''} for r in task_rows if r.get('id')],
     }
+
+
+def publish_draft(admin, quest, *, prefer_logo=False):
+    """Make a draft a real quest: active, no draft marker, with a header image.
+
+    `quest` is the row as read (id, title, description, metadata,
+    header_image_url, organization_id, is_active). The caller has checked who
+    is asking; this checks only that the quest is ready. Raises
+    QuestAuthoringError when it has no title. Idempotent on a quest that is
+    already live: nothing is rewritten.
+
+    The context's own attach step (a class, a curriculum, the training catalog)
+    is the caller's, after this returns -- the same split create_org_quest has.
+    """
+    title = (quest.get('title') or '').strip()
+    if not title:
+        raise QuestAuthoringError('Give the quest a title before you publish it.')
+    if quest.get('is_active'):
+        return {'published': False}
+    fields = {'is_active': True, 'metadata': without_draft_marker(quest.get('metadata'))}
+    if not quest.get('header_image_url'):
+        image_url, style = fallback_header(
+            admin, quest.get('organization_id'), title, quest.get('description') or '',
+            prefer_logo=prefer_logo)
+        if image_url:
+            fields['header_image_url'] = image_url
+            fields['image_url'] = image_url
+            if style:
+                fields['metadata'] = {**fields['metadata'], 'header_style': style}
+    from repositories.quest_editor_repository import QuestEditorRepository
+    QuestEditorRepository(client=admin).update_quest(quest['id'], fields)
+    return {'published': True}
 
 
 # ── Duplicating an existing quest ─────────────────────────────────────────────
@@ -366,6 +478,10 @@ def duplicate_org_quest(admin, *, org_id, user_id, source_quest_id, title=None):
         new_title = copy_title([r.get('title') for r in mine], source.get('title'))
 
     payload = {k: source.get(k) for k in _COPIED_QUEST_FIELDS if source.get(k) is not None}
+    # A copy of a draft is a live quest like any other copy, so it must not
+    # carry the draft marker (it would show in Drafts while being active).
+    if 'metadata' in payload:
+        payload['metadata'] = without_draft_marker(payload['metadata'])
     payload.update({
         'title': new_title,
         # Forced, never inherited -- see the note above.
@@ -452,7 +568,7 @@ def duplicate_template_task(admin, source_task, quest_id):
     return rows[0] if rows else None
 
 
-def replace_template_tasks(admin, quest_id, cleaned):
+def replace_template_tasks(admin, quest_id, cleaned, *, pair_by_id_only=False):
     """Save an edited preset-task list WITHOUT churning the task ids.
 
     The training editor used to delete every quest_template_tasks row for the
@@ -473,8 +589,14 @@ def replace_template_tasks(admin, quest_id, cleaned):
     round-trips one, then by title, then by position -- three keys because the
     form has historically sent none, some, or all of them.
 
-    `cleaned` is a list of insertable rows (see _clean_task / clean_task).
+    `cleaned` is a list of insertable rows (see clean_task).
     Returns {'kept': n, 'added': n, 'removed': n}.
+
+    pair_by_id_only=True is for a form that round-trips every saved task's id
+    (the quest editor, P6). There a row without an id is new by definition, and
+    pairing it by position would let a task typed in at the top claim the id of
+    the task below it -- and that task's attachments and students' copies with
+    it -- while the real owner of the id came later in the list.
     """
     existing = (admin.table('quest_template_tasks')
                 .select('id, title, order_index')
@@ -501,12 +623,12 @@ def replace_template_tasks(admin, quest_id, cleaned):
         match = None
         if submitted_id and submitted_id in by_id:
             match = _claim(by_id[submitted_id])
-        if match is None:
+        if match is None and not pair_by_id_only:
             for candidate in by_title.get(_title_key(task.get('title')), []):
                 match = _claim(candidate)
                 if match:
                     break
-        if match is None and position < len(existing):
+        if match is None and not pair_by_id_only and position < len(existing):
             # Position last: a renamed task at the same place is still that task,
             # and its resources and its students' copies should follow the rename.
             match = _claim(existing[position])

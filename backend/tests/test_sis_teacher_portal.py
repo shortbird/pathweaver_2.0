@@ -150,44 +150,6 @@ class TestTeacherPreview:
 
 
 @pytest.mark.unit
-class TestFormsService:
-    """submit() asks whether the org has built its own form of this key before
-    falling back to the built-ins, so these mock that lookup away — an
-    org-defined form has its own path, covered in test_sis_form_templates."""
-
-    def test_submit_requires_body(self):
-        from services import sis_forms_service as forms
-        with patch('services.sis_form_template_service.get_template', return_value=None):
-            assert 'error' in forms.submit('org-1', 'u1', {'form_type': 'incident', 'body': ''})
-
-    def test_submit_rejects_unknown_type(self):
-        from services import sis_forms_service as forms
-        with patch('services.sis_form_template_service.get_template', return_value=None):
-            assert 'error' in forms.submit('org-1', 'u1', {'form_type': 'nope', 'body': 'x'})
-
-    def test_submit_notifies_admins(self):
-        from services import sis_forms_service as forms
-        client = Mock()
-        table = Mock()
-        client.table.return_value = table
-        table.insert.return_value = table
-        # Two reads now: the org's form-routing rules (this school has none),
-        # then the insert. See test_sis_form_routing.py.
-        for chained in ('select', 'eq', 'limit'):
-            getattr(table, chained).return_value = table
-        table.execute.side_effect = [Mock(data=[{'feature_flags': {}}]),
-                                     Mock(data=[{'id': 'f1', 'title': 'Broken sink'}])]
-        with patch('services.sis_forms_service._admin', return_value=client), \
-             patch('services.sis_form_template_service.get_template', return_value=None), \
-             patch('services.sis_service.org_admin_ids', return_value=['a1', 'a2']), \
-             patch('services.sis_forms_service.sis_notifications.notify') as notify:
-            result = forms.submit('org-1', 'u1', {'form_type': 'maintenance', 'body': 'Sink is broken',
-                                                  'title': 'Broken sink'})
-        assert result['submission']['id'] == 'f1'
-        assert notify.call_count == 2
-
-
-@pytest.mark.unit
 class TestTeacherSchedule:
     """Schedule meetings carry the class name, room (with class fallback), and
     age range — added for the schedule page's Time/Class/Room/Ages columns."""

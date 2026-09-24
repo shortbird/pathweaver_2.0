@@ -14,7 +14,7 @@ from typing import Any, Dict, List, Optional
 
 from services import sis_service
 from services import sis_attendance_service as attendance
-from services import sis_forms_service as forms
+from services import sis_class_session_service as sessions
 from services.sis_staff_service import (
     _org_now, list_assignments, pinned_links_for, staff_resources_for,
 )
@@ -153,6 +153,12 @@ def _my_schedule(org_id: str, user_id: str, dow_staff: int,
     return {'today': todays, 'upcoming': upcoming}
 
 
+def _my_open_tasks(org_id: str, user_id: str) -> List[Dict[str, Any]]:
+    """The coordinator's own open tasks, the same list My tasks shows."""
+    from services import sis_tasks_service
+    return sis_tasks_service.open_tasks_for(org_id, user_id)
+
+
 def get_dashboard(org_id: str, user_id: str) -> Dict[str, Any]:
     now = _org_now(org_id)
     today = now.date().isoformat()
@@ -179,18 +185,27 @@ def get_dashboard(org_id: str, user_id: str) -> Dict[str, Any]:
     # saved and then shown to nobody (iCreate, 2026-09-01).
     pinned_links = pinned_links_for(user_id, org_id)
 
+    # Who took each class's roll, on its Today's schedule row, and the
+    # "Teachers to check" section built from the same day (P7, iCreate
+    # 2026-09-23).
+    schedule = today_schedule(org_id, today, dow=dow)
+    day_sessions = sessions.sessions_by_class(org_id, today)
+    sessions.annotate_schedule(schedule, day_sessions)
+
     return {
         'organization': {'id': org_id,
                          'name': org_row[0].get('name') if org_row else None},
         'date': today,
-        'today_schedule': today_schedule(org_id, today, dow=dow),
+        'today_schedule': schedule,
+        'teachers_to_check': sessions.teachers_to_check(
+            org_id, now, schedule, settings, day_sessions),
         'attendance': {
             **board_from(records, planned.count or 0, alerts),
             'open_alerts': alerts,
             'resolutions': list(attendance.ALERT_RESOLUTIONS),
         },
         'my_schedule': _my_schedule(org_id, user_id, dow, today),
-        'my_tasks': forms.list_assigned(org_id, user_id),
+        'my_tasks': _my_open_tasks(org_id, user_id),
         'quick_links': filter_quick_links(settings.get('quick_links'), held_roles),
         'staff_resources': staff_resources,
         'pinned_links': pinned_links,

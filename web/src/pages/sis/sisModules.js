@@ -27,12 +27,13 @@ export const SIS_MODULE_BY_PATH = {
   '/clp': 'clp',
   '/billing': 'billing',
   // The unified task surfaces. 'tasks' is the module an org hides to turn the
-  // whole thing off; '/forms' and '/onboarding' keep their own keys because an
-  // org that hid one of them before this merge must stay hidden — the config is
-  // a promise already made, not a name we get to reuse.
+  // whole thing off; '/onboarding' keeps its own key because an org that hid
+  // it before the merge must stay hidden -- the config is a promise already
+  // made. '/forms' had one too until forms were retired (2026-09-24); the path
+  // now redirects to /tasks and follows its module.
   '/my-tasks': 'tasks',
   '/tasks': 'tasks',
-  '/forms': 'forms',
+  '/forms': 'tasks',
   '/onboarding': 'onboarding',
   '/secure-documents': 'secure_documents',
   '/classes': 'classes',
@@ -71,7 +72,10 @@ export function getHiddenModules(organization) {
 // its own: a tab hides on its module, and the page hides only when every tab
 // would -- an org that turned off resources, training and curriculum has no
 // library to open, and one that turned off any two still does.
-const LIBRARY_TAB_PATHS = ['/resources', '/training', '/curriculum']
+// The Documents tab also holds a person's own documents and the HR store
+// (moved off Tasks on 2026-09-24), so the secure-documents module keeps the
+// page open on its own.
+const LIBRARY_TAB_PATHS = ['/resources', '/training', '/curriculum', '/secure-documents']
 
 /** True when `path`'s module is off for the active org (null org hides nothing). */
 export function isPathHidden(path, organization) {

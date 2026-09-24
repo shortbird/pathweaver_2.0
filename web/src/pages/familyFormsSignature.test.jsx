@@ -1,11 +1,13 @@
 /**
- * The family side of the typed signature, on the Forms page.
+ * The family side of the typed signature, on the To do page (/family/forms).
  *
  * Families sign the same way staff do — the block is one shared component
- * (components/sis/ChecklistSignature) precisely so a parent's signature and a
- * teacher's signature are the same thing. This file holds the wiring: that the
- * Forms page renders it, and that it posts to the parent endpoint rather than
- * the staff one.
+ * (components/sis/ChecklistSignature, inside TaskCard) precisely so a parent's
+ * signature and a teacher's signature are the same thing. This file holds the
+ * wiring: that the To do page renders it on a signature step (with no checkbox
+ * beside it: a signature step is completed by signing), that the statement
+ * comes from the task list's response, and that it PATCHes the task's own
+ * route (/api/sis/tasks/<id>/items/<key>), which authorizes by the task.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render as rtlRender, screen, fireEvent, waitFor } from '@testing-library/react'
@@ -47,49 +49,54 @@ beforeEach(() => {
     if (url.includes('/parent/context')) {
       return Promise.resolve({ data: { orgs: [{ organization_id: 'org-1', organization_name: 'iCreate' }] } })
     }
-    if (url.includes('/parent/onboarding')) {
-      return Promise.resolve({ data: { assignments: [{
-        id: 'fa1', template_name: 'Back to school paperwork',
-        done_count: 0, total_count: 1, signature_statement: STATEMENT, items: [ITEM],
-      }] } })
+    if (url.includes('/api/sis/tasks/mine')) {
+      return Promise.resolve({ data: {
+        success: true, signature_statement: STATEMENT, counts: { open: 1 },
+        tasks: [{
+          id: 'fa1', title: 'Back to school paperwork', status: 'todo',
+          done_count: 0, total_count: 1, items: [ITEM],
+        }],
+      } })
     }
     return Promise.resolve({ data: {} })
   })
 })
 
 describe('a family signing their paperwork', () => {
-  it('offers the typed signature on the item', async () => {
+  it('offers the typed signature on the item, and no tick box for it', async () => {
     render(<FamilyFormsPage />)
     expect(await screen.findByPlaceholderText('Type your full name to sign')).toBeInTheDocument()
     expect(screen.getByText(STATEMENT)).toBeInTheDocument()
+    expect(screen.queryByRole('checkbox', { name: 'Done: Photo and media release' })).not.toBeInTheDocument()
   })
 
-  it('signs through the parent endpoint', async () => {
+  it('signs through the task’s own route', async () => {
     render(<FamilyFormsPage />)
     fireEvent.change(await screen.findByPlaceholderText('Type your full name to sign'), { target: { value: 'Dana Myers' } })
     fireEvent.click(screen.getByRole('checkbox', { name: new RegExp('official signature') }))
     fireEvent.click(screen.getByRole('button', { name: 'Sign' }))
 
     await waitFor(() => expect(api.patch).toHaveBeenCalledWith(
-      '/api/sis/parent/onboarding/fa1/items/media',
+      '/api/sis/tasks/fa1/items/media',
       expect.objectContaining({ signature_name: 'Dana Myers', signature_agreed: true }),
     ))
   })
 })
 
-describe('signing a document from the office on the Forms page', () => {
+describe('signing a document from the office on the To do page', () => {
   it('withholds the sign box until the office uploads the document', async () => {
     api.get.mockImplementation((url) => {
       if (url.includes('/parent/context')) {
         return Promise.resolve({ data: { orgs: [{ organization_id: 'org-1', organization_name: 'iCreate' }] } })
       }
-      if (url.includes('/parent/onboarding')) {
-        return Promise.resolve({ data: { assignments: [{
-          id: 'fa1', template_name: 'Back to school paperwork',
-          done_count: 0, total_count: 1, signature_statement: STATEMENT, items: [{
-            ...ITEM, sign_docs: []
+      if (url.includes('/api/sis/tasks/mine')) {
+        return Promise.resolve({ data: {
+          success: true, signature_statement: STATEMENT, counts: { open: 1 },
+          tasks: [{
+            id: 'fa1', title: 'Back to school paperwork', status: 'todo',
+            done_count: 0, total_count: 1, items: [{ ...ITEM, sign_docs: [] }],
           }],
-        }] } })
+        } })
       }
       return Promise.resolve({ data: {} })
     })

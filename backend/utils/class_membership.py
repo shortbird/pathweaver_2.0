@@ -46,10 +46,34 @@ def _chunks(items: List[str], size: int = _CHUNK) -> Iterable[List[str]]:
         yield items[i:i + size]
 
 
-def class_teacher_ids(class_id: str, class_row: Optional[Dict[str, Any]] = None) -> Set[str]:
-    """Every staff member who teaches this class. Pass `class_row` (with
-    primary_instructor_id + assistant_instructor_ids) to skip a re-fetch."""
-    ids: Set[str] = set()
+def split_class_staff(class_row: Dict[str, Any],
+                      advisor_ids: Iterable[str] = ()) -> Dict[str, Set[str]]:
+    """A class's staff, split into its teachers and its aides.
+
+    Teachers are the primary instructor and every active class_advisors row:
+    class_advisors is the older way the SIS named "the teacher", and 162 classes
+    are taught through it, so it counts as teaching, not assisting. Aides are
+    assistant_instructor_ids -- minus anybody who is also a teacher of the same
+    class, so one person is never offered twice (iCreate, 8ee000b6: "option to
+    add the class teacher, class aide, and students" -- a message to the aides
+    must not also reach the teacher who happens to be listed in both).
+
+    Pure: the caller reads the rows, so a whole school's classes can be split
+    from two reads instead of one per class.
+    """
+    teachers: Set[str] = set()
+    if class_row.get('primary_instructor_id'):
+        teachers.add(class_row['primary_instructor_id'])
+    teachers.update(a for a in advisor_ids if a)
+    aides = {a for a in (class_row.get('assistant_instructor_ids') or []) if a} - teachers
+    return {'teachers': teachers, 'aides': aides}
+
+
+def class_staff_split(class_id: str,
+                      class_row: Optional[Dict[str, Any]] = None) -> Dict[str, Set[str]]:
+    """{'teachers': ids, 'aides': ids} for one class (see split_class_staff).
+    Pass `class_row` (with primary_instructor_id + assistant_instructor_ids) to
+    skip a re-fetch."""
     try:
         admin = _admin()
         row = class_row
@@ -58,17 +82,20 @@ def class_teacher_ids(class_id: str, class_row: Optional[Dict[str, Any]] = None)
                      .select('id, primary_instructor_id, assistant_instructor_ids')
                      .eq('id', class_id).limit(1).execute()).data
             row = found[0] if found else {}
-        if row.get('primary_instructor_id'):
-            ids.add(row['primary_instructor_id'])
-        for aid in (row.get('assistant_instructor_ids') or []):
-            if aid:
-                ids.add(aid)
         advisors = (admin.table('class_advisors').select('advisor_id')
                     .eq('class_id', class_id).eq('is_active', True).execute()).data or []
-        ids.update(r['advisor_id'] for r in advisors if r.get('advisor_id'))
+        return split_class_staff(row, (r.get('advisor_id') for r in advisors))
     except Exception as e:  # noqa: BLE001
-        logger.warning(f'class_teacher_ids failed for class {class_id}: {e}')
-    return ids
+        logger.warning(f'class_staff_split failed for class {class_id}: {e}')
+        return {'teachers': set(), 'aides': set()}
+
+
+def class_teacher_ids(class_id: str, class_row: Optional[Dict[str, Any]] = None) -> Set[str]:
+    """Every staff member who teaches this class, teachers and aides together.
+    Pass `class_row` (with primary_instructor_id + assistant_instructor_ids) to
+    skip a re-fetch. class_staff_split says which is which."""
+    split = class_staff_split(class_id, class_row)
+    return split['teachers'] | split['aides']
 
 
 def class_student_ids(class_id: str) -> Set[str]:

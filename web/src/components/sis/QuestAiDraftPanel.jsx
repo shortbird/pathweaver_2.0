@@ -54,11 +54,13 @@ export function draftNotices(response, keptWording) {
   }
   return notices
 }
-export default function QuestAiDraftPanel({ onDrafted, hasDraft, alwaysOpen = false }) {
+export default function QuestAiDraftPanel({ onDrafted, hasDraft, alwaysOpen = false, startOpen = false }) {
   // Collapsed by default where it sits above a form somebody may already be
-  // typing into; always open where it IS the container (the curriculum page).
+  // typing into; always open where it IS the container. startOpen is the
+  // quest editor's blank new quest (P6): open, because starting from a
+  // document is how most quests begin, and collapsible once it has done its job.
   const confirm = useConfirm()
-  const [open, setOpen] = useState(alwaysOpen)
+  const [open, setOpen] = useState(alwaysOpen || startOpen)
   const [context, setContext] = useState('')
   const [notes, setNotes] = useState('')
   const [taskCount, setTaskCount] = useState(4)

@@ -113,6 +113,54 @@ const SENT_FROM_LABELS: Record<MessageSentFrom, string> = {
 };
 
 /**
+ * "Kate for iCreate" above the text of a school message a staff member wrote
+ * with their name shown -- a teacher answering a thread the office handed them
+ * with a task (iCreate, 2026-09-23, d93b24d2). The server sets `sender_label`;
+ * everything else renders nothing here.
+ */
+export function SenderLabel({ label, isMine }: { label?: string | null; isMine: boolean }) {
+  const c = useThemeColors();
+  if (!label) return null;
+  return (
+    <UIText
+      size="xs"
+      style={{ color: isMine ? 'rgba(255,255,255,0.85)' : c.brand, fontWeight: '600', marginBottom: 2 }}
+    >
+      {label}
+    </UIText>
+  );
+}
+
+/**
+ * How many members have read past a group message: their last_read_at is at
+ * or after it. Not the reader, and not the message's sender. The group's read
+ * receipt (iCreate, 2026-09-23, 9b46c748), the same rule as the web.
+ */
+export function seenByCount(
+  members: { user_id?: string; user?: { id?: string }; id?: string; last_read_at?: string | null }[],
+  msg: { sender_id: string; created_at: string },
+  viewerId?: string
+): number {
+  const at = new Date(msg.created_at).getTime();
+  return members.filter((m) => {
+    const id = m.user_id || m.user?.id || m.id;
+    return !!id && id !== viewerId && id !== msg.sender_id && !!m.last_read_at
+      && new Date(m.last_read_at).getTime() >= at;
+  }).length;
+}
+
+/** The small grey receipt line under our last message: "Seen 2:14 PM", "Seen by 3". */
+export function ReceiptLine({ text }: { text?: string | null }) {
+  const c = useThemeColors();
+  if (!text) return null;
+  return (
+    <UIText size="xs" style={{ color: c.textFaint, fontSize: 11, textAlign: 'right', marginTop: 2 }}>
+      {text}
+    </UIText>
+  );
+}
+
+/**
  * "Mobile" / "Web" in a bubble's footer: which surface the message was sent
  * from. The backend only puts `sent_from` on the row for a superadmin viewer,
  * so this renders for nobody else; the `visible` guard is belt and braces for

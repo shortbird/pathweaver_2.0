@@ -212,115 +212,19 @@ class TestAlertResolution:
 # ── 3. The internal task system ──────────────────────────────────────────────
 
 @pytest.mark.unit
-class TestTaskSystem:
-    def test_the_status_vocabulary_covers_working_states(self):
-        from services import sis_forms_service as forms
-        assert set(forms.STATUSES) == {'submitted', 'under_review', 'in_progress',
-                                       'waiting', 'resolved'}
+class TestMyTasksAreTasks:
+    """The coordinator's My tasks card read the request queue until requests
+    became tasks (iCreate meeting 2026-09-23). It reads the same list My
+    tasks shows now; the task behaviour itself is covered in
+    test_sis_task_center.py."""
 
-    def test_the_task_and_support_form_types_exist(self):
-        from services import sis_forms_service as forms
-        for t in ('task', 'student_concern', 'teacher_support', 'substitute_request'):
-            assert t in forms.FORM_TYPES
-
-    def test_assignment_notifies_the_assignee(self):
-        from services import sis_forms_service as forms
-        row = {'id': 'f1', 'organization_id': ORG, 'submitted_by': 'teacher-1',
-               'form_type': 'maintenance', 'title': 'Printer in Room 3', 'status': 'submitted'}
-        client, _ = _stub_client([[row], [dict(row, assigned_to='cc1')]])
-        notified = []
-        with patch('services.sis_forms_service._admin',
-                   return_value=client), \
-             patch('services.sis_notifications.notify',
-                   side_effect=lambda uid, *a, **k: notified.append(uid)):
-            forms.update_status(ORG, 'f1', {'assigned_to': 'cc1'}, actor_id='admin-1')
-        assert 'cc1' in notified
-
-    def test_priority_is_validated(self):
-        from services import sis_forms_service as forms
-        row = {'id': 'f1', 'organization_id': ORG, 'submitted_by': 't1', 'status': 'submitted'}
-        client, _ = _stub_client([[row]])
-        with patch('services.sis_forms_service._admin',
-                   return_value=client):
-            result = forms.update_status(ORG, 'f1', {'priority': 'bananas'}, actor_id='a1')
-        assert result.get('error')
-
-    def test_admin_can_create_an_assigned_task(self):
-        from services import sis_forms_service as forms
-        created = {'id': 'f2', 'title': 'Check broken printer', 'assigned_to': 'cc1'}
-        client, table = _stub_client([[created]])
-        notified = []
-        with patch('services.sis_forms_service._admin',
-                   return_value=client), \
-             patch('services.sis_form_template_service.get_template', return_value=None), \
-             patch('services.sis_forms_service.sis_service') as svc, \
-             patch('services.sis_notifications.notify',
-                   side_effect=lambda uid, *a, **k: notified.append(uid)):
-            svc.org_admin_ids.return_value = []
-            result = forms.submit(ORG, 'admin-1', {
-                'form_type': 'task', 'title': 'Check broken printer',
-                'body': 'It is jammed', 'assigned_to': 'cc1',
-                'priority': 'high', 'due_date': '2026-08-12',
-            }, allow_assign=True)
-        assert not result.get('error')
-        inserted = table.insert.call_args[0][0]
-        assert inserted['assigned_to'] == 'cc1'
-        assert inserted['priority'] == 'high'
-        assert inserted['due_date'] == '2026-08-12'
-        assert 'cc1' in notified
-
-    def test_a_teacher_submission_cannot_assign(self):
-        """allow_assign is the admin route's privilege — a teacher's payload
-        with assigned_to smuggled in must not set it."""
-        from services import sis_forms_service as forms
-        client, table = _stub_client([[{'id': 'f3'}]])
-        with patch('services.sis_forms_service._admin',
-                   return_value=client), \
-             patch('services.sis_form_template_service.get_template', return_value=None), \
-             patch('services.sis_forms_service.sis_service') as svc, \
-             patch('services.sis_notifications.notify'):
-            svc.org_admin_ids.return_value = []
-            forms.submit(ORG, 't1', {
-                'form_type': 'maintenance', 'body': 'x', 'assigned_to': 'cc1',
-            })
-        inserted = table.insert.call_args[0][0]
-        assert 'assigned_to' not in inserted or not inserted.get('assigned_to')
-
-    def test_comments_round_trip(self):
-        from services import sis_forms_service as forms
-        sub = {'id': 'f1', 'organization_id': ORG, 'submitted_by': 't1',
-               'assigned_to': 'cc1', 'title': 'Printer'}
-        client, table = _stub_client([
-            [sub],                                     # submission lookup
-            [{'id': 'cm1', 'body': 'On it'}],          # insert
-        ])
-        notified = []
-        with patch('services.sis_forms_service._admin',
-                   return_value=client), \
-             patch('services.sis_notifications.notify',
-                   side_effect=lambda uid, *a, **k: notified.append(uid)):
-            result = forms.add_comment(ORG, 'f1', 'cc1', 'On it')
-        assert result.get('comment')
-        # The other party (submitter) hears about it; the author does not.
-        assert notified == ['t1']
-
-    def test_an_empty_comment_is_rejected(self):
-        from services import sis_forms_service as forms
-        result = forms.add_comment(ORG, 'f1', 'cc1', '   ')
-        assert result.get('error')
-
-    def test_my_open_tasks_excludes_resolved(self):
-        from services import sis_forms_service as forms
-        client, table = _stub_client([[{'id': 'f1', 'status': 'in_progress',
-                                        'submitted_by': 'a1', 'assigned_to': 'me'}]])
-        with patch('services.sis_forms_service._admin',
-                   return_value=client):
-            forms.list_assigned(ORG, 'me')
-        # The query filters on assignee and excludes resolved rows.
-        eq_filters = [c[0] for c in table.eq.call_args_list]
-        neq_filters = [c[0] for c in table.neq.call_args_list]
-        assert ('assigned_to', 'me') in eq_filters
-        assert ('status', 'resolved') in neq_filters
+    def test_the_dashboard_reads_the_task_list(self):
+        from services import sis_coordinator_service as coordinator
+        with patch('services.sis_tasks_service.open_tasks_for',
+                   return_value=[{'id': 't1', 'title': 'Printer in Room 3'}]) as mine:
+            out = coordinator._my_open_tasks(ORG, 'me')
+        mine.assert_called_once_with(ORG, 'me')
+        assert out == [{'id': 't1', 'title': 'Printer in Room 3'}]
 
 
 # ── Coordinator dashboard ────────────────────────────────────────────────────

@@ -378,7 +378,9 @@ def _generate_approaches_background(app, quest_id: str, quest_title: str, quest_
 
 
 @bp.route('/approach-examples/<quest_id>', methods=['GET'])
-def get_approach_examples(quest_id: str):
+@require_auth
+@rate_limit(calls=240, period=3600, per_user=True)  # D5: the page polls every 3s for up to 30s while generating
+def get_approach_examples(user_id: str, quest_id: str):
     """
     Get or generate approach examples for a quest.
 
@@ -388,7 +390,12 @@ def get_approach_examples(quest_id: str):
     PERFORMANCE OPTIMIZATION: Returns immediately if not cached, triggers background generation.
     Frontend should poll again after ~3-5 seconds if 'generating' flag is true.
 
-    Public endpoint - no authentication required (quest data is public).
+    Signed in, and only for a quest the caller may open (2026-09-24). It was a
+    public endpoint on the premise that "quest data is public", which stopped
+    being true for school and personal quests -- and an uncached quest starts
+    a paid Gemini call, so anyone holding (or guessing) ids could both read
+    another school's quest text and spend on it. A quest the caller may not
+    open answers exactly like a missing one.
     """
     try:
         from database import get_supabase_admin_client
@@ -404,17 +411,18 @@ def get_approach_examples(quest_id: str):
         # Get quest data
         # admin client justified: quest AI service uses admin client for cross-quest reads + writes to ai_review_queue
         supabase = get_supabase_admin_client()
-        quest_result = supabase.table('quests').select(
-            'id, title, big_idea, description, approach_examples'
-        ).eq('id', quest_id).single().execute()
+        quest_rows = supabase.table('quests').select(
+            'id, title, big_idea, description, approach_examples, '
+            'organization_id, created_by, is_public'
+        ).eq('id', quest_id).limit(1).execute().data or []
 
-        if not quest_result.data:
+        from services.quest_visibility_service import may_open_quest
+        quest = quest_rows[0] if quest_rows else None
+        if not quest or not may_open_quest(user_id, quest):
             return jsonify({
                 'success': False,
                 'error': 'Quest not found'
             }), 404
-
-        quest = quest_result.data
 
         # Check if we already have cached examples
         if quest.get('approach_examples'):
@@ -496,17 +504,21 @@ def accept_approach(user_id: str, quest_id: str):
         supabase = get_supabase_admin_client()
 
         # Get quest with approach examples
-        quest_result = supabase.table('quests').select(
-            'id, title, approach_examples'
-        ).eq('id', quest_id).single().execute()
+        quest_rows = supabase.table('quests').select(
+            'id, title, approach_examples, organization_id, created_by, is_public'
+        ).eq('id', quest_id).limit(1).execute().data or []
 
-        if not quest_result.data:
+        # Accepting an approach enrolls the caller, so it is held to the rule
+        # POST /api/quests/<id>/enroll applies (services/
+        # quest_visibility_service.py, 2026-09-24): a quest the caller may not
+        # open answers like a missing one.
+        from services.quest_visibility_service import may_open_quest
+        quest = quest_rows[0] if quest_rows else None
+        if not quest or not may_open_quest(user_id, quest, include_linked_students=False):
             return jsonify({
                 'success': False,
                 'error': 'Quest not found'
             }), 404
-
-        quest = quest_result.data
         approaches = quest.get('approach_examples', [])
 
         # Handle "start from scratch" (approach_index = -1)

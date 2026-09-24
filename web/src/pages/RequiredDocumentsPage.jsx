@@ -2,7 +2,8 @@ import React, { useCallback, useEffect, useState } from 'react'
 import { Navigate, useNavigate } from 'react-router-dom'
 import api from '../services/api'
 import { useAuth } from '../contexts/AuthContext'
-import ChecklistAssignments from '../components/sis/ChecklistAssignments'
+import TaskCard from '../components/sis/tasks/TaskCard'
+import { familyTaskApi } from '../hooks/api/useTasks'
 import { clearRequiredDocumentsGate } from '../hooks/useRequiredDocumentsGate'
 
 /**
@@ -14,9 +15,11 @@ import { clearRequiredDocumentsGate } from '../hooks/useRequiredDocumentsGate'
  * each one; showing them the single thing that lifts the hold is both more
  * honest and faster to get through.
  *
- * The list itself is ChecklistAssignments, the Forms page's own, so a
- * signature collected here is the same record, with the same affirmation and
- * the same evidence, as one collected there. The hold is a routing decision
+ * Each document is a TaskCard, the To do page's own, so a signature
+ * collected here is the same record, with the same affirmation and the same
+ * evidence, as one collected there. It writes through the family portal's
+ * routes (familyTaskApi), the ones the hold lets a held family reach
+ * (middleware/api_hold_gate.py), and leaves comments off for the same reason. The hold is a routing decision
  * layered on top of the existing flow, not a second way to sign. (This page
  * carried its own copy of the list, with its own PATCH, until 2026-09-15.)
  */
@@ -88,11 +91,17 @@ const RequiredDocumentsPage = () => {
           </p>
         </div>
 
-        <ChecklistAssignments
-          orgId={state.orgId}
-          assignments={state.assignments}
-          onChanged={onChanged}
-        />
+        <div className="space-y-4">
+          {state.assignments.map((a) => (
+            <TaskCard key={a.id} api={familyTaskApi(state.orgId)} onChanged={onChanged}
+              showComments={false} statement={a.signature_statement}
+              task={{
+                ...a,
+                title: a.template_name || 'Document',
+                status: 'todo',
+              }} />
+          ))}
+        </div>
 
         {/* The way out for a family who genuinely cannot sign. Nobody should be
             stuck on a screen whose only escape is the one action they can't

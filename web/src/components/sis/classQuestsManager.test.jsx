@@ -10,12 +10,21 @@ const { api } = vi.hoisted(() => ({
   api: { get: vi.fn(), post: vi.fn(), delete: vi.fn() },
 }))
 vi.mock('../../services/api', () => ({ default: api }))
+// The quest editor and its Drafts list read through react-query; these tests
+// are about the class tab's own rows, so both are stood in for.
+vi.mock('../../hooks/api/useQuestEditor', () => ({
+  useRefreshAfterQuestEdit: () => () => {},
+  useQuestDrafts: () => ({ data: [] }),
+  useDiscardQuestDraft: () => ({ mutateAsync: vi.fn() }),
+  questEditorApi: {},
+}))
+vi.mock('./questEditor/QuestDraftsList', () => ({ default: () => null }))
 
 import ClassQuestsManager from './ClassQuestsManager'
 import { withConfirm, answerConfirm, confirmText } from '../../tests/confirmTestUtils'
 
 const OWN_QUEST = {
-  quest_id: 'q1', title: 'Bridge Building', template_task_count: 2, editable_tasks: true,
+  quest_id: 'q1', title: 'Bridge Building', template_task_count: 2, editable_tasks: true, can_edit: true,
 }
 const LIBRARY_QUEST = {
   quest_id: 'q2', title: 'Optio Poetry', template_task_count: 0, editable_tasks: false,

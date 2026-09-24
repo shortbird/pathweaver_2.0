@@ -57,7 +57,6 @@ const { api } = vi.hoisted(() => ({
 vi.mock('../../services/api', () => ({ default: api }))
 
 import ClassesPage from './ClassesPage'
-import StaffFormsPage from './StaffFormsPage'
 import TasksPage from './TasksPage'
 import MyDocumentsPage from './MyDocumentsPage'
 import DirectoryPage from './DirectoryPage'
@@ -68,9 +67,10 @@ beforeEach(() => {
   api.get.mockImplementation(() => Promise.resolve({ data: {} }))
 })
 
+// /forms redirects to Tasks since forms were retired (2026-09-24), so Tasks
+// carries that report's promise.
 const PAGES = [
   ['Classes', ClassesPage],
-  ['Forms', StaffFormsPage],
   ['Tasks', TasksPage],
   ['My Documents', MyDocumentsPage],
   ['Staff Directory', DirectoryPage],

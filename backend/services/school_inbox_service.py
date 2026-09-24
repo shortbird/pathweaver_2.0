@@ -155,7 +155,9 @@ def school_account(org) -> tuple:
 def send_as_school(org, recipient_id: str, content: str, *, sent_by: Optional[str],
                    reply_to_message_id: Optional[str] = None,
                    attachments: Optional[List[Dict[str, Any]]] = None,
-                   fallback_sender: Optional[str] = None) -> Dict[str, Any]:
+                   fallback_sender: Optional[str] = None,
+                   push: bool = True,
+                   show_sender_name: bool = False) -> Dict[str, Any]:
     """Send one direct message from the school to a member.
 
     The recipient sees the school's name; `sent_by` records the staff member
@@ -165,6 +167,11 @@ def send_as_school(org, recipient_id: str, content: str, *, sent_by: Optional[st
     message that goes out under the wrong name beats one that does not go out
     at all (the People page's Message buttons); without one, the caller gets
     the error.
+
+    `push` False skips the phone and browser push (Compose's toggle).
+    `show_sender_name` tells the recipient who wrote it, "Kate for iCreate":
+    set for a staff member answering a thread the office handed them with a
+    task (thread_task_service), never for the office's own replies.
     """
     from services.direct_message_service import DirectMessageService
     try:
@@ -178,11 +185,17 @@ def send_as_school(org, recipient_id: str, content: str, *, sent_by: Optional[st
         sender, author = fallback_sender, None
     else:
         sender, author = inbox_user_id, sent_by
+    extra: Dict[str, Any] = {}
+    if not push:
+        extra['push'] = False
+    if show_sender_name and author:
+        extra['show_sender_name'] = True
     return DirectMessageService().send_message(
         sender, recipient_id, content,
         reply_to_message_id=reply_to_message_id,
         attachments=attachments or [],
         sent_by_user_id=author,
+        **extra,
     )
 
 
@@ -295,7 +308,14 @@ def notify_admins_of_member_message(org: Dict[str, Any], sender_id: str,
                     'school_inbox': True, 'organization_id': org['id']}
         if conversation_id:
             metadata['conversation_id'] = conversation_id
-        for admin_id in admin_recipient_ids(org['id']):
+        # A staff member the office handed this thread to with a task hears
+        # about the family's answer too: the thread is their work now
+        # (d93b24d2), and the office's bell alone would leave them waiting.
+        recipients = list(admin_recipient_ids(org['id']))
+        if conversation_id:
+            recipients += [u for u in grant_holder_ids(org['id'], conversation_id)
+                           if u not in recipients]
+        for admin_id in recipients:
             if admin_id == sender_id:
                 continue
             notification_service.create_notification(
@@ -453,9 +473,11 @@ def school_group_access(user_id: str, group_id: str) -> Optional[Dict[str, Any]]
     Returns {'group', 'org', 'inbox_user_id'} or None. The rule is the one the
     school's DMs already follow: the thread belongs to the org's inbox account,
     and the org's front office (admin_recipients: org admins and campus
-    coordinators) reads it, plus a superadmin. Anyone else -- a teacher in the
-    room, a parent, another school's admin -- gets None and reads the group, if
-    at all, as the member they are through /api/groups (ac84b6cd).
+    coordinators) reads it, plus a superadmin, plus a staff member holding a
+    live grant for this group (a task made from it, d93b24d2; `via` says
+    which). Anyone else -- a teacher in the room, a parent, another school's
+    admin -- gets None and reads the group, if at all, as the member they are
+    through /api/groups (ac84b6cd).
 
     The group is the school's only if the inbox account created it
     (GroupMessageService.create_school_group) AND the group sits in that same
@@ -475,13 +497,16 @@ def school_group_access(user_id: str, group_id: str) -> Optional[Dict[str, Any]]
     org = org_for_inbox_user(created_by) if created_by else None
     if not org or not org.get('is_active') or org.get('id') != group.get('organization_id'):
         return None
-    allowed = user_id in admin_recipient_ids(org['id'])
-    if not allowed:
+    via = 'office' if user_id in admin_recipient_ids(org['id']) else None
+    if not via:
         from services.group_message_service import GroupMessageService
-        allowed = GroupMessageService()._is_superadmin(user_id)
-    if not allowed:
+        via = 'office' if GroupMessageService()._is_superadmin(user_id) else None
+    # A staff member the office handed this group to with a task (d93b24d2).
+    if not via and active_grants(user_id, group_id=group_id, organization_id=org['id']):
+        via = 'grant'
+    if not via:
         return None
-    return {'group': group, 'org': org, 'inbox_user_id': org['inbox_user_id']}
+    return {'group': group, 'org': org, 'inbox_user_id': org['inbox_user_id'], 'via': via}
 
 
 def attach_sent_by_names(messages: List[Dict[str, Any]]) -> None:
@@ -505,3 +530,169 @@ def attach_sent_by_names(messages: List[Dict[str, Any]]) -> None:
     for m in messages:
         if m.get('sent_by_user_id') in names:
             m['sent_by_name'] = names[m['sent_by_user_id']]
+
+
+# ── A thread handed to a staff member ─────────────────────────────────────────
+#
+# The office turns a family's message into a task for somebody on staff ("Make a
+# task", thread_task_service; iCreate 2026-09-23, bf8b754d / d93b24d2). Most of
+# those people are teachers, and a teacher has no school inbox: every route in
+# routes/school_inbox.py was ADMIN_ROLES. The task comes with a grant
+# (school_thread_grants) for that one thread, and the thread routes accept the
+# front office OR an active grant. What a granted teacher can do is read the
+# whole thread and answer it as the school, with their name shown to the family
+# ("Kate for iCreate") -- nothing else in the inbox.
+#
+# Active means: not revoked, and the task behind it still exists and is not
+# finished. The task is checked on every read rather than trusting somebody to
+# revoke on completion, because completion and deletion live in the tasks code;
+# a grant found dead is revoked here, lazily, so the table says so too.
+
+#: A task in one of these has ended, and so has its grant.
+_CLOSED_TASK_STATUSES = frozenset({'complete', 'expired'})
+
+
+def _thread_repo():
+    from repositories.school_thread_repository import SchoolThreadRepository
+    return SchoolThreadRepository(client=_admin())
+
+
+def active_grants(user_id: str, *, conversation_id: Optional[str] = None,
+                  group_id: Optional[str] = None,
+                  organization_id: Optional[str] = None) -> List[Dict[str, Any]]:
+    """This person's live grants, for one thread or every thread. Never raises:
+    a failed lookup is no access."""
+    if not user_id:
+        return []
+    try:
+        repo = _thread_repo()
+        rows = repo.unrevoked_grants(user_id, conversation_id=conversation_id,
+                                     group_id=group_id)
+        if organization_id:
+            rows = [r for r in rows if r.get('organization_id') == organization_id]
+        if not rows:
+            return []
+        statuses = repo.task_statuses(r['task_id'] for r in rows if r.get('task_id'))
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f"school inbox: grant lookup failed for {str(user_id)[:8]}: {e}")
+        return []
+    live: List[Dict[str, Any]] = []
+    dead: List[Dict[str, Any]] = []
+    for r in rows:
+        status = statuses.get(r['task_id']) if r.get('task_id') else None
+        (dead if status is None or status in _CLOSED_TASK_STATUSES else live).append(r)
+    if dead:
+        try:
+            repo.revoke(r['id'] for r in dead)
+        except Exception:  # noqa: BLE001
+            logger.debug("intentional swallow: lazy grant revoke", exc_info=True)
+    return live
+
+
+def revoke_grants_for_task(task_id: str) -> int:
+    """End the thread access a task gave. The tasks code may call this when a
+    task is completed or deleted; active_grants reaches the same answer on its
+    own, so a caller that forgets costs nothing but a stale row."""
+    try:
+        return _thread_repo().revoke_for_task(task_id)
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f"school inbox: revoke for task {str(task_id)[:8]} failed: {e}")
+        return 0
+
+
+def thread_access(user_id: str, org: Dict[str, Any], *,
+                  conversation_id: Optional[str] = None,
+                  group_id: Optional[str] = None) -> Optional[str]:
+    """How `user_id` may open this school thread: 'office', 'grant', or None.
+
+    The office is the org's admin tier (and a superadmin); anybody else needs a
+    live grant for exactly this thread in exactly this org.
+    """
+    from services import sis_service
+    if sis_service.caller_is_admin(user_id):
+        return 'office'
+    if active_grants(user_id, conversation_id=conversation_id, group_id=group_id,
+                     organization_id=org.get('id')):
+        return 'grant'
+    return None
+
+
+def conversation_with_member(inbox_user_id: str, member_id: str) -> Optional[Dict[str, Any]]:
+    """The school's thread with one member, or None."""
+    try:
+        return _thread_repo().conversation_between(inbox_user_id, member_id)
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f"school inbox: conversation lookup failed: {e}")
+        return None
+
+
+def record_thread_read(org_id: str, user_id: str, *, conversation_id: Optional[str] = None,
+                       group_id: Optional[str] = None) -> None:
+    """Remember that this staff member opened this school thread (9b46c748:
+    the shared read state says somebody did; the office asked who).
+    Best-effort."""
+    try:
+        _thread_repo().record_read(organization_id=org_id, user_id=user_id,
+                                   conversation_id=conversation_id, group_id=group_id)
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f"school inbox: read record failed: {e}")
+
+
+def thread_readers(*, conversation_id: Optional[str] = None,
+                   group_id: Optional[str] = None) -> List[Dict[str, Any]]:
+    """[{user_id, name, first_read_at, last_read_at}] for everyone on staff who
+    has opened this school thread, most recent first."""
+    try:
+        repo = _thread_repo()
+        rows = repo.readers(conversation_id=conversation_id, group_id=group_id)
+        names = repo.user_names(r['user_id'] for r in rows)
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f"school inbox: readers lookup failed: {e}")
+        return []
+    from utils.person_name import full_name
+    return [{**r, 'name': full_name(names.get(r['user_id']), 'Staff')} for r in rows]
+
+
+def granted_thread_ids(user_id: str, org_id: str) -> Dict[str, set]:
+    """{'conversations': ids, 'groups': ids} this person holds a live grant for."""
+    out: Dict[str, set] = {'conversations': set(), 'groups': set()}
+    for g in active_grants(user_id, organization_id=org_id):
+        if g.get('conversation_id'):
+            out['conversations'].add(g['conversation_id'])
+        if g.get('group_id'):
+            out['groups'].add(g['group_id'])
+    return out
+
+
+def grant_holder_ids(org_id: str, conversation_id: str) -> List[str]:
+    """Staff holding a live grant on this conversation: they hear about a new
+    message in it the way the office does."""
+    try:
+        rows = _thread_repo().grant_holders(org_id, conversation_id)
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f"school inbox: grant holder lookup failed: {e}")
+        return []
+    return [u for u in {r['user_id'] for r in rows}
+            if active_grants(u, conversation_id=conversation_id, organization_id=org_id)]
+
+
+def user_display_names(user_ids: List[str]) -> Dict[str, str]:
+    """{user_id: full name} for wording a task. Best-effort."""
+    try:
+        rows = _thread_repo().user_names(user_ids)
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f"school inbox: name lookup failed: {e}")
+        return {}
+    from utils.person_name import full_name
+    return {uid: full_name(row, 'Someone') for uid, row in rows.items()}
+
+
+def message_in_thread(message_id: str, *, conversation_id: Optional[str] = None,
+                      group_id: Optional[str] = None) -> Optional[Dict[str, Any]]:
+    """The message, only if it is in the named thread."""
+    try:
+        return _thread_repo().message_in_thread(
+            message_id, conversation_id=conversation_id, group_id=group_id)
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f"school inbox: message lookup failed: {e}")
+        return None

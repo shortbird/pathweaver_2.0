@@ -131,7 +131,7 @@ export default function TeacherModal({ orgId, onClose, onSaved, placeholders = [
       if (data.email_sent === false) {
         toast.error('Teacher added, but the set-password email could not be sent. Ask them to use "Forgot password" on the login page.', { duration: 8000 })
       } else if (data.onboarding_assigned) {
-        toast.success('Invite sent — they’ll add their name when they set their password, and their onboarding checklist is ready')
+        toast.success('Invite sent — they’ll add their name when they set their password, and their onboarding tasks are ready')
       } else {
         toast.success('Invite sent — they’ll add their name when they set their password')
       }
@@ -209,7 +209,7 @@ export default function TeacherModal({ orgId, onClose, onSaved, placeholders = [
       const data = r.data || {}
       if (photoFile) await uploadPhoto(existingAccount.id)
       toast.success(`${existingAccount.name} is now a teacher here — they keep their existing login`
-        + (data.onboarding_assigned ? ', and their onboarding checklist is ready' : ''))
+        + (data.onboarding_assigned ? ', and their onboarding tasks are ready' : ''))
       onSaved()
     } catch (err) {
       setError(err?.response?.data?.error || 'Could not add the teacher role')
@@ -411,7 +411,7 @@ export default function TeacherModal({ orgId, onClose, onSaved, placeholders = [
                 <>
                   <select id="onboarding_template" value={onboardingTemplateId}
                     onChange={(e) => setOnboardingTemplateId(e.target.value)} className={inputClass}>
-                    <option value="">No onboarding checklist</option>
+                    <option value="">No onboarding tasks</option>
                     {templates.map((t) => (
                       <option key={t.id} value={t.id}>
                         {t.name}{t.role_type ? ` (${t.role_type})` : ''}

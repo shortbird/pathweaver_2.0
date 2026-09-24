@@ -314,6 +314,13 @@ def _sweep_org(org_id: str) -> Dict[str, int]:
     taken_classes = {cid for (_sid, cid) in attendance.keys()}
     advisors_by_class = _class_advisor_ids(class_ids)
     primary_by_class = {c['id']: c.get('primary_instructor_id') for c in classes}
+    # A substitute the office marked for today gets the reminder too, linked
+    # straight to the class they are covering -- it is on their My classes
+    # list for today only (P7). The assigned teachers still get theirs: the
+    # plan can be wrong, and a reminder nobody needed costs less than a roll
+    # nobody took.
+    from services import sis_class_session_service as sessions
+    subs_by_class = sessions.planned_subs_for_date(org_id, today.isoformat())
     for c in classes:
         cid = c['id']
         if cid in taken_classes:
@@ -328,7 +335,8 @@ def _sweep_org(org_id: str) -> Dict[str, int]:
         advisor_ids = set(advisors_by_class.get(cid, set()))
         if primary_by_class.get(cid):
             advisor_ids.add(primary_by_class[cid])
-        if not advisor_ids:
+        sub_ids = subs_by_class.get(cid, set()) - advisor_ids
+        if not advisor_ids and not sub_ids:
             continue
         for advisor_id in advisor_ids:
             sis_notifications.notify(
@@ -336,6 +344,13 @@ def _sweep_org(org_id: str) -> Dict[str, int]:
                 f"{class_name.get(cid) or 'Your class'} is starting — mark today's absences.",
                 link='/classes?tab=attendance', organization_id=org_id,
                 metadata={'class_id': cid, 'date': today.isoformat()},
+            )
+        for sub_id in sub_ids:
+            sis_notifications.notify(
+                sub_id, 'Take attendance',
+                f"You are covering {class_name.get(cid) or 'a class'}, which is starting — take the roll.",
+                link=f'/my-classes/{cid}', organization_id=org_id,
+                metadata={'class_id': cid, 'date': today.isoformat(), 'substitute': True},
             )
         counts['class_reminders'] += 1
 

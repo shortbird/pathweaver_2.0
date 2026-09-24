@@ -261,6 +261,13 @@ def calculate_quest_credits(user_id, quest_id):
         - total_credits: Total credits from all tasks
         - credits_by_subject: Breakdown by subject
     """
+    # The credit breakdown is read off the quest's tasks, so it is quest
+    # content: only for a quest the caller may open, and "not found" otherwise
+    # (services/quest_visibility_service.py, 2026-09-24).
+    from services.quest_visibility_service import may_open_quest_id
+    if not may_open_quest_id(user_id, quest_id):
+        return jsonify({'success': False, 'error': 'Quest not found'}), 404
+
     credits = CreditMappingService.calculate_quest_credits(quest_id)
 
     return jsonify({

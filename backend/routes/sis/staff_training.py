@@ -38,7 +38,6 @@ own progress here, and guardians read theirs through /api/sis/parent/quests.
 """
 
 import uuid
-from datetime import datetime, timezone
 
 from flask import Blueprint, request, jsonify
 
@@ -113,15 +112,9 @@ def _uploaded_image(url):
 
 
 def _org_logo(org_id):
-    """The school's logo, usually a base64 data URI (that is how SisOrgSettings
-    stores an upload). Renderable as-is; nothing to sign."""
-    try:
-        rows = (_admin().table('organizations').select('branding_config')
-                .eq('id', org_id).limit(1).execute()).data
-        return ((rows[0].get('branding_config') or {}).get('logo_url') or None) if rows else None
-    except Exception as e:  # noqa: BLE001 — artwork is never worth failing a create
-        logger.warning(f'Could not read org logo for {org_id}: {e}')
-        return None
+    """The school's logo, renderable as-is (see QuestEditorRepository.org_logo)."""
+    from repositories.quest_editor_repository import QuestEditorRepository
+    return QuestEditorRepository(client=_admin()).org_logo(org_id)
 
 
 # Source material is capped where the drafter caps it, so what is stored is what
@@ -152,6 +145,11 @@ _item_applies_to = sis_training_service.item_applies_to
 def _clean_task(raw, order_index, keep_id=False):
     """One preset task, or None when it has no title (an untouched blank row).
 
+    The shared authoring rule since P6 (2026-09-23). This screen used to keep
+    its own copy, which never wrote diploma_subjects -- so every training task
+    took the column default and was filed as Electives -- and read an absent
+    Required box as optional where every other screen reads it as required.
+
     `keep_id` carries the row's existing id through, so a save can pair the
     submitted list against what is already stored instead of replacing it (see
     sis_quest_authoring.replace_template_tasks). Off by default: a CREATE must
@@ -159,30 +157,11 @@ def _clean_task(raw, order_index, keep_id=False):
     """
     if not isinstance(raw, dict):
         return None
-    title = (raw.get('title') or '').strip()
-    if not title:
+    row = authoring.clean_task(raw, order_index)
+    if row is None:
         return None
-    try:
-        xp = int(raw.get('xp_value') or _DEFAULT_XP)
-    except (TypeError, ValueError):
-        xp = _DEFAULT_XP
-    now = datetime.now(timezone.utc).isoformat()
-    task_id = (raw.get('id') or '').strip() if keep_id else None
-    return {
-        **({'id': task_id} if task_id else {}),
-        'title': title[:_MAX_TITLE_LEN],
-        'description': (raw.get('description') or '').strip(),
-        'pillar': _PILLAR_ALIASES.get((raw.get('pillar') or '').strip().lower(), _DEFAULT_PILLAR),
-        'xp_value': max(_MIN_XP, xp),
-        # Mirrors quest_ai_service._normalize: an absent flag means the caller
-        # (usually a generated draft) did not say, and an unstated requirement
-        # is not one. The staff form always sends the checkbox either way.
-        'is_required': bool(raw.get('is_required', False)),
-        'order_index': order_index,
-        'ai_generated': False,
-        'created_at': now,
-        'updated_at': now,
-    }
+    task_id = (raw.get('id') or '').strip() if keep_id and isinstance(raw.get('id'), str) else None
+    return {**({'id': task_id} if task_id else {}), **row}
 
 
 def _catalog(org_id, audience='staff', include_drafts=False):
@@ -715,19 +694,12 @@ def create_training_quest(user_id):
         image_url = _org_logo(org_id)
         if image_url:
             header_style = 'org_logo'
-    if not image_url:
-        try:
-            from services.image_service import search_quest_image
-            image_url = search_quest_image(title, description)
-        except Exception as e:  # noqa: BLE001 — a missing header image is not a failure
-            logger.warning(f'Training-quest image lookup failed (non-fatal): {e}')
+    # No upload and no logo: create_org_quest runs the stock search.
 
     xp_threshold, xp_err = _clean_xp_threshold(data.get('xp_threshold'))
     if xp_err:
         return jsonify({'success': False, 'error': xp_err}), 400
 
-    now = datetime.now(timezone.utc).isoformat()
-    # is_public False: a school's own quest, not pushed into the shared library.
     # Off unless asked for: training is a set list of things the school needs
     # done, so a learner inventing extra tasks for themselves is the exception.
     allow_custom_tasks = bool(data.get('allow_custom_tasks'))
@@ -738,26 +710,23 @@ def create_training_quest(user_id):
     # read already keys off, so nothing else has to learn the word "draft".
     is_draft = bool(data.get('is_draft'))
 
-    quest = (admin.table('quests').insert({
-        'title': title, 'big_idea': description, 'description': description,
-        'is_v3': True, 'is_active': not is_draft, 'is_public': False,
-        'quest_type': 'optio', 'header_image_url': image_url, 'image_url': image_url,
-        'metadata': {'header_style': header_style} if header_style else {},
-        'xp_threshold': xp_threshold,
-        'allow_custom_tasks': allow_custom_tasks,
-        # Only worth keeping if they can actually generate against it.
-        'source_material': source_material if (allow_custom_tasks and source_material) else None,
-        'created_by': user_id, 'created_at': now, 'organization_id': org_id,
-    }).execute()).data
-    if not quest:
-        return jsonify({'success': False, 'error': 'Could not create the quest.'}), 500
-    quest_id = quest[0]['id']
-
-    cleaned = [t for t in (_clean_task(r, i) for i, r in enumerate(raw_tasks)) if t]
-    if cleaned:
-        for t in cleaned:
-            t['quest_id'] = quest_id
-        admin.table('quest_template_tasks').insert(cleaned).execute()
+    # Through the one authoring path (P6, 2026-09-23), so a training task keeps
+    # the subjects and the Required flag it was given like any other quest's.
+    # This screen's own insert dropped both.
+    try:
+        created = authoring.create_org_quest(
+            admin, org_id=org_id, user_id=user_id, title=title, description=description,
+            raw_tasks=raw_tasks, image_url=image_url, header_style=header_style,
+            extra_fields={
+                'is_active': not is_draft,
+                'xp_threshold': xp_threshold,
+                'allow_custom_tasks': allow_custom_tasks,
+                # Only worth keeping if they can actually generate against it.
+                'source_material': source_material if (allow_custom_tasks and source_material) else None,
+            })
+    except authoring.QuestAuthoringError as e:
+        return jsonify({'success': False, 'error': e.message}), e.status
+    quest_id = created['quest_id']
 
     visible_to_roles, roles_err = clean_visible_roles(data.get('visible_to_roles'))
     if roles_err:
@@ -796,7 +765,7 @@ def create_training_quest(user_id):
     }) if (auto_assign and not is_draft) else None
 
     return jsonify({'success': True, 'quest_id': quest_id,
-                    'task_count': len(cleaned), 'audience': audience,
+                    'task_count': created['task_count'], 'audience': audience,
                     'audiences': audiences,
                     'is_draft': is_draft, 'assigned': assigned}), 201
 
@@ -870,6 +839,27 @@ def update_training(user_id, training_id):
             fields['sequence_order'] = int(data.get('sequence_order'))
         except (TypeError, ValueError):
             return jsonify({'success': False, 'error': 'sequence_order must be a number'}), 400
+    # Who it is for, from the quest editor's training section (P6). Written as
+    # a set, the way PUT /training/<id>/quest writes it: the primary audience
+    # follows the list, and the role, people and age narrowings are kept only
+    # for the groups they belong to.
+    if 'audiences' in data:
+        audiences = _audiences(data.get('audiences'))
+        fields['audiences'] = audiences
+        fields['audience'] = _primary_audience(audiences)
+        if 'staff' not in audiences:
+            fields['visible_to_roles'] = None
+            fields['visible_to_user_ids'] = None
+        if 'student' not in audiences:
+            fields['student_min_age'] = None
+            fields['student_max_age'] = None
+    if ('student_min_age' in data or 'student_max_age' in data) and \
+            'student' in (fields.get('audiences') or ['student']):
+        min_age, max_age, age_err = _clean_age_window(data)
+        if age_err:
+            return jsonify({'success': False, 'error': age_err}), 400
+        fields['student_min_age'] = min_age
+        fields['student_max_age'] = max_age
     if not fields:
         if changed_quest:
             return jsonify({'success': True})
@@ -1011,7 +1001,8 @@ def get_training_quest(user_id, training_id):
         return jsonify({'success': False, 'error': 'Not found'}), 404
     q = rows[0]
     tasks = (admin.table('quest_template_tasks')
-             .select('id, title, description, pillar, xp_value, is_required, order_index')
+             .select('id, title, description, pillar, xp_value, is_required, order_index, '
+                     'diploma_subjects, subject_xp_distribution')
              .eq('quest_id', item['quest_id']).order('order_index').execute()).data or []
     return jsonify({'success': True, 'quest': {
         'quest_id': q['id'],
@@ -1198,8 +1189,16 @@ def publish_training(user_id, training_id):
     audience = _audience(item.get('audience'))
     data = request.get_json(silent=True) or {}
 
-    _admin().table('quests').update({'is_active': True}) \
-        .eq('id', item['quest_id']).eq('organization_id', org_id).execute()
+    # The shared publish (P6): a title is required, the draft marker goes, and
+    # a quest nobody gave a picture gets the school's logo or a stock image.
+    from repositories.quest_editor_repository import QuestEditorRepository
+    quest = QuestEditorRepository(client=_admin()).get_quest(item['quest_id'])
+    if not quest or quest.get('organization_id') != org_id:
+        return jsonify({'success': False, 'error': 'Not found'}), 404
+    try:
+        authoring.publish_draft(_admin(), quest, prefer_logo=True)
+    except authoring.QuestAuthoringError as e:
+        return jsonify({'success': False, 'error': e.message}), e.status
 
     assign_now = data.get('assign', True) and item.get('auto_assign')
     assigned = _assign_item(org_id, item) if assign_now else None

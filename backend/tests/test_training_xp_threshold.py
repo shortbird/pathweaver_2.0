@@ -341,7 +341,12 @@ def test_publishing_a_quest_that_goes_to_everyone_enrols_them():
         'id': 'x', 'organization_id': ORG, 'quest_id': 'q1',
         'audience': 'family', 'visible_to_roles': None, 'auto_assign': True,
         'quests': {'is_active': False},
-    }]})
+    }],
+        # Publishing reads the quest since P6: it needs a title, and gives a
+        # quest with no picture the school's logo or a stock one.
+        'quests': [{'id': 'q1', 'organization_id': ORG, 'title': 'Onboarding', 'is_active': False,
+                'header_image_url': 'https://x/storage/v1/object/public/quest-headers/a.png', 'metadata': {}}],
+    })
     app = Flask(__name__)
     with patch.object(training, '_admin', return_value=client), \
          patch('services.sis_service.org_or_error', return_value=(ORG, None)), \
@@ -353,7 +358,8 @@ def test_publishing_a_quest_that_goes_to_everyone_enrols_them():
     body = resp[0].get_json() if isinstance(resp, tuple) else resp.get_json()
     assert body['success'] is True
     assert body['assigned']['enrolled'] == 4
-    assert {'is_active': True} in [p for n, op, p in log if n == 'quests' and op == 'update']
+    assert any(p.get('is_active') is True
+               for n, op, p in log if n == 'quests' and op == 'update')
     assigner.assert_called_once()
 
 
@@ -484,7 +490,10 @@ def test_publishing_can_skip_the_bulk_assignment():
     client, _ = _client_with({'sis_staff_training': [{
         'id': 'x', 'organization_id': ORG, 'quest_id': 'q1', 'audience': 'family',
         'visible_to_roles': None, 'auto_assign': True, 'quests': {'is_active': False},
-    }]})
+    }],
+        'quests': [{'id': 'q1', 'organization_id': ORG, 'title': 'Onboarding', 'is_active': False,
+                'header_image_url': 'https://x/storage/v1/object/public/quest-headers/a.png', 'metadata': {}}],
+    })
     app = Flask(__name__)
     with patch.object(training, '_admin', return_value=client), \
          patch('services.sis_service.org_or_error', return_value=(ORG, None)), \
@@ -494,6 +503,27 @@ def test_publishing_can_skip_the_bulk_assignment():
         resp = fn('user-1', TRAINING_ID)
     body = resp[0].get_json() if isinstance(resp, tuple) else resp.get_json()
     assert body['success'] is True
+    assigner.assert_not_called()
+
+
+def test_publishing_a_draft_with_no_title_is_refused():
+    """The quest editor starts a training draft before it has a name (P6), so
+    publish is where the title is insisted on."""
+    from flask import Flask
+    client, log = _client_with({'sis_staff_training': [{
+        'id': 'x', 'organization_id': ORG, 'quest_id': 'q1', 'audience': 'family',
+        'visible_to_roles': None, 'auto_assign': True, 'quests': {'is_active': False},
+    }], 'quests': [{'id': 'q1', 'organization_id': ORG, 'title': '', 'is_active': False,
+                    'metadata': {'draft': {'context': 'training'}}}]})
+    app = Flask(__name__)
+    with patch.object(training, '_admin', return_value=client), \
+         patch('services.sis_service.org_or_error', return_value=(ORG, None)), \
+         patch.object(training, '_assign_item') as assigner, \
+         app.test_request_context(json={}):
+        fn = getattr(training.publish_training, '__wrapped__', training.publish_training)
+        resp = fn('user-1', TRAINING_ID)
+    assert resp[1] == 400
+    assert not [p for n, op, p in log if n == 'quests' and op == 'update']
     assigner.assert_not_called()
 
 

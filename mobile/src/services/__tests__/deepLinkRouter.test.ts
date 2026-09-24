@@ -144,6 +144,16 @@ describe('resolveDeepLink', () => {
     expect(resolveDeepLink('/calendar')).toEqual({ target: '/(app)/school', params: { tab: 'calendar' } });
   });
 
+  it('opens a task notification on the hub\'s To do tab, with the task named', () => {
+    // Students get /school?task=<id>, guardians /family/forms?task=<id>.
+    const todo = { target: '/(app)/school', params: { tab: 'todo', task: 't-1' } };
+    expect(resolveDeepLink('/school?task=t-1')).toEqual(todo);
+    expect(resolveDeepLink('/family/forms?task=t-1')).toEqual(todo);
+    expect(resolveDeepLink('/family/forms')).toEqual({ target: '/(app)/school', params: { tab: 'todo' } });
+    // A plain /school link still opens the hub on its first tab.
+    expect(resolveDeepLink('/school')).toEqual({ target: '/(app)/school' });
+  });
+
   it('routes /credit-dashboard to view-on-web', () => {
     expect(resolveDeepLink('/credit-dashboard')?.target).toBe('/(app)/view-on-web');
   });

@@ -36,7 +36,15 @@ HOOKS = REPO_ROOT / '.claude' / 'hooks'
 ALLOW, BLOCK = 0, 2
 
 
-def run_hook(script: str, event: dict, timeout: int = 120) -> subprocess.CompletedProcess:
+def run_hook(script: str, event: dict, timeout: int = 120,
+             hooks_path: str | None = '.githooks') -> subprocess.CompletedProcess:
+    env = {'CLAUDE_PROJECT_DIR': str(REPO_ROOT), 'PATH': _path()}
+    # guard_bash reads core.hooksPath. Pin it per test through git's env-var
+    # config, so the answer never depends on how the machine running the suite
+    # is configured (CI's checkout has no hooksPath at all).
+    if hooks_path is not None:
+        env.update({'GIT_CONFIG_COUNT': '1', 'GIT_CONFIG_KEY_0': 'core.hooksPath',
+                    'GIT_CONFIG_VALUE_0': hooks_path})
     return subprocess.run(
         [sys.executable, str(HOOKS / script)],
         input=json.dumps(event),
@@ -44,7 +52,7 @@ def run_hook(script: str, event: dict, timeout: int = 120) -> subprocess.Complet
         text=True,
         timeout=timeout,
         cwd=str(REPO_ROOT),
-        env={'CLAUDE_PROJECT_DIR': str(REPO_ROOT), 'PATH': _path()},
+        env=env,
     )
 
 
@@ -236,6 +244,28 @@ def test_push_to_main_proceeds_once_confirmed():
     assert result.returncode == ALLOW, result.stderr
 
 
+def test_no_verify_is_refused_even_with_the_release_override():
+    """--no-verify skips .githooks/pre-push, the lint gate CI runs first."""
+    result = run_hook('guard_bash.py', bash('OPTIO_HOOK_OVERRIDE=1 git push --no-verify origin main'))
+    assert result.returncode == BLOCK
+    assert '--no-verify' in result.stderr
+    result = run_hook('guard_bash.py', bash('git push --no-verify origin develop'))
+    assert result.returncode == BLOCK
+
+
+def test_push_to_main_needs_the_pre_push_gate_installed():
+    """Approving a release is not approving an unlinted one."""
+    result = run_hook('guard_bash.py', bash('OPTIO_HOOK_OVERRIDE=1 git push origin main'),
+                      hooks_path='')
+    assert result.returncode == BLOCK
+    assert 'core.hooksPath .githooks' in result.stderr
+
+
+def test_the_pre_push_gate_is_not_needed_off_main():
+    result = run_hook('guard_bash.py', bash('git push origin feature/x'), hooks_path='')
+    assert result.returncode == ALLOW, result.stderr
+
+
 def test_force_push_stops_for_confirmation():
     result = run_hook('guard_bash.py', bash('git push --force origin develop'))
     assert result.returncode == BLOCK
@@ -317,6 +347,19 @@ def test_fast_gate_passes_clean_python(tmp_path_factory):
         target.unlink(missing_ok=True)
 
 
+def test_fast_gate_catches_a_type_error():
+    """CI's mypy step failed releases for days before anything ran it earlier."""
+    target = REPO_ROOT / 'backend' / 'utils' / '_fast_gate_probe_types.py'
+    target.write_text('def count() -> int:\n    return "three"\n', encoding='utf-8')
+    try:
+        result = run_hook('fast_gate.py', _edit_event(target))
+        assert result.returncode == BLOCK, result.stdout + result.stderr
+        assert 'mypy' in result.stderr
+        assert 'Incompatible return value type' in result.stderr
+    finally:
+        target.unlink(missing_ok=True)
+
+
 def test_fast_gate_ignores_files_outside_the_repo(tmp_path):
     stray = tmp_path / 'whatever.py'
     stray.write_text('return nonsense\n', encoding='utf-8')
@@ -379,3 +422,73 @@ def test_stop_hook_does_not_loop():
         {'session_id': 'pytest-loop', 'hook_event_name': 'Stop', 'stop_hook_active': True},
     )
     assert result.returncode == ALLOW
+
+
+# --------------------------------------------------------------------------
+# .githooks/pre-push (a git hook, not a Claude hook: it guards every push)
+# --------------------------------------------------------------------------
+
+PRE_PUSH = REPO_ROOT / '.githooks' / 'pre-push'
+ZERO_SHA = '0' * 40
+
+
+def run_pre_push(stdin: str) -> subprocess.CompletedProcess:
+    return subprocess.run(
+        [sys.executable, str(PRE_PUSH)], input=stdin, capture_output=True,
+        text=True, timeout=600, cwd=str(REPO_ROOT),
+    )
+
+
+def _commit_adding(path: str, source: str) -> str:
+    """A commit on top of HEAD that adds one file, built from git objects
+    alone: no branch moves, no index or working tree is touched, and the
+    commit is unreachable garbage afterwards. The shared tree stays as it was.
+    """
+    import os
+    import tempfile
+
+    def git(*args: str, env: dict | None = None, stdin: str | None = None) -> str:
+        return subprocess.run(['git', *args], cwd=str(REPO_ROOT), check=True, text=True,
+                              capture_output=True, input=stdin, env=env).stdout.strip()
+
+    with tempfile.TemporaryDirectory() as tmp:
+        # CI's checkout has no user.name; commit-tree refuses without one.
+        env = {**os.environ, 'GIT_INDEX_FILE': str(Path(tmp) / 'index'),
+               'GIT_AUTHOR_NAME': 'pytest', 'GIT_AUTHOR_EMAIL': 'pytest@example.com',
+               'GIT_COMMITTER_NAME': 'pytest', 'GIT_COMMITTER_EMAIL': 'pytest@example.com'}
+        git('read-tree', 'HEAD', env=env)
+        blob = git('hash-object', '-w', '--stdin', stdin=source)
+        git('update-index', '--add', '--cacheinfo', f'100644,{blob},{path}', env=env)
+        tree = git('write-tree', env=env)
+        return git('commit-tree', tree, '-p', 'HEAD', '-m', 'pre-push probe', env=env)
+
+
+def test_pre_push_is_executable():
+    """git silently skips a hook without the execute bit."""
+    import os
+    assert os.access(PRE_PUSH, os.X_OK)
+
+
+def test_pre_push_ignores_branches_that_deploy_nothing():
+    head = subprocess.run(['git', 'rev-parse', 'HEAD'], cwd=str(REPO_ROOT),
+                          capture_output=True, text=True).stdout.strip()
+    result = run_pre_push(f'refs/heads/x {head} refs/heads/feature/x {ZERO_SHA}\n')
+    assert result.returncode == 0, result.stderr
+    assert 'checking' not in result.stderr
+    # Deleting a branch pushes no code.
+    result = run_pre_push(f'(delete) {ZERO_SHA} refs/heads/main {head}\n')
+    assert result.returncode == 0, result.stderr
+
+
+def test_pre_push_refuses_a_release_with_a_type_error():
+    """The commit being pushed is checked, not the working tree: the error
+    below exists only inside the commit."""
+    import shutil
+    if shutil.which('mypy') is None and not (REPO_ROOT / 'venv' / 'bin' / 'mypy').exists():
+        pytest.skip('mypy is not installed here')
+    bad = _commit_adding('backend/utils/_prepush_probe.py',
+                         'def count() -> int:\n    return "three"\n')
+    result = run_pre_push(f'refs/heads/main {bad} refs/heads/main {ZERO_SHA}\n')
+    assert result.returncode == 1, result.stderr
+    assert '_prepush_probe.py:2: error: Incompatible return value type' in result.stderr
+    assert 'push refused' in result.stderr

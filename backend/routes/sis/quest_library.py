@@ -242,6 +242,50 @@ def create_library_quest(user_id):
     return jsonify(out), 201
 
 
+@bp.route('/quests/<quest_id>/publish', methods=['POST'])
+@require_role(*ADMIN_ROLES)
+def publish_library_quest(user_id, quest_id):
+    """Publish a draft started in the library (the quest editor, P6).
+
+    Body: {curriculum_id?}. The library's attach step is the one the old create
+    form had: optionally file the quest on a curriculum, without pushing it to
+    that curriculum's classes (a933ee02). Otherwise the quest lands in this list
+    and is assigned from its row, like any other.
+    """
+    org_id, err = sis_service.org_or_error(user_id)
+    if err:
+        return err
+    if _bad_uuid(quest_id):
+        return jsonify({'success': False, 'error': 'Quest not found'}), 404
+    from repositories.quest_editor_repository import QuestEditorRepository
+    from services import quest_edit_rules
+    from services.sis_quest_authoring import publish_draft
+    quest = QuestEditorRepository(client=_admin()).get_quest(quest_id)
+    if not quest or quest.get('organization_id') != org_id:
+        return jsonify({'success': False, 'error': 'Quest not found'}), 404
+    if not quest_edit_rules.can_edit_quest(user_id, quest):
+        return jsonify({'success': False, 'error': quest_edit_rules.refusal(quest)}), 403
+    data = request.get_json(silent=True) or {}
+    curriculum_id = (data.get('curriculum_id') or '').strip() or None
+    curriculum = None
+    if curriculum_id:
+        if _bad_uuid(curriculum_id):
+            return jsonify({'success': False, 'error': 'Invalid curriculum id'}), 400
+        curriculum = _repo().find_curriculum(curriculum_id)
+        if not curriculum or curriculum.get('organization_id') != org_id:
+            return jsonify({'success': False, 'error': 'Curriculum not found'}), 404
+    try:
+        publish_draft(_admin(), quest)
+    except QuestAuthoringError as e:
+        return jsonify({'success': False, 'error': e.message}), e.status
+    out = {'success': True, 'quest_id': quest_id}
+    if curriculum:
+        out['curriculum'] = {'id': curriculum['id'], 'title': curriculum['title']}
+        out.update(attach_quest_to_curriculum(_admin(), org_id, curriculum_id, quest_id, user_id,
+                                               push=False))
+    return jsonify(out)
+
+
 @bp.route('/quests/<quest_id>/curricula', methods=['POST'])
 @require_role(*ADMIN_ROLES)
 def put_quest_on_curriculum(user_id, quest_id):

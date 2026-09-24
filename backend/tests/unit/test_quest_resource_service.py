@@ -309,24 +309,36 @@ class TestWhoMayEdit:
                 patch('services.sis_service.resolve_org_id', return_value='org-2'):
             assert svc.can_edit_quest('kate', QUEST, admin=Mock()) is False
 
-    def test_a_teacher_of_a_class_using_the_quest_may(self):
+    def test_the_teacher_who_wrote_the_quest_may(self):
         """Attaching a worksheet to a task is the same act as writing the task,
-        so it is the same gate class_quests.py applies."""
+        so it is the same rule as editing the quest (services/quest_edit_rules):
+        the office, or the quest's author."""
+        with patch('services.sis_service.caller_is_admin', return_value=False), \
+                patch('services.sis_service.resolve_org_id', return_value='org-1'):
+            assert svc.can_edit_quest(TEACHER, {**QUEST, 'created_by': TEACHER},
+                                      admin=Mock()) is True
+
+    def test_a_teacher_of_a_class_using_somebody_elses_quest_may_not(self):
+        """Owner decision 2026-09-23 (P6): teaching a class that carries the
+        quest gives the class settings, not the quest. This used to pass."""
         admin = self._admin_seeing([{'class_id': 'c1'}])
         with patch('services.sis_service.caller_is_admin', return_value=False), \
+                patch('services.sis_service.resolve_org_id', return_value='org-1'), \
                 patch('utils.class_membership.class_teacher_ids', return_value={TEACHER}):
-            assert svc.can_edit_quest(TEACHER, QUEST, admin=admin) is True
+            assert svc.can_edit_quest(TEACHER, {**QUEST, 'created_by': 'the-office'},
+                                      admin=admin) is False
 
-    def test_an_unrelated_teacher_may_not(self):
-        admin = self._admin_seeing([{'class_id': 'c1'}])
+    def test_a_quest_with_no_recorded_author_is_the_offices(self):
         with patch('services.sis_service.caller_is_admin', return_value=False), \
-                patch('utils.class_membership.class_teacher_ids', return_value={'someone'}):
-            assert svc.can_edit_quest(TEACHER, QUEST, admin=admin) is False
+                patch('services.sis_service.resolve_org_id', return_value='org-1'):
+            assert svc.can_edit_quest(TEACHER, {**QUEST, 'created_by': None},
+                                      admin=Mock()) is False
 
-    def test_a_quest_on_no_class_is_not_editable_by_a_teacher(self):
-        admin = self._admin_seeing([])
-        with patch('services.sis_service.caller_is_admin', return_value=False):
-            assert svc.can_edit_quest(TEACHER, QUEST, admin=admin) is False
+    def test_an_author_who_moved_schools_may_not(self):
+        with patch('services.sis_service.caller_is_admin', return_value=False), \
+                patch('services.sis_service.resolve_org_id', return_value='org-2'):
+            assert svc.can_edit_quest(TEACHER, {**QUEST, 'created_by': TEACHER},
+                                      admin=Mock()) is False
 
     def test_nobody_may_attach_to_a_library_quest(self):
         """Library quests are shared across every school. One school's teacher

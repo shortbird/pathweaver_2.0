@@ -382,7 +382,7 @@ class TestTheOtherPagesLeaveItAlone:
         client.table.return_value = query
         with patch.object(tasks, '_admin', return_value=client), \
              patch.object(sis_service, 'filter_role_visible', side_effect=lambda _u, rows: rows):
-            out = {t['resource_id']: t for t in tasks._ack_tasks(ORG, TEACHER, 'staff')}
+            out = {t['resource_id']: t for t in tasks._ack_tasks(ORG, TEACHER)}
         assert out['l-1']['link'] == '/library?tab=training'
         assert out['l-1']['title'] == 'Training: Whole Brain Teaching'
         assert out['r-1']['link'] == '/library?highlight=r-1'

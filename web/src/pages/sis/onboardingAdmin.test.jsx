@@ -4,14 +4,15 @@
  * It used to read in exactly the reverse order: authoring templates (rare) sat
  * at the top and injected a full inline editor when opened, assigning (weekly)
  * came next, and tracking (daily) was last. Worse, the one thing the tab exists
- * to surface — an item somebody has finished that is now waiting on the office
- * to approve — was reachable only by opening every person's checklist in turn.
- * (Assigning is the Task Center's own button; taskCenter.test covers it.)
+ * to surface — a step somebody has finished that is now waiting on the office
+ * to approve — was reachable only by opening every person's task in turn.
+ * (Assigning is the Tasks page's own button; taskCenter.test covers it.
+ * Authoring templates is the Templates tab since 2026-09-24.)
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render as rtlRender, screen, fireEvent, waitFor, within } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-// Onboarding reads its checklists through hooks/api (QF-03), so these need a
+// Assigned reads its tasks through hooks/api (QF-03), so these need a
 // QueryClient. Fresh client per render keeps one test's cache out of the next
 // one's; retry:false makes a failed query fail rather than hang on backoff.
 const render = (ui) => {
@@ -43,19 +44,22 @@ const { api } = vi.hoisted(() => ({
 vi.mock('../../services/api', () => ({ default: api }))
 
 import AssignedWork from '../../components/sis/tasks/AssignedWork'
+import { TaskTemplatesManager } from '../../components/sis/tasks/TaskTemplatesManager'
 
 const SIG = '/api/sis/staff-admin/signature-requests'
 
 const TEMPLATE = {
   id: 't1', name: 'Employee onboarding', audience: 'staff', role_type: 'employee',
-  items: [{ title: 'Sign the handbook', needs_approval: true }],
+  items: [{ key: 'handbook', title: 'Sign the handbook', needs_approval: true }],
 }
 
 // Sam has finished the background check and is waiting on the office; the
-// handbook is done and needs nothing.
-const ASSIGNMENT = {
-  id: 'a1', user_name: 'Sam Teacher', template_name: 'Employee onboarding',
-  status: 'in_progress', done_count: 2, total_count: 3,
+// handbook is done and needs nothing. One person's task, in the shape
+// GET /api/sis/tasks/assigned returns it (sis_tasks_service.shape_task).
+const SAM = {
+  id: 'a1', user_id: 'sam', user_name: 'Sam Teacher', title: 'Employee onboarding',
+  audience: 'staff', status: 'in_progress', native_status: 'in_progress',
+  done_count: 2, total_count: 3, finished_at: null,
   items: [
     { key: 'handbook', title: 'Read the handbook', status: 'approved', needs_approval: false },
     { key: 'bgcheck', title: 'Background check', status: 'complete', needs_approval: true },
@@ -63,13 +67,22 @@ const ASSIGNMENT = {
   ],
 }
 
-const mockData = ({ templates = [TEMPLATE], assignments = [ASSIGNMENT] } = {}) => {
+const batchOf = (people) => ({
+  key: 'b1', title: 'Employee onboarding', audiences: ['staff'], priority: null, action: 'do',
+  due_date: null, assigned_by_name: 'Ada Admin', created_at: '2026-09-01T00:00:00Z',
+  people, done: people.filter((p) => p.status === 'done').length, total: people.length,
+  awaiting_review: people.flatMap((p) => p.items)
+    .filter((i) => i.needs_approval && i.status === 'complete').length,
+  outstanding: people.some((p) => p.status !== 'done'),
+})
+
+const mockData = ({ people = [SAM], templates = [TEMPLATE] } = {}) => {
   api.get.mockImplementation((url) => {
+    if (url.startsWith('/api/sis/tasks/assigned')) return Promise.resolve({ data: { batches: [batchOf(people)] } })
+    if (url.startsWith('/api/sis/tasks/schedules')) return Promise.resolve({ data: { schedules: [] } })
+    if (url.includes('signature-requests')) return Promise.resolve({ data: { batches: [] } })
     if (url.includes('/onboarding/templates')) return Promise.resolve({ data: { templates } })
-    if (url.includes('/onboarding/assignments')) return Promise.resolve({ data: { assignments } })
-    if (url.includes('/onboarding/recipients')) {
-      return Promise.resolve({ data: { recipients: [{ id: 'sam', name: 'Sam Teacher' }] } })
-    }
+    if (url.includes('/onboarding/assignments')) return Promise.resolve({ data: { assignments: [] } })
     return Promise.resolve({ data: {} })
   })
 }
@@ -83,7 +96,7 @@ beforeEach(() => {
 })
 
 describe('what needs the admin', () => {
-  it('lifts items awaiting approval out of the collapsed rows', async () => {
+  it('lifts steps awaiting approval out of the collapsed rows', async () => {
     renderTab()
     const strip = (await screen.findByText(/Needs your review \(1\)/)).closest('div')
     // Finished and waiting on us.
@@ -104,9 +117,9 @@ describe('what needs the admin', () => {
   })
 
   it('says nothing at all when nothing is waiting', async () => {
-    mockData({ assignments: [{ ...ASSIGNMENT, items: [ASSIGNMENT.items[0]] }] })
+    mockData({ people: [{ ...SAM, items: [SAM.items[0]] }] })
     renderTab()
-    await screen.findByText('Sam Teacher')
+    await screen.findAllByText('Sam Teacher')
     expect(screen.queryByText(/Needs your review/)).not.toBeInTheDocument()
   })
 
@@ -118,52 +131,57 @@ describe('what needs the admin', () => {
 })
 
 describe('where each job lives now', () => {
-  it('keeps the rare job — authoring templates — closed', async () => {
+  it('keeps the rare job — authoring templates — off the daily list', async () => {
     renderTab()
-    await screen.findByText(/Checklist templates/)
+    await screen.findAllByText('Sam Teacher')
+    // Templates are their own tab of the Tasks page now.
+    expect(screen.queryByText(/Task templates/)).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Edit' })).not.toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: /Checklist templates/ }))
-    expect(screen.getByRole('button', { name: 'Edit' })).toBeInTheDocument()
+  })
+
+  it('keeps the template library closed until asked for', async () => {
+    render(<MemoryRouter><TaskTemplatesManager orgId="org-1" /></MemoryRouter>)
+    await screen.findByRole('button', { name: /Task templates/ })
+    expect(screen.queryByRole('button', { name: 'Edit' })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: /Task templates/ }))
+    expect(await screen.findByRole('button', { name: 'Edit' })).toBeInTheDocument()
   })
 
   it('edits a template over the page rather than inside it', async () => {
-    renderTab()
-    fireEvent.click(await screen.findByRole('button', { name: /Checklist templates/ }))
-    fireEvent.click(screen.getByRole('button', { name: 'Edit' }))
-    // A dialog, so the progress list underneath is not shoved off screen by a
-    // form with one card per checklist item.
-    expect(await screen.findByRole('dialog', { name: /Checklist template/i })).toBeInTheDocument()
+    render(<MemoryRouter><TaskTemplatesManager orgId="org-1" embedded open /></MemoryRouter>)
+    fireEvent.click(await screen.findByRole('button', { name: 'Edit' }))
+    // A dialog, so the list underneath is not shoved off screen by a form with
+    // one card per step.
+    expect(await screen.findByRole('dialog', { name: /Task template/i })).toBeInTheDocument()
   })
-
 })
 
-describe('removing a checklist', () => {
+describe('removing a task from somebody', () => {
   it('keeps Unassign out of the row you click to expand', async () => {
     renderTab()
-    // The rows arrive with the assignments query, so wait for a row.
+    // The rows arrive with the assigned query, so wait for a row.
     await screen.findAllByText('Sam Teacher')
-    // "Sam Teacher" names them in the review strip too; the progress row is the
-    // one wrapped in a <summary>.
+    // "Sam Teacher" names them in the review strip and the batch's table too;
+    // their own card is the one wrapped in a <summary>.
     const summary = screen.getAllByText('Sam Teacher')
       .map((el) => el.closest('summary')).find(Boolean)
+    expect(summary).toBeTruthy()
     // A destructive action a pixel from the expand target is a mis-click
-    // waiting to happen; it lives in the body now.
+    // waiting to happen; it lives in the body.
     expect(within(summary).queryByText(/Unassign/)).not.toBeInTheDocument()
-    // Says "Unassign" alone now: the same card renders ad-hoc tasks, where
-    // "this checklist" would be the wrong noun.
     expect(screen.getByRole('button', { name: /^Unassign$/ })).toBeInTheDocument()
   })
 })
 
-describe('checklist attachments', () => {
-  // The whole reason the roll-up exists: Cassea uploaded her background check,
-  // the item read "complete", and the office could not find the file anywhere
-  // (iCreate, 2026-08-31). The item row now shows what was attached and opens
-  // it through the admin door, which also knows about family buckets.
+describe('what they uploaded', () => {
+  // Cassea uploaded her background check, the step read "complete", and the
+  // office could not find the file anywhere (iCreate, 2026-08-31). The step row
+  // shows what was attached and opens it through the admin door, which also
+  // knows about family buckets.
   it('opens what they uploaded through the admin doc-url', async () => {
     mockData({
-      assignments: [{
-        ...ASSIGNMENT, audience: 'staff',
+      people: [{
+        ...SAM, audience: 'staff',
         items: [{
           key: 'bgcheck', title: 'Background check', status: 'complete', needs_approval: false,
           documents: [{ path: 'org-1/sam/bg.pdf', filename: 'BackCkSam.pdf' }],

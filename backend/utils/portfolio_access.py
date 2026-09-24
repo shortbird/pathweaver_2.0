@@ -259,6 +259,21 @@ def is_observer_of(caller_id: str, student_id: str) -> bool:
     return bool(rows)
 
 
+def students_observed_by(observer_id: str) -> set:
+    """Every student this observer is linked to (observer_student_links).
+
+    The list form of is_observer_of, for a question asked of "any of my
+    students" rather than one named student: the direct quest link lets an
+    observer open a quest one of their students may open. Bounded by one
+    observer.
+    """
+    if not observer_id:
+        return set()
+    rows = _admin().table('observer_student_links').select('student_id') \
+        .eq('observer_id', observer_id).execute().data or []
+    return {r['student_id'] for r in rows if r.get('student_id')}
+
+
 def teaches_student(caller_id: str, student_id: str) -> bool:
     """Does the caller teach a class this student is actively enrolled in?
 

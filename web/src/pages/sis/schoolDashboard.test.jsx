@@ -78,10 +78,19 @@ describe('the queues', () => {
     // It said "Message families" and opened the announcements board -- a third
     // meaning of those words, after the inbox button and the composer that
     // button opens. An org admin reported the label as wrong (2026-09-22).
+    // Announcements live on the Community page, so the org has it on.
+    orgState.activeOrg = { id: 'org-1', feature_flags: { sis_enabled: true, sis_settings: { community_enabled: true } } }
     renderPage({})
     const link = await screen.findByRole('link', { name: 'Post an announcement' })
-    expect(link).toHaveAttribute('href', '/inbox?tab=announcements')
+    // On the Community page, where announcements live (9a335881).
+    expect(link).toHaveAttribute('href', '/community?tab=announcements')
     expect(screen.queryByText('Message families')).not.toBeInTheDocument()
+  })
+
+  it('hides the announcements shortcut with the Community page', async () => {
+    renderPage({})
+    await screen.findByText(/All caught up|Not accounted for/)
+    expect(screen.queryByRole('link', { name: 'Post an announcement' })).not.toBeInTheDocument()
   })
 
   it('never renders a tile for a module the org turned off', async () => {

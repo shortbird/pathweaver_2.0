@@ -6,7 +6,7 @@ Part of the quests.py refactoring (P2-ARCH-1).
 """
 
 from flask import Blueprint, jsonify, request
-from database import get_supabase_admin_client, get_supabase_client
+from database import get_supabase_admin_client
 from utils.auth.decorators import require_auth
 from utils.guardian_scope import (
     GuardianAccessError, guardian_capabilities, guardian_relationship, resolve_student_scope,
@@ -143,16 +143,23 @@ def get_quest_detail(user_id: str, quest_id: str):
                 course_quests(course_id, courses(id, cover_image_url))
             ''')\
             .eq('id', quest_id)\
-            .single()\
+            .maybe_single()\
             .execute()
 
-        if not quest.data:
+        # A quest the caller may not open answers exactly like one that does
+        # not exist (owner decision 2026-09-24: a school quest opens by link
+        # only for its staff, the enrolled, and its students once assigned --
+        # services/quest_visibility_service.py). `user_id` is the child in
+        # family scope, `caller_id` the parent; both are asked.
+        from services.quest_visibility_service import may_open_quest
+        quest_row = quest.data if quest else None
+        if not quest_row or not may_open_quest(caller_id, quest_row, subject_id=user_id):
             return jsonify({
                 'success': False,
                 'error': 'Quest not found'
             }), 404
 
-        quest_data = quest.data
+        quest_data = quest_row
 
         # Badge: creator is a student, or manually flagged in metadata.
         # (This needs created_by, which the select above used to omit -- so the
@@ -557,56 +564,6 @@ def get_quest_detail(user_id: str, quest_id: str):
         }), 500
 
 
-@bp.route('/<quest_id>/enrollment-status', methods=['GET'])
-@require_auth
-def check_enrollment_status(user_id: str, quest_id: str):
-    """
-    Check if user is enrolled in a specific quest.
-    Returns enrollment details if enrolled.
-    """
-    try:
-        supabase = get_supabase_client()
-
-        # Check for any enrollment (select only needed columns)
-        enrollment = supabase.table('user_quests')\
-            .select('id, user_id, quest_id, is_active, completed_at, personalization_completed')\
-            .eq('user_id', user_id)\
-            .eq('quest_id', quest_id)\
-            .execute()
-
-        if not enrollment.data:
-            return jsonify({
-                'enrolled': False,
-                'status': 'not_enrolled'
-            })
-
-        # Check for active enrollment
-        for enr in enrollment.data:
-            if enr.get('is_active') and not enr.get('completed_at'):
-                return jsonify({
-                    'enrolled': True,
-                    'status': 'active',
-                    'enrollment': enr
-                })
-            elif enr.get('completed_at'):
-                return jsonify({
-                    'enrolled': True,
-                    'status': 'completed',
-                    'enrollment': enr
-                })
-
-        # Has enrollment but it's inactive
-        return jsonify({
-            'enrolled': True,
-            'status': 'inactive',
-            'enrollment': enrollment.data[0]
-        })
-
-    except Exception as e:
-        logger.error(f"Error checking enrollment status: {str(e)}")
-        return jsonify({
-            'error': 'Failed to check enrollment status'
-        }), 500
 @bp.route('/<quest_id>', methods=['PATCH'])
 @require_auth
 def rename_quest(user_id: str, quest_id: str):

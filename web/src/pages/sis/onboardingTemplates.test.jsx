@@ -3,7 +3,7 @@ import { render as rtlRender, screen, fireEvent, waitFor } from '@testing-librar
 import { MemoryRouter } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 
-// Onboarding reads its checklists through hooks/api (QF-03), so these need a
+// The template library reads through hooks/api (QF-03), so these need a
 // QueryClient. Fresh client per render keeps one test's cache out of the next
 // one's; retry:false makes a failed query fail rather than hang on backoff.
 const render = (ui) => {
@@ -29,9 +29,7 @@ const { api } = vi.hoisted(() => ({
 }))
 vi.mock('../../services/api', () => ({ default: api }))
 
-import AssignedWork from '../../components/sis/tasks/AssignedWork'
-
-const SIG = '/api/sis/staff-admin/signature-requests'
+import { TaskTemplatesManager } from '../../components/sis/tasks/TaskTemplatesManager'
 
 const sampleTemplate = {
   id: 'tmpl-1',
@@ -60,22 +58,20 @@ beforeEach(() => {
   api.put.mockResolvedValue({ data: { success: true } })
 })
 
-// The templates list is collapsed until asked for, so every case opens it first.
+// The Templates tab of the Tasks page renders the library embedded and open.
 const openTemplates = async () => {
-  const toggle = await screen.findByRole('button', { name: /Checklist templates/ })
-  fireEvent.click(toggle)
+  render(<TaskTemplatesManager orgId="org-1" embedded open />)
+  await screen.findByText('Staff Onboarding')
 }
 
-describe('Onboarding templates management', () => {
+describe('Task templates management', () => {
   it('renders template list with Duplicate button', async () => {
-    render(<AssignedWork orgId="org-1" sigEndpoint={SIG} />)
     await openTemplates()
     expect(await screen.findByText('Staff Onboarding')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Duplicate' })).toBeInTheDocument()
   })
 
   it('duplicates a template server-side', async () => {
-    render(<AssignedWork orgId="org-1" sigEndpoint={SIG} />)
     await openTemplates()
     const duplicateBtn = await screen.findByRole('button', { name: 'Duplicate' })
     fireEvent.click(duplicateBtn)
@@ -91,12 +87,11 @@ describe('Onboarding templates management', () => {
   })
 
   it('allows moving sections up and down in template editor', async () => {
-    render(<AssignedWork orgId="org-1" sigEndpoint={SIG} />)
     await openTemplates()
     const editBtn = await screen.findByRole('button', { name: 'Edit' })
     fireEvent.click(editBtn)
 
-    // Verify template items are rendered
+    // Verify template steps are rendered
     const item1Input = screen.getByDisplayValue('First Item')
     const item2Input = screen.getByDisplayValue('Second Item')
     expect(item1Input).toBeInTheDocument()
@@ -107,19 +102,19 @@ describe('Onboarding templates management', () => {
     const upButtons = screen.getAllByTitle('Move section up')
     const downButtons = screen.getAllByTitle('Move section down')
 
-    // First item: Up should be disabled, Down enabled
+    // First step: Up should be disabled, Down enabled
     expect(upButtons[0]).toBeDisabled()
     expect(downButtons[0]).not.toBeDisabled()
 
-    // Second item: Up should be enabled, Down disabled
+    // Second step: Up should be enabled, Down disabled
     expect(upButtons[1]).not.toBeDisabled()
     expect(downButtons[1]).toBeDisabled()
 
-    // Move first item down
+    // Move first step down
     fireEvent.click(downButtons[0])
 
     // Now inputs should be swapped in order
-    const inputsAfterMove = screen.getAllByPlaceholderText(/Item \d+ title/)
+    const inputsAfterMove = screen.getAllByPlaceholderText(/^Step \d+$/)
     expect(inputsAfterMove[0]).toHaveValue('Second Item')
     expect(inputsAfterMove[1]).toHaveValue('First Item')
 
@@ -138,15 +133,14 @@ describe('Onboarding templates management', () => {
       )
     })
   })
-  it('duplicates a single item without copying its key', async () => {
-    render(<AssignedWork orgId="org-1" sigEndpoint={SIG} />)
+  it('duplicates a single step without copying its key', async () => {
     await openTemplates()
     fireEvent.click(await screen.findByRole('button', { name: 'Edit' }))
 
     // Disambiguated by title: the template row has a 'Duplicate' button too.
-    fireEvent.click(screen.getAllByTitle('Duplicate this item')[0])
+    fireEvent.click(screen.getAllByTitle('Duplicate this step')[0])
 
-    const inputs = screen.getAllByPlaceholderText(/Item \d+ title/)
+    const inputs = screen.getAllByPlaceholderText(/^Step \d+$/)
     expect(inputs[0]).toHaveValue('First Item')
     expect(inputs[1]).toHaveValue('First Item (copy)')
 
@@ -169,7 +163,6 @@ describe('Onboarding templates management', () => {
   })
 
   it('duplicates template from inside the editor modal', async () => {
-    render(<AssignedWork orgId="org-1" sigEndpoint={SIG} />)
     await openTemplates()
     fireEvent.click(await screen.findByRole('button', { name: 'Edit' }))
 

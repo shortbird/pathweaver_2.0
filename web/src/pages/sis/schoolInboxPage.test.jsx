@@ -1,14 +1,15 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render as rtlRender, screen, fireEvent, waitFor, within } from '@testing-library/react'
-import { MemoryRouter } from 'react-router-dom'
+import { MemoryRouter, Routes, Route } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 
 /**
  * The combined /inbox (messaging + inbox merged, 2026-08-31).
  *
  * The front office reads the shared school inbox and replies as the school;
- * a teacher reads their OWN threads (/api/messages) and replies as themself.
- * The Announcements tab holds the group composer that used to be /messaging.
+ * a teacher reads their OWN threads (/api/messages) and replies as themself,
+ * plus any school thread the office handed them with a task. Announcements
+ * moved to the Community page (2026-09-23).
  */
 
 // The page reads through the messenger's React Query hooks; a fresh client
@@ -35,12 +36,6 @@ vi.mock('./useSisOrg', async (importOriginal) => ({
   useSisOrg: () => ({ orgId: 'org-1', setOrgId: vi.fn(), orgs: [], isSuperadmin: false, loading: false, activeOrg: null }),
 }))
 
-// The board tab drags in TipTap; this page only has to mount it.
-vi.mock('../../components/sis/BoardAnnouncementsTab', () => ({
-  // Prints its orgId: the tab loads nothing without one, and the page once
-  // handed it null for everybody but a superadmin.
-  default: ({ orgId }) => <div>composer-stub {orgId || 'no-org'}</div>,
-}))
 // Realtime needs a Supabase socket; the hook is covered by its own tests.
 vi.mock('../../hooks/api/useMessagingRealtime', () => ({
   default: vi.fn(),
@@ -50,6 +45,7 @@ const { api, state } = vi.hoisted(() => {
   const state = {
     schoolConvos: [], schoolMessages: [], myConvos: [], myMessages: [], roster: [],
     groups: [], schoolGroups: [], groupMessages: [],
+    audience: null, granted: null, sends: [], sendDetail: null, staff: [], openedBy: [],
   }
   const apiData = (url) => {
     // Group threads: the school's (School tab) and the caller's own (Mine).
@@ -63,8 +59,16 @@ const { api, state } = vi.hoisted(() => {
       return { data: { data: { id: url.split('/').pop(), members: [] } } }
     }
     if (url.includes('/api/school-inbox/conversations/')) {
-      return { data: { data: { messages: state.schoolMessages, inbox_user_id: 'inbox-1' } } }
+      return { data: { data: { messages: state.schoolMessages, inbox_user_id: 'inbox-1',
+        opened_by: state.openedBy } } }
     }
+    if (url.startsWith('/api/school-inbox/granted')) {
+      return { data: { data: state.granted || { conversations: [], groups: [] } } }
+    }
+    if (url.startsWith('/api/sis/messaging/audience')) return { data: state.audience || {} }
+    if (url.startsWith('/api/sis/messaging/recipients')) return { data: { people: state.staff } }
+    if (/^\/api\/sis\/messaging\/sends\/[^/?]+/.test(url)) return { data: { send: state.sendDetail } }
+    if (url.startsWith('/api/sis/messaging/sends')) return { data: { sends: state.sends } }
     if (url.includes('/api/school-inbox/conversations')) {
       return { data: { data: {
         conversations: state.schoolConvos, inbox_user_id: 'inbox-1',
@@ -121,6 +125,12 @@ beforeEach(() => {
   state.groups = []
   state.schoolGroups = []
   state.groupMessages = []
+  state.audience = null
+  state.granted = null
+  state.sends = []
+  state.sendDetail = null
+  state.staff = []
+  state.openedBy = []
   vi.clearAllMocks()
 })
 
@@ -197,57 +207,51 @@ describe('SchoolInboxPage — combined inbox', () => {
     expect(link).toHaveAttribute('target', '_blank')
   })
 
-  // iCreate, 2026-09-02: the inbox could only ever REPLY, so reaching one
-  // family meant an announcement to the whole school or a phone call.
-  it('starts a thread with somebody who has never written in', async () => {
-    state.roster = [
-      { student_id: 'u9', name: 'Ada Bennett', first_name: 'Ada', last_name: 'Bennett', role: 'parent' },
-      { student_id: 'inbox-1', name: 'Hearthwood', role: null },
-    ]
+  // One Compose (iCreate, 2026-09-23, bf8b754d / 8ee000b6) replaced "New
+  // message" (one person) and "Message a group" (staff OR families).
+  it('opens the one Compose from the school tab, sending as the school', async () => {
+    state.audience = {
+      people: [{ id: 'u9', name: 'Ada Bennett', kinds: ['family'], staff_kinds: [], child_ids: [], children: ['Cy'] }],
+      classes: [], presets: [], without_birthdate: 0,
+    }
     render(<SchoolInboxPage />)
-    fireEvent.click(await screen.findByRole('button', { name: 'New message' }))
-    await waitFor(() => expect(api.get).toHaveBeenCalledWith('/api/sis/roster'))
-    fireEvent.focus(await screen.findByPlaceholderText('Search families and staff…'))
-    fireEvent.change(screen.getByPlaceholderText('Search families and staff…'),
-      { target: { value: 'Ada' } })
-    fireEvent.mouseDown(await screen.findByRole('button', { name: /Ada Bennett \(parent\)/ }))
-
-    expect(await screen.findByText(/Write the first message to Ada Bennett/)).toBeInTheDocument()
-    fireEvent.change(screen.getByPlaceholderText('Reply as Hearthwood...'),
-      { target: { value: 'Your spot is ready' } })
-    fireEvent.click(screen.getByLabelText('Send message'))
-    await waitFor(() =>
-      expect(api.post).toHaveBeenCalledWith('/api/school-inbox/conversations/u9/send',
-        { content: 'Your spot is ready' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Compose' }))
+    const dialog = await screen.findByRole('dialog')
+    await waitFor(() => expect(api.get).toHaveBeenCalledWith('/api/sis/messaging/audience'))
+    fireEvent.click(await within(dialog).findByLabelText('Select Ada Bennett'))
+    fireEvent.change(within(dialog).getByLabelText('Message'), { target: { value: 'Your spot is ready' } })
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Send' }))
+    await waitFor(() => expect(api.post).toHaveBeenCalledWith('/api/sis/messaging/send',
+      expect.objectContaining({ recipient_ids: ['u9'], as_school: true, push: true, email: false,
+        body: 'Your spot is ready' })))
+    expect(screen.queryByRole('button', { name: 'New message' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Message a group' })).toBeNull()
   })
 
-  it('offers no New message button to a teacher — the shared inbox is the office\'s', async () => {
+  it('offers no Compose to a teacher — sending to the school is the office\'s', async () => {
     authUser = { id: 'me-1', role: 'advisor' }
+    render(<SchoolInboxPage />)
+    await waitFor(() => expect(api.get).toHaveBeenCalledWith('/api/messages/conversations'))
+    expect(screen.queryByRole('button', { name: 'Compose' })).not.toBeInTheDocument()
+  })
+
+  // 9a335881: "announcements should only be in the community page, not in
+  // /inbox". The tab is gone; an old link still lands on the board.
+  it('has no Announcements tab, and forwards the old link to Community', async () => {
+    render(
+      <Routes>
+        <Route path="/inbox" element={<SchoolInboxPage />} />
+        <Route path="/community" element={<div>community-page</div>} />
+      </Routes>,
+      { route: '/inbox?tab=announcements' },
+    )
+    expect(await screen.findByText('community-page')).toBeInTheDocument()
+  })
+
+  it('shows no Announcements tab on the inbox', async () => {
     render(<SchoolInboxPage />)
     await screen.findByRole('tab', { name: /^My messages/ })
-    expect(screen.queryByRole('button', { name: 'New message' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Message a group' })).not.toBeInTheDocument()
-  })
-
-  // iCreate, 2026-09-17 (b32b2fca), from this tab: "Right now we can only send
-  // to one person. I'm needing to message all the elementary school parents."
-  it('opens the composer on Families from the school tab', async () => {
-    render(<SchoolInboxPage />)
-    fireEvent.click(await screen.findByRole('button', { name: 'Message a group' }))
-    const dialog = await screen.findByRole('dialog')
-    expect(within(dialog).getByRole('button', { name: 'Families' })).toHaveAttribute('aria-pressed', 'true')
-    await waitFor(() => expect(api.get).toHaveBeenCalledWith(
-      expect.stringContaining('/api/sis/messaging/family-audience')))
-  })
-
-  it('shows the announcements composer on its tab, for teachers too', async () => {
-    authUser = { id: 'me-1', role: 'advisor' }
-    render(<SchoolInboxPage />, { route: '/inbox?tab=announcements' })
-    // With the org it is for -- not null -- or the list never loads.
-    expect(await screen.findByText('composer-stub org-1')).toBeInTheDocument()
-    // And the tabs switch back to threads.
-    fireEvent.click(screen.getByRole('tab', { name: /^My messages/ }))
-    expect(screen.queryByText(/composer-stub/)).not.toBeInTheDocument()
+    expect(screen.queryByRole('tab', { name: /Announcements/ })).toBeNull()
   })
 
   // ── The personal inbox (2026-09-10) ────────────────────────────────────────
@@ -333,7 +337,8 @@ describe('SchoolInboxPage — combined inbox', () => {
   it('gives a teacher no school tab — they have no school inbox to read', async () => {
     authUser = { id: 'me-1', role: 'advisor' }
     render(<SchoolInboxPage />)
-    await screen.findByRole('tab', { name: /^My messages/ })
+    // One tab is no tab bar at all: My messages is the page.
+    await waitFor(() => expect(api.get).toHaveBeenCalledWith('/api/messages/conversations'))
     expect(screen.queryByRole('tab', { name: /^Hearthwood/ })).not.toBeInTheDocument()
   })
 
@@ -466,7 +471,8 @@ describe('SchoolInboxPage — combined inbox', () => {
     render(<SchoolInboxPage />)
     fireEvent.click(screen.getByText('All'))
     fireEvent.click(await screen.findByText('Tyler Family'))
-    expect(await screen.findByText(/· Seen/)).toBeInTheDocument()
+    // With the time it happened (9b46c748).
+    expect(await screen.findByText(/· Seen /)).toBeInTheDocument()
   })
 
   it('ignores a ?conversation= that is not in this inbox', async () => {
@@ -605,4 +611,104 @@ describe('school-owned group threads on the School tab', () => {
       expect(api.get).toHaveBeenCalledWith('/api/school-inbox/groups/sg1/messages'))
   })
 
+})
+
+// ── Messaging rework (iCreate meeting, 2026-09-23) ───────────────────────────
+
+describe('SchoolInboxPage — tasks, grants and receipts', () => {
+  // bf8b754d: a thread becomes a task for somebody on staff.
+  it('makes a task from the whole thread', async () => {
+    state.schoolConvos = [convo(1, 'Greta')]
+    state.staff = [{ id: 'tam', name: 'Tam T', role_labels: ['Teacher'] }]
+    render(<SchoolInboxPage />, { route: '/inbox?conversation=c1' })
+    fireEvent.click(await screen.findByRole('button', { name: /Make a task/ }))
+    const dialog = await screen.findByRole('dialog')
+    fireEvent.focus(await within(dialog).findByPlaceholderText('Search staff'))
+    fireEvent.change(within(dialog).getByPlaceholderText('Search staff'), { target: { value: 'Tam' } })
+    fireEvent.mouseDown(await screen.findByText(/^Tam T/, { selector: 'button, button *' }))
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Make task' }))
+    await waitFor(() => expect(api.post).toHaveBeenCalledWith(
+      '/api/school-inbox/conversations/c1/task',
+      expect.objectContaining({ assignee_id: 'tam', action: 'reply', priority: 'normal' })))
+  })
+
+  // A family's message is how a request arrives now: the office picks it.
+  it('makes a task from one message, naming it', async () => {
+    state.schoolConvos = [convo(1, 'Greta')]
+    state.schoolMessages = [{ id: 'm1', sender_id: 'u1', message_content: 'Can I get the trip form?',
+      created_at: '2026-08-30T12:00:00Z' }]
+    state.staff = [{ id: 'tam', name: 'Tam T' }]
+    render(<SchoolInboxPage />, { route: '/inbox?conversation=c1' })
+    await screen.findByText('Can I get the trip form?')
+    // The thread's own button is first; the message's is under the bubble.
+    const buttons = screen.getAllByRole('button', { name: 'Make a task' })
+    fireEvent.click(buttons[buttons.length - 1])
+    const dialog = await screen.findByRole('dialog')
+    fireEvent.focus(await within(dialog).findByPlaceholderText('Search staff'))
+    fireEvent.change(within(dialog).getByPlaceholderText('Search staff'), { target: { value: 'Tam' } })
+    fireEvent.mouseDown(await screen.findByText(/^Tam T/, { selector: 'button, button *' }))
+    fireEvent.click(within(dialog).getByLabelText(/Do something about it/))
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Make task' }))
+    await waitFor(() => expect(api.post).toHaveBeenCalledWith(
+      '/api/school-inbox/conversations/c1/task',
+      expect.objectContaining({ assignee_id: 'tam', action: 'do', message_id: 'm1' })))
+  })
+
+  it('says which colleagues opened the thread', async () => {
+    state.schoolConvos = [convo(1, 'Greta')]
+    state.openedBy = [
+      { user_id: 'me-1', name: 'Me', last_read_at: '2026-08-30T12:00:00Z' },
+      { user_id: 'kate', name: 'Kate A', last_read_at: '2026-08-30T12:00:00Z' },
+    ]
+    render(<SchoolInboxPage />, { route: '/inbox?conversation=c1' })
+    expect(await screen.findByText(/Opened by Kate A/)).toBeInTheDocument()
+    expect(screen.queryByText(/Opened by Me/)).toBeNull()
+  })
+
+  // d93b24d2: a teacher given a thread "gets the whole thread and can reply".
+  it('shows a teacher the threads handed to them, and they reply as the school', async () => {
+    authUser = { id: 'me-1', role: 'advisor' }
+    state.granted = {
+      conversations: [convo(1, 'Greta')], groups: [],
+      inbox_user_id: 'inbox-1', organization: { name: 'Hearthwood' },
+    }
+    state.schoolMessages = [{ id: 'm1', sender_id: 'u1', message_content: 'Hello?',
+      created_at: '2026-08-30T12:00:00Z' }]
+    render(<SchoolInboxPage />, { route: '/inbox?tab=school&conversation=c1' })
+    expect(await screen.findByText('Hello?')).toBeInTheDocument()
+    expect(screen.getByText(/Replying as Hearthwood, with your name/)).toBeInTheDocument()
+    // Nothing the office manages: no Compose, no Make a task, no Mark handled.
+    expect(screen.queryByRole('button', { name: 'Compose' })).toBeNull()
+    expect(screen.queryByRole('button', { name: /Make a task/ })).toBeNull()
+    expect(screen.queryByRole('button', { name: /Mark handled/ })).toBeNull()
+    fireEvent.change(screen.getByPlaceholderText('Reply as Hearthwood...'), { target: { value: 'Attached' } })
+    fireEvent.click(screen.getByLabelText('Send message'))
+    await waitFor(() => expect(api.post).toHaveBeenCalledWith(
+      '/api/school-inbox/conversations/u1/send', { content: 'Attached' }))
+  })
+
+  it('gives a teacher with no handed threads no school tab', async () => {
+    authUser = { id: 'me-1', role: 'advisor' }
+    render(<SchoolInboxPage />)
+    await waitFor(() => expect(api.get).toHaveBeenCalledWith('/api/school-inbox/granted'))
+    expect(screen.queryByRole('tab', { name: /^Hearthwood/ })).toBeNull()
+  })
+
+  // 9b46c748: "Read by N of M" for a Compose send, and who.
+  it('lists sent messages with who has read them', async () => {
+    state.sends = [{ id: 's1', subject: 'Trip', body: 'Bring a lunch', mode: 'separate',
+      created_at: '2026-08-30T12:00:00Z', read_count: 1, recipient_count: 2, sent_by_name: 'Kate A' }]
+    state.sendDetail = { id: 's1', subject: 'Trip', body: 'Bring a lunch', mode: 'separate', push: true,
+      created_at: '2026-08-30T12:00:00Z', read_count: 1, recipient_count: 2,
+      recipients: [
+        { user_id: 'a', name: 'Una Moss', kind: 'family', status: 'sent', read_at: null },
+        { user_id: 'b', name: 'Mia Lark', kind: 'family', status: 'sent', read_at: '2026-08-30T13:00:00Z' },
+      ] }
+    render(<SchoolInboxPage />, { route: '/inbox?tab=sent' })
+    fireEvent.click(await screen.findByText('Read by 1 of 2'))
+    expect(await screen.findByText('Una Moss')).toBeInTheDocument()
+    expect(screen.getByText('Not read yet')).toBeInTheDocument()
+    // "Read by 1 of 2" above, and Mia's "Read <time>".
+    expect(screen.getAllByText(/^Read /)).toHaveLength(2)
+  })
 })

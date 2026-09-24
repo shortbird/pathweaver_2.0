@@ -3,7 +3,7 @@ SIS teacher portal routes — what an advisor (teacher) can do in the SIS.
 
 All endpoints are staff-gated but SCOPED: teachers only reach their own
 classes (sis_service.class_scope), their own time entries, their own
-onboarding, and their own submissions. Org admins can call these too (the
+onboarding, and their own tasks. Org admins can call these too (the
 scope check passes everything for them).
 """
 
@@ -57,7 +57,7 @@ def _read_target(user_id, org_id):
     """Whose portal data a read endpoint returns. Admins may preview another
     staff member's portal via ?teacher_id= ("View portal" on the Staff page);
     everyone else always gets their own. Write endpoints never use this —
-    clocking in, submitting forms, and checking off items stay caller-bound."""
+    checking off steps stays caller-bound."""
     return _preview_target(user_id, org_id) or user_id
 
 
@@ -91,7 +91,10 @@ def class_roster(user_id, class_id):
     org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
-    scope = sis_service.class_scope(user_id, org_id)
+    # Today, in the school's clock: a substitute the office marked for this
+    # class today sees its roster today and not tomorrow (P7).
+    today = staff._org_now(org_id).date().isoformat()
+    scope = sis_service.class_scope(user_id, org_id, on_date=today)
     if scope is not None and class_id not in scope:
         return jsonify({'success': False, 'error': 'Class not found'}), 404
     # admin client justified: org_classes ownership check for a roster read; gated by @require_role(STAFF_ROLES) + class_scope filter above, views access-logged
@@ -298,35 +301,12 @@ def update_my_profile(user_id):
     return jsonify({'success': True, **result})
 
 
-# ── Forms ────────────────────────────────────────────────────────────────────
-
-@bp.route('/forms', methods=['GET'])
-@require_role(*STAFF_ROLES)
-@require_module('forms')
-def my_forms(user_id):
-    org_id, err = sis_service.org_or_error(user_id)
-    if err:
-        return err
-    return portal_views.list_my_forms(org_id, _read_target(user_id, org_id),
-                                      sis_service.effective_roles(user_id))
-
-
-@bp.route('/forms', methods=['POST'])
-@require_role(*STAFF_ROLES)
-@require_module('forms')
-def submit_form(user_id):
-    org_id, err = sis_service.org_or_error(user_id)
-    if err:
-        return err
-    return portal_views.submit_form(org_id, user_id)
-
-
 @bp.route('/tasks', methods=['GET'])
 @require_role(*STAFF_ROLES)
 @require_module('tasks')
 def my_tasks(user_id):
-    """Open requests/tasks assigned to the caller -- any staff member can be an
-    assignee ("Family requests can be assigned to any staff member")."""
+    """Open tasks assigned to the caller (or to the staff member an admin is
+    previewing). Any staff member can be an assignee."""
     org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
@@ -340,7 +320,7 @@ def my_tasks(user_id):
 
 @bp.route('/onboarding', methods=['GET'])
 @require_role(*STAFF_ROLES)
-@require_module('onboarding')
+@require_module('tasks', 'onboarding', any_of=True)
 def my_onboarding(user_id):
     org_id, err = sis_service.org_or_error(user_id)
     if err:
@@ -352,7 +332,7 @@ def my_onboarding(user_id):
 
 @bp.route('/onboarding/<assignment_id>/items/<item_key>', methods=['PATCH'])
 @require_role(*STAFF_ROLES)
-@require_module('onboarding')
+@require_module('tasks', 'onboarding', any_of=True)
 def update_onboarding_item(user_id, assignment_id, item_key):
     org_id, err = sis_service.org_or_error(user_id)
     if err:
@@ -363,7 +343,7 @@ def update_onboarding_item(user_id, assignment_id, item_key):
 
 @bp.route('/onboarding/upload', methods=['POST'])
 @require_role(*STAFF_ROLES)
-@require_module('onboarding')
+@require_module('tasks', 'onboarding', any_of=True)
 def upload_onboarding_doc(user_id):
     """Upload an onboarding document to the PRIVATE staff-documents bucket.
     Returns a storage path; reads go through signed URLs (below)."""
@@ -375,7 +355,7 @@ def upload_onboarding_doc(user_id):
 
 @bp.route('/onboarding/doc-url', methods=['GET'])
 @require_role(*STAFF_ROLES)
-@require_module('onboarding')
+@require_module('tasks', 'onboarding', any_of=True)
 def onboarding_doc_url(user_id):
     """Signed (1h) URL for a staff document. Teachers can only open their own
     files; admins can open any file in their org."""

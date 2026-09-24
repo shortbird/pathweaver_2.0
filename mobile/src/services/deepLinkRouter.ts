@@ -256,6 +256,17 @@ export function resolveDeepLink(rawLink: string | null | undefined): ResolvedRou
     return { target: '/(app)/(tabs)/family' };
   }
 
+  // A task the school assigned (2026-09-23). The web sends a student to
+  // "/school?task=<id>" and a guardian to "/family/forms?task=<id>" (the
+  // family To do list kept the old Forms page's path); on mobile both are
+  // the hub's To do tab with that task open. Ahead of REMAP, which matches
+  // /school on its path alone and would drop the task.
+  if (/^\/family\/forms\/?$/.test(path)
+      || (/^\/school\/?$/.test(path) && getQueryParam(query, 'task'))) {
+    const task = getQueryParam(query, 'task');
+    return { target: '/(app)/school', params: { tab: 'todo', ...(task ? { task } : {}) } };
+  }
+
   // Exact remaps first (matched on path, query ignored)
   for (const [pattern, target] of REMAP) {
     if (pattern.test(path)) return { target };
@@ -371,8 +382,9 @@ function labelForPrefix(prefix: string): string {
     case '/my-tasks': return 'Your tasks';
     case '/my-documents': return 'Your documents';
     case '/my-time': return 'Your time entries';
-    case '/tasks': return 'The task center';
-    case '/forms': return 'Forms';
+    case '/tasks': return 'Your tasks';
+    // Forms were retired into tasks on 2026-09-24; the path redirects there.
+    case '/forms': return 'Your tasks';
     case '/goals': return 'Goals review';
     case '/submissions': return 'Submissions';
     case '/registration': return 'Registration';

@@ -1,0 +1,159 @@
+#!/usr/bin/env python3
+"""git pre-push: the backend lint gates CI runs, on the commit being pushed.
+
+A push to main is a production release and a push to develop is the dev
+deploy. Both run release/CI workflows whose first backend steps are three
+lint gates (tests-backend.yml): pyflakes filtered to undefined names, ruff,
+and mypy. Until 2026-09-23 nothing ran mypy before CI did, and release after
+release failed on it -- dc71bb42 on 2026-09-22, and release 35942962126 on
+2026-09-23 with three type errors, all in code other sessions had committed
+after their tests passed. Each failure costs a fix commit, a second push and
+the wait for a second full run.
+
+So this runs the same three commands, the same way, before the push leaves
+the machine. It checks the COMMIT being pushed, not the working tree: several
+agents edit this tree at once, so the tree is almost never what is being
+pushed, and linting it would both miss errors and invent them. The commit's
+backend/ and ruff.toml are extracted into .git/prepush/tree and checked there,
+with a mypy cache that survives between pushes (about 8s warm, 17s cold).
+
+Installed by `git config core.hooksPath .githooks`, once per clone; worktrees
+share it. .claude/hooks/guard_bash.py refuses an agent's push to main when it
+is not installed, and refuses `--no-verify`. A person in a terminal can still
+pass --no-verify; that is deliberate, and it leaves CI as the backstop.
+
+Only main and develop are gated. A push of any other branch deploys nothing,
+and a lint gate that slows every push is a lint gate somebody removes.
+
+A tool that is not installed is skipped with a warning, never a refusal: this
+must not block a push on a machine that simply lacks mypy. CI still runs it.
+"""
+
+from __future__ import annotations
+
+import re
+import shutil
+import subprocess
+import sys
+from pathlib import Path
+
+GATED_REFS = {'refs/heads/main', 'refs/heads/develop'}
+ZERO_SHA = '0' * 40
+
+# Same filter as the "Undefined names" step in tests-backend.yml: pyflakes
+# exits 1 for style findings too, so the grep decides.
+PYFLAKES_FATAL = re.compile(r'undefined name|referenced before assignment|invalid syntax')
+
+
+def _git(*args: str) -> str:
+    return subprocess.run(['git', *args], check=True, capture_output=True, text=True).stdout.strip()
+
+
+def _tool(root: Path, name: str) -> str | None:
+    """The repo venv's copy first, as the Claude hooks do; else PATH."""
+    candidate = root / 'venv' / 'bin' / name
+    if candidate.exists():
+        return str(candidate)
+    return shutil.which(name)
+
+
+def _shas_to_check(stdin: str) -> list[str]:
+    """Local SHAs headed for a gated branch. stdin is git's pre-push protocol:
+    `<local ref> <local sha> <remote ref> <remote sha>`, one line per ref."""
+    shas: list[str] = []
+    for line in stdin.splitlines():
+        parts = line.split()
+        if len(parts) != 4:
+            continue
+        _local_ref, local_sha, remote_ref, _remote_sha = parts
+        if remote_ref in GATED_REFS and local_sha != ZERO_SHA and local_sha not in shas:
+            shas.append(local_sha)
+    return shas
+
+
+def _extract(sha: str, dest: Path) -> None:
+    if dest.exists():
+        shutil.rmtree(dest)
+    dest.mkdir(parents=True)
+    archive = subprocess.run(['git', 'archive', sha, 'backend', 'ruff.toml'],
+                             check=True, capture_output=True)
+    subprocess.run(['tar', '-x', '-C', str(dest)], input=archive.stdout, check=True)
+
+
+def _run(cmd: list[str], cwd: Path) -> tuple[int, str]:
+    proc = subprocess.run(cmd, cwd=str(cwd), capture_output=True, text=True)
+    return proc.returncode, (proc.stdout or '') + (proc.stderr or '')
+
+
+def check(sha: str, root: Path, work: Path) -> list[str]:
+    """The three CI lint steps against `sha`. Returns one message per failure."""
+    tree = work / 'tree'
+    _extract(sha, tree)
+    problems: list[str] = []
+
+    python = _tool(root, 'python') or sys.executable
+    code, out = _run([python, '-m', 'pyflakes', 'backend'], tree)
+    fatal = [ln for ln in out.splitlines() if PYFLAKES_FATAL.search(ln)]
+    if 'No module named pyflakes' in out:
+        print('pre-push: pyflakes is not installed; skipped (CI still runs it)', file=sys.stderr)
+    elif fatal:
+        problems.append('pyflakes, undefined names (a NameError in production):\n' + '\n'.join(fatal))
+
+    ruff = _tool(root, 'ruff')
+    if ruff is None:
+        print('pre-push: ruff is not installed; skipped (CI still runs it)', file=sys.stderr)
+    else:
+        code, out = _run([ruff, 'check', 'backend'], tree)
+        if code != 0:
+            problems.append('ruff:\n' + out.strip())
+
+    mypy = _tool(root, 'mypy')
+    if mypy is None:
+        print('pre-push: mypy is not installed; skipped (CI still runs it)', file=sys.stderr)
+    else:
+        code, out = _run([mypy, '--config-file', 'backend/mypy.ini',
+                          '--cache-dir', str(work / 'mypy_cache'), 'backend'], tree)
+        if code != 0:
+            errors = [ln for ln in out.splitlines() if ': error:' in ln or ln.startswith('Found ')]
+            problems.append('mypy:\n' + '\n'.join(errors or out.strip().splitlines()[-20:]))
+
+    return problems
+
+
+def main() -> int:
+    shas = _shas_to_check(sys.stdin.read())
+    if not shas:
+        return 0
+
+    root = Path(_git('rev-parse', '--show-toplevel'))
+    common = Path(_git('rev-parse', '--git-common-dir'))
+    if not common.is_absolute():
+        common = (Path.cwd() / common).resolve()
+    work = common / 'prepush'
+    work.mkdir(exist_ok=True)
+
+    failed = False
+    for sha in shas:
+        print(f'pre-push: checking {sha[:8]} (pyflakes, ruff, mypy, as tests-backend.yml does)',
+              file=sys.stderr)
+        problems = check(sha, root, work)
+        if problems:
+            failed = True
+            print(f'\npre-push: {sha[:8]} would fail the backend lint gate in CI.\n', file=sys.stderr)
+            print('\n\n'.join(problems), file=sys.stderr)
+
+    if failed:
+        print('\npre-push: push refused. Fix the errors above, commit, and push again.\n'
+              'This is the same gate release.yml runs first; pushing anyway only '
+              'moves the failure to CI.', file=sys.stderr)
+        return 1
+    return 0
+
+
+if __name__ == '__main__':
+    try:
+        sys.exit(main())
+    except subprocess.CalledProcessError as exc:
+        # Fails open: a broken gate must not strand a release.
+        print(f'pre-push: the lint gate itself failed ({exc}); push allowed.', file=sys.stderr)
+        sys.exit(0)

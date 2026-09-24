@@ -264,7 +264,16 @@ BASELINES = {
     # new Library Quests editing routes could share it rather than become a
     # third copy (ticket d48d5bea). Nine calls left routes/, five arrived in
     # services/: the difference is the copy that no longer exists.
-    'routes': 2236,
+    # 2026-09-23 (P6, one quest form): 2236 -> 2226. Staff training's own
+    # quest insert, logo read and publish write moved onto
+    # services/sis_quest_authoring.create_org_quest / publish_draft, and the
+    # three copies of "put a quest on a class" in routes/sis/class_quests.py
+    # became one helper. The new routes/sis/quest_editor.py makes no direct
+    # call: QuestEditorRepository owns its queries.
+    # 2026-09-24: 2236 -> 2233. Requests and forms retired into tasks (iCreate
+    # meeting 2026-09-23): routes/sis/parent_forms.py and the staff_admin form
+    # routes were deleted.
+    'routes': 2224,
     # 2026-09-09: 1828 -> 1830. The deletion sweep's reactivation guard, in
     # account_deletion_service: one read for dependents added after the request,
     # one write to rescind it. The sweep is a cron entrypoint that already owns
@@ -340,7 +349,13 @@ BASELINES = {
     # 2026-09-22: 1833 -> 1838. The receiving half of the move described
     # against BASELINES['routes'] above. Not new querying -- the combined
     # total fell by four.
-    'services': 1838,
+    # 2026-09-23 (P6): 1838 -> 1837. create_org_quest's stock-image path
+    # and the new publish_draft read and write through QuestEditorRepository.
+    # 2026-09-24: 1838 -> 1810. sis_forms_service and sis_form_template_service
+    # deleted with the forms; the task center's new reads went into
+    # repositories/sis_task_repository.py, not here.
+    # Integration branch 2026-09-24: the four iCreate streams together.
+    'services': 1807,
     # 2026-09-09: 439 -> 442. GroupRepository, owning the three reads behind the
     # Messages badge: this user's group memberships, the still-active groups
     # among them, and the unread count within one group. The badge counted
@@ -602,7 +617,58 @@ BASELINES = {
     # ticket 0e6cb0fc); two so a family's reply on a submission reaches the
     # SIS reviewer or the class teachers (sis_submission_reviews, class_quests;
     # ticket 41474658). routes/ went DOWN by the two moved reads.
-    'repositories': 630,
+    # 2026-09-24: 612 -> 624. SisClassSessionRepository (repositories/
+    # sis_class_session_repository.py), the new sis_class_sessions table behind
+    # "who took the roll" and planned substitutes (P7, iCreate 2026-09-23):
+    # ten calls on the table itself, plus the two class-side reads a session
+    # is judged against (org_classes by ids with their teachers, and which
+    # classes have attendance on a date). services/ gained no direct call.
+    # 2026-09-23: 612 -> 630. QuestEditorRepository (repositories/
+    # quest_editor_repository.py), behind the one SIS quest form (P6): the
+    # quest and its tasks, the Drafts list, discarding a draft (training row,
+    # resources, tasks, quest), the enrolment and attachment checks a discard
+    # makes, author/class/curriculum names for the list, the class read for
+    # the teacher gate, the school logo, and the training catalog row a
+    # training draft is filed under. routes/ went down by 10 and services/ by
+    # 1 in the same change.
+    # Both of the above together on the integration branch: 612 + 12 + 18.
+    # 2026-09-24: 612 -> 637. The messaging rework (iCreate meeting of
+    # 2026-09-23, P5). Two new repositories own every new query:
+    # SchoolThreadRepository (school_thread_grants, school_thread_reads, and
+    # the name/org/thread reads behind "Kate for iCreate" and "Make a task")
+    # and MessageSendRepository (message_sends, message_send_recipients and
+    # their read-status views, the audience's class/advisor/enrollment/meeting
+    # reads in bulk, and the board posts' read counts). services/ went DOWN:
+    # sis_family_messaging_service was folded into message_compose_service,
+    # which has no direct call.
+    # Messaging (P5) on top of the two above on the integration branch: 642 + 25.
+    # 2026-09-24: 612 -> 628. SisTaskRepository (repositories/
+    # sis_task_repository.py): task comments, recurring schedules and their
+    # occurrences, and the dashboard's exact task counts. The upper layers
+    # fell by 31 in the same change.
+    # Integration branch 2026-09-24: attendance + quest editor + messaging +
+    # tasks together (612 + 12 + 18 + 25 + 16).
+    # 2026-09-24: 683 -> 684. QuestRepository._sees_unassigned_school_quests
+    # reads the caller's role columns: quest discovery now hides a school
+    # quest nobody assigned (owner decision 2026-09-24), but staff keep the
+    # whole list because the course builder's quest picker reads the same
+    # endpoint. get_user_organization returns only the org, so the role is one
+    # more read, in the repository that owns the listing.
+    # 2026-09-24: 684 -> 689. Direct quest links obey the discovery rule
+    # (owner decision 2026-09-24): QuestRepository.get_visibility_user,
+    # has_any_enrollment, is_quest_assigned and reachable_through_course (two
+    # reads: course_quests, course_enrollments) are the reads
+    # services/quest_visibility_service.may_open_quest makes. Each is bounded
+    # by one user or one quest, and they sit in the repository that owns the
+    # discovery half of the same rule; nothing was added above repositories/.
+    # 2026-09-24: 689 -> 690. QuestRepository.enrolled_user_ids, the capped
+    # list of people on a personal quest: the direct-link rule opens a
+    # non-public global quest for someone related to a student on it
+    # (services/quest_visibility_service.py). Bounded by one quest and a
+    # limit; nothing was added above repositories/.
+    # Merge of main (115ec250) into the integration branch, 2026-09-24: main
+    # added 18 repository calls (612 -> 630) and moved two out of routes/.
+    'repositories': 708,
     # 2026-09-09: 135 -> 136. class_membership.children_in_classes, the inverse
     # of parents_of_students: which of a guardian's children sit in each of a
     # set of classes. It answers "whose class chat is this?" for the messaging
@@ -636,7 +702,10 @@ BASELINES = {
     # now derives from links_of_parent (same four reads, once);
     # token_authority.is_acting_as_still_authorized went with the acting-as
     # session (REGISTER GAP-3).
-    'utils': 145,
+    # 2026-09-24: 145 -> 146. portfolio_access.students_observed_by, the list
+    # form of is_observer_of beside it, so an observer who follows a student's
+    # quest link opens it (services/quest_visibility_service.py).
+    'utils': 146,
     'jobs': 7,
     'middleware': 2,
     'modules': 1,
@@ -682,7 +751,7 @@ def test_direct_db_calls_do_not_grow(layer):
 
 #: routes/ + services/ combined. A call may move DOWN a layer; the total may not
 #: grow. Keep this equal to BASELINES['routes'] + BASELINES['services'].
-UPPER_TOTAL_BASELINE = 2236 + 1838
+UPPER_TOTAL_BASELINE = 2224 + 1807
 
 
 def test_the_upper_layers_do_not_grow_in_total():

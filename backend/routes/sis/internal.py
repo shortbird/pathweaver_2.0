@@ -130,6 +130,14 @@ def _run_waitlist_offer_sweep():
     return waitlist.expire_stale_offers()
 
 
+def _run_task_occurrences():
+    """Recurring tasks: create today's occurrences (in each org's timezone)
+    and expire the ones whose day has ended unfinished. Idempotent on
+    (schedule, person, day), so running it every cycle is safe."""
+    from services import sis_task_schedule_service as task_schedules
+    return task_schedules.run_due()
+
+
 #: name -> the sweep. The path is /api/sis/internal/<name>; the dispatcher's
 #: schedule (jobs/cron_dispatch.py) names the same eight.
 CRON_SWEEPS = {
@@ -141,6 +149,7 @@ CRON_SWEEPS = {
     'engagement-sweep': _run_engagement_sweep,
     'publish-class-quests': _run_publish_class_quests,
     'waitlist-offer-sweep': _run_waitlist_offer_sweep,
+    'task-occurrences': _run_task_occurrences,
 }
 
 

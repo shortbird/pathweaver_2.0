@@ -4,7 +4,7 @@ The School Dashboard — the org admin's landing view of the SIS console.
 The dashboard this replaces was a census: total students, families, enrollment
 status. All true, none of it actionable. An admin opening the console in the
 morning wants to know what is waiting on them — who is unaccounted for, which
-requests nobody has picked up, which paperwork is unsigned, who is on the
+tasks are overdue, which paperwork is unsigned, who is on the
 waitlist, which invoices are overdue — and every one of those queues already
 existed behind its own page. This module asks them all at once.
 
@@ -58,15 +58,12 @@ from typing import Any, Callable, Dict, List, Optional, Tuple
 from services import sis_service
 from services import sis_attendance_service as attendance
 from services import sis_coordinator_service as coordinator
-from services import sis_forms_service as forms
+from services import sis_class_session_service as sessions
 from services import sis_onboarding_service as onboarding
 from services.sis_staff_service import _org_now, pinned_links_for
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
-
-# Requests (sis_form_submissions) nobody has closed out yet.
-OPEN_REQUEST_STATUSES = ('submitted', 'under_review', 'in_progress', 'waiting')
 
 # How far ahead the "upcoming" list looks, and how much of it we send.
 EVENT_WINDOW_DAYS = 7
@@ -79,8 +76,8 @@ MAX_SCHEDULE = 6
 # we actually got — a source that fell over shows nothing rather than a zero,
 # because "no attendance alerts" and "we couldn't ask" must never look alike.
 ATTENTION_KEYS = (
-    'attendance_alerts', 'requests_unassigned', 'requests_overdue',
-    'signatures_pending', 'onboarding_incomplete', 'age_exceptions',
+    'attendance_alerts', 'tasks_overdue',
+    'signatures_pending', 'tasks_open', 'age_exceptions',
     'waitlist_waiting', 'prior_learning_pending', 'goals_pending',
     'students_no_family',
 )
@@ -150,15 +147,13 @@ def _disabled_modules(org_row: Dict[str, Any]) -> set:
 
 # ── The individual sources ───────────────────────────────────────────────────
 
-def _requests(org_id: str, today: Optional[str]) -> Dict[str, int]:
-    """Staff requests split by what makes them somebody's problem: nobody has
-    picked them up, or the date they were promised for has passed."""
-    rows = [r for r in forms.list_all(org_id) if r.get('status') in OPEN_REQUEST_STATUSES]
-    return {
-        'requests_unassigned': len([r for r in rows if not r.get('assigned_to')]),
-        'requests_overdue': len([r for r in rows if today and r.get('due_date')
-                                 and str(r['due_date']) < today]),
-    }
+def _tasks(org_id: str, today: Optional[str]) -> Dict[str, int]:
+    """Tasks the school is still waiting on, and those past their due date.
+    Requests were retired into tasks on 2026-09-24, so these two tiles replace
+    "unassigned requests" (a task always has somebody) and "overdue requests".
+    Counted by Postgres."""
+    from services import sis_tasks_service
+    return sis_tasks_service.dashboard_counts(org_id, today or '')
 
 
 def _signatures_pending(org_id: str, include_hr: bool) -> int:
@@ -170,11 +165,6 @@ def _signatures_pending(org_id: str, include_hr: bool) -> int:
     """
     return sum((b.get('total_count') or 0) - (b.get('signed_count') or 0)
                for b in onboarding.list_signature_batches(org_id, include_hr=include_hr))
-
-
-def _onboarding_incomplete(org_id: str) -> int:
-    return len([a for a in onboarding.list_assignments(org_id, kind='checklist')
-                if (a.get('done_count') or 0) < (a.get('total_count') or 0)])
 
 
 def _prior_learning_pending(org_id: str) -> Optional[int]:
@@ -203,6 +193,17 @@ def _attendance_board(org_id: str, today: str) -> Dict[str, Any]:
                .eq('status', 'active').limit(1).execute())
     return coordinator.board_from(records, planned.count or 0,
                                   attendance.open_alerts(org_id))
+
+
+def _roll_call(org_id: str, now, dow: int, settings: Dict[str, Any]) -> Dict[str, Any]:
+    """Today's class sessions by class, and the "Teachers to check" section."""
+    today = now.date().isoformat()
+    day_sessions = sessions.sessions_by_class(org_id, today)
+    schedule = coordinator.today_schedule(org_id, today, dow=dow)
+    sessions.annotate_schedule(schedule, day_sessions)
+    return {'sessions': day_sessions,
+            'teachers_to_check': sessions.teachers_to_check(
+                org_id, now, schedule, settings, day_sessions)}
 
 
 def _upcoming_events(org_id: str, now, sees_all_audiences: bool) -> List[Dict[str, Any]]:
@@ -283,12 +284,11 @@ def _build_jobs(org_id: str, *, caller_id: str, hidden: set, settings: Dict[str,
         else:
             jobs['attendance_alerts'] = (lambda: len(attendance.open_alerts(org_id)), None)
 
-    # The Task Center is where an admin works requests, checklists and sent
-    # paperwork, so all three follow the 'tasks' module.
+    # Tasks is where an admin works tasks and sent paperwork, so both follow
+    # the 'tasks' module.
     if 'tasks' not in hidden:
-        jobs['requests'] = (lambda: _requests(org_id, today), None)
+        jobs['tasks'] = (lambda: _tasks(org_id, today), None)
         jobs['signatures_pending'] = (lambda: _signatures_pending(org_id, sees_hr), None)
-        jobs['onboarding_incomplete'] = (lambda: _onboarding_incomplete(org_id), None)
 
     # Goals replace schedule-building for goals-mode orgs only — the same
     # condition the sidebar uses to show the Goals tab at all.
@@ -299,6 +299,12 @@ def _build_jobs(org_id: str, *, caller_id: str, hidden: set, settings: Dict[str,
     if 'classes' not in hidden and dow is not None:
         jobs['schedule'] = (lambda: coordinator.today_schedule(
             org_id, today, dow=dow)[:MAX_SCHEDULE], [])
+
+    # Who took each roll and the "Teachers to check" section -- the same one
+    # the coordinator dashboard shows (P7). Reads the whole day's schedule, not
+    # the trimmed card above: a class past MAX_SCHEDULE still needs its roll.
+    if 'attendance' not in hidden and 'classes' not in hidden and now:
+        jobs['roll_call'] = (lambda: _roll_call(org_id, now, dow, settings), None)
 
     if 'calendar' not in hidden and now:
         jobs['events'] = (lambda: _upcoming_events(org_id, now, sees_all_audiences), [])
@@ -333,14 +339,18 @@ def get_admin_dashboard(org_id: str, caller_id: str) -> Dict[str, Any]:
                             sees_hr=sees_hr, sees_all_audiences=is_full_admin,
                             sees_finance=sees_finance))
 
-    # 'requests' is the one source answering two tiles; flatten it in with the
+    # 'tasks' is the one source answering two tiles; flatten it in with the
     # rest, and read the alert count off the board that already computed it. A
     # None — module hidden, org hasn't opted in, or the source failed — leaves
     # its key out entirely rather than claiming an empty queue.
-    flat = {**r, **(r.get('requests') or {})}
+    flat = {**r, **(r.get('tasks') or {})}
     if r.get('board') and flat.get('attendance_alerts') is None:
         flat['attendance_alerts'] = r['board'].get('open_alert_count')
     attention = {k: flat[k] for k in ATTENTION_KEYS if flat.get(k) is not None}
+
+    roll_call = r.get('roll_call') or {}
+    if 'schedule' in r and roll_call:
+        sessions.annotate_schedule(r['schedule'], roll_call.get('sessions') or {})
 
     payload: Dict[str, Any] = {
         'organization': meta.get('organization') or {'id': org_id},
@@ -348,7 +358,9 @@ def get_admin_dashboard(org_id: str, caller_id: str) -> Dict[str, Any]:
         'attention': attention,
         'today': {'date': now.date().isoformat() if now else None,
                   **({'schedule': r['schedule']} if 'schedule' in r else {}),
-                  **({'attendance': r['board']} if 'board' in r else {})},
+                  **({'attendance': r['board']} if 'board' in r else {}),
+                  **({'teachers_to_check': roll_call['teachers_to_check']}
+                     if roll_call.get('teachers_to_check') else {})},
         'events': r.get('events') or [],
         'pinned_links': r.get('pinned_links') or [],
         # Echoed so the frontend filters tiles with the same sisModules.js that

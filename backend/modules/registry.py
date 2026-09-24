@@ -153,14 +153,17 @@ def _defs() -> Tuple[ModuleDef, ...]:
                   ('Tuition & Invoicing',),
                   parent='sis', requires=('registration',), min_tier='finance',
                   surfaces=('console', 'family'), legacy='hidden_modules'),
-        ModuleDef('tasks', 'Task Center', 'operations', (),
+        # Every task the school assigns (iCreate meeting 2026-09-23). The
+        # 'forms' module ('Forms & Requests') was retired into it on
+        # 2026-09-24: families message the school instead of filing forms, and
+        # the office turns a message into a task. A stored 'forms' entry in
+        # feature_flags.modules is ignored (modules/enabled.py reads only
+        # registry keys).
+        ModuleDef('tasks', 'Tasks', 'operations', ('Tasks',),
                   parent='sis', surfaces=('console', 'family'),
                   legacy='hidden_modules'),
-        ModuleDef('forms', 'Forms & Requests', 'operations', ('Forms & Requests',),
-                  parent='sis', surfaces=('console', 'family'),
-                  legacy='hidden_modules'),
-        ModuleDef('onboarding', 'Onboarding Checklists', 'operations',
-                  ('Onboarding Checklists',),
+        ModuleDef('onboarding', 'Onboarding', 'operations',
+                  ('Onboarding',),
                   parent='sis', surfaces=('console', 'family'),
                   legacy='hidden_modules'),
         ModuleDef('secure_documents', 'Secure Documents', 'operations',

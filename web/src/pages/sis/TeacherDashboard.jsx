@@ -134,7 +134,7 @@ const TeacherDashboard = ({ orgId, userName, preview = null }) => {
   if (!data) return <p className="text-neutral-500">Nothing to show yet.</p>
 
   const { classes = [], profile = {},
-    onboarding, pending_acks: pendingAcks = [], recent_forms: recentForms = [],
+    onboarding, pending_acks: pendingAcks = [], my_tasks: myTasks = [],
     staff_resources: staffResources = [], pinned_links: pinnedLinks = [],
     needs_phone: needsPhone = false } = data
 
@@ -158,17 +158,17 @@ const TeacherDashboard = ({ orgId, userName, preview = null }) => {
 
       {/* Setup / action banners — kept up top because they gate the teacher's readiness. */}
       {(onboarding && onboarding.status !== 'complete' && !hidden.has('onboarding')) && (
-        // /my-tasks is deliberately blind to preview — its writes would land on
-        // the admin — so an admin previewing a teacher followed this banner to
-        // their OWN tasks. The checklist view reads the previewed teacher's checklist.
-        <Link to={preview ? '/tasks?view=checklist' : '/tasks'} className="block rounded-xl border border-amber-200 bg-amber-50 p-4">
+        // My tasks is deliberately blind to preview -- its writes would land on
+        // the admin -- so an admin previewing a teacher goes to the office's
+        // Assigned view, where every person's steps are listed.
+        <Link to={preview ? '/tasks?tab=assigned' : '/tasks'} className="block rounded-xl border border-amber-200 bg-amber-50 p-4">
           <p className="text-sm font-medium text-amber-900">
-            Onboarding: {onboarding.done} of {onboarding.total} items complete
+            Onboarding: {onboarding.done} of {onboarding.total} steps done
           </p>
           <p className="text-sm text-amber-700">
             {preview
-              ? `${preview.name || 'This teacher'} still has to finish their ${onboarding.template_name || 'onboarding'} checklist`
-              : `Finish your ${onboarding.template_name || 'onboarding'} checklist`}
+              ? `${preview.name || 'This teacher'} still has to finish ${onboarding.template_name || 'their onboarding'}`
+              : `Finish ${onboarding.template_name || 'your onboarding'}`}
           </p>
         </Link>
       )}
@@ -267,27 +267,27 @@ const TeacherDashboard = ({ orgId, userName, preview = null }) => {
             </DashboardCard>
           )}
 
-          {/* Named for what a teacher comes here to do, not for what the card
-              happens to list (iCreate, 2026-09-02). The recent ones stay
-              underneath: they are how you tell whether you already sent it. */}
-          {!hidden.has('forms') && (
-          <DashboardCard title="Submit a form" action={<Link to="/forms" className="text-sm text-optio-purple hover:underline">All forms</Link>}>
-            {!recentForms.length && (
-              <p className="text-sm text-neutral-500">
-                Supply requests, incident reports and the rest — send one from{' '}
-                <Link to="/forms" className="text-optio-purple hover:underline">All forms</Link>.
-              </p>
+          {/* What the office is waiting on this teacher for. It was "Submit a
+              form" until forms were retired (iCreate meeting 2026-09-23): a
+              teacher who needs something from the office messages it now, and
+              what the office needs from them arrives here as a task. */}
+          {!hidden.has('tasks') && (
+          <DashboardCard title="My tasks" action={<Link to="/tasks" className="text-sm text-optio-purple hover:underline">All tasks</Link>}>
+            {!myTasks.length && (
+              <p className="text-sm text-neutral-500">Nothing is waiting on you right now.</p>
             )}
             <ul className="space-y-2">
-              {recentForms.map((f) => (
-                <li key={f.id} className="text-sm flex items-center justify-between gap-2">
-                  <span className="truncate text-neutral-700">{f.title}</span>
-                  <span className={`text-xs px-2 py-0.5 rounded-full shrink-0 ${
-                    f.status === 'resolved' ? 'bg-green-100 text-green-700'
-                      : f.status === 'under_review' ? 'bg-blue-100 text-blue-700'
-                        : 'bg-gray-100 text-neutral-600'}`}>
-                    {f.status.replace('_', ' ')}
-                  </span>
+              {myTasks.map((t) => (
+                <li key={t.id} className="text-sm flex items-center justify-between gap-2">
+                  <Link to={t.type === 'ack' ? t.link : `/tasks?task=${t.id}`}
+                    className="truncate text-neutral-700 hover:text-optio-purple hover:underline">
+                    {t.title}
+                  </Link>
+                  {t.due_date && (
+                    <span className={`text-xs shrink-0 ${t.overdue ? 'text-red-600 font-medium' : 'text-neutral-400'}`}>
+                      {t.overdue ? 'Overdue' : 'Due'} {t.due_date}
+                    </span>
+                  )}
                 </li>
               ))}
             </ul>

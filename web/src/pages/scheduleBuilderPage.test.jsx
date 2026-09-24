@@ -24,13 +24,18 @@ import { withConfirm } from '../tests/confirmTestUtils'
 
 const ORG = { organization_id: 'org1', organization_name: 'Micro School', students: [{ student_id: 's1', name: 'Kid One', avatar_url: 'x.jpg' }] }
 
-const mockApi = ({ orgs = [ORG], schedule = {}, classes = [], submissions = [] } = {}) => (url) => {
+// The school's inbox, as every family's Messages contacts list carries it:
+// success_response nests the payload under `data`.
+const SCHOOL_CONTACT = { id: 'school-inbox-1', display_name: 'Micro School', is_school: true }
+const TEACHER_CONTACT = { id: 'teacher-1', display_name: 'Ms. Clay' }
+
+const mockApi = ({ orgs = [ORG], schedule = {}, classes = [], contacts = [TEACHER_CONTACT, SCHOOL_CONTACT] } = {}) => (url) => {
   if (url.includes('/parent/context')) return Promise.resolve({ data: { orgs, my_avatar_url: 'me.jpg' } })
   if (url.includes('/schedule')) {
     return Promise.resolve({ data: { classes: [], waitlist: [], time_blocks: [], first_day_of_school: null, changes_locked: false, ...schedule } })
   }
   if (url.includes('/parent/classes')) return Promise.resolve({ data: { classes } })
-  if (url.includes('/parent/forms')) return Promise.resolve({ data: { submissions } })
+  if (url.includes('/api/messages/contacts')) return Promise.resolve({ data: { success: true, data: { contacts } } })
   return Promise.resolve({ data: {} })
 }
 
@@ -177,12 +182,15 @@ describe('ScheduleBuilderPage', () => {
     expect(screen.queryByRole('button', { name: 'Request an add/drop' })).not.toBeInTheDocument()
   })
 
-  it('files a request naming the classes to drop and add', async () => {
+  // Requests were retired on 2026-09-24 (iCreate meeting 2026-09-23): an
+  // add/drop ask is a message to the school's inbox, and the office turns it
+  // into a task on its side. The reply comes back in the same thread.
+  it('messages the school naming the classes to drop and add', async () => {
     api.get.mockImplementation(mockApi({
       schedule: LOCKED_IN_WINDOW,
       classes: [{ ...POTTERY, id: 'c2', name: 'Woodshop' }],
     }))
-    api.post.mockResolvedValue({ data: { submission: { id: 'sub1' } } })
+    api.post.mockResolvedValue({ data: { success: true } })
     render(<ScheduleBuilderPage />)
     fireEvent.click(await screen.findByRole('button', { name: 'Request an add/drop' }))
 
@@ -194,29 +202,45 @@ describe('ScheduleBuilderPage', () => {
     fireEvent.change(screen.getByPlaceholderText(/Optional/), { target: { value: 'Mornings work better.' } })
     fireEvent.click(screen.getByRole('button', { name: 'Send request' }))
 
-    // The office can make this change from the task alone — every line names a
-    // real class with its day and time.
+    // The office can make this change from the message alone — every line
+    // names a real class with its day and time, and the first names the child.
     const when = 'Tue \u00b7 9am\u201310:30am'
-    await waitFor(() => expect(api.post).toHaveBeenCalledWith('/api/sis/parent/forms', {
-      organization_id: 'org1',
-      form_type: 'schedule_change',
-      title: 'Add/drop — Kid One',
-      body: `Drop: Pottery (${when})\nAdd: Woodshop (${when})\n\nMornings work better.`,
-      student_user_id: 's1',
-    }))
+    await waitFor(() => expect(api.post).toHaveBeenCalledWith(
+      '/api/messages/conversations/school-inbox-1/send',
+      { content: `Add/drop request for Kid One\n\nDrop: Pottery (${when})\nAdd: Woodshop (${when})\n\nMornings work better.` },
+    ))
+    expect(api.get).toHaveBeenCalledWith('/api/messages/contacts')
+    // Never through the retired requests route.
+    expect(api.post.mock.calls.some(([url]) => url.includes('/parent/forms'))).toBe(false)
+    expect(api.get.mock.calls.some(([url]) => url.includes('/parent/forms'))).toBe(false)
   })
 
-  it('says the request is in rather than inviting a duplicate', async () => {
-    api.get.mockImplementation(mockApi({
-      schedule: LOCKED_IN_WINDOW,
-      submissions: [{ id: 'sub1', form_type: 'schedule_change', status: 'under_review', student_user_id: 's1' }],
-    }))
+  it('says the message is with the school and links the thread, rather than inviting a duplicate', async () => {
+    api.get.mockImplementation(mockApi({ schedule: LOCKED_IN_WINDOW }))
+    api.post.mockResolvedValue({ data: { success: true } })
     render(<ScheduleBuilderPage />)
-    expect(await screen.findByText(/Your add\/drop request is in/)).toBeInTheDocument()
+    fireEvent.click(await screen.findByRole('button', { name: 'Request an add/drop' }))
+    fireEvent.click(await screen.findByRole('checkbox', { name: /Pottery/ }))
+    fireEvent.click(screen.getByRole('button', { name: 'Send request' }))
+
+    expect(await screen.findByText('Your add/drop message is with Micro School.')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'your Messages' })).toHaveAttribute('href', '/messages?user=school-inbox-1')
     expect(screen.queryByRole('button', { name: 'Request an add/drop' })).not.toBeInTheDocument()
-    // A resolved one would not hold the button back, and neither does a
-    // sibling's — this one is open and belongs to the student on screen.
-    expect(screen.getByRole('button', { name: 'Send another request' })).toBeInTheDocument()
+    // A second, different change is still one click away.
+    expect(screen.getByRole('button', { name: 'Send another' })).toBeInTheDocument()
+  })
+
+  it('sends nothing, and says where to go, when the school is not in Messages', async () => {
+    const { toast } = await import('react-hot-toast')
+    api.get.mockImplementation(mockApi({ schedule: LOCKED_IN_WINDOW, contacts: [TEACHER_CONTACT] }))
+    render(<ScheduleBuilderPage />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Request an add/drop' }))
+    fireEvent.click(await screen.findByRole('checkbox', { name: /Pottery/ }))
+    fireEvent.click(screen.getByRole('button', { name: 'Send request' }))
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith(expect.stringMatching(/Could not find Micro School in Messages/)))
+    expect(api.post).not.toHaveBeenCalled()
+    expect(screen.queryByText(/Your add\/drop message is with/)).not.toBeInTheDocument()
   })
 
   it('blocks adding a class that overlaps an enrolled class', async () => {

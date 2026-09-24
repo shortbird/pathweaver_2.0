@@ -88,6 +88,10 @@ export interface Message {
   /** Which surface sent it. Present only for superadmin viewers (the backend
    *  strips it for everyone else); null on rows older than 2026-09-16. */
   sent_from?: MessageSentFrom | null;
+  /** "Kate for iCreate": a school message a staff member wrote with their name
+   *  shown -- a teacher answering a thread the office handed them with a task
+   *  (iCreate, 2026-09-23, d93b24d2). Absent on everything else. */
+  sender_label?: string | null;
   isOptimistic?: boolean;
 }
 

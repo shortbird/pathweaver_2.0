@@ -562,6 +562,39 @@ def create_curriculum_quest(user_id, curriculum_id):
                     'pushed_assignments': pushed['assignments']})
 
 
+@bp.route('/curriculum/<curriculum_id>/quests/<quest_id>/publish', methods=['POST'])
+@require_role(*ADMIN_ROLES)
+def publish_curriculum_quest(user_id, curriculum_id, quest_id):
+    """Publish a draft from the quest editor onto this curriculum (P6).
+
+    The curriculum's attach step is the one its create form always had:
+    appended to the end of the set, and pushed to every active class on the
+    curriculum, where its students see it. Appended rather than sent as part
+    of the whole set, so a publish cannot race a reorder into dropping a quest.
+    """
+    org_id, err = sis_service.org_or_error(user_id)
+    if err:
+        return err
+    if _bad_uuid(curriculum_id, quest_id) or not _owned(org_id, curriculum_id):
+        return jsonify({'success': False, 'error': 'Curriculum not found'}), 404
+    from repositories.quest_editor_repository import QuestEditorRepository
+    from services import quest_edit_rules
+    from services.sis_quest_authoring import publish_draft
+    quest = QuestEditorRepository(client=_admin()).get_quest(quest_id)
+    if not quest or quest.get('organization_id') != org_id:
+        return jsonify({'success': False, 'error': 'Quest not found'}), 404
+    if not quest_edit_rules.can_edit_quest(user_id, quest):
+        return jsonify({'success': False, 'error': quest_edit_rules.refusal(quest)}), 403
+    try:
+        publish_draft(_admin(), quest)
+    except QuestAuthoringError as e:
+        return jsonify({'success': False, 'error': e.message}), e.status
+    result = attach_quest_to_curriculum(_admin(), org_id, curriculum_id, quest_id, user_id,
+                                        push=True)
+    return jsonify({'success': True, 'quest_id': quest_id,
+                    'pushed_to_classes': result.get('pushed_to_classes', 0)})
+
+
 # ── One quest, as the curriculum carries it ───────────────────────────────────
 # iCreate, 2026-08-31: "when admin creates a quest in /curriculum they need to
 # be able to view the quests inside the curriculum and also have full CRUD."

@@ -10,6 +10,10 @@ cron service instead of one-per-job:
                                  so off-hours runs no-op cheaply).
   - AI credit review sweep    -> EVERY run (reviews queued submissions; returns
                                  before any model call, work happens on a thread).
+  - Recurring tasks           -> EVERY run (creates each org's occurrences for
+                                 its own today, expires yesterday's unfinished
+                                 ones; a schedule that already ran today is
+                                 skipped after one read).
   - Account deletion sweep    -> once/day (09:00 UTC).
   - Data retention sweep      -> once/day (10:00 UTC), no-op unless enabled.
   - Ticket deploy sweep       -> EVERY run (reporter mail for newly resolved
@@ -135,6 +139,13 @@ def main():
     # every pair that already has an enrollment, so re-runs cost one query.
     _run("class-quest-publish-sweep",
          f"{base}/api/sis/internal/publish-class-quests", cron_secret, failures, base=base)
+
+    # Every run: recurring tasks. Creates today's occurrences for every live
+    # schedule in each org's own timezone, then expires the unfinished ones
+    # whose day has ended. Idempotent on (schedule, person, day). The route
+    # ships in the same commit; until the backend release is green this 404s
+    # and _run treats that as the deploy window (see its docstring).
+    _run("sis-task-occurrences", f"{base}/api/sis/internal/task-occurrences", cron_secret, failures, base=base)
 
     # Every run: Optio's own invoices (/admin/billing). Emails Optio when a
     # bank payment starts, clears or fails. One Stripe list of open invoices

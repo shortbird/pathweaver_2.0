@@ -173,6 +173,12 @@ ANONYMIZE_REFS: Tuple[Tuple[str, str], ...] = (
     ('sis_form_submissions', 'student_user_id'),
     ('sis_onboarding_assignments', 'assigned_by'),
     ('sis_onboarding_templates', 'created_by'),
+    # Tasks (20260924100000): a comment's author and a recurring schedule's
+    # creator. Both FKs are ON DELETE SET NULL; listed so the trail is blanked
+    # by the erasure itself, the same as assigned_by above, and the thread and
+    # the schedule outlive the person.
+    ('sis_task_comments', 'author_id'),
+    ('sis_task_schedules', 'created_by'),
     ('sis_staff_assignments', 'created_by'),
     # The FERPA disclosure trail on OTHER students' records. The row belongs to
     # the student who was looked at (`student_id`, deleted above), so only "who

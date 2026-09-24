@@ -98,6 +98,19 @@ def _answers(created_by=PARENT, romneys_tasks=ROMNEYS_TASKS, bubbas_tasks=()):
     }
 
 
+def _visibility_repo():
+    """The direct-link rule's reads (services/quest_visibility_service.py,
+    2026-09-24): the school put the quest on the PARENT's account, so the
+    parent holds an enrollment and may open it -- and so start a child on it."""
+    repo = MagicMock()
+    repo.get_visibility_user.side_effect = lambda uid: {
+        'id': uid, 'role': 'parent', 'organization_id': None}
+    repo.has_any_enrollment.side_effect = lambda uid, _qid: uid == PARENT
+    repo.is_quest_assigned.return_value = False
+    repo.reachable_through_course.return_value = False
+    return repo
+
+
 def _add_bubba(app, answers, log, template_tasks=()):
     repo = MagicMock()
     repo.enroll_user.return_value = {'id': UQ_BUBBA}
@@ -107,7 +120,8 @@ def _add_bubba(app, answers, log, template_tasks=()):
             patch('utils.class_membership.children_of_parent', return_value={ROMNEY, BUBBA}), \
             patch('routes.quest_types.get_template_tasks', return_value=list(template_tasks)), \
             patch('utils.template_tasks.get_valid_source_template_ids', return_value=set()), \
-            patch('repositories.quest_repository.QuestRepository', return_value=repo):
+            patch('repositories.quest_repository.QuestRepository', return_value=repo), \
+            patch('services.quest_visibility_service.QuestRepository', return_value=_visibility_repo()):
         response = _innermost(family_quests.enroll_children_in_family_quest)(PARENT, QUEST)
     if isinstance(response, tuple):
         return response[0].get_json(), response[1]

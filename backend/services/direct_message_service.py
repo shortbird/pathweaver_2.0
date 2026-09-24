@@ -485,13 +485,24 @@ class DirectMessageService(BaseService):
                      reply_to_message_id: Optional[str] = None,
                      attachments: Optional[list] = None,
                      sent_by_user_id: Optional[str] = None,
-                     sent_from: Optional[str] = None) -> Dict[str, Any]:
+                     sent_from: Optional[str] = None,
+                     push: bool = True,
+                     show_sender_name: bool = False) -> Dict[str, Any]:
         """
         Send a message from one user to another. Supports replying to a message
         and attachments ([{url, type, name, size}], pre-uploaded).
 
         sent_by_user_id: set only by the school-inbox route — the staff member
         who wrote a message the school account is sending.
+
+        push: False stores the message and the bell notification but sends no
+        web or mobile push (the console Compose's per-send toggle, bf8b754d).
+
+        show_sender_name: the recipient is told who wrote a school message
+        ("Kate for iCreate"). Set for a reply by a staff member the thread was
+        handed to with a task (d93b24d2); the office's own replies stay under
+        the school's name alone. Written only when true, so a send never names
+        a column the database has not been migrated to have.
 
         sent_from: the surface the message came from. Left None by every
         client-facing caller, which is the point: it is read off the request
@@ -560,6 +571,8 @@ class DirectMessageService(BaseService):
                 'read_at': None,
                 'created_at': datetime.utcnow().isoformat()
             }
+            if show_sender_name and sent_by_user_id:
+                message['show_sender_name'] = True
             if verdict is not None:
                 message['screen_status'] = verdict.status
                 message['screened_at'] = None if verdict.failed else message['created_at']
@@ -577,7 +590,8 @@ class DirectMessageService(BaseService):
 
             # Send notification to recipient
             self._notify_recipient(sender_id, recipient_id, content or 'Sent an attachment',
-                                   conversation_id=conversation['id'])
+                                   conversation_id=conversation['id'],
+                                   **({} if push else {'push': False}))
 
             row = result.data[0]
             enriched = extras.enrich_messages('dm', [row], sender_id)[0]
@@ -596,7 +610,8 @@ class DirectMessageService(BaseService):
             raise
 
     def _notify_recipient(self, sender_id: str, recipient_id: str, content: str,
-                          conversation_id: Optional[str] = None) -> None:
+                          conversation_id: Optional[str] = None,
+                          push: bool = True) -> None:
         """
         Send a notification to the message recipient.
 
@@ -650,7 +665,9 @@ class DirectMessageService(BaseService):
                     'sender_id': sender_id,
                     'sender_name': sender_name
                 },
-                organization_id=organization_id
+                organization_id=organization_id,
+                # Only named when off, so the common call is unchanged.
+                **({} if push else {'push': False})
             )
 
         except Exception as e:

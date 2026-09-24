@@ -36,7 +36,7 @@ import { REPORT_REASONS, reportContent } from '../../services/friendsAPI'
  * the member-only actions -- reactions, edit, delete, pin, report, settings --
  * are not offered, and reading marks it read for the office on the server.
  */
-const GroupChatWindow = ({ group, onBack, source }) => {
+const GroupChatWindow = ({ group, onBack, source, onMakeTask = null }) => {
   const asSchool = !!source?.school
   const confirm = useConfirm()
   const { user } = useAuth()
@@ -99,6 +99,24 @@ const GroupChatWindow = ({ group, onBack, source }) => {
   }, [group, groupDetails])
 
   useThreadScroll(scrollerRef, messages, group?.id, user?.id)
+
+  // Who has read past a message: the members whose last_read_at is at or
+  // after it, minus its sender and, in a school group, the school's own
+  // account (its marker is the office's, not a person's). The group's read
+  // receipt (9b46c748), shown on the last message the way a DM's "Seen" is.
+  const seenByFor = (msg) => {
+    if (!msg?.created_at) return []
+    const at = new Date(msg.created_at).getTime()
+    return members
+      .filter((m) => {
+        const id = m.user_id || m.user?.id
+        if (!id || id === msg.sender_id || id === user?.id) return false
+        if (asSchool && id === groupDetails?.created_by) return false
+        return m.last_read_at && new Date(m.last_read_at).getTime() >= at
+      })
+      .map((m) => `${m.user?.first_name || ''} ${m.user?.last_name || ''}`.trim()
+        || m.user?.display_name || 'Member')
+  }
 
   // Mark as read when viewing. The school's read happens on the GET.
   useEffect(() => {
@@ -371,7 +389,15 @@ const GroupChatWindow = ({ group, onBack, source }) => {
                         onSaveEdit={(content) => handleSaveEdit(msg, content)}
                         onCancelEdit={() => setEditingId(null)}
                         savingEdit={savingEdit}
+                        seenBy={(isOwn || asSchool) && index === messages.length - 1 && !msg.isOptimistic
+                          ? seenByFor(msg) : null}
                       />
+                      {onMakeTask && !isDeleted && !msg.isOptimistic && (
+                        <button type="button" onClick={() => onMakeTask(msg)}
+                          className="mt-0.5 text-[11px] text-neutral-400 hover:text-optio-purple">
+                          Make a task
+                        </button>
+                      )}
 
                       {/* Reactions */}
                       {!isDeleted && (

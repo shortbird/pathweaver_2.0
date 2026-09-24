@@ -48,6 +48,8 @@ import {
   ReactionPills,
   ReplyQuote,
   SentFromTag,
+  ReceiptLine,
+  seenByCount,
   MessageAttachments,
   ComposerBanner,
   PendingAttachmentChips,
@@ -721,6 +723,13 @@ export function GroupChatWindow({ group, onBack, onDeleted, onRead }: Props) {
                   </View>
                 </Pressable>
               </View>
+              {/* "Seen by 3" under our last message (9b46c748). */}
+              {isMine && idx === messages.length - 1 && !msg.isOptimistic && (
+                <ReceiptLine text={(() => {
+                  const seen = seenByCount(members, msg, user?.id);
+                  return seen > 0 ? `Seen by ${seen}` : null;
+                })()} />
+              )}
               {!msg.is_deleted && (
                 <View style={!isMine ? { marginLeft: 40 } : undefined}>
                   <ReactionPills

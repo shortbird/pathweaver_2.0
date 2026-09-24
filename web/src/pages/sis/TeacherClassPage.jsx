@@ -19,6 +19,7 @@ import SubstituteSheet from '../../components/sis/SubstituteSheet'
 import { statusTone } from '../../components/sis/ui/statusMaps'
 import { fmtTime } from '../../utils/schedule'
 import GlassTabBar from '../../components/ui/GlassTabBar'
+import { RollStatus, SubstituteControl } from '../../components/sis/RollStatus'
 
 /**
  * TeacherClassPage — one class for its teacher: the roster (photos, ages,
@@ -37,7 +38,14 @@ import GlassTabBar from '../../components/ui/GlassTabBar'
 
 const ATT_STATUSES = ['present', 'absent', 'late', 'excused']
 
-const today = () => new Date().toISOString().slice(0, 10)
+// Local date, not UTC: toISOString() rolls over at 6pm Mountain, so an evening
+// visit opened TOMORROW's roster -- the fix AttendancePanel got on 2026-09-02.
+// It matters more now: a substitute's access is for one date (P7), and
+// tomorrow's roster is one they cannot open.
+const today = () => {
+  const d = new Date()
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
 
 // 'gradebook' stays accepted so old links and bookmarks land on the tab that
 // replaced it rather than silently falling back to the roster.
@@ -84,6 +92,8 @@ const TeacherClassPage = () => {
   const [marks, setMarks] = useState({})
   // student_id -> the guardian's report for this class on this date, if any.
   const [planned, setPlanned] = useState({})
+  // Who took this date's roll, and any substitute (P7): the class session.
+  const [session, setSession] = useState(null)
   const [saving, setSaving] = useState(false)
   const [exporting, setExporting] = useState(false)  // Print / export roster modal
   // One page to hand somebody covering the class — students, room, and what
@@ -153,8 +163,9 @@ const TeacherClassPage = () => {
         }
         setMarks(existing)
         setPlanned(reported)
+        setSession(r.data?.session || null)
       })
-      .catch(() => { setMarks({}); setPlanned({}) })
+      .catch(() => { setMarks({}); setPlanned({}); setSession(null) })
   }, [orgId, classId, date])
 
   // Everyone is present by default — the teacher only taps the exceptions
@@ -175,9 +186,10 @@ const TeacherClassPage = () => {
     }
     setSaving(true)
     try {
-      await api.post(`/api/sis/classes/${classId}/attendance`, {
+      const { data } = await api.post(`/api/sis/classes/${classId}/attendance`, {
         organization_id: orgId, date, entries,
       })
+      if (data?.session) setSession(data.session)
       toast.success('Attendance saved')
     } catch (err) {
       toast.error(err?.response?.data?.error || 'Could not save attendance')
@@ -249,7 +261,7 @@ const TeacherClassPage = () => {
         // Release dates are gated by the org's scheduled_publish flag, read
         // from the org in view rather than the caller's own -- a superadmin
         // looking at a school's class has no org of their own.
-        <ClassQuestsManager classId={classId}
+        <ClassQuestsManager classId={classId} orgId={orgId}
           scheduledEnabled={Boolean(activeOrg?.feature_flags?.scheduled_publish)}
           canSaveToCurriculum={Boolean(isAdmin)} />
       )}
@@ -352,6 +364,15 @@ const TeacherClassPage = () => {
               className="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-optio-purple"
               aria-label="Attendance date" />
             <button onClick={markAllPresent} className="text-sm text-optio-purple hover:underline">Reset</button>
+            <RollStatus session={session} className="text-sm" />
+            {/* The office marks a substitute here too, not only from the
+                dashboard -- the class page is where they notice the gap. */}
+            {isAdmin && !previewing && (
+              <span className="ml-auto">
+                <SubstituteControl classId={classId} date={date} orgId={orgId}
+                  session={session} onSaved={(s) => s && setSession(s)} />
+              </span>
+            )}
           </div>
 
           {!students.length && <p className="text-neutral-500">No students enrolled yet.</p>}

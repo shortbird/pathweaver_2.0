@@ -101,8 +101,15 @@ boundary is enforced inside `sis_service.set_staff_roles` against the caller.
 
 ### Everyone on staff — `STAFF_ROLES`
 
-`staff_portal.py`, `submissions.py`, `tasks.py`, `engagement.py`, `goals.py`,
+`staff_portal.py`, `submissions.py`, `engagement.py`, `goals.py`,
 `student_records.py`, `quest_drafts.py`, `gradebook.py`.
+
+`tasks.py` is three tiers in one file (2026-09-24): `STAFF_ROLES` for the
+staff member's own list, `ADMIN_ROLES` for assigning, the Assigned view and
+recurring schedules, and `@require_auth` + the task itself for one task, its
+steps and its comments -- `sis_tasks_service.may_see_task` admits the
+assignee, whoever assigned it, and an admin of the task's own school. That is
+how a teacher, a parent or a student works a task assigned to them.
 
 Mixed tiers, where a teacher reads and the office writes: `attendance.py`,
 `catalog.py`, `curriculum.py`, `events.py`, `resources.py`,
@@ -122,7 +129,7 @@ data survives.
 
 ### HR — `HR_ROLES`
 
-`secure_documents.py`, reachable from the Documents tab of the Task Center.
+`secure_documents.py`, reachable from the Documents area of the Library.
 
 ### Gated some other way (no `@require_role`)
 
@@ -133,10 +140,10 @@ These authorize per-record rather than per-role, which is usually stricter:
 | `class_materials.py`, `class_quests.py`, `class_quest_students.py` | Per-class moderator: org admin, primary instructor, named assistant, or an active `class_advisors` row (`class_quests._authorize`, which `class_quest_students` imports). Plus a family read for guardians. The student-specific routes in `class_quest_students.py` (one student's work, reminders, adding or removing a student from a quest) also require a teacher or org-staff relationship to that student. |
 | `curriculum_materials.py` | A teacher of any class on the curriculum. **See the open question below.** |
 | `quest_resources.py` | An org admin of the quest's org, or a teacher of a class the quest is attached to. |
-| `parent.py`, `parent_forms.py`, `parent_prior_learning.py` | The family relationship, checked inside `sis_parent_service`. |
+| `parent.py`, `parent_prior_learning.py` | The family relationship, checked inside `sis_parent_service`. |
 | `school.py`, `signature_request_views.py` | Membership, or a signed token. |
 | `student_training.py` | Self-scoped to the caller. They must hold the student role at their own school (`sis_training_service._student_org`), and a done mark only lands on a student-audience training link of that school. Anyone else gets an empty list and a 404. |
-| `portal_views.py` | No routes of its own. The bodies of the parent portal (`parent.py`) and the teacher portal (`staff_portal.py`) -- onboarding, uploads, document links, tasks, forms -- mounted once each under those files' own gates. |
+| `portal_views.py` | No routes of its own. The bodies of the parent portal (`parent.py`) and the teacher portal (`staff_portal.py`) -- onboarding, uploads, document links, tasks -- mounted once each under those files' own gates. |
 | `pay.py` | A token in the URL — no session at all. |
 | `internal.py` | The seven cron sweeps: the `X-Cron-Secret` header, or a signed-in superadmin triggering one by hand. Not org-scoped — a sweep covers every org and the service filters per org. |
 

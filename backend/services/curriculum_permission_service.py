@@ -28,7 +28,8 @@ from typing import Optional, Dict, Any
 from dataclasses import dataclass
 from services.base_service import BaseService, ValidationError, NotFoundError, PermissionError
 from utils.logger import get_logger
-from utils.roles import get_effective_role
+from utils.roles import get_effective_role, get_effective_roles
+from utils.sis_roles import STAFF_ROLES
 
 logger = get_logger(__name__)
 
@@ -54,8 +55,12 @@ class CurriculumPermissionService(BaseService):
     # Roles that can always edit curriculum
     CURRICULUM_EDIT_ROLES = {'superadmin', 'org_admin', 'advisor'}
 
-    # Roles that can always read curriculum
-    CURRICULUM_READ_ROLES = {'superadmin', 'org_admin', 'advisor'}
+    # Staff who read curriculum without being enrolled -- but only for their
+    # own school's quests, a global quest, or anything as superadmin (see
+    # can_read_curriculum). utils.sis_roles.STAFF_ROLES, so a campus
+    # coordinator reads what an org admin reads; it was missing from the old
+    # hand-written set.
+    CURRICULUM_READ_ROLES = frozenset(STAFF_ROLES)
 
     # Roles that can manage courses
     COURSE_MANAGE_ROLES = {'superadmin', 'org_admin', 'advisor'}
@@ -72,7 +77,7 @@ class CurriculumPermissionService(BaseService):
 
     def _get_user(self, user_id: str) -> Dict[str, Any]:
         """Get user data for permission checks."""
-        result = self.client.table('users').select('id, role, org_role, organization_id').eq('id', user_id).execute()
+        result = self.client.table('users').select('id, role, org_role, org_roles, organization_id').eq('id', user_id).execute()
         if not result.data:
             raise NotFoundError(f"User not found: {user_id}")
         return result.data[0]
@@ -107,7 +112,9 @@ class CurriculumPermissionService(BaseService):
         Check if user can read curriculum for a quest.
 
         Allows:
-        - Admins, advisors (org-scoped or superadmin)
+        - Superadmins, any quest
+        - Staff (utils.sis_roles.STAFF_ROLES) of the quest's own school, or
+          any staff for a global quest
         - Students enrolled in the quest
         - Students enrolled in a course containing the quest
 
@@ -127,15 +134,23 @@ class CurriculumPermissionService(BaseService):
                 raise ValidationError("Missing user_id or quest_id")
 
             user = self._get_user(user_id)
-            user_role = get_effective_role(user)
+            user_roles = set(get_effective_roles(user))
             user_org = user.get('organization_id')
-
-            # Admins and advisors can always read
-            if user_role in self.CURRICULUM_READ_ROLES:
-                return True
 
             quest = self._get_quest(quest_id)
             quest_org = quest.get('organization_id')
+
+            # Staff read without enrolling -- within their own school. Until
+            # 2026-09-24 this returned True on the role alone, before the quest
+            # was even read, so an advisor or org admin at ANY school read ANY
+            # school's curriculum by id. Both populations resolve here: an org
+            # member's real role is in org_role/org_roles (get_effective_roles),
+            # a platform user's in role.
+            if 'superadmin' in user_roles:
+                return True
+            if user_roles & self.CURRICULUM_READ_ROLES:
+                if quest_org is None or quest_org == user_org:
+                    return True
 
             # For organization quests, user must be in same org
             if quest_org is not None and quest_org != user_org:

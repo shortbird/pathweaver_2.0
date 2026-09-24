@@ -15,12 +15,11 @@ import api from '../../services/api'
 import CurriculumMaterials from './CurriculumMaterials'
 import { withOrg } from '../../pages/sis/useSisOrg'
 import SearchSelect from '../ui/SearchSelect'
-import QuestDraftForm, { blankTask } from './QuestDraftForm'
-import QuestAiDraftPanel from './QuestAiDraftPanel'
-import QuestResourcesPanel from './QuestResourcesPanel'
-import PresetTaskManager from './PresetTaskManager'
+import { ReadOnlyTasks } from './QuestDraftForm'
+import QuestEditor from './QuestEditor'
+import QuestDraftsList from './questEditor/QuestDraftsList'
 import { useConfirm } from '../../contexts/ConfirmContext'
-import { INPUT_CLASS } from '../ui/Input'
+import { useRefreshAfterQuestEdit } from '../../hooks/api/useQuestEditor'
 
 /**
  * The teaching material a curriculum carries: its quests.
@@ -39,7 +38,10 @@ import { INPUT_CLASS } from '../ui/Input'
  * Quests can also be CREATED here (2026-08-12), from scratch or from material
  * the school already has. Until then the picker could only attach a quest
  * somebody had already built on a class page — the same dead end the class page
- * itself used to have, one level up.
+ * itself used to have, one level up. Creating and editing are QuestEditor, the
+ * one quest form every SIS screen shares since P6 (2026-09-23): a new quest is
+ * a draft on this curriculum until it is published, and publishing appends it
+ * and pushes it to the curriculum's classes.
  *
  * Courses were the other half of this panel until 2026-08-12, when iCreate said
  * they would not be attaching courses to curriculum. Nothing was lost: no
@@ -68,7 +70,6 @@ const Empty = ({ children }) => <p className="text-sm text-neutral-400">{childre
 // school-only, which means the mix wasn't visible.
 const optionLabel = (o) => (o.source === 'library' ? `${o.title} · Optio library` : o.title)
 
-const inputCls = INPUT_CLASS
 /**
  * One quest opened inside the curriculum: its description, its preset tasks,
  * and — for the school's own quests — the full set of controls (rename, edit
@@ -211,42 +212,25 @@ function QuestCurricula({ base, orgId, curriculumId, onChanged, onMoved }) {
   )
 }
 
-function QuestDetail({ orgId, curriculumId, quest, onRenamed, onDeleted, onChanged, onMoved, onDuplicated }) {
+function QuestDetail({ orgId, curriculumId, quest, onEdit, onDeleted, onChanged, onMoved, onDuplicated }) {
   const confirm = useConfirm()
-  const [detail, setDetail] = useState(null)   // { title, description, editable }
-  const [editingInfo, setEditingInfo] = useState(false)
-  const [infoDraft, setInfoDraft] = useState({ title: '', description: '' })
+  const [detail, setDetail] = useState(null)   // { title, description, editable, tasks }
   const [busy, setBusy] = useState(false)
   const base = `/api/sis/curriculum/${curriculumId}/quests/${quest.id}`
 
   useEffect(() => {
     let active = true
-    // The tasks GET carries the quest's description and editability too, so the
-    // panel is one request; PresetTaskManager re-fetches the same URL for the
-    // task list itself.
+    // The tasks GET carries the quest's description and editability too, so
+    // the panel is one request. Editing is the quest editor (Edit quest).
     api.get(withOrg(`${base}/tasks`, orgId))
-      .then((r) => { if (active) setDetail({ ...(r.data?.quest || {}), editable: !!r.data?.editable }) })
-      .catch(() => { if (active) setDetail({ editable: false }) })
+      .then((r) => {
+        if (active) {
+          setDetail({ ...(r.data?.quest || {}), editable: !!r.data?.editable, tasks: r.data?.tasks || [] })
+        }
+      })
+      .catch(() => { if (active) setDetail({ editable: false, tasks: [] }) })
     return () => { active = false }
   }, [base, orgId])
-
-  const saveInfo = async () => {
-    if (!infoDraft.title.trim()) { toast.error('A title is required'); return }
-    setBusy(true)
-    try {
-      const { data } = await api.patch(withOrg(base, orgId), {
-        title: infoDraft.title.trim(),
-        description: infoDraft.description,
-      })
-      setDetail((d) => ({ ...d, ...data.quest }))
-      setEditingInfo(false)
-      onRenamed?.(data.quest?.title)
-    } catch (err) {
-      toast.error(err?.response?.data?.error || 'Could not save the quest')
-    } finally {
-      setBusy(false)
-    }
-  }
 
   // iCreate, 2026-09-07 (45c7ced1): "Can I please duplicate quests so I don't
   // have to start over every time?" Offered on library quests too, not just the
@@ -286,52 +270,18 @@ function QuestDetail({ orgId, curriculumId, quest, onRenamed, onDeleted, onChang
 
   return (
     <div className="mt-1 mb-2 ml-6 rounded-lg border border-gray-100 bg-neutral-50/60 p-3">
-      {editingInfo ? (
-        <div className="space-y-2 mb-2">
-          <input value={infoDraft.title} className={inputCls}
-            onChange={(e) => setInfoDraft({ ...infoDraft, title: e.target.value })} />
-          <textarea value={infoDraft.description} rows={2} className={inputCls}
-            placeholder="What is this quest about? (optional)"
-            onChange={(e) => setInfoDraft({ ...infoDraft, description: e.target.value })} />
-          <div className="flex justify-end gap-2">
-            <button onClick={() => setEditingInfo(false)}
-              className="px-3 py-1.5 rounded-lg border border-gray-300 text-sm text-neutral-600">
-              Cancel
-            </button>
-            <button onClick={saveInfo} disabled={busy}
-              className="px-3 py-1.5 rounded-lg bg-gradient-primary text-white text-sm font-semibold disabled:opacity-50">
-              Save
-            </button>
-          </div>
-        </div>
-      ) : (
-        <div className="flex items-start gap-2 mb-1">
-          <p className="flex-1 text-sm text-neutral-600">
-            {detail.description || <span className="text-neutral-400">No description.</span>}
-          </p>
-          {detail.editable && (
-            <button
-              onClick={() => {
-                setInfoDraft({ title: detail.title || quest.title, description: detail.description || '' })
-                setEditingInfo(true)
-              }}
-              className="shrink-0 inline-flex items-center gap-1 text-xs text-neutral-500 hover:text-optio-purple"
-              aria-label={`Edit ${detail.title || quest.title}`}>
-              <PencilSquareIcon className="w-3.5 h-3.5" /> Edit details
-            </button>
-          )}
-        </div>
-      )}
+      <div className="flex items-start gap-2 mb-2">
+        <p className="flex-1 text-sm text-neutral-600">
+          {detail.description || <span className="text-neutral-400">No description.</span>}
+        </p>
+        <button onClick={() => onEdit?.(quest)}
+          className="shrink-0 inline-flex items-center gap-1 text-xs text-neutral-500 hover:text-optio-purple"
+          aria-label={`${detail.editable ? 'Edit' : 'Open'} ${detail.title || quest.title}`}>
+          <PencilSquareIcon className="w-3.5 h-3.5" /> {detail.editable ? 'Edit quest' : 'Open quest'}
+        </button>
+      </div>
 
-      {/* Handouts, videos and links for the quest as a whole. They were
-          reachable only from a class the quest was assigned to, so the admin
-          logged in as a teacher to attach them and then could not see them
-          here -- "it's not saved to the master quest" (iCreate, 2026-09-14,
-          c7d1f7a5). It was; nothing here showed it. Same rows, same quest. */}
-      {detail.editable && <QuestResourcesPanel questId={quest.id} />}
-
-      <PresetTaskManager base={`${base}/tasks`} orgId={orgId}
-        questId={detail.editable ? quest.id : null} />
+      <ReadOnlyTasks tasks={detail.tasks} />
 
       <QuestCurricula base={base} orgId={orgId} curriculumId={curriculumId}
         onChanged={onChanged} onMoved={onMoved} />
@@ -359,12 +309,10 @@ export default function CurriculumResources({ orgId, curriculumId, canManage, on
   const [questOptions, setQuestOptions] = useState([])
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
-  const [creating, setCreating] = useState(false)
-  const [showNew, setShowNew] = useState(false)
-  const [newTitle, setNewTitle] = useState('')
-  const [newDesc, setNewDesc] = useState('')
-  const [newTasks, setNewTasks] = useState([blankTask()])
   const [expandedId, setExpandedId] = useState(null) // quest whose detail is open
+  // The quest editor: {questId?}; no questId starts a draft on this curriculum.
+  const [editing, setEditing] = useState(null)
+  const refreshDrafts = useRefreshAfterQuestEdit(orgId)
 
   const load = useCallback(() => {
     setLoading(true)
@@ -452,42 +400,6 @@ export default function CurriculumResources({ orgId, curriculumId, canManage, on
     saveQuests(arrayMove(quests, from, to), { notify: false })
   }
 
-  const resetNew = () => {
-    setNewTitle(''); setNewDesc(''); setNewTasks([blankTask()]); setShowNew(false)
-  }
-
-  const hasDraft = Boolean(newTitle.trim() || newDesc.trim() || newTasks.some((t) => t.title.trim()))
-
-  // The generated draft opens the form rather than saving anything: the review
-  // step is the point, so a quest still exists only once an admin clicks create.
-  const acceptDraft = ({ title, description, tasks }) => {
-    setNewTitle(title); setNewDesc(description); setNewTasks(tasks); setShowNew(true)
-  }
-
-  // The new quest is appended by the API rather than sent as part of the whole
-  // set, so a create can't race a concurrent reorder into dropping somebody's
-  // quest — it is the one edit here that is additive by nature.
-  const createQuest = async () => {
-    if (!newTitle.trim()) { toast.error('Give the quest a title'); return }
-    setCreating(true)
-    try {
-      const created = await api.post(withOrg(`/api/sis/curriculum/${curriculumId}/quests/create`, orgId), {
-        title: newTitle.trim(),
-        description: newDesc.trim(),
-        tasks: newTasks.filter((t) => t.title.trim()),
-      })
-      const n = created?.data?.pushed_to_classes || 0
-      toast.success(n
-        ? `Quest created and added to ${n} class${n === 1 ? '' : 'es'}`
-        : 'Quest created and added')
-      resetNew()
-      load()
-      onChanged?.()
-    } catch (err) {
-      toast.error(err?.response?.data?.error || 'Could not create the quest')
-    } finally { setCreating(false) }
-  }
-
   if (loading) return <p className="text-sm text-neutral-400">Loading…</p>
 
   return (
@@ -565,11 +477,7 @@ export default function CurriculumResources({ orgId, curriculumId, canManage, on
                       orgId={orgId}
                       curriculumId={curriculumId}
                       quest={q}
-                      onRenamed={(title) => {
-                        if (!title) return
-                        setQuests((prev) => prev.map((x) => (x.id === q.id ? { ...x, title } : x)))
-                        onChanged?.()
-                      }}
+                      onEdit={() => setEditing({ questId: q.id })}
                       onDeleted={() => {
                         setExpandedId(null)
                         setQuests((prev) => prev.filter((x) => x.id !== q.id))
@@ -606,33 +514,14 @@ export default function CurriculumResources({ orgId, curriculumId, canManage, on
               placeholder="Add a quest…"
             />
 
-            {!showNew ? (
-              <button type="button" onClick={() => setShowNew(true)}
-                className="mt-2 inline-flex items-center gap-1.5 text-sm font-medium text-optio-purple hover:underline">
-                <PlusIcon className="w-4 h-4" /> Create a new quest
-              </button>
-            ) : (
-              <div className="mt-3 pt-3 border-t border-gray-100 space-y-3">
-                <QuestDraftForm
-                  title={newTitle} setTitle={setNewTitle}
-                  description={newDesc} setDescription={setNewDesc}
-                  tasks={newTasks} setTasks={setNewTasks}
-                  titlePlaceholder="Quest title (e.g. Watercolor Basics)"
-                  descriptionPlaceholder="What is this quest about? (optional)"
-                  taskHint="Preset tasks are copied to each student when they start the quest. Leave it empty and they write their own. Every task needs evidence — a photo, a note or a link — before a student can mark it done."
-                />
-                <div className="flex justify-end gap-2">
-                  <button type="button" onClick={resetNew} disabled={creating}
-                    className="px-3 py-2 rounded-lg border border-gray-300 text-sm text-neutral-600 hover:bg-gray-50">
-                    Cancel
-                  </button>
-                  <button type="button" onClick={createQuest} disabled={creating || !newTitle.trim()}
-                    className="px-4 py-2 rounded-lg bg-gradient-primary text-white text-sm font-semibold disabled:opacity-50">
-                    {creating ? 'Creating…' : 'Create & add'}
-                  </button>
-                </div>
-              </div>
-            )}
+            <button type="button" onClick={() => setEditing({})} disabled={!!editing}
+              className="mt-2 inline-flex items-center gap-1.5 text-sm font-medium text-optio-purple hover:underline disabled:opacity-50">
+              <PlusIcon className="w-4 h-4" /> Create a new quest
+            </button>
+            <div className="mt-3">
+              <QuestDraftsList orgId={orgId} context="curriculum" curriculumId={curriculumId}
+                onResume={(d) => setEditing({ questId: d.id })} />
+            </div>
           </>
         )}
       </div>
@@ -643,18 +532,22 @@ export default function CurriculumResources({ orgId, curriculumId, canManage, on
             curriculum is as likely to be sharing a video as assigning work. */}
         <CurriculumMaterials orgId={orgId} curriculumId={curriculumId} />
 
-        {/* Build a quest from material the school already has. Sits beside the
-            quest list rather than inside the create form because it is how most
-            quests here will start — the school has the material already, and
-            typing it in again is the work worth removing. */}
-        {canManage ? (
-          <QuestAiDraftPanel alwaysOpen hasDraft={hasDraft} onDrafted={acceptDraft} />
-        ) : (
+        {/* Drafting a quest from a document the school already has lives in
+            the quest editor now (Create a new quest), beside the form it
+            fills. */}
+        {!canManage && (
           <div className="rounded-lg border border-gray-200 bg-white p-3">
             <Empty>Quests are set up by an administrator.</Empty>
           </div>
         )}
       </div>
+
+      {editing && (
+        <QuestEditor key={editing.questId || 'new'} context="curriculum" orgId={orgId}
+          curriculumId={curriculumId} questId={editing.questId || null}
+          onDone={() => { refreshDrafts(); setExpandedId(null); load(); onChanged?.() }}
+          onClose={() => setEditing(null)} />
+      )}
     </div>
   )
 }

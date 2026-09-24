@@ -61,8 +61,7 @@ import { useFamilyAttention } from './FamilyHomeData'
  */
 
 const ATTENTION_ICONS = {
-  checklist: ClipboardDocumentListIcon,
-  forms: DocumentTextIcon,
+  todo: ClipboardDocumentListIcon,
 }
 
 /** The strip above everything else — only when something actually needs doing.

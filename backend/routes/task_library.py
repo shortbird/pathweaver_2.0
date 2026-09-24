@@ -29,6 +29,13 @@ def get_task_library(user_id, quest_id):
     try:
         logger.info(f"User {user_id} requesting task library for quest {quest_id}")
 
+        # A school quest the caller may not open is "not found" (owner
+        # decision 2026-09-24, services/quest_visibility_service.py): the
+        # library is other students' tasks for the quest, its content.
+        from services.quest_visibility_service import may_open_quest_id
+        if not may_open_quest_id(user_id, quest_id):
+            return jsonify({'success': False, 'error': 'Quest not found'}), 404
+
         library_service = TaskLibraryService()
         tasks = library_service.get_library_tasks(quest_id, user_id=user_id, limit=20)
 
@@ -55,6 +62,13 @@ def get_task_library_count(user_id, quest_id):
     """
     try:
         logger.info(f"User {user_id} getting task library count for quest {quest_id}")
+
+        # A school quest the caller may not open is "not found" (owner
+        # decision 2026-09-24, services/quest_visibility_service.py): the
+        # library is other students' tasks for the quest, its content.
+        from services.quest_visibility_service import may_open_quest_id
+        if not may_open_quest_id(user_id, quest_id):
+            return jsonify({'success': False, 'error': 'Quest not found'}), 404
 
         library_service = TaskLibraryService()
         count = library_service.get_library_count(quest_id)
