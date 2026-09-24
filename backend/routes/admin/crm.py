@@ -616,8 +616,11 @@ def get_lead(user_id, lead_id):
                 str(current['entered_at']).replace('Z', '+00:00'))
             next_send_at = (entered + timedelta(hours=nxt['delay_hours'])).isoformat()
 
+    person_id = lead.get('user_id') or _person_repo().user_id_for_email(lead.get('email'))
+
     return jsonify({
         'lead': lead,
+        'person_id': person_id,
         'memberships': memberships,
         'current_membership': current,
         'step_count': step_count,
@@ -718,18 +721,148 @@ def move_lead(user_id, lead_id):
 @bp.route('/leads/<lead_id>/notes', methods=['POST'])
 @require_superadmin
 def add_lead_note(user_id, lead_id):
-    body = ((request.get_json(silent=True) or {}).get('body') or '').strip()
-    if not body:
-        return jsonify({'error': 'Note body is required'}), 400
-    db = _db()
+    body, met_on, error = _note_fields(request.get_json(silent=True) or {})
+    if error:
+        return jsonify({'error': error}), 400
     try:
-        note = (db.table('crm_events').insert({
-            'lead_id': lead_id, 'event_type': 'note',
-            'detail': {'body': body, 'author_id': user_id},
-        }).execute()).data[0]
+        note = _person_repo().add_lead_note(lead_id, user_id, body, met_on)
     except APIError:
         return jsonify({'error': 'Lead not found'}), 404
     return jsonify({'note': note}), 201
+
+
+# ------------------------------------------------------------ people
+#
+# Notes about any Optio user, not only leads. A person's file shows their own
+# notes plus the notes on any lead that is them (see CrmPersonNotesRepository).
+
+def _person_repo():
+    from repositories.crm_person_notes_repository import CrmPersonNotesRepository
+    return CrmPersonNotesRepository(client=_db())
+
+
+def _note_fields(data):
+    """(body, met_on, error) from a note payload. met_on is optional."""
+    body = (data.get('body') or '').strip()
+    if not body:
+        return None, None, 'Note body is required'
+    met_on = (data.get('met_on') or '').strip() or None
+    if met_on:
+        try:
+            datetime.strptime(met_on, '%Y-%m-%d')
+        except ValueError:
+            return None, None, 'Meeting date must be YYYY-MM-DD'
+    return body, met_on, None
+
+
+@bp.route('/people', methods=['POST'])
+@require_superadmin
+def create_person(user_id):
+    """Add someone to the CRM by hand, e.g. after meeting them.
+
+    Somebody with an Optio account already has a file, so this returns it
+    rather than creating anything. Anyone else becomes a lead with source
+    'manual' and NO funnel: adding a person by hand must never start
+    marketing email to them. An optional first note goes on the file.
+    """
+    data = request.get_json(silent=True) or {}
+    email = (data.get('email') or '').strip().lower()
+    if not email or '@' not in email:
+        return jsonify({'error': 'A valid email is required'}), 400
+    note_body = (data.get('note') or '').strip()
+    met_on = None
+    if note_body:
+        note_body, met_on, error = _note_fields({'body': note_body,
+                                                 'met_on': data.get('met_on')})
+        if error:
+            return jsonify({'error': error}), 400
+
+    repo = _person_repo()
+    existing_user = repo.user_id_for_email(email)
+    if existing_user:
+        if note_body:
+            repo.add_note(existing_user, user_id, note_body, met_on)
+        _audit(user_id, 'crm_person_opened_existing', 'user', existing_user)
+        return jsonify({'kind': 'user', 'id': existing_user, 'existing': True})
+
+    existed = repo.lead_for_email(email) is not None
+    from services.crm_service import _upsert_lead
+    def field(key):
+        return (data.get(key) or '').strip() or None
+
+    lead = _upsert_lead(_db(), email, first_name=field('first_name'),
+                        last_name=field('last_name'), phone=field('phone'),
+                        lead_source='manual')
+    if not lead:
+        raise RuntimeError('crm create_person: lead upsert returned nothing')
+    if note_body:
+        repo.add_lead_note(lead['id'], user_id, note_body, met_on)
+    _audit(user_id, 'crm_person_added', 'crm_lead', lead['id'],
+           {'existing': existed})
+    return jsonify({'kind': 'lead', 'id': lead['id'], 'existing': existed}), \
+        (200 if existed else 201)
+
+
+@bp.route('/person-notes', methods=['GET'])
+@require_superadmin
+def recent_person_notes(user_id):
+    return jsonify({'notes': _person_repo().recent_notes(limit=25)})
+
+
+@bp.route('/people/<person_id>', methods=['GET'])
+@require_superadmin
+def get_person(user_id, person_id):
+    repo = _person_repo()
+    person = repo.get_person(person_id)
+    if not person:
+        return jsonify({'error': 'User not found'}), 404
+    return jsonify({
+        'person': person,
+        'notes': repo.notes_for(person_id),
+        'leads': repo.leads_for(person),
+    })
+
+
+@bp.route('/people/<person_id>/notes', methods=['POST'])
+@require_superadmin
+def add_person_note(user_id, person_id):
+    body, met_on, error = _note_fields(request.get_json(silent=True) or {})
+    if error:
+        return jsonify({'error': error}), 400
+    repo = _person_repo()
+    if not repo.get_person(person_id):
+        return jsonify({'error': 'User not found'}), 404
+    note = repo.add_note(person_id, user_id, body, met_on)
+    _audit(user_id, 'crm_person_note_added', 'user', person_id,
+           {'note_id': note['id']})
+    return jsonify({'note': note}), 201
+
+
+@bp.route('/person-notes/<note_id>', methods=['PUT'])
+@require_superadmin
+def update_person_note(user_id, note_id):
+    body, met_on, error = _note_fields(request.get_json(silent=True) or {})
+    if error:
+        return jsonify({'error': error}), 400
+    note = _person_repo().update_note(note_id, body, met_on)
+    if not note:
+        return jsonify({'error': 'Note not found'}), 404
+    _audit(user_id, 'crm_person_note_edited', 'user', note['user_id'],
+           {'note_id': note_id})
+    return jsonify({'note': note})
+
+
+@bp.route('/person-notes/<note_id>', methods=['DELETE'])
+@require_superadmin
+def delete_person_note(user_id, note_id):
+    repo = _person_repo()
+    note = repo.get_note(note_id)
+    if not note:
+        return jsonify({'error': 'Note not found'}), 404
+    repo.delete_note(note_id)
+    _audit(user_id, 'crm_person_note_deleted', 'user', note['user_id'],
+           {'note_id': note_id})
+    return jsonify({'deleted': True})
 
 
 # ------------------------------------------------------------ suppressions

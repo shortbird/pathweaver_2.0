@@ -26,6 +26,8 @@ export const CONTACT_TYPE_LABELS = {
   academy: 'Academy',
   claim_free_class: 'Free class claim',
   course_purchase: 'Course purchase',
+  // Added from the People tab. Never a funnel entry type.
+  manual: 'Added by hand',
 }
 
 export const LEAD_STATUSES = ['active', 'converted', 'unsubscribed', 'suppressed']
@@ -86,5 +88,15 @@ export const formatDateTime = (value) => {
     year: 'numeric',
     hour: 'numeric',
     minute: '2-digit',
+  })
+}
+
+// met_on is a calendar date; parsing 'YYYY-MM-DD' as a Date reads it as UTC
+// midnight, which is the previous day in every US timezone.
+export const formatMetOn = (value) => {
+  if (!value) return null
+  const [y, m, d] = value.split('-').map(Number)
+  return new Date(y, m - 1, d).toLocaleDateString('en-US', {
+    month: 'short', day: 'numeric', year: 'numeric',
   })
 }

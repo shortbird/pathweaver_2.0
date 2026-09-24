@@ -27,9 +27,11 @@ const LeadDetail = () => {
   const [lead, setLead] = useState(null)
   const [timeline, setTimeline] = useState([])
   const [membership, setMembership] = useState(null)
+  const [personId, setPersonId] = useState(null)
   const [loading, setLoading] = useState(true)
   const [showMoveModal, setShowMoveModal] = useState(false)
   const [noteBody, setNoteBody] = useState('')
+  const [noteMetOn, setNoteMetOn] = useState('')
   const [addingNote, setAddingNote] = useState(false)
 
   useEffect(() => {
@@ -44,6 +46,7 @@ const LeadDetail = () => {
       setLead(loadedLead)
       setTimeline(data.timeline || loadedLead.timeline || [])
       setMembership(data.membership || loadedLead.membership || null)
+      setPersonId(data.person_id || null)
     } catch (error) {
       toast.error(error.response?.data?.error || 'Failed to load lead')
       setLead(null)
@@ -106,9 +109,10 @@ const LeadDetail = () => {
     if (!body) return
     setAddingNote(true)
     try {
-      await addLeadNote(leadId, body)
+      await addLeadNote(leadId, body, noteMetOn || null)
       toast.success('Note added')
       setNoteBody('')
+      setNoteMetOn('')
       fetchLead()
     } catch (error) {
       toast.error(error.response?.data?.error || 'Failed to add note')
@@ -170,6 +174,14 @@ const LeadDetail = () => {
         <p className="mt-1 text-sm text-gray-500">
           {name && <span>{name} · </span>}
           Entered {formatDate(lead.created_at)}
+          {personId && (
+            <>
+              {' · '}
+              <Link to={`/admin/crm/people/${personId}`} className="font-medium text-optio-purple hover:underline">
+                Open person file
+              </Link>
+            </>
+          )}
         </p>
       </div>
 
@@ -243,6 +255,16 @@ const LeadDetail = () => {
                 onChange={(e) => setNoteBody(e.target.value)}
                 placeholder="Internal note about this lead..."
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-optio-purple resize-vertical"
+              />
+              <label htmlFor="lead-note-met-on" className="block text-sm text-gray-600 mt-2 mb-1">
+                Meeting date <span className="text-xs text-gray-400">(optional)</span>
+              </label>
+              <input
+                id="lead-note-met-on"
+                type="date"
+                value={noteMetOn}
+                onChange={(e) => setNoteMetOn(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-optio-purple"
               />
               <button
                 onClick={handleAddNote}

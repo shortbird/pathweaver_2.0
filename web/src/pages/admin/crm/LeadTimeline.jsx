@@ -1,6 +1,6 @@
 import React from 'react'
 import EmptyState from '../../../components/ui/EmptyState'
-import { formatDateTime } from './crmConstants'
+import { formatDateTime, formatMetOn } from './crmConstants'
 
 const DOT_COLORS = {
   entered: 'bg-optio-purple',
@@ -36,7 +36,7 @@ const itemTitle = (item) => {
     case 'send':
       return item.template_name || item.step_name || itemDetail(item).step_name || 'Email sent'
     case 'note':
-      return 'Note'
+      return itemDetail(item).met_on ? `Meeting on ${formatMetOn(itemDetail(item).met_on)}` : 'Note'
     case 'status_change': {
       const d = itemDetail(item)
       const from = item.from || d.from

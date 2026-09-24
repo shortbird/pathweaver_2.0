@@ -7,10 +7,13 @@ import StepEditor from './StepEditor'
 import LeadsList from './LeadsList'
 import LeadDetail from './LeadDetail'
 import SuppressionList from './SuppressionList'
+import PeopleList from './PeopleList'
+import PersonDetail from './PersonDetail'
 
 const TABS = [
   { id: 'funnels', label: 'Funnels' },
   { id: 'leads', label: 'Leads' },
+  { id: 'people', label: 'People' },
   { id: 'suppressions', label: 'Suppressions' },
 ]
 
@@ -45,8 +48,13 @@ const CrmConsole = () => {
         <Route path="funnels/:funnelId/steps/:stepId" element={<StepEditor />} />
         <Route path="leads" element={<LeadsList />} />
         <Route path="leads/:leadId" element={<LeadDetail />} />
+        <Route path="people" element={<PeopleList />} />
+        <Route path="people/:personId" element={<PersonDetail />} />
         <Route path="suppressions" element={<SuppressionList />} />
-        <Route path="*" element={<Navigate to="funnels" replace />} />
+        {/* Absolute on purpose: a relative "funnels" resolves against the
+            unmatched path, so /admin/crm/people/x on a build without that
+            route redirected to .../x/funnels, which also missed, forever. */}
+        <Route path="*" element={<Navigate to="/admin/crm/funnels" replace />} />
       </Routes>
     </div>
   )

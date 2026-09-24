@@ -50,7 +50,21 @@ export const convertLead = (leadId) => api.post(`/api/admin/crm/leads/${leadId}/
 export const exitLead = (leadId) => api.post(`/api/admin/crm/leads/${leadId}/exit`, {})
 export const moveLead = (leadId, { funnel_id, step_order }) =>
   api.post(`/api/admin/crm/leads/${leadId}/move`, { funnel_id, step_order })
-export const addLeadNote = (leadId, body) => api.post(`/api/admin/crm/leads/${leadId}/notes`, { body })
+export const addLeadNote = (leadId, body, metOn = null) =>
+  api.post(`/api/admin/crm/leads/${leadId}/notes`, { body, met_on: metOn })
+
+// People - notes about any Optio user, not only leads. The person search
+// reuses the admin user list.
+export const searchPeople = (search) =>
+  api.get('/api/admin/users' + query({ search, per_page: 20 }))
+export const createPerson = (data) => api.post('/api/admin/crm/people', { ...data })
+export const listRecentPersonNotes = () => api.get('/api/admin/crm/person-notes')
+export const getPerson = (personId) => api.get(`/api/admin/crm/people/${personId}`)
+export const addPersonNote = (personId, { body, met_on }) =>
+  api.post(`/api/admin/crm/people/${personId}/notes`, { body, met_on })
+export const updatePersonNote = (noteId, { body, met_on }) =>
+  api.put(`/api/admin/crm/person-notes/${noteId}`, { body, met_on })
+export const deletePersonNote = (noteId) => api.delete(`/api/admin/crm/person-notes/${noteId}`)
 
 // Suppressions
 export const listSuppressions = (params = {}) =>

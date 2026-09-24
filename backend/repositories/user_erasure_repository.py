@@ -105,6 +105,7 @@ OWNED_ROWS: Tuple[Tuple[str, str], ...] = (
     ('observer_comments', 'student_id'),
     ('observer_comments', 'observer_id'),
     ('advisor_notes', 'subject_id'),
+    ('crm_person_notes', 'user_id'),  # author_id is ON DELETE SET NULL
     ('peer_comments', 'student_id'),
     ('peer_comments', 'author_id'),
     ('peer_connections', 'requester_id'),

@@ -109,9 +109,11 @@ describe('crmApi', () => {
       })
     })
 
-    it('addLeadNote wraps the text in {body}', () => {
+    it('addLeadNote wraps the text in {body}, with the meeting date when there is one', () => {
       crmApi.addLeadNote('l1', 'call went well')
-      expect(api.post).toHaveBeenCalledWith('/api/admin/crm/leads/l1/notes', { body: 'call went well' })
+      expect(api.post).toHaveBeenCalledWith('/api/admin/crm/leads/l1/notes', { body: 'call went well', met_on: null })
+      crmApi.addLeadNote('l1', 'coffee', '2026-09-22')
+      expect(api.post).toHaveBeenCalledWith('/api/admin/crm/leads/l1/notes', { body: 'coffee', met_on: '2026-09-22' })
     })
 
     it('addSuppression defaults the reason to manual', () => {

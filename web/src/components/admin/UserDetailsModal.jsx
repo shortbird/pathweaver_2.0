@@ -15,6 +15,7 @@ import api from '../../services/api'
 import ChatLogsModal from './ChatLogsModal'
 import CheckinHistoryModal from '../advisor/CheckinHistoryModal'
 import UserPeopleTab from './UserPeopleTab'
+import PersonFile from '../../pages/admin/crm/PersonFile'
 import { ConfirmDialog, GlassTabBar, Modal, Spinner } from '../ui'
 import { startMasquerade } from '../../services/masqueradeService'
 import { extractErrorMessage } from '../../utils/errorHandling'
@@ -43,6 +44,7 @@ const TABS = [
   { id: 'overview', label: 'Overview' },
   { id: 'access', label: 'Access' },
   { id: 'people', label: 'People' },
+  { id: 'notes', label: 'Notes' },
 ]
 
 const PLATFORM_ROLES = [
@@ -924,6 +926,7 @@ const UserDetailsModal = ({ user, onClose, onSave }) => {
           )}
 
           {activeTab === 'people' && <UserPeopleTab user={user} />}
+          {activeTab === 'notes' && <PersonFile personId={user.id} />}
         </div>
       </Modal>
 

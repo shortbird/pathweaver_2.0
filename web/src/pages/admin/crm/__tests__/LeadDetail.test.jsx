@@ -154,7 +154,7 @@ describe('LeadDetail', () => {
     const textarea = await screen.findByLabelText('Add note')
     fireEvent.change(textarea, { target: { value: 'Great call today' } })
     fireEvent.click(screen.getByRole('button', { name: 'Add note' }))
-    await waitFor(() => expect(crmApi.addLeadNote).toHaveBeenCalledWith('l1', 'Great call today'))
+    await waitFor(() => expect(crmApi.addLeadNote).toHaveBeenCalledWith('l1', 'Great call today', null))
     await waitFor(() => expect(textarea.value).toBe(''))
   })
 

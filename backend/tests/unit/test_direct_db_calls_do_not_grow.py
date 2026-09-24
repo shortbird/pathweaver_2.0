@@ -48,6 +48,17 @@ BACKEND = Path(__file__).resolve().parents[2]
 # peer_text_screen_repository.py: the same image from the same student
 # reuses its upload hold instead of writing a new one and telling the
 # parent again (fourteen holds for one photo on 2026-09-21).
+# repositories/ raised +2 for story_repository.py in 8c95aaa8 (the www home
+# page's three featured stories), which landed without raising this number.
+# repositories/ raised +14 for CrmPersonNotesRepository
+# (crm_person_notes_repository.py): internal CRM notes about any Optio user,
+# not only leads, plus the person's lead notes, the user lookup that links
+# a lead to a person file, and "Add person" (lead lookup + lead note). New
+# code, so it lands in a repository. The lead-note insert MOVED here from
+# routes/admin/crm.py, so routes/ went down by one.
+# repositories/ raised 612 -> 613 for find_latest_by_canary_token in
+# bug_report_repository.py: the canarytoken webhook looks up the open ticket
+# for a token, as the Sentry webhook does for an issue.
 # repositories/ raised 611 -> 612 for get_public_blocks_for_documents in
 # evidence_document_repository.py: the feed fills each task card with all of
 # its blocks instead of only the ones inside the page's time window. The feed
@@ -591,7 +602,7 @@ BASELINES = {
     # ticket 0e6cb0fc); two so a family's reply on a submission reaches the
     # SIS reviewer or the class teachers (sis_submission_reviews, class_quests;
     # ticket 41474658). routes/ went DOWN by the two moved reads.
-    'repositories': 613,
+    'repositories': 630,
     # 2026-09-09: 135 -> 136. class_membership.children_in_classes, the inverse
     # of parents_of_students: which of a guardian's children sit in each of a
     # set of classes. It answers "whose class chat is this?" for the messaging
