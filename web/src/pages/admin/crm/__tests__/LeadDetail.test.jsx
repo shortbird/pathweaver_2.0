@@ -17,6 +17,8 @@ vi.mock('../crmApi', () => ({
   convertLead: vi.fn(),
   exitLead: vi.fn(),
   addLeadNote: vi.fn(),
+  deleteLeadNote: vi.fn(),
+  refreshLeadNoteDoc: vi.fn(),
   addSuppression: vi.fn(),
   // used by MoveLeadModal
   listFunnels: vi.fn(),
@@ -154,8 +156,50 @@ describe('LeadDetail', () => {
     const textarea = await screen.findByLabelText('Add note')
     fireEvent.change(textarea, { target: { value: 'Great call today' } })
     fireEvent.click(screen.getByRole('button', { name: 'Add note' }))
-    await waitFor(() => expect(crmApi.addLeadNote).toHaveBeenCalledWith('l1', 'Great call today', null))
+    await waitFor(() => expect(crmApi.addLeadNote).toHaveBeenCalledWith('l1', 'Great call today', null, ''))
     await waitFor(() => expect(textarea.value).toBe(''))
+  })
+
+  it('attaches a Google Doc and passes on why it could not be read', async () => {
+    const url = 'https://docs.google.com/document/d/1AbCdEfGhIjKlMnOpQrStUvWxYz0123456789/edit'
+    crmApi.addLeadNote.mockResolvedValue({ data: { note: {}, doc_warning: 'Share it with reader@x' } })
+    renderDetail()
+    fireEvent.change(await screen.findByLabelText(/Google Doc link/), { target: { value: url } })
+    fireEvent.click(screen.getByRole('button', { name: 'Add note' }))
+    await waitFor(() => expect(crmApi.addLeadNote).toHaveBeenCalledWith('l1', '', null, url))
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('Share it with reader@x', { duration: 8000 }))
+  })
+
+  it('deletes a lead note after confirming', async () => {
+    crmApi.deleteLeadNote.mockResolvedValue({ data: { deleted: true } })
+    renderDetail()
+    fireEvent.click(await screen.findByRole('button', { name: 'Delete note' }))
+    await clickDialogButton('Delete note')
+    await waitFor(() => expect(crmApi.deleteLeadNote).toHaveBeenCalledWith('l1', 'e3'))
+    // Reloads so the note leaves the timeline.
+    await waitFor(() => expect(crmApi.getLead).toHaveBeenCalledTimes(2))
+  })
+
+  it('refreshes a lead note from its Google Doc', async () => {
+    crmApi.getLead.mockResolvedValue({
+      data: {
+        ...leadResponse,
+        timeline: [{
+          id: 'e9', type: 'note', created_at: '2026-09-24T00:00:00Z',
+          detail: {
+            body: 'Initial meeting',
+            doc_url: 'https://docs.google.com/document/d/1AbCdEfGhIjKlMnOpQrStUvWxYz0123456789/edit',
+            doc_title: 'Mandie intro', doc_text: 'Notes', doc_fetched_at: '2026-09-24T00:00:00Z',
+          },
+        }],
+      },
+    })
+    crmApi.refreshLeadNoteDoc.mockResolvedValue({ data: { note: {}, doc_warning: null } })
+    renderDetail()
+    expect(await screen.findByRole('link', { name: 'Mandie intro' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Refresh from doc' }))
+    await waitFor(() => expect(crmApi.refreshLeadNoteDoc).toHaveBeenCalledWith('l1', 'e9'))
+    await waitFor(() => expect(toast.success).toHaveBeenCalledWith('Copied the latest from the doc'))
   })
 
   it('surfaces action failures as toast errors', async () => {

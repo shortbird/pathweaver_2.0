@@ -1,7 +1,15 @@
 import React, { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { toast } from 'react-hot-toast'
-import { getPerson, addPersonNote, updatePersonNote, deletePersonNote } from './crmApi'
+import {
+  getPerson,
+  addPersonNote,
+  updatePersonNote,
+  deletePersonNote,
+  refreshPersonNoteDoc,
+  getGoogleDocsReader,
+} from './crmApi'
+import NoteDoc, { toastDocWarning } from './NoteDoc'
 import { useConfirm } from '../../../contexts/ConfirmContext'
 import { PageLoader } from '../../../components/ui'
 import EmptyState from '../../../components/ui/EmptyState'
@@ -23,8 +31,11 @@ const primaryButtonClass =
 const secondaryButtonClass =
   'px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors min-h-[44px]'
 
-/** Body + meeting date fields, shared by the composer and the inline editor. */
-export const NoteFields = ({ idPrefix, body, metOn, onBody, onMetOn }) => (
+/**
+ * Body + meeting date fields, shared by the composer and the inline editor.
+ * With `onDocUrl` it also takes a Google Doc link; the body is then optional.
+ */
+export const NoteFields = ({ idPrefix, body, metOn, onBody, onMetOn, docUrl, onDocUrl }) => (
   <div className="space-y-2">
     <textarea
       id={`${idPrefix}-body`}
@@ -32,9 +43,24 @@ export const NoteFields = ({ idPrefix, body, metOn, onBody, onMetOn }) => (
       rows={5}
       value={body}
       onChange={(e) => onBody(e.target.value)}
-      placeholder="What did you talk about? What happens next?"
+      placeholder={
+        onDocUrl
+          ? 'What did you talk about? What happens next? Optional when you attach a doc.'
+          : 'What did you talk about? What happens next?'
+      }
       className={`${inputClass} resize-vertical`}
     />
+    {onDocUrl && (
+      <input
+        id={`${idPrefix}-doc-url`}
+        type="url"
+        aria-label="Google Doc link"
+        value={docUrl}
+        onChange={(e) => onDocUrl(e.target.value)}
+        placeholder="Google Doc link, e.g. https://docs.google.com/document/d/..."
+        className={inputClass}
+      />
+    )}
     <div className="flex flex-wrap items-center gap-2">
       <label htmlFor={`${idPrefix}-met-on`} className="text-sm text-gray-600">
         Meeting date
@@ -51,24 +77,47 @@ export const NoteFields = ({ idPrefix, body, metOn, onBody, onMetOn }) => (
   </div>
 )
 
-const NoteItem = ({ note, onSaved, onDeleted }) => {
+const NoteItem = ({ note, onSaved, onDeleted, shareWith }) => {
   const confirm = useConfirm()
   const [editing, setEditing] = useState(false)
   const [body, setBody] = useState(note.body)
   const [metOn, setMetOn] = useState(note.met_on || '')
+  const [docUrl, setDocUrl] = useState(note.doc_url || '')
   const [saving, setSaving] = useState(false)
+  const [refreshing, setRefreshing] = useState(false)
 
   const save = async () => {
-    if (!body.trim()) return
+    if (!body.trim() && !docUrl.trim()) return
     setSaving(true)
     try {
-      await updatePersonNote(note.id, { body: body.trim(), met_on: metOn || null })
+      // doc_url only when the link changed: the backend re-reads a new link
+      // and detaches on an empty one, and leaves the doc alone otherwise.
+      const linkChanged = docUrl.trim() !== (note.doc_url || '')
+      const response = await updatePersonNote(note.id, {
+        body: body.trim(),
+        met_on: metOn || null,
+        ...(linkChanged ? { doc_url: docUrl.trim() } : {}),
+      })
+      toastDocWarning(response)
       setEditing(false)
       onSaved()
     } catch (error) {
       toast.error(error.response?.data?.error || 'Failed to save note')
     } finally {
       setSaving(false)
+    }
+  }
+
+  const refresh = async () => {
+    setRefreshing(true)
+    try {
+      const response = await refreshPersonNoteDoc(note.id)
+      if (!toastDocWarning(response)) toast.success('Copied the latest from the doc')
+      onSaved()
+    } catch (error) {
+      toast.error(error.response?.data?.error || 'Failed to refresh from the doc')
+    } finally {
+      setRefreshing(false)
     }
   }
 
@@ -110,15 +159,22 @@ const NoteItem = ({ note, onSaved, onDeleted }) => {
             metOn={metOn}
             onBody={setBody}
             onMetOn={setMetOn}
+            docUrl={docUrl}
+            onDocUrl={setDocUrl}
           />
           <div className="mt-2 flex gap-2">
-            <button onClick={save} disabled={!body.trim() || saving} className={primaryButtonClass}>
+            <button
+              onClick={save}
+              disabled={(!body.trim() && !docUrl.trim()) || saving}
+              className={primaryButtonClass}
+            >
               {saving ? 'Saving...' : 'Save'}
             </button>
             <button
               onClick={() => {
                 setBody(note.body)
                 setMetOn(note.met_on || '')
+                setDocUrl(note.doc_url || '')
                 setEditing(false)
               }}
               className={secondaryButtonClass}
@@ -130,6 +186,7 @@ const NoteItem = ({ note, onSaved, onDeleted }) => {
       ) : (
         <>
           <p className="mt-1 text-sm text-gray-700 whitespace-pre-line">{note.body}</p>
+          <NoteDoc doc={note} onRefresh={refresh} refreshing={refreshing} shareWith={shareWith} />
           <div className="mt-2 flex gap-4">
             <button
               onClick={() => setEditing(true)}
@@ -158,7 +215,15 @@ const PersonFile = ({ personId, showHeader = false }) => {
   const [loading, setLoading] = useState(true)
   const [body, setBody] = useState('')
   const [metOn, setMetOn] = useState('')
+  const [docUrl, setDocUrl] = useState('')
   const [adding, setAdding] = useState(false)
+  const [shareWith, setShareWith] = useState(null)
+
+  useEffect(() => {
+    getGoogleDocsReader()
+      .then((response) => setShareWith(response?.data?.share_with || null))
+      .catch(() => setShareWith(null))
+  }, [])
 
   const load = useCallback(async () => {
     try {
@@ -178,13 +243,18 @@ const PersonFile = ({ personId, showHeader = false }) => {
   }, [load])
 
   const add = async () => {
-    if (!body.trim()) return
+    if (!body.trim() && !docUrl.trim()) return
     setAdding(true)
     try {
-      await addPersonNote(personId, { body: body.trim(), met_on: metOn || null })
-      toast.success('Note added')
+      const response = await addPersonNote(personId, {
+        body: body.trim(),
+        met_on: metOn || null,
+        doc_url: docUrl.trim(),
+      })
+      if (!toastDocWarning(response)) toast.success('Note added')
       setBody('')
       setMetOn('')
+      setDocUrl('')
       load()
     } catch (error) {
       toast.error(error.response?.data?.error || 'Failed to add note')
@@ -228,11 +298,20 @@ const PersonFile = ({ personId, showHeader = false }) => {
           metOn={metOn}
           onBody={setBody}
           onMetOn={setMetOn}
+          docUrl={docUrl}
+          onDocUrl={setDocUrl}
         />
-        <button onClick={add} disabled={!body.trim() || adding} className={`mt-3 ${primaryButtonClass}`}>
+        <button
+          onClick={add}
+          disabled={(!body.trim() && !docUrl.trim()) || adding}
+          className={`mt-3 ${primaryButtonClass}`}
+        >
           {adding ? 'Adding...' : 'Add note'}
         </button>
-        <p className="mt-2 text-xs text-gray-400">Only superadmins can see these notes.</p>
+        <p className="mt-2 text-xs text-gray-400">
+          Only superadmins can see these notes. A linked doc&apos;s text is copied onto the note
+          {shareWith ? `; share your meeting-notes folder with ${shareWith} once so Optio can read it.` : '.'}
+        </p>
       </div>
 
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4 sm:p-6">
@@ -242,7 +321,7 @@ const PersonFile = ({ personId, showHeader = false }) => {
         ) : (
           <ul className="divide-y divide-gray-100">
             {notes.map((note) => (
-              <NoteItem key={note.id} note={note} onSaved={load} onDeleted={load} />
+              <NoteItem key={note.id} note={note} onSaved={load} onDeleted={load} shareWith={shareWith} />
             ))}
           </ul>
         )}
@@ -286,6 +365,7 @@ const PersonFile = ({ personId, showHeader = false }) => {
                   <p className="mt-1 text-sm text-gray-700 whitespace-pre-line">
                     {note.detail?.body}
                   </p>
+                  <NoteDoc doc={note.detail} shareWith={shareWith} />
                 </li>
               ))}
             </ul>

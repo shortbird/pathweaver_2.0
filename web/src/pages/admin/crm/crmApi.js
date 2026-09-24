@@ -50,8 +50,14 @@ export const convertLead = (leadId) => api.post(`/api/admin/crm/leads/${leadId}/
 export const exitLead = (leadId) => api.post(`/api/admin/crm/leads/${leadId}/exit`, {})
 export const moveLead = (leadId, { funnel_id, step_order }) =>
   api.post(`/api/admin/crm/leads/${leadId}/move`, { funnel_id, step_order })
-export const addLeadNote = (leadId, body, metOn = null) =>
-  api.post(`/api/admin/crm/leads/${leadId}/notes`, { body, met_on: metOn })
+export const addLeadNote = (leadId, body, metOn = null, docUrl = '') =>
+  api.post(`/api/admin/crm/leads/${leadId}/notes`, {
+    body, met_on: metOn, ...(docUrl ? { doc_url: docUrl } : {}),
+  })
+export const deleteLeadNote = (leadId, noteId) =>
+  api.delete(`/api/admin/crm/leads/${leadId}/notes/${noteId}`)
+export const refreshLeadNoteDoc = (leadId, noteId) =>
+  api.post(`/api/admin/crm/leads/${leadId}/notes/${noteId}/doc/refresh`, {})
 
 // People - notes about any Optio user, not only leads. The person search
 // reuses the admin user list.
@@ -60,10 +66,20 @@ export const searchPeople = (search) =>
 export const createPerson = (data) => api.post('/api/admin/crm/people', { ...data })
 export const listRecentPersonNotes = () => api.get('/api/admin/crm/person-notes')
 export const getPerson = (personId) => api.get(`/api/admin/crm/people/${personId}`)
-export const addPersonNote = (personId, { body, met_on }) =>
-  api.post(`/api/admin/crm/people/${personId}/notes`, { body, met_on })
-export const updatePersonNote = (noteId, { body, met_on }) =>
-  api.put(`/api/admin/crm/person-notes/${noteId}`, { body, met_on })
+// A note can attach the Google Doc the meeting notes live in; the backend
+// copies its text onto the note. doc_url is sent only when there is one, and
+// on an edit an empty string detaches the doc.
+export const addPersonNote = (personId, { body, met_on, doc_url }) =>
+  api.post(`/api/admin/crm/people/${personId}/notes`, {
+    body, met_on, ...(doc_url ? { doc_url } : {}),
+  })
+export const updatePersonNote = (noteId, { body, met_on, doc_url }) =>
+  api.put(`/api/admin/crm/person-notes/${noteId}`, {
+    body, met_on, ...(doc_url !== undefined ? { doc_url } : {}),
+  })
+export const refreshPersonNoteDoc = (noteId) =>
+  api.post(`/api/admin/crm/person-notes/${noteId}/doc/refresh`, {})
+export const getGoogleDocsReader = () => api.get('/api/admin/crm/google-docs')
 export const deletePersonNote = (noteId) => api.delete(`/api/admin/crm/person-notes/${noteId}`)
 
 // Suppressions

@@ -2,11 +2,20 @@ import React, { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import { ArrowLeftIcon } from '@heroicons/react/24/outline'
-import { getLead, convertLead, exitLead, addLeadNote, addSuppression } from './crmApi'
+import {
+  getLead,
+  convertLead,
+  exitLead,
+  addLeadNote,
+  deleteLeadNote,
+  refreshLeadNoteDoc,
+  addSuppression,
+} from './crmApi'
 import { useConfirm } from '../../../contexts/ConfirmContext'
 import { PageLoader } from '../../../components/ui'
 import EmptyState from '../../../components/ui/EmptyState'
 import LeadTimeline from './LeadTimeline'
+import { toastDocWarning } from './NoteDoc'
 import MoveLeadModal from './MoveLeadModal'
 import {
   CONTACT_TYPE_LABELS,
@@ -32,6 +41,7 @@ const LeadDetail = () => {
   const [showMoveModal, setShowMoveModal] = useState(false)
   const [noteBody, setNoteBody] = useState('')
   const [noteMetOn, setNoteMetOn] = useState('')
+  const [noteDocUrl, setNoteDocUrl] = useState('')
   const [addingNote, setAddingNote] = useState(false)
 
   useEffect(() => {
@@ -106,18 +116,46 @@ const LeadDetail = () => {
 
   const handleAddNote = async () => {
     const body = noteBody.trim()
-    if (!body) return
+    const docUrl = noteDocUrl.trim()
+    if (!body && !docUrl) return
     setAddingNote(true)
     try {
-      await addLeadNote(leadId, body, noteMetOn || null)
-      toast.success('Note added')
+      const response = await addLeadNote(leadId, body, noteMetOn || null, docUrl)
+      if (!toastDocWarning(response)) toast.success('Note added')
       setNoteBody('')
       setNoteMetOn('')
+      setNoteDocUrl('')
       fetchLead()
     } catch (error) {
       toast.error(error.response?.data?.error || 'Failed to add note')
     } finally {
       setAddingNote(false)
+    }
+  }
+
+  const handleDeleteNote = async (item) => {
+    const ok = await confirm({
+      title: 'Delete this note?',
+      body: 'The note is removed from this lead\'s timeline for good.',
+      confirmLabel: 'Delete note',
+    })
+    if (!ok) return
+    try {
+      await deleteLeadNote(leadId, item.id)
+      toast.success('Note deleted')
+      fetchLead()
+    } catch (error) {
+      toast.error(error.response?.data?.error || 'Failed to delete note')
+    }
+  }
+
+  const handleRefreshNote = async (item) => {
+    try {
+      const response = await refreshLeadNoteDoc(leadId, item.id)
+      if (!toastDocWarning(response)) toast.success('Copied the latest from the doc')
+      fetchLead()
+    } catch (error) {
+      toast.error(error.response?.data?.error || 'Failed to refresh from the doc')
     }
   }
 
@@ -189,7 +227,7 @@ const LeadDetail = () => {
         {/* Timeline */}
         <div className="lg:col-span-2 bg-white rounded-xl border border-gray-200 shadow-sm p-4 sm:p-6">
           <h3 className="text-lg font-bold text-gray-900 mb-4">Timeline</h3>
-          <LeadTimeline items={timeline} />
+          <LeadTimeline items={timeline} onDeleteNote={handleDeleteNote} onRefreshNote={handleRefreshNote} />
         </div>
 
         {/* State + actions */}
@@ -266,9 +304,20 @@ const LeadDetail = () => {
                 onChange={(e) => setNoteMetOn(e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-optio-purple"
               />
+              <label htmlFor="lead-note-doc-url" className="block text-sm text-gray-600 mt-2 mb-1">
+                Google Doc link <span className="text-xs text-gray-400">(optional)</span>
+              </label>
+              <input
+                id="lead-note-doc-url"
+                type="url"
+                value={noteDocUrl}
+                onChange={(e) => setNoteDocUrl(e.target.value)}
+                placeholder="https://docs.google.com/document/d/..."
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-optio-purple"
+              />
               <button
                 onClick={handleAddNote}
-                disabled={!noteBody.trim() || addingNote}
+                disabled={(!noteBody.trim() && !noteDocUrl.trim()) || addingNote}
                 className="mt-2 w-full px-4 py-2 rounded-lg text-sm font-medium text-white bg-gradient-to-r from-optio-purple to-optio-pink hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed min-h-[44px]"
               >
                 {addingNote ? 'Adding...' : 'Add note'}

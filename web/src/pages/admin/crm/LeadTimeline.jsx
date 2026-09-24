@@ -1,6 +1,7 @@
-import React from 'react'
+import React, { useState } from 'react'
 import EmptyState from '../../../components/ui/EmptyState'
 import { formatDateTime, formatMetOn } from './crmConstants'
+import NoteDoc from './NoteDoc'
 
 const DOT_COLORS = {
   entered: 'bg-optio-purple',
@@ -52,7 +53,18 @@ const itemTitle = (item) => {
  * Vertical timeline for one lead: funnel entries, sends (with open/click/
  * bounce states), conversion events, notes and status changes.
  */
-const LeadTimeline = ({ items = [] }) => {
+const LeadTimeline = ({ items = [], onDeleteNote, onRefreshNote }) => {
+  const [refreshingId, setRefreshingId] = useState(null)
+
+  const refresh = async (item) => {
+    setRefreshingId(item.id)
+    try {
+      await onRefreshNote(item)
+    } finally {
+      setRefreshingId(null)
+    }
+  }
+
   if (!items.length) {
     return <EmptyState plain title="No activity yet" />
   }
@@ -100,9 +112,24 @@ const LeadTimeline = ({ items = [] }) => {
           )}
 
           {item.type === 'note' && (
-            <p className="mt-1 text-sm text-gray-600 whitespace-pre-line">
-              {item.body || itemDetail(item).body}
-            </p>
+            <>
+              <p className="mt-1 text-sm text-gray-600 whitespace-pre-line">
+                {item.body || itemDetail(item).body}
+              </p>
+              <NoteDoc
+                doc={itemDetail(item)}
+                onRefresh={onRefreshNote && item.id ? () => refresh(item) : undefined}
+                refreshing={refreshingId === item.id}
+              />
+              {onDeleteNote && item.id && (
+                <button
+                  onClick={() => onDeleteNote(item)}
+                  className="mt-2 text-xs font-medium text-red-600 hover:underline"
+                >
+                  Delete note
+                </button>
+              )}
+            </>
           )}
 
           {item.type !== 'send' && item.type !== 'note' && (item.description || itemDetail(item).description) && (

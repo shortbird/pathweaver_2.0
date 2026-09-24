@@ -123,34 +123,58 @@ class CrmPersonNotesRepository(BaseRepository):
                 .eq('id', note_id).limit(1).execute()).data
         return rows[0] if rows else None
 
+    def get_lead_note(self, lead_id: str, note_id: str) -> Optional[Dict[str, Any]]:
+        """A note on a lead's timeline, only if it is a note and on that lead,
+        so a lead-note route can never touch another kind of CRM event."""
+        rows = (self.client.table('crm_events').select('*')
+                .eq('id', note_id).eq('lead_id', lead_id).eq('event_type', 'note')
+                .limit(1).execute()).data
+        return rows[0] if rows else None
+
     # ------------------------------------------------------------ writes
 
     def add_note(self, user_id: str, author_id: str, body: str,
-                 met_on: Optional[str] = None) -> Dict[str, Any]:
+                 met_on: Optional[str] = None,
+                 doc: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        """`doc` is the doc_url/doc_title/doc_text/doc_fetched_at columns."""
         return (self.client.table(self.table_name).insert({
             'user_id': user_id, 'author_id': author_id,
-            'body': body, 'met_on': met_on,
+            'body': body, 'met_on': met_on, **(doc or {}),
         }).execute()).data[0]
 
     def add_lead_note(self, lead_id: str, author_id: str, body: str,
-                      met_on: Optional[str] = None) -> Dict[str, Any]:
+                      met_on: Optional[str] = None,
+                      doc: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """A note on a lead, for a person with no Optio account. It lives on
         the lead's timeline, and reaches their user file once they sign up
-        with the same email (leads_for)."""
+        with the same email (leads_for). An attached doc goes in the detail
+        under the same keys as the person-note columns."""
         detail: Dict[str, Any] = {'body': body, 'author_id': author_id}
         if met_on:
             detail['met_on'] = met_on
+        detail.update({k: v for k, v in (doc or {}).items() if v is not None})
         return (self.client.table('crm_events').insert({
             'lead_id': lead_id, 'event_type': 'note', 'detail': detail,
         }).execute()).data[0]
 
-    def update_note(self, note_id: str, body: str,
-                    met_on: Optional[str]) -> Optional[Dict[str, Any]]:
+    def update_note(self, note_id: str, body: str, met_on: Optional[str],
+                    doc: Optional[Dict[str, Any]] = None) -> Optional[Dict[str, Any]]:
+        """`doc` None leaves the attached doc alone; a dict replaces it."""
         from utils.timestamps import now_iso
         rows = (self.client.table(self.table_name).update({
-            'body': body, 'met_on': met_on, 'updated_at': now_iso(),
+            'body': body, 'met_on': met_on, 'updated_at': now_iso(), **(doc or {}),
         }).eq('id', note_id).execute()).data
         return rows[0] if rows else None
+
+    def set_lead_note_detail(self, note_id: str, detail: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        rows = (self.client.table('crm_events').update({'detail': detail})
+                .eq('id', note_id).eq('event_type', 'note').execute()).data
+        return rows[0] if rows else None
+
+    def delete_lead_note(self, note_id: str) -> bool:
+        rows = (self.client.table('crm_events').delete()
+                .eq('id', note_id).eq('event_type', 'note').execute()).data
+        return bool(rows)
 
     def delete_note(self, note_id: str) -> bool:
         rows = (self.client.table(self.table_name).delete()

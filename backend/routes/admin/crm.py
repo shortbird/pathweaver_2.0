@@ -580,7 +580,7 @@ def get_lead(user_id, lead_id):
 
     timeline = []
     for e in events:
-        timeline.append({'type': e['event_type'], 'at': e['created_at'],
+        timeline.append({'id': e['id'], 'type': e['event_type'], 'at': e['created_at'],
                          'detail': e.get('detail') or {}})
     for s in sends:
         step = s.get('crm_funnel_steps') or {}
@@ -721,14 +721,43 @@ def move_lead(user_id, lead_id):
 @bp.route('/leads/<lead_id>/notes', methods=['POST'])
 @require_superadmin
 def add_lead_note(user_id, lead_id):
-    body, met_on, error = _note_fields(request.get_json(silent=True) or {})
+    body, met_on, doc, warning, error = _note_with_doc(request.get_json(silent=True) or {})
     if error:
         return jsonify({'error': error}), 400
     try:
-        note = _person_repo().add_lead_note(lead_id, user_id, body, met_on)
+        note = _person_repo().add_lead_note(lead_id, user_id, body, met_on, doc)
     except APIError:
         return jsonify({'error': 'Lead not found'}), 404
-    return jsonify({'note': note}), 201
+    return jsonify({'note': note, 'doc_warning': warning}), 201
+
+
+@bp.route('/leads/<lead_id>/notes/<note_id>/doc/refresh', methods=['POST'])
+@require_superadmin
+def refresh_lead_note_doc(user_id, lead_id, note_id):
+    """Re-read a lead note's Google Doc. A failed read keeps the last copy."""
+    repo = _person_repo()
+    note = repo.get_lead_note(lead_id, note_id)
+    if not note:
+        return jsonify({'error': 'Note not found'}), 404
+    detail = note.get('detail') or {}
+    if not detail.get('doc_url'):
+        return jsonify({'error': 'This note has no Google Doc'}), 400
+    doc, warning = _fetch_doc_fields(detail['doc_url'])
+    if warning:
+        return jsonify({'note': note, 'doc_warning': warning})
+    note = repo.set_lead_note_detail(note_id, {**detail, **doc})
+    return jsonify({'note': note, 'doc_warning': None})
+
+
+@bp.route('/leads/<lead_id>/notes/<note_id>', methods=['DELETE'])
+@require_superadmin
+def delete_lead_note(user_id, lead_id, note_id):
+    repo = _person_repo()
+    if not repo.get_lead_note(lead_id, note_id):
+        return jsonify({'error': 'Note not found'}), 404
+    repo.delete_lead_note(note_id)
+    _audit(user_id, 'crm_lead_note_deleted', 'crm_lead', lead_id, {'note_id': note_id})
+    return jsonify({'deleted': True})
 
 
 # ------------------------------------------------------------ people
@@ -753,6 +782,42 @@ def _note_fields(data):
         except ValueError:
             return None, None, 'Meeting date must be YYYY-MM-DD'
     return body, met_on, None
+
+
+def _fetch_doc_fields(doc_url):
+    """(doc columns, warning). The link is kept even when the text cannot be
+    read; the warning says why, and Refresh tries again later."""
+    from services.google_docs_service import fetch_doc
+    from utils.timestamps import now_iso
+    fetched = fetch_doc(doc_url)
+    return {
+        'doc_url': doc_url,
+        'doc_title': fetched.title,
+        'doc_text': fetched.text,
+        'doc_fetched_at': now_iso() if fetched.text else None,
+    }, fetched.error
+
+
+def _note_with_doc(data):
+    """(body, met_on, doc, doc_warning, error) for a note that may attach a
+    Google Doc of meeting notes. With a doc the body is optional, and falls
+    back to the doc's title."""
+    from services.google_docs_service import doc_id_from_url
+    doc_url = (data.get('doc_url') or '').strip()
+    if not doc_url:
+        body, met_on, error = _note_fields(data)
+        return body, met_on, None, None, error
+    if not doc_id_from_url(doc_url):
+        return None, None, None, None, \
+            'Paste a Google Docs link (https://docs.google.com/document/d/...)'
+    typed = (data.get('body') or '').strip()
+    body, met_on, error = _note_fields({**data, 'body': typed or 'placeholder'})
+    if error:
+        return None, None, None, None, error
+    doc, warning = _fetch_doc_fields(doc_url)
+    if not typed:
+        body = doc['doc_title'] or 'Meeting notes'
+    return body, met_on, doc, warning, None
 
 
 @bp.route('/people', methods=['POST'])
@@ -826,30 +891,73 @@ def get_person(user_id, person_id):
 @bp.route('/people/<person_id>/notes', methods=['POST'])
 @require_superadmin
 def add_person_note(user_id, person_id):
-    body, met_on, error = _note_fields(request.get_json(silent=True) or {})
-    if error:
-        return jsonify({'error': error}), 400
     repo = _person_repo()
     if not repo.get_person(person_id):
         return jsonify({'error': 'User not found'}), 404
-    note = repo.add_note(person_id, user_id, body, met_on)
+    body, met_on, doc, warning, error = _note_with_doc(request.get_json(silent=True) or {})
+    if error:
+        return jsonify({'error': error}), 400
+    note = repo.add_note(person_id, user_id, body, met_on, doc)
     _audit(user_id, 'crm_person_note_added', 'user', person_id,
-           {'note_id': note['id']})
-    return jsonify({'note': note}), 201
+           {'note_id': note['id'], 'doc': bool(doc)})
+    return jsonify({'note': note, 'doc_warning': warning}), 201
 
 
 @bp.route('/person-notes/<note_id>', methods=['PUT'])
 @require_superadmin
 def update_person_note(user_id, note_id):
-    body, met_on, error = _note_fields(request.get_json(silent=True) or {})
+    """Edit a note. Without a `doc_url` key the attached doc is untouched; an
+    empty one detaches it; a new link is read afresh."""
+    data = request.get_json(silent=True) or {}
+    repo = _person_repo()
+    existing = repo.get_note(note_id)
+    if not existing:
+        return jsonify({'error': 'Note not found'}), 404
+    old_url = existing.get('doc_url') or ''
+    new_url = (data.get('doc_url') or '').strip() if 'doc_url' in data else old_url
+    warning = None
+    if new_url and new_url != old_url:
+        body, met_on, doc, warning, error = _note_with_doc(data)
+    else:
+        if new_url and not (data.get('body') or '').strip():
+            data = {**data, 'body': existing['body']}
+        body, met_on, error = _note_fields(data)
+        doc = None
+        if old_url and not new_url:
+            doc = dict.fromkeys(('doc_url', 'doc_title', 'doc_text', 'doc_fetched_at'))
     if error:
         return jsonify({'error': error}), 400
-    note = _person_repo().update_note(note_id, body, met_on)
+    note = repo.update_note(note_id, body, met_on, doc)
     if not note:
         return jsonify({'error': 'Note not found'}), 404
     _audit(user_id, 'crm_person_note_edited', 'user', note['user_id'],
            {'note_id': note_id})
-    return jsonify({'note': note})
+    return jsonify({'note': note, 'doc_warning': warning})
+
+
+@bp.route('/person-notes/<note_id>/doc/refresh', methods=['POST'])
+@require_superadmin
+def refresh_person_note_doc(user_id, note_id):
+    """Re-read the attached Google Doc. A failed read keeps the last copy."""
+    repo = _person_repo()
+    note = repo.get_note(note_id)
+    if not note:
+        return jsonify({'error': 'Note not found'}), 404
+    if not note.get('doc_url'):
+        return jsonify({'error': 'This note has no Google Doc'}), 400
+    doc, warning = _fetch_doc_fields(note['doc_url'])
+    if warning:
+        return jsonify({'note': note, 'doc_warning': warning})
+    note = repo.update_note(note_id, note['body'], note.get('met_on'), doc)
+    return jsonify({'note': note, 'doc_warning': None})
+
+
+@bp.route('/google-docs', methods=['GET'])
+@require_superadmin
+def google_docs_reader(user_id):
+    """Who a meeting-notes doc must be shared with for the CRM to read it."""
+    from services.google_docs_service import reader_email
+    return jsonify({'share_with': reader_email()})
 
 
 @bp.route('/person-notes/<note_id>', methods=['DELETE'])

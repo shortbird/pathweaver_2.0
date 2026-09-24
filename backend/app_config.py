@@ -335,6 +335,12 @@ class Config:
     GOOGLE_ANALYTICS_SA_KEY_B64 = os.getenv('GOOGLE_ANALYTICS_SA_KEY_B64')
     GA_PROPERTY_ID = os.getenv('GA_PROPERTY_ID')
 
+    # CRM meeting notes from Google Docs: a service account the notes folder
+    # is shared with (Drive API enabled in its project). Defaults to the GA4
+    # reader, which lives in the same GCP project, so one key covers both.
+    # Unset = only "anyone with the link" docs can be read; links still save.
+    GOOGLE_DOCS_SA_KEY_B64 = os.getenv('GOOGLE_DOCS_SA_KEY_B64') or GOOGLE_ANALYTICS_SA_KEY_B64
+
     # Email sender identity (delivery goes through the SendGrid API)
     SENDER_EMAIL = os.getenv('SENDER_EMAIL', 'support@optioeducation.com')
     SENDER_NAME = os.getenv('SENDER_NAME', 'Optio Support')
