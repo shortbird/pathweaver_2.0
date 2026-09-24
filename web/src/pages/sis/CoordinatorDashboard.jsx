@@ -4,6 +4,7 @@ import api from '../../services/api'
 import { useSisOrg, withOrg } from './useSisOrg'
 import AttendanceAlerts from '../../components/sis/AttendanceAlerts'
 import TeachersToCheck from '../../components/sis/TeachersToCheck'
+import LeavingSoon from '../../components/sis/LeavingSoon'
 import { RollStatus, SubstituteControl } from '../../components/sis/RollStatus'
 import { range12h } from '../../utils/timeFormat'
 import DashboardCard from '../../components/sis/DashboardCard'
@@ -85,6 +86,10 @@ const CoordinatorDashboard = ({ userName }) => {
       {/* Who is teaching each class: no roll N minutes in, or a roll taken by
           someone who is not the class's teacher (P7, iCreate 2026-09-23). */}
       <TeachersToCheck data={data.teachers_to_check} orgId={orgId} onChanged={load} />
+
+      {/* Who goes home early in the next hour (ticket 31e93fbb: "Something to
+          alert someone instead of us having to hunt for it"). */}
+      <LeavingSoon students={data.leaving_soon} />
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <DashboardCard title="Today's schedule" className="lg:col-span-2">

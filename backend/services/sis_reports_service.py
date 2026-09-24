@@ -973,6 +973,122 @@ def family_locations_csv_rows(report: Dict[str, Any]) -> List[List[str]]:
     return rows
 
 
+# ── Going home (who leaves when, derived from the schedule) ─────────────────
+# "Can we get a way to know who is leaving halfdays, etc." (iCreate,
+# 2026-08-26 — 1fc5012b): the office had no way to see, for a given day, which
+# children go home at midday. Nothing records a half day, but every student's
+# schedule already says when their last class finishes, which is the same
+# answer and needs nothing typed in.
+#
+# One computation, three readers: the day rosters, the block rosters and the
+# "Leaving soon" card on the coordinator and admin dashboards. Ticket 31e93fbb
+# (Katrine, iCreate campus coordinator, 2026-09-24): "The 'going home' feature
+# is great. Is there a way we can have that be at the top of the block rosters,
+# too? ... If there's a way even Kate could get some kind of alert or something
+# about each student leaving at that hour? Something to alert someone instead
+# of us having to hunt for it."
+
+def _departures_by_day(classes: List[Dict[str, Any]], enrollments: List[Dict[str, Any]],
+                       roster: Dict[str, Dict[str, Any]],
+                       day: Optional[int] = None) -> Dict[int, List[Dict[str, Any]]]:
+    """{day_of_week: [departure, ...]} in the order children go home.
+
+    `classes` carry their `meetings`; `enrollments` are active
+    {class_id, student_id} rows; `roster` is {student_id: roster row} (only
+    `is_student` rows count, so a teacher on a class list is never a
+    departure). Each departure is {student_id, name, family, end (minutes),
+    leaves_at, early}.
+
+    "Early" is relative to the day itself, not to a fixed clock time: a Friday
+    that finishes at 1pm has nobody leaving early, and on a full day the
+    midday leavers are exactly the ones this list is for. A student whose last
+    class ends WITH the day's last class is not early.
+    """
+    last_end_by_class: Dict[str, Dict[int, int]] = {}
+    for c in classes:
+        for m in (c.get('meetings') or []):
+            d = m.get('day_of_week')
+            if d is None or (day is not None and d != day):
+                continue
+            end = _minutes(m.get('end_time'))
+            if end is None:
+                continue
+            per_day = last_end_by_class.setdefault(c['id'], {})
+            per_day[d] = max(per_day.get(d, 0), end)
+
+    # (day, student) -> the latest minute any of their classes ends that day.
+    leaves: Dict[int, Dict[str, Dict[str, Any]]] = {}
+    for e in enrollments:
+        s = roster.get(e.get('student_id'))
+        if not s or not s.get('is_student'):
+            continue
+        for d, end in (last_end_by_class.get(e['class_id']) or {}).items():
+            slot = leaves.setdefault(d, {}).setdefault(
+                e['student_id'],
+                {'student_id': e['student_id'], 'name': s['name'],
+                 'family': s.get('household_name') or '', 'end': 0})
+            slot['end'] = max(slot['end'], end)
+
+    out: Dict[int, List[Dict[str, Any]]] = {}
+    for d, per_student in leaves.items():
+        rows = sorted(per_student.values(), key=lambda r: (r['end'], (r['name'] or '').lower()))
+        latest = rows[-1]['end'] if rows else 0
+        out[d] = [dict(r, leaves_at=_t12(_from_minutes(r['end'])), early=r['end'] < latest)
+                  for r in rows]
+    return out
+
+
+def _departure_view(r: Dict[str, Any]) -> Dict[str, Any]:
+    """The departure as the reports have always sent it."""
+    return {'name': r['name'], 'family': r['family'],
+            'leaves_at': r['leaves_at'], 'early': r['early']}
+
+
+def _leaving_block_key(end: int, blocks: List[Dict[str, Any]]) -> Optional[str]:
+    """The block a child goes home after: the latest-starting block that has
+    begun by the time their last class ends.
+
+    A class ending at 11:30 is "leaving after Block 2" (10:30-11:30), not Block
+    3, which starts at 11:30. A class ending inside a gap (12:45, in lunch) is
+    listed under the block before the gap. None when their day ends before any
+    of the day's blocks starts (they still appear in the day's Going home).
+    """
+    best = None
+    for b in blocks:
+        if b['start'] < end and (best is None or b['start'] > best['start']):
+            best = b
+    return best['key'] if best else None
+
+
+def departures_for_day(org_id: str, day: int) -> List[Dict[str, Any]]:
+    """One day's departures for one org — the dashboards' read.
+
+    The same derivation as the rosters, from a lighter load: the dashboard
+    needs names and end times, not the catalog's counts and instructors or the
+    People page's roster, so it reads the classes, their meetings, the active
+    enrollments and the org's accounts. `family` is blank here; the card does
+    not show it.
+    """
+    from repositories.sis_class_repository import SisClassRepository
+    from services import sis_service
+
+    repo = SisClassRepository(client=_admin())
+    classes = repo.list_for_org(org_id)
+    meetings = repo.meetings_for_classes([c['id'] for c in classes])
+    by_class: Dict[str, List[Dict[str, Any]]] = {}
+    for m in meetings:
+        if m.get('day_of_week') == day:
+            by_class.setdefault(m['class_id'], []).append(m)
+    classes = [dict(c, meetings=by_class[c['id']]) for c in classes if c['id'] in by_class]
+    if not classes:
+        return []
+    enrollments = _active_class_enrollments([c['id'] for c in classes])
+    roster = {u['id']: {'name': sis_service._full_name(u),
+                        'is_student': sis_service.is_student(u)}
+              for u in sis_service._org_users(org_id)}
+    return _departures_by_day(classes, enrollments, roster, day=day).get(day, [])
+
+
 # ── Day rosters (where every child should be, hour by hour) ──────────────────
 # iCreate (Molly), 2026-08-22: "I need to be able to print a report that shows
 # every student coming on Mondays and every student coming on Tuesdays,
@@ -1018,27 +1134,8 @@ def day_rosters_report(org_id: str, day: Optional[int] = None) -> Dict[str, Any]
                 'time': f"{_t12(m.get('start_time'))}-{_t12(m.get('end_time'))}",
             })
 
-    # When each student's day ends. "Can we get a way to know who is leaving
-    # halfdays, etc." (iCreate, 2026-08-26 — 1fc5012b): the office had no way to
-    # see, for a given day, which children go home at midday. Nothing records a
-    # half day, but every student's schedule already says when their last class
-    # finishes, which is the same answer and needs nothing typed in.
-    last_end_by_class: Dict[str, Dict[int, int]] = {}
-    for c in classes:
-        for m in (c.get('meetings') or []):
-            d = m.get('day_of_week')
-            if d is None or (day is not None and d != day):
-                continue
-            end = _minutes(m.get('end_time'))
-            if end is None:
-                continue
-            per_day = last_end_by_class.setdefault(c['id'], {})
-            per_day[d] = max(per_day.get(d, 0), end)
-
     class_ids = list({e['class_id'] for entries in slots.values() for e in entries})
-    enrollments = fetch_all_rows(lambda: (
-        _admin().table('class_enrollments').select('class_id, student_id')
-        .in_('class_id', class_ids).eq('status', 'active'))) if class_ids else []
+    enrollments = _active_class_enrollments(class_ids)
 
     roster = {s['student_id']: s for s in sis_service.get_roster(org_id)}
     students_by_class: Dict[str, List[Dict[str, str]]] = {}
@@ -1053,17 +1150,7 @@ def day_rosters_report(org_id: str, day: Optional[int] = None) -> Dict[str, Any]
     for entries in students_by_class.values():
         entries.sort(key=lambda r: (r['name'] or '').lower())
 
-    # (day, student) -> the latest minute any of their classes ends that day.
-    leaves: Dict[int, Dict[str, Dict[str, Any]]] = {}
-    for e in enrollments:
-        s = roster.get(e.get('student_id'))
-        if not s or not s.get('is_student'):
-            continue
-        for d, end in (last_end_by_class.get(e['class_id']) or {}).items():
-            slot = leaves.setdefault(d, {}).setdefault(
-                e['student_id'],
-                {'name': s['name'], 'family': s.get('household_name') or '', 'end': 0})
-            slot['end'] = max(slot['end'], end)
+    departures = _departures_by_day(classes, enrollments, roster, day=day)
 
     days = []
     present = sorted({d for d, _, _ in slots},
@@ -1076,25 +1163,13 @@ def day_rosters_report(org_id: str, day: Optional[int] = None) -> Dict[str, Any]
                 c['students'] = students_by_class.get(c['class_id'], [])
                 c['student_count'] = len(c['students'])
             day_slots.append({'slot': label, 'classes': entries})
-        # Everybody on site that day, in the order they go home. "Early" is
-        # relative to the day itself, not to a fixed clock time: a Friday that
-        # finishes at 1pm has nobody leaving early, and on a full day the
-        # midday leavers are exactly the ones this list is for.
-        day_leavers = sorted((leaves.get(d) or {}).values(),
-                             key=lambda r: (r['end'], (r['name'] or '').lower()))
-        latest = day_leavers[-1]['end'] if day_leavers else 0
         days.append({
             'key': str(d),
             'label': DOW_LONG.get(d, ''),
             'slots': day_slots,
             'student_count': len({st['name'] for sl in day_slots
                                   for c in sl['classes'] for st in c['students']}),
-            'departures': [{
-                'name': r['name'],
-                'family': r['family'],
-                'leaves_at': _t12(_from_minutes(r['end'])),
-                'early': r['end'] < latest,
-            } for r in day_leavers],
+            'departures': [_departure_view(r) for r in departures.get(d, [])],
         })
     return {'days': days}
 
@@ -1143,8 +1218,16 @@ def block_rosters_report(org_id: str, day: Optional[int] = None) -> Dict[str, An
 
     `day` (0=Sun..6=Sat) narrows to one day; None returns them all.
 
-    Returns {'days': [{key, label, blocks: [{key, label, time, student_count,
+    Returns {'days': [{key, label, departures: [{name, family, leaves_at, early}],
+    blocks: [{key, label, time, student_count, leaving: [departure, ...],
     classes: [{class_id, name, room, teacher, time, students: [{name, age}]}]}]}]}
+
+    `departures` is the day's Going home list, the same one the day rosters
+    show; `leaving` is the part of it that goes home after that block (see
+    _leaving_block_key). A child is under at most one block's `leaving`, each
+    carrying `early`; the last block's is everyone who stays to the end, which
+    is why the page lists only the early ones under a block. The CSV is
+    unchanged: its rows are a fixed grid the office widens in Excel.
     """
     from services import sis_catalog_service, sis_service
     from services.sis_schedule_sync_service import teaching_blocks
@@ -1203,9 +1286,7 @@ def block_rosters_report(org_id: str, day: Optional[int] = None) -> Dict[str, An
                 by_day_block.setdefault((d, b['key']), []).append(entry)
 
     class_ids = list({e['class_id'] for entries in by_day_block.values() for e in entries})
-    enrollments = fetch_all_rows(lambda: (
-        _admin().table('class_enrollments').select('class_id, student_id')
-        .in_('class_id', class_ids).eq('status', 'active'))) if class_ids else []
+    enrollments = _active_class_enrollments(class_ids)
 
     age_text = _age_column(org_id)
     roster = {s['student_id']: s for s in sis_service.get_roster(org_id)}
@@ -1221,11 +1302,23 @@ def block_rosters_report(org_id: str, day: Optional[int] = None) -> Dict[str, An
     for entries in students_by_class.values():
         entries.sort(key=lambda r: (r['name'] or '').lower())
 
+    # Going home, at the top of the day and under the block each child leaves
+    # after (ticket 31e93fbb, Katrine: "I use the block rosters to direct
+    # students where to go during the day because it is limited to just one
+    # day as opposed to all of the days").
+    departures = _departures_by_day(classes, enrollments, roster, day=day)
+
     days = []
     present = sorted(day_blocks, key=lambda d: _SCHOOL_WEEK.index(d) if d in _SCHOOL_WEEK else d)
     for d in present:
+        ordered = sorted(day_blocks[d].values(), key=lambda b: (b['start'], b['end']))
+        leaving: Dict[str, List[Dict[str, Any]]] = {}
+        for r in departures.get(d, []):
+            key = _leaving_block_key(r['end'], ordered)
+            if key:
+                leaving.setdefault(key, []).append(_departure_view(r))
         out_blocks = []
-        for b in sorted(day_blocks[d].values(), key=lambda b: (b['start'], b['end'])):
+        for b in ordered:
             # A copy per block: the same class entry is shared by every block it
             # spans, so its roster cannot be attached in place.
             entries = [dict(c, students=students_by_class.get(c['class_id'], []),
@@ -1238,8 +1331,10 @@ def block_rosters_report(org_id: str, day: Optional[int] = None) -> Dict[str, An
                 'time': b['time'],
                 'classes': entries,
                 'student_count': len({st['name'] for c in entries for st in c['students']}),
+                'leaving': leaving.get(b['key'], []),
             })
-        days.append({'key': str(d), 'label': DOW_LONG.get(d, ''), 'blocks': out_blocks})
+        days.append({'key': str(d), 'label': DOW_LONG.get(d, ''), 'blocks': out_blocks,
+                     'departures': [_departure_view(r) for r in departures.get(d, [])]})
     return {'days': days}
 
 

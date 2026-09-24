@@ -81,6 +81,7 @@ def _run(*, roles=('org_admin',), sees_pay=True, settings=None, counts=None, row
         'batches': patch.object(dash.onboarding, 'list_signature_batches',
                                 return_value=batches or []),
         'schedule': patch.object(dash.coordinator, 'today_schedule', return_value=[]),
+        'leaving_soon': patch.object(dash.coordinator, 'leaving_soon', return_value=[]),
     }
     patches.update(overrides or {})
 
@@ -293,3 +294,143 @@ class TestTheRestOfThePayload:
                     rows={'sis_events': events})['events']
         assert [e['id'] for e in seen] == ['e1']
         assert len(_run(rows={'sis_events': events})['events']) == 2
+
+
+@pytest.mark.unit
+class TestLeavingSoon:
+    """Ticket 31e93fbb (Katrine Myers, iCreate campus coordinator, 2026-09-24):
+    "If there's a way even Kate could get some kind of alert or something about
+    each student leaving at that hour? Something to alert someone instead of us
+    having to hunt for it."
+
+    Tanner's call: no push notification -- a "Leaving soon" card on the
+    coordinator and admin dashboards. The rule (sis_coordinator_service):
+    early leavers whose last class ends from 15 minutes ago to 60 minutes from
+    now, in the org's clock.
+    """
+
+    # Tuesday 2026-09-22, 11:00 in the org's own time zone.
+    NOW = datetime(2026, 9, 22, 11, 0)
+    DEPARTURES = [
+        {'name': 'Gone Already', 'end': 640, 'leaves_at': '10:40am', 'early': True},
+        {'name': 'At The Door', 'end': 650, 'leaves_at': '10:50am', 'early': True},
+        {'name': 'Ada Lovelace', 'end': 690, 'leaves_at': '11:30am', 'early': True},
+        {'name': 'On The Hour', 'end': 720, 'leaves_at': '12:00pm', 'early': True},
+        {'name': 'After Lunch', 'end': 725, 'leaves_at': '12:05pm', 'early': True},
+        {'name': 'Stays All Day', 'end': 690, 'leaves_at': '11:30am', 'early': False},
+    ]
+
+    def _soon(self, departures=None, now=None):
+        from services import sis_coordinator_service as coord
+        with patch('services.sis_reports_service.departures_for_day',
+                   return_value=self.DEPARTURES if departures is None else departures) as read:
+            out = coord.leaving_soon(ORG, now or self.NOW)
+        return out, read
+
+    def test_it_reads_todays_weekday_in_the_orgs_clock(self):
+        _, read = self._soon()
+        read.assert_called_once_with(ORG, 2)  # Tuesday, class_meetings' 0=Sunday
+
+    def test_it_lists_early_leavers_from_15_minutes_ago_to_an_hour_ahead(self):
+        out, _ = self._soon()
+        assert out == [{'name': 'At The Door', 'leaves_at': '10:50am'},
+                       {'name': 'Ada Lovelace', 'leaves_at': '11:30am'},
+                       {'name': 'On The Hour', 'leaves_at': '12:00pm'}]
+
+    def test_the_end_of_day_leavers_are_not_on_the_card(self):
+        """At 2:30 everyone goes home at 3:00; the card is for the exceptions."""
+        out, _ = self._soon()
+        assert 'Stays All Day' not in [r['name'] for r in out]
+
+    def test_nobody_leaving_soon_is_an_empty_list(self):
+        out, _ = self._soon(now=datetime(2026, 9, 22, 8, 0))
+        assert out == []
+        out, _ = self._soon(departures=[])
+        assert out == []
+
+    def test_the_admin_dashboard_carries_the_card_when_someone_is_leaving(self):
+        soon = [{'name': 'Ada Lovelace', 'leaves_at': '11:30am'}]
+        with patch.object(dash.coordinator, 'leaving_soon', return_value=soon) as call:
+            payload = _run(overrides={'leaving_soon': patch.object(
+                dash.coordinator, 'leaving_soon', side_effect=call)})
+        assert payload['today']['leaving_soon'] == soon
+        org, now = call.call_args.args
+        assert org == ORG
+        assert now == datetime(2026, 8, 14, 9, 0, tzinfo=timezone.utc)  # the org clock
+
+    def test_the_admin_dashboard_leaves_the_key_out_when_nobody_is(self):
+        assert 'leaving_soon' not in _run()['today']
+
+    def test_a_hidden_classes_module_is_never_asked(self):
+        with patch.object(dash.coordinator, 'leaving_soon') as call:
+            payload = _run(settings={'hidden_modules': ['classes']},
+                           overrides={'leaving_soon': patch.object(
+                               dash.coordinator, 'leaving_soon', side_effect=call)})
+        call.assert_not_called()
+        assert 'leaving_soon' not in payload['today']
+
+    def test_a_failing_read_costs_only_the_card(self):
+        payload = _run(overrides={'leaving_soon': patch.object(
+            dash.coordinator, 'leaving_soon', side_effect=RuntimeError('boom'))})
+        assert 'leaving_soon' not in payload['today']
+        assert payload['snapshot'] == SNAPSHOT
+
+    def _coordinator_dashboard(self, leaving):
+        from services import sis_coordinator_service as coord
+        admin = _table_mock({}, {'organizations': [{'name': 'iCreate', 'feature_flags': {}}]})
+        with patch.object(coord, '_admin', return_value=admin), \
+             patch.object(coord, '_org_now', return_value=self.NOW) as clock, \
+             patch.object(coord.attendance, 'open_alerts', return_value=[]), \
+             patch.object(coord.sis_service, 'caller_org_roles', return_value=['campus_coordinator']), \
+             patch.object(coord, 'staff_resources_for', return_value=[]), \
+             patch.object(coord, 'pinned_links_for', return_value=[]), \
+             patch.object(coord, 'list_assignments', return_value=[]), \
+             patch.object(coord, '_my_open_tasks', return_value=[]), \
+             patch.object(coord, 'today_schedule', return_value=[]), \
+             patch.object(coord.sessions, 'sessions_by_class', return_value={}), \
+             patch.object(coord.sessions, 'teachers_to_check', return_value={}), \
+             patch.object(coord, 'leaving_soon', **leaving) as call:
+            out = coord.get_dashboard(ORG, COORDINATOR)
+        return out, call, clock
+
+    def test_the_coordinator_dashboard_carries_it_for_the_callers_org(self):
+        soon = [{'name': 'Ada Lovelace', 'leaves_at': '11:30am'}]
+        out, call, clock = self._coordinator_dashboard({'return_value': soon})
+        assert out['leaving_soon'] == soon
+        clock.assert_called_once_with(ORG)
+        call.assert_called_once_with(ORG, self.NOW)
+
+    def test_a_failing_read_does_not_take_the_coordinator_dashboard_down(self):
+        out, _, _ = self._coordinator_dashboard({'side_effect': RuntimeError('boom')})
+        assert out['leaving_soon'] == []
+        assert out['organization']['name'] == 'iCreate'
+
+
+@pytest.mark.unit
+class TestLeavingSoonIsForStaff:
+    """Both dashboards are ADMIN_ROLES; a family account never reaches the card."""
+
+    @pytest.mark.parametrize('path', ['/api/sis/coordinator/dashboard', '/api/sis/dashboard'])
+    @pytest.mark.parametrize('role', ['student', 'parent'])
+    def test_a_family_account_is_refused(self, client, auth_headers, mock_verify_token, path, role):
+        from tests.test_sis_reports import _admin_client_for_role
+        with patch('database.get_supabase_admin_client',
+                   return_value=_admin_client_for_role(role)), \
+             patch('services.sis_coordinator_service.leaving_soon') as call:
+            resp = client.get(f'{path}?organization_id={ORG}', headers=auth_headers)
+        assert resp.status_code == 403
+        call.assert_not_called()
+
+    def test_a_coordinator_gets_the_card_for_the_org_they_resolve_to(
+            self, client, auth_headers, mock_verify_token):
+        from tests.test_sis_reports import _admin_client_for_role
+        with patch('database.get_supabase_admin_client',
+                   return_value=_admin_client_for_role('org_managed', 'campus_coordinator')), \
+             patch('services.sis_service.resolve_org_id', return_value=ORG) as resolve, \
+             patch('services.sis_coordinator_service.get_dashboard',
+                   return_value={'leaving_soon': []}) as build:
+            resp = client.get('/api/sis/coordinator/dashboard?organization_id=other-org',
+                              headers=auth_headers)
+        assert resp.status_code == 200
+        assert resolve.call_args.args[1] == 'other-org'
+        assert build.call_args.args[0] == ORG

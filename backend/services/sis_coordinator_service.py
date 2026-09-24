@@ -137,6 +137,43 @@ def today_schedule(org_id: str, today: str, dow: Optional[int] = None,
     return out
 
 
+# ── Leaving soon ─────────────────────────────────────────────────────────────
+# Ticket 31e93fbb (Katrine Myers, iCreate campus coordinator, 2026-09-24): "If
+# there's a way even Kate could get some kind of alert or something about each
+# student leaving at that hour? Something to alert someone instead of us having
+# to hunt for it." Not a push notification (Tanner's call): a card at the top
+# of the coordinator and admin dashboards, built from the same Going home list
+# the day and block rosters show.
+#
+# The rule: children whose day ends EARLY (before the day's last class ends)
+# at some time from LEAVING_SOON_GRACE_MINUTES ago to LEAVING_SOON_AHEAD_MINUTES
+# from now, in the org's clock. A clock window rather than "after the current
+# block" because a block is not always current -- before the first bell, at
+# lunch and between blocks there is no current block, and those are exactly
+# when a parent turns up -- and iCreate's blocks are an hour long, so the next
+# hour is the next block anyway. The end-of-day leavers are left out: at 2:30
+# every child in the building goes home at 3:00, and a card naming all of them
+# is the haystack, not the needle. The short grace keeps a child on the card
+# while their parent is at the door.
+LEAVING_SOON_AHEAD_MINUTES = 60
+LEAVING_SOON_GRACE_MINUTES = 15
+
+
+def leaving_soon(org_id: str, now) -> List[Dict[str, Any]]:
+    """Early leavers going home around now: [{name, leaves_at}], earliest first.
+
+    `now` is the org's local datetime (_org_now); its weekday is the day read.
+    """
+    from services import sis_reports_service as reports
+
+    dow = (now.weekday() + 1) % 7  # 0=Sun..6=Sat, the class_meetings convention
+    minute = now.hour * 60 + now.minute
+    lo, hi = minute - LEAVING_SOON_GRACE_MINUTES, minute + LEAVING_SOON_AHEAD_MINUTES
+    return [{'name': r['name'], 'leaves_at': r['leaves_at']}
+            for r in reports.departures_for_day(org_id, dow)
+            if r['early'] and lo <= r['end'] <= hi]
+
+
 def _my_schedule(org_id: str, user_id: str, dow_staff: int,
                  today: str) -> Dict[str, Any]:
     """The coordinator's own duties: today's, plus upcoming one-offs. Note
@@ -192,10 +229,17 @@ def get_dashboard(org_id: str, user_id: str) -> Dict[str, Any]:
     day_sessions = sessions.sessions_by_class(org_id, today)
     sessions.annotate_schedule(schedule, day_sessions)
 
+    try:
+        leaving = leaving_soon(org_id, now)
+    except Exception as e:  # noqa: BLE001 -- one card, not the whole morning view
+        logger.error(f'coordinator dashboard leaving_soon failed: {e}')
+        leaving = []
+
     return {
         'organization': {'id': org_id,
                          'name': org_row[0].get('name') if org_row else None},
         'date': today,
+        'leaving_soon': leaving,
         'today_schedule': schedule,
         'teachers_to_check': sessions.teachers_to_check(
             org_id, now, schedule, settings, day_sessions),

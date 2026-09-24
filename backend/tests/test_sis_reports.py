@@ -1081,3 +1081,153 @@ class TestDayDepartures:
         day = self._report(classes=classes,
                            enrollments=[{'class_id': 'x', 'student_id': 's1'}])
         assert day['days'][0]['departures'] == []
+
+
+@pytest.mark.unit
+class TestGoingHomeOnTheBlockRosters:
+    """Ticket 31e93fbb (Katrine Myers, iCreate campus coordinator, 2026-09-24):
+    "The 'going home' feature is great. Is there a way we can have that be at
+    the top of the block rosters, too? I use the block rosters to direct
+    students where to go during the day because it is limited to just one day
+    as opposed to all of the days."
+
+    One derivation (`_departures_by_day`) behind the day rosters, the block
+    rosters and the dashboards' "Leaving soon", so the three can never tell the
+    office two different times for the same child.
+    """
+
+    BLOCKS = {'time_blocks': [
+        {'start': '09:30', 'end': '10:30', 'label': ''},
+        {'start': '10:30', 'end': '11:30', 'label': ''},
+        {'start': '11:30', 'end': '12:30', 'label': ''},
+        {'start': '12:30', 'end': '13:00', 'label': 'Lunch'},
+        {'start': '13:00', 'end': '14:00', 'label': ''},
+    ]}
+    CLASSES = [
+        {'id': 'b1', 'name': 'Pottery',
+         'meetings': [{'day_of_week': 2, 'start_time': '09:30', 'end_time': '10:30'}]},
+        {'id': 'b2', 'name': 'Choir',
+         'meetings': [{'day_of_week': 2, 'start_time': '10:30', 'end_time': '11:30'}]},
+        {'id': 'b4', 'name': 'Robotics',
+         'meetings': [{'day_of_week': 2, 'start_time': '13:00', 'end_time': '14:00'}]},
+        {'id': 'thu', 'name': 'Thursday Club',
+         'meetings': [{'day_of_week': 4, 'start_time': '09:30', 'end_time': '10:30'}]},
+    ]
+    ROSTER = [
+        {'student_id': 'ada', 'name': 'Ada Lovelace', 'is_student': True,
+         'household_name': 'Lovelace', 'date_of_birth': '2013-06-01'},
+        {'student_id': 'bo', 'name': 'Bo Diddley', 'is_student': True,
+         'household_name': 'Diddley', 'date_of_birth': '2015-06-01'},
+        {'student_id': 'cy', 'name': 'Cy Twombly', 'is_student': True,
+         'household_name': 'Twombly', 'date_of_birth': '2016-06-01'},
+        {'student_id': 'dee', 'name': 'Dee Dee', 'is_student': True,
+         'household_name': 'Dee', 'date_of_birth': '2016-06-01'},
+        {'student_id': 'staff1', 'name': 'A Teacher', 'is_student': False},
+    ]
+    # Ada: blocks 1 and 2, home at 11:30 (the end of block 2).
+    # Bo: blocks 1 and 4, home at 2pm with the rest of the day.
+    # Cy: block 4 only, home at 2pm -- a tie with the day's latest end.
+    # Dee: Thursday only, so no part of Tuesday.
+    ENROLLMENTS = [
+        {'class_id': 'b1', 'student_id': 'ada'},
+        {'class_id': 'b2', 'student_id': 'ada'},
+        {'class_id': 'b1', 'student_id': 'bo'},
+        {'class_id': 'b4', 'student_id': 'bo'},
+        {'class_id': 'b4', 'student_id': 'cy'},
+        {'class_id': 'thu', 'student_id': 'dee'},
+        {'class_id': 'b2', 'student_id': 'staff1'},
+    ]
+
+    def _patches(self):
+        from contextlib import ExitStack
+        from services import sis_reports_service as svc
+        stack = ExitStack()
+        stack.enter_context(patch('services.sis_catalog_service.list_classes',
+                                  return_value=self.CLASSES))
+        stack.enter_context(patch('services.sis_catalog_service.schedule_settings',
+                                  return_value=self.BLOCKS))
+        stack.enter_context(patch('services.sis_age.school_year_start',
+                                  return_value=date(2026, 8, 24)))
+        stack.enter_context(patch.object(svc, 'fetch_all_rows', return_value=self.ENROLLMENTS))
+        stack.enter_context(patch('services.sis_service.get_roster', return_value=self.ROSTER))
+        return stack
+
+    def _tuesday(self):
+        from services import sis_reports_service as svc
+        with self._patches():
+            return svc.block_rosters_report('org-1', day=2)['days'][0]
+
+    def _leaving(self, label):
+        return next(b['leaving'] for b in self._tuesday()['blocks'] if b['label'] == label)
+
+    def test_the_helper_gives_the_day_rosters_exactly_what_they_had(self):
+        from services import sis_reports_service as svc
+        roster = {s['student_id']: s for s in self.ROSTER}
+        by_day = svc._departures_by_day(self.CLASSES, self.ENROLLMENTS, roster)
+        with self._patches():
+            days = svc.day_rosters_report('org-1')['days']
+        for d in days:
+            dow = next(k for k, v in svc.DOW_LONG.items() if v == d['label'])
+            assert d['departures'] == [svc._departure_view(r) for r in by_day[dow]]
+        tuesday = next(d for d in days if d['label'] == 'Tuesday')
+        assert tuesday['departures'] == [
+            {'name': 'Ada Lovelace', 'family': 'Lovelace', 'leaves_at': '11:30am', 'early': True},
+            {'name': 'Bo Diddley', 'family': 'Diddley', 'leaves_at': '2:00pm', 'early': False},
+            {'name': 'Cy Twombly', 'family': 'Twombly', 'leaves_at': '2:00pm', 'early': False},
+        ]
+
+    def test_the_block_rosters_carry_the_days_going_home_list(self):
+        names = [d['name'] for d in self._tuesday()['departures']]
+        assert names == ['Ada Lovelace', 'Bo Diddley', 'Cy Twombly']
+
+    def test_a_child_leaving_at_the_end_of_block_2_is_under_block_2_only(self):
+        assert [r['name'] for r in self._leaving('Block 2')] == ['Ada Lovelace']
+        elsewhere = [r['name'] for b in self._tuesday()['blocks'] if b['label'] != 'Block 2'
+                     for r in b['leaving']]
+        assert 'Ada Lovelace' not in elsewhere
+        assert self._leaving('Block 2')[0]['leaves_at'] == '11:30am'
+        assert self._leaving('Block 2')[0]['early'] is True
+
+    def test_a_child_with_no_class_that_day_is_nowhere_on_it(self):
+        day = self._tuesday()
+        assert 'Dee Dee' not in [d['name'] for d in day['departures']]
+        assert 'Dee Dee' not in [r['name'] for b in day['blocks'] for r in b['leaving']]
+
+    def test_a_tie_with_the_days_last_class_is_not_early(self):
+        last = self._leaving('Block 4')
+        assert [r['name'] for r in last] == ['Bo Diddley', 'Cy Twombly']
+        assert [r['early'] for r in last] == [False, False]
+
+    def test_staff_are_not_leavers(self):
+        day = self._tuesday()
+        assert 'A Teacher' not in [r['name'] for b in day['blocks'] for r in b['leaving']]
+
+    def test_a_block_is_the_one_a_child_goes_home_after(self):
+        from services import sis_reports_service as svc
+        blocks = [{'key': 'b1', 'start': 570, 'end': 630}, {'key': 'b2', 'start': 630, 'end': 690},
+                  {'key': 'b3', 'start': 690, 'end': 750}, {'key': 'b4', 'start': 780, 'end': 840}]
+        assert svc._leaving_block_key(690, blocks) == 'b2'   # 11:30, the end of block 2
+        assert svc._leaving_block_key(660, blocks) == 'b2'   # mid-block
+        assert svc._leaving_block_key(765, blocks) == 'b3'   # 12:45, in the lunch gap
+        assert svc._leaving_block_key(540, blocks) is None   # before the first bell
+
+    def test_the_dashboard_read_derives_the_same_answer(self):
+        """departures_for_day loads less than the rosters do, and must still
+        say the same thing about the same children."""
+        from services import sis_reports_service as svc
+        classes = [{k: v for k, v in c.items() if k != 'meetings'} for c in self.CLASSES]
+        meetings = [dict(m, class_id=c['id']) for c in self.CLASSES for m in c['meetings']]
+        users = [{'id': s['student_id'], 'first_name': s['name'].split()[0],
+                  'last_name': s['name'].split()[1],
+                  'role': 'student' if s['is_student'] else 'advisor'} for s in self.ROSTER]
+        with patch('repositories.sis_class_repository.SisClassRepository.list_for_org',
+                   return_value=classes), \
+             patch('repositories.sis_class_repository.SisClassRepository.meetings_for_classes',
+                   return_value=meetings), \
+             patch.object(svc, '_admin', return_value=Mock()), \
+             patch.object(svc, 'fetch_all_rows', return_value=self.ENROLLMENTS), \
+             patch('services.sis_service._org_users', return_value=users):
+            rows = svc.departures_for_day('org-1', 2)
+        assert [(r['name'], r['leaves_at'], r['early']) for r in rows] == [
+            ('Ada Lovelace', '11:30am', True), ('Bo Diddley', '2:00pm', False),
+            ('Cy Twombly', '2:00pm', False)]

@@ -709,3 +709,67 @@ describe('a day, read the way the office reads it', () => {
     document.getElementById.mockRestore()
   })
 })
+
+/**
+ * Ticket 31e93fbb (Katrine Myers, iCreate campus coordinator, 2026-09-24):
+ * "The 'going home' feature is great. Is there a way we can have that be at
+ * the top of the block rosters, too? I use the block rosters to direct
+ * students where to go during the day because it is limited to just one day
+ * as opposed to all of the days."
+ */
+describe('going home on both roster reports', () => {
+  const DEPARTURES = [
+    { name: 'Ada Lovelace', family: 'Lovelace', leaves_at: '11:30am', early: true },
+    { name: 'Bo Diddley', family: 'Diddley', leaves_at: '2:00pm', early: false },
+  ]
+  const BLOCK_DAY = {
+    key: '2', label: 'Tuesday', departures: DEPARTURES,
+    blocks: [
+      { key: 'block-1', label: 'Block 1', time: '9:30am-10:30am', student_count: 2, leaving: [],
+        classes: [] },
+      { key: 'block-2', label: 'Block 2', time: '10:30am-11:30am', student_count: 1,
+        leaving: [DEPARTURES[0]], classes: [] },
+      { key: 'block-4', label: 'Block 4', time: '1:00pm-2:00pm', student_count: 1,
+        leaving: [DEPARTURES[1]], classes: [] },
+    ],
+  }
+
+  it('the day rosters still show it, from the shared component', () => {
+    render(<DayRosters days={[{ key: '2', label: 'Tuesday', student_count: 2,
+      slots: [], departures: DEPARTURES }]} />)
+    const list = document.querySelector('[data-going-home]')
+    expect(list).not.toBeNull()
+    expect(list.open).toBe(false)
+    expect(within(list).getByText(/1 before the end of the day/)).toBeInTheDocument()
+  })
+
+  it('sits at the top of the block rosters, open so it prints', () => {
+    render(<BlockRosters days={[BLOCK_DAY]} day="2" onDayChange={() => {}} />)
+    const list = document.querySelector('[data-going-home]')
+    expect(list).not.toBeNull()
+    expect(list.open).toBe(true)
+    // Inside the day's print area, so "Print all of Tuesday" carries it.
+    expect(list.closest('#sis-blocks-2')).not.toBeNull()
+    expect(within(list).getByText('Ada Lovelace')).toBeInTheDocument()
+    expect(within(list).getByText('2:00pm')).toBeInTheDocument()
+  })
+
+  it('names who leaves after each block, under that block', () => {
+    render(<BlockRosters days={[BLOCK_DAY]} day="2" onDayChange={() => {}} />)
+    const strips = document.querySelectorAll('[data-leaving-after-block]')
+    expect(strips).toHaveLength(1)
+    expect(strips[0].textContent).toBe('Leaving after this block: Ada Lovelace (11:30am)')
+    expect(strips[0].closest('#sis-block-2-block-2')).not.toBeNull()
+  })
+
+  it('does not list the whole school under the last block', () => {
+    render(<BlockRosters days={[BLOCK_DAY]} day="2" onDayChange={() => {}} />)
+    const last = document.getElementById('sis-block-2-block-4')
+    expect(last.querySelector('[data-leaving-after-block]')).toBeNull()
+  })
+
+  it('draws nothing when the day has no departures', () => {
+    render(<BlockRosters days={[{ ...BLOCK_DAY, departures: [] }]} day="2" onDayChange={() => {}} />)
+    expect(document.querySelector('[data-going-home]')).toBeNull()
+  })
+})

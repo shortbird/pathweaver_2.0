@@ -10,6 +10,7 @@ import { printElement } from '../../utils/printView'
 import usePersistedChoice from '../../hooks/usePersistedChoice'
 import { downloadBlob, downloadCsv as saveCsvText, toCsv } from '../../utils/csv'
 import { BlockRosters } from './reportsPage/BlockRosters'
+import GoingHome from './reportsPage/GoingHome'
 import { EMPTY_FILTER } from './reportsPage/rosterClassFilter'
 import { reportByKey, visibleReports } from './reportsPage/catalog'
 import ReportNav from './reportsPage/ReportNav'
@@ -60,31 +61,9 @@ export const DayRosters = ({ days }) => {
               Print {d.label}
             </button>
           </div>
-          {/* Who goes home when, and who goes early. "Can we get a way to know
-              who is leaving halfdays, etc." (iCreate, 2026-08-26 — 1fc5012b).
-              Derived from each child's last class of the day: nothing records a
-              half day, and a second thing to type in would only go stale. */}
-          {(d.departures || []).length > 0 && (
-            <details className="mb-4 border border-gray-200 rounded-lg">
-              <summary className="cursor-pointer px-3 py-2 text-sm font-semibold text-neutral-800">
-                Going home{' '}
-                <span className="font-normal text-neutral-500">
-                  · {d.departures.filter((x) => x.early).length} before the end of the day
-                </span>
-              </summary>
-              <ul className="px-3 pb-3 text-sm columns-1 sm:columns-2 gap-4">
-                {d.departures.map((x) => (
-                  <li key={x.name} className="break-inside-avoid flex items-baseline gap-2">
-                    <span className={x.early ? 'font-medium text-amber-700' : 'text-neutral-800'}>
-                      {x.name}
-                    </span>
-                    <span className="text-xs text-neutral-500">{x.leaves_at}</span>
-                    {x.family && <span className="text-xs text-neutral-400">{x.family}</span>}
-                  </li>
-                ))}
-              </ul>
-            </details>
-          )}
+          {/* Who goes home when, and who goes early (1fc5012b). Shared with
+              the block rosters since 31e93fbb -- see GoingHome.jsx. */}
+          <GoingHome departures={d.departures} />
           {d.slots.map((sl) => (
             <div key={sl.slot} className="mb-4">
               <div className="text-sm font-semibold text-optio-purple mb-1">{sl.slot}</div>

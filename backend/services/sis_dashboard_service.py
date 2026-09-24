@@ -306,6 +306,12 @@ def _build_jobs(org_id: str, *, caller_id: str, hidden: set, settings: Dict[str,
     if 'attendance' not in hidden and 'classes' not in hidden and now:
         jobs['roll_call'] = (lambda: _roll_call(org_id, now, dow, settings), None)
 
+    # "Leaving soon": the early leavers going home in the next hour, the same
+    # card the coordinator dashboard shows (ticket 31e93fbb). It reads the
+    # class schedule, so it follows the classes module.
+    if 'classes' not in hidden and now:
+        jobs['leaving_soon'] = (lambda: coordinator.leaving_soon(org_id, now), [])
+
     if 'calendar' not in hidden and now:
         jobs['events'] = (lambda: _upcoming_events(org_id, now, sees_all_audiences), [])
 
@@ -360,7 +366,8 @@ def get_admin_dashboard(org_id: str, caller_id: str) -> Dict[str, Any]:
                   **({'schedule': r['schedule']} if 'schedule' in r else {}),
                   **({'attendance': r['board']} if 'board' in r else {}),
                   **({'teachers_to_check': roll_call['teachers_to_check']}
-                     if roll_call.get('teachers_to_check') else {})},
+                     if roll_call.get('teachers_to_check') else {}),
+                  **({'leaving_soon': r['leaving_soon']} if r.get('leaving_soon') else {})},
         'events': r.get('events') or [],
         'pinned_links': r.get('pinned_links') or [],
         # Echoed so the frontend filters tiles with the same sisModules.js that

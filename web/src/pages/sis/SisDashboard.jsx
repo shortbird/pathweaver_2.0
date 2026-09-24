@@ -11,6 +11,7 @@ import TeacherDashboard from './TeacherDashboard'
 import CoordinatorDashboard from './CoordinatorDashboard'
 import DashboardCard from '../../components/sis/DashboardCard'
 import TeachersToCheck from '../../components/sis/TeachersToCheck'
+import LeavingSoon from '../../components/sis/LeavingSoon'
 import { RollStatus, SubstituteControl } from '../../components/sis/RollStatus'
 import { fmtEventWhen } from '../../utils/timeFormat'
 import { formatCents as money } from '../../utils/money'
@@ -237,6 +238,10 @@ const SisDashboard = () => {
           {/* The coordinator dashboard's "Teachers to check", the same
               component: an org admin is a superset of a coordinator (P7). */}
           <TeachersToCheck data={today.teachers_to_check} orgId={orgId} onChanged={reload} />
+
+          {/* The coordinator dashboard's "Leaving soon", the same component
+              (ticket 31e93fbb). */}
+          <LeavingSoon students={today.leaving_soon} />
 
           {/* Masonry, via CSS multi-column rather than grid.
               A grid row stretches every card to the tallest one and pins each to

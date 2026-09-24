@@ -9,6 +9,7 @@
 import React from 'react'
 
 import { printElement } from '../../../utils/printView'
+import GoingHome, { LeavingAfterBlock } from './GoingHome'
 
 
 /**
@@ -46,6 +47,12 @@ export const BlockRosters = ({ days, day, onDayChange }) => {
         </button>
       </div>
       <div id={`sis-blocks-${current.key}`} className="space-y-8">
+        {/* The day's Going home list, open so it prints (ticket 31e93fbb,
+            Katrine: "Is there a way we can have that be at the top of the
+            block rosters, too?"). Inside the day's print area, so "Print all
+            of Tuesday" carries it; a single block's print carries only that
+            block's strip below. */}
+        <GoingHome departures={current.departures} defaultOpen />
         {current.blocks.map((b) => (
           <section key={b.key} id={`sis-block-${current.key}-${b.key}`} className="sis-block">
             {/* Sticky because a block of twelve classes scrolls its own heading
@@ -66,6 +73,7 @@ export const BlockRosters = ({ days, day, onDayChange }) => {
                 Print {b.label}
               </button>
             </div>
+            <LeavingAfterBlock leaving={b.leaving} />
             {b.classes.length === 0 ? (
               <p className="text-sm text-neutral-400">No classes in this block.</p>
             ) : (
