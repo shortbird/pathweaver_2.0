@@ -17,9 +17,13 @@ things:
   routes/       calling the database directly is the actual violation -- it
                 skips the layer that is supposed to own the query.
   services/     the same, one level down.
-  repositories/ this is where `.table(...)` BELONGS. The number is here to
-                notice churn, not to shame it; raising this one alongside a real
-                migration is expected and fine.
+  repositories/ this is where `.table(...)` BELONGS, so it has no ceiling.
+                It had one until 2026-09-24, and it rose on every feature built
+                the right way (464 -> 712 in three weeks) while the upper-layer
+                total held. A ceiling on the layer the pattern asks you to use
+                is a tax on following it, and one number that several parallel
+                sessions edit fails each other's runs. Review judges whether a
+                repository is shaped well; a count cannot.
   utils/, middleware/, jobs/, modules/
                 small and mostly legitimate (auth lookups, cron jobs).
 
@@ -44,35 +48,6 @@ import pytest
 BACKEND = Path(__file__).resolve().parents[2]
 
 # Measured 2026-09-03.
-# repositories/ raised +1 for upload_hold_for_image in
-# peer_text_screen_repository.py: the same image from the same student
-# reuses its upload hold instead of writing a new one and telling the
-# parent again (fourteen holds for one photo on 2026-09-21).
-# repositories/ raised +2 for story_repository.py in 8c95aaa8 (the www home
-# page's three featured stories), which landed without raising this number.
-# repositories/ raised +14 for CrmPersonNotesRepository
-# (crm_person_notes_repository.py): internal CRM notes about any Optio user,
-# not only leads, plus the person's lead notes, the user lookup that links
-# a lead to a person file, and "Add person" (lead lookup + lead note). New
-# code, so it lands in a repository. The lead-note insert MOVED here from
-# routes/admin/crm.py, so routes/ went down by one.
-# repositories/ raised 612 -> 613 for find_latest_by_canary_token in
-# bug_report_repository.py: the canarytoken webhook looks up the open ticket
-# for a token, as the Sentry webhook does for an issue.
-# repositories/ raised 611 -> 612 for get_public_blocks_for_documents in
-# evidence_document_repository.py: the feed fills each task card with all of
-# its blocks instead of only the ones inside the page's time window. The feed
-# route would otherwise have made the call itself.
-# repositories/ raised 415 -> 417 for get_class_activity in
-# class_repository.py: the roster-wide week read for class check-ins, plus
-# _quest_titles beside it. The second call is not avoidable by embedding --
-# quest_task_completions has no foreign key on quest_id, so PostgREST cannot
-# resolve `quests(title)` as a nested select. Both sit in the layer that owns
-# the table; nothing was added above repositories/.
-# repositories/ raised 406 -> 415 when the CRM suppression cascade moved out of
-# routes/ into repositories/crm_repository.py (the webhook, the admin console
-# and the unsubscribe link all needed to agree on it). routes/ fell by the
-# same migration.
 # utils/ raised 130 -> 131 for the lazy re-encrypt in utils/org_secrets
 # (SEC-16): the read path upgrades a legacy plaintext row in place, which is
 # the whole migration -- no backfill script and no window where a row is
@@ -356,319 +331,6 @@ BASELINES = {
     # repositories/sis_task_repository.py, not here.
     # Integration branch 2026-09-24: the four iCreate streams together.
     'services': 1807,
-    # 2026-09-09: 439 -> 442. GroupRepository, owning the three reads behind the
-    # Messages badge: this user's group memberships, the still-active groups
-    # among them, and the unread count within one group. The badge counted
-    # direct messages only, so a parent's unread class chats never lit it up.
-    # Group messaging predates the pattern and its data access still sits in
-    # GroupMessageService; this is the first piece moved down, and services/ did
-    # not move as a result.
-    # 2026-09-08: 418 -> 439. ParentDigestRepository, which owns every read
-    # behind the weekly parent digest: the roster, both guardian links, the
-    # week's completions and the evidence documents under them, learning
-    # moments, and the class quests whose due date has passed. Twenty-one calls
-    # across eight tables, all of them new work, none of them above
-    # repositories/ — routes/ and services/ did not move.
-    # 2026-09-07: 417 -> 418. A new EmergencyContactRepository owning the one
-    # bulk read behind the printable emergency contact sheet (iCreate 41c838c5).
-    # The query is new, and it is in the layer that is allowed to have it.
-    # 2026-09-09: 442 -> 450. OEARepository grows the reads and writes behind
-    # removing a course quest: the three counts that say whether removing it
-    # would destroy student work, the enrollment/credit/quest reads that find
-    # the course quests no credit points at any more, the rename that keeps a
-    # quest's title matching its credit, and the unenroll. All of it is data
-    # access for one relationship this repository already owns (oea_credits ->
-    # quests), and routes/ did not move: the route calls two repository methods.
-    # 2026-09-10: 450 -> 464. CreditAIReviewRepository, owning every query
-    # against credit_ai_reviews: the queue reads, the two conditional writes that
-    # make the claim work, and the paged read behind the dashboard's AI filter.
-    # All new work, all in the layer that is allowed to have it.
-    # 2026-09-10: 464 -> 465. ClassRepository.get_due_dates_for_classes -- one
-    # read of class_quests for a whole class list, so the outstanding-work badge
-    # on each student class card costs one query instead of one per card. It is
-    # the half of that feature that had a repository to go to; the layer that
-    # owns the table is where it belongs.
-    # 2026-09-10: 464 -> 471. repositories/quest_resource_repository.py, the
-    # data access for the new quest_resources table. This layer is where a
-    # .table() call BELONGS -- the number going up here is the ratchet working,
-    # not being worked around.
-    # 2026-09-11: 472 -> 484. repositories/class_quest_audience_repository.py,
-    # the data access behind "who is this class quest for" (Gryffin): the
-    # class's quest links with their student_ids, the audience write, and the
-    # four reads that decide whether a removed student's enrollment can be
-    # deleted or must be set down (their user_quests row, its tasks, and any
-    # completion or evidence document on those tasks). routes/ and services/
-    # did not move: the route and the enrollment service call the repository.
-    # 2026-09-11: 484 -> 528. Stories on www (services/stories/). Forty-four
-    # calls, every one in a repository, none above:
-    #   - story_repository (15): the queue reads and the two conditional writes
-    #     that make the claim work, the paged published list the static site
-    #     builds from, and the per-student list revocation and erasure use.
-    #   - story_source_repository (11): read-only access to everything a story
-    #     is drafted from -- the completion, its rounds, the task, the quest,
-    #     the enrolment, the student, the guardians' names and the org name the
-    #     scrubber must remove, the academy enrolment for the grade band. The
-    #     guardian RELATIONSHIP comes from utils.class_membership, the one
-    #     definition (test_one_definition_of_parent); only the names are read.
-    #   - story_asset_repository (7), promotional_consent_repository (5),
-    #     marketing_rebuild_repository (5): each new table's own data access.
-    #   - credit_ai_review_repository (+1): latest_complete_for_completion, so
-    #     a story can quote what the reviewer looked for.
-    # routes/stories/ and services/stories/ make zero direct calls; the
-    # erasure hook in user_erasure_repository goes through the repositories
-    # above rather than adding reads of its own.
-    # 2026-09-11: 528 -> 529. user_repository.ids_matching_name, the read
-    # behind the credit dashboard's student search box. The box had been
-    # sending the typed name as student_id and the route matched it against
-    # the uuid, so a name could never find anyone.
-    # 2026-09-11: 529 -> 530. story_repository.list_previewable, behind the
-    # dev-only ?preview=1 on the public stories route so a story in review can
-    # be seen as a www page before anyone presses Publish.
-    # 2026-09-14: 530 -> 531. school_enrollment_repository.find_for_student,
-    # the read "Withdraw from school" on a family record makes before marking
-    # a student withdrawn again. school_enrollments had no repository; the
-    # service that writes it (sis_person_service._archive) keeps its existing
-    # direct calls and adds none.
-    # 2026-09-14: 531 -> 533. bug_report_repository, the ticket tracker that
-    # replaces Perch: find_detail (one row with its org's name, for the
-    # /admin/tickets detail view) and counts_by_status (an exact-count per
-    # status for the tracker's tabs). list_recent folded into list_filtered
-    # rather than adding a third list reader.
-    # 2026-09-14: 533 -> 537, the afternoon iCreate batch.
-    #   quest_template_task_repository.ids_for_quest + set_order (+3): the
-    #     reads and writes behind reordering a quest's preset tasks
-    #     (c7d1f7a5); the validating reorder sits beside them in the same
-    #     repository, so nothing is added above this layer.
-    #   school_enrollment_repository.statuses_for_org (+1): every student's
-    #     standing at the school, for the org admin's People tab, which had
-    #     no way to show a withdrawn student as anything but present.
-    # 2026-09-15: 537 -> 546. story_candidate_repository (+8), the table
-    #   behind the app's "flag for a story" bookmark on a feed item: get,
-    #   get_by_target, list_by_status, open_target_ids (one read per feed
-    #   page), flag (insert or reopen), resolve, unflag. And
-    #   story_source_repository.learning_event (+1): the moment behind a
-    #   bookmarked learning_moment, so the queue can show what was flagged.
-    #   Nothing was added above this layer: the feed and the stories routes
-    #   call the repository.
-    # 2026-09-16: 546 -> 557. Friends: the per-child policy and its consent
-    # record (repositories/peer_policy_repository.py, 6: the policy row, a
-    # batch of them, the upsert, the consent insert, and the two user reads
-    # the policy service needs) and the parent's oversight reads on top of
-    # peer_connections (repositories/peer_connection_repository.py, 5: the
-    # bulk revoke behind "Friends: off", the live count the confirm dialog
-    # names, the activity window's connections and comments, and the pending
-    # approvals any parent of the child may answer). All new work, all in the
-    # layer that is allowed to have it; services/ FELL by one, because
-    # pending_approvals moved its read down here. Plus one in
-    # parent_digest_repository: the week's newly active connections, so an org
-    # parent's digest carries the friends their child added.
-    # 2026-09-16: 558 -> 569, Friends phase 2. peer_reaction_repository (5:
-    # the upsert, the clear, the two per-column page reads behind the feed's
-    # counts, and the activity window's read), peer_connection_repository
-    # (+5: the states between one student and a list of classmates, the
-    # blocks either way, the two per-column peer comment counts a feed page
-    # merges in, and the class names a suggestion is labelled with), and
-    # peer_policy_repository.org_student_ids (+1: the school pool, read
-    # through fetch_all_rows). routes/ and services/ did not move: the
-    # observer feed and the service call these.
-    # 2026-09-17: 569 -> 582, Friends phase 3 (safety). peer_text_screen_repository
-    # (10: the hold insert and the parent's read of holds, the two pending
-    # backlogs the cron sweep drains, the two settle writes, one read and one
-    # hide each for a peer comment and a direct message) and
-    # content_report_repository (3: one report by id for the takedown, and
-    # the comment and message texts the moderation queue previews). routes/
-    # and services/ did not move: the screen, the sweep, the takedown and the
-    # parent's hide all read and write through these.
-    # 2026-09-15 (later): 582 -> 585. The moderator's side of the same
-    # feature: the Holds tab's read and the two counts the daily digest
-    # emails (pending reports, holds in the last day), both count='exact'.
-    # 2026-09-15 (evening): 585 -> 588. StorySourceRepository learns credit
-    # classes: every live completion of a class the review credited as a
-    # whole, and the live evidence document standing in for the review round
-    # such a completion never had (POE 2026 could not become a story).
-    # 2026-09-15 (parent refactor, phase 2): 588 -> 568. Fourteen dead
-    # ParentRepository methods over two dropped tables, DependentRepository
-    # .get_parent_dependents (the SQL function behind my-dependents) and
-    # ParentDigestRepository.managing_parents / approved_links went; the new
-    # FamilyRepository (two reads, one family at a time) came.
-    # 2026-09-15 (training links): 568 -> 578. TrainingLinkRepository, the
-    # Training page's view of org_resources rows flagged is_training: the
-    # org's list, one owned row, the members a link can be aimed at by name,
-    # the caller's acks and the report's acks, create/update/delete, and the
-    # done mark and its undo on sis_resource_acks. routes/ and services/ did
-    # not move: routes/sis/training_links.py read and wrote through this
-    # (since M18, 2026-09-17, services/sis_training_service does).
-    # 2026-09-15 (class chat screened): 578 -> 582. PeerTextScreenRepository
-    # learns group_messages -- the pending backlog, the settle and the hide
-    # the sweep needs -- and the group names a hold can carry. routes/ and
-    # services/ did not move: group_message_service screens through the
-    # service, and the superadmin tracker reads one SQL function.
-    # 2026-09-15 (safety depth): 582 -> 601. ConversationReviewRepository
-    # (the nightly review's threads, roles, names, transcript, record, the
-    # report it files, and the tracker's counts), CsamIncidentRepository
-    # (record, recent, mark_reported), one hold by id and the group message
-    # a takedown hides on PeerTextScreenRepository, and the class chat text a
-    # report previews on ContentReportRepository. routes/ and services/ did
-    # not move: the upload gate, the review and the takedown all read and
-    # write through these.
-    # 2026-09-16: 601 -> 605. A friend's page and Collaborate on
-    # PeerConnectionRepository: the live connection between two students
-    # (active_between), the quests each is on (quests_in_progress), whether
-    # a student is on a quest (is_on_quest) and a quest's title for the
-    # invite (quest_title). services/ did not move.
-    # 2026-09-15 (dead code sweep): routes/ 2292 -> 2285, services/ 1840 -> 1836,
-    # middleware/ 3 -> 2, repositories/ -52. Whole modules nothing imported:
-    # course_repository, course_quest_repository, curriculum_repository,
-    # curriculum_lesson_repository, quest_completion_service, cost_tracker,
-    # audit_logger, database_policy, datetime_helpers, name_utils,
-    # response_helpers -- plus RegistrationRepository, a class with no caller,
-    # and 60-odd helper functions across utils/ and services/ that nothing
-    # referenced. On HEAD plus this sweep alone repositories/ counts 522; the
-    # working tree also carried the class-chat and safety repositories above
-    # when this landed, so the figure here is that session's number minus 52.
-    # 2026-09-17: 553 -> 557. BugReportRepository.list_fixed and
-    # list_awaiting_reporter_notice, the two reads the ticket deploy sweep
-    # makes (services/ticket_finalize_service.py), then
-    # ProductionDeployRepository.record and .latest, the one write and one
-    # read behind the cron's replay of the last release report. Repository
-    # calls, where they belong; routes and services did not move.
-    # 2026-09-17: 557 -> 568. SisQuestLibraryRepository, eleven calls behind
-    # the Quests page under Operations (routes/sis/quest_library.py): the
-    # org's quests, their tasks, curriculum links, class links, the pickers,
-    # and the one attach write, which routes/sis/curriculum.py now also uses
-    # (routes fell by three in the same commit).
-    # 2026-09-17: 568 -> 569. StaffTrainingRepository.set_sequence_order, the
-    # one write behind the Training page's creator-set order (PUT
-    # /api/sis/training/order); the links half of that order goes through
-    # TrainingLinkRepository.update_link, which already existed.
-    # 2026-09-17: 569 -> 570. QuestRepository.set_aside_enrollment, the one
-    # write behind ending a quest below its XP finish line (POST /end sets it
-    # aside instead of refusing); the route calls it, and writes nothing.
-    # 2026-09-17: 570 -> 571. SisLearningDayRepository.choices_for_org, the
-    # school-wide read of UFA learning-day choices the tuition queue needs to
-    # price every pending student's week in one pass (M5, the one tuition
-    # quote). A repository read, where it belongs; routes and services did not
-    # move (the queue's other new read goes through sis_catalog_service).
-    # 2026-09-17 (M4): 571 -> 577. EmergencyContactRepository gained the
-    # funnel's replace (delete-by-source, the pre-column rows, delete, insert)
-    # and SchoolEnrollmentRepository the funnel's enrollment write (statuses
-    # for a list of students, upsert). New queries in the layer that owns
-    # them; routes fell by three and services did not move.
-    # 2026-09-18: 577 -> 579. HouseholdRepository.for_guardian — "which family
-    # does this adult guard at this school", the question every path that
-    # creates a child outside the registration funnel has to answer before the
-    # child can join it. Two reads (the membership, then the primary-contact
-    # fallback) in the layer that owns households; routes and services did not
-    # move, and the new staff door's other lookups reuse UserRepository and
-    # sis_service rather than adding queries above this layer.
-    # 2026-09-18: 579 -> 584. repositories/sis_time_block_repository.py (the
-    # school-day blocks as rows, M8b) and SisClassRepository.block_for_times,
-    # which stamps class_meetings.block_id when a meeting is written.
-    # 2026-09-18 (M16, second half): unchanged at 584. sis_attach_service
-    # reads the guardian's household through the for_guardian above; the
-    # funnel's and the admin path's copies of that lookup left routes/.
-    # 2026-09-18: 584 -> 585. OrganizationRepository.names_for, the school
-    # names beside a superadmin's cross-org credit queue.
-    # 2026-09-18: 585 -> 586. SisQuestLibraryRepository.creators, who wrote
-    # each library quest, so the office's library and teacher-made quests read
-    # as two lists (ticket 4579be68).
-    # 2026-09-18: 586 -> 587. TaskRepository.find_approved_on_quest_for_users,
-    # every family member's list on one quest, so a child added to a
-    # parent-made quest gets a copy of a sibling's tasks.
-    # 2026-09-19: 587 -> 588. UserRepository.set_family_cover, one write that
-    # points a whole platform family's rows at (or away from) the family
-    # photo; the three direct users calls in routes/parent/family_cover.py
-    # left routes/ for it and family_cover_pointers (which reuses find_by_ids).
-    # 2026-09-20: 588 -> 589. SisQuestLibraryRepository.students_of_org, which
-    # of a picker's ids are accounts at this school, so the library's "give it
-    # to a student" door (ticket 293c4d99) refuses a stale id before enrolling.
-    # 2026-09-22: 589 -> 590. QuestResourceRepository.update_by_id, so a
-    # mistyped attachment name or a wrong link is a correction rather than a
-    # delete and a re-upload (ticket 2b12c03b).
-    # 2026-09-22: 590 -> 598. PartnerEnrollmentRepository, for a partner adding
-    # a course to an Optio account that already exists: the account behind the
-    # purchase email, the children on it (parent_student_links AND
-    # household_members -- an org-managed family has no link rows, which is the
-    # bug), their rows, and the enrolments this partner sold to accounts it does
-    # not own. All eight are new reads, but none of them is in routes/: the
-    # route file they serve is entirely direct calls and this is where the
-    # docstring says a new query belongs. routes/ and services/ are unchanged,
-    # so the combined total this ratchet exists to hold did not move.
-    # 2026-09-22: 598 -> 599. GroupRepository.group_owner_row, the read behind
-    # school_inbox_service.school_group_access: whether a group belongs to a
-    # school inbox, so the front office can read staff groups sent from the
-    # School tab (ticket ac84b6cd). The new school-inbox group routes add no
-    # direct call above repositories/.
-    # 2026-09-23: 599 -> 602. QuestViewRepository (repositories/
-    # quest_view_repository.py), for the quest page: read and stamp
-    # user_quests.first_opened_at / last_opened_at so a teacher can tell
-    # "Assigned" from "Opened" (ticket 7cf5d330), and read
-    # sis_submission_reviews so a parent sees "Accepted by <teacher>" on the
-    # task (ticket 650aa9b9). routes/quest/detail.py gained no direct call.
-    # 2026-09-23: 602 -> 604. SisQuestLibraryRepository.org_users_on_quest
-    # (users + user_quests), so the library's Give picker can mark the
-    # students who already have the quest (iCreate, ticket ebfc9253).
-    # routes/sis/quest_library.py gained no direct call.
-    # 2026-09-23: 604 -> 611. SisSubmissionRepository (repositories/
-    # sis_submission_repository.py). Two reads MOVED out of
-    # routes/sis/submissions.py and now paged (completions and
-    # sis_submission_reviews, which PostgREST truncated at 1,000 rows); three
-    # for the Submissions search (users, quests, user_quest_tasks; iCreate,
-    # ticket 0e6cb0fc); two so a family's reply on a submission reaches the
-    # SIS reviewer or the class teachers (sis_submission_reviews, class_quests;
-    # ticket 41474658). routes/ went DOWN by the two moved reads.
-    # 2026-09-24: 612 -> 624. SisClassSessionRepository (repositories/
-    # sis_class_session_repository.py), the new sis_class_sessions table behind
-    # "who took the roll" and planned substitutes (P7, iCreate 2026-09-23):
-    # ten calls on the table itself, plus the two class-side reads a session
-    # is judged against (org_classes by ids with their teachers, and which
-    # classes have attendance on a date). services/ gained no direct call.
-    # 2026-09-23: 612 -> 630. QuestEditorRepository (repositories/
-    # quest_editor_repository.py), behind the one SIS quest form (P6): the
-    # quest and its tasks, the Drafts list, discarding a draft (training row,
-    # resources, tasks, quest), the enrolment and attachment checks a discard
-    # makes, author/class/curriculum names for the list, the class read for
-    # the teacher gate, the school logo, and the training catalog row a
-    # training draft is filed under. routes/ went down by 10 and services/ by
-    # 1 in the same change.
-    # Both of the above together on the integration branch: 612 + 12 + 18.
-    # 2026-09-24: 612 -> 637. The messaging rework (iCreate meeting of
-    # 2026-09-23, P5). Two new repositories own every new query:
-    # SchoolThreadRepository (school_thread_grants, school_thread_reads, and
-    # the name/org/thread reads behind "Kate for iCreate" and "Make a task")
-    # and MessageSendRepository (message_sends, message_send_recipients and
-    # their read-status views, the audience's class/advisor/enrollment/meeting
-    # reads in bulk, and the board posts' read counts). services/ went DOWN:
-    # sis_family_messaging_service was folded into message_compose_service,
-    # which has no direct call.
-    # Messaging (P5) on top of the two above on the integration branch: 642 + 25.
-    # 2026-09-24: 612 -> 628. SisTaskRepository (repositories/
-    # sis_task_repository.py): task comments, recurring schedules and their
-    # occurrences, and the dashboard's exact task counts. The upper layers
-    # fell by 31 in the same change.
-    # Integration branch 2026-09-24: attendance + quest editor + messaging +
-    # tasks together (612 + 12 + 18 + 25 + 16).
-    # 2026-09-24: 683 -> 684. QuestRepository._sees_unassigned_school_quests
-    # reads the caller's role columns: quest discovery now hides a school
-    # quest nobody assigned (owner decision 2026-09-24), but staff keep the
-    # whole list because the course builder's quest picker reads the same
-    # endpoint. get_user_organization returns only the org, so the role is one
-    # more read, in the repository that owns the listing.
-    # 2026-09-24: 684 -> 689. Direct quest links obey the discovery rule
-    # (owner decision 2026-09-24): QuestRepository.get_visibility_user,
-    # has_any_enrollment, is_quest_assigned and reachable_through_course (two
-    # reads: course_quests, course_enrollments) are the reads
-    # services/quest_visibility_service.may_open_quest makes. Each is bounded
-    # by one user or one quest, and they sit in the repository that owns the
-    # discovery half of the same rule; nothing was added above repositories/.
-    # 2026-09-24: 689 -> 690. QuestRepository.enrolled_user_ids, the capped
-    # list of people on a personal quest: the direct-link rule opens a
-    # non-public global quest for someone related to a student on it
-    # (services/quest_visibility_service.py). Bounded by one quest and a
-    # limit; nothing was added above repositories/.
-    # Merge of main (115ec250) into the integration branch, 2026-09-24: main
-    # added 18 repository calls (612 -> 630) and moved two out of routes/.
-    'repositories': 708,
     # 2026-09-09: 135 -> 136. class_membership.children_in_classes, the inverse
     # of parents_of_students: which of a guardian's children sit in each of a
     # set of classes. It answers "whose class chat is this?" for the messaging
@@ -775,6 +437,13 @@ def test_the_upper_total_matches_the_per_layer_numbers():
     assert UPPER_TOTAL_BASELINE == BASELINES['routes'] + BASELINES['services'], (
         'UPPER_TOTAL_BASELINE drifted from the per-layer baselines. Update both '
         'in the same commit.')
+
+
+def test_repositories_have_no_ceiling():
+    """Removed on purpose (see the module docstring). A ceiling here would
+    count the calls the repository pattern exists to collect."""
+    assert 'repositories' not in BASELINES
+    assert 'repositories' not in UPPER_LAYERS
 
 
 def test_the_counter_actually_finds_calls():
