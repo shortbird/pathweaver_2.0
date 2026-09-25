@@ -185,6 +185,10 @@ def _append_school_contact(contacts, user_id):
         org, inbox_user_id = school_inbox_service.school_account(school_inbox_service.member_org(user_id))
         if not org or not inbox_user_id or inbox_user_id == user_id:
             return
+        # The front office IS the school inbox: it is not someone they write to.
+        if school_inbox_service.office_inbox_id(user_id) == inbox_user_id:
+            contacts[:] = [ct for ct in contacts if ct['id'] != inbox_user_id]
+            return
         contacts[:] = [ct for ct in contacts if ct['id'] != inbox_user_id]
         contacts.append(school_inbox_service.school_contact(org, inbox_user_id))
     except Exception as e:
@@ -256,6 +260,13 @@ def get_conversations(user_id: str):
     """
     try:
         conversations = message_service.get_user_conversations(user_id)
+        # The front office reads its thread with the school on the School tab,
+        # as the school; here it would be the same thread from the other end.
+        from services import school_inbox_service
+        own_office = school_inbox_service.office_inbox_id(user_id)
+        if own_office:
+            conversations = [c for c in conversations
+                             if (c.get('other_user') or {}).get('id') != own_office]
         _label_member_orgs(user_id, [c.get('other_user') for c in conversations])
 
         return success_response({

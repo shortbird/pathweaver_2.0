@@ -56,6 +56,74 @@ def test_append_school_contact_never_raises():
     assert contacts == [{'id': 'a'}]
 
 
+def test_the_office_does_not_get_its_own_school_as_a_contact():
+    """iCreate, 2026-09-25: an admin writing to "iCreate" from My messages was
+    writing to the inbox they read on the School tab -- one thread, read from
+    both ends, with the author's name on one side only."""
+    with patch.object(school_inbox_service, 'member_org', return_value=ORG), \
+         patch.object(school_inbox_service, 'get_or_create_inbox_user', return_value='inbox-1'), \
+         patch('services.sis_service.caller_is_admin', return_value=True):
+        contacts = [{'id': 'a'}, {'id': 'inbox-1', 'display_name': 'iCreate'}]
+        _append_school_contact(contacts, 'office-1')
+    assert contacts == [{'id': 'a'}]
+
+
+def test_the_office_does_not_see_its_school_thread_in_my_messages(client, auth_headers, mock_verify_token):
+    mock_verify_token.return_value = 'office-1'
+    convos = [{'id': 'c1', 'other_user': {'id': 'inbox-1'}},
+              {'id': 'c2', 'other_user': {'id': 'teacher-1'}}]
+    with patch.object(dm_routes.message_service, 'get_user_conversations', return_value=convos), \
+         patch.object(dm_routes, '_label_member_orgs'), \
+         patch.object(school_inbox_service, 'office_inbox_id', return_value='inbox-1'):
+        r = client.get('/api/messages/conversations', headers=auth_headers)
+    assert r.status_code == 200
+    assert [c['id'] for c in r.get_json()['data']['conversations']] == ['c2']
+
+
+def test_office_inbox_id_is_only_the_offices():
+    with patch.object(school_inbox_service, 'member_org', return_value=ORG), \
+         patch('services.sis_service.caller_is_admin', side_effect=[True, False]):
+        assert school_inbox_service.office_inbox_id('office-1') == 'inbox-1'
+        assert school_inbox_service.office_inbox_id('teacher-1') is None
+
+
+def _send_as_school_to(recipient_is_staff, **kwargs):
+    dm = MagicMock()
+    with patch.object(school_inbox_service, 'school_account', return_value=(ORG, 'inbox-1')), \
+         patch.object(school_inbox_service, 'is_org_staff', return_value=recipient_is_staff) as staff, \
+         patch('services.direct_message_service.DirectMessageService', return_value=dm):
+        school_inbox_service.send_as_school(ORG, 'r-1', 'hi', sent_by='becky', **kwargs)
+    return dm.send_message.call_args.kwargs, staff
+
+
+def test_a_colleague_is_told_who_wrote_a_school_message():
+    """"I would like it if you signed your name so it is easy for us to tell
+    which CC or admin is sending the messages" (iCreate, 2026-09-24)."""
+    kwargs, staff = _send_as_school_to(True)
+    assert kwargs['show_sender_name'] is True
+    staff.assert_called_once_with('org-1', 'r-1')
+
+
+def test_a_family_still_hears_from_the_school():
+    kwargs, _ = _send_as_school_to(False)
+    assert 'show_sender_name' not in kwargs
+
+
+def test_is_org_staff_needs_this_org_and_a_staff_role():
+    def rows(row):
+        admin = MagicMock()
+        (admin.table.return_value.select.return_value.eq.return_value
+         .limit.return_value.execute.return_value) = MagicMock(data=[row])
+        return patch.object(school_inbox_service, '_admin', return_value=admin)
+    teacher = {'id': 't', 'role': 'org_managed', 'org_role': 'advisor', 'organization_id': 'org-1'}
+    with rows(teacher):
+        assert school_inbox_service.is_org_staff('org-1', 't') is True
+        assert school_inbox_service.is_org_staff('org-2', 't') is False
+    with rows({**teacher, 'org_role': 'parent'}):
+        assert school_inbox_service.is_org_staff('org-1', 't') is False
+    assert school_inbox_service.is_org_staff(None, 't') is False
+
+
 # ── The permission rule ──
 
 def _admin_with_org_rows(rows):

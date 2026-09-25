@@ -171,11 +171,14 @@ def send_as_school(org, recipient_id: str, content: str, *, sent_by: Optional[st
     `push` False skips the phone and browser push (Compose's toggle).
     `show_sender_name` tells the recipient who wrote it, "Kate for iCreate":
     set for a staff member answering a thread the office handed them with a
-    task (thread_task_service), never for the office's own replies.
+    task (thread_task_service). A recipient who is staff at the school is
+    always told, whoever writes: a colleague needs to know which colleague is
+    asking (iCreate, 2026-09-25, "I would like it if you signed your name").
     """
     from services.direct_message_service import DirectMessageService
+    row: Optional[Dict[str, Any]] = None
     try:
-        _row, inbox_user_id = school_account(org)
+        row, inbox_user_id = school_account(org)
     except Exception as e:  # noqa: BLE001
         logger.warning(f"school sender: inbox lookup failed for org {str(org)[:8]}: {e}")
         inbox_user_id = None
@@ -188,7 +191,7 @@ def send_as_school(org, recipient_id: str, content: str, *, sent_by: Optional[st
     extra: Dict[str, Any] = {}
     if not push:
         extra['push'] = False
-    if show_sender_name and author:
+    if author and (show_sender_name or is_org_staff((row or {}).get('id'), recipient_id)):
         extra['show_sender_name'] = True
     return DirectMessageService().send_message(
         sender, recipient_id, content,
@@ -197,6 +200,40 @@ def send_as_school(org, recipient_id: str, content: str, *, sent_by: Optional[st
         sent_by_user_id=author,
         **extra,
     )
+
+
+def is_org_staff(org_id: Optional[str], user_id: str) -> bool:
+    """Whether `user_id` works at this school (utils.sis_roles.STAFF_ROLES,
+    their org being this one). Never raises: an unknown answer is 'no', which
+    leaves a message under the school's name as it always was."""
+    from repositories.quest_repository import VISIBILITY_USER_COLUMNS, is_school_staff
+    if not org_id or not user_id:
+        return False
+    try:
+        rows = (_admin().table('users').select(VISIBILITY_USER_COLUMNS)
+                .eq('id', user_id).limit(1).execute()).data or []
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f"school inbox: staff lookup failed for {str(user_id)[:8]}: {e}")
+        return False
+    return bool(rows) and rows[0].get('organization_id') == org_id and is_school_staff(rows[0])
+
+
+def office_inbox_id(user_id: str) -> Optional[str]:
+    """The school inbox account of the office `user_id` works in, or None.
+
+    Front-office staff (ADMIN tier) read and answer the school inbox as the
+    school, so the school is not somebody they message: in their own Messages
+    a thread "with iCreate" is a thread with their own team, read from both
+    ends (iCreate, 2026-09-25). Callers hide it; the School tab has it all.
+    """
+    from services import sis_service
+    try:
+        if not sis_service.caller_is_admin(user_id):
+            return None
+        return (member_org(user_id) or {}).get('inbox_user_id')
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f"school inbox: office lookup failed for {str(user_id)[:8]}: {e}")
+        return None
 
 
 def school_contact(org: Dict[str, Any], inbox_user_id: str) -> Dict[str, Any]:

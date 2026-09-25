@@ -628,7 +628,7 @@ const SchedulePanel = ({ student, orgId }) => {
 // used to go to a second school account no page in the product listed.
 // Lives here, not in FamilyDetailModal, because that file imports this one.
 export const inboxThreadLink = (conversationId) =>
-  conversationId ? `/inbox?conversation=${conversationId}` : '/inbox'
+  conversationId ? `/inbox?tab=school&conversation=${conversationId}` : '/inbox?tab=school'
 
 const MessagePanel = ({ student, orgId }) => {
   const navigate = useNavigate()
