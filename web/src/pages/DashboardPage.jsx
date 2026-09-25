@@ -1,5 +1,5 @@
 import React, { useEffect, memo, useState } from 'react'
-import { Link, Navigate } from 'react-router-dom'
+import { Link, Navigate, useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { useFamilyScope } from '../contexts/FamilyScopeContext'
 import { useUserDashboard } from '../hooks/api/useUserData'
@@ -13,12 +13,14 @@ import QuickCaptureButton from '../components/learning-events/QuickCaptureButton
 import DiplomaCreditTracker from '../components/diploma/DiplomaCreditTracker'
 import WeeklyXpGoalCard from '../components/overview/WeeklyXpGoalCard'
 import { PageLoader } from '../components/ui/Spinner'
+import CreateQuestModal from '../components/CreateQuestModal'
 import {
   RocketLaunchIcon,
   CheckCircleIcon,
   ArrowRightIcon,
   ClipboardDocumentListIcon,
-  UserCircleIcon
+  UserCircleIcon,
+  PlusIcon
 } from '@heroicons/react/24/outline'
 
 // Note: SSO token extraction now happens at App.jsx level before routing
@@ -257,6 +259,8 @@ const DashboardPage = () => {
   const { user } = useAuth()
   const { selectedChild } = useFamilyScope()
   const [showRhythmModal, setShowRhythmModal] = useState(false)
+  const [showCreateQuest, setShowCreateQuest] = useState(false)
+  const navigate = useNavigate()
 
   // Whose dashboard: the child a parent is scoped to (contexts/
   // FamilyScopeContext -- the reads carry the scope themselves), else the
@@ -390,13 +394,33 @@ const DashboardPage = () => {
       <div className="mb-8">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-6">
           <h2 className="text-xl font-bold text-gray-900">Current Quests</h2>
-          <Link
-            to="/quests"
-            className="text-sm text-optio-purple hover:text-optio-purple-dark font-medium transition-colors"
-          >
-            Browse All Quests →
-          </Link>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setShowCreateQuest(true)}
+              className="inline-flex items-center gap-1.5 min-h-[44px] px-4 rounded-lg bg-gradient-primary text-white text-sm font-medium hover:shadow-lg transition-all"
+            >
+              <PlusIcon className="w-4 h-4" aria-hidden="true" />
+              Create Quest
+            </button>
+            <Link
+              to="/quests"
+              className="inline-flex items-center min-h-[44px] px-4 rounded-lg border border-optio-purple text-optio-purple text-sm font-medium hover:bg-optio-purple/5 transition-colors"
+            >
+              Browse Quest Library
+            </Link>
+          </div>
         </div>
+        {showCreateQuest && (
+          <CreateQuestModal
+            isOpen={showCreateQuest}
+            onClose={() => setShowCreateQuest(false)}
+            onSuccess={(quest) => {
+              setShowCreateQuest(false)
+              if (quest?.id) navigate(`/quests/${quest.id}`)
+            }}
+          />
+        )}
         <ActiveQuests
           activeQuests={inProgressQuests}
           enrolledCourses={dashboardData?.enrolled_courses}

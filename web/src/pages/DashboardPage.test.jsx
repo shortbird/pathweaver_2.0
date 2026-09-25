@@ -66,6 +66,10 @@ vi.mock('../components/quest/RhythmExplainerModal', () => ({
   default: () => null
 }))
 
+vi.mock('../components/CreateQuestModal', () => ({
+  default: () => <div data-testid="create-quest-modal" />
+}))
+
 vi.mock('../components/learning-events/QuickCaptureButton', () => ({
   default: () => null
 }))
@@ -209,7 +213,7 @@ describe('DashboardPage', () => {
       expect(screen.getByText('Current Quests')).toBeInTheDocument()
     })
 
-    it('renders Browse All Quests link', () => {
+    it('offers Create Quest and Browse Quest Library side by side', () => {
       dashboardHookData = {
         data: { active_quests: [], enrolled_courses: [], stats: {} },
         isLoading: false,
@@ -217,7 +221,22 @@ describe('DashboardPage', () => {
         refetch: vi.fn()
       }
       renderDashboard()
-      expect(screen.getByText(/Browse All Quests/)).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: /Create Quest/ })).toBeInTheDocument()
+      expect(screen.getByRole('link', { name: /Browse Quest Library/ })).toHaveAttribute('href', '/quests')
+      expect(screen.queryByText(/Browse All Quests/)).not.toBeInTheDocument()
+    })
+
+    it('opens the create quest modal from the dashboard', () => {
+      dashboardHookData = {
+        data: { active_quests: [], enrolled_courses: [], stats: {} },
+        isLoading: false,
+        error: null,
+        refetch: vi.fn()
+      }
+      renderDashboard()
+      expect(screen.queryByTestId('create-quest-modal')).not.toBeInTheDocument()
+      fireEvent.click(screen.getByRole('button', { name: /Create Quest/ }))
+      expect(screen.getByTestId('create-quest-modal')).toBeInTheDocument()
     })
 
     it('does not render the removed View Portfolio link (overview replaces /diploma)', () => {
