@@ -323,12 +323,17 @@ def _quest_edit_rights(supabase, user_id, quest):
     the same rule through services/quest_edit_rules; this editor has to agree
     with it, or it is the way round it.
     """
-    from utils.sis_roles import ADMIN_ROLES
-
     row = (supabase.table('users')
            .select('id, role, org_role, org_roles, organization_id')
            .eq('id', user_id).limit(1).execute()).data
-    user_data = row[0] if row else {}
+    return quest_edit_rights_for(user_id, row[0] if row else {}, quest)
+
+
+def quest_edit_rights_for(user_id, user_data, quest):
+    """_quest_edit_rights with the caller's users row already in hand, so a
+    list of quests (a class's Quests tab) is answered with one lookup."""
+    from utils.sis_roles import ADMIN_ROLES
+
     effective_role = get_effective_role(user_data) if user_data else None
     user_org_id = user_data.get('organization_id')
     quest_org_id = quest.get('organization_id')

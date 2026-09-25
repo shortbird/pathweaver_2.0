@@ -66,6 +66,8 @@ def get_class_quests(user_id, org_id, class_id):
         quests = service.get_class_quests(
             class_id, only_published=only_published,
             student_id=None if is_staff(effective_roles) else user_id)
+        if is_staff(effective_roles):
+            _mark_editable(user_id, quests)
 
         return jsonify({
             'success': True,
@@ -78,6 +80,21 @@ def get_class_quests(user_id, org_id, class_id):
             'success': False,
             'error': 'Failed to get quests'
         }), 500
+
+
+def _mark_editable(user_id, rows):
+    """Stamp can_edit on each class quest, so the Quests tab offers the editor
+    only where the save would be allowed. The pencil used to show on every
+    quest, and a teacher filled in the form on an office-made quest before the
+    PUT told them no."""
+    from routes.admin.quest_management.crud import quest_edit_rights_for
+    from repositories.user_repository import UserRepository
+    # admin client justified: reads the caller's own users row for role resolution
+    me = UserRepository(client=get_supabase_admin_client()).find_by_ids(
+        [user_id], 'id, role, org_role, org_roles, organization_id').get(user_id) or {}
+    for row in rows:
+        quest = row.get('quests') or {}
+        row['can_edit'] = bool(quest) and quest_edit_rights_for(user_id, me, quest)[0]
 
 
 @bp.route('/organizations/<org_id>/classes/<class_id>/quests', methods=['POST'])

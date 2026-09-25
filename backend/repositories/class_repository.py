@@ -315,7 +315,7 @@ class ClassRepository(BaseRepository):
                 students. class_quests.student_ids NULL is the whole class.
         """
         query = self.admin_client.table('class_quests')\
-            .select('*, quests(id, title, description, quest_type, is_active)')\
+            .select('*, quests(id, title, description, quest_type, is_active, organization_id, created_by)')\
             .eq('class_id', class_id)
 
         if only_published:

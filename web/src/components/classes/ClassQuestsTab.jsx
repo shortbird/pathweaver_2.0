@@ -263,7 +263,7 @@ function QuestRow({ item, index, scheduledEnabled, dueDatesEnabled, onRemove, on
       {/* Edit. The only way into the quest editor used to be an unlabelled row
           click on the org Quests page, which advisors cannot even reach --
           so from here a quest looked permanent once saved. */}
-      {!editing && (
+      {!editing && item.can_edit && (
         <button
           onClick={() => onEdit(quest)}
           className="p-2 text-gray-400 hover:text-optio-purple hover:bg-optio-purple/5 rounded-lg transition-colors"
