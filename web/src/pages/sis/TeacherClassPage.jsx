@@ -88,6 +88,10 @@ const TeacherClassPage = () => {
   const cls = classData?.cls ?? null
   const budget = classData?.budget ?? null
   const students = classData?.students || []
+  // Covering the class today (P7): the grant is the roster, today's roll and
+  // the substitute sheet. The other tabs answer "Class not found" to a
+  // substitute, so they are not offered, and the date stays on today.
+  const substitute = classData?.myRole === 'substitute'
   const [date, setDate] = useState(today())
   const [marks, setMarks] = useState({})
   // student_id -> the guardian's report for this class on this date, if any.
@@ -147,7 +151,8 @@ const TeacherClassPage = () => {
   // Deep links (e.g. the home "Message" shortcut) can preselect a tab via ?tab=.
   const requestedTab = TAB_ALIASES[searchParams.get('tab')] || searchParams.get('tab')
   const initialTab = VALID_TABS.includes(requestedTab) ? requestedTab : 'roster'
-  const [tab, setTab] = useState(initialTab)
+  const [chosenTab, setTab] = useState(initialTab)
+  const tab = substitute ? 'roster' : chosenTab
 
 
 
@@ -252,7 +257,9 @@ const TeacherClassPage = () => {
           then the ones only some classes use. */}
       <GlassTabBar
         align="start" size="md" className="mb-6" aria-label="Class sections"
-        tabs={[['roster', 'Roster & Attendance'], ['messages', 'Messages'], ['curriculum', 'Curriculum'], ['quests', 'Quests'], ['progress', 'Student Progress'], ['activity', 'This Week']]
+        tabs={(substitute
+          ? [['roster', 'Roster & Attendance']]
+          : [['roster', 'Roster & Attendance'], ['messages', 'Messages'], ['curriculum', 'Curriculum'], ['quests', 'Quests'], ['progress', 'Student Progress'], ['activity', 'This Week']])
           .map(([id, label]) => ({ id, label }))}
         active={tab} onSelect={setTab}
       />
@@ -361,6 +368,7 @@ const TeacherClassPage = () => {
           {/* Controls — same shell as the admin attendance page */}
           <div className="bg-white rounded-xl border border-gray-200 p-4 mb-6 flex flex-wrap items-center gap-3">
             <input type="date" value={date} onChange={(e) => setDate(e.target.value)}
+              disabled={substitute} title={substitute ? 'You are covering this class today' : undefined}
               className="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-optio-purple"
               aria-label="Attendance date" />
             <button onClick={markAllPresent} className="text-sm text-optio-purple hover:underline">Reset</button>

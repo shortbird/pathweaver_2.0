@@ -24,6 +24,8 @@ export const useSisTeacherClass = (orgId, classId, options = {}) => useQuery({
       cls: res.data?.class ?? null,
       budget: res.data?.supply_budget || null,
       students: res.data?.students || [],
+      // 'substitute' when the caller is only covering the class today.
+      myRole: res.data?.my_role || null,
     }
   },
   enabled: !!orgId && !!classId,

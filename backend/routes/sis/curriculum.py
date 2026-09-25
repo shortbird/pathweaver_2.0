@@ -958,6 +958,18 @@ def set_curriculum_courses(user_id, curriculum_id):
 # the class's curriculum (routes/sis/class_quests.py). iCreate, 2026-08-31.
 
 
+def _covering_today(user_id, class_row):
+    """The office marked this person to cover the class today (P7). Opens the
+    read of its curriculum for the substitute sheet, and nothing else."""
+    from services import sis_staff_service
+    org_id = class_row['organization_id']
+    if sis_service.resolve_org_id(user_id, org_id) != org_id:
+        return False
+    today = sis_staff_service._org_now(org_id).date().isoformat()
+    scope = sis_service.class_scope(user_id, org_id, on_date=today)
+    return scope is not None and class_row['id'] in scope
+
+
 def _class_access(user_id, class_id):
     """Resolve a caller's relationship to a class.
 
@@ -1010,7 +1022,7 @@ def class_curriculum(user_id, class_id):
     class_row, is_teacher, is_admin = _class_access(user_id, class_id)
     if class_row is None:
         return jsonify({'success': False, 'error': 'Class not found'}), 404
-    if not (is_teacher or is_admin):
+    if not (is_teacher or is_admin or _covering_today(user_id, class_row)):
         return jsonify({'success': False, 'error': 'Not available'}), 403
 
     org_id = class_row['organization_id']

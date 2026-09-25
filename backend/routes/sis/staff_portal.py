@@ -97,6 +97,10 @@ def class_roster(user_id, class_id):
     scope = sis_service.class_scope(user_id, org_id, on_date=today)
     if scope is not None and class_id not in scope:
         return jsonify({'success': False, 'error': 'Class not found'}), 404
+    # In today's scope but not the everyday one: covering it. The class page
+    # shows a substitute only what their one-day grant opens (roster,
+    # attendance, the substitute sheet), not tabs that would answer 404.
+    covering = scope is not None and class_id not in (sis_service.class_scope(user_id, org_id) or [])
     # admin client justified: org_classes ownership check for a roster read; gated by @require_role(STAFF_ROLES) + class_scope filter above, views access-logged
     cls = (get_supabase_admin_client().table('org_classes')
            .select('id, name, organization_id, supply_fee, supply_budget_per_student')
@@ -115,6 +119,8 @@ def class_roster(user_id, class_id):
     return jsonify({'success': True,
                     'class': {'id': cls[0]['id'], 'name': cls[0]['name']},
                     'supply_budget': budget or None,
+                    'my_role': 'substitute' if covering else None,
+                    'today': today,
                     **data})
 
 
