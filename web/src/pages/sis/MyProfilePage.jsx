@@ -24,7 +24,6 @@ import { INPUT_CLASS } from '../../components/ui/Input'
 const initials = (name) => (name || '?').split(' ').filter(Boolean).slice(0, 2).map((n) => n[0].toUpperCase()).join('')
 
 const STAFF_TYPE_LABEL = { employee: 'Employee', contractor: 'Contractor', family: 'Family' }
-const PAY_TYPE_LABEL = { hourly: 'Hourly', salaried: 'Salaried', stipend: 'Stipend', unpaid: 'Unpaid' }
 
 const ReadRow = ({ label, value }) => (
   <div className="flex items-center justify-between py-2 border-b border-gray-100 last:border-0">
@@ -205,7 +204,6 @@ const MyProfilePage = () => {
         <p className="text-xs text-neutral-400 mb-3">Managed by your administrator. Reach out to them to change any of these.</p>
         <ReadRow label="Position" value={p.position} />
         <ReadRow label="Staff type" value={STAFF_TYPE_LABEL[p.staff_type]} />
-        <ReadRow label="Pay type" value={PAY_TYPE_LABEL[p.pay_type]} />
         <ReadRow label="Status" value={p.is_active === false ? 'Inactive' : 'Active'} />
       </div>
 

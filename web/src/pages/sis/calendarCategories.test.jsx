@@ -32,6 +32,10 @@ vi.mock('react-hot-toast', () => ({
   default: { success: vi.fn(), error: vi.fn() },
 }))
 vi.mock('./SisOrgPicker', () => ({ default: () => null }))
+
+// The office writes events; a teacher only reads them (CalendarPage).
+const auth = vi.hoisted(() => ({ user: { role: 'org_managed', org_role: 'org_admin', org_roles: ['org_admin'] } }))
+vi.mock('../../contexts/AuthContext', () => ({ useAuth: () => ({ user: auth.user }) }))
 vi.mock('./useSisOrg', () => ({
   useSisOrg: () => ({ orgId: 'org-1', setOrgId: vi.fn(), orgs: [], isSuperadmin: false }),
   withOrg: (url, orgId) => `${url}${url.includes('?') ? '&' : '?'}organization_id=${orgId}`,
@@ -112,5 +116,18 @@ describe('calendar categories', () => {
       '/api/sis/events/e2',
       expect.objectContaining({ categories: [] }),
     ))
+  })
+
+  it('shows a teacher the calendar read-only', async () => {
+    auth.user = { role: 'org_managed', org_role: 'advisor', org_roles: ['advisor'] }
+    try {
+      render(<CalendarPage />)
+      fireEvent.click(await screen.findByText('Winter camp'))
+      expect(screen.queryByRole('button', { name: 'Add event' })).not.toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: 'Save' })).not.toBeInTheDocument()
+      expect(screen.getAllByRole('button', { name: 'Close' }).length).toBeGreaterThan(0)
+    } finally {
+      auth.user = { role: 'org_managed', org_role: 'org_admin', org_roles: ['org_admin'] }
+    }
   })
 })

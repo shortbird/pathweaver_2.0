@@ -7,8 +7,10 @@ import { useSisOrg, withOrg } from './useSisOrg'
 import { useConfirm } from '../../contexts/ConfirmContext'
 import useSisEventRsvps from '../../hooks/api/useSisEventRsvps'
 import { toCsv, downloadCsv, dateStamp } from '../../utils/csv'
-import { splitEventStamp, compact12h } from '../../utils/timeFormat'
+import { splitEventStamp, compact12h, fmtEventWhen } from '../../utils/timeFormat'
 import { INPUT_CLASS } from '../../components/ui/Input'
+import { useAuth } from '../../contexts/AuthContext'
+import { isSisAdmin } from './sisRole'
 
 const field = INPUT_CLASS
 /**
@@ -23,6 +25,9 @@ const field = INPUT_CLASS
  * Events may span multiple days (end date), carry an org-defined category
  * (colored chips + filter; the list is edited on Settings), and the calendar is
  * subscribable from Google/Outlook/Apple via a tokenized ICS feed.
+ *
+ * Only the office writes events (the API is ADMIN_ROLES). Teachers read the
+ * calendar: no Add button, no click-a-day, and an event opens read-only.
  */
 
 // "2026-08-24T09:00:00+00:00" -> { date: '2026-08-24', time: '09:00' } — no Date()
@@ -74,6 +79,8 @@ const dotFor = (category, categories) => {
 
 const CalendarPage = () => {
   const { orgId } = useSisOrg()
+  const { user } = useAuth()
+  const canEdit = isSisAdmin(user)
   const now = new Date()
   const [year, setYear] = useState(now.getFullYear())
   const [month, setMonth] = useState(now.getMonth()) // 0-11
@@ -146,7 +153,9 @@ const CalendarPage = () => {
         <h1 className="text-2xl font-bold text-neutral-900">Calendar</h1>
         <div className="flex items-center gap-3">
           <Button variant="outline" size="sm" onClick={() => setShowSubscribe(true)} disabled={!orgId}>Subscribe</Button>
-          <Button size="sm" onClick={() => setModal({ date: today })} disabled={!orgId}>Add event</Button>
+          {canEdit && (
+            <Button size="sm" onClick={() => setModal({ date: today })} disabled={!orgId}>Add event</Button>
+          )}
         </div>
       </div>
 
@@ -184,8 +193,9 @@ const CalendarPage = () => {
               const dayEvents = byDate[key] || []
               return (
                 <div key={di}
-                  className="min-h-[96px] border-l border-gray-100 first:border-l-0 p-1.5 cursor-pointer hover:bg-optio-purple/5 transition-colors"
-                  onClick={() => setModal({ date: key })}>
+                  className={`min-h-[96px] border-l border-gray-100 first:border-l-0 p-1.5 ${canEdit
+                    ? 'cursor-pointer hover:bg-optio-purple/5 transition-colors' : ''}`}
+                  onClick={canEdit ? () => setModal({ date: key }) : undefined}>
                   <div className={`text-xs font-medium mb-1 ${key === today
                     ? 'inline-flex w-5 h-5 items-center justify-center rounded-full bg-optio-purple text-white'
                     : 'text-neutral-400'}`}>
@@ -237,12 +247,18 @@ const CalendarPage = () => {
 
       {!loading && !events.length && (
         <p className="mt-3 text-sm text-neutral-400">
-          No events this month. Click a day (or "Add event") to create one — field trips, showcases,
-          closures, deadlines.
+          {canEdit
+            ? 'No events this month. Click a day (or "Add event") to create one — field trips, showcases, closures, deadlines.'
+            : 'No events this month.'}
         </p>
       )}
 
-      {modal && (
+      {modal?.event && !canEdit && (
+        <EventDetailsModal orgId={orgId} event={modal.event} categories={categories}
+          onClose={() => setModal(null)} />
+      )}
+
+      {modal && canEdit && (
         <EventModal
           orgId={orgId}
           event={modal.event || null}
@@ -270,6 +286,37 @@ const FilterChip = ({ label, active, colorClass, onClick }) => (
     {label}
   </button>
 )
+
+// A teacher's view of an event: what, when, where, and who is coming.
+const EventDetailsModal = ({ orgId, event, categories, onClose }) => {
+  const cats = eventCategories(event)
+  return (
+    <ModalOverlay onClose={onClose}>
+      <div className="bg-white rounded-xl shadow-xl max-w-md w-full max-h-[90vh] flex flex-col overflow-hidden">
+        <div className="flex items-start justify-between gap-3 px-4 pt-4">
+          <h2 className="text-lg font-semibold text-gray-900">{event.title}</h2>
+          <button onClick={onClose} aria-label="Close" className="text-gray-400 hover:text-gray-600 text-xl leading-none">×</button>
+        </div>
+        <div className="p-4 space-y-3 overflow-y-auto text-sm text-neutral-700">
+          <p>{fmtEventWhen(event)}</p>
+          {event.location && <p><span className="text-neutral-500">Where:</span> {event.location}</p>}
+          {cats.length > 0 && (
+            <div className="flex flex-wrap gap-1.5">
+              {cats.map((c) => (
+                <span key={c} className={`text-xs font-semibold rounded-full px-2.5 py-1 ${colorFor(c, categories)}`}>{c}</span>
+              ))}
+            </div>
+          )}
+          {event.description && <p className="whitespace-pre-wrap">{event.description}</p>}
+          {event.rsvp_enabled && <EventRsvpList orgId={orgId} event={event} />}
+        </div>
+        <div className="flex justify-end p-4 border-t border-gray-100">
+          <button onClick={onClose} className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg text-sm">Close</button>
+        </div>
+      </div>
+    </ModalOverlay>
+  )
+}
 
 const EventModal = ({ orgId, event, copyFrom, defaultDate, categories, onDuplicate, onClose, onSaved }) => {
   const confirm = useConfirm()
