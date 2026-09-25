@@ -4,6 +4,8 @@ import api from '../../services/api';
 import useCanEditXp from '../../hooks/useCanEditXp';
 import useHidePillars from '../../hooks/useHidePillars';
 import { useStudentScope } from '../../hooks/useStudentScope';
+import useTaskAuthoringRules from '../../hooks/useTaskAuthoringRules';
+import SuccessCriteriaEditor, { cleanCriteria } from '../quest/SuccessCriteriaEditor';
 
 // Draft autosave.
 //
@@ -68,8 +70,12 @@ const EMPTY_TASK = {
   description: '',
   pillar: '',
   xp_value: 100,
-  diploma_subject: ''
+  diploma_subject: '',
+  success_criteria: ['']
 };
+
+const CRITERIA_REQUIRED_MESSAGE =
+  'Your school asks for a Definition of Done. Add at least one line saying how you will know this task is finished.';
 
 /**
  * ManualTaskCreator Component
@@ -77,21 +83,35 @@ const EMPTY_TASK = {
  * Allows students to create custom quest tasks manually.
  * Features:
  * - Clean, simple form focused on creativity
- * - Manual task entry with title, description, and pillar selection
- * - No AI assistance - pure student-driven task creation
+ * - Manual task entry with title, description, pillar/credit, size, and a
+ *   Definition of Done (success_criteria): one to five lines saying how the
+ *   work will be judged finished. Required where the child's school asks for
+ *   it (GET /api/tasks/authoring-rules), optional everywhere else.
+ * - Optional AI help ("Help me finish this"): the family writes the task, the
+ *   AI only fills gaps. It fills the description only when it is empty, the
+ *   subject only when none is chosen, and XP only where the family may set XP;
+ *   the Definition of Done comes back with the family's own lines first. Every
+ *   field stays editable afterwards.
  *
  * Schools that have switched the pillars off (feature_flags.hide_pillars) get a
  * form with one classification instead of two: the credit is picked directly
- * and the pillar is derived from it server-side.
+ * and the pillar is derived from it server-side. So does every learner 13 or
+ * older, whatever their school: high schoolers think in diploma subjects, and
+ * younger learners keep the pillars. The server decides from the learner's
+ * date of birth (authoring-rules hide_pillars), so a parent working as a
+ * child gets the child's answer.
  */
 const ManualTaskCreator = ({
   questId, sessionId, onTasksCreated, onCancel, draftScope = null
 }) => {
   const canEditXp = useCanEditXp();
-  const hidePillars = useHidePillars();
+  const schoolHidesPillars = useHidePillars();
 
   const storageKey = draftKey(draftScope, questId);
   const { params: scope } = useStudentScope();
+  const { rules } = useTaskAuthoringRules();
+  const requiresCriteria = Boolean(rules?.requires_success_criteria);
+  const hidePillars = schoolHidesPillars || Boolean(rules?.hide_pillars);
   // Read once, before first paint, so restored tasks are simply there rather
   // than appearing a frame later.
   const [restored] = useState(() => readDraft(storageKey));
@@ -101,13 +121,18 @@ const ManualTaskCreator = ({
   const [showRestoredNotice, setShowRestoredNotice] = useState(() => (restored?.addedTasks?.length || 0) > 0);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const [criteriaError, setCriteriaError] = useState('');
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiError, setAiError] = useState('');
+  const [xpRationale, setXpRationale] = useState('');
 
   // Save on every change to either the list or the form in progress. Clearing
   // the last task also clears the draft, so an emptied form does not leave a
   // stale one behind to restore.
   useEffect(() => {
     const hasWork = addedTasks.length > 0 ||
-      currentTask.title.trim() !== '' || currentTask.description.trim() !== '';
+      currentTask.title.trim() !== '' || currentTask.description.trim() !== '' ||
+      cleanCriteria(currentTask.success_criteria).length > 0;
     if (hasWork) {
       writeDraft(storageKey, { addedTasks, currentTask });
     } else {
@@ -171,6 +196,58 @@ const ManualTaskCreator = ({
   const handleInputChange = (field, value) => {
     setCurrentTask(prev => ({ ...prev, [field]: value }));
     setError('');
+    if (field === 'success_criteria') setCriteriaError('');
+  };
+
+  // "Help me finish this": send what the family typed, fill only the gaps.
+  const handleAiHelp = async () => {
+    const title = currentTask.title.trim();
+    if (title.length < 3) return;
+    setAiLoading(true);
+    setAiError('');
+    try {
+      const body = { ...scope, title };
+      if (currentTask.description.trim()) body.description = currentTask.description.trim();
+      if (!hidePillars && currentTask.pillar) body.pillar = currentTask.pillar;
+      const ownLines = cleanCriteria(currentTask.success_criteria);
+      if (ownLines.length > 0) body.success_criteria = ownLines;
+
+      const response = await api.post(`/api/quests/${questId}/analyze-manual-task`, body);
+      const data = response?.data || {};
+      if (data.success === false) {
+        setAiError(data.error || 'Could not get suggestions. Please try again.');
+        return;
+      }
+
+      setCurrentTask(prev => {
+        const next = { ...prev };
+        if (!prev.description.trim() && data.description) next.description = data.description;
+        if (Array.isArray(data.success_criteria) && data.success_criteria.length > 0) {
+          next.success_criteria = data.success_criteria.slice(0, 5);
+        }
+        if (canEditXp && xpOptions.some(o => o.value === data.suggested_xp)) {
+          next.xp_value = data.suggested_xp;
+        }
+        if (!hidePillars && !prev.pillar && pillars.some(p => p.key === data.suggested_pillar)) {
+          next.pillar = data.suggested_pillar;
+        }
+        if (!prev.diploma_subject && data.diploma_subjects && typeof data.diploma_subjects === 'object') {
+          const [topSubject] = Object.entries(data.diploma_subjects)
+            .sort((a, b) => (Number(b[1]) || 0) - (Number(a[1]) || 0))
+            .map(([name]) => name)
+            .filter(name => subjects.includes(name));
+          if (topSubject) next.diploma_subject = topSubject;
+        }
+        return next;
+      });
+      setXpRationale(canEditXp && data.xp_rationale ? data.xp_rationale : '');
+      setCriteriaError('');
+      setError('');
+    } catch (err) {
+      setAiError(err.response?.data?.error || 'Could not get suggestions. Please try again.');
+    } finally {
+      setAiLoading(false);
+    }
   };
 
   const handleAddTask = () => {
@@ -197,6 +274,12 @@ const ManualTaskCreator = ({
       return;
     }
 
+    const criteria = cleanCriteria(currentTask.success_criteria);
+    if (requiresCriteria && criteria.length === 0) {
+      setCriteriaError(CRITERIA_REQUIRED_MESSAGE);
+      return;
+    }
+
     // Add to tasks list. 100% of the XP counts toward the chosen credit.
     // With pillars hidden the pillar is omitted entirely rather than guessed
     // here — the server derives it from this credit (school_subjects.py).
@@ -208,12 +291,16 @@ const ManualTaskCreator = ({
       diploma_subjects: { [chosenSubject]: 100 }
     };
     if (!hidePillars) taskData.pillar = currentTask.pillar;
+    if (criteria.length > 0) taskData.success_criteria = criteria;
 
     setAddedTasks(prev => [...prev, taskData]);
 
     // Reset form
     setCurrentTask({ ...EMPTY_TASK });
     setError('');
+    setCriteriaError('');
+    setAiError('');
+    setXpRationale('');
   };
 
   const handleRemoveTask = (index) => {
@@ -246,6 +333,8 @@ const ManualTaskCreator = ({
       }
     } catch (err) {
       console.error('Error adding tasks:', err);
+      // success_criteria_required: a task in the batch has no Definition of
+      // Done at a school that asks for one. The server's message says which.
       setError(err.response?.data?.error || 'Failed to add tasks. Please try again.');
       setIsSubmitting(false);
     }
@@ -278,6 +367,11 @@ const ManualTaskCreator = ({
                   </span>
                 </div>
                 <p className="text-xs text-gray-600 mt-1 line-clamp-2">{task.description}</p>
+                {task.success_criteria?.length > 0 && (
+                  <p className="text-xs text-gray-500 mt-1">
+                    Definition of Done: {task.success_criteria.length} line{task.success_criteria.length !== 1 ? 's' : ''}
+                  </p>
+                )}
               </div>
               <button
                 onClick={() => handleRemoveTask(index)}
@@ -360,6 +454,35 @@ const ManualTaskCreator = ({
             </p>
           </div>
 
+          {/* Definition of Done */}
+          <SuccessCriteriaEditor
+            idPrefix="manual-task-dod"
+            value={currentTask.success_criteria}
+            onChange={(lines) => handleInputChange('success_criteria', lines)}
+            required={requiresCriteria}
+            error={criteriaError}
+          />
+
+          {/* Optional AI help. Fills gaps; never overwrites what was chosen. */}
+          <div className="p-3 bg-optio-purple/5 border border-optio-purple/20 rounded-lg">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+              <p className="text-xs text-gray-600">
+                Stuck? Get a suggested description, Definition of Done and size from what you have typed.
+              </p>
+              <button
+                type="button"
+                onClick={handleAiHelp}
+                disabled={aiLoading || currentTask.title.trim().length < 3}
+                className="shrink-0 px-4 py-2 text-sm font-semibold text-optio-purple border border-optio-purple/40 rounded-lg hover:bg-optio-purple/10 disabled:opacity-50 disabled:cursor-not-allowed min-h-[40px]"
+              >
+                {aiLoading ? 'Thinking...' : 'Help me finish this'}
+              </button>
+            </div>
+            {aiError && (
+              <p role="alert" className="mt-2 text-sm text-red-700">{aiError}</p>
+            )}
+          </div>
+
           {/* Pillar Selection */}
           {!hidePillars && (
             <div>
@@ -426,6 +549,11 @@ const ManualTaskCreator = ({
                   <option key={option.value} value={option.value}>{option.label}</option>
                 ))}
               </select>
+              {xpRationale && (
+                <p className="text-xs text-gray-500 mt-1" data-testid="xp-rationale">
+                  Suggested size: {xpRationale}
+                </p>
+              )}
             </div>
           )}
 

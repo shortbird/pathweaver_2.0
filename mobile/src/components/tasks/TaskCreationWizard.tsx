@@ -7,12 +7,17 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { View, ScrollView, Pressable, TextInput, Modal, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { PILLARS } from '@/src/hooks/useQuestDetail';
+import { PILLARS, DIPLOMA_SUBJECTS } from '@/src/hooks/useQuestDetail';
+import type { ManualTaskInput, ManualTaskDraft, ManualTaskAnalysis } from '@/src/hooks/useQuestDetail';
 import {
   VStack, HStack, Heading, UIText, Button, ButtonText, Divider, Card,
 } from '@/src/components/ui';
 import { useThemeColors } from '@/src/hooks/useThemeColors';
-import { useCanEditXp } from '@/src/hooks/useCanEditXp';
+import { useTaskAuthoringRules } from '@/src/hooks/useTaskAuthoringRules';
+import { extractApiError } from '@/src/services/apiError';
+import {
+  DefinitionOfDoneEditor, cleanCriteria, apiErrorCode,
+} from '@/src/components/tasks/DefinitionOfDoneEditor';
 import { getSubject } from '@/src/components/class/SUBJECTS';
 
 const pillarColors: Record<string, { bg: string; text: string }> = {
@@ -49,7 +54,16 @@ interface TaskCreationWizardProps {
   open: boolean;
   onClose: () => void;
   onGenerate: (interests?: string, pillar?: string, subject?: string, challengeLevel?: string) => Promise<any[]>;
+  /** AI suggestions and browsed ideas. Never used for a hand-written task. */
   onAcceptTask: (task: any) => Promise<void>;
+  /** "Write my own": a hand-written task goes to add-manual-tasks so it is
+   *  stored as the learner's own and not filed as an AI suggestion. */
+  onAddManualTask: (task: ManualTaskInput) => Promise<unknown>;
+  /** "Help me finish this" on the write-your-own step. Hidden when omitted. */
+  onAnalyzeManualTask?: (draft: ManualTaskDraft) => Promise<ManualTaskAnalysis | null>;
+  /** Parent mode: the child the task is for. The authoring rules (Definition
+   *  of Done required, XP editable) are the CHILD's school's, not the parent's. */
+  studentId?: string | null;
   /** Complexity dial: rewrite a suggested task one step easier/harder. When
    *  omitted, the dial buttons are hidden on the review step. */
   onAdjustTask?: (task: any, direction: 'easier' | 'harder') => Promise<any | null>;
@@ -92,6 +106,9 @@ export function TaskCreationWizard({
   onClose,
   onGenerate,
   onAcceptTask,
+  onAddManualTask,
+  onAnalyzeManualTask,
+  studentId = null,
   onAdjustTask,
   defaultChallengeLevel = null,
   suggestedTasks,
@@ -100,7 +117,12 @@ export function TaskCreationWizard({
   initialStep = 'choose',
 }: TaskCreationWizardProps) {
   const c = useThemeColors();
-  const canEditXp = useCanEditXp();
+  const { rules } = useTaskAuthoringRules({ studentId, enabled: open });
+  const canEditXp = rules.canEditXp;
+  const criteriaRequired = rules.requiresSuccessCriteria;
+  // 13+ (or a school with the pillars off): the family picks the diploma
+  // subject and never sees a pillar; the server derives one from the subject.
+  const hidePillars = rules.hidePillars;
   const classSubjectMeta = isClassQuest ? getSubject(classSubject) : null;
   const [step, setStep] = useState<'choose' | 'manual' | 'ai-personalize' | 'ai-review' | 'browse'>(initialStep);
   const [error, setError] = useState<string | null>(null);
@@ -113,9 +135,15 @@ export function TaskCreationWizard({
   const [manualTitle, setManualTitle] = useState('');
   const [manualDesc, setManualDesc] = useState('');
   const [manualPillar, setManualPillar] = useState('stem');
+  const [manualSubject, setManualSubject] = useState<string | null>(null);
   const [manualXP, setManualXP] = useState(100);
   const [manualAdded, setManualAdded] = useState(0);
   const [submitting, setSubmitting] = useState(false);
+  const [manualCriteria, setManualCriteria] = useState<string[]>(['']);
+  const [criteriaError, setCriteriaError] = useState<string | null>(null);
+  // "Help me finish this"
+  const [analyzing, setAnalyzing] = useState(false);
+  const [xpRationale, setXpRationale] = useState<string | null>(null);
 
   // AI fields
   const [interests, setInterests] = useState('');
@@ -151,6 +179,10 @@ export function TaskCreationWizard({
     setManualPillar('stem');
     setManualXP(100);
     setManualAdded(0);
+    setManualCriteria(['']);
+    setCriteriaError(null);
+    setAnalyzing(false);
+    setXpRationale(null);
     setInterests('');
     setSelectedPillar(null);
     setSelectedInterestChips(new Set());
@@ -183,23 +215,82 @@ export function TaskCreationWizard({
     if (!manualTitle.trim()) { setError('Task title is required'); return; }
     if (manualTitle.trim().length < 3) { setError('Title must be at least 3 characters'); return; }
     if (!manualDesc.trim()) { setError('Description is required'); return; }
+    const criteria = cleanCriteria(manualCriteria);
+    if (criteriaRequired && criteria.length === 0) {
+      setCriteriaError('Your school asks for a Definition of Done. Add at least one line.');
+      return;
+    }
+    if (hidePillars && !manualSubject) { setError('Choose the diploma subject this task counts toward'); return; }
     setSubmitting(true);
     setError(null);
+    setCriteriaError(null);
     try {
-      await onAcceptTask({
+      await onAddManualTask({
         title: manualTitle.trim(),
         description: manualDesc.trim(),
-        pillar: manualPillar,
+        ...(hidePillars
+          ? { diploma_subjects: { [manualSubject as string]: 100 } }
+          : { pillar: manualPillar }),
         xp_value: manualXP,
+        success_criteria: criteria,
       });
       setManualTitle('');
       setManualDesc('');
+      setManualCriteria(['']);
+      setXpRationale(null);
       setManualAdded((c) => c + 1);
       setError(null);
-    } catch (err: any) {
-      setError(err.response?.data?.error || 'Failed to add task');
+    } catch (err: unknown) {
+      const apiErr = extractApiError(err, 'Failed to add task');
+      if (apiErrorCode(err) === 'success_criteria_required') setCriteriaError(apiErr.message);
+      else setError(apiErr.message);
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  // "Help me finish this": fill what is missing, keep what the family wrote.
+  // Description only when empty; XP only when this person may set it. Every
+  // field stays editable afterwards.
+  const handleAnalyze = async () => {
+    if (!onAnalyzeManualTask || analyzing) return;
+    const title = manualTitle.trim();
+    if (title.length < 3) return;
+    setAnalyzing(true);
+    setError(null);
+    setCriteriaError(null);
+    try {
+      const existing = cleanCriteria(manualCriteria);
+      const result = await onAnalyzeManualTask({
+        title,
+        ...(manualDesc.trim() ? { description: manualDesc.trim() } : {}),
+        ...(hidePillars ? {} : { pillar: manualPillar }),
+        ...(existing.length ? { success_criteria: existing } : {}),
+      });
+      if (!result) return;
+      if (!manualDesc.trim() && typeof result.description === 'string' && result.description.trim()) {
+        setManualDesc(result.description.trim());
+      }
+      const suggested = cleanCriteria(result.success_criteria);
+      if (suggested.length) setManualCriteria(suggested);
+      if (canEditXp && typeof result.suggested_xp === 'number'
+          && XP_OPTIONS.some((o) => o.value === result.suggested_xp)) {
+        setManualXP(result.suggested_xp);
+      }
+      setXpRationale(result.xp_rationale?.trim() || null);
+      // With only the subject picker on screen, take the AI's heaviest subject
+      // when the family has not chosen one; the picker stays editable.
+      if (hidePillars && !manualSubject && result.diploma_subjects
+          && typeof result.diploma_subjects === 'object' && !Array.isArray(result.diploma_subjects)) {
+        const top = Object.entries(result.diploma_subjects as Record<string, number>)
+          .filter(([name]) => DIPLOMA_SUBJECTS.includes(name))
+          .sort((x, y) => (y[1] || 0) - (x[1] || 0))[0];
+        if (top) setManualSubject(top[0]);
+      }
+    } catch (err: unknown) {
+      setError(extractApiError(err, 'Could not get help with this task. Please try again.').message);
+    } finally {
+      setAnalyzing(false);
     }
   };
 
@@ -511,21 +602,72 @@ export function TaskCreationWizard({
                     <UIText size="xs" className="text-typo-300 dark:text-dark-typo-300">{manualDesc.length} characters</UIText>
                   </VStack>
 
-                  <VStack space="md">
+                  <DefinitionOfDoneEditor
+                    value={manualCriteria}
+                    onChange={(next) => { setCriteriaError(null); setManualCriteria(next); }}
+                    required={criteriaRequired}
+                    error={criteriaError}
+                  />
+
+                  {onAnalyzeManualTask && (
                     <VStack space="xs">
-                      <UIText size="sm" className="font-poppins-medium">Pillar *</UIText>
-                      <HStack className="flex-wrap gap-2">
-                        {PILLARS.map((p) => (
-                          <Pressable key={p.key} onPress={() => setManualPillar(p.key)}>
-                            <View className={`px-3 py-1.5 rounded-full ${manualPillar === p.key ? 'bg-optio-purple' : 'bg-surface-100 dark:bg-dark-surface-200'}`}>
-                              <UIText size="xs" className={`font-poppins-medium ${manualPillar === p.key ? 'text-white' : 'text-typo-500 dark:text-dark-typo-500'}`}>
-                                {p.label}
-                              </UIText>
-                            </View>
-                          </Pressable>
-                        ))}
-                      </HStack>
+                      <Button
+                        variant="outline"
+                        size="md"
+                        onPress={handleAnalyze}
+                        loading={analyzing}
+                        disabled={analyzing || submitting || manualTitle.trim().length < 3}
+                        accessibilityLabel="Help me finish this"
+                      >
+                        <ButtonText>{analyzing ? 'Thinking...' : 'Help me finish this'}</ButtonText>
+                      </Button>
+                      <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">
+                        Fills in what is missing. You can change anything afterwards.
+                      </UIText>
                     </VStack>
+                  )}
+
+                  <VStack space="md">
+                    {hidePillars ? (
+                      <VStack space="xs">
+                        <UIText size="sm" className="font-poppins-medium">Diploma subject *</UIText>
+                        <HStack className="flex-wrap gap-2">
+                          {DIPLOMA_SUBJECTS.map((name) => (
+                            <Pressable
+                              key={name}
+                              onPress={() => setManualSubject(name)}
+                              accessibilityRole="button"
+                              accessibilityState={{ selected: manualSubject === name }}
+                              accessibilityLabel={`Subject ${name}`}
+                            >
+                              <View className={`px-3 py-1.5 rounded-full ${manualSubject === name ? 'bg-optio-purple' : 'bg-surface-100 dark:bg-dark-surface-200'}`}>
+                                <UIText size="xs" className={`font-poppins-medium ${manualSubject === name ? 'text-white' : 'text-typo-500 dark:text-dark-typo-500'}`}>
+                                  {name}
+                                </UIText>
+                              </View>
+                            </Pressable>
+                          ))}
+                        </HStack>
+                        <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">
+                          All of this task's XP counts toward this subject.
+                        </UIText>
+                      </VStack>
+                    ) : (
+                      <VStack space="xs">
+                        <UIText size="sm" className="font-poppins-medium">Pillar *</UIText>
+                        <HStack className="flex-wrap gap-2">
+                          {PILLARS.map((p) => (
+                            <Pressable key={p.key} onPress={() => setManualPillar(p.key)}>
+                              <View className={`px-3 py-1.5 rounded-full ${manualPillar === p.key ? 'bg-optio-purple' : 'bg-surface-100 dark:bg-dark-surface-200'}`}>
+                                <UIText size="xs" className={`font-poppins-medium ${manualPillar === p.key ? 'text-white' : 'text-typo-500 dark:text-dark-typo-500'}`}>
+                                  {p.label}
+                                </UIText>
+                              </View>
+                            </Pressable>
+                          ))}
+                        </HStack>
+                      </VStack>
+                    )}
 
                     {/* Task Size sets XP — hidden when the org restricts XP to
                         teachers; the server assigns the standard task XP instead. */}
@@ -543,6 +685,9 @@ export function TaskCreationWizard({
                             </Pressable>
                           ))}
                         </HStack>
+                        {xpRationale ? (
+                          <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">{xpRationale}</UIText>
+                        ) : null}
                       </VStack>
                     )}
                   </VStack>
@@ -571,7 +716,8 @@ export function TaskCreationWizard({
                       size="md"
                       onPress={handleManualSubmit}
                       loading={submitting}
-                      disabled={!manualTitle.trim() || !manualDesc.trim() || submitting}
+                      disabled={!manualTitle.trim() || !manualDesc.trim() || submitting || analyzing}
+                      accessibilityLabel="Add Task"
                     >
                       <ButtonText>Add Task</ButtonText>
                     </Button>

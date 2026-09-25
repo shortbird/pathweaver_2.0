@@ -1,8 +1,11 @@
 /**
- * TaskEditModal - Edit a quest task's pillar and diploma (transcript) subjects.
+ * TaskEditModal - Edit a quest task's pillar, diploma (transcript) subjects and
+ * Definition of Done (success_criteria).
  *
  * Feature: "Allow me to edit the pillar and diploma subject on a task." Saves via
- * PUT /api/tasks/:id (which already supports pillar + diploma_subjects).
+ * PUT /api/tasks/:id (which supports pillar, diploma_subjects, success_criteria).
+ * The Definition of Done is required where the learner's school says so, and
+ * locked once the task was sent for credit (server: 409 success_criteria_locked).
  */
 
 import React, { useState } from 'react';
@@ -12,6 +15,10 @@ import api from '@/src/services/api';
 import { extractApiError } from '@/src/services/apiError';
 import { PILLARS, DIPLOMA_SUBJECTS, subjectNames } from '@/src/hooks/useQuestDetail';
 import { useThemeColors } from '@/src/hooks/useThemeColors';
+import { useTaskAuthoringRules } from '@/src/hooks/useTaskAuthoringRules';
+import {
+  DefinitionOfDoneEditor, cleanCriteria, criteriaForEditing, apiErrorCode,
+} from '@/src/components/tasks/DefinitionOfDoneEditor';
 import { HStack, Heading, UIText, Button, ButtonText,
 } from '@/src/components/ui';
 
@@ -26,12 +33,29 @@ const pillarChip: Record<string, { active: string; text: string }> = {
 interface TaskEditModalProps {
   visible: boolean;
   task: any | null;
+  /** Parent mode: the child whose task this is, so the rules are the child's
+   *  school's. */
+  studentId?: string | null;
   onClose: () => void;
   onSaved: () => void;
 }
 
-export function TaskEditModal({ visible, task, onClose, onSaved }: TaskEditModalProps) {
+export const CRITERIA_LOCKED_NOTE = 'Locked because this task was sent for credit';
+
+export function TaskEditModal({ visible, task, studentId = null, onClose, onSaved }: TaskEditModalProps) {
   const c = useThemeColors();
+  const { rules } = useTaskAuthoringRules({
+    studentId, taskId: task?.id ?? null, enabled: visible && !!task?.id,
+  });
+  const [criteria, setCriteria] = useState<string[]>(criteriaForEditing(task?.success_criteria));
+  const [criteriaError, setCriteriaError] = useState<string | null>(null);
+  // Set when the server refuses the edit as locked, in case the rules read
+  // failed or went stale while the sheet was open.
+  const [lockedByServer, setLockedByServer] = useState(false);
+  const criteriaLocked = rules.criteriaLocked || lockedByServer;
+  // No pillar picker for a learner 13+ (or a school with the pillars off): the
+  // server re-derives the pillar from the subject (routes/tasks/crud.py).
+  const hidePillars = rules.hidePillars;
   const [pillar, setPillar] = useState<string>(task?.pillar || 'stem');
   const [subjects, setSubjects] = useState<string[]>(
     subjectNames(task?.diploma_subjects ?? task?.school_subjects)
@@ -44,6 +68,9 @@ export function TaskEditModal({ visible, task, onClose, onSaved }: TaskEditModal
     if (task) {
       setPillar(task.pillar || 'stem');
       setSubjects(subjectNames(task.diploma_subjects ?? task.school_subjects));
+      setCriteria(criteriaForEditing(task.success_criteria));
+      setCriteriaError(null);
+      setLockedByServer(false);
       setError(null);
     }
   }, [task?.id]);
@@ -54,16 +81,34 @@ export function TaskEditModal({ visible, task, onClose, onSaved }: TaskEditModal
 
   const handleSave = async () => {
     if (!task || saving) return;
+    const cleaned = cleanCriteria(criteria);
+    if (!criteriaLocked && rules.requiresSuccessCriteria && cleaned.length === 0) {
+      setCriteriaError('Your school asks for a Definition of Done. Add at least one line.');
+      return;
+    }
     setSaving(true);
     setError(null);
+    setCriteriaError(null);
     try {
       await api.put(`/api/tasks/${task.id}`, {
-        pillar,
+        ...(hidePillars ? {} : { pillar }),
         diploma_subjects: subjects,
+        // A locked Definition of Done is not sent at all: the server refuses
+        // any write to it once the task went for credit.
+        ...(criteriaLocked ? {} : { success_criteria: cleaned }),
       });
       onSaved();
     } catch (e) {
-      setError(extractApiError(e, 'Could not save changes. Please try again.').message);
+      const apiErr = extractApiError(e, 'Could not save changes. Please try again.');
+      if (apiErrorCode(e) === 'success_criteria_locked') {
+        setLockedByServer(true);
+        setCriteria(criteriaForEditing(task.success_criteria));
+        setError(apiErr.message);
+      } else if (apiErrorCode(e) === 'success_criteria_required') {
+        setCriteriaError(apiErr.message);
+      } else {
+        setError(apiErr.message);
+      }
     } finally {
       setSaving(false);
     }
@@ -91,25 +136,29 @@ export function TaskEditModal({ visible, task, onClose, onSaved }: TaskEditModal
               </UIText>
             ) : null}
 
-            {/* Pillar — single select */}
-            <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400 font-poppins-semibold mb-2">PILLAR</UIText>
-            <HStack className="flex-wrap gap-2 mb-5">
-              {PILLARS.map((p) => {
-                const selected = pillar === p.key;
-                const chip = pillarChip[p.key] || pillarChip.stem;
-                return (
-                  <Pressable
-                    key={p.key}
-                    onPress={() => setPillar(p.key)}
-                    className={`px-3 py-2 rounded-full border ${selected ? `${chip.active} border-transparent` : 'border-surface-200 dark:border-dark-surface-300'}`}
-                  >
-                    <UIText size="sm" className={selected ? 'text-white font-poppins-semibold' : chip.text}>
-                      {p.label}
-                    </UIText>
-                  </Pressable>
-                );
-              })}
-            </HStack>
+            {/* Pillar — single select. Hidden for a learner 13+. */}
+            {!hidePillars && (
+              <>
+              <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400 font-poppins-semibold mb-2">PILLAR</UIText>
+              <HStack className="flex-wrap gap-2 mb-5">
+                {PILLARS.map((p) => {
+                  const selected = pillar === p.key;
+                  const chip = pillarChip[p.key] || pillarChip.stem;
+                  return (
+                    <Pressable
+                      key={p.key}
+                      onPress={() => setPillar(p.key)}
+                      className={`px-3 py-2 rounded-full border ${selected ? `${chip.active} border-transparent` : 'border-surface-200 dark:border-dark-surface-300'}`}
+                    >
+                      <UIText size="sm" className={selected ? 'text-white font-poppins-semibold' : chip.text}>
+                        {p.label}
+                      </UIText>
+                    </Pressable>
+                  );
+                })}
+              </HStack>
+              </>
+            )}
 
             {/* Diploma subjects — multi select. Include any subject the task
                 already carries even if it isn't in the canonical list (e.g.
@@ -134,13 +183,24 @@ export function TaskEditModal({ visible, task, onClose, onSaved }: TaskEditModal
               })}
             </HStack>
 
+            <View className="mt-4">
+              <DefinitionOfDoneEditor
+                value={criteria}
+                onChange={(next) => { setCriteriaError(null); setCriteria(next); }}
+                required={rules.requiresSuccessCriteria}
+                readOnly={criteriaLocked}
+                readOnlyNote={criteriaLocked ? CRITERIA_LOCKED_NOTE : undefined}
+                error={criteriaError}
+              />
+            </View>
+
             {error ? (
               <UIText size="xs" className="text-error-600 dark:text-error-400 mt-2">{error}</UIText>
             ) : null}
           </ScrollView>
 
           <View className="px-6 pt-2" style={{ paddingBottom: Platform.OS === 'ios' ? 32 : 16 }}>
-            <Button size="lg" className="w-full" onPress={handleSave} loading={saving}>
+            <Button size="lg" className="w-full" onPress={handleSave} loading={saving} accessibilityLabel="Save changes">
               <ButtonText>
                 <UIText className="text-white font-poppins-semibold">Save changes</UIText>
               </ButtonText>

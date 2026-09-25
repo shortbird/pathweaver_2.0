@@ -575,13 +575,30 @@ def create_task_for_dependent(user_id, quest_id):
             'diploma_subjects': data.get('diploma_subjects') or {},
         }
 
+        from services.task_rules import missing_criteria_response
+        from utils.xp_permissions import is_xp_guide
+        from services.task_sizing import size_family_tasks
+
+        caller_role = get_effective_role_for(user_id)
+        refused = missing_criteria_response([task], child_id, caller_role)
+        if refused:
+            return refused
+
+        # save_to_library=False: this is one family's task for one child, not an
+        # AI suggestion. The task library (quest_sample_tasks) is the pool the AI
+        # suggests from to every student on the quest, and a parent's personal
+        # task was landing in it marked ai_generated.
         inserted = persist_accepted_task(
             supabase, SubjectClassificationService(), child_id, quest_id, task,
-            caller_role=get_effective_role_for(user_id),
+            save_to_library=False,
+            caller_role=caller_role,
             created_by_user_id=user_id,
         )
         if inserted is None:
             return jsonify({'success': False, 'error': 'Failed to create task'}), 500
+
+        if not is_xp_guide(caller_role):
+            size_family_tasks(child_id, [inserted])
 
         logger.info(f"Parent {user_id[:8]} created task for child {child_id[:8]} in quest {quest_id[:8]}")
 

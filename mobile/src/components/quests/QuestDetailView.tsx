@@ -828,6 +828,7 @@ export function QuestDetailView({ questId: id, studentId = null, autoOpenTaskWiz
   const {
     quest, loading, error,
     refetch, enroll, completeTask, generateTasks, acceptTask, adjustTask, deleteTask,
+    addManualTask, analyzeManualTask,
   } = useQuestDetail(id || null, { studentId });
   const preferredChallengeLevel = useAuthStore((s) => s.user?.preferred_challenge_level ?? null);
   const isEnrolled = !!quest?.user_enrollment;
@@ -1257,6 +1258,9 @@ export function QuestDetailView({ questId: id, studentId = null, autoOpenTaskWiz
                   onClose={() => { setAddTaskOpen(false); setWizardStep('choose'); }}
                   onGenerate={generateTasks}
                   onAcceptTask={acceptTask}
+                  onAddManualTask={addManualTask}
+                  onAnalyzeManualTask={analyzeManualTask}
+                  studentId={studentId}
                   onAdjustTask={adjustTask}
                   // The signed-in user's remembered level, and only theirs. In
                   // parent mode that would preselect the PARENT's preference
@@ -1372,6 +1376,7 @@ export function QuestDetailView({ questId: id, studentId = null, autoOpenTaskWiz
       <TaskEditModal
         visible={!!editTask}
         task={editTask}
+        studentId={studentId}
         onClose={() => setEditTask(null)}
         onSaved={() => { setEditTask(null); refetch(); }}
       />

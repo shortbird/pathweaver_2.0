@@ -56,6 +56,24 @@ def resolve_user_name(user_data):
     )
 
 
+def _written_by(task):
+    """Who wrote this task, for the reviewer: 'parent', 'student', or None for
+    a task the AI or a teacher's template produced.
+
+    created_by_user_id is set only when a guardian added the task
+    (migration 20260915120000); is_manual marks one the student typed.
+    ai_suggested_xp is sized only for these two, which is the pair the reviewer
+    compares against xp_value (services/task_sizing.py).
+    """
+    if not task:
+        return None
+    if task.get('created_by_user_id'):
+        return 'parent'
+    if task.get('is_manual'):
+        return 'student'
+    return None
+
+
 def _org_names(admin, org_ids):
     """``{organization_id: name}`` for the ids given, one query. A superadmin
     reviews every org's queue in one list, and a name next to the student is
@@ -225,7 +243,7 @@ def get_dashboard_items(user_id: str):
         tasks_map = {}
         if task_ids:
             tasks = admin_supabase.table('user_quest_tasks') \
-                .select('id, title, pillar, xp_value, diploma_subjects, subject_xp_distribution') \
+                .select('id, title, pillar, xp_value, diploma_subjects, subject_xp_distribution, ai_suggested_xp, is_manual, created_by_user_id') \
                 .in_('id', task_ids) \
                 .execute()
             tasks_map = {t['id']: t for t in (tasks.data or [])}
@@ -285,6 +303,8 @@ def get_dashboard_items(user_id: str):
                 'quest_title': quest.get('title', 'Unknown Quest'),
                 'pillar': task.get('pillar'),
                 'xp_value': xp_value,
+                'ai_suggested_xp': task.get('ai_suggested_xp'),
+                'written_by': _written_by(task),
                 'suggested_subjects': subjects,
                 'diploma_status': c.get('diploma_status'),
                 'revision_number': c.get('revision_number', 1),
@@ -341,7 +361,7 @@ def get_dashboard_item_detail(user_id: str, completion_id: str):
         task_data = {}
         if completion_data.get('user_quest_task_id'):
             task_result = admin_supabase.table('user_quest_tasks') \
-                .select('id, title, description, success_criteria, pillar, xp_value, diploma_subjects, subject_xp_distribution') \
+                .select('id, title, description, success_criteria, pillar, xp_value, diploma_subjects, subject_xp_distribution, ai_suggested_xp, is_manual, created_by_user_id') \
                 .eq('id', completion_data['user_quest_task_id']) \
                 .single() \
                 .execute()
@@ -440,6 +460,9 @@ def get_dashboard_item_detail(user_id: str, completion_id: str):
             admin_supabase, [student_data.get('organization_id')],
         ).get(student_data.get('organization_id'))
         sign_in_place([student_data], ['avatar_url'])
+
+        if task_data:
+            task_data['written_by'] = _written_by(task_data)
 
         payload = {
             'completion': completion_data,

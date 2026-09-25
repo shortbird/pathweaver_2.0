@@ -3,6 +3,8 @@ import { Modal, Alert, FormFooter } from '../ui';
 import { DIPLOMA_PILLARS } from '../../utils/pillarMappings';
 import useCanEditXp, { XP_LOCKED_HINT } from '../../hooks/useCanEditXp';
 import useHidePillars from '../../hooks/useHidePillars';
+import useTaskAuthoringRules from '../../hooks/useTaskAuthoringRules';
+import SuccessCriteriaEditor, { cleanCriteria } from './SuccessCriteriaEditor';
 
 const PILLAR_OPTIONS = Object.entries(DIPLOMA_PILLARS).map(([value, p]) => ({
   value,
@@ -37,9 +39,27 @@ const subjectsFromTask = (task) => {
   return [];
 };
 
+const criteriaFromTask = (task) =>
+  (Array.isArray(task?.success_criteria) ? task.success_criteria : [])
+    .filter((line) => typeof line === 'string');
+
+const sameLines = (a, b) => a.length === b.length && a.every((line, i) => line === b[i]);
+
+export const CRITERIA_LOCKED_NOTE = 'Locked because this task was sent for credit.';
+
 export default function StudentTaskEditModal({ task, onClose, onSave, isClassQuest = false }) {
   const canEditXp = useCanEditXp();
-  const hidePillars = useHidePillars();
+  const schoolHidesPillars = useHidePillars();
+  // Resolved for the task's own student (the child, in family scope).
+  const { rules } = useTaskAuthoringRules({ taskId: task?.id || null });
+  // No pillar picker for a learner 13+ (or a school with the pillars off): the
+  // subject is the only classification, and the server re-derives the pillar
+  // from it when the subject changes (routes/tasks/crud.py).
+  const hidePillars = schoolHidesPillars || Boolean(rules?.hide_pillars);
+  const criteriaLocked = Boolean(rules?.criteria_locked);
+  const criteriaRequired = Boolean(rules?.requires_success_criteria);
+  const [criteria, setCriteria] = useState(['']);
+  const [criteriaError, setCriteriaError] = useState('');
   const [pillar, setPillar] = useState('stem');
   const [xpValue, setXpValue] = useState(100);
   const [subjects, setSubjects] = useState([]);
@@ -51,6 +71,8 @@ export default function StudentTaskEditModal({ task, onClose, onSave, isClassQue
       setPillar(task.pillar || 'stem');
       setXpValue(task.xp_value || 100);
       setSubjects(subjectsFromTask(task));
+      const lines = criteriaFromTask(task);
+      setCriteria(lines.length > 0 ? lines : ['']);
     }
   }, [task]);
 
@@ -71,6 +93,11 @@ export default function StudentTaskEditModal({ task, onClose, onSave, isClassQue
       setError('Pick at least one diploma subject');
       return;
     }
+    const cleanedCriteria = cleanCriteria(criteria);
+    if (!criteriaLocked && criteriaRequired && cleanedCriteria.length === 0) {
+      setCriteriaError('Your school asks for a Definition of Done. Add at least one line.');
+      return;
+    }
 
     setLoading(true);
     try {
@@ -85,6 +112,12 @@ export default function StudentTaskEditModal({ task, onClose, onSave, isClassQue
       if (!hidePillars) payload.pillar = pillar;
       if (canEditXp) payload.xp_value = xp;
       if (!isClassQuest) payload.diploma_subjects = subjects;
+      //  - success_criteria: only when it changed and is not locked. Once a
+      //    task has been sent for credit the server refuses any change (409),
+      //    and an unchanged list is not an edit.
+      if (!criteriaLocked && !sameLines(cleanedCriteria, cleanCriteria(criteriaFromTask(task)))) {
+        payload.success_criteria = cleanedCriteria;
+      }
       // Every field can be off at once (a class quest at a school that hides
       // pillars and locks XP). There is nothing to save, and an empty PUT is a
       // 400 — close instead.
@@ -106,6 +139,16 @@ export default function StudentTaskEditModal({ task, onClose, onSave, isClassQue
     >
       <form onSubmit={handleSubmit} className="space-y-6">
         {error && <Alert variant="error">{error}</Alert>}
+
+        <SuccessCriteriaEditor
+          idPrefix="edit-task-dod"
+          value={criteria}
+          onChange={(lines) => { setCriteria(lines); setCriteriaError(''); }}
+          required={criteriaRequired}
+          readOnly={criteriaLocked}
+          lockedNote={CRITERIA_LOCKED_NOTE}
+          error={criteriaError}
+        />
 
         {!hidePillars && (
           <div>

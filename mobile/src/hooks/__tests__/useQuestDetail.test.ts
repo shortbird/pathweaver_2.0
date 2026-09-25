@@ -588,3 +588,70 @@ describe('useQuestDetail in parent mode', () => {
     expect(api.post).not.toHaveBeenCalledWith('/api/quests/quest-1/enroll', expect.anything());
   });
 });
+
+/**
+ * A hand-written task goes to add-manual-tasks, never to accept-task or the
+ * family accept path: those store it as an AI suggestion (is_manual=false) and
+ * copy it into the shared AI task library.
+ */
+describe('addManualTask', () => {
+  const manual = {
+    title: 'Play five games of chess',
+    description: 'Against the club app',
+    pillar: 'stem',
+    xp_value: 50,
+    success_criteria: ['You played 5 games'],
+  };
+
+  it('posts the student\'s own task to add-manual-tasks and appends the saved row', async () => {
+    (api.get as jest.Mock).mockResolvedValueOnce({ data: { quest: mockQuest } });
+    (api.post as jest.Mock).mockResolvedValueOnce({
+      data: { success: true, tasks: [{ id: 'task-m1', ...manual }] },
+    });
+    const { result } = renderHook(() => useQuestDetail('quest-1'));
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    await act(async () => {
+      await result.current.addManualTask(manual);
+    });
+
+    expect(api.post).toHaveBeenCalledTimes(1);
+    expect(api.post).toHaveBeenCalledWith('/api/quests/quest-1/add-manual-tasks', { tasks: [manual] });
+    const added = result.current.quest?.quest_tasks[1];
+    expect(added?.id).toBe('task-m1');
+    expect(added?.success_criteria).toEqual(['You played 5 games']);
+  });
+
+  it('in parent mode, writes to the child through add-manual-tasks with student_id', async () => {
+    (api.get as jest.Mock).mockResolvedValue({ data: { quest: mockQuest } });
+    (api.post as jest.Mock).mockResolvedValueOnce({ data: { success: true, tasks: [{ id: 'task-m2', ...manual }] } });
+    const { result } = renderHook(() => useQuestDetail('quest-1', { studentId: 'kid-1' }));
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    await act(async () => {
+      await result.current.addManualTask(manual);
+    });
+
+    expect(api.post).toHaveBeenCalledWith('/api/quests/quest-1/add-manual-tasks', {
+      tasks: [manual], student_id: 'kid-1',
+    });
+    expect(api.post).not.toHaveBeenCalledWith('/api/family/quests/quest-1/tasks', expect.anything());
+    expect(result.current.quest?.quest_tasks.map((t) => t.id)).toEqual(['task-1', 'task-m2']);
+  });
+
+  it('analyzeManualTask asks for help scoped to the child in parent mode', async () => {
+    (api.get as jest.Mock).mockResolvedValue({ data: { quest: mockQuest } });
+    (api.post as jest.Mock).mockResolvedValueOnce({ data: { success: true, suggested_xp: 75 } });
+    const { result } = renderHook(() => useQuestDetail('quest-1', { studentId: 'kid-1' }));
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    let out: any;
+    await act(async () => {
+      out = await result.current.analyzeManualTask({ title: 'Chess' });
+    });
+
+    expect(api.post).toHaveBeenCalledWith('/api/quests/quest-1/analyze-manual-task',
+      { title: 'Chess', student_id: 'kid-1' }, expect.objectContaining({ timeout: expect.any(Number) }));
+    expect(out.suggested_xp).toBe(75);
+  });
+});

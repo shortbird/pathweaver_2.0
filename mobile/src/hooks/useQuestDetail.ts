@@ -111,6 +111,38 @@ export interface QuestDetail {
   viewer_context?: QuestViewerContext;
 }
 
+/** A hand-written task, as POST /api/quests/<id>/add-manual-tasks takes it. */
+export interface ManualTaskInput {
+  title: string;
+  description: string;
+  /** Omitted for a 13+ learner, who picks a diploma subject instead; the
+   *  server derives the pillar from it. */
+  pillar?: string;
+  xp_value: number;
+  success_criteria: string[];
+  diploma_subjects?: string[] | Record<string, number>;
+}
+
+/** What the family has typed so far, sent for "Help me finish this". */
+export interface ManualTaskDraft {
+  title: string;
+  description?: string;
+  pillar?: string;
+  success_criteria?: string[];
+}
+
+/** POST /api/quests/<id>/analyze-manual-task. */
+export interface ManualTaskAnalysis {
+  success?: boolean;
+  description?: string;
+  success_criteria?: string[];
+  suggested_xp?: number;
+  xp_rationale?: string;
+  suggested_pillar?: string;
+  diploma_subjects?: unknown;
+  suggestions?: unknown;
+}
+
 export interface UseQuestDetailOptions {
   /** Parent mode: read and write this child's copy of the quest instead of the
    *  signed-in user's. */
@@ -368,6 +400,53 @@ export function useQuestDetail(questId: string | null, options?: UseQuestDetailO
     return data;
   };
 
+  /**
+   * A task the family wrote by hand. It goes to add-manual-tasks, which stores
+   * it as the learner's own (is_manual) task and enforces the school's
+   * Definition of Done rule. It used to go through acceptTask, which filed a
+   * hand-typed task as an AI suggestion and copied it into the shared AI task
+   * library. Parent mode passes student_id; the endpoint is student-scoped.
+   */
+  const addManualTask = async (task: ManualTaskInput) => {
+    if (!questId) return;
+    const { data } = await api.post(`/api/quests/${questId}/add-manual-tasks`, {
+      tasks: [task],
+      ...(studentId ? { student_id: studentId } : {}),
+    });
+    const rows: any[] = Array.isArray(data?.tasks) && data.tasks.length ? data.tasks : [{
+      id: `temp-${Date.now()}`,
+      ...task,
+    }];
+    const added: QuestTask[] = rows.map((row, i) => ({
+      ...row,
+      title: row.title ?? task.title,
+      description: row.description ?? task.description ?? '',
+      pillar: row.pillar ?? task.pillar ?? 'stem',
+      xp_value: row.xp_value ?? task.xp_value ?? 50,
+      xp_amount: row.xp_amount ?? row.xp_value ?? task.xp_value ?? 50,
+      success_criteria: row.success_criteria ?? task.success_criteria ?? [],
+      diploma_subjects: row.diploma_subjects ?? task.diploma_subjects ?? [],
+      order_index: row.order_index ?? (quest?.quest_tasks?.length || 0) + i,
+      is_completed: false,
+      is_required: row.is_required ?? false,
+    }));
+    // Optimistic append, like acceptTask: a refetch re-renders the screen and
+    // can unmount the wizard mid-flow.
+    setQuest((prev) => (prev ? { ...prev, quest_tasks: [...prev.quest_tasks, ...added] } : prev));
+    return data;
+  };
+
+  /** "Help me finish this": the AI proposes a description, a Definition of
+   *  Done and a size for a half-written task. Nothing is saved. */
+  const analyzeManualTask = async (input: ManualTaskDraft): Promise<ManualTaskAnalysis | null> => {
+    if (!questId) return null;
+    const { data } = await api.post(`/api/quests/${questId}/analyze-manual-task`, {
+      ...input,
+      ...(studentId ? { student_id: studentId } : {}),
+    }, { timeout: 60000 });
+    return data || null;
+  };
+
   const deleteTask = async (taskId: string) => {
     // Removing a child's task is managed-dependent only; the family endpoint is
     // where that rule lives, so parent mode never touches /api/tasks/<id>.
@@ -393,6 +472,7 @@ export function useQuestDetail(questId: string | null, options?: UseQuestDetailO
     quest, loading, error,
     refetch: fetchQuest,
     enroll, completeTask, generateTasks, acceptTask, adjustTask, deleteTask,
+    addManualTask, analyzeManualTask,
   };
 }
 

@@ -2,6 +2,7 @@ import React from 'react'
 import AiCriteriaChecklist from '../AiCriteriaChecklist'
 import StatusTimeline from '../StatusTimeline'
 import { criteriaForDisplay } from '../aiReview'
+import { isXpInflated, taskOriginLine } from '../taskOrigin'
 
 /**
  * What the student was asked to do, and what "done" means.
@@ -28,6 +29,14 @@ const GraderTaskCard = ({
   const requestedLabel = requestedAt && !Number.isNaN(requestedAt.getTime())
     ? requestedAt.toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })
     : null
+  // A task the family wrote themselves: say so, with the XP they claimed next
+  // to the size the AI gave it when it was written (see taskOrigin.jsx).
+  const originLine = taskOriginLine({
+    writtenBy: task?.written_by,
+    xpValue: task?.xp_value,
+    aiSuggestedXp: task?.ai_suggested_xp,
+  })
+  const inflated = isXpInflated(task?.xp_value, task?.ai_suggested_xp)
 
   return (
     <section aria-labelledby="grader-task-title" className="space-y-4">
@@ -53,6 +62,14 @@ const GraderTaskCard = ({
             {completion?.revision_number > 1 && (
               <span> (revision {completion.revision_number})</span>
             )}
+          </p>
+        )}
+        {originLine && (
+          <p
+            className={`mt-0.5 text-sm ${inflated ? 'text-amber-800' : 'text-gray-500'}`}
+            data-testid="task-origin"
+          >
+            {originLine}
           </p>
         )}
       </div>

@@ -2,6 +2,8 @@ import { useContext } from 'react'
 import { AuthContext } from '../contexts/AuthContext'
 import { OrganizationContext } from '../contexts/OrganizationContext'
 import { userHasRole } from '../utils/userRoles'
+import { useFamilyScope } from '../contexts/FamilyScopeContext'
+import useTaskAuthoringRules from './useTaskAuthoringRules'
 
 /**
  * Whether the current user may choose or change a task's XP value.
@@ -18,6 +20,15 @@ import { userHasRole } from '../utils/userRoles'
  * Reads both contexts directly rather than via useAuth()/useOrganization(),
  * which throw when a provider is absent. A missing provider means "no org", so
  * the safe answer is the platform default: XP stays editable.
+ *
+ * Family scope is the exception. A parent working as their child is writing
+ * the CHILD's task at the CHILD's school, and neither context knows that
+ * school -- they describe the signed-in parent. Until 2026-09-25 this answered
+ * for the parent's school, so a platform parent saw an XP picker the child's
+ * locked school would refuse (and an org parent could be shown the reverse).
+ * When scope is delegated the server's answer (`can_edit_xp` from
+ * GET /api/tasks/authoring-rules, resolved against the child) wins; while it
+ * loads, or if it fails, the context answer below stands in.
  */
 
 /**
@@ -33,6 +44,12 @@ export const XP_LOCKED_HINT = 'Your school sets the XP for tasks.'
 export default function useCanEditXp() {
   const auth = useContext(AuthContext)
   const org = useContext(OrganizationContext)
+  // Safe without a provider: useFamilyScope falls back to "not scoped".
+  const { selectedChildId } = useFamilyScope()
+  const delegated = Boolean(selectedChildId)
+  const { rules } = useTaskAuthoringRules({ enabled: delegated })
+
+  if (delegated && typeof rules?.can_edit_xp === 'boolean') return rules.can_edit_xp
 
   const locked = Boolean(org?.organization?.feature_flags?.lock_xp_editing)
   if (!locked) return true

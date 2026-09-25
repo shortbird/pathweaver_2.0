@@ -65,6 +65,36 @@ class TaskRepository(BaseRepository):
             logger.error(f"Error fetching the family's tasks on quest {quest_id}: {e}")
             return []
 
+    def is_owned_by(self, task_id: str, user_id: str) -> bool:
+        """True when `task_id` is one of `user_id`'s tasks."""
+        result = self.client.table(self.table_name)\
+            .select('id')\
+            .eq('id', task_id)\
+            .eq('user_id', user_id)\
+            .limit(1)\
+            .execute()
+        return bool(result.data)
+
+    def has_credit_submission(self, task_id: str) -> bool:
+        """True once this task has ever been sent for credit: any completion whose
+        diploma_status has left 'none' (pending, sent back, approved, finalized).
+        The Definition of Done locks on this (services/task_rules.py)."""
+        result = self.client.table('quest_task_completions')\
+            .select('id')\
+            .eq('user_quest_task_id', task_id)\
+            .neq('diploma_status', 'none')\
+            .limit(1)\
+            .execute()
+        return bool(result.data)
+
+    def set_ai_suggested_xp(self, task_id: str, xp: int) -> None:
+        """Record the AI's XP size for a family-written task
+        (services/task_sizing.py). xp_value, the family's claim, is untouched."""
+        self.client.table(self.table_name)\
+            .update({'ai_suggested_xp': xp})\
+            .eq('id', task_id)\
+            .execute()
+
     def find_by_user_quest(self, user_quest_id: str) -> List[Dict[str, Any]]:
         """
         Get all tasks for a specific user quest enrollment.

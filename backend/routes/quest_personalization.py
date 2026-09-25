@@ -25,7 +25,6 @@ from utils.ai_access import require_ai_access
 from routes.personalization_validators import (
     validate_generate_tasks_request,
     validate_edit_task_request,
-    validate_manual_task,
     validate_finalize_tasks_request,
     validate_accept_task_request,
     validate_skip_task_request,
@@ -34,6 +33,9 @@ from routes.personalization_validators import (
     VALID_CHALLENGE_LEVELS
 )
 from utils.auth.relationships import current_student_scope, student_scope
+from services.task_rules import missing_criteria_response
+from utils.xp_permissions import is_xp_guide
+from services.task_sizing import size_family_tasks
 from routes.personalization_gates import quest_not_openable, quest_not_workable
 from utils.personalization_helpers import (
     check_and_complete_personalization,
@@ -719,33 +721,42 @@ def adjust_task_difficulty(user_id: str, quest_id: str):
 @student_scope()
 def analyze_manual_task(user_id: str, quest_id: str):
     """
-    Generate helpful suggestions for a student-created task using AI.
-    Returns suggestions, suggested XP, and pillar values.
+    "Help me finish this": the family types whatever they have and the AI fills
+    in the rest -- a description if there is none, a Definition of Done (keeping
+    any lines they wrote), an XP size, subject and pillar. Nothing is saved; the
+    client puts the answer back into the form for the family to edit.
+
+    Only the title is required, so a parent can start from a single line.
     """
     try:
+        # Same gate as generate-tasks: the child's words go to the AI vendor, so
+        # the parent's AI toggle for the child is what decides.
+        ai_access_error = require_ai_access(user_id)
+        if ai_access_error:
+            return ai_access_error
+
         # admin client justified: reads one quests row's allow_custom_tasks flag to
         # authorize the caller's own request under @require_auth; no user data touched
         blocked = _custom_tasks_blocked(get_supabase_admin_client(), quest_id)
         if blocked:
             return blocked
 
-        data = request.get_json()
+        data = request.get_json() or {}
 
-        title = data.get('title', '').strip()
-        description = data.get('description', '').strip()
-        pillar = data.get('pillar', '').strip()
+        title = (data.get('title') or '').strip()
+        description = (data.get('description') or '').strip()
+        pillar = (data.get('pillar') or '').strip()
+        criteria = data.get('success_criteria') or []
 
-        # Validate inputs
-        is_valid, error = validate_manual_task(title, description)
-        if not is_valid:
-            return jsonify({'success': False, 'error': error}), 400
+        if len(title) < 3:
+            return jsonify({'success': False, 'error': 'Task title must be at least 3 characters'}), 400
 
-        # Generate suggestions using AI
         quality_service = TaskQualityService()
         analysis = quality_service.analyze_task_quality(
             title=title,
             description=description,
-            pillar=pillar if pillar else None
+            pillar=pillar if pillar else None,
+            success_criteria=criteria if isinstance(criteria, list) else [],
         )
 
         logger.info(
@@ -824,6 +835,12 @@ def add_manual_tasks_batch(user_id: str, quest_id: str):
         )
         caller_role = get_effective_role_for(user_id)
         xp_locked = xp_locked_for_learner(user_id)
+
+        # A school that requires a Definition of Done refuses the whole batch
+        # when any task lacks one, before anything is written (services/task_rules).
+        refused = missing_criteria_response(tasks, user_id, caller_role)
+        if refused:
+            return refused
 
         for idx, task in enumerate(tasks):
             # QP-1 fix: xp_value is student-controlled and these tasks are
@@ -929,6 +946,9 @@ def add_manual_tasks_batch(user_id: str, quest_id: str):
         logger.info(
             f"User {user_id} added {len(created_tasks)} manual tasks to quest {quest_id}"
         )
+
+        if not is_xp_guide(caller_role):
+            size_family_tasks(user_id, created_tasks)
 
         return jsonify({
             'success': True,

@@ -132,8 +132,8 @@ class CreditFeedbackAIService(BaseService):
         task: Dict[str, Any] = {}
         if task_id:
             task_result = self.supabase.table("user_quest_tasks").select(
-                "id, title, description, pillar, xp_value, diploma_subjects, "
-                "subject_xp_distribution"
+                "id, title, description, success_criteria, pillar, xp_value, "
+                "diploma_subjects, subject_xp_distribution"
             ).eq("id", task_id).single().execute()
             task = task_result.data or {}
 
@@ -203,6 +203,16 @@ class CreditFeedbackAIService(BaseService):
             if subjects else "(none specified)"
         )
 
+        # The Definition of Done is what the work is judged against, so the
+        # feedback should point at the unmet lines rather than guess from the
+        # description.
+        from utils.personalization_helpers import sanitize_success_criteria
+        criteria = sanitize_success_criteria(task.get("success_criteria"))
+        criteria_str = (
+            "\n".join(f"- {c}" for c in criteria)
+            if criteria else "(none written -- judge against the description)"
+        )
+
         prior_block = (
             f"\nPRIOR REVIEWER FEEDBACK (this is a resubmission — avoid repeating it verbatim):\n{prior}\n"
             if prior else ""
@@ -218,6 +228,8 @@ Quest description: {quest.get('description', '(no description)')}
 
 TASK: {task.get('title', 'Unknown')}
 Task description: {task.get('description', '(no description)')}
+Definition of Done:
+{criteria_str}
 Pillar: {task.get('pillar', 'unspecified')}
 XP value: {task.get('xp_value', 0)}
 Suggested subject XP distribution: {subjects_str}

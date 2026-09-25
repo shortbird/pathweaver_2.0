@@ -199,6 +199,39 @@ def update_task(user_id: str, task_id: str):
         if 'description' in data:
             update_payload['description'] = data['description'].strip() if data['description'] else ''
 
+        if 'success_criteria' in data:
+            # The Definition of Done (services/task_rules.py). Teachers and
+            # reviewers edit it freely; a family cannot change it once the task
+            # has been sent for credit, and cannot clear it where the school
+            # requires one. Only an actual change is gated, because the edit
+            # modal sends every field together.
+            from utils.personalization_helpers import sanitize_success_criteria
+            from services.task_rules import (
+                CRITERIA_LOCKED_MESSAGE,
+                CRITERIA_REQUIRED_MESSAGE,
+                criteria_locked,
+                requires_success_criteria,
+            )
+            from utils.xp_permissions import is_xp_guide_user
+
+            new_criteria = sanitize_success_criteria(data['success_criteria'])
+            old_criteria = sanitize_success_criteria(task_data.get('success_criteria'))
+            if new_criteria != old_criteria:
+                if not is_xp_guide_user(user):
+                    if criteria_locked(task_id):
+                        return jsonify({
+                            'success': False,
+                            'error': CRITERIA_LOCKED_MESSAGE,
+                            'code': 'success_criteria_locked',
+                        }), 409
+                    if not new_criteria and requires_success_criteria(task_data.get('user_id')):
+                        return jsonify({
+                            'success': False,
+                            'error': CRITERIA_REQUIRED_MESSAGE,
+                            'code': 'success_criteria_required',
+                        }), 400
+                update_payload['success_criteria'] = new_criteria or None
+
         if 'pillar' in data:
             pillar = data['pillar'].lower().strip() if data['pillar'] else 'stem'
             if not is_valid_pillar(pillar):
@@ -315,6 +348,18 @@ def update_task(user_id: str, task_id: str):
                 # No subjects chosen: clear the stored distribution so the
                 # pillar-based fallback applies instead of stale data.
                 update_payload['subject_xp_distribution'] = None
+
+            # A form with no pillar picker (the learner is 13+, or the school
+            # hides the pillars) re-tags the subject without a pillar. Derive
+            # the pillar from the new first subject so the two stay in step, the
+            # same rule task creation uses (utils/school_subjects.py).
+            if 'pillar' not in data and chosen:
+                from utils.org_features import user_org_has_feature
+                from utils.school_subjects import pillar_for_subject
+                from services.task_rules import pillars_hidden_by_age
+                owner = task_data.get('user_id')
+                if pillars_hidden_by_age(owner) or user_org_has_feature(owner, 'hide_pillars'):
+                    update_payload['pillar'] = pillar_for_subject(chosen[0])
 
         if not update_payload:
             return jsonify({

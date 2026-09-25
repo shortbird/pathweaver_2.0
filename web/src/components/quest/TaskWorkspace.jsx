@@ -633,10 +633,13 @@ const TaskWorkspace = ({
     }
   };
 
-  const handleSaveTaskEdit = async ({ pillar, xp_value, diploma_subjects }) => {
+  const handleSaveTaskEdit = async ({ pillar, xp_value, diploma_subjects, success_criteria }) => {
     if (!task?.id) return;
     const payload = { pillar, xp_value };
     if (diploma_subjects !== undefined) payload.diploma_subjects = diploma_subjects;
+    // The Definition of Done. The server answers 409 success_criteria_locked
+    // or 400 success_criteria_required; the modal shows its message.
+    if (success_criteria !== undefined) payload.success_criteria = success_criteria;
     const response = await api.put(`/api/tasks/${task.id}`, { ...payload, ...scopeParams });
     const updated = response?.data?.task;
     if (updated && onTaskUpdate) {
@@ -783,8 +786,9 @@ const TaskWorkspace = ({
         isTaskCompleted={task?.is_completed}
       />
 
-      {/* Student edit modal — pillar, XP, and diploma credit (subjects hidden
-          for class quests, whose credit is locked to the class subject) */}
+      {/* Student edit modal — Definition of Done, pillar, XP, and diploma
+          credit (subjects hidden for class quests, whose credit is locked to
+          the class subject) */}
       {isEditModalOpen && task && (
         <StudentTaskEditModal
           task={task}

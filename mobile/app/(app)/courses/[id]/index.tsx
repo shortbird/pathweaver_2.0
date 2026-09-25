@@ -16,6 +16,7 @@ import { useAuthStore } from '@/src/stores/authStore';
 import { LessonViewer } from '@/src/components/curriculum/LessonViewer';
 import { TaskCreationWizard } from '@/src/components/tasks/TaskCreationWizard';
 import { PILLARS } from '@/src/hooks/useQuestDetail';
+import type { ManualTaskInput, ManualTaskDraft, ManualTaskAnalysis } from '@/src/hooks/useQuestDetail';
 import api from '@/src/services/api';
 import type { Lesson } from '@/src/hooks/useCourses';
 import { useThemeColors } from '@/src/hooks/useThemeColors';
@@ -429,6 +430,28 @@ function ProjectSection({
     setUserTasks(prev => [...prev, newTask]);
   };
 
+  // A hand-written task is the student's own: add-manual-tasks stores it as
+  // is_manual and applies the school's Definition of Done rule. accept-task
+  // would file it as an AI suggestion and copy it into the shared library.
+  const handleAddManualTask = async (task: ManualTaskInput) => {
+    const { data } = await api.post(`/api/quests/${questId}/add-manual-tasks`, { tasks: [task] });
+    const rows: any[] = Array.isArray(data?.tasks) && data.tasks.length ? data.tasks : [{
+      id: `temp-${Date.now()}`, ...task,
+    }];
+    setUserTasks(prev => [...prev, ...rows.map((row) => ({
+      ...row,
+      xp_amount: row.xp_amount ?? row.xp_value ?? task.xp_value,
+      is_completed: false,
+      is_required: row.is_required ?? false,
+    }))]);
+    return data;
+  };
+
+  const handleAnalyzeManualTask = async (draft: ManualTaskDraft): Promise<ManualTaskAnalysis | null> => {
+    const { data } = await api.post(`/api/quests/${questId}/analyze-manual-task`, draft, { timeout: 60000 });
+    return data || null;
+  };
+
   const handleAddSuggestion = async (task: any) => {
     try {
       await handleAcceptTask(task);
@@ -741,6 +764,8 @@ function ProjectSection({
         onClose={() => setWizardOpen(false)}
         onGenerate={handleGenerate}
         onAcceptTask={handleAcceptTask}
+        onAddManualTask={handleAddManualTask}
+        onAnalyzeManualTask={handleAnalyzeManualTask}
         onAdjustTask={handleAdjustTask}
         defaultChallengeLevel={preferredChallengeLevel}
       />

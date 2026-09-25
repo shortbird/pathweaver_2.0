@@ -13,6 +13,7 @@ bp = Blueprint('tasks', __name__, url_prefix='/api/tasks')
 from . import completion  # noqa: F401,E402
 from . import crud        # noqa: F401,E402
 from . import credit      # noqa: F401,E402
+from . import rules       # noqa: F401,E402
 
 # Re-export XP helpers so callers can keep using `from routes.tasks import ...`
 # (the pattern from before the 2026-04-14 package split). Several downstream

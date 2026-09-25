@@ -3,6 +3,7 @@ import FilterBar from './FilterBar'
 import AiBadge from './AiBadge'
 import StatusPill from './StatusPill'
 import { aiItemSummary } from './aiReview'
+import { XpInflationBadge } from './taskOrigin'
 import SortHeader from '../ui/SortHeader'
 
 /**
@@ -111,7 +112,12 @@ const CreditDataTable = ({
                 <td className="px-3 py-2 text-xs text-gray-500">
                   {Object.keys(item.suggested_subjects || {}).map(s => s.replace(/_/g, ' ')).join(', ') || '-'}
                 </td>
-                <td className="px-3 py-2 text-sm font-medium text-gray-900">{item.xp_value}</td>
+                <td className="px-3 py-2 text-sm font-medium text-gray-900">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span>{item.xp_value}</span>
+                    <XpInflationBadge xpValue={item.xp_value} aiSuggestedXp={item.ai_suggested_xp} />
+                  </div>
+                </td>
                 <td className="px-3 py-2 text-xs text-gray-500">
                   {item.evidence_block_count ?? '-'}
                 </td>

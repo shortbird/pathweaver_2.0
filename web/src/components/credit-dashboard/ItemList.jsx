@@ -3,6 +3,7 @@ import FilterBar from './FilterBar'
 import AiBadge from './AiBadge'
 import StatusPill from './StatusPill'
 import { aiItemSummary } from './aiReview'
+import { XpInflationBadge } from './taskOrigin'
 
 const ItemList = ({
   items, selectedItem, selectedItems, onSelect, onToggleSelection,
@@ -65,6 +66,7 @@ const ItemList = ({
                     <p className="text-sm md:text-xs text-gray-600 truncate mt-0.5">{item.task_title}</p>
                     <div className="flex items-center gap-2 mt-1 text-[11px] md:text-[10px] text-gray-400 flex-wrap">
                       <span>{item.xp_value} XP</span>
+                      <XpInflationBadge xpValue={item.xp_value} aiSuggestedXp={item.ai_suggested_xp} />
                       <span>{item.evidence_block_count} blocks</span>
                       {showAi && <AiBadge size="xs" {...aiItemSummary(item)} />}
                     </div>
