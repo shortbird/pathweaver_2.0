@@ -10,6 +10,7 @@ import {
   CheckCircleIcon,
   ChevronDownIcon,
   ChevronRightIcon,
+  PlusIcon,
 } from '@heroicons/react/24/outline'
 import { toast } from 'react-hot-toast'
 import classService from '../../services/classService'
@@ -17,6 +18,7 @@ import api from '../../services/api'
 import { useAuth } from '../../contexts/AuthContext'
 import { useStudentScope } from '../../hooks/useStudentScope'
 import { dueStatus, dueChipClasses } from '../../utils/dueDate'
+import CreateQuestModal from '../CreateQuestModal'
 
 /**
  * StudentClassesView - Shows enrolled classes for students
@@ -266,6 +268,9 @@ function StudentClassDetail({ classData: initialClassData, classId: propClassId,
   // inside a quest page, so a document shared with the class was invisible from
   // the class itself — the one place they would look for it.
   const [materials, setMaterials] = useState([])
+  // A quest of the student's own, made for this class: private, and seen by
+  // the class's teacher (Gryffin, 2026-09-25).
+  const [creatingQuest, setCreatingQuest] = useState(false)
 
   const classId = initialClassData?.id || propClassId
 
@@ -452,10 +457,28 @@ function StudentClassDetail({ classData: initialClassData, classId: propClassId,
 
       {/* Quests Section */}
       <div>
-        <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-          <BookOpenIcon className="w-5 h-5 text-optio-purple" />
-          Class Quests
-        </h3>
+        <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
+          <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+            <BookOpenIcon className="w-5 h-5 text-optio-purple" />
+            Class Quests
+          </h3>
+          <button
+            type="button"
+            onClick={() => setCreatingQuest(true)}
+            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-optio-purple/30 text-sm font-medium text-optio-purple hover:bg-optio-purple/5 min-h-[44px]"
+          >
+            <PlusIcon className="w-4 h-4" />
+            Create a quest for this class
+          </button>
+        </div>
+        {creatingQuest && (
+          <CreateQuestModal
+            isOpen
+            onClose={() => setCreatingQuest(false)}
+            initialClassId={classId}
+            onSuccess={(quest) => { if (quest?.id) openQuest(quest) }}
+          />
+        )}
         {loading ? (
           <div className="flex items-center justify-center py-8">
             <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-optio-purple"></div>

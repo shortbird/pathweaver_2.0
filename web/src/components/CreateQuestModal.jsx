@@ -1,11 +1,13 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../services/api';
+import classService from '../services/classService';
 import { useStudentScope } from '../hooks/useStudentScope';
 import { useCreateFamilyQuest } from '../hooks/api/useFamilyQuests';
 import { Modal, Alert, FormFooter } from './ui';
 import SimilarQuestAutocomplete from './SimilarQuestAutocomplete';
 import { useConfirm } from '../contexts/ConfirmContext'
+import { toast } from 'react-hot-toast';
 
 /**
  * CreateQuestModal - Modal for users to create their own quests
@@ -20,9 +22,14 @@ import { useConfirm } from '../contexts/ConfirmContext'
  *    on the parent's account and the chosen children enrolled in it, each
  *    with their own copy (hooks/api/useFamilyQuests). The picker below is the
  *    only difference the parent sees.
+ *
+ * A learner in a school class can also say which class the quest is for
+ * (Gryffin, 2026-09-25: a teacher assigned "create your own quest" and could
+ * not see what came back). It stays private; the class's teacher sees it on
+ * the class. `initialClassId` preselects one, from the class page.
  */
-const CreateQuestModal = ({ isOpen, onClose, onSuccess, familyChildren = null }) => {
-  const { params: scope } = useStudentScope();
+const CreateQuestModal = ({ isOpen, onClose, onSuccess, familyChildren = null, initialClassId = '' }) => {
+  const { params: scope, studentId: scopedStudentId } = useStudentScope();
   const confirm = useConfirm()
   const navigate = useNavigate();
   const forFamily = Array.isArray(familyChildren);
@@ -40,6 +47,20 @@ const CreateQuestModal = ({ isOpen, onClose, onSuccess, familyChildren = null })
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [showSuggestions, setShowSuggestions] = useState(false);
+  const [classes, setClasses] = useState([]);
+  const [classId, setClassId] = useState(initialClassId || '');
+
+  // The learner's own classes. Best-effort: without them the form is the
+  // personal quest form it always was.
+  useEffect(() => {
+    if (!isOpen || forFamily) return undefined;
+    let live = true;
+    setClassId(initialClassId || '');
+    classService.getMyStudentClasses({ studentId: scopedStudentId })
+      .then((r) => { if (live) setClasses((r?.classes || []).map((c) => ({ id: c.id, name: c.name }))); })
+      .catch(() => { if (live) setClasses([]); });
+    return () => { live = false; };
+  }, [isOpen, forFamily, scopedStudentId, initialClassId]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -104,10 +125,14 @@ const CreateQuestModal = ({ isOpen, onClose, onSuccess, familyChildren = null })
       const response = await api.post('/api/quests/create', {
         ...scope,
         title: formData.title.trim(),
-        big_idea: formData.description.trim()
+        big_idea: formData.description.trim(),
+        ...(classId ? { class_id: classId } : {}),
       });
 
       if (response.data.success) {
+        if (classId && !response.data.class_attached) {
+          toast.error('Your quest was made, but it could not be added to your class. Tell your teacher.');
+        }
         // Reset form
         setFormData({ title: '', description: '' });
 
@@ -203,6 +228,31 @@ const CreateQuestModal = ({ isOpen, onClose, onSuccess, familyChildren = null })
             {formData.description.length}/2000 characters
           </p>
         </div>
+
+        {!forFamily && classes.length > 0 && (
+          <div>
+            <label htmlFor="quest-class" className="block text-sm font-semibold text-gray-700 mb-2">
+              Is this for a class?
+            </label>
+            <select
+              id="quest-class"
+              value={classId}
+              onChange={(e) => setClassId(e.target.value)}
+              disabled={isSubmitting}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-optio-purple focus:border-transparent min-h-[44px]"
+            >
+              <option value="">No, it’s just for me</option>
+              {classes.map((c) => (
+                <option key={c.id} value={c.id}>{c.name}</option>
+              ))}
+            </select>
+            {classId && (
+              <p className="mt-1 text-xs text-gray-500">
+                Your teacher will see it on the class. Other students won’t.
+              </p>
+            )}
+          </div>
+        )}
 
         {forFamily && (
           <fieldset>

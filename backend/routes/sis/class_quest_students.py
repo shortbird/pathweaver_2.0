@@ -34,6 +34,7 @@ from services.class_quest_enrollment import (
     set_class_quest_audience,
 )
 from repositories.class_quest_audience_repository import ClassQuestAudienceRepository
+from services import student_class_quests
 from routes.sis.class_quests import (
     _authorize,
     _bad_uuid,
@@ -167,6 +168,15 @@ def _parse_ts(value):
     return parsed if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)
 
 
+def _made_by(class_row, links):
+    """quest_id -> the student who made it, for class_quests rows carrying
+    their quests(organization_id, created_by)."""
+    return student_class_quests.made_by(class_row['id'], [
+        {'quest_id': r['quest_id'], **{k: (r.get('quests') or {}).get(k)
+                                       for k in ('organization_id', 'created_by')}}
+        for r in links])
+
+
 @bp.route('/classes/<class_id>/progress', methods=['GET'])
 @require_auth
 def class_student_progress(user_id, class_id):
@@ -188,8 +198,9 @@ def class_student_progress(user_id, class_id):
 
     assigned = (admin.table('class_quests')
                 .select('quest_id, sequence_order, due_date, publish_at, student_ids, '
-                        'quests(id, title, xp_threshold)')
+                        'quests(id, title, xp_threshold, organization_id, created_by)')
                 .eq('class_id', class_row['id']).order('sequence_order').execute()).data or []
+    made = _made_by(class_row, assigned)
     quests = [{
         'quest_id': r['quest_id'],
         'title': (r.get('quests') or {}).get('title') or 'Untitled quest',
@@ -199,6 +210,9 @@ def class_student_progress(user_id, class_id):
         # The XP the school asks for; 0 when unset (then each student's own
         # task XP is the bar).
         'xp_threshold': (r.get('quests') or {}).get('xp_threshold') or 0,
+        # The student who wrote this quest for the class, or None for the
+        # teacher's own. The grid folds these into one "Own quest" column.
+        'made_by': made.get(r['quest_id']),
     } for r in assigned]
     quest_ids = [q['quest_id'] for q in quests]
     link_by_quest = {r['quest_id']: r for r in assigned}
@@ -340,9 +354,15 @@ def _student_work(admin, class_row, student_id):
     what is done and what isn't").
     """
     links = (admin.table('class_quests')
-             .select('quest_id, due_date, student_ids, quests(title, xp_threshold)')
+             .select('quest_id, due_date, student_ids, '
+                     'quests(title, xp_threshold, organization_id, created_by)')
              .eq('class_id', class_row['id'])
              .order('sequence_order').execute()).data or []
+    # Another student's own quest is not this student's work, and listing it
+    # would offer "Assign to <name>" -- handing one student's private quest to
+    # a classmate.
+    made = _made_by(class_row, links)
+    links = [r for r in links if made.get(r['quest_id']) in (None, student_id)]
     quest_ids = [r['quest_id'] for r in links if r.get('quest_id')]
     if not quest_ids:
         return []
@@ -385,6 +405,7 @@ def _student_work(admin, class_row, student_id):
             'quest_id': link['quest_id'],
             'title': (link.get('quests') or {}).get('title') or 'Untitled quest',
             'due_date': link.get('due_date'),
+            'made_by': made.get(link['quest_id']),
             # False when the teacher kept this quest to other students. Listed
             # anyway, so the panel can offer to assign it to this one.
             'assigned': assigned,
@@ -548,6 +569,20 @@ def remind_student(user_id, class_id, student_id):
 # is already looking at that student. All three end in
 # set_class_quest_audience, which also moves the students' enrollments.
 
+def _student_quest_refusal(admin, class_row, quest_id, wanted):
+    """A student's own quest stays with that student.
+
+    It is private work with no school on it; the audience endpoints would
+    otherwise enroll classmates in it (and email their parents). Taking it off
+    the student's own list is allowed -- that is what Unassign means.
+    """
+    maker = student_class_quests.maker_of(class_row['id'], quest_id, client=admin)
+    if maker and (wanted is None or any(sid != maker for sid in wanted)):
+        return jsonify({'success': False,
+                        'error': 'This is a student’s own quest. It stays with the student who made it.'}), 409
+    return None
+
+
 def _audience_response(result):
     if result is None:
         return jsonify({'success': False, 'error': 'That quest is not on this class.'}), 404
@@ -568,6 +603,9 @@ def set_quest_students(user_id, class_id, quest_id):
     student_ids, err = _student_ids_or_error(data, roster)
     if err:
         return err
+    refused = _student_quest_refusal(admin, class_row, quest_id, student_ids)
+    if refused:
+        return refused
     return _audience_response(set_class_quest_audience(
         admin, class_row['id'], quest_id, student_ids, roster_ids=roster))
 
@@ -594,6 +632,9 @@ def add_quest_student(user_id, class_id, quest_id, student_id):
     if current is None:
         return _audience_response(None)
     wanted = list(dict.fromkeys(current + [student_id]))
+    refused = _student_quest_refusal(admin, class_row, quest_id, wanted)
+    if refused:
+        return refused
     return _audience_response(set_class_quest_audience(
         admin, class_row['id'], quest_id, wanted, roster_ids=roster))
 

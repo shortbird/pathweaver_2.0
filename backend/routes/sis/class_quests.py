@@ -46,6 +46,7 @@ from utils.validation import validate_uuid
 from services import sis_service
 from services import sis_notifications
 from services import quest_edit_rules
+from services import student_class_quests
 from services.sis_quest_authoring import (
     QuestAuthoringError,
     clean_task as _clean_task,
@@ -333,12 +334,21 @@ def list_class_quests(user_id, class_id):
     roster = _roster(admin, class_row['id'])
     roster_ids = [r['student_id'] for r in roster]
     is_admin = quest_edit_rules.is_school_admin(user_id, org_id)
+    made = student_class_quests.made_by(class_row['id'], [
+        {'quest_id': r['quest_id'], 'organization_id': (r.get('quests') or {}).get('organization_id'),
+         'created_by': (r.get('quests') or {}).get('created_by')} for r in rows])
+    names = {s['student_id']: s['name'] for s in roster}
     out = []
     for r in rows:
         q = r.get('quests') or {}
         out.append({
             'quest_id': r['quest_id'],
             'title': q.get('title'),
+            # A student wrote this for the class (services/student_class_quests):
+            # the teacher is shown their work, not an editor or an audience.
+            'made_by': made.get(r['quest_id']),
+            'made_by_name': names.get(made.get(r['quest_id']) or '') or (
+                'A former student' if made.get(r['quest_id']) else None),
             'description': q.get('description'),
             'quest_type': q.get('quest_type'),
             'sequence_order': r.get('sequence_order'),

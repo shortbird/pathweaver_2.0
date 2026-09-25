@@ -434,6 +434,50 @@ class ClassRepository(BaseRepository):
             raise Exception("Failed to add quest")
         return response.data[0]
 
+    def add_student_quest(self, class_id: str, quest_id: str, student_id: str) -> Dict[str, Any]:
+        """Put a student's own quest on their class, kept to that student.
+
+        student_ids=[student_id] is the point: a NULL audience means "the whole
+        class", and enroll_class_in_quests would then hand every classmate the
+        quest and email their parents.
+        """
+        last = self.admin_client.table('class_quests')\
+            .select('sequence_order')\
+            .eq('class_id', class_id)\
+            .order('sequence_order', desc=True)\
+            .limit(1)\
+            .execute()
+        rows = last.data or []
+        next_order = (rows[0].get('sequence_order') or 0) + 1 if rows else 0
+        response = self.admin_client.table('class_quests')\
+            .upsert({
+                'class_id': class_id,
+                'quest_id': quest_id,
+                'added_by': student_id,
+                'sequence_order': next_order,
+                'student_ids': [student_id],
+            }, on_conflict='class_id,quest_id')\
+            .execute()
+        if not response.data:
+            raise Exception("Failed to add quest")
+        return response.data[0]
+
+    def enrolled_student_ids(self, class_id: str, user_ids: List[str]) -> set:
+        """Which of these users are, or were, students in this class.
+
+        Any status on purpose: a quest a student made for the class is still
+        theirs after they withdraw.
+        """
+        ids = [u for u in set(user_ids) if u]
+        if not ids:
+            return set()
+        response = self.admin_client.table('class_enrollments')\
+            .select('student_id')\
+            .eq('class_id', class_id)\
+            .in_('student_id', ids)\
+            .execute()
+        return {r['student_id'] for r in (response.data or [])}
+
     def remove_quest(self, class_id: str, quest_id: str) -> bool:
         """Remove a quest from a class"""
         response = self.admin_client.table('class_quests')\

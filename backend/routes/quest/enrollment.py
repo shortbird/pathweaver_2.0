@@ -541,6 +541,24 @@ def create_user_quest(user_id: str):
         else:
             transcript_subject = None  # Only classes carry a subject on the quest itself
 
+        # One of the student's own org classes this quest is for. Checked before
+        # anything is written, so a bad class leaves no stray personal quest.
+        from services import student_class_quests
+        class_id = (data.get('class_id') or '').strip() or None
+        if class_id:
+            if requested_quest_type == 'class':
+                return error_response(
+                    code='INVALID_CLASS',
+                    message='A class of your own cannot also be a quest for another class',
+                    status=400
+                )
+            if not student_class_quests.attachable_class(user_id, class_id):
+                return error_response(
+                    code='NOT_IN_CLASS',
+                    message='You can only add a quest to a class you are in',
+                    status=403
+                )
+
         # Auto-fetch image if not provided. The image search query uses the
         # description when present; otherwise it falls back to just the title.
         image_url = data.get('header_image_url')
@@ -639,10 +657,23 @@ def create_user_quest(user_id: str):
                 'quest_id': quest_id
             }), 500
 
+        # The quest is made and the student is in it; if the class link fails the
+        # work is not lost, so say so rather than fail the whole create.
+        class_attached = False
+        if class_id:
+            try:
+                student_class_quests.attach(user_id, quest_id, class_id)
+                class_attached = True
+            except Exception as attach_error:  # noqa: BLE001
+                logger.error(f"Quest {quest_id[:8]} created but not added to class {class_id[:8]}: {attach_error}",
+                             exc_info=True)
+
         return jsonify({
             'success': True,
             'message': 'Quest created successfully! It\'s now available in your quest library.',
             'quest_id': quest_id,
+            'class_id': class_id if class_attached else None,
+            'class_attached': class_attached,
             'quest': quest_result.data[0],
             'enrollment': {
                 'enrolled': True,

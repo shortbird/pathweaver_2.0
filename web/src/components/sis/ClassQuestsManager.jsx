@@ -6,6 +6,7 @@ import {
 } from '@heroicons/react/24/outline'
 import api from '../../services/api'
 import QuestEditor from './QuestEditor'
+import { StudentWorkPanel } from './StudentProgressTab'
 import QuestDraftsList from './questEditor/QuestDraftsList'
 import { useConfirm } from '../../contexts/ConfirmContext'
 import { useRefreshAfterQuestEdit } from '../../hooks/api/useQuestEditor'
@@ -33,6 +34,7 @@ import { INPUT_CLASS } from '../ui/Input'
  */
 
 const inputCls = INPUT_CLASS
+const firstName = (name) => (name || '').split(' ')[0] || 'the student'
 
 // The three tiers assignable-quests returns, in the order it returns them.
 const SCOPE_HEADING = {
@@ -54,6 +56,9 @@ export default function ClassQuestsManager({ classId, orgId = null, scheduledEna
   const [mode, setMode] = useState(null) // null | 'existing'
   // The quest editor: {questId?} -- no questId starts a new draft on this class.
   const [editing, setEditing] = useState(null)
+  // A student's own quest opens that student's work, not the editor: it has no
+  // school on it, so the editor cannot load it, and it is theirs to change.
+  const [workFor, setWorkFor] = useState(null)
   const [search, setSearch] = useState('')
   const [available, setAvailable] = useState([])
   // How many quests exist that this list is deliberately not showing — the rest
@@ -379,6 +384,11 @@ export default function ClassQuestsManager({ classId, orgId = null, scheduledEna
           onClose={() => setEditing(null)} />
       )}
 
+      {workFor && (
+        <StudentWorkPanel classId={classId} student={workFor}
+          onClose={() => setWorkFor(null)} onChanged={load} />
+      )}
+
       {/* The curriculum round trip. Only rendered when a curriculum is actually
           attached — the point is to make the reusable set obvious where the
           teacher is already working, not to add a permanent empty panel. */}
@@ -530,7 +540,7 @@ export default function ClassQuestsManager({ classId, orgId = null, scheduledEna
                       {q.template_task_count
                         ? `${q.template_task_count} preset task${q.template_task_count === 1 ? '' : 's'}`
                         : 'No preset tasks'}
-                      {!q.editable_tasks ? ' · Optio library' : ''}
+                      {q.made_by ? ` · Made by ${q.made_by_name}` : (!q.editable_tasks ? ' · Optio library' : '')}
                       {q.xp_threshold ? ` · ${q.xp_threshold} XP to finish` : ''}
                     </p>
                     {/* Deliberately here and not in the task rows: this is the
@@ -538,6 +548,12 @@ export default function ClassQuestsManager({ classId, orgId = null, scheduledEna
                         is the one teachers kept typing into by mistake. A
                         library quest belongs to every school, so its target is
                         not ours to set. */}
+                    {q.made_by ? (
+                      <span className="mt-1 inline-flex items-center gap-1 text-xs text-neutral-500 px-1.5 py-0.5"
+                        title="A student's own quest stays with the student who made it">
+                        <UsersIcon className="w-3.5 h-3.5" /> Only {q.made_by_name}
+                      </span>
+                    ) : (
                     <button type="button" onClick={() => (audienceEditing === q.quest_id ? setAudienceEditing(null) : openAudience(q))}
                       aria-expanded={audienceEditing === q.quest_id}
                       title="Choose which students get this quest"
@@ -546,6 +562,7 @@ export default function ClassQuestsManager({ classId, orgId = null, scheduledEna
                           ? 'text-neutral-500' : 'text-optio-purple font-medium bg-optio-purple/5'}`}>
                       <UsersIcon className="w-3.5 h-3.5" /> {audienceLabel(q)}
                     </button>
+                    )}
                     {/* The office can lock the finish line from the library
                         (quests.teachers_may_change_xp). Molly, iCreate,
                         3d926fc3: "click on 'teachers may change' if we want
@@ -726,6 +743,18 @@ export default function ClassQuestsManager({ classId, orgId = null, scheduledEna
                     {q.description && (
                       <p className="mt-3 text-sm text-neutral-600 whitespace-pre-line">{q.description}</p>
                     )}
+                    {q.made_by ? (
+                      <div className="mt-3 flex items-center gap-3">
+                        <button type="button"
+                          onClick={() => setWorkFor({ student_id: q.made_by, name: q.made_by_name })}
+                          className="px-3 py-1.5 rounded-lg bg-optio-purple text-white text-sm font-medium">
+                          See {firstName(q.made_by_name)}’s work
+                        </button>
+                        <span className="text-xs text-neutral-500">
+                          {q.made_by_name} made this quest for your class. It is private to them and you.
+                        </span>
+                      </div>
+                    ) : (
                     <div className="mt-3 flex items-center gap-3">
                       <button type="button"
                         onClick={() => setEditing({ questId: q.quest_id, link: q })}
@@ -738,6 +767,7 @@ export default function ClassQuestsManager({ classId, orgId = null, scheduledEna
                           : 'Its tasks are read-only to you. Its dates and who it is for on this class are yours.'}
                       </span>
                     </div>
+                    )}
                   </div>
                 )}
               </li>

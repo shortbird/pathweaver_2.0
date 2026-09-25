@@ -13,6 +13,9 @@
  * account and the ticked children enrolled, each working through their own
  * copy. The sheet stays on the Family tab afterwards -- there is no one
  * child's copy to land on.
+ *
+ * A student in a school class can say which class the quest is for (Gryffin,
+ * 2026-09-25). It stays private; the class's teacher sees it on the class.
  */
 
 import React, { useEffect, useState } from 'react';
@@ -46,8 +49,25 @@ export function CreateQuestSheet({ visible, onClose, onCreated, forChild, family
   const [description, setDescription] = useState('');
   const [saving, setSaving] = useState(false);
   const [picked, setPicked] = useState<Set<string>>(new Set());
+  const [classes, setClasses] = useState<{ id: string; name: string }[]>([]);
+  const [classId, setClassId] = useState<string | null>(null);
   const c = useThemeColors();
   const family = familyChildren && familyChildren.length > 0 ? familyChildren : null;
+  const forSelf = !family && !forChild;
+
+  // The student's own classes. Best-effort: without them this is the personal
+  // quest sheet it always was.
+  useEffect(() => {
+    if (!visible || !forSelf) return undefined;
+    let live = true;
+    setClassId(null);
+    api.get('/api/student/classes')
+      .then(({ data }) => {
+        if (live) setClasses((data?.classes || []).map((k: any) => ({ id: k.id, name: k.name })));
+      })
+      .catch(() => { if (live) setClasses([]); });
+    return () => { live = false; };
+  }, [visible, forSelf]);
 
   // Every child ticked when the sheet opens; the parent unticks.
   useEffect(() => {
@@ -101,8 +121,11 @@ export function CreateQuestSheet({ visible, onClose, onCreated, forChild, family
       }
 
       // Student: create their own quest and open the student quest page.
-      const { data } = await api.post('/api/quests/create', body);
+      const { data } = await api.post('/api/quests/create', { ...body, ...(classId ? { class_id: classId } : {}) });
       const questId = data.quest_id || data.quest?.id;
+      if (classId && !data.class_attached) {
+        showAlert('Not added to your class', 'Your quest was made, but it could not be added to your class. Tell your teacher.');
+      }
       reset();
       onClose();
       if (questId) {
@@ -208,6 +231,38 @@ export function CreateQuestSheet({ visible, onClose, onCreated, forChild, family
             maxLength={1000}
           />
         </VStack>
+
+        {forSelf && classes.length > 0 && (
+          <VStack space="xs">
+            <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400 font-poppins-medium uppercase tracking-wider">
+              Is this for a class?
+            </UIText>
+            <HStack className="flex-wrap gap-2">
+              {[{ id: null, name: 'Just for me' }, ...classes].map((k) => {
+                const on = classId === k.id;
+                return (
+                  <Pressable
+                    key={k.id || 'none'}
+                    onPress={() => setClassId(k.id)}
+                    accessibilityRole="radio"
+                    accessibilityState={{ checked: on }}
+                    accessibilityLabel={k.name}
+                    className={`flex-row items-center gap-1.5 rounded-full px-3 py-1.5 border ${on ? 'border-optio-purple bg-optio-purple/10' : 'border-surface-200 dark:border-dark-surface-300'}`}
+                  >
+                    <UIText size="sm" className={on ? 'text-optio-purple font-poppins-semibold' : 'text-typo-500 dark:text-dark-typo-500'}>
+                      {k.name}
+                    </UIText>
+                  </Pressable>
+                );
+              })}
+            </HStack>
+            {classId && (
+              <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">
+                Your teacher will see it on the class. Other students won't.
+              </UIText>
+            )}
+          </VStack>
+        )}
 
         <Button
           size="lg"

@@ -118,12 +118,40 @@ const engagementText = (s) => {
   return parts.join(' · ')
 }
 
+/**
+ * The grid's columns. A quest a student made for the class (`made_by`) is kept
+ * to that student, so one column each would be a column of "Not assigned" per
+ * student. They fold into one "Own quest" column, where each row shows the
+ * quest that student made (Gryffin, 2026-09-25).
+ */
+export const gridColumns = (quests) => {
+  const own = new Map(quests.filter((q) => q.made_by).map((q) => [q.quest_id, q]))
+  const columns = quests.filter((q) => !q.made_by).map((q) => ({
+    key: q.quest_id,
+    title: q.title,
+    due_date: q.due_date,
+    cellsFor: (s) => s.cells.filter((c) => c.quest_id === q.quest_id),
+  }))
+  if (own.size) {
+    columns.push({
+      key: 'own-quests',
+      title: 'Own quest',
+      own: true,
+      cellsFor: (s) => s.cells.filter((c) => own.get(c.quest_id)?.made_by === s.student_id)
+        .map((c) => ({ ...c, title: own.get(c.quest_id).title })),
+    })
+  }
+  return columns
+}
+
 const printProgress = (className, quests, students) => {
-  const head = quests.map((q) => `<th>${q.title}</th>`).join('')
+  const columns = gridColumns(quests)
+  const head = columns.map((col) => `<th>${col.title}</th>`).join('')
   const rows = students.map((s) => `
     <tr>
       <td class="name">${s.name}</td>
-      ${s.cells.map((c) => `<td>${cellText(c)}</td>`).join('')}
+      ${columns.map((col) => `<td>${col.cellsFor(s)
+        .map((c) => (col.own ? `${c.title}: ${cellText(c)}` : cellText(c))).join('<br>') || '—'}</td>`).join('')}
       <td>${totalLines(s).filter(Boolean).join(' — ')}</td>
     </tr>`).join('')
   printHtml(`${className} — student progress`, `
@@ -153,6 +181,7 @@ const StudentProgressTab = ({ classId, className }) => {
 
   const quests = data?.quests || []
   const students = data?.students || []
+  const columns = useMemo(() => gridColumns(quests), [quests])
 
   // A picked student who has since left the roster falls back to everyone
   // rather than an empty grid.
@@ -245,8 +274,8 @@ const StudentProgressTab = ({ classId, className }) => {
           <thead>
             <tr className="border-b border-gray-200">
               <th className="text-left px-4 py-2.5 font-semibold text-neutral-700 sticky left-0 bg-white">Student</th>
-              {quests.map((q) => (
-                <th key={q.quest_id} className="px-3 py-2.5 font-medium text-neutral-600 min-w-[7rem]">
+              {columns.map((q) => (
+                <th key={q.key} className="px-3 py-2.5 font-medium text-neutral-600 min-w-[7rem]">
                   <span className="block truncate max-w-[10rem] mx-auto" title={q.title}>{q.title}</span>
                   {q.due_date && (
                     <span className="block text-[11px] font-normal text-neutral-400">
@@ -278,14 +307,27 @@ const StudentProgressTab = ({ classId, className }) => {
                     </span>
                   )}
                 </td>
-                {s.cells.map((c) => {
-                  const [main, sub] = cellLines(c)
+                {columns.map((col) => {
+                  const cells = col.cellsFor(s)
                   return (
-                    <td key={c.quest_id} className="px-3 py-2.5 text-center">
-                      <span className={`inline-block px-2 py-1 rounded-md text-xs ${cellStyle(c)}`}>
-                        <span className={`block whitespace-nowrap ${stateOf(c) === 'done' ? 'font-semibold' : ''}`}>{main}</span>
-                        {sub && <span className="block text-[10px] opacity-75 whitespace-nowrap">{sub}</span>}
-                      </span>
+                    <td key={col.key} className="px-3 py-2.5 text-center">
+                      {cells.length === 0 && col.own && (
+                        <span className="text-xs text-neutral-300">None yet</span>
+                      )}
+                      {cells.map((c) => {
+                        const [main, sub] = cellLines(c)
+                        return (
+                          <span key={c.quest_id} className="block">
+                            {col.own && (
+                              <span className="block text-[11px] text-neutral-600 truncate max-w-[10rem] mx-auto" title={c.title}>{c.title}</span>
+                            )}
+                            <span className={`inline-block px-2 py-1 rounded-md text-xs ${cellStyle(c)}`}>
+                              <span className={`block whitespace-nowrap ${stateOf(c) === 'done' ? 'font-semibold' : ''}`}>{main}</span>
+                              {sub && <span className="block text-[10px] opacity-75 whitespace-nowrap">{sub}</span>}
+                            </span>
+                          </span>
+                        )
+                      })}
                     </td>
                   )
                 })}
@@ -320,7 +362,7 @@ const StudentProgressTab = ({ classId, className }) => {
  * for: "send a reminder of what work they haven't completed and that should be
  * sent to the parent and student."
  */
-const StudentWorkPanel = ({ classId, student, onClose, onChanged }) => {
+export const StudentWorkPanel = ({ classId, student, onClose, onChanged }) => {
   const confirm = useConfirm()
   const [work, setWork] = useState(null)
   const [guardians, setGuardians] = useState([])
