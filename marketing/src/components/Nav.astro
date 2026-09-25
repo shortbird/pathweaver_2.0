@@ -1,5 +1,5 @@
 ---
-import { OFFER, appLink } from '../data/site'
+import { appLink } from '../data/site'
 
 const links = [
   { label: 'Academy', href: '/academy' },
@@ -40,8 +40,8 @@ const current = Astro.url.pathname
         >
           Login
         </a>
-        <a href={appLink(OFFER.academyEnrollPath)} data-track="nav_enroll" class="btn-primary">
-          Enroll
+        <a href={appLink('/register')} data-track="nav_signup" class="btn-primary">
+          Create account
         </a>
       </div>
 
@@ -69,8 +69,8 @@ const current = Astro.url.pathname
       <a href={appLink('/login')} data-track="nav_login" class="block text-center px-4 py-3 rounded-lg text-sm font-semibold text-neutral-700 hover:bg-neutral-50">
         Login
       </a>
-      <a href={appLink(OFFER.academyEnrollPath)} data-track="nav_enroll" class="btn-primary w-full">
-        Enroll
+      <a href={appLink('/register')} data-track="nav_signup" class="btn-primary w-full">
+        Create account
       </a>
     </div>
   </div>
