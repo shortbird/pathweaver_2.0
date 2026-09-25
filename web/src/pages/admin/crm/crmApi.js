@@ -92,3 +92,27 @@ export const removeSuppression = (suppressionId) =>
 
 // Sweep
 export const runSweep = () => api.post('/api/admin/crm/sweep/run', {})
+
+// Assistant (docs/CRM_AI_ASSISTANT_PLAN.md). Drafts are only ever sent by
+// sendDraft, which runs when Tanner clicks Send; nothing sends on its own.
+export const getGmailStatus = () => api.get('/api/admin/crm/gmail')
+export const connectGmail = () => api.post('/api/admin/crm/gmail/connect', {})
+export const disconnectGmail = () => api.post('/api/admin/crm/gmail/disconnect', {})
+export const syncGmail = () => api.post('/api/admin/crm/gmail/sync', {})
+
+export const getContact = (email) => api.get('/api/admin/crm/contact' + query({ email }))
+
+export const listDueTasks = () => api.get('/api/admin/crm/tasks/due')
+export const createTask = ({ email, title, due_on, detail }) =>
+  api.post('/api/admin/crm/tasks', { email, title, due_on, detail })
+export const updateTask = (taskId, fields) => api.put(`/api/admin/crm/tasks/${taskId}`, { ...fields })
+
+export const createDraft = ({ email, thread_id, to_email, subject, body_text }) =>
+  api.post('/api/admin/crm/drafts', { email, thread_id, to_email, subject, body_text })
+export const updateDraft = (draftId, fields) => api.put(`/api/admin/crm/drafts/${draftId}`, { ...fields })
+export const discardDraft = (draftId) => api.post(`/api/admin/crm/drafts/${draftId}/discard`, {})
+export const sendDraft = (draftId, fields = {}) =>
+  api.post(`/api/admin/crm/drafts/${draftId}/send`, { ...fields })
+
+export const listClientOrgs = () => api.get('/api/admin/crm/client-orgs')
+export const setClientOrgs = (orgIds) => api.put('/api/admin/crm/client-orgs', { org_ids: orgIds })

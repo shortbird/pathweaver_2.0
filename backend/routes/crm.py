@@ -10,6 +10,13 @@ Public:
 Internal (X-Cron-Secret, or a signed-in superadmin for manual triggering):
   POST /api/crm/internal/funnel-sweep     the scheduled-send sweep
   POST /api/crm/internal/calendar-poll    Google Calendar booking poll
+  POST /api/crm/internal/gmail-sync       reads new mail from the connected
+                                          mailbox (never sends)
+
+Gmail connect (docs/CRM_AI_ASSISTANT_PLAN.md):
+  GET  /api/crm/gmail/callback  Google's OAuth redirect. No session is needed:
+        the single-use `state` minted by the superadmin connect route is the
+        proof, and it names the admin who started the connect.
 
 Provider callback:
   POST /api/crm/internal/sendgrid-events  SendGrid event webhook. ECDSA P-256
@@ -157,6 +164,32 @@ def calendar_poll():
         return err
     from services.crm_calendar_service import run_poll
     return jsonify({'success': True, **run_poll()})
+
+
+@bp.route('/internal/gmail-sync', methods=['POST'])
+def gmail_sync():
+    err = _cron_or_superadmin()
+    if err:
+        return err
+    from services.crm_gmail_service import run_sync
+    return jsonify({'success': True, **run_sync()})
+
+
+@bp.route('/gmail/callback', methods=['GET'])
+@rate_limit(max_requests=20, window_seconds=3600)
+def gmail_callback():
+    from flask import redirect
+    from urllib.parse import quote
+    from services.crm_gmail_service import complete_connect
+    target = f"{Config.FRONTEND_URL.rstrip('/')}/admin/crm/today"
+    if request.args.get('error'):
+        return redirect(f"{target}?gmail_error={quote('Google sign-in was cancelled.')}")
+    try:
+        email = complete_connect(request.args.get('code') or '',
+                                 request.args.get('state') or '')
+    except ValueError as e:
+        return redirect(f"{target}?gmail_error={quote(str(e))}")
+    return redirect(f"{target}?gmail_connected={quote(email)}")
 
 
 def _verify_sendgrid_signature(public_key_b64: str, payload: bytes,

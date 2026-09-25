@@ -9,8 +9,10 @@ import LeadDetail from './LeadDetail'
 import SuppressionList from './SuppressionList'
 import PeopleList from './PeopleList'
 import PersonDetail from './PersonDetail'
+import TodayPage from './TodayPage'
 
 const TABS = [
+  { id: 'today', label: 'Today' },
   { id: 'funnels', label: 'Funnels' },
   { id: 'leads', label: 'Leads' },
   { id: 'people', label: 'People' },
@@ -42,6 +44,7 @@ const CrmConsole = () => {
 
       <Routes>
         <Route index element={<Navigate to="funnels" replace />} />
+        <Route path="today" element={<TodayPage />} />
         <Route path="funnels" element={<FunnelOverview />} />
         <Route path="funnels/new" element={<FunnelEditor />} />
         <Route path="funnels/:funnelId" element={<FunnelEditor />} />

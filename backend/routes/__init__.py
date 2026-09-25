@@ -239,6 +239,9 @@ def register_all(app):
     app.register_blueprint(platform_metrics.platform_metrics_bp, url_prefix='/api/admin')
     app.register_blueprint(audit_logs.bp, url_prefix='/api/admin/audit-logs')
     app.register_blueprint(admin_crm.bp)
+    # Same prefix: the assistant (Gmail, to-dos, drafts); no rule overlaps.
+    from routes.admin import crm_assistant as admin_crm_assistant
+    app.register_blueprint(admin_crm_assistant.bp)
 
     # ── Organization classes (classroom mgmt) ─────────────────────────────────
     from routes.classes import bp as classes_bp

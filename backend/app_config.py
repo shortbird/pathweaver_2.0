@@ -341,6 +341,15 @@ class Config:
     # Unset = only "anyone with the link" docs can be read; links still save.
     GOOGLE_DOCS_SA_KEY_B64 = os.getenv('GOOGLE_DOCS_SA_KEY_B64') or GOOGLE_ANALYTICS_SA_KEY_B64
 
+    # CRM mailbox (docs/CRM_AI_ASSISTANT_PLAN.md): an Internal OAuth web
+    # client in the Workspace's GCP project. The redirect URI must be listed on
+    # that client exactly; it defaults to this backend's callback route.
+    # Unset = the Connect Gmail button explains what is missing.
+    GMAIL_OAUTH_CLIENT_ID = os.getenv('GMAIL_OAUTH_CLIENT_ID')
+    GMAIL_OAUTH_CLIENT_SECRET = os.getenv('GMAIL_OAUTH_CLIENT_SECRET')
+    GMAIL_OAUTH_REDIRECT_URI = os.getenv('GMAIL_OAUTH_REDIRECT_URI') or (
+        f"{os.getenv('BACKEND_URL', '').rstrip('/')}/api/crm/gmail/callback")
+
     # Email sender identity (delivery goes through the SendGrid API)
     SENDER_EMAIL = os.getenv('SENDER_EMAIL', 'support@optioeducation.com')
     SENDER_NAME = os.getenv('SENDER_NAME', 'Optio Support')

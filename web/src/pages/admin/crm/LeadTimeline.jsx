@@ -44,6 +44,8 @@ const itemTitle = (item) => {
       const to = item.to || d.to
       return from && to ? `Status changed: ${from} to ${to}` : 'Status changed'
     }
+    case 'replied':
+      return `Replied${itemDetail(item).subject ? `: ${itemDetail(item).subject}` : ''}. Funnel paused.`
     default:
       return item.title || item.event_type || itemDetail(item).event_type || 'Event'
   }

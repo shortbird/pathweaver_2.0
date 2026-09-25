@@ -12,6 +12,8 @@ const clickDialogButton = async (label) => {
   fireEvent.click(within(dialog).getByRole('button', { name: label }))
 }
 
+// Email, to-dos and drafts have their own tests (ContactWorkspace.test.jsx).
+vi.mock('../ContactWorkspace', () => ({ default: () => null }))
 vi.mock('../crmApi', () => ({
   getLead: vi.fn(),
   convertLead: vi.fn(),

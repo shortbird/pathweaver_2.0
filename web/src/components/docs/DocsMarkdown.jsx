@@ -80,10 +80,31 @@ const MarkdownImage = ({ src, alt }) => {
   )
 }
 
+// Tables are styled element by element: the typography plugin is not
+// installed, so the prose-table/prose-th/prose-td modifiers above are inert.
+// `style` carries GFM column alignment (`| ---: |`) and must survive.
 const MarkdownTable = ({ children }) => (
-  <div className="not-prose-scroll overflow-x-auto my-6 rounded-xl border border-gray-200">
-    <table className="!my-0 min-w-full">{children}</table>
+  <div className="overflow-x-auto my-6 rounded-xl border border-gray-200">
+    <table className="w-full border-collapse text-sm">{children}</table>
   </div>
+)
+
+const MarkdownThead = ({ children }) => (
+  <thead className="bg-optio-purple/5 border-b border-gray-200">{children}</thead>
+)
+
+const MarkdownTr = ({ children }) => (
+  <tr className="border-b border-gray-100 last:border-b-0 even:bg-gray-50/60">{children}</tr>
+)
+
+const MarkdownTh = ({ children, style }) => (
+  <th style={style} className="px-4 py-3 text-left font-semibold text-gray-900 whitespace-nowrap">
+    {children}
+  </th>
+)
+
+const MarkdownTd = ({ children, style }) => (
+  <td style={style} className="px-4 py-2.5 text-gray-700 align-top">{children}</td>
 )
 
 const DocsMarkdown = ({ content, components = {} }) => (
@@ -94,6 +115,10 @@ const DocsMarkdown = ({ content, components = {} }) => (
         a: MarkdownLink,
         img: MarkdownImage,
         table: MarkdownTable,
+        thead: MarkdownThead,
+        tr: MarkdownTr,
+        th: MarkdownTh,
+        td: MarkdownTd,
         ...components,
       }}
     >

@@ -153,6 +153,13 @@ def main():
     _run("optio-billing-watch", f"{base}/api/sis/internal/optio-billing-watch",
          cron_secret, failures, base=base)
 
+    # Every run: read new mail from the CRM's connected Gmail mailbox. Reads
+    # only; nothing on a cron path sends from it (docs/CRM_AI_ASSISTANT_PLAN.md).
+    # Runs BEFORE the sweep: a lead's reply exits their funnel, and that has
+    # to land before the sweep mails them the next canned step. Unconnected =
+    # a cheap no-op; a long backfill spreads over runs on a time budget.
+    _run("crm-gmail-sync", f"{base}/api/crm/internal/gmail-sync", cron_secret, failures, base=base)
+
     # Every run: CRM funnel sweep (scheduled nurture/onboarding sends). The
     # send window (9-19 Denver), per-lead throttle, and postal-address gate
     # are all enforced server-side, so off-hours runs no-op cheaply.

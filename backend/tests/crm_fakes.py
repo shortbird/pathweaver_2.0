@@ -110,9 +110,14 @@ class FakeQuery:
         self.op = 'delete'
         return self
 
-    def upsert(self, payload):
+    def upsert(self, payload, on_conflict=None):
         self.op = 'upsert'
         self.payload = payload
+        self.on_conflict = on_conflict or 'key'
+        return self
+
+    def is_(self, col, val):
+        self.filters.append(('eq', col, None if val == 'null' else val))
         return self
 
     def eq(self, col, val):
@@ -137,6 +142,10 @@ class FakeQuery:
 
     def lt(self, col, val):
         self.filters.append(('lt', col, val))
+        return self
+
+    def lte(self, col, val):
+        self.filters.append(('lte', col, val))
         return self
 
     def gte(self, col, val):
@@ -181,6 +190,8 @@ class FakeQuery:
                 if not re.match(pattern, str(row.get(col) or ''), re.IGNORECASE):
                     return False
             if kind == 'lt' and not (str(row.get(col) or '') < str(val)):
+                return False
+            if kind == 'lte' and (row.get(col) is None or str(row.get(col)) > str(val)):
                 return False
             if kind == 'gte' and not (str(row.get(col) or '') >= str(val)):
                 return False
@@ -250,8 +261,9 @@ class FakeQuery:
                 inserted.append(dict(row))
             return FakeResult(inserted)
         if self.op == 'upsert':
-            key = self.payload.get('key')
-            existing = next((r for r in rows if r.get('key') == key), None)
+            conflict = getattr(self, 'on_conflict', 'key')
+            key = self.payload.get(conflict)
+            existing = next((r for r in rows if r.get(conflict) == key), None)
             if existing:
                 existing.update(self.payload)
                 return FakeResult([dict(existing)])

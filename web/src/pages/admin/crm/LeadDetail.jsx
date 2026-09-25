@@ -15,6 +15,7 @@ import { useConfirm } from '../../../contexts/ConfirmContext'
 import { PageLoader } from '../../../components/ui'
 import EmptyState from '../../../components/ui/EmptyState'
 import LeadTimeline from './LeadTimeline'
+import ContactWorkspace from './ContactWorkspace'
 import { toastDocWarning } from './NoteDoc'
 import MoveLeadModal from './MoveLeadModal'
 import {
@@ -224,10 +225,13 @@ const LeadDetail = () => {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Timeline */}
-        <div className="lg:col-span-2 bg-white rounded-xl border border-gray-200 shadow-sm p-4 sm:p-6">
-          <h3 className="text-lg font-bold text-gray-900 mb-4">Timeline</h3>
-          <LeadTimeline items={timeline} onDeleteNote={handleDeleteNote} onRefreshNote={handleRefreshNote} />
+        <div className="lg:col-span-2 space-y-6">
+          <ContactWorkspace email={lead.email} />
+          {/* Timeline */}
+          <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4 sm:p-6">
+            <h3 className="text-lg font-bold text-gray-900 mb-4">Timeline</h3>
+            <LeadTimeline items={timeline} onDeleteNote={handleDeleteNote} onRefreshNote={handleRefreshNote} />
+          </div>
         </div>
 
         {/* State + actions */}

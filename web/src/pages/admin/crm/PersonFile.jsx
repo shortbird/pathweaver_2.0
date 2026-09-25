@@ -10,6 +10,7 @@ import {
   getGoogleDocsReader,
 } from './crmApi'
 import NoteDoc, { toastDocWarning } from './NoteDoc'
+import ContactWorkspace from './ContactWorkspace'
 import { useConfirm } from '../../../contexts/ConfirmContext'
 import { PageLoader } from '../../../components/ui'
 import EmptyState from '../../../components/ui/EmptyState'
@@ -289,6 +290,8 @@ const PersonFile = ({ personId, showHeader = false }) => {
           </p>
         </div>
       )}
+
+      <ContactWorkspace email={person?.email} />
 
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4 sm:p-6">
         <h3 className="text-lg font-bold text-gray-900 mb-3">Add note</h3>

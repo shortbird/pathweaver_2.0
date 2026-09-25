@@ -11,6 +11,7 @@ vi.mock('./LeadDetail', () => ({ default: () => null }))
 vi.mock('./SuppressionList', () => ({ default: () => null }))
 vi.mock('./PeopleList', () => ({ default: () => <p>people list</p> }))
 vi.mock('./PersonDetail', () => ({ default: () => null }))
+vi.mock('./TodayPage', () => ({ default: () => <p>today page</p> }))
 
 const Where = () => <p data-testid="path">{useLocation().pathname}</p>
 
@@ -33,6 +34,12 @@ describe('CrmConsole', () => {
     mount('/admin/crm/nowhere/at/all')
     expect(await screen.findByText('funnel overview')).toBeInTheDocument()
     expect(screen.getByTestId('path')).toHaveTextContent(/^\/admin\/crm\/funnels$/)
+  })
+
+  it('has a Today tab', async () => {
+    mount('/admin/crm/today')
+    expect(await screen.findByText('today page')).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: 'Today' })).toBeInTheDocument()
   })
 
   it('has a People tab', async () => {
