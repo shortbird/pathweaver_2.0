@@ -6,6 +6,7 @@ Split from ``routes/tasks.py`` on 2026-04-14.
 from datetime import datetime
 
 from database import get_supabase_admin_client
+from middleware.rate_limiter import rate_limit
 from routes.tasks import bp
 from routes.tasks.xp_helpers import (
     add_pending_subject_xp,
@@ -52,6 +53,43 @@ def get_credit_status(user_id: str, task_id: str):
     except Exception as e:
         logger.error(f"Error getting credit status for task {task_id}: {str(e)}")
         return error_response(code='FETCH_ERROR', message='Failed to get credit status', status=500)
+
+
+@bp.route('/<task_id>/credit-precheck', methods=['POST'])
+@require_auth
+@student_scope()
+@rate_limit(max_requests=10, window_seconds=3600, per_user=True)
+def credit_precheck(user_id: str, task_id: str):
+    """An unofficial read of the work before the student requests credit.
+
+    Runs the reviewer's AI on the evidence as it stands and returns only the
+    student's projection of the answer (services/credit_ai_review/precheck.py).
+    Stores nothing and changes no status: the student still decides whether to
+    submit. 200 with ``available: false`` when there is no answer this time,
+    because "go ahead and submit" is the right thing for the UI to offer then,
+    not an error.
+    """
+    from services.credit_ai_review import precheck
+
+    # admin client justified: reads the caller's own task, completion and
+    # evidence (student_scope resolved user_id to the student), and the
+    # private quest-evidence bucket needs the service role to download from.
+    admin_supabase = get_supabase_admin_client()
+    try:
+        result = precheck.run_precheck(
+            student_id=user_id, task_id=task_id, admin=admin_supabase)
+    except LookupError:
+        return error_response(code='NOT_FOUND',
+                              message='Complete the task before checking it for credit.',
+                              status=404)
+    except ValueError:
+        return error_response(code='INVALID_STATE',
+                              message='This task is not waiting on a credit request.',
+                              status=400)
+    except precheck.PrecheckUnavailable as e:
+        return success_response(data={'available': False, 'reason': e.code})
+
+    return success_response(data={'available': True, **result})
 
 
 @bp.route('/<task_id>/request-credit', methods=['POST'])

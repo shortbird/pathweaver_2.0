@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react'
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { toast } from 'react-hot-toast'
 import api from '../services/api'
@@ -14,6 +15,44 @@ import useAiReviewPolling from '../hooks/useAiReviewPolling'
 import { useRerunAiReview } from '../hooks/api'
 import GlassTabBar from '../components/ui/GlassTabBar'
 import useIsMobile from '../hooks/useIsMobile'
+import { clearDraft, stashDraft } from '../components/credit-dashboard/reviewDraft'
+
+// The queue's place lives in the URL -- filters, page, the item open in the
+// grader -- so a reviewer who leaves for a student's profile comes back to the
+// same item, not the top of the list. Prefixed because this page also renders
+// inside /organization, whose own `tab` parameter must survive.
+const FILTER_KEYS = ['status', 'student', 'subject', 'date_from', 'date_to', 'ai']
+// "No status filter" is a choice, and has to be told apart from "never set",
+// which falls back to the role's default.
+const ANY_STATUS = 'any'
+
+export const queueSearch = (prev, { filters, page, itemId }) => {
+  const next = new URLSearchParams(prev)
+  FILTER_KEYS.forEach((key) => {
+    next.delete(`cr_${key}`)
+    if (filters[key]) next.set(`cr_${key}`, filters[key])
+  })
+  next.set('cr_status', filters.status || ANY_STATUS)
+  if (page > 1) next.set('cr_page', String(page))
+  else next.delete('cr_page')
+  if (itemId) next.set('cr_item', itemId)
+  else next.delete('cr_item')
+  return next
+}
+
+const filtersFromSearch = (params) => {
+  const filters = {}
+  FILTER_KEYS.forEach((key) => { filters[key] = params.get(`cr_${key}`) || '' })
+  if (filters.status === ANY_STATUS) filters.status = ''
+  return filters
+}
+
+/** Where the grader's student name goes: the student's overview page. */
+export const studentProfilePath = (item) => (
+  item.organization_id
+    ? `/admin/organizations/${item.organization_id}/student/${item.student_id}`
+    : `/admin/students/${item.student_id}`
+)
 
 /**
  * The credit review queue, and the grader that opens over it.
@@ -29,6 +68,19 @@ import useIsMobile from '../hooks/useIsMobile'
 const CreditReviewDashboardPage = ({ orgId = null }) => {
   const { effectiveRole } = useAuth()
   const isMobile = useIsMobile()
+  const navigate = useNavigate()
+  const { pathname } = useLocation()
+  const [searchParams, setSearchParams] = useSearchParams()
+  // Read once: the URL this page was opened with. A cr_status means the
+  // reviewer is coming back to a queue they left, so the role default below
+  // must not overwrite their filters.
+  const [restored] = useState(() => ({
+    fromUrl: searchParams.has('cr_status'),
+    filters: filtersFromSearch(searchParams),
+    page: Math.max(1, parseInt(searchParams.get('cr_page'), 10) || 1),
+  }))
+  // The item to reopen once the first page of the queue arrives.
+  const reopenItemRef = useRef(searchParams.get('cr_item'))
   // Holistic class credit is a superadmin function (platform class submissions
   // route to superadmin); only they see the Classes tab.
   const canReviewClasses = effectiveRole === 'superadmin'
@@ -41,7 +93,7 @@ const CreditReviewDashboardPage = ({ orgId = null }) => {
   const [stats, setStats] = useState(null)
   const [loading, setLoading] = useState(true)
   const [detailLoading, setDetailLoading] = useState(false)
-  const [filters, setFilters] = useState(() => ({
+  const [filters, setFilters] = useState(() => (restored.fromUrl ? restored.filters : {
     status: '',
     student: '',
     subject: '',
@@ -50,7 +102,7 @@ const CreditReviewDashboardPage = ({ orgId = null }) => {
     // Only superadmins get AI data back, so only they can filter on it.
     ai: ''
   }))
-  const [filtersInitialized, setFiltersInitialized] = useState(false)
+  const [filtersInitialized, setFiltersInitialized] = useState(restored.fromUrl)
 
   // Set default filters based on role
   useEffect(() => {
@@ -64,7 +116,7 @@ const CreditReviewDashboardPage = ({ orgId = null }) => {
     }
     setFiltersInitialized(true)
   }, [effectiveRole, filtersInitialized, orgId])
-  const [page, setPage] = useState(1)
+  const [page, setPage] = useState(restored.page)
   const [total, setTotal] = useState(0)
   const [showMergeModal, setShowMergeModal] = useState(false)
   const [showShortcuts, setShowShortcuts] = useState(false)
@@ -182,7 +234,12 @@ const CreditReviewDashboardPage = ({ orgId = null }) => {
       const list = data.items || []
       setItems(list)
       setTotal(data.total || 0)
-      if (continueOnLoadRef.current) {
+      if (reopenItemRef.current) {
+        const reopen = list.find(i => i.completion_id === reopenItemRef.current)
+        reopenItemRef.current = null
+        if (reopen) selectItem(reopen)
+        else toast('That request is no longer in this view of the queue.')
+      } else if (continueOnLoadRef.current) {
         continueOnLoadRef.current = false
         if (list.length) selectItem(list[0])
       }
@@ -298,6 +355,8 @@ const CreditReviewDashboardPage = ({ orgId = null }) => {
   }, [selectItem, fetchStats, fetchItems, closeGrader, total, page])
 
   const handleAdvance = useCallback((completionId) => {
+    // Decided: a kept note must not greet this work if it comes back.
+    clearDraft(completionId)
     optimisticRemove(completionId)
   }, [optimisticRemove])
 
@@ -341,6 +400,29 @@ const CreditReviewDashboardPage = ({ orgId = null }) => {
         : [...prev, completionId]
     )
   }, [])
+
+  // Keep the URL on the queue's place. Replace, not push: moving through the
+  // queue is not a trail of pages the browser's Back should walk.
+  const selectedCompletionId = selectedItem?.completion_id
+  useEffect(() => {
+    if (!filtersInitialized) return
+    setSearchParams((prev) => {
+      const next = queueSearch(prev, { filters, page, itemId: selectedCompletionId })
+      return next.toString() === prev.toString() ? prev : next
+    }, { replace: true })
+    // setSearchParams is left out: it changes identity with every location
+    // change, and the functional update already reads the current URL.
+  }, [filters, page, selectedCompletionId, filtersInitialized])
+
+  // The student's profile, with a way back to exactly this item. The note the
+  // reviewer has started is kept for when they return (reviewDraft).
+  const openStudent = useCallback((item, draft) => {
+    if (!item?.student_id) return
+    stashDraft(item.completion_id, draft)
+    const back = queueSearch(searchParams, { filters, page, itemId: item.completion_id })
+    const returnTo = `${pathname}?${back.toString()}`
+    navigate(`${studentProfilePath(item)}?returnTo=${encodeURIComponent(returnTo)}`)
+  }, [navigate, pathname, searchParams, filters, page])
 
   const selectedIndex = selectedItem
     ? items.findIndex(i => i.completion_id === selectedItem.completion_id)
@@ -495,6 +577,7 @@ const CreditReviewDashboardPage = ({ orgId = null }) => {
           onRerunAi={rerunAiReview}
           rerunAiLoading={rerunMutation.isPending}
           onOpenStory={openStory}
+          onOpenStudent={openStudent}
         />
       )}
 

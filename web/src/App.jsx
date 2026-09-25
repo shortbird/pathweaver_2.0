@@ -795,6 +795,9 @@ function App() {
               {/* Org Student Overview - accessible to org admins and advisors */}
               <Route element={<PrivateRoute requiredRole={["advisor", "org_admin", "superadmin"]} />}>
                 <Route path="admin/organizations/:orgId/student/:studentId" element={<OrgStudentOverviewPage />} />
+                {/* The same overview for a platform student, who has no org to
+                    put in the path (the credit grader links here). */}
+                <Route path="admin/students/:studentId" element={<OrgStudentOverviewPage />} />
               </Route>
 
               {/* Organization Classes - accessible to students (enrolled), advisors, org_admins, superadmin.

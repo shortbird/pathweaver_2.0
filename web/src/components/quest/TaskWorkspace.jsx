@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { PointerSensor, TouchSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { TrophyIcon, ChevronRightIcon } from '@heroicons/react/24/outline';
 import confetti from 'canvas-confetti';
@@ -10,6 +10,7 @@ import api from '../../services/api';
 import AddEvidenceModal from '../evidence/AddEvidenceModal';
 import TaskStepsModal from './TaskStepsModal';
 import StudentTaskEditModal from './StudentTaskEditModal';
+import CreditPrecheckModal from '../credit/CreditPrecheckModal';
 import { useAIAccess } from '../../contexts/AIAccessContext';
 import { useAuth } from '../../contexts/AuthContext';
 import useHidePillars from '../../hooks/useHidePillars';
@@ -43,7 +44,7 @@ const TaskWorkspace = ({
   onRemoveTask,
   onClose
 }) => {
-  const { canUseTaskGeneration } = useAIAccess();
+  const { canUseTaskGeneration, hasAccess: viewerHasAi } = useAIAccess();
   const { effectiveRole } = useAuth();
   // Family scope: every evidence read and write below names the child when a
   // parent is working on the child's task (hooks/useStudentScope).
@@ -72,6 +73,13 @@ const TaskWorkspace = ({
   const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false);
   const [isRequestingCredit, setIsRequestingCredit] = useState(false);
   const [creditStatus, setCreditStatus] = useState(null); // tracks diploma_status for current task
+  // The AI precheck shown before a credit request: open flag, and the answer
+  // (null while it runs). The ref names the task a check is running for, so an
+  // answer that arrives after the student closed the modal, or moved to
+  // another task, lands nowhere.
+  const [isPrecheckOpen, setIsPrecheckOpen] = useState(false);
+  const [precheck, setPrecheck] = useState(null);
+  const precheckForRef = useRef(null);
   // Portfolio curation: the viewer's completion row for this task (own work only).
   const [portfolioPick, setPortfolioPick] = useState(null); // { completionId, inPortfolio }
   const [isTogglingPortfolio, setIsTogglingPortfolio] = useState(false);
@@ -190,7 +198,7 @@ const TaskWorkspace = ({
     }
   };
 
-  const handleRequestCredit = async () => {
+  const submitCreditRequest = async () => {
     if (!task?.id) return;
     setIsRequestingCredit(true);
     try {
@@ -200,12 +208,50 @@ const TaskWorkspace = ({
         setCreditStatus(resData.diploma_status || 'pending_review');
         toast.success(resData.message || 'Diploma credit requested!');
       }
+      closePrecheck();
     } catch (err) {
       const errorMsg = err.response?.data?.message || 'Failed to request credit';
       toast.error(errorMsg);
     } finally {
       setIsRequestingCredit(false);
     }
+  };
+
+  const closePrecheck = () => {
+    precheckForRef.current = null;
+    setIsPrecheckOpen(false);
+    setPrecheck(null);
+  };
+
+  // Request Credit opens the AI precheck first; the student then submits or
+  // keeps working. Where AI is off for this student there is nothing to
+  // preview, and the button submits as it always did. The viewer's own flag
+  // only decides for their own work: in family scope the parent is the
+  // viewer, and the server checks the child.
+  const handleRequestCredit = async () => {
+    if (!task?.id) return;
+    if (!isDelegated && !viewerHasAi) {
+      submitCreditRequest();
+      return;
+    }
+    const taskId = task.id;
+    precheckForRef.current = taskId;
+    setPrecheck(null);
+    setIsPrecheckOpen(true);
+    let answer;
+    try {
+      const response = await api.post(`/api/tasks/${taskId}/credit-precheck`, { ...scopeParams });
+      answer = response.data?.data || response.data;
+    } catch (err) {
+      answer = { available: false, reason: err.response?.status === 429 ? 'rate_limited' : 'error' };
+    }
+    if (precheckForRef.current !== taskId) return;
+    if (!answer?.available && ['ai_disabled', 'disabled'].includes(answer?.reason)) {
+      closePrecheck();
+      submitCreditRequest();
+      return;
+    }
+    setPrecheck(answer);
   };
 
   // Save evidence blocks
@@ -717,6 +763,15 @@ const TaskWorkspace = ({
         onUpdate={handleUpdateEvidence}
         editingBlock={editingBlock}
         existingEvidence={evidenceBlocks}
+      />
+
+      <CreditPrecheckModal
+        isOpen={isPrecheckOpen}
+        precheck={precheck}
+        isSubmitting={isRequestingCredit}
+        isResubmit={creditStatus === 'grow_this'}
+        onSubmit={submitCreditRequest}
+        onClose={closePrecheck}
       />
 
       {/* Task Steps Modal - AI-powered step breakdown */}

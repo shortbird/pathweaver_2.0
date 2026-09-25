@@ -293,6 +293,7 @@ def get_dashboard_items(user_id: str):
                 'merged_into': c.get('merged_into'),
                 'evidence_block_count': evidence_counts.get(c['id'], 0),
                 'is_org_student': bool(student.get('organization_id')),
+                'organization_id': student.get('organization_id'),
                 'organization_name': org_names.get(student.get('organization_id')),
             })
 

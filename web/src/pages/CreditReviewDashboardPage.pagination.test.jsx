@@ -14,6 +14,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor, fireEvent } from '@testing-library/react'
 import CreditReviewDashboardPage from './CreditReviewDashboardPage'
+import { MemoryRouter } from 'react-router-dom'
 
 vi.mock('../services/api', () => ({
   default: { get: vi.fn(), post: vi.fn(), put: vi.fn(), delete: vi.fn() },
@@ -58,7 +59,7 @@ describe('credit dashboard pagination', () => {
       <QueryClientProvider client={new QueryClient({
         defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
       })}>
-        <CreditReviewDashboardPage />
+        <MemoryRouter><CreditReviewDashboardPage /></MemoryRouter>
       </QueryClientProvider>,
     )
     await waitFor(() => expect(itemsCalls().length).toBeGreaterThan(0))

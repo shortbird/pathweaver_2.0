@@ -14,6 +14,11 @@ import AdvisorStudentOverviewContent from '../../components/advisor/AdvisorStude
  * Org admins have edit access to student information.
  *
  * Route: /admin/organizations/:orgId/student/:studentId
+ *        /admin/students/:studentId  (a platform student, who has no org)
+ *
+ * `?returnTo=` sends Back somewhere other than the org's People tab: the
+ * credit grader links here with the queue's place in it, so Back reopens the
+ * same item. Only an in-app path is honoured.
  */
 export default function OrgStudentOverviewPage() {
   const { orgId, studentId } = useParams();
@@ -25,15 +30,20 @@ export default function OrgStudentOverviewPage() {
   // Org admins and superadmins can edit student information
   const canEdit = isAdmin || isSuperadmin;
   const returnTab = searchParams.get('tab') || 'people';
+  const returnTo = safeReturnTo(searchParams.get('returnTo'));
   // A school that runs the SIS console keeps the student's record there
   // (profile, family, contacts, schedule); this page is their learning
   // overview. One door to that record rather than a second editor here
   // (M13a; ticket 7962081e was filed from this page).
-  const sisRecord = isSuperadmin || (organization?.id === orgId && moduleEnabled(organization, 'sis'));
+  // No org, no school record to open.
+  const sisRecord = Boolean(orgId) && (isSuperadmin || (organization?.id === orgId && moduleEnabled(organization, 'sis')));
 
   const handleBack = () => {
-    navigate(`/organization?tab=${returnTab}`);
+    navigate(returnTo || `/organization?tab=${returnTab}`);
   };
+  const backLabel = returnTo?.startsWith('/credit-dashboard') || returnTo?.includes('cr_item=')
+    ? 'Back to grading'
+    : returnTo ? 'Back' : 'Back to People';
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -47,7 +57,7 @@ export default function OrgStudentOverviewPage() {
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
             </svg>
-            Back to People
+            {backLabel}
           </button>
           <div className="flex items-start justify-between gap-4">
             <div>
@@ -75,4 +85,10 @@ export default function OrgStudentOverviewPage() {
       </div>
     </div>
   );
+}
+
+/** An in-app path, or null. `//host` and absolute URLs would leave the app. */
+export function safeReturnTo(value) {
+  if (!value || !value.startsWith('/') || value.startsWith('//') || value.startsWith('/\\')) return null;
+  return value;
 }

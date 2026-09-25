@@ -134,6 +134,9 @@ def test_each_queue_row_names_the_students_organization(client):
     # A platform student has no org; the key is present and empty, not missing.
     assert items[PLATFORM_STUDENT_ID]['organization_name'] is None
     assert items[PLATFORM_STUDENT_ID]['is_org_student'] is False
+    # The id builds the grader's link to the student's profile page.
+    assert items[ORG_STUDENT_ID]['organization_id'] == ORG_ID
+    assert items[PLATFORM_STUDENT_ID]['organization_id'] is None
     # The timestamp the grader shows as "credit requested".
     assert items[ORG_STUDENT_ID]['submitted_at'] == REQUESTED_AT
 

@@ -3,6 +3,7 @@ import { toast } from 'react-hot-toast'
 import api from '../../services/api'
 import { useConfirm } from '../../contexts/ConfirmContext'
 import { latestAi, rescaleSubjects, sumSubjects } from './aiReview'
+import { clearDraft, readDraft } from './reviewDraft'
 
 export const XP_REASON_DEFAULT = 'Adjusted during credit review'
 // The platform floor (backend config.constants.MIN_TASK_XP). The server refuses
@@ -58,15 +59,19 @@ export default function useCreditDecision({
   }, [detail?.completion?.id])
 
   // A note typed for one student must not follow the reviewer to the next.
+  // The one exception is their own note on THIS item, kept while they looked
+  // at the student's profile (reviewDraft).
   useEffect(() => {
-    setFeedbackState('')
-    onFeedbackChange?.('')
+    const draft = readDraft(completionId)
+    setFeedbackState(draft)
+    onFeedbackChange?.(draft)
   }, [completionId])
 
   const setFeedback = useCallback((text) => {
+    clearDraft(completionId)
     setFeedbackState(text)
     onFeedbackChange?.(text)
-  }, [onFeedbackChange])
+  }, [onFeedbackChange, completionId])
 
   const completion = detail?.completion || {}
   const isSuperadmin = effectiveRole === 'superadmin'

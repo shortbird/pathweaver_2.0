@@ -139,20 +139,9 @@ class CreditAIReviewService(BaseAIService):
                                       criteria_source=criteria_source))
             return {'status': 'skipped', 'reason': 'no_readable_evidence'}
 
-        text = prompt_mod.build_prompt(
-            quest=context['quest'], task=context['task'],
-            criteria=criteria, criteria_source=criteria_source,
-            requested_xp=context['requested_xp'], subjects=context['subjects'],
-            load=load, resubmission=context.get('resubmission'))
-        parts = prompt_mod.build_parts(text, load)
-
         try:
-            result = self.generate_json_multimodal(
-                parts,
-                generation_config=GENERATION_CONFIG,
-                response_schema=RESPONSE_SCHEMA,
-                timeout=Config.CREDIT_AI_REVIEW_TIMEOUT,
-            )
+            review, result = self.ask(context, load, criteria, criteria_source,
+                                      timeout=Config.CREDIT_AI_REVIEW_TIMEOUT)
         except AICreditsExhaustedError as e:
             # Account-wide and permanent until somebody tops up billing. Retrying
             # burns the budget on a call that cannot succeed.
@@ -163,14 +152,6 @@ class CreditAIReviewService(BaseAIService):
             store.store_failure(self.admin, review_id, token, error=str(e),
                                 retryable=True, attempts=attempts)
             return {'status': 'retry', 'reason': type(e).__name__}
-
-        review = normalize_review(
-            result.data,
-            criteria=criteria, criteria_source=criteria_source, load=load,
-            requested_xp=context['requested_xp'],
-            resubmission=context.get('resubmission'),
-            model=result.model_name,
-            extra_flags=result.notes)
 
         usage = {
             'model': result.model_name,
@@ -191,6 +172,43 @@ class CreditAIReviewService(BaseAIService):
             f'pieces read, {result.input_tokens or 0} in / {result.output_tokens or 0} out '
             f'tokens on {result.model_name}')
         return {'status': 'complete', 'recommendation': review['recommendation']}
+
+    def ask(self, context: Dict[str, Any], load: evidence_loader.LoadResult,
+            criteria: List[str], criteria_source: str, *, timeout: int,
+            max_retries: Optional[int] = None):
+        """One question to the model, and the checked answer. Stores nothing.
+
+        Shared with the student's precheck (precheck.py) so the two are asked
+        the same question and held to the same refusals: a precheck that
+        disagreed with the review on the same evidence would be worse than none.
+        Raises the BaseAIService errors; the caller decides what they mean.
+        """
+        text = prompt_mod.build_prompt(
+            quest=context['quest'], task=context['task'],
+            criteria=criteria, criteria_source=criteria_source,
+            requested_xp=context['requested_xp'], subjects=context['subjects'],
+            load=load, resubmission=context.get('resubmission'))
+        parts = prompt_mod.build_parts(text, load)
+
+        # Only passed when set: the base default is Config.AI_MAX_RETRIES, and
+        # its signature types the argument as a plain int.
+        retries: Dict[str, int] = {} if max_retries is None else {'max_retries': max_retries}
+        result = self.generate_json_multimodal(
+            parts,
+            generation_config=GENERATION_CONFIG,
+            response_schema=RESPONSE_SCHEMA,
+            timeout=timeout,
+            **retries,
+        )
+
+        review = normalize_review(
+            result.data,
+            criteria=criteria, criteria_source=criteria_source, load=load,
+            requested_xp=context['requested_xp'],
+            resubmission=context.get('resubmission'),
+            model=result.model_name,
+            extra_flags=result.notes)
+        return review, result
 
     # ── context ──────────────────────────────────────────────────────────────
 

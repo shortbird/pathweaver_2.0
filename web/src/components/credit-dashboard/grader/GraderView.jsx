@@ -24,7 +24,7 @@ const GraderView = ({
   item, detail, loading, studentContext, effectiveRole,
   index, total, onPrev, onNext, onExit, onShowShortcuts,
   onAdvance, onRefresh, onFeedbackChange, feedbackTextareaRef, decisionRef,
-  onRerunAi, rerunAiLoading, onOpenStory,
+  onRerunAi, rerunAiLoading, onOpenStory, onOpenStudent,
 }) => {
   const decision = useCreditDecision({
     item, detail, effectiveRole,
@@ -82,10 +82,12 @@ const GraderView = ({
     || (ready && detail.student?.display_name)
     || 'Student'
   // A superadmin's queue mixes every org. The name alone does not say whose
-  // standard applies; a platform student has no org and gets no label.
+  // standard applies, so the school sits beside it, labelled, on every screen
+  // size. A platform student has no school and is labelled as such.
   const orgName = item?.organization_name
     || (ready && detail.student?.organization_name)
     || ''
+  const isPlatformStudent = item?.is_org_student === false && !orgName
   const taskTitle = item?.task_title || (ready && detail.task?.title) || ''
 
   return (
@@ -109,13 +111,31 @@ const GraderView = ({
         </button>
 
         <div className="flex-1 min-w-0 flex items-center gap-2">
-          <span className="truncate text-sm font-semibold text-gray-900">{studentName}</span>
+          {onOpenStudent && item?.student_id ? (
+            <button
+              type="button"
+              // The draft travels with the click so it is waiting on return.
+              onClick={() => onOpenStudent(item, decision.feedback)}
+              className="min-w-0 truncate text-sm font-semibold text-gray-900 hover:text-optio-purple hover:underline underline-offset-2"
+              title={`Open ${studentName}'s profile`}
+            >
+              {studentName}
+            </button>
+          ) : (
+            <span className="truncate text-sm font-semibold text-gray-900">{studentName}</span>
+          )}
           {orgName && (
             <span
-              className="shrink-0 max-w-[12rem] truncate rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600"
+              className="shrink-0 max-w-[10rem] sm:max-w-[16rem] truncate rounded-full bg-optio-purple/10 px-2 py-0.5 text-xs font-medium text-optio-purple"
               title={`Organization: ${orgName}`}
             >
+              <span className="sr-only">School: </span>
               {orgName}
+            </span>
+          )}
+          {isPlatformStudent && (
+            <span className="shrink-0 rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600">
+              No school
             </span>
           )}
           {taskTitle && (

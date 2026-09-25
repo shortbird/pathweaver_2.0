@@ -12,6 +12,7 @@ import { render, screen, waitFor, fireEvent, within } from '@testing-library/rea
 import api from '../services/api'
 import { toast } from 'react-hot-toast'
 import CreditReviewDashboardPage from './CreditReviewDashboardPage'
+import { MemoryRouter } from 'react-router-dom'
 import { ConfirmProvider } from '../contexts/ConfirmContext'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 
@@ -87,7 +88,7 @@ const renderPage = () => render(
   <QueryClientProvider client={new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   })}>
-    <ConfirmProvider><CreditReviewDashboardPage /></ConfirmProvider>
+    <ConfirmProvider><MemoryRouter><CreditReviewDashboardPage /></MemoryRouter></ConfirmProvider>
   </QueryClientProvider>,
 )
 
