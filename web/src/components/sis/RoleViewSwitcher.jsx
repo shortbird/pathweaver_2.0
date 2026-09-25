@@ -20,9 +20,11 @@ import { getMasqueradeState, startMasquerade, exitMasquerade } from '../../servi
  * org admin minus the money.
  *
  * Non-admins who hold several roles (Katie at Gryffin: parent + teacher)
- * keep the role view instead — they may not masquerade, so narrowing their
- * own session to one role (POST /api/role-view/<role>, signed httpOnly
- * cookie, utils/roles.apply_role_view) is their switcher.
+ * used to get a role dropdown here. Gone 2026-09-25: the surfaces split the
+ * roles already -- parent features live on the learning app, teacher and
+ * coordinator features in this console -- so a parent-teacher sees the
+ * teacher console here and the family pages there, with nothing to switch.
+ * A role view still active from before gets a way out below.
  */
 
 const ROLE_LABELS = {
@@ -34,8 +36,6 @@ const ROLE_LABELS = {
   observer: 'Observer',
 }
 
-const viewable = (roles = []) => roles.filter((r) => ROLE_LABELS[r])
-
 // The seats that may open somebody else's account, and so get the person
 // picker rather than the role dropdown. Mirrors token_authority; the server
 // still decides every individual person.
@@ -43,11 +43,6 @@ const PICKER_ROLES = ['superadmin', 'org_admin', 'campus_coordinator']
 
 const hasPersonPicker = (realRoles = []) => realRoles.some((r) => PICKER_ROLES.includes(r))
 
-export const offeredRoles = (realRoles = []) => {
-  if (hasPersonPicker(realRoles)) return []
-  const held = viewable(realRoles)
-  return held.length > 1 ? held : []
-}
 
 export const startRoleView = async (role, orgId = null) => {
   await api.post(`/api/role-view/${role}`, orgId ? { organization_id: orgId } : {})
@@ -75,8 +70,6 @@ const personLabel = (p) => {
   return roles.length ? `${p.name} — ${roles.join(', ')}` : p.name
 }
 
-const select = 'w-full rounded-lg border border-gray-300 bg-white px-2 py-1.5 text-sm text-neutral-800 focus:outline-none focus:ring-2 focus:ring-optio-purple disabled:opacity-50'
-
 const RoleViewSwitcher = ({ user, orgId = null }) => {
   const [busy, setBusy] = useState(false)
   const [people, setPeople] = useState(null)
@@ -86,7 +79,6 @@ const RoleViewSwitcher = ({ user, orgId = null }) => {
   const [loadError, setLoadError] = useState(null)
   const rv = user?.role_view
   const real = rv?.available_roles || []
-  const roles = offeredRoles(real)
   const active = rv?.active_role || null
   const masq = getMasqueradeState()
   const isSuperadmin = real.includes('superadmin')
@@ -184,15 +176,14 @@ const RoleViewSwitcher = ({ user, orgId = null }) => {
     )
   }
 
-  // No person picker, several roles: narrow the session to one of them.
-  if (!active && !roles.length) return null
+  // No person picker: only a role view left over from before needs a way out.
+  if (!active) return null
 
-  const pickRole = async (role) => {
+  const leaveRoleView = async () => {
     if (busy) return
     setBusy(true)
     try {
-      if (role) await startRoleView(role)
-      else await exitRoleView()
+      await exitRoleView()
     } catch (err) {
       toast.error(err?.response?.data?.error || 'Could not switch views')
       setBusy(false)
@@ -200,23 +191,11 @@ const RoleViewSwitcher = ({ user, orgId = null }) => {
   }
 
   return (
-    <div className="px-3 pt-3 space-y-2">
-      <label className="block">
-        <span className="block px-1 pb-1 text-[11px] font-semibold uppercase tracking-wide text-neutral-400">
-          Viewing as
-        </span>
-        <select value={active || ''} disabled={busy} onChange={(e) => pickRole(e.target.value || null)} className={select}>
-          <option value="">All roles</option>
-          {roles.map((r) => (
-            <option key={r} value={r}>{ROLE_LABELS[r]}</option>
-          ))}
-        </select>
-      </label>
-      {active && (
-        <p className="px-1 text-[11px] text-neutral-500">
-          The whole platform behaves as if this were your only role.
-        </p>
-      )}
+    <div className="px-3 pt-3">
+      <button onClick={leaveRoleView} disabled={busy}
+        className="w-full rounded-lg border border-amber-200 bg-amber-50 px-2 py-1.5 text-xs font-semibold text-amber-800 disabled:opacity-50">
+        Exit {ROLE_LABELS[active] || active} view
+      </button>
     </div>
   )
 }

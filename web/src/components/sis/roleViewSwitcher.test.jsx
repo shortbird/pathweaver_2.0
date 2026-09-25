@@ -4,8 +4,9 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 // "Viewing as" (2026-08-31): for the front office it is ONE searchable person
 // picker — no role dropdown. Picking a person starts a masquerade landed on
 // their own surface. Campus coordinators have the picker too (the server hands
-// them a shorter list). Everyone else with several roles keeps the role view
-// select.
+// them a shorter list). Nobody else gets a switcher (2026-09-25): parent
+// features live on the learning app and teacher features here, so a
+// parent-teacher has nothing to switch; a leftover role view keeps its exit.
 
 const apiMock = vi.hoisted(() => ({ get: vi.fn(), post: vi.fn() }))
 vi.mock('../../services/api', () => ({ default: apiMock }))
@@ -82,14 +83,18 @@ describe('RoleViewSwitcher — admin person picker', () => {
 })
 
 describe('RoleViewSwitcher — non-admin with several roles', () => {
-  it('keeps the role view select', () => {
+  it('offers no role switcher to a parent-teacher', () => {
     const katie = { role_view: { active_role: null, available_roles: ['parent', 'advisor'] } }
-    render(<RoleViewSwitcher user={katie} />)
-    const dropdown = screen.getByRole('combobox')
-    expect(dropdown).toBeInTheDocument()
-    expect(screen.getByRole('option', { name: 'Teacher' })).toBeInTheDocument()
-    expect(screen.getByRole('option', { name: 'Parent' })).toBeInTheDocument()
+    const { container } = render(<RoleViewSwitcher user={katie} />)
+    expect(container).toBeEmptyDOMElement()
     expect(apiMock.get).not.toHaveBeenCalled()
+  })
+
+  it('still lets a parent-teacher leave a role view started before', async () => {
+    const katie = { role_view: { active_role: 'parent', available_roles: ['parent', 'advisor'] } }
+    render(<RoleViewSwitcher user={katie} />)
+    fireEvent.click(await screen.findByText('Exit Parent view'))
+    await waitFor(() => expect(apiMock.post).toHaveBeenCalledWith('/api/role-view/exit', {}))
   })
 
   it('renders nothing for a single-role user', () => {
