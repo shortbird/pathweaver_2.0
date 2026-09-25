@@ -1,0 +1,33 @@
+{
+  "PROGRAM_NAME": "Music So Simple",
+  "PROGRAM_LOCATION": "Richardson, Texas",
+  "PROGRAM_CONTACT": "Stathia Orwig, Owner",
+  "PROGRAM_EMAIL": "stathia@musicsosimple.com",
+  "DATE": "September 21, 2026",
+  "CREDIT_ROWS": [
+    {
+      "subject": "Fine Arts",
+      "credit": "0.5",
+      "earns": "One term of weekly private or group music lessons at Music So Simple, with learning evidence recorded each week, ending with the term recital.",
+      "dates": [
+        "Fall: September to December",
+        "Spring: January to May"
+      ]
+    },
+    {
+      "subject": "Mathematics",
+      "credit": "0.5",
+      "earns": "Music theory study during the term, with learning evidence recorded each week, plus a passing score on the Texas State theory test.",
+      "dates": [
+        "Fall: September to December",
+        "Spring: January to May"
+      ]
+    }
+  ],
+  "OPTIO_FAMILY_CONTACT": "Emmeline Iglinski, emmeline@optioeducation.com",
+  "EVIDENCE_EXAMPLES": "a photo of the weekly assignment sheet, a short video of practice, or a few sentences about the lesson",
+  "PRICE": "$100",
+  "INVOICE_TIMING": "at the start of each term",
+  "PAYMENT_DAYS": "30",
+  "WITHDRAW_DAYS": "14"
+}

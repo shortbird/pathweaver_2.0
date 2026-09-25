@@ -1,0 +1,16 @@
+{
+  "PROGRAM_NAME": "XP League Clearwater",
+  "PROGRAM_LOCATION": "Clearwater, Florida",
+  "PROGRAM_CONTACT": "Christine Heins, Owner",
+  "PROGRAM_EMAIL": "christine.baron@xpleague.com",
+  "DATE": "September 25, 2026",
+  "CREDIT_ROWS": [
+    {"_blank": true, "subject": "[Subject]", "credit": "[0.5]", "earns": "[What a student does at XP League during one term to earn the credit. Add one row per subject.]", "dates": "[Season dates]"}
+  ],
+  "OPTIO_FAMILY_CONTACT": "Emmeline Iglinski, emmeline@optioeducation.com",
+  "EVIDENCE_EXAMPLES": "a screenshot or short clip from a match, notes from a team strategy session, or a few sentences about what they worked on in practice",
+  "PRICE": "$100",
+  "INVOICE_TIMING": "at the start of each term",
+  "PAYMENT_DAYS": "30",
+  "WITHDRAW_DAYS": "14"
+}

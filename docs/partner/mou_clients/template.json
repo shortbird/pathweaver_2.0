@@ -1,0 +1,28 @@
+{
+  "_blank": true,
+  "PROGRAM_NAME": "[Program name]",
+  "PROGRAM_LOCATION": "[City, State]",
+  "PROGRAM_CONTACT": "[Contact name, title]",
+  "PROGRAM_EMAIL": "[Contact email]",
+  "DATE": "[Date]",
+  "CREDIT_ROWS": [
+    {
+      "subject": "[Subject]",
+      "credit": "[0.5]",
+      "earns": "[What a student does in the Program during one term to earn the credit]",
+      "dates": "[Start month] to [end month]"
+    },
+    {
+      "subject": "[Subject]",
+      "credit": "[0.5]",
+      "earns": "[Add one row per subject. Delete rows you do not need.]",
+      "dates": "[Start month] to [end month]"
+    }
+  ],
+  "OPTIO_FAMILY_CONTACT": "[Optio contact name, email]",
+  "EVIDENCE_EXAMPLES": "[a photo of a worksheet, a short video of practice, or a few sentences about what they worked on]",
+  "PRICE": "[$100]",
+  "INVOICE_TIMING": "[at the start of each term]",
+  "PAYMENT_DAYS": "[30]",
+  "WITHDRAW_DAYS": "[14]"
+}

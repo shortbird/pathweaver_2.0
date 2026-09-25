@@ -1,11 +1,21 @@
 """Build the Optio Credit Partner MOU: a blank template and a filled copy.
 
-Usage: python3 build_mou.py
-Writes <name>.html and <name>.pdf next to this script for each variant, plus
-page previews (<name>-p<N>.png) for a visual check.
+Usage:
+    python3 build_mou.py <client>        # mou_clients/<client>.json
+    python3 build_mou.py path/to/x.json
+    python3 build_mou.py --all           # every file in mou_clients/
+
+Each client file holds the values for one MOU (see mou_clients/template.json
+for every field). Writes Optio_MOU_<Program>.pdf to the Desktop (the owner
+wants every MOU there), and the HTML it prints from plus page previews (PNG) to
+a temp directory for a visual check. The /MOU skill
+(.claude/skills/MOU) walks through filling in a new client file.
 """
+import glob
 import html
+import json
 import os
+import tempfile
 import re
 import subprocess
 import sys
@@ -13,6 +23,7 @@ import sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = "/Users/optio/pathweaver_2.0"
 CHROME = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
+OUT_DIR = os.path.expanduser("~/Desktop")
 
 with open(os.path.join(REPO, "marketing/public/images/OptioLogo-FullColor.svg")) as f:
     LOGO = re.sub(r"<\?xml[^>]*\?>\s*", "", f.read()).strip()
@@ -229,47 +240,32 @@ def row(subject, credit, earns, dates):
     return f"    <tr><td>{subject}</td><td>{credit}</td><td>{earns}</td><td>{dates}</td></tr>"
 
 
-TEMPLATE = {
-    "PROGRAM_NAME_PLAIN": "[Program name]",
-    "PROGRAM_NAME": fill("[Program name]"),
-    "PROGRAM_LOCATION": fill("[City, State]"),
-    "PROGRAM_CONTACT": fill("[Contact name, title]"),
-    "PROGRAM_EMAIL": fill("[Contact email]"),
-    "DATE": fill("[Date]"),
-    "CREDIT_ROWS": "\n".join([
-        row(fill("[Subject]"), fill("[0.5]"), fill("[What a student does in the Program during one term to earn the credit]"), fill("[Start month] to [end month]")),
-        row(fill("[Subject]"), fill("[0.5]"), fill("[Add one row per subject. Delete rows you do not need.]"), fill("[Start month] to [end month]")),
-    ]),
-    "OPTIO_FAMILY_CONTACT": fill("[Optio contact name, email]"),
-    "EVIDENCE_EXAMPLES": fill("[a photo of a worksheet, a short video of practice, or a few sentences about what they worked on]"),
-    "PRICE": fill("[$100]"),
-    "INVOICE_TIMING": fill("[at the start of each term]"),
-    "PAYMENT_DAYS": fill("[30]"),
-    "WITHDRAW_DAYS": fill("[14]"),
-}
+def load(path):
+    """Turn a client file into template values. Plain text is escaped; in the
+    blank template every value is wrapped as a field still to be filled in."""
+    with open(path) as f:
+        data = json.load(f)
+    blank = data.pop("_blank", False)
+    esc = fill if blank else html.escape
 
-MUSIC_SO_SIMPLE = {
-    "PROGRAM_NAME_PLAIN": "Music So Simple",
-    "PROGRAM_NAME": "Music So Simple",
-    "PROGRAM_LOCATION": "Richardson, Texas",
-    "PROGRAM_CONTACT": "Stathia Orwig, Owner",
-    "PROGRAM_EMAIL": "stathia@musicsosimple.com",
-    "DATE": "September 21, 2026",
-    "CREDIT_ROWS": "\n".join([
-        row("Fine Arts", "0.5",
-            "One term of weekly private or group music lessons at Music So Simple, with learning evidence recorded each week, ending with the term recital.",
-            "Fall: September to December<br>Spring: January to May"),
-        row("Mathematics", "0.5",
-            "Music theory study during the term, with learning evidence recorded each week, plus a passing score on the Texas State theory test.",
-            "Fall: September to December<br>Spring: January to May"),
-    ]),
-    "OPTIO_FAMILY_CONTACT": "Emmeline Iglinski, emmeline@optioeducation.com",
-    "EVIDENCE_EXAMPLES": "a photo of the weekly assignment sheet, a short video of practice, or a few sentences about the lesson",
-    "PRICE": "$100",
-    "INVOICE_TIMING": "at the start of each term",
-    "PAYMENT_DAYS": "30",
-    "WITHDRAW_DAYS": "14",
-}
+    def cells(r):
+        # A row marked "_blank" is left for the Program to fill in, even in a
+        # filled MOU (the client chooses its own subjects).
+        e = fill if r.get("_blank") else esc
+        return [
+            "<br>".join(e(x) for x in v) if isinstance(v, list) else e(v)
+            for v in (r["subject"], r["credit"], r["earns"], r["dates"])
+        ]
+
+    rows = data.pop("CREDIT_ROWS")
+    values = {key: esc(val) for key, val in data.items()}
+    values["PROGRAM_NAME_PLAIN"] = html.escape(data["PROGRAM_NAME"])
+    values["CREDIT_ROWS"] = "\n".join(row(*cells(r)) for r in rows)
+    if blank:
+        name = "Optio_Credit_Partner_MOU_Template"
+    else:
+        name = "Optio_MOU_" + re.sub(r"[^A-Za-z0-9]+", "_", data["PROGRAM_NAME"]).strip("_")
+    return name, values
 
 
 def render(values):
@@ -283,8 +279,9 @@ def render(values):
 
 
 def build(name, values):
-    html_path = os.path.join(HERE, name + ".html")
-    pdf_path = os.path.join(HERE, name + ".pdf")
+    work_dir = tempfile.mkdtemp(prefix="mou-")
+    html_path = os.path.join(work_dir, name + ".html")
+    pdf_path = os.path.join(OUT_DIR, name + ".pdf")
     with open(html_path, "w") as f:
         f.write(render(values))
     subprocess.run([
@@ -294,11 +291,24 @@ def build(name, values):
     import pymupdf
     doc = pymupdf.open(pdf_path)
     for i, page in enumerate(doc, 1):
-        page.get_pixmap(dpi=70).save(os.path.join(HERE, f"{name}-p{i}.png"))
+        page.get_pixmap(dpi=70).save(os.path.join(work_dir, f"{name}-p{i}.png"))
     print(f"{name}: {doc.page_count} pages -> {pdf_path}")
+    print(f"  html and previews: {work_dir}")
     return html_path, pdf_path
 
 
+def resolve(arg):
+    if arg.endswith(".json"):
+        return arg
+    return os.path.join(HERE, "mou_clients", arg + ".json")
+
+
 if __name__ == "__main__":
-    build("Optio_Credit_Partner_MOU_Template", TEMPLATE)
-    build("Optio_MOU_Music_So_Simple", MUSIC_SO_SIMPLE)
+    args = sys.argv[1:]
+    if not args:
+        sys.exit(__doc__)
+    paths = sorted(glob.glob(os.path.join(HERE, "mou_clients", "*.json"))) if args == ["--all"] else [resolve(a) for a in args]
+    for path in paths:
+        if not os.path.exists(path):
+            sys.exit(f"no client file: {path}")
+        build(*load(path))
