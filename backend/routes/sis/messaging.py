@@ -16,6 +16,10 @@ Sent view can say who read it. The staff-only /compose, and the families-only
 /family-audience and /compose-families, went with the two composers that called
 them. /recipients stays: the announcement composer's "only some staff" picker
 reads it.
+
+/audience and /send are STAFF_ROLES since 2026-09-25: a teacher composes too,
+to staff and to their own classes' students and families, always in their own
+name (message_compose_service explains the narrower rules).
 """
 
 from flask import Blueprint, request, jsonify
@@ -25,7 +29,7 @@ from utils.logger import get_logger
 from services import sis_service
 from services import message_compose_service as compose_service
 from services import sis_messaging_service as messaging
-from utils.sis_roles import ADMIN_ROLES
+from utils.sis_roles import ADMIN_ROLES, STAFF_ROLES
 
 logger = get_logger(__name__)
 
@@ -52,19 +56,20 @@ def recipients(user_id):
 
 
 @bp.route('/audience', methods=['GET'])
-@require_role(*ADMIN_ROLES)
+@require_role(*STAFF_ROLES)
 def audience(user_id):
     """Everybody Compose can write to, with the class split (teachers, aides,
     students) and the staff quick picks. The client filters by role, class and
-    age over this one answer."""
+    age over this one answer. A teacher gets their own audience."""
     org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
-    return jsonify({'success': True, **compose_service.audience(org_id)})
+    teacher_id = None if sis_service.caller_is_admin(user_id) else user_id
+    return jsonify({'success': True, **compose_service.audience(org_id, teacher_id=teacher_id)})
 
 
 @bp.route('/send', methods=['POST'])
-@require_role(*ADMIN_ROLES)
+@require_role(*STAFF_ROLES)
 def send(user_id):
     """One Compose send.
 
@@ -93,6 +98,7 @@ def send(user_id):
             email=data.get('email') is True,
             as_school=data.get('as_school') is True,
             attachments=data.get('attachments') or [],
+            as_teacher=not sis_service.caller_is_admin(user_id),
         )
     except ValueError as e:
         # Everything the sender can fix: nobody chosen, a stranger in the list,

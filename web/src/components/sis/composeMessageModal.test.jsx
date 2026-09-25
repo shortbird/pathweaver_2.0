@@ -22,7 +22,7 @@ vi.mock('react-hot-toast', () => ({
 }))
 vi.mock('../../pages/sis/useSisOrg', () => ({ withOrg: (url) => url }))
 
-import ComposeMessageModal, { filterPeople, classPartIds } from './ComposeMessageModal'
+import ComposeMessageModal, { filterPeople, classPartIds, senderFor } from './ComposeMessageModal'
 
 const TAM = { id: 'tam', name: 'Tam Teacher', kinds: ['staff', 'family'], staff_kinds: ['teacher'], role_labels: ['Teacher'], child_ids: ['ada'], children: ['Ada'] }
 const AL = { id: 'al', name: 'Al Aide', kinds: ['staff'], staff_kinds: ['teacher'], role_labels: ['Teacher'] }
@@ -40,6 +40,23 @@ const render = (ui) => {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return rtlRender(<QueryClientProvider client={client}>{ui}</QueryClientProvider>)
 }
+
+describe('senderFor', () => {
+  const counts = (staff, family = 0, student = 0) => ({ staff, family, student })
+  it('matches message_compose_service: families and students hear from the school', () => {
+    expect(senderFor({ asSchool: false, group: false, counts: counts(1, 1) })).toBe('school')
+    expect(senderFor({ asSchool: false, group: false, counts: counts(0, 0, 1) })).toBe('school')
+  })
+  it('staff written to separately hear from you, whichever tab', () => {
+    expect(senderFor({ asSchool: true, group: false, counts: counts(2) })).toBe('you')
+    expect(senderFor({ asSchool: false, group: false, counts: counts(2) })).toBe('you')
+  })
+  it('a staff group from the school tab is the school\'s; a teacher is always themselves', () => {
+    expect(senderFor({ asSchool: true, group: true, counts: counts(3) })).toBe('school')
+    expect(senderFor({ asSchool: false, group: true, counts: counts(3) })).toBe('you')
+    expect(senderFor({ asSchool: true, asTeacher: true, group: false, counts: counts(1, 1) })).toBe('you')
+  })
+})
 
 describe('filterPeople', () => {
   it('shows everybody with no filter', () => {
@@ -101,6 +118,16 @@ describe('ComposeMessageModal', () => {
     expect(body).toMatchObject({ mode: 'separate', push: false, email: true, as_school: true,
       body: 'Clay day Friday' })
     expect(onSent).toHaveBeenCalled()
+  })
+
+  // iCreate, 2026-09-25: "just to Molly", composed on the School tab, went
+  // out as the school. Who it comes from is said before it is sent.
+  it('says a note to a colleague comes from you, even from the school tab', async () => {
+    render(<ComposeMessageModal isOpen onClose={vi.fn()} asSchool orgName="iCreate" />)
+    fireEvent.click(await screen.findByLabelText('Select Kate Office'))
+    expect(screen.getByText('From:').parentElement).toHaveTextContent('From: You')
+    fireEvent.click(screen.getByLabelText('Select Mia Lark'))
+    expect(screen.getByText('From:').parentElement).toHaveTextContent('From: iCreate')
   })
 
   it('keeps a pick when the filter moves on', async () => {

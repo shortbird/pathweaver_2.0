@@ -31,8 +31,14 @@ import { useComposeAudience, useSendCompose } from '../../hooks/api/useSisMessag
  *   - The Optio message is always sent. Push and email are per-send toggles.
  *
  * Families and students always hear from the school, whichever tab this was
- * opened from, so their replies land in the School Inbox; staff hear from the
- * school on the School tab and from you on My messages.
+ * opened from, so their replies land in the School Inbox. Staff written to
+ * one at a time always hear from you (iCreate, 2026-09-25: a note "just to
+ * Molly" sent as the school went to the whole office). The dialog says which
+ * before anything is sent: `senderFor` mirrors message_compose_service.
+ *
+ * A teacher (asTeacher) sees only staff and their own classes' students and
+ * families, always writes as themselves, and has no email copy -- the server
+ * holds the same rules (message_compose_service).
  */
 
 export const ROLE_FILTERS = [
@@ -46,6 +52,17 @@ export const ROLE_FILTERS = [
 const KIND_WORDS = { staff: ['staff member', 'staff'], family: ['parent', 'parents'], student: ['student', 'students'] }
 
 const plural = (n, [one, many]) => `${n} ${n === 1 ? one : many}`
+
+/**
+ * Who a send will come from, as the server decides it
+ * (message_compose_service.compose): 'school' or 'you'. `counts` is
+ * {staff, family, student}.
+ */
+export const senderFor = ({ asSchool, asTeacher = false, group, counts }) => {
+  if (asTeacher) return 'you'
+  if (counts.family > 0 || counts.student > 0) return 'school'
+  return group && asSchool ? 'school' : 'you'
+}
 
 /** Does this person pass the role filter? An empty filter passes everyone. */
 const passesRole = (p, roles) => {
@@ -118,7 +135,7 @@ export default function ComposeMessageModal({ isOpen, ...props }) {
   return isOpen ? <ComposeDialog {...props} /> : null
 }
 
-function ComposeDialog({ orgId, asSchool = false, onClose, onSent }) {
+function ComposeDialog({ orgId, orgName = '', asSchool = false, asTeacher = false, onClose, onSent }) {
   const audienceQuery = useComposeAudience(orgId)
   const data = audienceQuery.isError ? {} : (audienceQuery.data || null)
   const sendMutation = useSendCompose(orgId)
@@ -177,6 +194,8 @@ function ComposeDialog({ orgId, asSchool = false, onClose, onSent }) {
     .map(([k, n]) => plural(n, KIND_WORDS[k])).join(', ')
   const hasFamily = counts.family > 0 || counts.student > 0
   const willBeGroup = mode === 'group' && chosen.size > 1
+  const school = orgName || 'the school'
+  const from = senderFor({ asSchool, asTeacher, group: willBeGroup, counts })
 
   const send = async () => {
     if (!chosen.size) { toast.error('Choose at least one person'); return }
@@ -189,8 +208,8 @@ function ComposeDialog({ orgId, asSchool = false, onClose, onSent }) {
         name: willBeGroup ? (name.trim() || undefined) : undefined,
         body: body.trim(),
         push,
-        email,
-        as_school: asSchool,
+        email: asTeacher ? false : email,
+        as_school: asTeacher ? false : asSchool,
       })
       toast.success(
         (result.mode === 'group'
@@ -242,6 +261,19 @@ function ComposeDialog({ orgId, asSchool = false, onClose, onSent }) {
         <p className="text-sm text-neutral-500">Loading…</p>
       ) : (
         <div className="space-y-4">
+          <div className="rounded-lg bg-neutral-50 border border-gray-200 px-3 py-2 text-sm" aria-live="polite">
+            <span className="text-neutral-500">From: </span>
+            <span className="font-semibold text-neutral-900">{from === 'school' ? school : 'You'}</span>
+            {!asTeacher && (
+              <span className="block text-xs text-neutral-500 mt-0.5">
+                {from === 'you'
+                  ? `Staff see your name, and their replies come to your My messages. Parents and students always hear from ${school}.`
+                  : hasFamily
+                    ? `Parents and students always hear from ${school}. Their replies come to the ${school} inbox.`
+                    : `A group from ${school}. Everyone in it sees that you wrote each message.`}
+              </span>
+            )}
+          </div>
           <section aria-label="Who gets it" className="space-y-3">
             <div>
               <span className="block text-xs font-medium text-neutral-600 mb-1">Show</span>
@@ -267,7 +299,8 @@ function ComposeDialog({ orgId, asSchool = false, onClose, onSent }) {
                 <span className="block text-xs font-medium text-neutral-600 mb-1">Class</span>
                 <SearchSelect value={classId} onChange={setClassId} options={classes}
                   getId={(c) => c.id} getLabel={(c) => c.name}
-                  placeholder="Every class" emptyLabel="Every class" />
+                  placeholder={asTeacher ? 'All my classes' : 'Every class'}
+                  emptyLabel={asTeacher ? 'All my classes' : 'Every class'} />
               </div>
               <div>
                 <span className="block text-xs font-medium text-neutral-600 mb-1">Student ages (optional)</span>
@@ -413,18 +446,21 @@ function ComposeDialog({ orgId, asSchool = false, onClose, onSent }) {
                 <input type="checkbox" checked={push} onChange={(e) => setPush(e.target.checked)} />
                 Push notification to their phone or browser
               </label>
-              <label className="flex items-start gap-2">
-                <input type="checkbox" className="mt-0.5" checked={email} onChange={(e) => setEmail(e.target.checked)} />
-                <span>
-                  Email
-                  <span className="block text-xs text-neutral-500">A copy by email, for people who do not open the app. Replies still come to Optio.</span>
-                </span>
-              </label>
+              {!asTeacher && (
+                <label className="flex items-start gap-2">
+                  <input type="checkbox" className="mt-0.5" checked={email} onChange={(e) => setEmail(e.target.checked)} />
+                  <span>
+                    Email
+                    <span className="block text-xs text-neutral-500">A copy by email, for people who do not open the app. Replies still come to Optio.</span>
+                  </span>
+                </label>
+              )}
             </div>
           </fieldset>
-          {hasFamily && (
+          {asTeacher && (
             <p className="text-xs text-neutral-500">
-              Families and students hear from the school, so their replies come to the School Inbox.
+              This comes from you, and replies come to your messages. You can write to staff,
+              and to the students and families in your classes.
             </p>
           )}
         </div>

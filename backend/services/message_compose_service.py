@@ -21,12 +21,13 @@ Now there is one picker and one send:
   Shape    'group': one thread everyone replies in. 'separate': a private
            thread each (the only shape that keeps one family's reply from
            every other family).
-  From     The School tab sends as the school, so replies land in the School
-           Inbox. My messages sends as the staff member -- except to families
-           and students, who are always written to by the school: a parent's
-           answer belongs in the queue the office works, not in one
+  From     Families and students are always written to by the school: a
+           parent's answer belongs in the queue the office works, not in one
            colleague's personal messages (the rule the families composer,
            sis_family_messaging_service until 2026-09-23, was built on).
+           Staff written to separately always hear from the person who wrote
+           (iCreate, 2026-09-25). A staff group sent from the School tab is
+           the school's; from My messages, the sender's.
   How      The Optio message is always stored. Push and email are per-send
            toggles: push=False keeps the bell and skips the phone; email reuses
            the announcement fan-out (one copy per mailbox, dependents routed to
@@ -34,6 +35,17 @@ Now there is one picker and one send:
 
 Every send is recorded (message_sends + message_send_recipients) so the Sent
 view can say "Read by 12 of 40" and list who.
+
+A teacher composes too (2026-09-25, the iCreate teacher training: the console
+gave teachers no way to start a message). Theirs is narrower on purpose:
+
+  Who      Any staff member, and the students and families of the teacher's
+           own classes. Nobody else's families.
+  From     Always the teacher. Replies come back to the teacher's My messages,
+           the way a message from a class's Messages tab does. The school
+           voice and the School Inbox stay the office's.
+  How      The Optio message and push. No email copy, and no Sent record: the
+           Sent view is the office's list of what the school sent.
 
 The recipient universe is checked on the server. Anybody who is not current
 staff, a current student, or the guardian of one is refused rather than
@@ -170,7 +182,11 @@ def staff_presets(staff: List[Dict[str, Any]], classes: List[Dict[str, Any]],
     return presets
 
 
-def audience(org_id: str) -> Dict[str, Any]:
+#: The staff quick picks a teacher gets. The weekday sets are the office's.
+TEACHER_PRESETS = ('all_teachers', 'all_staff', 'front_office')
+
+
+def audience(org_id: str, teacher_id: Optional[str] = None) -> Dict[str, Any]:
     """Everybody Compose can write to, with what each filter needs.
 
     {people: [{id, name, first_name, last_name, avatar_url, kinds: ['staff' |
@@ -182,6 +198,9 @@ def audience(org_id: str) -> Dict[str, Any]:
     row with both kinds, so they cannot be picked twice. Filtering happens on
     the client over this one answer -- role, class and age change as fast as
     the office clicks, and the whole school is a few hundred rows.
+
+    With `teacher_id`, the teacher's audience (module docstring): every staff
+    member, and only the classes, students and families that are theirs.
     """
     from services import school_inbox_service
     from utils.class_membership import guardians_by_student
@@ -191,9 +210,16 @@ def audience(org_id: str) -> Dict[str, Any]:
     staff = _staff(org_id)
     students = _students(org_id)
     class_rows = repo.active_classes(org_id)
+    if teacher_id:
+        from services import sis_service
+        mine = set(sis_service.advisor_class_ids(teacher_id, org_id))
+        class_rows = [c for c in class_rows if c['id'] in mine]
     class_ids = [c['id'] for c in class_rows]
     classes = class_parts(class_rows, repo.active_advisors_by_class(class_ids),
                           repo.active_enrollments(class_ids))
+    if teacher_id:
+        taught = {sid for c in classes for sid in c['student_ids']}
+        students = [s for s in students if s['student_id'] in taught]
 
     people: Dict[str, Dict[str, Any]] = {}
 
@@ -246,17 +272,25 @@ def audience(org_id: str) -> Dict[str, Any]:
     presets = staff_presets(staff, list(classes_by_id.values()),
                             repo.class_meeting_days(org_id, class_ids),
                             school_inbox_service.admin_recipient_ids(org_id))
+    if teacher_id:
+        presets = [p for p in presets if p['key'] in TEACHER_PRESETS]
     ordered = sorted(people.values(), key=lambda p: (p['name'] or '').lower())
     return {'people': ordered, 'classes': classes, 'presets': presets,
             'without_birthdate': without_birthdate}
 
 
-def _universe(org_id: str) -> Dict[str, str]:
+def _universe(org_id: str, teacher_id: Optional[str] = None) -> Dict[str, str]:
     """{user_id: kind} for everybody a send may name. A person with two kinds
     keeps the one that decides how they are written to: family or student (the
-    school writes) over staff."""
+    school writes) over staff. With `teacher_id`, only that teacher's students
+    and their families join the staff."""
     kinds: Dict[str, str] = {p['id']: 'staff' for p in _staff(org_id)}
     students = _students(org_id)
+    if teacher_id:
+        from services import sis_service
+        enrolled = _repo().active_enrollments(sis_service.advisor_class_ids(teacher_id, org_id))
+        taught = {sid for ids in enrolled.values() for sid in ids}
+        students = [s for s in students if s['student_id'] in taught]
     for s in students:
         kinds[s['student_id']] = 'student'
     for gid in _family_ids(students):
@@ -282,10 +316,12 @@ def compose(org_id: str, actor_id: str, *, body: str, recipient_ids: Iterable[st
             mode: str = 'separate', subject: Optional[str] = None,
             name: Optional[str] = None, push: bool = True, email: bool = False,
             as_school: bool = False,
-            attachments: Optional[List[Dict[str, Any]]] = None) -> Dict[str, Any]:
+            attachments: Optional[List[Dict[str, Any]]] = None,
+            as_teacher: bool = False) -> Dict[str, Any]:
     """Send one message to everyone in `recipient_ids`. See the module
     docstring. Raises ValueError on anything the sender can fix; the route
-    answers 400."""
+    answers 400. `as_teacher` is a teacher's send: their own audience, in
+    their own name, no email and no Sent record."""
     if mode not in MODES:
         raise ValueError('mode has to be "group" or "separate"')
     body = (body or '').strip()
@@ -297,18 +333,29 @@ def compose(org_id: str, actor_id: str, *, body: str, recipient_ids: Iterable[st
     wanted = [r for r in dict.fromkeys(recipient_ids or []) if r and r != actor_id]
     if not wanted:
         raise ValueError('Choose at least one person to message')
-    universe = _universe(org_id)
+    universe = _universe(org_id, teacher_id=actor_id if as_teacher else None)
     if any(r not in universe for r in wanted):
+        if as_teacher:
+            raise ValueError('You can message staff, and the students and families of your own classes')
         raise ValueError('Everyone you message has to be staff, a student or a parent at this school')
     kinds = {r: universe[r] for r in wanted}
 
     title = (subject or '').strip()
     content = f'{title}\n\n{body}' if title else body
     # Families and students are always written to by the school (see the
-    # module docstring); staff follow the tab the send came from.
-    school = as_school or any(k != 'staff' for k in kinds.values())
+    # module docstring). Staff written to one at a time always hear from the
+    # person, whichever tab it came from: a colleague's note sent as the school
+    # lands in the shared office inbox, where every admin reads it and nobody
+    # can tell who wrote it (iCreate, 2026-09-25: "just to Molly" went to the
+    # whole office). A school GROUP still belongs to the school -- group
+    # members see each message's real author (ac84b6cd).
+    group = mode == 'group' and len(wanted) > 1
+    school = any(k != 'staff' for k in kinds.values()) or (as_school and group)
+    if as_teacher:
+        # A teacher always writes as themselves (module docstring).
+        school, email = False, False
 
-    if mode == 'group' and len(wanted) > 1:
+    if group:
         result = _send_group(org_id, actor_id, wanted, kinds, content, name,
                              attachments, push=push, school=school)
     else:
@@ -321,8 +368,9 @@ def compose(org_id: str, actor_id: str, *, body: str, recipient_ids: Iterable[st
     if email and reached:
         emailed = _email(org_id, subject, body, reached)
 
-    send_id = _record(org_id, actor_id, mode=mode, as_school=school, subject=subject,
-                      body=body, push=push, email=email, result=result)
+    send_id = None if as_teacher else _record(
+        org_id, actor_id, mode=mode, as_school=school, subject=subject,
+        body=body, push=push, email=email, result=result)
     skipped = [r['user_id'] for r in result['recipients'] if r['status'] == 'skipped']
     return {'send_id': send_id, 'mode': mode, 'as_school': school,
             'group': result.get('group'), 'sent': len(reached),

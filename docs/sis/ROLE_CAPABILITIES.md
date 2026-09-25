@@ -88,7 +88,7 @@ Read off the decorators on 2026-09-10. Regenerate with
 ### Front office — `ADMIN_ROLES`
 
 `__init__.py` (people, households, roster), `registration.py`, `waitlist.py`,
-`clp.py`, `coordinator.py`, `messaging.py`, `prior_learning.py`,
+`clp.py`, `coordinator.py`, `prior_learning.py`,
 `schedule_ai.py`, `schedule_sync.py`, `reports.py`, `staff_admin.py`,
 `settings.py` (`PATCH /settings`, the one writer of the school's settings; the
 finance paths inside the blob are still held for a coordinator by
@@ -114,6 +114,12 @@ how a teacher, a parent or a student works a task assigned to them.
 Mixed tiers, where a teacher reads and the office writes: `attendance.py`,
 `catalog.py`, `curriculum.py`, `events.py`, `resources.py`,
 `staff_training.py`, `community.py`.
+
+`messaging.py` is two tiers (2026-09-25): Compose's `/audience` and `/send`
+are `STAFF_ROLES`, because a teacher composes too -- to staff and to their
+own classes' students and families, always in their own name, never as the
+school and never by email (`message_compose_service`). `/recipients` and the
+Sent view (`/sends`) stay `ADMIN_ROLES`.
 
 **Teachers are class-scoped, not org-scoped**, and that scoping is a MANUAL
 `sis_service.class_scope()` call in each handler, counted by

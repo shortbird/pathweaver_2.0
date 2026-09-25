@@ -77,10 +77,16 @@ def test_the_front_office_files_are_admin_gated(matrix):
     """Named in the document as ADMIN_ROLES. A file dropping to STAFF_ROLES here
     hands a teacher the front office."""
     for filename in ('registration.py', 'waitlist.py', 'clp.py', 'coordinator.py',
-                     'messaging.py', 'prior_learning.py', 'schedule_ai.py',
+                     'prior_learning.py', 'schedule_ai.py',
                      'schedule_sync.py'):
         assert matrix[filename]['tiers'] == ['ADMIN_ROLES'], (
             f'{filename} changed tier -- update the document or the route.')
+
+
+def test_messaging_is_compose_for_staff_and_the_rest_for_the_office(matrix):
+    """A teacher composes (2026-09-25); the Sent view and the staff recipient
+    list stay the office's. The document says so under messaging.py."""
+    assert matrix['messaging.py']['tiers'] == ['ADMIN_ROLES', 'STAFF_ROLES']
 
 
 def test_the_staff_files_admit_teachers(matrix):

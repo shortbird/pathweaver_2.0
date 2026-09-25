@@ -192,6 +192,35 @@ class TestCompose:
         school.assert_not_called()
         assert [c.args[1] for c in dm.send_message.call_args_list] == [TEACH, AIDE]
 
+    def test_staff_only_from_the_school_tab_is_personal_too(self, universe, repo):
+        """iCreate, 2026-09-25: a coordinator's "just to Molly" composed on the
+        School tab went out as the school, into the inbox the whole office
+        reads. A colleague written to on their own hears from the person."""
+        dm = Mock()
+        dm.send_message.return_value = _dm()
+        with patch('services.school_inbox_service.send_as_school') as school, \
+             patch('services.direct_message_service.DirectMessageService', return_value=dm):
+            result = compose.compose(ORG, KATE, body='Hi', recipient_ids=[TEACH],
+                                     mode='separate', as_school=True)
+        school.assert_not_called()
+        assert dm.send_message.call_args.args[:2] == (KATE, TEACH)
+        assert result['as_school'] is False
+        assert repo.create_send.call_args.args[0]['as_school'] is False
+
+    def test_a_staff_group_from_the_school_tab_stays_the_schools(self, universe, repo):
+        """Group members see each message's real author, so a staff group the
+        office sends keeps belonging to the school (ac84b6cd)."""
+        svc = Mock()
+        svc.create_school_group.return_value = {'id': 'g1'}
+        svc.send_message.return_value = {'id': 'gm1'}
+        with patch('services.group_message_service.GroupMessageService', return_value=svc), \
+             patch('services.school_inbox_service.school_account', return_value=({}, 'inbox')), \
+             patch.object(compose, '_default_name', return_value='Staff'):
+            result = compose.compose(ORG, KATE, body='Hi', recipient_ids=[TEACH, AIDE],
+                                     mode='group', as_school=True)
+        svc.create_school_group.assert_called_once()
+        assert result['as_school'] is True
+
     def test_push_off_reaches_every_send(self, universe, repo):
         with patch('services.school_inbox_service.send_as_school', return_value=_dm()) as send:
             compose.compose(ORG, KATE, body='Hi', recipient_ids=[MUM, ADA], push=False)

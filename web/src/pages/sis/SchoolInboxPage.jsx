@@ -90,7 +90,7 @@ const memberName = (convo) =>
   convo.other_user?.display_name || 'Member'
 
 const SchoolInboxPage = () => {
-  const { orgId, isSuperadmin } = useSisOrg()
+  const { orgId, isSuperadmin, activeOrg } = useSisOrg()
   const { user } = useAuth()
   const queryClient = useQueryClient()
   // Whether this caller has a school inbox to read at all. The backend is the
@@ -114,9 +114,12 @@ const SchoolInboxPage = () => {
   const rawTab = searchParams.get('tab')
   const tab = rawTab === 'mine' ? 'mine'
     : rawTab === 'sent' && admin ? 'sent'
-      // Default: the office opens on the queue it works, a teacher on their own
-      // threads (they have no school inbox to open).
-      : rawTab === 'school' ? 'school' : (admin ? 'school' : 'mine')
+      // Default: My messages, for everyone. The office used to open on the
+      // shared school inbox, and a coordinator who pressed Compose there wrote
+      // to a colleague as the school, into the inbox the whole office reads
+      // (iCreate, 2026-09-25). A bare ?conversation= is a school thread (the
+      // office's bell and the People-page Message panel link that way).
+      : rawTab === 'school' || (admin && !rawTab && searchParams.get('conversation')) ? 'school' : 'mine'
   const isMessages = tab === 'school' || tab === 'mine'
   // The school inbox is only ever read on the School tab. The office reads
   // all of it; anybody else reads the threads handed to them with a task.
@@ -170,6 +173,7 @@ const SchoolInboxPage = () => {
   // that is on screen.
   const orgName = listData?.organization?.name
     || grantedData?.organization?.name
+    || activeOrg?.name
     || queryClient.getQueryData(conversationsQueryKey(user?.id, schoolSource))?.organization?.name
     || ''
 
@@ -290,6 +294,9 @@ const SchoolInboxPage = () => {
     // was looking for is gone and the thread never opens.
     const next = new URLSearchParams(searchParams)
     next.delete('conversation')
+    // A bare ?conversation= chose the tab; pin it, or dropping the param
+    // would drop the office back onto My messages.
+    if (!next.get('tab')) next.set('tab', tab)
     setSearchParams(next, { replace: true })
   }, [wantedConversation, isMessages, conversations])
 
@@ -419,12 +426,12 @@ const SchoolInboxPage = () => {
           <h1 className="text-2xl font-bold text-neutral-900">Messaging</h1>
           <p className="text-sm text-neutral-500 mt-0.5">
             {viewingSchool ? (
-              <>Messages families and staff send to {orgName ? <span className="font-medium">{orgName}</span> : 'the school'} —
-                replies go out under the school&apos;s name.</>
+              <>The shared {orgName ? <span className="font-medium">{orgName}</span> : 'school'} inbox. Everyone in the
+                office reads it, and replies go out as {orgName || 'the school'}.</>
             ) : viewingGranted ? (
               <>Threads the office gave you with a task. Your replies go out from {orgName || 'the school'} with your name.</>
             ) : tab === 'mine' ? (
-              <>Your own threads — replies come from you, not the school.</>
+              <>Your own threads. Staff see your name; parents and students always hear from {orgName || 'the school'}.</>
             ) : (
               <>Messages sent with Compose, and who has read them.</>
             )}
@@ -436,7 +443,7 @@ const SchoolInboxPage = () => {
       <GlassTabBar
         align="start" size="md" className="mb-4" aria-label="Messaging sections"
         tabs={[
-          ...(admin || hasGranted || viewingGranted ? [{ id: 'school', label: orgName || 'School',
+          ...(admin || hasGranted || viewingGranted ? [{ id: 'school', label: `${orgName || 'School'} inbox`,
             badge: tab === 'school' && totalUnread > 0 ? totalUnread : null }] : []),
           { id: 'mine', label: 'My messages', badge: tab === 'mine' && totalUnread > 0 ? totalUnread : null },
           ...(admin ? [{ id: 'sent', label: 'Sent' }] : []),
@@ -447,7 +454,9 @@ const SchoolInboxPage = () => {
       <ComposeMessageModal
         isOpen={!!compose}
         orgId={isSuperadmin ? orgId : null}
+        orgName={orgName}
         asSchool={compose === 'school'}
+        asTeacher={!admin}
         onClose={() => setCompose(null)}
         onSent={() => {
           queryClient.invalidateQueries({ queryKey: ['conversations'] })
@@ -467,12 +476,8 @@ const SchoolInboxPage = () => {
 
       {tab === 'sent' ? (
         <div className="bg-white border border-gray-200 rounded-xl overflow-hidden min-h-[300px]">
-          <div className="border-b border-gray-100 p-3 flex justify-end">
-            <button type="button" onClick={() => setCompose('school')}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-optio-purple/40 px-3 py-2 text-sm font-semibold text-optio-purple hover:bg-optio-purple/5 transition-colors">
-              <PencilSquareIcon className="w-4 h-4" /> Compose
-            </button>
-          </div>
+          {/* No Compose here: it always wrote as the school, from a tab that
+              does not say so. Compose lives with the thread lists. */}
           <SentMessagesPanel key={orgId || 'own'} orgId={isSuperadmin ? orgId : null} />
         </div>
       ) : (
@@ -482,8 +487,10 @@ const SchoolInboxPage = () => {
           selected || selectedGroup ? 'hidden md:flex' : 'flex'}`}>
           {/* One Compose for everything (bf8b754d). From the School tab it
               writes as the school; from My messages, as you (families and
-              students always hear from the school -- see the modal). */}
-          {admin && (
+              students always hear from the school -- see the modal). A
+              teacher composes as themselves, to staff and their own classes
+              (message_compose_service), and not from a granted School tab. */}
+          {(admin || !viewingGranted) && (
             <div className="border-b border-gray-100 p-3">
               <button type="button" onClick={() => setCompose(viewingSchool ? 'school' : 'mine')}
                 className="w-full inline-flex items-center justify-center gap-1.5 rounded-lg border border-optio-purple/40 px-3 py-2 text-sm font-semibold text-optio-purple hover:bg-optio-purple/5 transition-colors">
