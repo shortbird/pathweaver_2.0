@@ -45,12 +45,17 @@ const CLASSES = [
 ]
 
 // Route every source through a URL-keyed mock so tests can vary each feed.
-function mockApi({ tasks = [], invitations = [], classes = [] } = {}) {
+function mockApi({ tasks = [], invitations = [], classes = [], submissions = [] } = {}) {
   api.get.mockImplementation((url) => {
+    if (url.includes('/api/sis/submissions')) {
+      return submissions instanceof Error
+        ? Promise.reject(submissions)
+        : Promise.resolve({ data: { submissions, counts: { new: submissions.length, reviewed: 0 } } })
+    }
     if (url.includes('/api/teacher/pending-verifications')) {
       return tasks instanceof Error
         ? Promise.reject(tasks)
-        : Promise.resolve({ data: { tasks } })
+        : Promise.resolve({ data: { pending_verifications: tasks } })
     }
     if (url.includes('/api/advisor/quest-invitations')) {
       return invitations instanceof Error
@@ -223,8 +228,24 @@ describe('TeacherHome for an SIS org', () => {
     expect(await screen.findByText('Nothing waiting on you right now.')).toBeInTheDocument()
   })
 
+  it('reads the review queue from SIS Submissions and opens it in the console', async () => {
+    mockApi({
+      classes: CLASSES,
+      submissions: [{
+        completion_id: 'c-1', task: { title: 'Write a sonnet' },
+        student: { name: 'Jordan Rivera' }, quest_title: 'Poetry',
+      }],
+    })
+    renderHome()
+
+    expect(await screen.findByText('1 submission waiting for review')).toBeInTheDocument()
+    expect(api.get).not.toHaveBeenCalledWith('/api/teacher/pending-verifications')
+    await userEvent.click(screen.getByText('Write a sonnet'))
+    expect(switchSurfaceInApp).toHaveBeenCalledWith('sis', '/classes?tab=submissions&completion_id=c-1')
+  })
+
   it('hides the waiting strip when the only remaining feed errors', async () => {
-    mockApi({ tasks: new Error('boom'), classes: CLASSES })
+    mockApi({ submissions: new Error('boom'), classes: CLASSES })
     renderHome()
 
     await screen.findByText('Morning Advisory')

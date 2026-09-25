@@ -142,6 +142,7 @@ export default function SchoolAdminHome() {
         verifications={teaching.verifications}
         invitations={teaching.invitations}
         showInvitations={!sisEnabled}
+        sisEnabled={sisEnabled}
       />
       <MyClasses classes={teaching.classes} sisEnabled={sisEnabled} />
       {/* An admin can be assigned the school's own training like anybody else,

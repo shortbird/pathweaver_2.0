@@ -50,12 +50,28 @@ export function useTeacherHomeData(userId, sisEnabled) {
     refetchOnWindowFocus: false,
   }
 
-  // Same endpoint TeacherVerificationPage reads.
+  // Work waiting for review, as { items, count }. A SIS school reviews in the
+  // console's Submissions tab, so its queue is read from there; everyone else
+  // reads the endpoint TeacherVerificationPage reads.
   const verifications = useQuery({
-    queryKey: ['teacher-home', 'pending-verifications', userId],
+    queryKey: ['teacher-home', 'pending-verifications', userId, sisEnabled],
     queryFn: async () => {
+      if (sisEnabled) {
+        const response = await api.get(`/api/sis/submissions?scope=new&limit=${QUEUE_PREVIEW_COUNT}`)
+        const subs = response.data?.submissions || []
+        return {
+          count: response.data?.counts?.new ?? subs.length,
+          items: subs.map((s) => ({
+            completion_id: s.completion_id,
+            task_title: s.task?.title,
+            student_name: s.student?.name,
+            quest_title: s.quest_title,
+          })),
+        }
+      }
       const response = await api.get('/api/teacher/pending-verifications')
-      return response.data?.tasks || []
+      const items = response.data?.pending_verifications || []
+      return { count: items.length, items }
     },
     ...common,
   })
@@ -86,8 +102,27 @@ export function useTeacherHomeData(userId, sisEnabled) {
   return { verifications, invitations, classes }
 }
 
+/**
+ * A way into the review queue: the console's Submissions tab at a SIS school,
+ * the learning app's verification page anywhere else.
+ */
+function QueueLink({ sisEnabled, completionId, className, children }) {
+  if (sisEnabled) {
+    const path = completionId
+      ? `/classes?tab=submissions&completion_id=${completionId}`
+      : '/classes?tab=submissions'
+    return (
+      <button type="button" onClick={() => switchSurfaceInApp('sis', path)}
+        className={`text-left w-full ${className}`}>
+        {children}
+      </button>
+    )
+  }
+  return <Link to="/advisor/verification" className={className}>{children}</Link>
+}
+
 /** "Waiting on you" — the triage strip. Failed sources drop out silently. */
-export function WaitingOnYou({ verifications, invitations, showInvitations }) {
+export function WaitingOnYou({ verifications, invitations, showInvitations, sisEnabled = false }) {
   const invitationsOut = !showInvitations || invitations.isError
   const bothFailed = verifications.isError && invitationsOut
 
@@ -97,11 +132,12 @@ export function WaitingOnYou({ verifications, invitations, showInvitations }) {
     (verifications.isLoading && !verifications.isError) ||
     (!invitationsOut && invitations.isLoading)
 
-  const pendingTasks = verifications.data || []
+  const pendingTasks = verifications.data?.items || []
+  const pendingCount = verifications.data?.count || 0
   const pendingInvitations = invitations.data || []
   const allClear =
     !loading &&
-    (verifications.isError || pendingTasks.length === 0) &&
+    (verifications.isError || pendingCount === 0) &&
     (invitationsOut || pendingInvitations.length === 0)
 
   return (
@@ -125,10 +161,10 @@ export function WaitingOnYou({ verifications, invitations, showInvitations }) {
           </div>
         )}
 
-        {!loading && !verifications.isError && pendingTasks.length > 0 && (
+        {!loading && !verifications.isError && pendingCount > 0 && (
           <div className="p-4">
-            <Link
-              to="/advisor/verification"
+            <QueueLink
+              sisEnabled={sisEnabled}
               className="group flex items-center justify-between gap-3"
             >
               <span className="flex items-center gap-3 min-w-0">
@@ -136,17 +172,18 @@ export function WaitingOnYou({ verifications, invitations, showInvitations }) {
                   <ClipboardDocumentCheckIcon className="w-5 h-5 text-optio-purple" />
                 </span>
                 <span className="text-sm font-semibold text-gray-900 group-hover:text-optio-purple">
-                  {pendingTasks.length} submission{pendingTasks.length !== 1 ? 's' : ''} waiting for review
+                  {pendingCount} submission{pendingCount !== 1 ? 's' : ''} waiting for review
                 </span>
               </span>
               <ChevronRightIcon className="w-4 h-4 text-gray-400 group-hover:text-optio-purple flex-shrink-0" />
-            </Link>
+            </QueueLink>
 
             <ul className="mt-3 space-y-1.5">
               {pendingTasks.slice(0, QUEUE_PREVIEW_COUNT).map((task) => (
                 <li key={task.completion_id || task.task_id}>
-                  <Link
-                    to="/advisor/verification"
+                  <QueueLink
+                    sisEnabled={sisEnabled}
+                    completionId={sisEnabled ? task.completion_id : null}
                     className="block border border-gray-100 bg-gray-50/60 rounded-lg px-3 py-2 hover:border-optio-purple/60 transition-all"
                   >
                     <span className="block text-sm font-medium text-gray-900 truncate">
@@ -156,17 +193,17 @@ export function WaitingOnYou({ verifications, invitations, showInvitations }) {
                       {task.student_name}
                       {task.quest_title ? ` · ${task.quest_title}` : ''}
                     </span>
-                  </Link>
+                  </QueueLink>
                 </li>
               ))}
             </ul>
-            {pendingTasks.length > QUEUE_PREVIEW_COUNT && (
-              <Link
-                to="/advisor/verification"
+            {pendingCount > QUEUE_PREVIEW_COUNT && (
+              <QueueLink
+                sisEnabled={sisEnabled}
                 className="inline-block mt-2 text-sm font-medium text-optio-purple hover:underline"
               >
-                View all {pendingTasks.length}
-              </Link>
+                View all {pendingCount}
+              </QueueLink>
             )}
           </div>
         )}
@@ -304,6 +341,7 @@ export default function TeacherHome() {
         verifications={verifications}
         invitations={invitations}
         showInvitations={!sisEnabled}
+        sisEnabled={sisEnabled}
       />
       <MyClasses classes={classes} sisEnabled={sisEnabled} />
       {/* Training the school set for its staff lands on this account; a teacher

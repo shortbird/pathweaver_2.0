@@ -454,8 +454,9 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, isPinned, onTogglePin, isHovere
 
   // Teaching (blocks P2): the LMS-only teacher's daily surfaces, so an advisor
   // is not dependent on TeacherHome tiles to reach their own tools. On SIS orgs
-  // class work lives in the console (the launcher below), so only the
-  // verification queue — an LMS feature SIS teachers still use — stays here.
+  // class work lives in the console (the launcher below), so the review queue
+  // item hops to the console's Submissions tab. The LMS verification page never
+  // listed an org-managed student's work, so it was an empty page for them.
   //
   // An org admin holds every capability a teacher holds, so the section is
   // theirs too. At a microschool the admin is the teacher (Horizon, 2026-09-11):
@@ -478,8 +479,9 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, isPinned, onTogglePin, isHovere
       })
     }
     teachingItems.push({
-      name: 'Verifications',
+      name: sisEnabled ? 'Submissions' : 'Verifications',
       path: '/advisor/verification',
+      sisPath: sisEnabled ? '/classes?tab=submissions' : null,
       icon: (
         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
@@ -668,7 +670,9 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, isPinned, onTogglePin, isHovere
                       <Link
                         key={item.path}
                         to={item.path}
-                        onClick={handleNavClick}
+                        onClick={item.sisPath
+                          ? (e) => { e.preventDefault(); switchSurfaceInApp('sis', item.sisPath); handleNavClick() }
+                          : handleNavClick}
                         title={!isExpanded ? item.name : undefined}
                         className={`
                           flex items-center rounded-lg relative

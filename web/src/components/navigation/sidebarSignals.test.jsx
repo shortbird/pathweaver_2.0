@@ -307,9 +307,9 @@ describe('Sidebar — the teaching section', () => {
     expect(screen.getByRole('link', { name: /^quest invitations$/i })).toBeInTheDocument()
   })
 
-  it('moves class work to the console for a SIS teacher, and keeps verifications', () => {
-    // On a SIS org, classes and invitations live in the console; the
-    // verification queue is an LMS feature SIS teachers still use, so it stays.
+  it('moves class work to the console for a SIS teacher, review queue included', () => {
+    // On a SIS org, classes and invitations live in the console, and the review
+    // queue item is "Submissions", which opens the console's Submissions tab.
     authState.user = teacher()
     orgState = {
       organization: { id: 'org-1', slug: 'sis', feature_flags: { sis_enabled: true } },
@@ -318,7 +318,8 @@ describe('Sidebar — the teaching section', () => {
     renderSidebar()
     expect(screen.queryByRole('link', { name: /^my classes$/i })).not.toBeInTheDocument()
     expect(screen.queryByRole('link', { name: /^quest invitations$/i })).not.toBeInTheDocument()
-    expect(screen.getByRole('link', { name: /^verifications$/i })).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: /^verifications$/i })).not.toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /^submissions$/i })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /school admin/i })).toBeInTheDocument()
   })
 
@@ -348,7 +349,7 @@ describe('Sidebar — the teaching section', () => {
     }
     renderSidebar()
     expect(screen.queryByRole('link', { name: /^my classes$/i })).not.toBeInTheDocument()
-    expect(screen.getByRole('link', { name: /^verifications$/i })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /^submissions$/i })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /school admin/i })).toBeInTheDocument()
   })
 

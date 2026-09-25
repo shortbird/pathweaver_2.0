@@ -46,11 +46,13 @@ def get_pending_verifications(user_id):
 
         org_id = advisor_response.data['organization_id']
 
-        # Get all students in the organization
+        # Get all students in the organization. An org member's role is
+        # 'org_managed' and the student part lives in org_role, so asking for
+        # role='student' alone found nobody at a school.
         students_response = admin.table('users')\
             .select('id, display_name, email')\
             .eq('organization_id', org_id)\
-            .eq('role', 'student')\
+            .or_('role.eq.student,org_role.eq.student')\
             .execute()
 
         if not students_response.data:
@@ -63,31 +65,33 @@ def get_pending_verifications(user_id):
         student_ids = [s['id'] for s in students_response.data]
         students_map = {s['id']: s for s in students_response.data}
 
-        # Get task completions that haven't been verified yet
-        # Using credit_status = 'pending' or NULL for unverified tasks
+        # Task completions no teacher has reviewed yet. subject_verified_at is
+        # set by an approve or a reject (migration 20260925120000).
         completions_response = admin.table('quest_task_completions')\
             .select('id, user_id, task_id, quest_id, user_quest_task_id, completed_at, evidence_url, evidence_text')\
             .in_('user_id', student_ids)\
+            .is_('subject_verified_at', 'null')\
             .order('completed_at', desc=True)\
             .limit(100)\
             .execute()
 
-        # Get task details for the completions
+        # The tasks behind them, with their quest's title, in one read. This
+        # was a query per completion (a hundred round trips for a full queue).
+        completions = completions_response.data or []
+        task_ids = list({c.get('user_quest_task_id') or c.get('task_id')
+                         for c in completions if c.get('user_quest_task_id') or c.get('task_id')})
+        tasks_map = {}
+        if task_ids:
+            tasks_response = admin.table('user_quest_tasks')\
+                .select('id, title, description, pillar, xp_value, subject_xp_distribution, quests(title)')\
+                .in_('id', task_ids)\
+                .execute()
+            tasks_map = {t['id']: t for t in (tasks_response.data or [])}
+
         pending_tasks = []
-        for completion in completions_response.data or []:
-            # Get task info - use user_quest_task_id which links to user_quest_tasks
+        for completion in completions:
             task_id = completion.get('user_quest_task_id') or completion.get('task_id')
-            task_data = {}
-            if task_id:
-                try:
-                    task_response = admin.table('user_quest_tasks')\
-                        .select('title, pillar, xp_value, subject_xp_distribution')\
-                        .eq('id', task_id)\
-                        .maybe_single()\
-                        .execute()
-                    task_data = task_response.data if task_response.data else {}
-                except Exception:
-                    logger.debug("intentional swallow", exc_info=True)  # Task may not exist
+            task_data = tasks_map.get(task_id, {})
             student = students_map.get(completion.get('user_id'), {})
 
             pending_tasks.append({
@@ -96,8 +100,10 @@ def get_pending_verifications(user_id):
                 'student_name': student.get('display_name') or student.get('email', 'Unknown'),
                 'task_id': task_id,
                 'task_title': task_data.get('title', 'Unknown Task'),
+                'description': task_data.get('description'),
                 'pillar': task_data.get('pillar'),
                 'quest_id': completion.get('quest_id'),
+                'quest_title': (task_data.get('quests') or {}).get('title'),
                 'completed_at': completion.get('completed_at'),
                 'xp_awarded': task_data.get('xp_value', 0),
                 'subject_distribution': task_data.get('subject_xp_distribution'),
@@ -202,26 +208,30 @@ def verify_task_completion(user_id, task_completion_id):
 
         # Get the task completion
         completion_response = admin.table('quest_task_completions')\
-            .select('*, user_quest_tasks!inner(user_id)')\
+            .select('id, user_id')\
             .eq('id', task_completion_id)\
-            .single()\
+            .limit(1)\
             .execute()
 
         if not completion_response.data:
             raise NotFoundError('Task completion not found')
 
-        completion = completion_response.data
-        task_data = completion.get('user_quest_tasks', {})
-        student_id = task_data.get('user_id')
+        student_id = completion_response.data[0].get('user_id')
 
-        # Verify the student is assigned to this advisor
-        student_response = admin.table('users')\
-            .select('advisor_id')\
-            .eq('id', student_id)\
-            .single()\
+        # The queue is the teacher's whole school, so the check is the same:
+        # the student belongs to the reviewer's organization (a superadmin may
+        # review anyone). This read users.advisor_id, a column that has never
+        # existed, so every approve failed.
+        people = admin.table('users')\
+            .select('id, role, organization_id')\
+            .in_('id', [user_id, student_id])\
             .execute()
-
-        if not student_response.data or student_response.data.get('advisor_id') != user_id:
+        by_id = {p['id']: p for p in (people.data or [])}
+        reviewer = by_id.get(user_id) or {}
+        student = by_id.get(student_id) or {}
+        same_school = bool(reviewer.get('organization_id')) and \
+            reviewer.get('organization_id') == student.get('organization_id')
+        if not (reviewer.get('role') == 'superadmin' or same_school):
             return jsonify({
                 'success': False,
                 'error': 'You are not authorized to verify this student\'s work'

@@ -60,7 +60,7 @@ function mockHappyApi({ tasks = TASKS, myClasses = MY_CLASSES } = {}) {
       return Promise.resolve({ data: creditStatsPayload })
     }
     if (url.includes('/api/teacher/pending-verifications')) {
-      return Promise.resolve({ data: { tasks } })
+      return Promise.resolve({ data: { pending_verifications: tasks } })
     }
     if (url.includes('/api/advisor/quest-invitations')) {
       return Promise.resolve({ data: { invitations: [] } })

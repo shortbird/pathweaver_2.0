@@ -5,6 +5,15 @@ import { useAuth } from '../contexts/AuthContext'
 import api from '../services/api'
 import VerificationModal from '../components/verification/VerificationModal'
 import { useConfirm } from '../contexts/ConfirmContext'
+import { sumSubjects } from '../components/credit-dashboard/aiReview'
+
+// Quick Approve accepts the suggested split as it stands, so it is offered
+// only when that split exists and adds up to the task's XP -- the same bar the
+// review dialog holds a hand-made split to.
+const splitIsComplete = (task) => {
+  const total = sumSubjects(task.subject_distribution)
+  return total > 0 && (!task.xp_awarded || total === task.xp_awarded)
+}
 
 const TeacherVerificationPage = () => {
   const confirm = useConfirm()
@@ -25,7 +34,7 @@ const TeacherVerificationPage = () => {
       setLoading(true)
       setError(null)
       const response = await api.get('/api/teacher/pending-verifications')
-      setPendingTasks(response.data.tasks || [])
+      setPendingTasks(response.data.pending_verifications || [])
     } catch (err) {
       console.error('Error fetching pending tasks:', err)
       setError(err.response?.data?.error || 'Failed to load pending verifications')
@@ -40,12 +49,12 @@ const TeacherVerificationPage = () => {
     }
 
     try {
-      setProcessingTaskId(task.task_id)
+      setProcessingTaskId(task.completion_id)
       setError(null)
 
-      await api.post(`/api/teacher/verify/${task.completion_id || task.task_id}`, {
+      await api.post(`/api/teacher/verify/${task.completion_id}`, {
         action: 'approve',
-        subject_distribution: task.subject_xp_distribution,
+        subject_distribution: task.subject_distribution,
         notes: 'Quick approved with AI distribution'
       })
 
@@ -61,15 +70,15 @@ const TeacherVerificationPage = () => {
   const handleOpenModal = (task) => {
     // Transform task data to match VerificationModal's expected format
     setSelectedCompletion({
-      completion_id: task.completion_id || task.task_id,
+      completion_id: task.completion_id,
       task_title: task.task_title,
       student_name: task.student_name,
       student_id: task.student_id,
       quest_title: task.quest_title,
       quest_id: task.quest_id,
-      xp_awarded: task.xp_value || 0,
-      completed_at: task.submitted_at || task.completed_at,
-      aiProposedDistribution: task.subject_xp_distribution
+      xp_awarded: task.xp_awarded || 0,
+      completed_at: task.completed_at,
+      aiProposedDistribution: task.subject_distribution
     })
   }
 
@@ -118,7 +127,7 @@ const TeacherVerificationPage = () => {
         <div className="space-y-4">
           {pendingTasks.map((task) => (
             <div
-              key={task.task_id}
+              key={task.completion_id}
               className="bg-white rounded-xl border border-gray-200 shadow-sm hover:border-optio-purple/60 transition-all p-6"
             >
               <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
@@ -146,7 +155,7 @@ const TeacherVerificationPage = () => {
                       Proposed Subject Alignment (AI-Generated):
                     </h4>
                     <div className="flex flex-wrap gap-2">
-                      {task.subject_xp_distribution && Object.entries(task.subject_xp_distribution).map(([subject, xp]) => (
+                      {task.subject_distribution && Object.entries(task.subject_distribution).map(([subject, xp]) => (
                         <span
                           key={subject}
                           className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-optio-purple bg-opacity-10 text-optio-purple"
@@ -157,9 +166,9 @@ const TeacherVerificationPage = () => {
                     </div>
                   </div>
 
-                  {task.submitted_at && (
+                  {task.completed_at && (
                     <p className="text-xs text-gray-500 mt-3">
-                      Submitted: {new Date(task.submitted_at).toLocaleString()}
+                      Submitted: {new Date(task.completed_at).toLocaleString()}
                     </p>
                   )}
                 </div>
@@ -167,14 +176,15 @@ const TeacherVerificationPage = () => {
                 <div className="flex flex-col gap-2 lg:min-w-[200px]">
                   <button
                     onClick={() => handleQuickApprove(task)}
-                    disabled={processingTaskId === task.task_id}
+                    disabled={processingTaskId === task.completion_id || !splitIsComplete(task)}
+                    title={splitIsComplete(task) ? undefined : 'No complete subject split to accept. Use Review & Verify.'}
                     className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium text-sm"
                   >
-                    {processingTaskId === task.task_id ? 'Processing...' : 'Quick Approve'}
+                    {processingTaskId === task.completion_id ? 'Processing...' : 'Quick Approve'}
                   </button>
                   <button
                     onClick={() => handleOpenModal(task)}
-                    disabled={processingTaskId === task.task_id}
+                    disabled={processingTaskId === task.completion_id}
                     className="btn-primary"
                   >
                     Review & Verify

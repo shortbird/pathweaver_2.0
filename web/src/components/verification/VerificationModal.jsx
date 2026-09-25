@@ -1,32 +1,31 @@
 import React, { useState } from 'react';
 import api from '../../services/api';
-import SubjectDistributionEditor from './SubjectDistributionEditor';
+import SubjectSplitEditor from '../credit-dashboard/grader/SubjectSplitEditor';
+import { sumSubjects } from '../credit-dashboard/aiReview';
 
+/**
+ * A teacher's review of one task completion (schools without the SIS).
+ *
+ * The split is XP per diploma subject, in the platform's own subjects, edited
+ * with the credit dashboard's editor. It used to be percentages over seven
+ * subjects that exist nowhere else ("english", "arts", "other"), seeded from
+ * an XP split, so a proposal never added up to 100 and nothing could pass.
+ */
 export default function VerificationModal({ completion, onClose, onSuccess }) {
-  const [distribution, setDistribution] = useState(
-    completion.aiProposedDistribution || {
-      english: 0,
-      math: 0,
-      science: 0,
-      social_studies: 0,
-      arts: 0,
-      physical_education: 0,
-      other: 0
-    }
-  );
+  const targetXp = completion.xp_awarded || 0;
+  const [distribution, setDistribution] = useState(completion.aiProposedDistribution || {});
   const [notes, setNotes] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  const getTotalPercentage = () => {
-    return Object.values(distribution).reduce((sum, val) => sum + (val || 0), 0);
-  };
-
-  const isValid = getTotalPercentage() === 100;
+  const total = sumSubjects(distribution);
+  const isValid = total > 0 && (!targetXp || total === targetXp);
 
   const handleApprove = async () => {
     if (!isValid) {
-      setError('Subject distribution must total 100%');
+      setError(targetXp
+        ? `The subjects must add up to ${targetXp} XP`
+        : 'Give the XP at least one subject');
       return;
     }
 
@@ -130,14 +129,14 @@ export default function VerificationModal({ completion, onClose, onSuccess }) {
           <div>
             <h3 className="font-semibold text-gray-900 mb-3">Diploma Subject Distribution</h3>
             <p className="text-sm text-gray-600 mb-4">
-              Adjust the sliders to assign this task's credit across diploma subjects.
-              The AI has proposed an initial distribution based on the task content.
+              Split this task&apos;s XP across diploma subjects. It starts from the
+              subjects suggested when the task was made.
             </p>
-            <SubjectDistributionEditor
-              distribution={distribution}
+            <SubjectSplitEditor
+              subjects={distribution}
               onChange={setDistribution}
-              showAIProposal={!!completion.aiProposedDistribution}
-              aiProposal={completion.aiProposedDistribution}
+              editable
+              targetXp={targetXp || null}
             />
           </div>
 
