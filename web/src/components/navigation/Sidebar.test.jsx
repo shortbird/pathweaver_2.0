@@ -527,3 +527,36 @@ describe('Sidebar — Custom Class link visibility', () => {
     expect(customClassLink()).toHaveAttribute('href', '/my-classes')
   })
 })
+
+describe('Sidebar — Optio Academy banner for platform students', () => {
+  beforeEach(() => {
+    authState = { user: null, logout: vi.fn(), isAuthenticated: true }
+    orgState = { organization: null }
+  })
+
+  it('invites a platform student to register, linking to the Academy funnel', () => {
+    authState.user = { id: 'u1', role: 'student', email: 's@example.com' }
+    renderSidebar()
+    const banner = screen.getByTestId('academy-banner')
+    expect(banner).toHaveAttribute('href', '/enroll/optio-academy')
+    expect(banner).toHaveTextContent(/official high school diploma/i)
+  })
+
+  it('does not show it to a student who is already in a school', () => {
+    authState.user = { id: 'u1', role: 'org_managed', org_role: 'student', organization_id: 'org-1', email: 's@example.com' }
+    renderSidebar()
+    expect(screen.queryByTestId('academy-banner')).not.toBeInTheDocument()
+  })
+
+  it('does not show it to a dependent (under 13, parent-run account)', () => {
+    authState.user = { id: 'u1', role: 'student', is_dependent: true }
+    renderSidebar()
+    expect(screen.queryByTestId('academy-banner')).not.toBeInTheDocument()
+  })
+
+  it('does not show it to a parent', () => {
+    authState.user = { id: 'u1', role: 'parent', email: 'p@example.com' }
+    renderSidebar()
+    expect(screen.queryByTestId('academy-banner')).not.toBeInTheDocument()
+  })
+})

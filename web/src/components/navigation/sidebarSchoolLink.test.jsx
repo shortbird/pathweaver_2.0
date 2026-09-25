@@ -73,6 +73,9 @@ describe('Sidebar — school page link', () => {
   it('shows nothing to someone in no school', () => {
     authState.user = { id: 'u1', role: 'student', email: 's@example.com' }
     renderSidebar()
-    expect(screen.queryByRole('link', { name: /school/i })).not.toBeInTheDocument()
+    // Match the school item itself: a platform student's Optio Academy banner
+    // mentions "high school" and is not a school link.
+    expect(screen.queryByRole('link', { name: /^(my school|school pages)$/i })).not.toBeInTheDocument()
+    expect(screen.queryAllByRole('link').filter((l) => l.getAttribute('href') === '/school')).toHaveLength(0)
   })
 })

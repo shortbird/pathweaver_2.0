@@ -40,3 +40,11 @@ export const inOptioAcademy = ({ user, school } = {}) => {
 /** The same question asked of a school-context org entry (SchoolPage). */
 export const isFamilyFirstHubOrg = (org) =>
   Boolean(org?.family_first_home) || isOptioAcademyOrg(org?.organization_id)
+
+/**
+ * The Optio Academy registration funnel. `optio-academy` is the invitation code
+ * in org_invitations (marketing/src/data/site.ts carries the same path as
+ * OFFER.academyEnrollPath). The funnel is parent-only: a student who opens it
+ * is asked for a parent account.
+ */
+export const OPTIO_ACADEMY_ENROLL_PATH = '/enroll/optio-academy'

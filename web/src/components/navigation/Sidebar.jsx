@@ -17,6 +17,7 @@ import { ageFromDob, CLASS_MIN_AGE } from '../../utils/age'
 import { moduleEnabled } from '../../modules/moduleEnabled'
 import { useSchoolContext } from '../../hooks/api/useSchoolContext'
 import { familyNavItemsFor } from '../../pages/school/schoolCards'
+import { OPTIO_ACADEMY_ENROLL_PATH } from '../../config/optioAcademy'
 
 const HOME_ICON = (
   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -579,6 +580,12 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, isPinned, onTogglePin, isHovere
   const isCampusCoordinator = userHasRole('campus_coordinator')
   const showSisLauncher = user?.role === 'superadmin' || (sisEnabled && (hasOrgAdminAccess || isAdvisor || isCampusCoordinator))
 
+  // Optio Academy invitation for platform students: no school, so their quests
+  // earn XP but no transcript credit. Dependents are left out -- they are under
+  // 13 and their parent already runs the account. The funnel is parent-only,
+  // so the copy says a parent does the registering.
+  const showAcademyBanner = user?.role === 'student' && !user?.organization_id && !user?.is_dependent
+
   const handleNavClick = () => {
     if (onClose) {
       onClose()
@@ -712,6 +719,38 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, isPinned, onTogglePin, isHovere
 
           </nav>
         </div>
+
+        {showAcademyBanner && (
+          <div className="border-t border-gray-200 p-2">
+            {isExpanded ? (
+              <Link
+                to={OPTIO_ACADEMY_ENROLL_PATH}
+                onClick={handleNavClick}
+                data-testid="academy-banner"
+                className="block rounded-lg bg-gradient-primary text-white p-3 font-poppins hover:opacity-90 transition-opacity"
+              >
+                <span className="block text-sm font-semibold">Want an official high school diploma?</span>
+                <span className="block mt-1 text-xs leading-snug text-white/90">
+                  Have a parent register you for Optio Academy and turn your quests into real high school credit.
+                </span>
+                <span className="block mt-2 text-xs font-semibold underline underline-offset-2">Register for Optio Academy</span>
+              </Link>
+            ) : (
+              <Link
+                to={OPTIO_ACADEMY_ENROLL_PATH}
+                onClick={handleNavClick}
+                title="Register for Optio Academy"
+                aria-label="Register for Optio Academy"
+                className="w-full flex items-center justify-center rounded-lg bg-gradient-primary text-white min-h-[44px] touch-manipulation px-3 py-3 hover:opacity-90"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 14l9-5-9-5-9 5 9 5z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 14l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z" />
+                </svg>
+              </Link>
+            )}
+          </div>
+        )}
 
 
         {/* Masquerade Banner (when admin is viewing as another user) */}
