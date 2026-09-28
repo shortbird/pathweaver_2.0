@@ -48,6 +48,7 @@ from utils.auth.relationships import require_relationship_to
 from utils.api_response import success_response, error_response
 from utils.logger import get_logger
 from utils.accreditation import resolve_transcript_accreditation
+from utils.transcript_grades import compute_gpa, normalize_grade
 from services import academy_enrollment_service as academy_enrollment
 from utils.storage_urls import sign_stored_url
 from app_config import Config
@@ -304,7 +305,8 @@ def get_transcript_data(admin_user_id, user_id):
                 'class_credits': round(total_class_credits, 2),
                 'transfer_credits': round(total_transfer_credits, 2),
                 'planned_credits': round(total_planned_credits, 2),
-                'total_completed': round(total_earned_credits + total_class_credits + total_transfer_credits, 2)
+                'total_completed': round(total_earned_credits + total_class_credits + total_transfer_credits, 2),
+                'gpa': compute_gpa(earned_credits, class_credits, transfer_credits),
             }
         })
 
@@ -444,9 +446,10 @@ def update_course_names(admin_user_id, transfer_credit_id):
 
     Request body:
         course_names: dict - Per-subject course breakdowns, e.g.:
-            {"cte": [{"name": "Woodworking", "credits": 0.5}, {"name": "Auto Shop", "credits": 1.0}]}
+            {"cte": [{"name": "Woodworking", "credits": 0.5, "grade": "B"}, {"name": "Auto Shop", "credits": 1.0}]}
 
     Course credits within a subject must sum to the subject's total credits.
+    A course's grade is optional (A-F); without one it prints as an A.
     """
     try:
         # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
@@ -478,6 +481,16 @@ def update_course_names(admin_user_id, transfer_credit_id):
                 )
             if not isinstance(courses, list):
                 return error_response(f'Courses for "{subject}" must be a list', status_code=400)
+
+            for course in courses:
+                try:
+                    grade = normalize_grade(course.get('grade'))
+                except ValueError as e:
+                    return error_response(str(e), status_code=400)
+                if grade:
+                    course['grade'] = grade
+                else:
+                    course.pop('grade', None)
 
             total_course_credits = sum(float(c.get('credits', 0)) for c in courses)
             subject_credits = round(subject_xp[subject] / XP_PER_CREDIT, 2)

@@ -44,6 +44,16 @@ const CourseBreakdownEditor = ({
                 placeholder="Credits"
                 className="w-24 px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500"
               />
+              <select
+                value={course.grade || ''}
+                onChange={e => updateSplitRow(idx, 'grade', e.target.value)}
+                aria-label="Grade"
+                title="Grade (blank prints as A)"
+                className="w-20 px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500"
+              >
+                <option value="">Grade</option>
+                {['A', 'B', 'C', 'D', 'F'].map(g => <option key={g} value={g}>{g}</option>)}
+              </select>
               {splitCourses.length > 1 && (
                 <button
                   onClick={() => removeSplitRow(idx)}

@@ -57,7 +57,7 @@ const TranscriptGeneratorPage = () => {
 
   // Course breakdown editor state
   const [splitTarget, setSplitTarget] = useState(null); // { transferCreditId, subjectKey, subjectName, totalCredits }
-  const [splitCourses, setSplitCourses] = useState([{ name: '', credits: '' }]);
+  const [splitCourses, setSplitCourses] = useState([{ name: '', credits: '', grade: '' }]);
   const [splitSaving, setSplitSaving] = useState(false);
 
   const fetchData = useCallback(async () => {
@@ -214,9 +214,9 @@ const TranscriptGeneratorPage = () => {
     const existing = tc?.course_names?.[row.subjectKey];
 
     if (existing && existing.length > 0) {
-      setSplitCourses(existing.map(c => ({ name: c.name, credits: String(c.credits) })));
+      setSplitCourses(existing.map(c => ({ name: c.name, credits: String(c.credits), grade: c.grade || '' })));
     } else {
-      setSplitCourses([{ name: '', credits: String(row.totalSubjectCredits) }]);
+      setSplitCourses([{ name: '', credits: String(row.totalSubjectCredits), grade: '' }]);
     }
     setSplitTarget({
       transferCreditId: row.transferCreditId,
@@ -227,7 +227,7 @@ const TranscriptGeneratorPage = () => {
   };
 
   const addSplitRow = () => {
-    setSplitCourses(prev => [...prev, { name: '', credits: '' }]);
+    setSplitCourses(prev => [...prev, { name: '', credits: '', grade: '' }]);
   };
 
   const removeSplitRow = (idx) => {
@@ -243,7 +243,7 @@ const TranscriptGeneratorPage = () => {
 
     const courses = splitCourses
       .filter(c => c.name.trim() && parseFloat(c.credits) > 0)
-      .map(c => ({ name: c.name.trim(), credits: parseFloat(c.credits) }));
+      .map(c => ({ name: c.name.trim(), credits: parseFloat(c.credits), ...(c.grade ? { grade: c.grade } : {}) }));
 
     if (courses.length === 0) {
       toast.error('Add at least one course with a name and credits');
@@ -388,6 +388,7 @@ const TranscriptGeneratorPage = () => {
               courseOverrideKey: overrideKey,
               source: tc.school_name || 'Transfer',
               credits: course.credits,
+              grade: course.grade || 'A',
               status: 'Completed',
               transcriptUrl: idx === 0 ? tc.transcript_url : null,
               transferCreditId: tc.id,
@@ -453,6 +454,7 @@ const TranscriptGeneratorPage = () => {
   const dateIssued = field('date_issued', new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }));
   const dateOfBirth = field('date_of_birth', student.date_of_birth ? formatDate(student.date_of_birth) : '');
   const orgName = field('organization_name', student.organization_name || '');
+  const gpa = field('gpa', totals?.gpa != null ? totals.gpa.toFixed(2) : '');
 
   return (
     <div className="min-h-screen bg-gray-100">
@@ -481,7 +483,7 @@ const TranscriptGeneratorPage = () => {
         student={student} studentName={studentName} userId={userId}
         creditRows={creditRows} transferCredits={transfer_credits}
         accreditation={accreditation} isWascAccredited={isWascAccredited}
-        orgName={orgName} dateIssued={dateIssued} dateOfBirth={dateOfBirth}
+        orgName={orgName} dateIssued={dateIssued} dateOfBirth={dateOfBirth} gpa={gpa}
         overrides={overrides} setOverrides={setOverrides}
         updateOverride={updateOverride} saveOverrides={saveOverrides}
         startEdit={startEdit} startSplit={startSplit}

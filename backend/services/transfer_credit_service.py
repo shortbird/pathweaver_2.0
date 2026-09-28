@@ -29,6 +29,7 @@ from typing import Any, Dict, List, Optional
 from generated.credits import XP_PER_CREDIT as _XP_PER_CREDIT
 from utils.logger import get_logger
 from utils.school_subjects import SCHOOL_SUBJECTS
+from utils.transcript_grades import normalize_grade
 
 logger = get_logger(__name__)
 
@@ -231,7 +232,11 @@ def clean_course_names(course_names: Dict[str, Any],
                 credits = float((course or {}).get('credits') or 0)
             except (TypeError, ValueError) as _exc:
                 raise ValueError(f'Course credit for {subject} must be a number') from _exc
-            cleaned.append({'name': name, 'credits': round(credits, 2)})
+            line = {'name': name, 'credits': round(credits, 2)}
+            grade = normalize_grade((course or {}).get('grade'))
+            if grade:
+                line['grade'] = grade
+            cleaned.append(line)
         if not cleaned:
             continue
         total = round(sum(c['credits'] for c in cleaned), 2)

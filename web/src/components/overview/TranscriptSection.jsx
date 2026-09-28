@@ -152,6 +152,9 @@ const TranscriptSection = ({ studentId }) => {
       {/* Credit summary bar */}
       <div className="px-6 py-2 border-b border-gray-100 flex gap-6 text-xs text-gray-600">
         <span>Completed: <strong className="text-gray-900">{totals.total_completed.toFixed(1)}</strong></span>
+        {totals.gpa != null && (
+          <span>GPA: <strong className="text-gray-900">{field('gpa', totals.gpa.toFixed(2))}</strong></span>
+        )}
         {totals.planned_credits > 0 && (
           <span>In Progress: <strong className="text-gray-900">{totals.planned_credits.toFixed(1)}</strong></span>
         )}

@@ -12,6 +12,7 @@ from generated.credits import TRANSCRIPT_SUBJECT_NAMES, XP_PER_CREDIT
 from utils.logger import get_logger
 from utils.slug_utils import generate_slug, ensure_unique_slug
 from utils.accreditation import resolve_transcript_accreditation
+from utils.transcript_grades import compute_gpa
 from services import academy_enrollment_service as academy_enrollment
 from utils.storage_urls import sign_stored_url
 
@@ -407,7 +408,8 @@ def get_public_transcript(user_id):
                     'class_credits': round(total_class, 2),
                     'transfer_credits': round(total_transfer, 2),
                     'planned_credits': round(total_planned, 2),
-                    'total_completed': round(total_earned + total_class + total_transfer, 2)
+                    'total_completed': round(total_earned + total_class + total_transfer, 2),
+                    'gpa': compute_gpa(earned_credits, class_credits, transfer_credits),
                 }
             }
         }), 200

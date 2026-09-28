@@ -171,6 +171,7 @@ const PublicTranscriptPage = () => {
             course: field(overrideKey, course.name),
             source: tc.school_name || 'Transfer',
             credits: course.credits,
+            grade: course.grade || 'A',
             status: 'Completed'
           });
         });
@@ -207,6 +208,7 @@ const PublicTranscriptPage = () => {
   const dateIssued = field('date_issued', formatDate(new Date().toISOString().split('T')[0]));
   const dateOfBirth = field('date_of_birth', student.date_of_birth ? formatDate(student.date_of_birth) : '');
   const orgName = field('organization_name', student.organization_name || '');
+  const gpa = field('gpa', totals?.gpa != null ? totals.gpa.toFixed(2) : '');
 
   return (
     <div className="min-h-screen bg-gray-100">
@@ -241,6 +243,12 @@ const PublicTranscriptPage = () => {
                   <span className="text-gray-900">{dateOfBirth}</span>
                 </div>
               )}
+              {gpa && (
+                <div className="flex">
+                  <span className="w-28 sm:w-32 text-gray-500 flex-shrink-0">Cumulative GPA:</span>
+                  <span className="text-gray-900">{gpa}</span>
+                </div>
+              )}
             </div>
           </div>
 
@@ -266,7 +274,7 @@ const PublicTranscriptPage = () => {
                     <td className="py-2 text-center font-medium text-gray-900">{row.credits.toFixed(2)}</td>
                     <td className="py-2 text-center">
                       {row.status === 'Completed' ? (
-                        <span className="font-bold text-gray-900">A</span>
+                        <span className="font-bold text-gray-900">{row.grade || 'A'}</span>
                       ) : (
                         <span className={`text-xs font-medium px-2 py-0.5 rounded ${
                           row.status === 'In Progress' ? 'bg-amber-100 text-amber-800 print:bg-transparent print:text-gray-600 print:italic'
@@ -292,7 +300,7 @@ const PublicTranscriptPage = () => {
                 <div className="flex items-start justify-between mb-1">
                   <span className="text-sm font-semibold text-gray-900">{row.subject}</span>
                   {row.status === 'Completed' ? (
-                    <span className="text-sm font-bold text-gray-900 flex-shrink-0 ml-2">A</span>
+                    <span className="text-sm font-bold text-gray-900 flex-shrink-0 ml-2">{row.grade || 'A'}</span>
                   ) : (
                     <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded flex-shrink-0 ml-2 ${
                       row.status === 'In Progress' ? 'bg-amber-100 text-amber-800'

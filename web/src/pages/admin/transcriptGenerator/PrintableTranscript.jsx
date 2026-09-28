@@ -11,7 +11,7 @@ import { EditableField, DatePickerField } from './EditableFields';
 import { SUBJECT_OPTIONS } from './subjectOptions';
 
 const PrintableTranscript = ({
-  accreditation, creditRows, dateIssued, dateOfBirth, handleDeletePlannedCredit,
+  accreditation, creditRows, dateIssued, dateOfBirth, gpa, handleDeletePlannedCredit,
   isWascAccredited, orgName, overrides, saveOverrides, setOverrides,
   startEdit, startSplit, student, studentName, transferCredits, updateOverride, userId,
 }) => (
@@ -65,6 +65,16 @@ const PrintableTranscript = ({
               className="text-gray-900"
             />
           </div>
+          {gpa && (
+            <div className="flex">
+              <span className="w-32 text-gray-500 flex-shrink-0">Cumulative GPA:</span>
+              <EditableField
+                value={gpa}
+                onChange={v => updateOverride('gpa', v)}
+                className="text-gray-900"
+              />
+            </div>
+          )}
         </div>
       </div>
 
@@ -115,7 +125,7 @@ const PrintableTranscript = ({
                 <td className="py-2 text-center font-medium text-gray-900">{row.credits.toFixed(2)}</td>
                 <td className="py-2 text-center">
                   {row.status === 'Completed' ? (
-                    <span className="font-bold text-gray-900">A</span>
+                    <span className="font-bold text-gray-900">{row.grade || 'A'}</span>
                   ) : (
                     <span className={`text-xs font-medium px-2 py-0.5 rounded ${
                       row.status === 'In Progress'
