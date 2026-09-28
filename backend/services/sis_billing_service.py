@@ -21,7 +21,9 @@ from datetime import datetime, timezone, timedelta, date
 from typing import Dict, List, Any, Optional
 
 from app_config import Config
-from repositories.sis_billing_repository import (SisInvoiceLineItemRepository,
+from repositories.sis_billing_repository import (SisInstallmentRepository,
+                                                 SisInvoiceLineItemRepository,
+                                                 SisPaymentPlanRepository,
                                                  SisPaymentRecordRepository)
 from services import sis_payment_profile as payment_profile
 from services import sis_pricing as pricing
@@ -551,6 +553,13 @@ def update_invoice(org_id: str, invoice_id: str, actor_user_id: Optional[str],
     in for reimbursement. The payments themselves are never touched here --
     they stay as recorded, the status recomputes from the sum, and the family
     is told what changed.
+
+    An active payment plan follows the edit (2026-09-28). Until then the
+    installments were written once at setup and an edit never looked at them:
+    iCreate cut the Roberts family's bill after two classes were dropped and
+    autopay went on charging the old $290 a month. The unpaid installments
+    are now re-spread so they add up to exactly the new balance
+    (_respread_installments).
     """
     inv = (_admin().table('sis_invoices').select('*')
            .eq('id', invoice_id).eq('organization_id', org_id).limit(1).execute()).data
@@ -590,18 +599,82 @@ def update_invoice(org_id: str, invoice_id: str, actor_user_id: Optional[str],
 
     _admin().table('sis_invoices').update(patch).eq('id', invoice_id).execute()
     invoice = _recompute_invoice_status(invoice_id)
-    _audit(org_id, invoice_id, actor_user_id, 'invoice_edited', {
+    installments = _respread_installments(org_id, invoice, actor_user_id)
+    detail: Dict[str, Any] = {
         'from_total_cents': inv.get('total_cents') or 0,
         'to_total_cents': total,
         'from_processing_fee_cents': inv.get('processing_fee_cents') or 0,
         'to_processing_fee_cents': invoice.get('processing_fee_cents') or 0,
         'line_count': len(clean) if clean is not None else None,
-    })
+    }
+    if installments:
+        detail['installments'] = installments
+    _audit(org_id, invoice_id, actor_user_id, 'invoice_edited', detail)
     enqueue_qbo(org_id, 'invoice', invoice_id)
     notify_family_of_invoice_change(
         org_id, invoice, inv.get('total_cents') or 0,
         'The school changed what is on it.')
-    return {'invoice': get_invoice(org_id, invoice_id)}
+    return {'invoice': get_invoice(org_id, invoice_id), 'installments': installments}
+
+
+def _respread_installments(org_id: str, invoice: Dict[str, Any],
+                           actor_user_id: Optional[str]) -> Optional[Dict[str, Any]]:
+    """Make an active plan's unpaid installments add up to what is still owed.
+
+    The installments are the plan; the invoice is the bill. When the bill moves
+    (an edit, a class dropped or added) the unpaid installments -- scheduled,
+    due, and late -- are re-split over the new balance with the same rounding
+    the plan was built with (pricing.split_amount: remainder cents on the
+    earliest). Paid installments are history and are never touched; nor are
+    due dates or how many payments are left.
+
+    Left alone when the unpaid installments already add up to the balance, so
+    a due-date or description fix does not reshuffle anybody's cents.
+
+    Nothing left owing: the plan is completed and its unpaid installments
+    waived, exactly what the charge sweep would do on its next run.
+
+    No unpaid installments left but a balance (a class added after the last
+    payment): no installment is invented. A new card charge on a schedule the
+    family never agreed to is a bigger step than this function should take on
+    its own. The balance stays on the invoice for the family to pay, and
+    `no_installments_left` tells the caller (and the audit) so the office can
+    follow up. In practice the sweep completes a plan the moment its last
+    installment is paid, so this is the rare case.
+
+    Returns None when the invoice has no active plan, else
+    {plan_ids, balance_cents, before: [...], after: [...], and 'completed' or
+    'no_installments_left' when those apply}. before/after are the unpaid
+    installment amounts in due-date order.
+    """
+    plans = SisPaymentPlanRepository(client=_admin()).active_for_invoice(invoice['id'])
+    if not plans:
+        return None
+    plan_ids = [p['id'] for p in plans]
+    installments = SisInstallmentRepository(client=_admin())
+    unpaid = installments.for_plans(plan_ids, list(UNPAID_INSTALLMENT_STATUSES))
+    before = [int(i.get('amount_cents') or 0) for i in unpaid]
+    balance = amount_due_cents(invoice)
+    out: Dict[str, Any] = {'plan_ids': plan_ids, 'balance_cents': balance,
+                           'before': before, 'after': before}
+    if balance <= 0:
+        _cancel_plans_for_invoice(org_id, invoice['id'], actor_user_id,
+                                  why='invoice edited down to what was paid',
+                                  final_status='completed')
+        out.update(after=[], completed=True)
+        return out
+    if not unpaid:
+        out['no_installments_left'] = True
+        return out
+    if sum(before) == balance:
+        return out
+    after = pricing.split_amount(balance, len(unpaid))
+    now = _now()
+    for inst, amount in zip(unpaid, after, strict=True):
+        if int(inst.get('amount_cents') or 0) != amount:
+            installments.set_amount(inst['id'], amount, now)
+    out['after'] = after
+    return out
 
 
 def reprice_for_class_change(org_id: str, student_user_id: str,
@@ -620,13 +693,42 @@ def reprice_for_class_change(org_id: str, student_user_id: str,
     we likely have already purchased supplies for any given class. But an auto
     payment if more is due would still be good."
 
-    So money only ever moves one way here:
+    From 2026-09-04 to 2026-09-28 money only ever moved one way here: a paid
+    invoice billed an ADDED class as its own separate charge invoice, and a
+    DROPPED class changed nothing. That broke on the Roberts family.
+
+    iCreate (Marika), 2026-09-26: "Jenner Roberts dropped M/W classes... His
+    invoice is not reflecting this and there appears to be two different
+    invoices for him... They are on autopay and were incorrectly charged $290
+    this month again, even after dropping... They should be charged for the
+    time he was in those classes, but not moving forward... he also had a
+    second invoice showing. How do we fix this?"
+
+    The no-refund policy was about SUPPLY FEES, and it had been stretched over
+    tuition the family would never receive. The policy since 2026-09-28
+    (Tanner):
 
       nothing paid yet   the invoice is rewritten to the current classes, up or
-                         down — nobody has parted with anything, so there is no
-                         refund to argue about
-      part/fully paid    a class ADDED bills the difference as its own charge; a
-                         class dropped changes nothing, by policy
+                         down -- nobody has parted with anything, so there is no
+                         refund to argue about (unchanged)
+      part/fully paid    one invoice, always. A DROPPED class's tuition comes
+                         off; its supply fee stays (never refunded). An ADDED
+                         class goes on the same invoice, tuition and supply fee
+                         as their own lines. The unpaid installments of an
+                         active plan are re-spread over the new balance, so
+                         autopay collects what is owed from here on and no
+                         more. Money already paid is never refunded here: if
+                         the new total would fall below what was paid, the
+                         total stops at what was paid (a line says why) and the
+                         audit records the amount so the office can decide
+                         about a credit by hand.
+
+    With no payment plan (paid in full, or paying as it goes), an added class
+    reopens the invoice as partial and the family is emailed the updated bill.
+
+    The discount is kept as it was, clamped to the new subtotal: it is typed by
+    the tuition approver (block-tier pricing is already inside the class lines,
+    not in discount_cents), so there is no rule here to recompute it from.
 
     Returns what it did, so the caller can tell the office rather than moving
     somebody's bill silently.
@@ -636,25 +738,40 @@ def reprice_for_class_change(org_id: str, student_user_id: str,
                 .execute()).data or []
     class_ids = {e['class_id'] for e in enrolled if e.get('class_id')}
 
-    # The one invoice this is about: the student's most recent live one. A
-    # PAID invoice counts: "if the invoice has been paid and they switch
-    # classes, can we have it auto send them a new payment" was the request,
-    # and until 2026-09-20 the read stopped at 'partial', so the exact case the
-    # office asked for (paid in full, then a class added) did nothing at all.
-    # A student is invoiced once here -- the tuition queue drops anyone with a
-    # non-void invoice -- so there is no "last term's bill" to mistake for
-    # this one.
-    open_invoices = (_admin().table('sis_invoices')
-                     .select('*').eq('organization_id', org_id)
-                     .eq('student_user_id', student_user_id)
-                     .in_('status', ['sent', 'partial', 'overdue', 'paid'])
-                     .order('created_at', desc=True).limit(1).execute()).data or []
-    if not open_invoices:
+    # The one invoice this is about: the student's most recent live one that
+    # bills classes. A PAID invoice counts: "if the invoice has been paid and
+    # they switch classes, can we have it auto send them a new payment" was
+    # the request, and until 2026-09-20 the read stopped at 'partial', so the
+    # exact case the office asked for (paid in full, then a class added) did
+    # nothing at all.
+    #
+    # "Most recent that bills classes", not simply most recent: until
+    # 2026-09-28 a class added after payment was billed as a separate charge
+    # invoice for the same student, newer than the tuition invoice and with no
+    # class on it. Reading that one as "the" invoice would bill every class
+    # the student is in a second time.
+    candidates = (_admin().table('sis_invoices')
+                  .select('*').eq('organization_id', org_id)
+                  .eq('student_user_id', student_user_id)
+                  .in_('status', ['sent', 'partial', 'overdue', 'paid'])
+                  .order('created_at', desc=True).limit(10).execute()).data or []
+    if not candidates:
         return {'changed': False, 'reason': 'no open invoice'}
-    inv = open_invoices[0]
+    inv = candidates[0]
+    lines: Optional[List[Dict[str, Any]]] = None
+    for cand in candidates:
+        cand_lines = (_admin().table('sis_invoice_line_items').select('*')
+                      .eq('invoice_id', cand['id']).execute()).data or []
+        if lines is None:
+            lines = cand_lines  # the newest, if none of them bills a class
+        if any(li.get('class_id') for li in cand_lines):
+            inv, lines = cand, cand_lines
+            break
+    lines = lines or []
 
-    lines = (_admin().table('sis_invoice_line_items').select('*')
-             .eq('invoice_id', inv['id']).execute()).data or []
+    if (inv.get('amount_paid_cents') or 0) > 0:
+        return _reprice_paid_invoice(org_id, inv, lines, class_ids, actor_user_id)
+
     billed = {li['class_id'] for li in lines if li.get('class_id')}
     added, removed = class_ids - billed, billed - class_ids
     if not added and not removed:
@@ -666,41 +783,6 @@ def reprice_for_class_change(org_id: str, student_user_id: str,
             _admin().table('org_classes').select('id, name, price_cents, supply_fee')
             .in_('id', sorted(added)).execute()).data or []}
 
-    def _class_cost(c):
-        # What the class costs a family: tuition plus its supply fee, which is
-        # the part the no-refund policy is about.
-        return int(c.get('price_cents') or 0) + int(round(float(c.get('supply_fee') or 0) * 100))
-
-    paid = inv.get('amount_paid_cents') or 0
-    if paid > 0:
-        # Money has landed. Additions are billed separately; removals are not
-        # refunded, by policy (ad37b8c2).
-        extra = sum(_class_cost(priced[cid]) for cid in added if cid in priced)
-        if not extra:
-            return {'changed': False, 'reason': 'nothing further to bill'}
-        names = ', '.join(priced[cid].get('name') or 'Class' for cid in added if cid in priced)
-        charge = create_charge(org_id, {
-            'household_id': inv.get('household_id'),
-            'student_user_id': student_user_id,
-            'description': f'Class change: {names}',
-            'amount_cents': extra,
-            'kind': 'tuition',
-        })
-        _audit(org_id, inv['id'], actor_user_id, 'class_change_charged', {
-            'added': sorted(added), 'amount_cents': extra,
-            'charge_invoice_id': (charge.get('invoice') or {}).get('id'),
-        })
-        # The family asked for the class; the bill for it should reach them
-        # the way the first one did, not wait in the portal to be found.
-        charge_id = (charge.get('invoice') or {}).get('id')
-        if charge_id:
-            try:
-                email_invoice_to_family(org_id, charge_id)
-            except Exception as e:  # noqa: BLE001 -- the charge stands without the email
-                logger.warning(f'class-change charge {charge_id}: family email failed: {e}')
-        return {'changed': True, 'billed_separately': True, 'amount_cents': extra,
-                'invoice': charge.get('invoice')}
-
     # Nothing paid: rewrite the invoice itself.
     keep = [li for li in lines if not li.get('class_id') or li['class_id'] in class_ids]
     new_lines = [{'description': li.get('description'), 'class_id': li.get('class_id'),
@@ -711,8 +793,10 @@ def reprice_for_class_change(org_id: str, student_user_id: str,
         c = priced.get(cid)
         if not c:
             continue
+        # What the class costs a family: tuition plus its supply fee.
         new_lines.append({'description': c.get('name') or 'Class', 'class_id': cid,
-                          'amount_cents': _class_cost(c), 'quantity': 1, 'kind': 'tuition'})
+                          'amount_cents': _class_cost_cents(c), 'quantity': 1,
+                          'kind': 'tuition'})
     result = update_invoice(org_id, inv['id'], actor_user_id, line_items=new_lines)
     if result.get('error'):
         return {'changed': False, 'reason': result['error']}
@@ -720,6 +804,140 @@ def reprice_for_class_change(org_id: str, student_user_id: str,
         'added': sorted(added), 'removed': sorted(removed),
     })
     return {'changed': True, 'repriced': True, 'invoice': result.get('invoice')}
+
+
+def _supply_fee_cents(c: Dict[str, Any]) -> int:
+    """org_classes.supply_fee is dollars (numeric); invoices are cents."""
+    return int(round(float(c.get('supply_fee') or 0) * 100))
+
+
+def _class_cost_cents(c: Dict[str, Any]) -> int:
+    """What a class costs a family: tuition plus its supply fee."""
+    return int(c.get('price_cents') or 0) + _supply_fee_cents(c)
+
+
+def _is_class_tuition_line(li: Dict[str, Any]) -> bool:
+    """A line that bills a class's tuition. A kind of None is an older line
+    (or a flat plan's extra-day line, which clean_line_items stores as None)."""
+    return bool(li.get('class_id')) and li.get('kind') in ('tuition', None)
+
+
+def _reprice_paid_invoice(org_id: str, inv: Dict[str, Any], lines: List[Dict[str, Any]],
+                          class_ids: set, actor_user_id: Optional[str]) -> Dict[str, Any]:
+    """The part/fully paid half of reprice_for_class_change (policy of
+    2026-09-28, in its docstring). Everything lands on the one invoice through
+    update_invoice, which recomputes the status, re-spreads an active plan,
+    audits the edit, queues QuickBooks and tells the family in the app."""
+    paid = int(inv.get('amount_paid_cents') or 0)
+    tuition_ids = {li['class_id'] for li in lines if _is_class_tuition_line(li)}
+    supply_ids = {li['class_id'] for li in lines
+                  if li.get('class_id') and li.get('kind') == 'supply'}
+    added, removed = class_ids - tuition_ids, tuition_ids - class_ids
+    if not added and not removed:
+        return {'changed': False, 'reason': 'already matches'}
+
+    # A tuition line that names no class means the invoice is not priced class
+    # by class: a flat annual plan, whose price does not move with one class.
+    # Taking a class's share off, or adding one at full price, would both be
+    # wrong, so the office adjusts it by hand.
+    if any(li.get('kind') == 'tuition' and not li.get('class_id')
+           and int(li.get('amount_cents') or 0) > 0 for li in lines):
+        return {'changed': False,
+                'reason': 'This invoice is not priced class by class; adjust it by hand'}
+
+    classes = {c['id']: c for c in (
+        _admin().table('org_classes').select('id, name, price_cents, supply_fee')
+        .in_('id', sorted(added | removed)).execute()).data or []}
+    if not removed and not any(cid in classes for cid in added):
+        return {'changed': False, 'reason': 'nothing further to bill'}
+
+    from services.sis_tuition_service import SUPPLY_LINE_SUFFIX
+
+    def _supply_line(cid: str, c: Dict[str, Any], fee: int) -> Dict[str, Any]:
+        return {'description': f"{c.get('name') or 'Class'}{SUPPLY_LINE_SUFFIX}",
+                'class_id': cid, 'amount_cents': fee, 'quantity': 1, 'kind': 'supply'}
+
+    new_lines: List[Dict[str, Any]] = []
+    for li in lines:
+        cid = li.get('class_id')
+        if _is_class_tuition_line(li) and cid in removed:
+            # The tuition comes off. A line written by the pre-2026-09-28
+            # reprice carried tuition AND supply fee as one amount; the supply
+            # part of it stays, as its own line, by the no-refund policy. Only
+            # when the amount is exactly that sum -- anything else is a line
+            # somebody priced by hand, and guessing at a supply fee in it could
+            # bill one the family was never charged.
+            c = classes.get(cid)
+            if c and cid not in supply_ids:
+                fee = _supply_fee_cents(c)
+                if fee > 0 and int(li.get('amount_cents') or 0) == _class_cost_cents(c):
+                    new_lines.append(_supply_line(cid, c, fee))
+            continue
+        new_lines.append({'description': li.get('description'), 'class_id': cid,
+                          'amount_cents': int(li.get('amount_cents') or 0),
+                          'quantity': li.get('quantity') or 1, 'kind': li.get('kind')})
+    for cid in sorted(added):
+        c = classes.get(cid)
+        if not c:
+            continue
+        new_lines.append({'description': c.get('name') or 'Class', 'class_id': cid,
+                          'amount_cents': int(c.get('price_cents') or 0), 'quantity': 1,
+                          'kind': 'tuition'})
+        fee = _supply_fee_cents(c)
+        # A class dropped and taken up again kept its supply line; the family
+        # does not buy the supplies twice.
+        if fee > 0 and cid not in supply_ids:
+            new_lines.append(_supply_line(cid, c, fee))
+
+    from_discount = int(inv.get('discount_cents') or 0)
+    subtotal = sum(li['amount_cents'] for li in new_lines)
+    discount = max(0, min(from_discount, subtotal))
+    floored = max(0, paid - (subtotal - discount))
+    if floored:
+        # Never below what was paid: no refund or credit moves automatically.
+        # The line keeps the bill self-explaining (and its lines summing to
+        # its total) rather than a total that disagrees with its lines.
+        names = ', '.join(sorted((classes.get(cid) or {}).get('name') or 'Class'
+                                 for cid in removed)) or 'withdrawn classes'
+        new_lines.append({'description': f'Tuition paid before withdrawing from {names}',
+                          'class_id': None, 'amount_cents': floored, 'quantity': 1,
+                          'kind': 'other'})
+
+    result = update_invoice(org_id, inv['id'], actor_user_id,
+                            line_items=new_lines, discount_cents=discount)
+    if result.get('error'):
+        return {'changed': False, 'reason': result['error']}
+    invoice = result.get('invoice') or {}
+    installments = result.get('installments')
+
+    # With no plan to collect it, the family has to be told what they owe the
+    # way the first bill reached them, not left to find it in the portal.
+    emailed = False
+    no_plan = installments is None or installments.get('no_installments_left')
+    if added and no_plan and amount_due_cents(invoice) > 0:
+        try:
+            email_invoice_to_family(org_id, inv['id'])
+            emailed = True
+        except Exception as e:  # noqa: BLE001 -- the invoice stands without the email
+            logger.warning(f"class-change reprice {inv['id']}: family email failed: {e}")
+
+    _audit(org_id, inv['id'], actor_user_id, 'class_change_repriced', {
+        'policy': '2026-09-28',
+        'added': sorted(added), 'removed': sorted(removed),
+        'from_total_cents': int(inv.get('total_cents') or 0),
+        'to_total_cents': int(invoice.get('total_cents') or 0),
+        'from_discount_cents': from_discount, 'to_discount_cents': discount,
+        'amount_paid_cents': paid,
+        # What a refund or credit would have been, had one been automatic.
+        'floored_at_paid_cents': floored,
+        'installments_before': (installments or {}).get('before'),
+        'installments_after': (installments or {}).get('after'),
+        'no_installments_left': bool((installments or {}).get('no_installments_left')),
+        'emailed_family': emailed,
+    })
+    return {'changed': True, 'repriced': True, 'invoice': invoice,
+            'installments': installments, 'floored_at_paid_cents': floored,
+            'emailed': emailed}
 
 
 def void_invoice(org_id: str, invoice_id: str, actor_user_id: Optional[str],

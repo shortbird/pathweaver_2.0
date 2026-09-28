@@ -127,7 +127,11 @@ class TestUpdateInvoiceGuards:
              patch.object(billing, '_recompute_invoice_status', return_value=dict(inv, status='partial')), \
              patch.object(billing, '_audit'), patch.object(billing, 'enqueue_qbo'), \
              patch.object(billing, 'notify_family_of_invoice_change'), \
+             patch.object(billing, '_respread_installments', return_value=None), \
              patch.object(billing, 'get_invoice', return_value={'id': 'inv1', 'status': 'partial'}):
+            # The plan re-spread is tested end to end in
+            # test_sis_class_change_reprice.py (TestTheOfficeEditingByHand);
+            # this mock answers every query with the invoice, so it is stubbed.
             result = billing.update_invoice('org1', 'inv1', 'actor',
                                             line_items=[{'description': 'Pottery', 'amount_cents': 12000}])
         assert 'error' not in result

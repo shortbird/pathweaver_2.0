@@ -622,7 +622,8 @@ def _reprice_after_staff_change(org_id, student_id, actor_id):
     office added from the roster left the bill as it was, and iCreate asked
     "is there a way to send a second invoice to a family if they add an
     additional class after paying?" The answer is this: an unpaid invoice is
-    rewritten, a paid one gets the added class as its own charge
+    rewritten; since 2026-09-28 a paid one is changed in place too, with any
+    autopay installments re-spread over the new balance
     (sis_billing_service.reprice_for_class_change). Best-effort: the roster
     change stands even if the bill could not be redrawn."""
     try:

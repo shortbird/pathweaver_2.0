@@ -1,6 +1,7 @@
 """
 SIS Billing Repositories - data access for the invoice ledger tables
-(sis_invoice_line_items, sis_payment_records).
+(sis_invoice_line_items, sis_payment_records, sis_payment_plans,
+sis_installments).
 
 services/sis_billing_service.py still reads these tables directly in its
 older paths; that is fenced by the direct-call ratchet rather than migrated.
@@ -30,3 +31,26 @@ class SisPaymentRecordRepository(BaseRepository):
         rows = self.find_all(filters={'invoice_id': invoice_id, 'external_ref': external_ref},
                              limit=1)
         return rows[0] if rows else None
+
+
+class SisPaymentPlanRepository(BaseRepository):
+    table_name = 'sis_payment_plans'
+
+    def active_for_invoice(self, invoice_id: str) -> List[Dict[str, Any]]:
+        return self.find_all(filters={'invoice_id': invoice_id, 'status': 'active'})
+
+
+class SisInstallmentRepository(BaseRepository):
+    table_name = 'sis_installments'
+
+    def for_plans(self, plan_ids: List[str], statuses: List[str]) -> List[Dict[str, Any]]:
+        """The plans' installments in the given statuses, earliest due first.
+        Bounded by the few plans on one invoice, so one page is all of them."""
+        if not plan_ids:
+            return []
+        return (self.client.table(self.table_name).select('*')
+                .in_('payment_plan_id', plan_ids).in_('status', statuses)
+                .order('due_date').execute()).data or []
+
+    def set_amount(self, installment_id: str, amount_cents: int, now: str) -> Dict[str, Any]:
+        return self.update(installment_id, {'amount_cents': amount_cents, 'updated_at': now})
