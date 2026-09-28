@@ -141,6 +141,26 @@ class _EmptyAIResponseError(AIGenerationError):
     pass
 
 
+class AIPromptBlockedError(AIGenerationError):
+    """The provider refused the prompt itself: no candidates at all, and
+    ``prompt_feedback.block_reason`` says why (SAFETY, PROHIBITED_CONTENT,
+    IMAGE_SAFETY, OTHER...).
+
+    Unlike an empty or thinking-only answer, this is a judgement on the input,
+    so another model on the same provider refuses it the same way. It is
+    therefore NOT transient: generate_with_fallback raises it at once instead
+    of spending every fallback model on the same blocked image (ticket
+    dac8264c). Subclasses AIGenerationError, and deliberately not
+    _EmptyAIResponseError, so every existing ``except AIGenerationError`` /
+    ``except AIServiceError`` handler still catches it while the fallback loop
+    does not mistake it for a transient empty.
+    """
+
+    def __init__(self, message: str, block_reason: str):
+        super().__init__(message)
+        self.block_reason = block_reason
+
+
 @dataclass
 class AIJsonResult:
     """What one JSON generation actually cost and which model produced it.
@@ -470,6 +490,15 @@ class BaseAIService(BaseService):
                 text = self._extract_response_text(response)
                 if not text:
                     self._log_empty_response(response)
+                    block_reason = self._prompt_block_reason(response)
+                    if block_reason:
+                        # The input was refused, not the model's answer lost:
+                        # every other model would refuse it too.
+                        raise AIPromptBlockedError(
+                            f"Model '{model_name}' refused the prompt "
+                            f"(block_reason={block_reason})",
+                            block_reason,
+                        )
                     raise _EmptyAIResponseError(
                         f"Model '{model_name}' returned no text content "
                         f"(likely thinking-only response)"
@@ -488,7 +517,8 @@ class BaseAIService(BaseService):
                 last_error = e
                 # An empty/thinking-only response is worth another model for the
                 # same reason a 503 is: the request was fine, this model wasn't.
-                is_transient = (
+                # A refused prompt is not: the next model refuses it too.
+                is_transient = not isinstance(e, AIPromptBlockedError) and (
                     isinstance(e, _EmptyAIResponseError)
                     or self._is_transient_ai_error(e)
                 )
@@ -582,12 +612,57 @@ class BaseAIService(BaseService):
 
         return None
 
+    @staticmethod
+    def _prompt_block_reason(response) -> Optional[str]:
+        """The provider's reason for refusing the prompt, or None.
+
+        Only meaningful when the response has no candidates: Gemini then sets
+        ``prompt_feedback.block_reason`` (an enum; 0 is UNSPECIFIED). Read
+        defensively -- a response object, a test double or an SDK change must
+        never turn a diagnostic into a crash.
+        """
+        try:
+            if getattr(response, 'candidates', None):
+                return None
+            feedback = getattr(response, 'prompt_feedback', None)
+            reason = getattr(feedback, 'block_reason', None) if feedback is not None else None
+            if reason is None or reason is False:
+                return None
+            if isinstance(reason, str):
+                name = reason.strip()
+            else:
+                enum_name = getattr(reason, 'name', None)
+                if isinstance(enum_name, str):
+                    name = enum_name
+                elif isinstance(reason, int):
+                    name = str(reason) if reason else ''
+                else:
+                    return None
+            if not name or name in ('0', 'BLOCK_REASON_UNSPECIFIED'):
+                return None
+            return name
+        except Exception:  # noqa: BLE001 -- diagnostics only
+            return None
+
     def _log_empty_response(self, response) -> None:
-        """Log diagnostic information when Gemini returns empty text."""
+        """Log diagnostic information when Gemini returns empty text.
+
+        A prompt the provider refused (no candidates, a block_reason) is a
+        warning: it is the provider's judgement on the input, the caller
+        handles it, and at error level every blocked photo opened a Sentry
+        issue (ticket dac8264c). An empty answer with no stated reason stays
+        at error level: that one is unexplained.
+        """
         try:
             candidates = response.candidates
             if not candidates:
-                logger.error("Gemini response has no candidates")
+                block_reason = self._prompt_block_reason(response)
+                if block_reason:
+                    logger.warning(
+                        f"Gemini refused the prompt: no candidates, block_reason={block_reason}"
+                    )
+                else:
+                    logger.error("Gemini response has no candidates")
                 return
 
             candidate = candidates[0]
@@ -702,6 +777,12 @@ class BaseAIService(BaseService):
                 if not result_text:
                     # Log diagnostic info for debugging
                     self._log_empty_response(response)
+                    block_reason = self._prompt_block_reason(response)
+                    if block_reason:
+                        raise AIPromptBlockedError(
+                            f"Gemini refused the prompt (block_reason={block_reason})",
+                            block_reason,
+                        )
                     raise AIGenerationError(
                         "Gemini returned empty text content (model may have "
                         "used all output for thinking). Retrying..."
@@ -744,6 +825,10 @@ class BaseAIService(BaseService):
             except Exception as e:
                 last_error = e
                 error_str = str(e).lower()
+
+                # A refused prompt is refused again on every retry.
+                if isinstance(e, AIPromptBlockedError):
+                    raise
 
                 # Out of credit: no retry and no other model can succeed.
                 if self._is_credits_exhausted_error(e):
@@ -1034,6 +1119,7 @@ class BaseAIService(BaseService):
             AICreditsExhaustedError: the account is out of credit (never retried).
             AIServiceOverloadedError: every attempt hit a transient error.
             AIParsingError: the model answered, but never with usable JSON.
+            AIPromptBlockedError: the provider refused the input (never retried).
         """
         if not parts:
             raise AIGenerationError('generate_json_multimodal called with no parts')
@@ -1069,6 +1155,12 @@ class BaseAIService(BaseService):
                     # Account-wide. Every retry and every fallback model fails
                     # the same way, so stop now rather than burning the budget.
                     raise AICreditsExhaustedError(str(e)) from e
+
+                # The provider refused the input itself. Retrying, dropping
+                # the schema or dropping the image would each be wrong: the
+                # last one would judge the text without the picture.
+                if isinstance(e, AIPromptBlockedError):
+                    raise
 
                 # A rejected schema or a rejected file part is not a reason to
                 # give up -- it is a reason to ask for less and try again. Retry

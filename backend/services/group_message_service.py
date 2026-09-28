@@ -989,7 +989,9 @@ class GroupMessageService(BaseService):
                         surface=screen_svc.SURFACE_GROUP, text=content or '',
                         result=verdict, attachments=clean_atts,
                         author_kind=author_kind, author_role=author_role)
-                    raise ValidationError(screen_svc.HELD_MESSAGE)
+                    # A student reads the one kind sentence; an adult reads
+                    # the category and that an admin will look (d1bb050c).
+                    raise ValidationError(screen_svc.held_message_for(verdict, author_kind))
             if reply_to_message_id:
                 target = supabase.table('group_messages').select('id, group_id').eq(
                     'id', reply_to_message_id).limit(1).execute()
@@ -1253,7 +1255,8 @@ class GroupMessageService(BaseService):
                             link=link,
                             metadata={'group_id': group_id, 'sender_id': sender_id,
                                       'sender_name': sender_name, 'school_inbox': True,
-                                      'organization_id': school_org['id']},
+                                      'organization_id': school_org['id'],
+                                      'full_content': content},
                             organization_id=organization_id,
                         )
                     except Exception as e:  # noqa: BLE001
@@ -1272,7 +1275,11 @@ class GroupMessageService(BaseService):
                         metadata={
                             'group_id': group_id,
                             'sender_id': sender_id,
-                            'sender_name': sender_name
+                            'sender_name': sender_name,
+                            # The whole message, for the notification's
+                            # detail view: the 50-character preview was all
+                            # a teacher could read of it (61b762a5).
+                            'full_content': content,
                         },
                         organization_id=organization_id,
                         **({} if push else {'push': False})

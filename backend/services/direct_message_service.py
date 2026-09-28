@@ -545,7 +545,9 @@ class DirectMessageService(BaseService):
                         surface=screen_svc.SURFACE_MESSAGE, text=content or '',
                         result=verdict, attachments=clean_atts,
                         author_kind=author_kind, author_role=author_role)
-                    raise ValidationError(screen_svc.HELD_MESSAGE)
+                    # A student reads the one kind sentence; an adult reads
+                    # the category and that an admin will look (d1bb050c).
+                    raise ValidationError(screen_svc.held_message_for(verdict, author_kind))
 
             # Get or create conversation
             conversation = self.get_or_create_conversation(sender_id, recipient_id)

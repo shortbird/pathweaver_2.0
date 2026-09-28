@@ -1688,6 +1688,22 @@ def hide_comment(caller_id: str, comment_id: str) -> Dict[str, Any]:
     return {'id': comment_id, 'hidden': True}
 
 
+def _may_read_staff_hold(caller_id: str, hold: Dict[str, Any]) -> bool:
+    """A superadmin, or an org admin of the author's org or of the student
+    the message was going to -- the people peer_text_screen_service._tell_staff
+    notifies. Another org's admin is refused (d1bb050c)."""
+    from repositories.peer_policy_repository import PeerPolicyRepository
+    ids = [hold['author_id']] + ([hold['recipient_id']] if hold.get('recipient_id') else [])
+    rows = PeerPolicyRepository().users_by_ids(
+        [caller_id] + ids, 'id, role, org_role, org_roles, organization_id')
+    caller = rows.get(caller_id)
+    if not caller:
+        return False
+    if caller.get('role') == 'superadmin':
+        return True
+    return any(pa.is_org_admin_over(caller, rows[uid]) for uid in ids if rows.get(uid))
+
+
 def hold_for_guardian(caller_id: str, hold_id: str) -> Dict[str, Any]:
     """One held text, for the notification's detail view.
 
@@ -1706,7 +1722,14 @@ def hold_for_guardian(caller_id: str, hold_id: str) -> Dict[str, Any]:
     if not hold:
         raise PeerConnectionError('Not found')
     author_id = hold['author_id']
-    if not pa.is_parent_of(caller_id, author_id):
+    if (hold.get('author_role') or 'student') != 'student':
+        # An adult's hold (a teacher's words to a student). It is read by
+        # the adults _tell_staff notified, not by the Friends-policy rule
+        # below, which asks who may set a CHILD's policy and so depended on
+        # the teacher having no parent link and an org of their own.
+        if not _may_read_staff_hold(caller_id, hold):
+            raise PeerConnectionError('Not found')
+    elif not pa.is_parent_of(caller_id, author_id):
         try:
             kind = policy_svc.setter_kind(caller_id, author_id)
         except policy_svc.PeerPolicyError:

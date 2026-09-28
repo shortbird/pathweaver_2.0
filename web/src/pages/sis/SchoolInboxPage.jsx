@@ -8,6 +8,7 @@ import {
   CheckCircleIcon,
   ClipboardDocumentCheckIcon,
   InboxIcon,
+  MagnifyingGlassIcon,
   PencilSquareIcon,
 } from '@heroicons/react/24/outline'
 import MessageBubble from '../../components/communication/MessageBubble'
@@ -89,6 +90,20 @@ const memberName = (convo) =>
   `${convo.other_user?.first_name || ''} ${convo.other_user?.last_name || ''}`.trim() ||
   convo.other_user?.display_name || 'Member'
 
+// Search is by thread NAME only -- the person, the group, who is in it -- and
+// runs on the lists already loaded (80d52c32: "a way to search messages ...
+// to go back and find something"). Message bodies are not searched.
+const normalise = (s) => (s || '').toString().toLowerCase().trim()
+const matchesSearch = (q, ...names) => !q || names.some((n) => normalise(n).includes(q))
+const convoNames = (c) => [
+  memberName(c), c.other_user?.display_name, c.other_user?.organization_name,
+]
+const groupNames = (g) => [
+  g.name,
+  ...(g.members || []).map((m) => m.display_name
+    || `${m.first_name || m.user?.first_name || ''} ${m.last_name || m.user?.last_name || ''}`),
+]
+
 const SchoolInboxPage = () => {
   const { orgId, isSuperadmin, activeOrg } = useSisOrg()
   const { user } = useAuth()
@@ -128,6 +143,9 @@ const SchoolInboxPage = () => {
   const schoolSide = viewingSchool || viewingGranted
   const setTab = (t) => setSearchParams({ tab: t }, { replace: true })
   const [selected, setSelected] = useState(null)
+  // The thread-name search box, shared by every tab.
+  const [search, setSearch] = useState('')
+  const query = normalise(search)
   // An open GROUP thread, in the same pane. A DM and a group are never open
   // together: picking one clears the other.
   const [selectedGroup, setSelectedGroupState] = useState(null)
@@ -344,12 +362,16 @@ const SchoolInboxPage = () => {
   const needsReply = (c) => hasTraffic(c) && !isResolved(c) && !lastWordWasOurs(c)
   const waitingOnThem = (c) => hasTraffic(c) && !isResolved(c) && lastWordWasOurs(c)
   const openCount = conversations.filter(needsReply).length
-  const shownConversations = conversations.filter((c) => (
-    threadView === 'all' ? true
-      : threadView === 'open' ? needsReply(c)
-        : threadView === 'waiting' ? waitingOnThem(c)
-          : isResolved(c)
-  ))
+  // A search looks through every thread, not just the pile on screen: the
+  // thread somebody wants back is usually one that was handled long ago.
+  const shownConversations = query
+    ? conversations.filter((c) => matchesSearch(query, ...convoNames(c)))
+    : conversations.filter((c) => (
+      threadView === 'all' ? true
+        : threadView === 'open' ? needsReply(c)
+          : threadView === 'waiting' ? waitingOnThem(c)
+            : isResolved(c)
+    ))
   const THREAD_VIEWS = [
     ['open', `Needs a reply${openCount ? ` (${openCount})` : ''}`],
     ['waiting', 'Waiting on them'],
@@ -377,28 +399,42 @@ const SchoolInboxPage = () => {
   // their own page.
   const groupsEnabled = isMessages && !viewingGranted && !!user?.id
     && !(viewingSchool && isSuperadmin && !orgId)
-  const { data: groupsData } = useGroups(user?.id, { source, enabled: groupsEnabled })
-  const staffGroups = useMemo(() => {
-    const rows = viewingGranted ? (grantedData?.groups || [])
-      : (groupsData?.groups || (Array.isArray(groupsData) ? groupsData : []) || [])
-    return [...rows]
-      .filter((g) => schoolSide || (g.audience || 'staff') === 'staff')
-      .sort((a, b) => new Date(b.last_message_at || b.created_at || 0)
-        - new Date(a.last_message_at || a.created_at || 0))
-  }, [groupsData, grantedData, viewingGranted, schoolSide])
+  const { data: groupsData, isFetched: groupsFetched } = useGroups(user?.id, { source, enabled: groupsEnabled })
+  // Every group this list could open, class chats included.
+  const allGroups = useMemo(() => (viewingGranted ? (grantedData?.groups || [])
+    : (groupsData?.groups || (Array.isArray(groupsData) ? groupsData : []) || [])),
+  [groupsData, grantedData, viewingGranted])
+  const staffGroups = useMemo(() => [...allGroups]
+    .filter((g) => schoolSide || (g.audience || 'staff') === 'staff')
+    .sort((a, b) => new Date(b.last_message_at || b.created_at || 0)
+      - new Date(a.last_message_at || a.created_at || 0)),
+  [allGroups, schoolSide])
+  const shownGroups = query ? staffGroups.filter((g) => matchesSearch(query, ...groupNames(g))) : staffGroups
+  const groupsLoaded = viewingGranted ? !grantedLoading : groupsFetched
 
   // ?group=<id> opens that group, the same consume-once rule as ?conversation=
   // (the bell's link for a reply in a school group, 11f6ad24).
+  //
+  // Not only the staff rooms listed here. Every group message's bell links to
+  // /communication?group=, which the console rewrites to My messages -- and a
+  // class chat (audience family or student) is not in that list, so the link
+  // did nothing: a teacher pressed View Details on a message from the office
+  // and landed on the inbox with the message nowhere (61b762a5). The id is
+  // looked up in every group the caller has, and once the list has loaded an
+  // id that is in none of them is still opened: the server decides whether
+  // the caller may read it, and an error there beats a silent no-op.
   const wantedGroup = searchParams.get('group')
   useEffect(() => {
     if (!wantedGroup || !isMessages) return
     const match = staffGroups.find((g) => g.id === wantedGroup)
+      || allGroups.find((g) => g.id === wantedGroup)
+      || (groupsLoaded ? { id: wantedGroup, name: '' } : null)
     if (!match) return
     setSelectedGroup(match)
     const next = new URLSearchParams(searchParams)
     next.delete('group')
     setSearchParams(next, { replace: true })
-  }, [wantedGroup, isMessages, staffGroups])
+  }, [wantedGroup, isMessages, staffGroups, allGroups, groupsLoaded])
 
   // The open thread's row as the list has it now -- `selected` is a snapshot
   // from the click, and the resolved mark lands on the list.
@@ -474,11 +510,23 @@ const SchoolInboxPage = () => {
         onClose={() => setTaskFor(null)}
       />
 
+      <div className="relative mb-3 max-w-sm">
+        <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+        <input
+          type="search"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder={tab === 'sent' ? 'Search sent messages' : 'Search by name or group'}
+          aria-label="Search conversations"
+          className="w-full rounded-lg border border-gray-300 bg-white pl-9 pr-3 py-2 text-sm focus:border-optio-purple focus:outline-none focus:ring-1 focus:ring-optio-purple"
+        />
+      </div>
+
       {tab === 'sent' ? (
         <div className="bg-white border border-gray-200 rounded-xl overflow-hidden min-h-[300px]">
           {/* No Compose here: it always wrote as the school, from a tab that
               does not say so. Compose lives with the thread lists. */}
-          <SentMessagesPanel key={orgId || 'own'} orgId={isSuperadmin ? orgId : null} />
+          <SentMessagesPanel key={orgId || 'own'} orgId={isSuperadmin ? orgId : null} search={query} />
         </div>
       ) : (
       <div className="flex h-[72vh] min-h-[440px] bg-white border border-gray-200 rounded-xl overflow-hidden">
@@ -513,12 +561,12 @@ const SchoolInboxPage = () => {
           <div className="flex-1 overflow-y-auto">
             {/* Group threads first: they are the newest thing the office did,
                 and they were the ones that disappeared. */}
-            {staffGroups.length > 0 && (
+            {shownGroups.length > 0 && (
               <div className="border-b border-gray-100 py-1">
                 <p className="px-3 pt-1 pb-1.5 text-[11px] font-semibold uppercase tracking-wide text-neutral-400">
                   Group threads
                 </p>
-                {staffGroups.map((g) => (
+                {shownGroups.map((g) => (
                   <button key={g.id} type="button" onClick={() => setSelectedGroup(g)}
                     aria-pressed={selectedGroup?.id === g.id}
                     className={`w-full text-left flex items-center gap-2 px-3 py-2 transition-colors ${
@@ -541,6 +589,14 @@ const SchoolInboxPage = () => {
               <div className="flex items-center justify-center h-40">
                 <Spinner />
               </div>
+            ) : query && shownConversations.length === 0 ? (
+              shownGroups.length > 0 ? null : (
+                <div className="flex flex-col items-center justify-center h-64 p-4 text-center">
+                  <MagnifyingGlassIcon className="w-12 h-12 text-gray-300 mb-3" />
+                  <p className="text-sm font-medium text-neutral-700 mb-1">No conversations match</p>
+                  <p className="text-xs text-neutral-500">Search looks at names of people and groups, not the messages.</p>
+                </div>
+              )
             ) : conversations.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-64 p-4 text-center">
                 <InboxIcon className="w-12 h-12 text-gray-300 mb-3" />

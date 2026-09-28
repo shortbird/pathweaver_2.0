@@ -38,6 +38,13 @@ the same reason; the difference is that an upload has no sweep, because the
 object is already referenced by the time a sweep would find it. Turn the
 classifier off with UPLOAD_IMAGE_SCREEN_ENABLED when it misfires.
 
+One failure is not an outage: the provider refusing to look at the picture
+at all (no candidates, a block_reason). The upload still proceeds, but as
+KIND_UNSCREENED, and a row is written to ai_usage_logs
+(PeerTextScreenRepository.record_unscreened_upload) so a person can review
+what nothing judged. It used to be retried on every fallback model and
+logged at error level, one Sentry issue per photo (ticket dac8264c).
+
 Call sites are the handful of paths where a user's own picture lands in
 storage: task evidence and feed media (media_upload_service), a chat
 attachment (routes/direct_messages), an avatar (routes/users/profile,
@@ -73,6 +80,9 @@ KIND_SKIPPED = 'skipped'
 KIND_CSAM = 'csam'
 KIND_HELD = 'held'
 KIND_CONTACT = 'contact'
+#: Allowed without a verdict: the model provider refused to look at it. Kept
+#: apart from KIND_CLEAR so nobody reads it as judged (ticket dac8264c).
+KIND_UNSCREENED = 'unscreened'
 
 #: Purposes whose uploads a student makes and other people see. Only these
 #: go to the classifier; a chat attachment is classified at send time with
@@ -101,6 +111,8 @@ class UploadVerdict:
     hold_id: Optional[str] = None
     incident_id: Optional[str] = None
     reasons: List[str] = field(default_factory=list)
+    #: The ai_usage_logs row recording an unscreened upload (KIND_UNSCREENED).
+    unscreened_id: Optional[str] = None
 
 
 def check_image(blob: bytes, mime: Optional[str], *, user_id: Optional[str],
@@ -147,6 +159,17 @@ def check_image(blob: bytes, mime: Optional[str], *, user_id: Optional[str],
     svc = UploadScreenService()
     result = svc.judge(f'{_purpose_label(purpose)}: {filename or "image"}', [part],
                        prompt=svc.UPLOAD_PROMPT)
+    if result.provider_blocked:
+        # The provider refused to look at the picture. Product decision
+        # (ticket dac8264c): let it through, but leave a record a person can
+        # review, because nothing judged it.
+        logger.warning('[upload-safety] provider refused to screen a %s upload (%s); '
+                       'upload proceeds unscreened', purpose, result.block_reason)
+        record_id = _record_unscreened(user_id=user_id, purpose=purpose, filename=filename,
+                                       sha256=sha256, block_reason=result.block_reason or 'unknown',
+                                       model=result.model)
+        return UploadVerdict(True, KIND_UNSCREENED, unscreened_id=record_id,
+                             reasons=[f'provider_blocked: {result.block_reason or "unknown"}'])
     if result.failed:
         logger.warning('[upload-safety] classifier unavailable; upload proceeds (%s)', purpose)
         return UploadVerdict(True, KIND_CLEAR)
@@ -186,6 +209,22 @@ def _earlier_hold(user_id: str, sha256: str) -> Optional[str]:
             author_id=user_id, sha256=sha256, since_iso=since)
     except Exception as e:  # noqa: BLE001
         logger.warning('[upload-safety] earlier-hold lookup failed, classifying: %s', e)
+        return None
+
+
+def _record_unscreened(*, user_id: str, purpose: str, filename: Optional[str],
+                       sha256: Optional[str], block_reason: str,
+                       model: Optional[str]) -> Optional[str]:
+    """Record an upload that went up unscreened. Best-effort: the upload is
+    allowed either way, and a failed write must not refuse it."""
+    from repositories.peer_text_screen_repository import PeerTextScreenRepository
+    try:
+        return PeerTextScreenRepository().record_unscreened_upload(
+            author_id=user_id, purpose=purpose, filename=filename, sha256=sha256,
+            block_reason=block_reason, model=model)
+    except Exception as e:  # noqa: BLE001
+        logger.error('[upload-safety] could not record an unscreened upload for %s: %s',
+                     str(user_id)[:8], e)
         return None
 
 

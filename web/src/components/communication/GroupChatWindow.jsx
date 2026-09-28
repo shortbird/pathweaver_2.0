@@ -234,7 +234,7 @@ const GroupChatWindow = ({ group, onBack, source, onMakeTask = null }) => {
           </div>
 
           <div>
-            <h2 className="font-semibold text-gray-900">{group.name}</h2>
+            <h2 className="font-semibold text-gray-900">{group.name || groupDetails?.name || 'Group'}</h2>
             {childContext && (
               <p className="text-xs text-gray-500">{childContext}</p>
             )}

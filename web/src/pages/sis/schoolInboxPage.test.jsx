@@ -572,6 +572,32 @@ describe('group threads sent from this page', () => {
     expect(screen.queryByText('Art class students')).toBeNull()
   })
 
+  // 61b762a5: "When I click on 'view details' for the message that Molly
+  // just sent ... it goes to a messaging page with options 'needs a reply',
+  // 'waiting on them' etc. And the message itself isn't seen." The bell's
+  // /communication?group= becomes /inbox?tab=mine&group= in the console, and
+  // a class chat is not in the staff-room list, so the link did nothing.
+  it('opens a class chat named by ?group= even though it is not listed', async () => {
+    authUser = { id: 'me-1', role: 'advisor' }
+    state.groups = [group({ id: 'g3', name: 'Art class students', audience: 'student' })]
+    state.groupMessages = [
+      { id: 'gm3', sender_id: 'u9', message_content: 'Field trip forms are due Friday, please remind everyone',
+        created_at: '2026-09-22T10:00:00Z', sender: { id: 'u9', first_name: 'Molly' } },
+    ]
+    render(<SchoolInboxPage />, { route: '/inbox?tab=mine&group=g3' })
+    expect(await screen.findByText('Field trip forms are due Friday, please remind everyone'))
+      .toBeInTheDocument()
+    expect(api.get).toHaveBeenCalledWith('/api/groups/g3/messages')
+    // Still not listed among the staff group threads.
+    expect(screen.queryByText('Group threads')).toBeNull()
+  })
+
+  it('opens a ?group= the list does not hold, once the list has loaded', async () => {
+    authUser = { id: 'me-1', role: 'advisor' }
+    render(<SchoolInboxPage />, { route: '/inbox?tab=mine&group=g7' })
+    await waitFor(() => expect(api.get).toHaveBeenCalledWith('/api/groups/g7/messages'))
+  })
+
   it('says nothing about groups when there are none', async () => {
     authUser = { id: 'me-1', role: 'advisor' }
     state.myConvos = [convo(2, 'Pat')]
@@ -737,5 +763,65 @@ describe('SchoolInboxPage — tasks, grants and receipts', () => {
     expect(screen.getByText('Not read yet')).toBeInTheDocument()
     // "Read by 1 of 2" above, and Mia's "Read <time>".
     expect(screen.getAllByText(/^Read /)).toHaveLength(2)
+  })
+})
+
+// 80d52c32: "A way to search messages would be very helpful for when one
+// needs to go back and find something that someone had messaged about."
+// Approved scope: thread names only (people, groups), on every tab.
+describe('thread search', () => {
+  const search = () => screen.getByRole('searchbox', { name: 'Search conversations' })
+
+  it('filters the threads by name, across every pile', async () => {
+    state.schoolConvos = [
+      convo(1, 'Greta'),
+      // Handled: not under Needs a reply, but a search still finds it.
+      { ...convo(2, 'Henry'), resolved_at: '2026-08-31T12:00:00Z' },
+    ]
+    render(<SchoolInboxPage />, { route: '/inbox?tab=school' })
+    expect(await screen.findByText('Greta Family')).toBeInTheDocument()
+    expect(screen.queryByText('Henry Family')).toBeNull()
+
+    fireEvent.change(search(), { target: { value: 'henry' } })
+    expect(await screen.findByText('Henry Family')).toBeInTheDocument()
+    expect(screen.queryByText('Greta Family')).toBeNull()
+  })
+
+  it('filters group threads by name', async () => {
+    authUser = { id: 'me-1', role: 'advisor' }
+    state.groups = [
+      { id: 'g1', name: 'Elementary teachers', audience: 'staff', last_message_at: '2026-09-22T10:00:00Z' },
+      { id: 'g2', name: 'Middle school team', audience: 'staff', last_message_at: '2026-09-22T09:00:00Z' },
+    ]
+    render(<SchoolInboxPage />)
+    await screen.findByText('Elementary teachers')
+    fireEvent.change(search(), { target: { value: 'middle' } })
+    expect(screen.getByText('Middle school team')).toBeInTheDocument()
+    expect(screen.queryByText('Elementary teachers')).toBeNull()
+  })
+
+  it('says so when nothing matches', async () => {
+    state.schoolConvos = [convo(1, 'Greta')]
+    render(<SchoolInboxPage />, { route: '/inbox?tab=school' })
+    await screen.findByText('Greta Family')
+    fireEvent.change(search(), { target: { value: 'zebra' } })
+    expect(screen.getByText('No conversations match')).toBeInTheDocument()
+    expect(screen.queryByText('Greta Family')).toBeNull()
+  })
+
+  it('searches the Sent tab by subject, not the body', async () => {
+    state.sends = [
+      { id: 's1', subject: 'Trip', body: 'Bring a lunch', mode: 'separate',
+        created_at: '2026-09-23T10:00:00Z', read_count: 1, recipient_count: 2 },
+      { id: 's2', subject: 'Picture day', body: 'Smile', mode: 'separate',
+        created_at: '2026-09-23T11:00:00Z', read_count: 0, recipient_count: 2 },
+    ]
+    render(<SchoolInboxPage />, { route: '/inbox?tab=sent' })
+    expect(await screen.findByText('Trip')).toBeInTheDocument()
+    fireEvent.change(search(), { target: { value: 'picture' } })
+    expect(screen.getByText('Picture day')).toBeInTheDocument()
+    expect(screen.queryByText('Trip')).toBeNull()
+    fireEvent.change(search(), { target: { value: 'lunch' } })
+    expect(screen.getByText('No conversations match')).toBeInTheDocument()
   })
 })

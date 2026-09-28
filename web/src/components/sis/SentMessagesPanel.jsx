@@ -22,7 +22,11 @@ const KIND_LABEL = { staff: 'Staff', family: 'Parent', student: 'Student' }
 
 const preview = (s) => s.subject || (s.body || '').split('\n')[0] || 'Message'
 
-export default function SentMessagesPanel({ orgId }) {
+/**
+ * `search` is the page's thread-name search, already lower-cased: it matches
+ * the subject (or first line) and who sent it, never the body (80d52c32).
+ */
+export default function SentMessagesPanel({ orgId, search = '' }) {
   const [open, setOpen] = useState(null)
   const sendsQuery = useSentMessages(orgId)
   const detailQuery = useSentMessage(orgId, open)
@@ -91,9 +95,21 @@ export default function SentMessagesPanel({ orgId }) {
     )
   }
 
+  const shown = search
+    ? sends.filter((s) => [preview(s), s.sent_by_name].some((n) => (n || '').toLowerCase().includes(search)))
+    : sends
+  if (!shown.length) {
+    return (
+      <div className="flex flex-col items-center justify-center h-64 p-4 text-center">
+        <PaperAirplaneIcon className="w-12 h-12 text-gray-300 mb-3" />
+        <p className="text-sm font-medium text-neutral-700 mb-1">No conversations match</p>
+      </div>
+    )
+  }
+
   return (
     <ul className="divide-y divide-gray-100">
-      {sends.map((s) => (
+      {shown.map((s) => (
         <li key={s.id}>
           <button type="button" onClick={() => setOpen(s.id)}
             className="w-full text-left px-4 py-3 hover:bg-gray-50 flex items-start gap-3">

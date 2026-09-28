@@ -487,7 +487,9 @@ def test_an_adults_held_message_names_the_role_and_the_adult_rules():
     with patch('utils.client_platform.request_client_platform', return_value='web'), \
          patch.object(ts, 'screen', return_value=ScreenResult('flagged', ['secrecy'], 'm')) as screen, \
          patch.object(ts, 'record_hold') as hold:
-        with pytest.raises(ValidationError, match='held by our safety check'):
+        # An adult reads the reason category now, not the child's sentence
+        # (d1bb050c); this used to match 'held by our safety check'.
+        with pytest.raises(ValidationError, match='Held for review: .*keep something from their parents'):
             dms.send_message('teacher', 'kid', 'keep this between us')
     assert screen.call_args.kwargs['author_kind'] == 'adult'
     kw = hold.call_args.kwargs
@@ -934,9 +936,14 @@ def test_an_adults_hold_goes_to_the_org_admins_and_superadmins_not_the_child():
                        text='our secret', result=ScreenResult('flagged', ['secrecy'], 'm'),
                        author_kind='adult', author_role='advisor')
     parents.assert_not_called()
-    told = {c.kwargs['user_id'] for c in notify.create_notification.call_args_list}
+    # The staff notices only. Since d1bb050c the author also gets a notice
+    # about their own message (test_held_staff_messages.py); before that the
+    # author got nothing, so this used to assert over every notification.
+    staff = [c for c in notify.create_notification.call_args_list
+             if c.kwargs['title'].startswith('Staff message held')]
+    told = {c.kwargs['user_id'] for c in staff}
     assert told == {'admin1', 'sa1'}  # the author is an org admin here and is not told on himself
-    body = notify.create_notification.call_args.kwargs['message']
+    body = staff[-1].kwargs['message']
     assert body.startswith('Mr Lee (advisor) wrote a message to Sam that our safety check held.')
     assert body.endswith('"our secret"')
     assert repo.record_hold.call_args.kwargs['author_role'] == 'advisor'

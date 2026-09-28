@@ -22,6 +22,9 @@ HIDDEN_BY_PARENT = 'parent'
 HIDDEN_BY_REPORT = 'report'
 HIDDEN_BY_SCREEN = 'screen'
 
+#: The error_message prefix on an upload the provider refused to screen.
+UNSCREENED_PROVIDER_BLOCKED = 'provider_blocked'
+
 
 class PeerTextScreenRepository(BaseRepository):
     table_name = 'peer_text_holds'
@@ -88,6 +91,40 @@ class PeerTextScreenRepository(BaseRepository):
             .gte('created_at', since_iso) \
             .order('created_at').limit(1).execute().data or []
         return rows[0]['id'] if rows else None
+
+    def record_unscreened_upload(self, *, author_id: str, purpose: str,
+                                 filename: Optional[str], sha256: Optional[str],
+                                 block_reason: str, model: Optional[str]) -> Optional[str]:
+        """Record a picture that went up WITHOUT a verdict because the model
+        provider refused to look at it (ticket dac8264c).
+
+        The upload is allowed, so there is no hold and no parent to tell; this
+        row is what a person reviews later. It goes where the upload screen's
+        calls are already counted, ai_usage_logs under UploadScreenService,
+        with success=false (the tracker counts it as a failed call, never as
+        a judged one) and an error_message that starts with
+        UNSCREENED_PROVIDER_BLOCKED, so it is found with:
+
+            select user_id, created_at, error_message from ai_usage_logs
+             where service_name = 'UploadScreenService'
+               and error_message like 'provider_blocked%'
+             order by created_at desc;
+        """
+        detail = (f'{UNSCREENED_PROVIDER_BLOCKED} block_reason={block_reason} '
+                  f'purpose={purpose} filename={filename or ""} sha256={sha256 or ""}')
+        row: Dict[str, Any] = {
+            'service_name': 'UploadScreenService',
+            'user_id': author_id,
+            'input_tokens': 0,
+            'output_tokens': 0,
+            'estimated_cost': 0,
+            'success': False,
+            'error_message': detail[:1000],
+        }
+        if model:
+            row['model_name'] = model
+        data = self.client.table('ai_usage_logs').insert(row).execute().data
+        return data[0]['id'] if data else None
 
     def holds_by_author(self, author_id: str, since_iso: str) -> List[Dict[str, Any]]:
         """What this student wrote that was held, newest first. The parent

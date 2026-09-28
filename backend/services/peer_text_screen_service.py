@@ -49,7 +49,7 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
 from app_config import Config
-from services.base_ai_service import BaseAIService
+from services.base_ai_service import AIPromptBlockedError, BaseAIService
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -77,6 +77,12 @@ IMAGE_MAX_BYTES = 20 * 1024 * 1024
 VERDICT_CLEAR = 'clear'
 VERDICT_FLAGGED = 'flagged'
 VERDICT_ERROR = 'error'
+#: The provider refused to look at the input at all (Gemini answered with no
+#: candidates and a prompt_feedback.block_reason). Nothing was judged, so to a
+#: caller it is a failure like 'error' (`failed` is true, a text posts as
+#: pending); the upload gate additionally records it as unscreened so a person
+#: can look at the picture later (ticket dac8264c).
+VERDICT_PROVIDER_BLOCKED = 'provider_blocked'
 
 #: What screen_status a row gets for each verdict. 'error' posts as pending so
 #: the sweep can find it; there is no 'error' status on the row.
@@ -84,12 +90,60 @@ STATUS_FOR_VERDICT = {
     VERDICT_CLEAR: 'clear',
     VERDICT_FLAGGED: 'flagged',
     VERDICT_ERROR: 'pending',
+    VERDICT_PROVIDER_BLOCKED: 'pending',
 }
 
 #: What the author reads when their text is held. One sentence, no reasons: the
 #: reasons go to the parent, and telling a child exactly which word tripped the
 #: screen teaches them to rephrase around it.
 HELD_MESSAGE = 'That was held by our safety check. Keep it kind and about the work.'
+
+#: What an ADULT author reads instead (d1bb050c). A teacher told only "keep it
+#: kind" did not know what she had done or whether anyone would look, and
+#: sent it again. An adult is told the category in plain words -- never the
+#: model's own reason text, which is unreviewed output -- and that an admin
+#: will review it. Each entry is (words that name the category in a reason,
+#: the sentence the author reads). The regex reasons ('shares a phone
+#: number', ...) land in the first; the model's reasons are matched by
+#: keyword, and anything unmatched gets the last line.
+ADULT_HOLD_CATEGORIES = (
+    (('phone', 'email', 'address', 'username', 'contact', 'another app', 'somewhere else',
+      'off-platform', 'off platform', 'social media', 'link', 'video call', 'outside school',
+      'meet'),
+     'it looks like it shares contact details with students or asks to talk somewhere else'),
+    (('secret', 'secrecy', 'keep this', 'keep it', 'from their parents', 'from parents',
+      'hide'),
+     'it looks like it asks a student to keep something from their parents or other staff'),
+    (('body', 'looks', 'appearance', 'romantic', 'sexual', 'photo', 'picture', 'image'),
+     'it looks like it comments on a student personally or asks for photos'),
+    (('gift', 'money', 'favour', 'favor', 'special treatment', 'reward'),
+     'it looks like it offers a student gifts, money or special treatment'),
+    (('alone', 'home life', 'schedule', 'parents\''),
+     'it looks like it asks about a student\'s home life or when they are alone'),
+    (('insult', 'threat', 'humiliat', 'profan', 'swear', 'mock', 'bully', 'harsh', 'slur'),
+     'the wording could read as harsh or insulting to a student'),
+    (('self-harm', 'self harm', 'suicide', 'drug', 'alcohol', 'weapon'),
+     'it mentions self-harm, drugs, alcohol or weapons'),
+)
+ADULT_HOLD_FALLBACK = 'it matched one of the rules for messages to students'
+
+
+def adult_hold_reason(result: 'ScreenResult') -> str:
+    """The plain-language category of an adult's hold, from the screen's
+    reasons. Never the reason text itself."""
+    joined = ' '.join(str(r) for r in (result.reasons or [])).lower()
+    for words, sentence in ADULT_HOLD_CATEGORIES:
+        if any(w in joined for w in words):
+            return sentence
+    return ADULT_HOLD_FALLBACK
+
+
+def held_message_for(result: 'ScreenResult', author_kind: str) -> str:
+    """What the author reads at send time. A student gets HELD_MESSAGE and no
+    reason, as ever; an adult gets the category and who looks next."""
+    if author_kind == AUTHOR_ADULT:
+        return f'Held for review: {adult_hold_reason(result)}. An admin will look at it.'
+    return HELD_MESSAGE
 
 # --- the deterministic pass ---------------------------------------------------
 # The regexes live in utils/contact_details so a name or a bio can be held to
@@ -107,6 +161,8 @@ class ScreenResult:
     #: Which rules a flagged image broke, from UploadScreenService only.
     #: Empty for the text screen, and empty when the model left them out.
     kinds: List[str] = field(default_factory=list)
+    #: The provider's stated reason, on VERDICT_PROVIDER_BLOCKED only.
+    block_reason: Optional[str] = None
 
     @property
     def flagged(self) -> bool:
@@ -114,7 +170,11 @@ class ScreenResult:
 
     @property
     def failed(self) -> bool:
-        return self.verdict == VERDICT_ERROR
+        return self.verdict in (VERDICT_ERROR, VERDICT_PROVIDER_BLOCKED)
+
+    @property
+    def provider_blocked(self) -> bool:
+        return self.verdict == VERDICT_PROVIDER_BLOCKED
 
     @property
     def status(self) -> str:
@@ -319,6 +379,13 @@ class PeerTextScreenService(BaseAIService):
             )
             data = result.data
             model = result.model_name
+        except AIPromptBlockedError as e:
+            # Not an outage: the provider would not look. Said apart from
+            # 'error' so the upload gate can record the picture as unscreened.
+            logger.warning('[peer-text-screen] provider refused the input (fail-open): %s',
+                           e.block_reason)
+            return ScreenResult(VERDICT_PROVIDER_BLOCKED, [], self._safe_model_name(),
+                                block_reason=e.block_reason)
         except Exception as e:  # noqa: BLE001 -- every failure is one verdict
             logger.warning('[peer-text-screen] model call failed (fail-open): %s', e)
             return ScreenResult(VERDICT_ERROR, [], self._safe_model_name())
@@ -567,6 +634,9 @@ def record_hold(*, author_id: str, recipient_id: Optional[str] = None, surface: 
         # alone, and never to the child.
         _tell_staff(author_id, recipient_id, group_id, surface, stage, text=text,
                     attachments=attachments, hold_id=hold_id, author_role=author_role)
+        # And the adult who wrote it hears why, including from the sweep,
+        # which hides a message long after the send returned (d1bb050c).
+        _tell_author(author_id, group_id, surface, stage, text=text, result=result)
     else:
         _tell_parents(author_id, surface, stage, text=text, attachments=attachments,
                       hold_id=hold_id)
@@ -671,6 +741,38 @@ def _tell_staff(author_id: str, recipient_id: Optional[str], group_id: Optional[
                 link='/admin/moderation?tab=holds', metadata=metadata)
     except Exception as e:  # noqa: BLE001
         logger.warning('[peer-text-screen] could not notify staff of a hold by %s: %s',
+                       str(author_id)[:8], e)
+
+
+def _tell_author(author_id: str, group_id: Optional[str], surface: str, stage: str, *,
+                 text: str, result: 'ScreenResult') -> None:
+    """An adult whose message was held is told, with the category, and gets
+    the whole text back in metadata.full_content so it can be rewritten.
+
+    No hold_id in the metadata: the hold view is for the student's parents
+    and the admins, and a notification carrying one would open a detail the
+    author cannot load. The link is the thread, where they can try again.
+    Never called for a student: a child is not told why (HELD_MESSAGE)."""
+    try:
+        from services.notification_service import NotificationService
+        reason = adult_hold_reason(result)
+        what = 'comment' if surface == SURFACE_COMMENT else 'message'
+        if stage == 'refused':
+            body = f'Your {what} was held for review and was not sent: {reason}. An admin will look at it.'
+        else:
+            body = (f'Your {what} was hidden by our safety check after it posted: {reason}. '
+                    'An admin will look at it.')
+        full = body + (f'\n\nWhat you wrote:\n{text}' if (text or '').strip() else '')
+        link = f'/communication?group={group_id}' if group_id else '/communication'
+        NotificationService().create_notification(
+            user_id=author_id, notification_type='peer_text_held',
+            title=f'Your {what} was held for review', message=body + _quote(text, None),
+            link=link,
+            metadata={'surface': surface, 'stage': stage, 'author_kind': AUTHOR_ADULT,
+                      'own_hold': True, 'reason': reason, 'group_id': group_id,
+                      'full_content': full})
+    except Exception as e:  # noqa: BLE001
+        logger.warning('[peer-text-screen] could not tell %s their message was held: %s',
                        str(author_id)[:8], e)
 
 
