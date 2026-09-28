@@ -10,6 +10,7 @@ from services.base_service import BaseService
 from typing import Dict, List, Optional, Any
 from utils.logger import get_logger
 from app_config import Config
+from utils.validation.sanitizers import pgrst_pattern
 
 logger = get_logger(__name__)
 
@@ -58,6 +59,64 @@ MOBILE_PUSH_NOTIFICATION_TYPES = {
     # third went out as 'announcement'.
     'class_quest_assigned', 'child_task_reviewed', 'class_work_reminder',
 }
+
+
+# What the notifications page's "kind" filter offers (04e24d8c, iCreate,
+# 2026-09-28): the notifications.type CHECK list folded into the handful of
+# kinds a reader thinks in. A group's key is what the page sends as ?type=;
+# a raw type is accepted too. Every type the CHECK constraint allows belongs
+# to exactly one group -- tests/unit/test_notification_list_filters.py pins
+# that. The office's own notices ("Student not accounted for", a payment
+# due) are all 'school_notice', so the search box is what tells them apart.
+NOTIFICATION_TYPE_GROUPS = (
+    ('messages', 'New messages', ('message_received',)),
+    ('school', 'From the school', ('school_notice', 'student_absent', 'attendance_reminder')),
+    ('announcements', 'Announcements', ('announcement', 'advisor_note', 'system_alert')),
+    ('held', 'Held messages', ('peer_text_held',)),
+    ('tasks', 'Tasks and quests', (
+        'task_approved', 'task_revision_requested', 'child_task_reviewed',
+        'class_quest_assigned', 'class_work_reminder', 'class_submitted_for_review',
+        'quest_invitation', 'quest_started', 'video_processing',
+    )),
+    ('credits', 'Credits', (
+        'diploma_credit_requested', 'diploma_credit_approved',
+        'diploma_credit_grow_this', 'org_approved_credit',
+    )),
+    ('friends', 'Friends and approvals', (
+        'peer_connection_request', 'peer_connection_needs_approval',
+        'peer_connection_approved', 'peer_connection_declined', 'peer_comment',
+        'peer_friend_added', 'peer_reaction', 'friendship_request',
+        'parent_approval_required',
+    )),
+    ('observers', 'Observers', (
+        'observer_comment', 'observer_added', 'observer_accepted', 'observer_like',
+    )),
+    ('bounties', 'Bounties', ('bounty_posted', 'bounty_claimed', 'bounty_submission')),
+    ('treehouse', 'Treehouse', (
+        'treehouse_help', 'treehouse_proud', 'treehouse_task_completed',
+        'treehouse_quest_completed', 'treehouse_showcase_joined',
+    )),
+    ('other', 'Other', ('badge_earned',)),
+)
+
+_TYPE_GROUP_MEMBERS = {key: types for key, _label, types in NOTIFICATION_TYPE_GROUPS}
+_ALL_GROUPED_TYPES = {t for _k, _l, types in NOTIFICATION_TYPE_GROUPS for t in types}
+
+
+def resolve_type_filter(value: Optional[str]) -> Optional[List[str]]:
+    """The notification types a ?type= value stands for, or None for no filter.
+
+    A group key expands to its members, a known raw type to itself. Anything
+    else is a ValueError: a filter nobody can match should say so, not quietly
+    return an empty list that reads as "you have none of these".
+    """
+    if not value:
+        return None
+    if value in _TYPE_GROUP_MEMBERS:
+        return list(_TYPE_GROUP_MEMBERS[value])
+    if value in _ALL_GROUPED_TYPES:
+        return [value]
+    raise ValueError(f"Unknown notification type: {value}")
 
 
 class NotificationService(BaseService):
@@ -170,15 +229,25 @@ class NotificationService(BaseService):
         self,
         user_id: str,
         limit: int = 50,
-        unread_only: bool = False
+        unread_only: bool = False,
+        page: int = 1,
+        q: Optional[str] = None,
+        types: Optional[List[str]] = None,
     ) -> List[Dict[str, Any]]:
         """
-        Get notifications for a user.
+        Get one page of a user's notifications, newest first.
+
+        `page` is 1-based. Until 2026-09-28 it was ignored and every page was
+        the newest `limit` rows, so "Load more" appended the same notifications
+        again (519f371d, iCreate).
 
         Args:
             user_id: User ID
-            limit: Maximum notifications to return
+            limit: Page size
             unread_only: Only return unread notifications
+            page: Which page of `limit` rows (1 = newest)
+            q: Text to find in the title or message (case-insensitive)
+            types: Only these notification types (see resolve_type_filter)
 
         Returns:
             List of notification records
@@ -191,8 +260,21 @@ class NotificationService(BaseService):
             if unread_only:
                 query = query.eq('is_read', False)
 
+            if types:
+                query = query.in_('type', types)
+
+            # pgrst_pattern, not sanitize_search_input: that strips "or", "not"
+            # and "and" out of the middle of words, which turns "Student not
+            # accounted for" into a search for "Student  accounted f".
+            if pgrst_pattern(q):
+                query = query.or_(
+                    f'title.ilike.%{pgrst_pattern(q)}%,message.ilike.%{pgrst_pattern(q)}%')
+
+            offset = (max(page, 1) - 1) * limit
+            # id breaks created_at ties so a row cannot straddle two pages.
             query = query.order('created_at', desc=True)\
-                .limit(limit)
+                .order('id', desc=True)\
+                .range(offset, offset + limit - 1)
 
             result = query.execute()
             return result.data or []

@@ -30,8 +30,13 @@ export const notificationKeys = {
 
 const PAGE_SIZE = 20
 
-function listUrl({ page = 1, limit = 10, unreadOnly = false }) {
-  return `/api/notifications?page=${page}&limit=${limit}${unreadOnly ? '&unread_only=true' : ''}`
+function listUrl({ page = 1, limit = 10, unreadOnly = false, search = '', type = '' }) {
+  const params = new URLSearchParams({ page: String(page), limit: String(limit) })
+  if (unreadOnly) params.set('unread_only', 'true')
+  const q = (search || '').trim()
+  if (q) params.set('q', q)
+  if (type) params.set('type', type)
+  return `/api/notifications?${params.toString()}`
 }
 
 /** Apply `fn` to every cached notifications payload (bell list, page feed). */
@@ -114,14 +119,22 @@ export const useNotificationsQuery = (options = {}) => {
 }
 
 /**
- * The full list, a page at a time, with the unread filter -- what the
- * notifications page renders. `notifications` is every page so far.
+ * The full list, a page at a time, with the unread filter, a text search and
+ * a kind filter -- what the notifications page renders. `notifications` is
+ * every page so far. Each filter is part of the cache key, so paging a
+ * filtered list pages that list and never mixes in rows from another.
+ *
+ * The server pages by ?page= since 2026-09-28; before that it ignored it and
+ * "Load more" appended page one again (519f371d). Rows are still de-duplicated
+ * by id here, because a notification arriving between two page fetches shifts
+ * every older row down by one.
  */
-export const useNotificationsFeed = ({ unreadOnly = false, enabled = true } = {}) => {
+export const useNotificationsFeed = ({ unreadOnly = false, search = '', type = '', enabled = true } = {}) => {
+  const q = (search || '').trim()
   const query = useInfiniteQuery({
-    queryKey: notificationKeys.feed({ unreadOnly }),
+    queryKey: notificationKeys.feed({ unreadOnly, search: q, type }),
     queryFn: async ({ pageParam = 1 }) => {
-      const response = await api.get(listUrl({ page: pageParam, limit: PAGE_SIZE, unreadOnly }))
+      const response = await api.get(listUrl({ page: pageParam, limit: PAGE_SIZE, unreadOnly, search: q, type }))
       return response.data || { notifications: [] }
     },
     initialPageParam: 1,
@@ -131,7 +144,10 @@ export const useNotificationsFeed = ({ unreadOnly = false, enabled = true } = {}
     staleTime: 30000,
     refetchOnWindowFocus: true,
   })
-  const notifications = (query.data?.pages || []).flatMap((p) => p.notifications || [])
+  const seen = new Set()
+  const notifications = (query.data?.pages || [])
+    .flatMap((p) => p.notifications || [])
+    .filter((n) => (seen.has(n.id) ? false : (seen.add(n.id), true)))
   return {
     notifications,
     unreadCount: query.data?.pages?.[0]?.unread_count ?? notifications.filter((n) => !n.is_read).length,
@@ -142,6 +158,25 @@ export const useNotificationsFeed = ({ unreadOnly = false, enabled = true } = {}
     error: query.error,
     refetch: query.refetch,
   }
+}
+
+/**
+ * The kinds the notifications page can filter by ({key, label}), from the
+ * server, which owns how raw notification types fold into them.
+ */
+export const useNotificationTypes = ({ enabled = true } = {}) => {
+  const query = useQuery({
+    // Deliberately outside NOTIFICATIONS_KEY: every action patches each
+    // payload under that key as a notifications list, which this is not.
+    queryKey: ['notification-types'],
+    queryFn: async () => {
+      const response = await api.get('/api/notifications/types')
+      return response.data?.types || []
+    },
+    enabled,
+    staleTime: Infinity,
+  })
+  return query.data || []
 }
 
 /**

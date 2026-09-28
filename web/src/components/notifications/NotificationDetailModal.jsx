@@ -6,6 +6,7 @@ import { formatDistanceToNow } from 'date-fns'
 import { safeHref } from '../../utils/safeHref'
 import ModalOverlay from '../ui/ModalOverlay'
 import HeldMessageDetail from './HeldMessageDetail'
+import { useAuth } from '../../contexts/AuthContext'
 
 const CTA_CLASS = 'inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white font-medium rounded-lg hover:opacity-90 transition-opacity'
 
@@ -43,8 +44,37 @@ export const linksToCurrentPage = (href, location) => {
   return `?${hrefQuery}` === (location.search || '')
 }
 
+/**
+ * Whether a reader with this role can open `href` at all. The /admin console
+ * is superadmin-only; an org admin following a link into it bounced straight
+ * back out (d1bb050c: a held-message notification linked /admin/moderation),
+ * so for anybody else the button would be a lie. Every other in-app link is
+ * the notifier's promise that the recipient can open it.
+ */
+export const canReachLink = (href, role) => {
+  if (!href) return false
+  const path = href.split(/[?#]/)[0]
+  if (path === '/admin' || path.startsWith('/admin/')) return role === 'superadmin'
+  return true
+}
+
+/**
+ * The reader's role, or undefined outside an AuthProvider (the modal renders
+ * bare in tests). useAuth() throws there; reading that as "not a superadmin"
+ * only ever hides an /admin button. Not useContext(AuthContext): most suites
+ * mock the AuthContext module with useAuth alone, and a missing export throws.
+ */
+function useViewerRole() {
+  try {
+    return useAuth()?.user?.role
+  } catch {
+    return undefined
+  }
+}
+
 const NotificationDetailModal = ({ notification, isOpen, onClose }) => {
   const location = useLocation()
+  const role = useViewerRole()
   if (!isOpen || !notification) return null
 
   const formatDate = (dateString) => {
@@ -113,20 +143,26 @@ const NotificationDetailModal = ({ notification, isOpen, onClose }) => {
     }
   }
 
-  // A held-message notification shows the message itself below; the link to
-  // /family would be a second click to a page that says the same thing.
+  // A held-message notification shows the message itself below.
   const heldMessageId = notification.type === 'peer_text_held'
     ? notification.metadata?.hold_id || null
     : null
 
-  // The notifications page is where this modal is usually opened from, so a
-  // link back to it is a no-op button. Drop it rather than offer a dead end.
-  const href = notification.link && notification.link !== '/notifications' && !heldMessageId
+  // The action is the notification's own link, for every type. A held
+  // message used to drop it, which left the reader with the message and no
+  // way to do anything about it (d1bb050c); the page it links to is where
+  // the hold is released or kept. The notifications page is where this modal
+  // is usually opened from, so a link back to it is a no-op button.
+  const href = notification.link && notification.link !== '/notifications'
     ? safeHref(notification.link)
     : null
   const isInternal = !!href && href.startsWith('/')
-  // A button that only closes the modal is a dead end; leave it out.
-  const showLink = !!href && href !== '#' && !linksToCurrentPage(href, location)
+  // A button that only closes the modal is a dead end, and one into a
+  // console the reader cannot open is worse; leave both out.
+  const showLink = !!href && href !== '#'
+    && !linksToCurrentPage(href, location)
+    && (!isInternal || canReachLink(href, role))
+  const actionLabel = heldMessageId ? 'Review this message' : 'View Details'
 
   // Portalled, not a raw `fixed inset-0`. The bell that opens this sits inside
   // a z-30 sticky nav, and a modal nested in that stacking context paints
@@ -187,12 +223,12 @@ const NotificationDetailModal = ({ notification, isOpen, onClose }) => {
             <div className="mt-6 pt-4 border-t border-gray-100">
               {isInternal ? (
                 <Link to={href} onClick={onClose} className={CTA_CLASS}>
-                  View Details
+                  {actionLabel}
                   <ArrowRight />
                 </Link>
               ) : (
                 <a href={href} target="_blank" rel="noopener noreferrer" className={CTA_CLASS}>
-                  View Details
+                  {actionLabel}
                   <ArrowRight />
                 </a>
               )}

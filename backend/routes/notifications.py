@@ -10,7 +10,11 @@ from utils.auth.decorators import require_auth
 from utils.auth.org_scope import caller_can_access_user
 from utils.roles import get_effective_role
 from middleware.error_handler import ValidationError
-from services.notification_service import NotificationService
+from services.notification_service import (
+    NOTIFICATION_TYPE_GROUPS,
+    NotificationService,
+    resolve_type_filter,
+)
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -42,30 +46,44 @@ def get_notifications(user_id: str):
     Get notifications for the authenticated user.
 
     Query params:
-        limit (int): Max notifications to return (default: 50)
+        limit (int): Page size (default: 50)
+        page (int): 1-based page of `limit` rows, newest first (default: 1)
         unread_only (bool): Only return unread notifications (default: false)
+        q (str): Text to find in the title or message
+        type (str): A group key from /types, or a single notification type
 
     Returns:
         200: List of notifications with unread count
     """
     try:
-        # admin client justified: notifications scoped to user_id from @require_auth; reads/writes notifications + notification_preferences for self
-        supabase = get_supabase_admin_client()
-        service = NotificationService(supabase)
-
         # Parse query params
         limit = request.args.get('limit', 50, type=int)
+        page = request.args.get('page', 1, type=int)
         unread_only = request.args.get('unread_only', 'false').lower() == 'true'
+        q = (request.args.get('q') or '').strip() or None
 
         # Validate limit
         if limit < 1 or limit > 100:
             return jsonify({'error': 'Limit must be between 1 and 100'}), 400
+        if page < 1:
+            return jsonify({'error': 'Page must be 1 or more'}), 400
+        try:
+            types = resolve_type_filter((request.args.get('type') or '').strip() or None)
+        except ValueError as e:
+            return jsonify({'error': str(e)}), 400
+
+        # admin client justified: notifications scoped to user_id from @require_auth; reads/writes notifications + notification_preferences for self
+        supabase = get_supabase_admin_client()
+        service = NotificationService(supabase)
 
         # Get notifications
         notifications = service.get_user_notifications(
             user_id=user_id,
             limit=limit,
-            unread_only=unread_only
+            unread_only=unread_only,
+            page=page,
+            q=q,
+            types=types,
         )
 
         # Get unread count
@@ -80,6 +98,19 @@ def get_notifications(user_id: str):
     except Exception as e:
         logger.error(f"Error fetching notifications: {str(e)}")
         return jsonify({'error': 'Failed to fetch notifications'}), 500
+
+
+@bp.route('/types', methods=['GET'])
+@require_auth
+def get_notification_types(user_id: str):
+    """The kinds the notifications page can filter by, in display order.
+
+    Each is {key, label}; the page sends `key` back as ?type=.
+    """
+    return jsonify({
+        'success': True,
+        'types': [{'key': key, 'label': label} for key, label, _types in NOTIFICATION_TYPE_GROUPS],
+    }), 200
 
 
 @bp.route('/unread-count', methods=['GET'])

@@ -9,6 +9,14 @@ vi.mock('../../services/friendsAPI', () => ({
   getHold: vi.fn(),
 }))
 
+let authUser = null
+vi.mock('../../contexts/AuthContext', () => ({
+  useAuth: () => {
+    if (!authUser) throw new Error('useAuth must be used within an AuthProvider')
+    return { user: authUser }
+  },
+}))
+
 vi.mock('date-fns', () => ({
   formatDistanceToNow: () => '5 minutes',
 }))
@@ -34,21 +42,23 @@ const holdDetail = {
   group: { id: 'g1', name: 'Period 3 Biology' },
 }
 
-function mount(notification) {
+function mount(notification, { route = '/notifications', role } = {}) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-  return render(
+  const tree = (
     <QueryClientProvider client={client}>
-      <MemoryRouter>
+      <MemoryRouter initialEntries={[route]}>
         <NotificationDetailModal notification={notification} isOpen onClose={() => {}} />
       </MemoryRouter>
     </QueryClientProvider>
   )
+  authUser = role ? { role } : null
+  return render(tree)
 }
 
 describe('NotificationDetailModal for a held message', () => {
   beforeEach(() => vi.clearAllMocks())
 
-  it('shows the held words, the picture, where it was going and why, with no dead link', async () => {
+  it('shows the held words, the picture, where it was going and why', async () => {
     friends.getHold.mockResolvedValue(holdDetail)
     mount(held)
 
@@ -62,8 +72,45 @@ describe('NotificationDetailModal for a held message', () => {
     expect(screen.getByRole('img', { name: 'a.jpg' })).toHaveAttribute('src', 'https://signed.example/a.jpg?token=1')
     expect(screen.getByText(/Why: shares a username for another app/)).toBeInTheDocument()
     expect(screen.getByText('Safety Check')).toBeInTheDocument()
-    // The link to /family was the click that went nowhere.
-    expect(screen.queryByText('View Details')).not.toBeInTheDocument()
+  })
+
+  // d1bb050c (iCreate): "There is no way to do anything about it directly
+  // from the pop-up." This used to pin the opposite -- the link was dropped
+  // for every held message because, read FROM /family, it went nowhere
+  // (2026-09-15). linksToCurrentPage now handles that case on its own, so the
+  // action comes back everywhere else.
+  it('offers the link as its action when it leads somewhere', async () => {
+    friends.getHold.mockResolvedValue(holdDetail)
+    mount(held)
+    const action = await screen.findByText('Review this message')
+    expect(action.closest('a')).toHaveAttribute('href', '/family')
+  })
+
+  it('still leaves the action out when the reader is already on that page', async () => {
+    friends.getHold.mockResolvedValue(holdDetail)
+    mount(held, { route: '/family' })
+    await waitFor(() => expect(screen.getByTestId('held-message-detail')).toBeInTheDocument())
+    expect(screen.queryByText('Review this message')).not.toBeInTheDocument()
+  })
+
+  it('hides an /admin link from anyone but a superadmin', async () => {
+    friends.getHold.mockResolvedValue(holdDetail)
+    const adminLinked = { ...held, link: '/admin/moderation' }
+    const { unmount } = mount(adminLinked, { role: 'org_managed' })
+    await waitFor(() => expect(screen.getByTestId('held-message-detail')).toBeInTheDocument())
+    expect(screen.queryByText('Review this message')).not.toBeInTheDocument()
+    unmount()
+
+    mount(adminLinked, { role: 'superadmin' })
+    const action = await screen.findByText('Review this message')
+    expect(action.closest('a')).toHaveAttribute('href', '/admin/moderation')
+  })
+
+  it('shows a non-admin link it can reach, whatever the role', async () => {
+    friends.getHold.mockResolvedValue(holdDetail)
+    mount({ ...held, link: '/sis/messaging?tab=held' }, { role: 'org_managed' })
+    const action = await screen.findByText('Review this message')
+    expect(action.closest('a')).toHaveAttribute('href', '/sis/messaging?tab=held')
   })
 
   it('falls back to the notification text when the hold cannot be loaded', async () => {

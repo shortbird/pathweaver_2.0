@@ -1,18 +1,21 @@
-import React, { useState } from 'react'
-import { Link } from 'react-router-dom'
-import { BellIcon, CheckIcon, XMarkIcon, PlusIcon } from '@heroicons/react/24/outline'
+import React, { useEffect, useState } from 'react'
+import { BellIcon, CheckIcon, XMarkIcon, PlusIcon, MagnifyingGlassIcon } from '@heroicons/react/24/outline'
 import { formatDistanceToNow } from 'date-fns'
 import { toast } from 'react-hot-toast'
 import { useAuth } from '../../contexts/AuthContext'
-import { useNotificationsFeed, useNotificationActions } from '../../hooks/api/useNotifications'
+import { useNotificationsFeed, useNotificationActions, useNotificationTypes } from '../../hooks/api/useNotifications'
 import NotificationDetailModal from '../../components/notifications/NotificationDetailModal'
 import SendNotificationModal from '../../components/notifications/SendNotificationModal'
 import { GlassTabBar, Spinner } from '../../components/ui'
+
+export const SEARCH_DEBOUNCE_MS = 300
 
 /**
  * NotificationsPage
  *
  * Full page view of all user notifications with filtering, actions, and modals.
+ * Search and the kind filter run on the server (04e24d8c, iCreate), so they
+ * reach notifications older than the pages already loaded.
  * Reads and writes through hooks/api/useNotifications, the same cache the bell
  * uses, so the two never disagree about what has been read.
  */
@@ -21,9 +24,21 @@ const NotificationsPage = () => {
   const [filter, setFilter] = useState('all') // 'all' | 'unread'
   const [selectedNotification, setSelectedNotification] = useState(null)
   const [showSendModal, setShowSendModal] = useState(false)
+  const [searchInput, setSearchInput] = useState('')
+  const [search, setSearch] = useState('')
+  const [typeFilter, setTypeFilter] = useState('')
+
+  // One request per pause in typing, not one per keystroke.
+  useEffect(() => {
+    const t = setTimeout(() => setSearch(searchInput.trim()), SEARCH_DEBOUNCE_MS)
+    return () => clearTimeout(t)
+  }, [searchInput])
+
   const { notifications, isLoading, isFetchingNextPage, hasMore, loadMore, refetch } =
-    useNotificationsFeed({ unreadOnly: filter === 'unread', enabled: !!user?.id })
+    useNotificationsFeed({ unreadOnly: filter === 'unread', search, type: typeFilter, enabled: !!user?.id })
+  const typeOptions = useNotificationTypes({ enabled: !!user?.id })
   const actions = useNotificationActions()
+  const isFiltered = !!search || !!typeFilter
 
   // Check if user can send notifications
   const canSendNotifications = ['advisor', 'org_admin', 'superadmin'].includes(user?.role)
@@ -124,6 +139,32 @@ const NotificationsPage = () => {
         </div>
       </div>
 
+      {/* Search and kind */}
+      <div className="flex flex-col sm:flex-row gap-3 mb-4">
+        <div className="relative flex-1">
+          <MagnifyingGlassIcon className="h-4 w-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+          <input
+            type="search"
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
+            placeholder="Search notifications"
+            aria-label="Search notifications"
+            className="w-full pl-9 pr-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-optio-purple/30 focus:border-optio-purple"
+          />
+        </div>
+        <select
+          value={typeFilter}
+          onChange={(e) => setTypeFilter(e.target.value)}
+          aria-label="Kind of notification"
+          className="sm:w-56 px-3 py-2 text-sm border border-gray-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-optio-purple/30 focus:border-optio-purple"
+        >
+          <option value="">All kinds</option>
+          {typeOptions.map((t) => (
+            <option key={t.key} value={t.key}>{t.label}</option>
+          ))}
+        </select>
+      </div>
+
       {/* Notification List */}
       {isLoading && notifications.length === 0 ? (
         <div className="flex justify-center py-12">
@@ -134,7 +175,9 @@ const NotificationsPage = () => {
           <BellIcon className="h-12 w-12 mx-auto mb-4 text-gray-300" />
           <h3 className="text-lg font-medium text-gray-900 mb-1">No notifications</h3>
           <p className="text-gray-500">
-            {filter === 'unread' ? "You're all caught up!" : "You don't have any notifications yet."}
+            {isFiltered
+              ? 'Nothing matches that search. Try other words or another kind.'
+              : filter === 'unread' ? "You're all caught up!" : "You don't have any notifications yet."}
           </p>
         </div>
       ) : (
@@ -167,18 +210,21 @@ const NotificationsPage = () => {
                       </p>
                     </div>
                     <div className="flex items-center gap-2 flex-shrink-0">
-                      {notification.link && notification.link !== '/notifications' && (
-                        <Link
-                          to={notification.link}
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            if (!notification.is_read) markAsRead(notification.id)
-                          }}
-                          className="text-sm text-optio-purple hover:text-optio-pink font-medium"
-                        >
-                          View
-                        </Link>
-                      )}
+                      {/* View opens the same detail the row does (d1bb050c):
+                          it used to follow the link straight away, which for
+                          some notifications was a page the reader could not
+                          open, while clicking the text showed the message.
+                          The detail carries the link as its action. */}
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          handleNotificationClick(notification)
+                        }}
+                        className="text-sm text-optio-purple hover:text-optio-pink font-medium"
+                      >
+                        View
+                      </button>
                       {!notification.is_read && (
                         <button
                           onClick={(e) => {
@@ -211,11 +257,11 @@ const NotificationsPage = () => {
       {hasMore && notifications.length > 0 && (
         <div className="flex justify-center mt-6">
           <button
-            onClick={loadMore}
-            disabled={isLoading}
+            onClick={() => loadMore()}
+            disabled={isFetchingNextPage}
             className="px-4 py-2 text-sm font-medium text-optio-purple hover:text-optio-pink transition-colors disabled:opacity-50"
           >
-            {isLoading ? 'Loading...' : 'Load more'}
+            {isFetchingNextPage ? 'Loading...' : 'Load more'}
           </button>
         </div>
       )}
