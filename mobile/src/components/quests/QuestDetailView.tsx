@@ -53,6 +53,8 @@ import { EditMomentModal } from '@/src/components/journal/EditMomentModal';
 import { TaskEditModal } from '@/src/components/tasks/TaskEditModal';
 import { EditEvidenceTextSheet, replaceBlockText } from '@/src/components/quests/EditEvidenceTextSheet';
 import { TaskReviewChip } from '@/src/components/quests/TaskReviewChip';
+import { TaskCreditControl } from '@/src/components/quests/TaskCreditControl';
+import { offersTaskCredit } from '@/src/hooks/useTaskCredit';
 import { TaskDueChip } from '@/src/components/quests/TaskDueChip';
 import type { LearningEvent } from '@/src/hooks/useJournal';
 import { useThemeColors } from '@/src/hooks/useThemeColors';
@@ -252,6 +254,7 @@ function TaskItem({
   studentId = null,
   canComplete = true,
   canRemove = true,
+  offersCredit = false,
 }: {
   task: any;
   onComplete: (taskId: string) => void;  // just update local state, no API call
@@ -273,6 +276,8 @@ function TaskItem({
    *  Both are true for a student on their own quest. */
   canComplete?: boolean;
   canRemove?: boolean;
+  /** Offer per-task diploma credit once the task is complete (offersTaskCredit). */
+  offersCredit?: boolean;
 }) {
   const [expanded, setExpanded] = useState(false);
   const [completing, setCompleting] = useState(false);
@@ -709,6 +714,11 @@ function TaskItem({
                   accepted it, for the parents to see?"). */}
               {task.is_completed && <TaskReviewChip review={task.review} />}
 
+              {/* Diploma credit: Request Credit, or where the request stands. */}
+              {task.is_completed && offersCredit && (
+                <TaskCreditControl taskId={task.id} studentId={studentId} />
+              )}
+
               {/* Edit a journal moment in place — add a title/details/more
                   evidence without leaving the quest (bug #16). */}
               {task.is_moment && onEditMoment && (
@@ -839,6 +849,7 @@ export function QuestDetailView({ questId: id, studentId = null, autoOpenTaskWiz
     addManualTask, analyzeManualTask,
   } = useQuestDetail(id || null, { studentId });
   const preferredChallengeLevel = useAuthStore((s) => s.user?.preferred_challenge_level ?? null);
+  const authUser = useAuthStore((s) => s.user);
   const isEnrolled = !!quest?.user_enrollment;
   const { data: engagement } = useQuestEngagement(isEnrolled ? quest?.id || null : null, studentId);
   const c = useThemeColors();
@@ -1204,6 +1215,7 @@ export function QuestDetailView({ questId: id, studentId = null, autoOpenTaskWiz
                         studentId={studentId}
                         canComplete={canComplete}
                         canRemove={canRemoveTasks}
+                        offersCredit={offersTaskCredit({ task, quest, viewer: authUser, studentId })}
                         // Editing a moment or a task's pillar/subjects writes as
                         // the caller, and neither endpoint delegates — a parent
                         // gets neither control rather than one that 403s.

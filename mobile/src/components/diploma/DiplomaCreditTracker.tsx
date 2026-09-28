@@ -11,9 +11,9 @@
  * long as the student is enrolled, and the profile has other things on it.
  */
 
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { View, Pressable } from 'react-native';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import api from '@/src/services/api';
 import { useThemeColors } from '@/src/hooks/useThemeColors';
@@ -55,29 +55,37 @@ export function DiplomaCreditTracker() {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [showAllApproved, setShowAllApproved] = useState(false);
 
-  useEffect(() => {
-    (async () => {
-      try {
-        const { data } = await api.get('/api/tasks/my-credit-requests');
-        const items = data.data?.credit_requests || [];
-        setRequests(items);
+  const load = useCallback(async () => {
+    try {
+      const { data } = await api.get('/api/tasks/my-credit-requests');
+      const items: CreditRequest[] = data.data?.credit_requests || [];
+      setRequests(items);
 
-        // Auto-select first actionable tab; with nothing to do, the newest
-        // approvals and any note that came with them.
-        if (items.length > 0) {
-          const has = (status: string) => items.some((r: CreditRequest) => r.diploma_status === status);
-          if (has('grow_this')) setFilter('grow_this');
-          else if (has('pending_org_approval')) setFilter('pending_org_approval');
-          else if (has('pending_review')) setFilter('pending_review');
-          else if (has('finalized')) setFilter('finalized');
-        }
-      } catch {
-        // Non-critical
-      } finally {
-        setLoading(false);
+      // Auto-select first actionable tab; with nothing to do, the newest
+      // approvals and any note that came with them. A tab the student already
+      // picked is left alone when the list refreshes.
+      if (items.length > 0) {
+        const has = (status: string) => items.some((r) => r.diploma_status === status);
+        const first = ['grow_this', 'pending_org_approval', 'pending_review', 'finalized'].find(has) || null;
+        setFilter((prev) => prev ?? first);
       }
-    })();
+    } catch {
+      // Non-critical
+    } finally {
+      setLoading(false);
+    }
   }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  // The profile tab stays mounted, so a credit requested from a quest's task
+  // row would not appear here until the app restarted. Refetch on refocus;
+  // the first focus is the mount, which the effect above already covers.
+  const focusedOnce = useRef(false);
+  useFocusEffect(useCallback(() => {
+    if (focusedOnce.current) load();
+    focusedOnce.current = true;
+  }, [load]));
 
   if (loading) {
     return <Skeleton className="h-24 rounded-xl" />;

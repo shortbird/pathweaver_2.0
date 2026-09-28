@@ -9,7 +9,8 @@
  */
 
 import React from 'react';
-import { render, fireEvent, waitFor } from '@testing-library/react-native';
+import { render, fireEvent, waitFor, act } from '@testing-library/react-native';
+import { useFocusEffect } from 'expo-router';
 import { DiplomaCreditTracker } from '../DiplomaCreditTracker';
 import api from '@/src/services/api';
 
@@ -100,5 +101,26 @@ describe('DiplomaCreditTracker - Approved tab', () => {
     fireEvent.press(screen.getByText('Show all 10 approved'));
     await waitFor(() => expect(screen.getAllByText(/^Task a/)).toHaveLength(10));
     expect(screen.queryByText(/Show all/)).toBeNull();
+  });
+});
+
+describe('DiplomaCreditTracker - refresh', () => {
+  // The profile tab stays mounted, so without a refetch on focus a request
+  // made from a quest's task row never showed up here until a restart.
+  it('refetches when the screen regains focus, not on the first focus', async () => {
+    const screen = renderTracker([approved('a1', { task_title: 'Load test' })]);
+    await screen.findByText('Load test');
+    const onFocus = (useFocusEffect as jest.Mock).mock.calls.at(-1)![0];
+
+    act(() => { onFocus(); });
+    expect(api.get).toHaveBeenCalledTimes(1);
+
+    (api.get as jest.Mock).mockResolvedValue({ data: { data: { credit_requests: [
+      request({ completion_id: 'p1', diploma_status: 'pending_review', task_title: 'Just sent' }),
+      approved('a1', { task_title: 'Load test' }),
+    ] } } });
+    await act(async () => { onFocus(); });
+    expect(api.get).toHaveBeenCalledTimes(2);
+    expect(await screen.findByText('1 awaiting')).toBeTruthy();
   });
 });
