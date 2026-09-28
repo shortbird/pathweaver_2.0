@@ -247,6 +247,22 @@ describe('ProfileScreen', () => {
       expect(api.put).not.toHaveBeenCalled();
     });
 
+    it('lets an under-13 student save their bio without touching the date', async () => {
+      const eightYearsAgo = new Date();
+      eightYearsAgo.setFullYear(eightYearsAgo.getFullYear() - 8);
+      setAuthAsStudent({ date_of_birth: eightYearsAgo.toISOString().slice(0, 10) });
+      const { getByText, queryByText } = openEditSheet();
+
+      expect(queryByText(/must be managed by a parent or guardian/)).toBeNull();
+      fireEvent.press(getByText('Save Changes'));
+
+      await waitFor(() => expect(api.put).toHaveBeenCalled());
+      expect(api.put).toHaveBeenCalledWith(
+        '/api/users/profile',
+        expect.not.objectContaining({ date_of_birth: expect.anything() })
+      );
+    });
+
     it('shows a read-only date with an explanation once it is locked', () => {
       setAuthAsStudent({
         date_of_birth: '2005-06-15',

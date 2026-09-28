@@ -228,15 +228,16 @@ export default function ProfileScreen() {
 
   // COPPA: an under-13 account has to be parent-managed, so the backend refuses
   // a self-service date that young. Say so before the round trip rather than
-  // after it.
+  // after it. Only a changed date counts: an under-13 student who opens this
+  // sheet to write a bio is not setting an age, and must not be stopped.
   const dobIsUnder13 = useMemo(() => {
-    if (!editDob) return false;
+    if (!editDob || editDob === savedDob) return false;
     const birth = new Date(`${editDob}T12:00:00`);
     if (Number.isNaN(birth.getTime())) return false;
     const cutoff = new Date();
     cutoff.setFullYear(cutoff.getFullYear() - 13);
     return birth > cutoff;
-  }, [editDob]);
+  }, [editDob, savedDob]);
 
   const handleSaveProfile = async () => {
     if (!dobLocked && dobIsUnder13) {

@@ -97,13 +97,18 @@ def update_profile(user_id):
         ).eq('id', user_id).limit(1).execute().data or []
         _current = _rows[0] if _rows else {}
 
-        if _current.get('date_of_birth_locked_at'):
+        # The web profile forms submit every field, so the stored date comes
+        # back on a save that only touched the bio. Resubmitting it is not an
+        # edit: without this, an under-13 or locked student could never save
+        # anything on their profile (Horizon, 2026-09-28).
+        if (dob_raw or None) == (str(_current.get('date_of_birth') or '')[:10] or None):
+            update_data.pop('date_of_birth')
+        elif _current.get('date_of_birth_locked_at'):
             raise ValidationError(
                 'Your date of birth is already on file. Ask a parent, '
                 'guardian, or your school to correct it if it is wrong.'
             )
-
-        if not dob_raw:
+        elif not dob_raw:
             # Empty value clears the field
             update_data['date_of_birth'] = None
         else:
