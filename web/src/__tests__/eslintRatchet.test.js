@@ -62,9 +62,11 @@ const WEB_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../
  * duplicate keys, plus 10 imports that became used again once the code stopped
  * referring to icons by names nothing imported.
  * Warnings: 2183, unchanged — the fixes are all in the error class.
+ * Warnings 1835 on 2026-09-28: the ticket sweep moved test imports above
+ * their vi.mock calls in three files it touched.
  */
 const ERROR_BASELINE = 180
-const WARNING_BASELINE = 1848
+const WARNING_BASELINE = 1835
 
 /**
  * Slack, so ordinary churn does not force an edit to this file on every commit,
