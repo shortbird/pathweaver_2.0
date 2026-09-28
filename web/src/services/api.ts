@@ -3,6 +3,7 @@ import type { AxiosError, AxiosRequestConfig } from 'axios'
 import { shouldUseAuthHeaders } from '../utils/browserDetection'
 import logger from '../utils/logger'
 import { captureException } from './sentry'
+import { isMasqueradeActiveOrPending } from './masqueradeGate'
 import { postRefreshWithRetry, isUnrecoverableAuthFailure } from './sessionRecovery'
 import type {
   ApiErrorBody, CsrfTokenResponse, CsrfTokenStore, RefreshResponse, TokenStore,
@@ -527,7 +528,11 @@ const REPORTABLE = (error: AxiosError<ApiErrorBody>) => {
       // above): every held adult's open tab 403s until they verify.
       && error.response?.data?.code !== 'phone_verification_required'
       // A probe that treats the refusal as its answer (see above).
-      && !error.config?.expect403) return true
+      && !error.config?.expect403
+      // Masquerading: the session is the target's, so a page the admin
+      // opened (the SIS People page after "View as student", 07b05221) is
+      // refused as it should be on its way out.
+      && !isMasqueradeActiveOrPending()) return true
   return s === 405
 }
 

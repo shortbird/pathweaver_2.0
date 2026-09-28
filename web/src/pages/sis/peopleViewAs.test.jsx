@@ -37,7 +37,7 @@ const { api, sisOrg, masquerade, surface } = vi.hoisted(() => ({
   api: { get: vi.fn(), post: vi.fn(), delete: vi.fn() },
   sisOrg: { orgId: 'org-1', setOrgId: vi.fn(), orgs: [], isSuperadmin: false, canViewAs: true },
   masquerade: { startMasquerade: vi.fn(() => Promise.resolve({ success: true })) },
-  surface: { switchSurfaceInApp: vi.fn() },
+  surface: { learningSurfaceHref: vi.fn((path) => `https://app.example${path}`) },
 }))
 
 vi.mock('react-hot-toast', () => ({
@@ -80,8 +80,16 @@ describe('View as student on the roster', () => {
   it('opens the student account on the web platform', async () => {
     await openMenu('Ryder Swenson')
     fireEvent.click(screen.getByText('View as student'))
-    await waitFor(() => expect(masquerade.startMasquerade).toHaveBeenCalledWith('s1', 'SIS admin view', api))
-    expect(surface.switchSurfaceInApp).toHaveBeenCalledWith('learning', '/dashboard')
+    // One cross-host navigation, owned by startMasquerade: the landing is
+    // handed over rather than set to /dashboard and then overridden
+    // (07b05221, "API 403: GET /api/sis/roster from /people after View as
+    // student"). It is resolved only once the switch succeeded.
+    await waitFor(() => expect(masquerade.startMasquerade)
+      .toHaveBeenCalledWith('s1', 'SIS admin view', api, expect.any(Function)))
+    expect(surface.learningSurfaceHref).not.toHaveBeenCalled()
+    const landing = masquerade.startMasquerade.mock.calls[0][3]
+    expect(landing()).toBe('https://app.example/dashboard')
+    expect(surface.learningSurfaceHref).toHaveBeenCalledWith('/dashboard')
   })
 
   it('is never offered on a guardian row', async () => {

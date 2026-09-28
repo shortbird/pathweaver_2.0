@@ -12,7 +12,7 @@ import SisNewUserModal from '../../components/sis/SisNewUserModal'
 import PeopleExportModal from '../../components/sis/PeopleExportModal'
 import TeacherModal from '../../components/sis/TeacherModal'
 import { startMasquerade } from '../../services/masqueradeService'
-import { switchSurfaceInApp } from '../../utils/appSurface'
+import { learningSurfaceHref } from '../../utils/appSurface'
 import { setPreviewTeacher } from './teacherPreview'
 import PeopleFilterBar from './people/PeopleFilterBar'
 import PeopleTable from './people/PeopleTable'
@@ -146,9 +146,11 @@ const PeoplePage = () => {
 
   const viewAsStudent = async (s) => {
     try {
-      const res = await startMasquerade(s.student_id, 'SIS admin view', api)
-      if (res?.success === false) { toast.error(res.error || 'Could not view as student'); return }
-      switchSurfaceInApp('learning', '/dashboard')
+      // One navigation, straight to the learning app. startMasquerade pauses
+      // this page's queries before it leaves, so the roster never refetches
+      // as the student (07b05221).
+      const res = await startMasquerade(s.student_id, 'SIS admin view', api, () => learningSurfaceHref('/dashboard'))
+      if (res?.success === false) { toast.error(res.error || 'Could not view as student') }
     } catch {
       toast.error('Could not view as student')
     }

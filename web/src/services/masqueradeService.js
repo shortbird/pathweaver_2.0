@@ -10,8 +10,7 @@
 
 import { tokenStore } from './api.js';
 import logger from '../utils/logger';
-
-const MASQUERADE_STORAGE_KEY = 'masquerade_state';
+import { MASQUERADE_STORAGE_KEY, beginMasqueradeTransition } from './masqueradeGate';
 
 /**
  * Get current masquerade UI state from localStorage
@@ -38,6 +37,9 @@ export const isMasquerading = () => {
  * @param {string} userId - Target user ID to masquerade as
  * @param {string} reason - Optional reason for masquerade (for audit log)
  * @param {Function} apiCall - API function to call masquerade endpoint
+ * @param {string|Function} redirectTo - Where to land. A function is called only
+ *   after the switch succeeded, so a caller can do surface bookkeeping (and
+ *   build a cross-host URL) without undoing it on failure.
  * @returns {Promise<{success: boolean, targetUser: object, error?: string}>}
  */
 export const startMasquerade = async (userId, reason = '', apiCall, redirectTo = null) => {
@@ -72,11 +74,16 @@ export const startMasquerade = async (userId, reason = '', apiCall, redirectTo =
     localStorage.setItem(MASQUERADE_STORAGE_KEY, JSON.stringify(masqueradeState));
     logger.debug('[Masquerade] Started masquerading as:', `${target_user.first_name || ''} ${target_user.last_name || ''}`.trim() || target_user.display_name || target_user.email);
 
+    // The session is the target's from here on. Stop this page's queries
+    // before they refetch as the target and 403 (masqueradeGate.js).
+    beginMasqueradeTransition();
+
     // Force full page reload to clear React Query cache
     const targetRole = target_user.role;
     // redirectTo lets the SIS switcher land on the console home for a staff
-    // target instead of the learning-app dashboard.
-    const redirectPath = redirectTo || (targetRole === 'parent' ? '/family' : '/dashboard');
+    // target, and the People page land on the learning app, in ONE navigation.
+    const resolved = typeof redirectTo === 'function' ? redirectTo(target_user) : redirectTo;
+    const redirectPath = resolved || (targetRole === 'parent' ? '/family' : '/dashboard');
     window.location.href = redirectPath;
 
     return {

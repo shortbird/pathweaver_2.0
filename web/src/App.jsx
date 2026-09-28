@@ -18,6 +18,7 @@ import MasqueradeBanner from './components/admin/MasqueradeBanner'
 import ConsentBlockedOverlay from './components/consent/ConsentBlockedOverlay'
 import SessionConflictOverlay from './components/SessionConflictOverlay'
 import { getMasqueradeState, exitMasquerade } from './services/masqueradeService'
+import { registerMasqueradeQueryClient, installMasqueradePageShowGuard } from './services/masqueradeGate'
 import api from './services/api'
 import { activityTracker } from './services/activityTracker'
 import InstallPrompt from './components/common/InstallPrompt'
@@ -428,6 +429,13 @@ function App() {
       window.history.replaceState({}, '', newUrl)
     }
   }, []) // Empty deps = runs once on mount
+
+  // Starting a masquerade pauses this client so the page it started from
+  // stops querying as the target; a bfcache restore of that page reloads.
+  useEffect(() => {
+    registerMasqueradeQueryClient(queryClient)
+    return installMasqueradePageShowGuard()
+  }, [])
 
   // Warm up the backend service on app load (helps with Render cold starts)
   useEffect(() => {

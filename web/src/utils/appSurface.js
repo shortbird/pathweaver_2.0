@@ -121,6 +121,20 @@ export function switchSurfaceInApp(target, path = '/') {
   _notifySurface(target, path)
 }
 
+/**
+ * The href that lands on the Learning surface at `path` in one full navigation.
+ * Prod SIS host: the app host's absolute URL. Same origin (local/dev ?app=sis):
+ * clears the override, so the reload renders the Learning app. Call it only
+ * when the navigation is certain to follow.
+ */
+export function learningSurfaceHref(path = '/') {
+  if (isRealOptioHost()) {
+    return isSisHost() ? LEARNING_PROD_URL + path : path
+  }
+  safeRemove(SURFACE_KEY)
+  return path
+}
+
 /** Navigate to the SIS surface (prod: change host; local/dev: set override + reload). */
 export function goToSisSurface(path = '/') {
   if (isRealOptioHost() && !isSisHost()) {
