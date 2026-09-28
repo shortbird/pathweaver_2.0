@@ -88,6 +88,12 @@ def clean_subjects(raw_subjects, raw_distribution, xp_value, pillar):
     of nothing recognisable still means "you did not say", and the pillar
     answers -- silence must keep falling back, because falling through to the
     column default is how Gryffin's US History unit became an elective.
+
+    That switch was retired on 2026-09-28 (b7a5fc1e): credit is a task's, and
+    only when a student requests it, so the SIS quest editor no longer writes
+    [] -- it fills an empty task from its pillar when it opens the quest. An
+    explicit [] is still honoured here for rows saved while the switch existed
+    and for any other caller that means it.
     """
     says_no_credit = isinstance(raw_subjects, (list, tuple)) and len(raw_subjects) == 0
     keys = []

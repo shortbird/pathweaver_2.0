@@ -56,7 +56,9 @@ export const blankTask = () => ({
 const inputCls = INPUT_CLASS
 /**
  * Has anyone chosen a subject on any of these tasks, or are they all still on
- * their pillar's default? Decides whether the credit switch starts on.
+ * their pillar's default? Where a caller hides the subject pickers (staff
+ * training), a quest whose tasks carry chosen subjects shows them anyway, so a
+ * subject somebody picked is never saved from behind a hidden control.
  */
 export function tasksCarryChosenSubjects(tasks) {
   return (tasks || []).some((t) => {
@@ -64,6 +66,21 @@ export function tasksCarryChosenSubjects(tasks) {
     if (subjects.length > 1) return true
     return subjects.length === 1 && subjects[0] !== defaultSubjectForPillar(t.pillar)
   })
+}
+
+/**
+ * A task with no subject at all gets its pillar's. An empty list is what the
+ * retired "This quest counts toward high school credit" switch wrote when it
+ * was turned off, and the server keeps [] as "no credit" -- so a quest saved
+ * that way would show its pillar's subject in the picker below (the picker
+ * never displays nothing) while silently saving no credit. Filling it here
+ * makes the save match the screen. Owner decision, 2026-09-28 (b7a5fc1e):
+ * quests do not decide credit; a task earns it when a student requests it.
+ */
+export function withPillarSubject(task) {
+  if ((task.diploma_subjects || []).length) return task
+  const next = [defaultSubjectForPillar(task.pillar)]
+  return { ...task, diploma_subjects: next, subject_xp_distribution: evenSplit(next, task.xp_value) }
 }
 
 /**
@@ -259,47 +276,25 @@ export default function QuestDraftForm({
   // the training section"). Left null on a brand-new draft: there is nothing
   // to attach to until the first save.
   questId = null,
-  // Whether the "counts toward high school credit" switch starts on when no
-  // task carries a chosen subject yet. Credit lives on tasks, not quests
-  // (CLAUDE.md), so this is a switch over the per-task pickers, not a field:
-  // on, every task shows the subject it earns credit toward; off, the pickers
-  // are out of the way and each task keeps its pillar's default. A quest for
-  // students starts on -- a class quest saved with nobody looking at
-  // subjects is how a US History unit got filed as Electives (Gryffin,
-  // 2026-09-09). Staff training starts off: a teacher's orientation earns no
-  // diploma credit, and a picker on every one of sixteen tasks was the noise
-  // iCreate asked to lose (Molly, 2026-09-17, 1aed3f6c). A quest whose tasks
-  // already carry chosen subjects starts on whatever the caller says.
-  creditDefault = true,
+  // Whether each task shows the diploma subject it earns credit toward. There
+  // is no quest-level credit switch: credit lives on tasks and is only ever
+  // granted when a student requests it, so every quest's tasks keep their
+  // subjects. The switch that was here ("This quest counts toward high school
+  // credit") was retired on 2026-09-28 (Molly, iCreate, b7a5fc1e: "I keep
+  // having to go back in to edit and uncheck that box"). Staff training passes
+  // false: a teacher's orientation earns no diploma credit, and a picker on
+  // every one of sixteen tasks was the noise iCreate asked to lose (1aed3f6c).
+  // Its tasks still carry their pillar's default in the database.
+  showSubjects = true,
   // Called by a task row that has no id yet when its author wants to attach
   // something to it: the quest editor saves, and the row comes back with one.
   onSaveForAttachments = null,
   // Where the rows get read-only: a teacher looking at the office's quest.
   readOnly = false,
 }) {
-  const [countsForCredit, setCountsForCredit] = useState(
-    () => tasksCarryChosenSubjects(tasks) || creditDefault
-  )
-
-  // The switch has to WRITE, not just show and hide.
-  //
-  // It only ever set showSubjects until 2026-09-22, so a quest saved with it
-  // off still went in with every task carrying its pillar's default subject,
-  // and the quest page then told the family it earned "Credits - Science,
-  // Language Arts" (iCreate, f2c4d88e). Off now clears the subject columns on
-  // every task; on restores the pillar's default so the pickers open on
-  // something rather than on nothing. An explicit [] is what the server reads
-  // as "no credit" -- omitting the column instead would take the table's
-  // ['Electives'] default, which is the older and worse version of this bug.
-  const toggleCredit = (on) => {
-    setCountsForCredit(on)
-    setTasks((prev) => prev.map((t) => {
-      if (!on) return { ...t, diploma_subjects: [], subject_xp_distribution: {} }
-      if ((t.diploma_subjects || []).length) return t
-      const next = [defaultSubjectForPillar(t.pillar)]
-      return { ...t, diploma_subjects: next, subject_xp_distribution: evenSplit(next, t.xp_value) }
-    }))
-  }
+  // Decided once, on open: a picker that appeared or vanished mid-edit would
+  // be stranger than one that stays put.
+  const [subjectsShown] = useState(() => showSubjects || tasksCarryChosenSubjects(tasks))
   if (readOnly) {
     return (
       <div className="space-y-3">
@@ -326,22 +321,10 @@ export default function QuestDraftForm({
           <QuestResourcesPanel questId={questId} />
         </div>
       )}
-      <label className="flex items-start gap-2 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-neutral-700">
-        <input type="checkbox" checked={countsForCredit} className="mt-0.5"
-          onChange={(e) => toggleCredit(e.target.checked)} />
-        <span>
-          <span className="font-medium">This quest counts toward high school credit</span>
-          <span className="block text-xs text-neutral-500">
-            {countsForCredit
-              ? 'Each task below shows the subject it earns credit toward. Change it where a task is about something else.'
-              : 'Off, this quest earns XP but no diploma subject credit, and nothing on it counts toward a transcript.'}
-          </span>
-        </span>
-      </label>
       <div>
         <p className="text-xs text-neutral-400 mb-2">{taskHint}</p>
         <TaskRows tasks={tasks} setTasks={setTasks} addLabel={addLabel} showPillars={showPillars}
-          showSubjects={countsForCredit} questId={questId}
+          showSubjects={subjectsShown} questId={questId}
           onSaveForAttachments={onSaveForAttachments} />
       </div>
     </div>

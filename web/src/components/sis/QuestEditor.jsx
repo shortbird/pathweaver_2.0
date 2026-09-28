@@ -4,7 +4,7 @@ import { EyeIcon } from '@heroicons/react/24/outline'
 import { Modal } from '../ui/Modal'
 import Button from '../ui/Button'
 import SearchSelect from '../ui/SearchSelect'
-import QuestDraftForm, { blankTask } from './QuestDraftForm'
+import QuestDraftForm, { blankTask, withPillarSubject } from './QuestDraftForm'
 import QuestAiDraftPanel from './QuestAiDraftPanel'
 import QuestPreviewModal from './QuestPreviewModal'
 import HeaderImageField from './questEditor/HeaderImageField'
@@ -37,7 +37,7 @@ import { questEditorApi } from '../../hooks/api/useQuestEditor'
  *   - the context section drawn under the quest (curriculum pick; class
  *     dates and audience; training category, required, audience, age, roles,
  *     people),
- *   - small defaults (training starts with the credit switch off).
+ *   - small defaults (training hides the per-task subject pickers).
  *
  * A new quest is created the moment the editor opens, as an inactive draft, so
  * its header image, files and each task's attachments work at once. Nobody
@@ -105,18 +105,26 @@ export default function QuestEditor({
   const [dirty, setDirty] = useState(false)
   const touch = (fn) => (...args) => { setDirty(true); return fn(...args) }
 
+  // A student quest's tasks always carry a subject: there is no "not for
+  // credit" switch any more (b7a5fc1e, 2026-09-28), so a task that arrives
+  // with none -- saved while that switch was off, or drafted without one --
+  // takes its pillar's, which is also what its picker shows. Training keeps
+  // what it has; its pickers are hidden and it earns no diploma credit.
+  const withSubjects = useCallback((t) => (context === 'training' ? t : withPillarSubject(t)), [context])
+
   const fill = useCallback((q, { fresh = false } = {}) => {
     setQuest(q)
     setTitle(q.title || '')
     setDescription(q.description || '')
-    setTasks((q.tasks || []).length ? q.tasks.map((t) => ({ ...blankTask(), ...t })) : [blankTask()])
+    setTasks((q.tasks || []).length
+      ? q.tasks.map((t) => withSubjects({ ...blankTask(), ...t })) : [blankTask()])
     setXp(q.xp_threshold ? String(q.xp_threshold) : '')
     setXpFollowsTotal(fresh && context === 'training' && !q.xp_threshold)
     setTeachersMay(q.teachers_may_change_xp !== false)
     setAllowCustom(q.allow_custom_tasks !== false)
     setImageUrl(q.header_style === 'org_logo' ? '' : (q.header_image_url || ''))
     setDirty(false)
-  }, [context])
+  }, [context, withSubjects])
 
   // Open: load the quest, or start the draft. The ref keeps a strict-mode
   // double mount (and a fast double click) from starting two drafts.
@@ -408,7 +416,7 @@ export default function QuestEditor({
               hasDraft={Boolean(title.trim() || description.trim() || tasks.some((t) => (t.title || '').trim()))}
               onDrafted={(d) => {
                 setDirty(true)
-                setTitle(d.title); setDescription(d.description); setTasks(d.tasks)
+                setTitle(d.title); setDescription(d.description); setTasks(d.tasks.map(withSubjects))
                 setSourceMaterial(d.sourceMaterial || '')
               }} />
           )}
@@ -425,7 +433,7 @@ export default function QuestEditor({
             description={description} setDescription={touch(setDescription)}
             tasks={tasks} setTasks={touch(setTasks)}
             questId={editable ? questId : null}
-            creditDefault={context !== 'training'}
+            showSubjects={context !== 'training'}
             onSaveForAttachments={saveForAttachments}
             titlePlaceholder={context !== 'training' ? 'Quest title (e.g. Watercolor Basics)'
               : audience === 'family' ? 'Quest title (e.g. Back to school night)'
