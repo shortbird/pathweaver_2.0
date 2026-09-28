@@ -66,6 +66,9 @@ export interface QuestTask {
   /** A teacher's review of this task's submission, or null when nobody has
    *  reviewed it (ticket 650aa9b9). Absent on a backend that predates it. */
   review?: TaskReview | null;
+  /** The class's due date for this task, an ISO datetime, or null when the
+   *  teacher set none (ticket 26c91e25). Absent on an older backend. */
+  due_date?: string | null;
   /** What the teacher attached to THIS task — the worksheet for step 3. */
   resources?: QuestResource[];
 }

@@ -162,6 +162,39 @@ export default function QuestEditor({
 
   const editable = !!quest?.editable
   const isDraft = !!quest?.is_draft
+
+  // Each task's due date on THIS class (iCreate, ticket 26c91e25: "different
+  // due dates for each week's reading assignment"). Only for a quest already
+  // on the class -- a draft is not, and the date is the class's, not the
+  // quest's -- and saved on its own the moment it changes, so it works on the
+  // office's read-only quests too.
+  const onClass = context === 'class' && !!classId && !!classLink && !!questId
+  const [taskDates, setTaskDates] = useState({})
+  const loaded = !!quest
+  useEffect(() => {
+    if (!onClass || !loaded || isDraft) return undefined
+    let live = true
+    questEditorApi.loadClassTasks(orgId, classId, questId)
+      .then((rows) => {
+        if (live) setTaskDates(Object.fromEntries(rows.filter((t) => t.due_date).map((t) => [t.id, t.due_date])))
+      })
+      .catch(() => { /* the dates are extra; the editor still works */ })
+    return () => { live = false }
+  }, [onClass, loaded, isDraft, orgId, classId, questId])
+
+  const saveTaskDue = async (taskId, value) => {
+    const before = taskDates[taskId] || null
+    const iso = dueInputToIso(value)
+    setTaskDates((d) => ({ ...d, [taskId]: iso }))
+    try {
+      await questEditorApi.saveTaskDueDate(orgId, classId, questId, taskId, iso)
+      toast.success(iso ? 'Task due date saved' : 'Task due date cleared')
+    } catch (err) {
+      setTaskDates((d) => ({ ...d, [taskId]: before }))
+      toast.error(err?.response?.data?.error || 'Could not save the due date')
+    }
+  }
+  const taskDue = onClass && !isDraft ? { dates: taskDates, onChange: saveTaskDue } : null
   const taskXpTotal = useMemo(() => tasks.reduce(
     (sum, t) => sum + ((t.title || '').trim() ? Number(t.xp_value) || 0 : 0), 0), [tasks])
   const xpValue = xpFollowsTotal ? (taskXpTotal ? String(taskXpTotal) : '') : xp
@@ -435,6 +468,7 @@ export default function QuestEditor({
             questId={editable ? questId : null}
             showSubjects={context !== 'training'}
             onSaveForAttachments={saveForAttachments}
+            taskDue={taskDue}
             titlePlaceholder={context !== 'training' ? 'Quest title (e.g. Watercolor Basics)'
               : audience === 'family' ? 'Quest title (e.g. Back to school night)'
                 : audience === 'student' ? 'Quest title (e.g. Welcome to iCreate)'

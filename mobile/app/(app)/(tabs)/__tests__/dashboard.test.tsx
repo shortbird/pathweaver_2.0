@@ -8,7 +8,7 @@
  */
 
 import React from 'react';
-import { render, fireEvent } from '@testing-library/react-native';
+import { render, fireEvent, waitFor } from '@testing-library/react-native';
 import DashboardScreen from '../dashboard';
 import { useDashboard, useGlobalEngagement } from '@/src/hooks/useDashboard';
 import api from '@/src/services/api';
@@ -226,6 +226,48 @@ describe('DashboardScreen', () => {
     });
     const r = tryRender(<DashboardScreen />);
     expect(r.queryByText('Intro to Engineering')).toBeNull();
+  });
+
+  // ── Upcoming (ticket 26c91e25: class quest task due dates) ──
+
+  it('shows the Upcoming card from /api/student/agenda, and a task opens its quest', async () => {
+    (api.get as jest.Mock).mockImplementation((url: string) => (
+      url === '/api/student/agenda'
+        ? Promise.resolve({ data: { success: true, agenda: [
+          { kind: 'task', class_id: 'c1', class_name: 'English 9', quest_id: 'q-book', quest_title: 'The Hobbit',
+            task_id: 't-1', task_title: 'Chapters 1-5', due_date: '2099-10-06T18:00:00Z' },
+        ] } })
+        : Promise.resolve({ data: { claims: [], quest: { quest_tasks: [] } } })
+    ));
+    const r = tryRender(<DashboardScreen />);
+    expect(await r.findByTestId('upcoming-card')).toBeTruthy();
+    expect(api.get).toHaveBeenCalledWith('/api/student/agenda', { params: undefined });
+    fireEvent.press(r.getByText('Chapters 1-5'));
+    expect(mockRouter.push).toHaveBeenCalledWith('/(app)/quests/q-book');
+  });
+
+  it('shows no Upcoming card when the agenda is empty', async () => {
+    (api.get as jest.Mock).mockImplementation((url: string) => (
+      url === '/api/student/agenda'
+        ? Promise.resolve({ data: { success: true, agenda: [] } })
+        : Promise.resolve({ data: { claims: [], quest: { quest_tasks: [] } } })
+    ));
+    const r = tryRender(<DashboardScreen />);
+    await waitFor(() => expect(api.get).toHaveBeenCalledWith('/api/student/agenda', { params: undefined }));
+    expect(r.queryByTestId('upcoming-card')).toBeNull();
+    expect(r.queryByText('Upcoming')).toBeNull();
+  });
+
+  it('stays silent when the agenda read fails', async () => {
+    (api.get as jest.Mock).mockImplementation((url: string) => (
+      url === '/api/student/agenda'
+        ? Promise.reject(new Error('500'))
+        : Promise.resolve({ data: { claims: [], quest: { quest_tasks: [] } } })
+    ));
+    const r = tryRender(<DashboardScreen />);
+    await waitFor(() => expect(api.get).toHaveBeenCalledWith('/api/student/agenda', { params: undefined }));
+    expect(r.queryByTestId('upcoming-card')).toBeNull();
+    expect(r.getByTestId('welcome-greeting')).toBeTruthy();
   });
 
   // ── Family scope ──

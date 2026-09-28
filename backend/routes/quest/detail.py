@@ -106,6 +106,29 @@ def _attach_reviews(supabase, tasks, completion_id_by_task):
         task['review'] = reviews.get(completion_id_by_task.get(task['id']))
 
 
+def _attach_task_due_dates(supabase, student_id, quest_id, tasks):
+    """Put `due_date` (ISO string or None) on each of the student's tasks.
+
+    The date belongs to the class, not the student: a teacher dates a template
+    task for their class (class_quest_task_due_dates), and the student's copy
+    finds it through source_template_task_id (source_task_id for older rows).
+    A task the student wrote themselves has no template and no date.
+    """
+    for task in tasks:
+        task['due_date'] = None
+    if not tasks:
+        return
+    try:
+        from repositories.class_task_due_date_repository import ClassTaskDueDateRepository
+        dates = ClassTaskDueDateRepository(supabase).soonest_for_student_quest(student_id, quest_id)
+    except Exception as e:  # noqa: BLE001 -- a chip is not worth a 500
+        logger.warning(f"[QUEST DETAIL] task due dates unavailable for {quest_id}: {e}")
+        return
+    for task in tasks:
+        source = task.get('source_template_task_id') or task.get('source_task_id')
+        task['due_date'] = dates.get(source) if source else None
+
+
 @bp.route('/<quest_id>', methods=['GET'])
 @require_auth
 def get_quest_detail(user_id: str, quest_id: str):
@@ -529,6 +552,13 @@ def get_quest_detail(user_id: str, quest_id: str):
         # them again here would be a second storage round trip per page load for
         # no gain.
         sign_in_place(quest_data.get('quest_tasks') or [], ['evidence_url'])
+
+        # The date the student's class teacher set on each task (iCreate,
+        # ticket 26c91e25: a date per week's reading of one quest). Keyed by
+        # the template the task was copied from; a quest on two of the
+        # student's classes takes the soonest. Best-effort, like the resources
+        # above: the page still loads without it.
+        _attach_task_due_dates(supabase, user_id, quest_id, quest_data.get('quest_tasks') or [])
 
         # Training a school set for its staff or families (sis_staff_training).
         # The page uses this to drop the pillar dimension: whether onboarding

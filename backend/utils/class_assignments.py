@@ -36,6 +36,11 @@ def _published_filter():
     return f'publish_at.is.null,publish_at.lte.{pgrst_timestamp(_now_iso(), "publish_at")}'
 
 
+# Public name for the repositories that read class_quests with the same rule
+# (repositories/class_task_due_date_repository.py).
+published_filter = _published_filter
+
+
 def assigned_to(link: Dict[str, Any], student_id: str) -> bool:
     """Is this student in the class quest's audience? NULL student_ids = everyone."""
     ids = link.get('student_ids')

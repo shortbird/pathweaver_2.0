@@ -19,14 +19,20 @@ import { useAuth } from '../../contexts/AuthContext'
 import { useStudentScope } from '../../hooks/useStudentScope'
 import { dueStatus, dueChipClasses } from '../../utils/dueDate'
 import CreateQuestModal from '../CreateQuestModal'
+import StudentAgenda from './StudentAgenda'
 
 /**
  * StudentClassesView - Shows enrolled classes for students
  *
  * Uses URL params for class selection (<listPath>/:classId) so
  * back navigation from quests can return directly to the class.
+ *
+ * showAgenda: the running list of dated work (StudentAgenda) above the class
+ * cards. On by default so every school's students see it on their classes page
+ * (iCreate, ticket 26c91e25); GryffinPage mounts its own above this view and
+ * turns this one off.
  */
-export default function StudentClassesView({ basePath = null } = {}) {
+export default function StudentClassesView({ basePath = null, showAgenda = true } = {}) {
   const { user } = useAuth()
   const { studentId: scopedStudentId } = useStudentScope()
   const navigate = useNavigate()
@@ -117,6 +123,7 @@ export default function StudentClassesView({ basePath = null } = {}) {
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      {showAgenda && <StudentAgenda basePath={listPath} studentId={scopedStudentId} />}
       <div className="space-y-6">
         <h2 className="text-xl font-semibold text-gray-900">My Classes</h2>
 

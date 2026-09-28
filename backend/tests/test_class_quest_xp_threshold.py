@@ -80,6 +80,7 @@ def _run(body, quest_org=ORG, linked=True, teachers_may=None, is_admin=False):
     class_row = {'id': CLASS, 'organization_id': ORG}
     with patch.object(class_quests, '_authorize', return_value=(class_row, client, None)), \
          patch.object(class_quests.sis_service, 'caller_is_admin', return_value=is_admin), \
+         patch.object(class_quests, '_due_dates_enabled', return_value=True), \
          patch.object(class_quests, 'request',
                       Mock(get_json=lambda silent=True: body, args={})):
         from flask import Flask

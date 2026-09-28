@@ -300,10 +300,14 @@ const classService = {
   },
 
   /**
-   * Get the calling student's upcoming class-quest due dates (agenda).
+   * The calling student's dated class work (agenda): items of kind 'quest'
+   * (a quest's due date) and 'task' (a task a teacher dated). studentId reads
+   * a child's in family scope, like getMyStudentClasses.
    */
-  getStudentAgenda: async () => {
-    const response = await api.get('/api/student/agenda')
+  getStudentAgenda: async ({ studentId } = {}) => {
+    const response = await api.get('/api/student/agenda', {
+      params: studentId ? { student_id: studentId } : {},
+    })
     return response.data
   },
 

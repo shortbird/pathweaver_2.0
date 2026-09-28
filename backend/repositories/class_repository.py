@@ -366,10 +366,26 @@ class ClassRepository(BaseRepository):
 
     def get_student_agenda(self, student_id: str) -> List[Dict[str, Any]]:
         """
-        Upcoming due dates for a student across their active class enrollments.
+        What a student has due across their active class enrollments, soonest
+        first. Two kinds of item:
 
-        Only includes quests that are visible to the student (publish_at NULL or
-        already passed) and that have a due_date. Sorted by due date ascending.
+          kind 'quest' -- a class quest with a quest-level due date
+                          (class_quests.due_date);
+          kind 'task'  -- one task of a class quest that the teacher dated
+                          (class_quest_task_due_dates). iCreate, ticket
+                          26c91e25: "Is there a way to have a running due date
+                          list of homework? And past assignments could move to
+                          the bottom, in case kids didn't complete them?"
+
+        Only quests visible to the student (publish_at NULL or passed) and
+        meant for them (class_quests.student_ids), on classes that are still
+        running. An item leaves the list when its work is done: a task once the
+        student's copy of it has a completion, a quest (and its tasks) once the
+        student has ended it (user_quests.completed_at). Past-due items stay
+        until then -- that is the point of the list; where they sit on screen
+        is the client's call.
+
+        Every read is bounded by this one student's classes and quests.
         """
         enrollments = self.admin_client.table('class_enrollments')\
             .select('class_id')\
@@ -380,38 +396,133 @@ class ClassRepository(BaseRepository):
         if not class_ids:
             return []
 
+        # An archived class's leftovers must not sit on the list as past due
+        # for the rest of the year.
         classes = self.admin_client.table('org_classes')\
             .select('id, name')\
             .in_('id', class_ids)\
+            .eq('status', 'active')\
             .execute()
         class_names = {c['id']: c['name'] for c in (classes.data or [])}
+        class_ids = list(class_names)
+        if not class_ids:
+            return []
 
         now_iso = datetime.now(timezone.utc).isoformat()
         rows = self.admin_client.table('class_quests')\
             .select('class_id, quest_id, due_date, publish_at, student_ids, '
                     'quests(id, title, description, header_image_url)')\
             .in_('class_id', class_ids)\
-            .not_.is_('due_date', 'null')\
             .or_(f'publish_at.is.null,publish_at.lte.{pgrst_timestamp(now_iso, "publish_at")}')\
-            .order('due_date')\
             .execute()
 
         from utils.class_assignments import assigned_to
-        agenda = []
-        for r in (rows.data or []):
-            if not assigned_to(r, student_id):
+        links = [r for r in (rows.data or []) if assigned_to(r, student_id)]
+        if not links:
+            return []
+
+        ended = self._ended_quest_ids(student_id, list({r['quest_id'] for r in links}))
+        links = [r for r in links if r['quest_id'] not in ended]
+
+        agenda: List[Dict[str, Any]] = []
+        for r in links:
+            if not r.get('due_date'):
                 continue
             quest = r.get('quests') or {}
             agenda.append({
+                'kind': 'quest',
                 'class_id': r['class_id'],
                 'class_name': class_names.get(r['class_id']),
                 'quest_id': r['quest_id'],
                 'title': quest.get('title'),
+                'quest_title': quest.get('title'),
                 'description': quest.get('description'),
                 'header_image_url': quest.get('header_image_url'),
                 'due_date': r.get('due_date'),
             })
+
+        agenda.extend(self._dated_task_items(student_id, links, class_names))
+        agenda.sort(key=lambda item: item.get('due_date') or '')
         return agenda
+
+    def _ended_quest_ids(self, student_id: str, quest_ids: List[str]) -> set:
+        """Quests this student has ended: an enrollment with completed_at and
+        no active one. A restarted quest (is_active again) is not ended -- the
+        same reading the quest detail page makes."""
+        if not quest_ids:
+            return set()
+        rows = self.admin_client.table('user_quests')\
+            .select('quest_id, is_active, completed_at')\
+            .eq('user_id', student_id)\
+            .in_('quest_id', quest_ids)\
+            .execute().data or []
+        active = {r['quest_id'] for r in rows if r.get('is_active')}
+        return {r['quest_id'] for r in rows
+                if r.get('completed_at') and r['quest_id'] not in active}
+
+    def _dated_task_items(self, student_id: str, links: List[Dict[str, Any]],
+                          class_names: Dict[str, str]) -> List[Dict[str, Any]]:
+        """One agenda item per dated task of these class quests, less the tasks
+        the student has already turned in."""
+        from repositories.class_task_due_date_repository import ClassTaskDueDateRepository
+
+        visible = {(r['class_id'], r['quest_id']): r for r in links}
+        dated = ClassTaskDueDateRepository(self.admin_client).for_classes(
+            list({r['class_id'] for r in links}), list({r['quest_id'] for r in links}))
+        dated = [d for d in dated if (d['class_id'], d['quest_id']) in visible]
+        if not dated:
+            return []
+
+        template_ids = list({d['template_task_id'] for d in dated})
+        titles = {t['id']: t.get('title') for t in (
+            self.admin_client.table('quest_template_tasks')
+            .select('id, title').in_('id', template_ids).execute().data or [])}
+
+        turned_in = self._turned_in_template_ids(
+            student_id, list({d['quest_id'] for d in dated}))
+
+        items = []
+        for d in dated:
+            template_id = d['template_task_id']
+            if template_id in turned_in or template_id not in titles:
+                continue
+            quest = visible[(d['class_id'], d['quest_id'])].get('quests') or {}
+            items.append({
+                'kind': 'task',
+                'task_id': template_id,
+                'task_title': titles[template_id],
+                'title': titles[template_id],
+                'quest_id': d['quest_id'],
+                'quest_title': quest.get('title'),
+                'class_id': d['class_id'],
+                'class_name': class_names.get(d['class_id']),
+                'due_date': d['due_date'],
+            })
+        return items
+
+    def _turned_in_template_ids(self, student_id: str, quest_ids: List[str]) -> set:
+        """Template task ids whose copy, for this student, has a completion.
+
+        A copy maps to its template through source_template_task_id, or the
+        older source_task_id when that is NULL (a template edit racing a resync
+        can leave it so; see utils/template_tasks)."""
+        if not quest_ids:
+            return set()
+        copies = self.admin_client.table('user_quest_tasks')\
+            .select('id, source_template_task_id, source_task_id')\
+            .eq('user_id', student_id)\
+            .in_('quest_id', quest_ids)\
+            .execute().data or []
+        if not copies:
+            return set()
+        completions = self.admin_client.table('quest_task_completions')\
+            .select('user_quest_task_id')\
+            .eq('user_id', student_id)\
+            .in_('quest_id', quest_ids)\
+            .execute().data or []
+        completed = {c['user_quest_task_id'] for c in completions}
+        return {(c.get('source_template_task_id') or c.get('source_task_id'))
+                for c in copies if c['id'] in completed}
 
     def add_quest(
         self,

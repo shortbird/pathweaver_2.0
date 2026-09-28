@@ -66,6 +66,7 @@ from services.class_quest_enrollment import (
     withdraw_students_from_quest,
 )
 from repositories.class_quest_audience_repository import ClassQuestAudienceRepository
+from repositories.class_task_due_date_repository import ClassTaskDueDateRepository
 from repositories.notification_repository import NotificationRepository
 from database import get_supabase_admin_client
 from utils import person_name
@@ -1002,8 +1003,61 @@ def list_preset_tasks(user_id, class_id, quest_id):
                 and quest_edit_rules.can_edit_quest(user_id, quest[0]))
     rows = (admin.table('quest_template_tasks').select('*')
             .eq('quest_id', quest_id).order('order_index').execute()).data or []
-    return jsonify({'success': True, 'editable': editable,
-                    'tasks': [_serialize_task(t) for t in rows]})
+    # This class's date on each task (26c91e25). A class setting, so it is here
+    # even when `editable` is false, like the quest's own due date.
+    dates = ClassTaskDueDateRepository(admin).for_class_quest(class_row['id'], quest_id)
+    tasks = [{**_serialize_task(t), 'due_date': dates.get(t['id'])} for t in rows]
+    return jsonify({'success': True, 'editable': editable, 'tasks': tasks})
+
+
+def _due_dates_enabled(user_id, org_id):
+    """The org's `due_dates` feature, with the superadmin bypass that the web
+    platform's due-date route (routes/classes/quests.py) makes."""
+    if sis_service.get_user_org_context(user_id).get('role') == 'superadmin':
+        return True
+    from utils.org_features import org_has_feature
+    return org_has_feature(org_id, 'due_dates')
+
+
+_DUE_DATES_OFF = 'Due dates are not enabled for this organization'
+
+
+@bp.route('/classes/<class_id>/quests/<quest_id>/tasks/<task_id>/due-date', methods=['PUT'])
+@require_auth
+def set_task_due_date(user_id, class_id, quest_id, task_id):
+    """Set or clear one preset task's due date for THIS class. Body
+    {"due_date": ISO datetime | null}; null or '' clears it.
+
+    iCreate, ticket 26c91e25 (Karina): "it isn't possible to create a Quest
+    like 'Out of the Dust' and then have different due dates for each week's
+    reading assignment." A class setting, like the quest's own due date: the
+    class's moderator may date a task of any quest on the class, the office's
+    and library quests included, since the quest itself does not change. One
+    date for the whole class; another class on the same quest keeps its own.
+    """
+    class_row, admin, err = _authorize(user_id, class_id)
+    if err:
+        return err
+    if _bad_uuid(quest_id, task_id):
+        return jsonify({'success': False, 'error': 'Invalid id'}), 400
+    if not _due_dates_enabled(user_id, class_row['organization_id']):
+        return jsonify({'success': False, 'error': _DUE_DATES_OFF}), 403
+    data = request.get_json(silent=True) or {}
+    if 'due_date' not in data:
+        return jsonify({'success': False, 'error': 'Send due_date, or null to clear it.'}), 400
+    value, err = _iso_or_error(data, 'due_date')
+    if err:
+        return err
+    if not ClassQuestAudienceRepository(admin).link(class_row['id'], quest_id):
+        return jsonify({'success': False, 'error': 'That quest is not on this class.'}), 404
+    repo = ClassTaskDueDateRepository(admin)
+    if not repo.template_task_on_quest(task_id, quest_id):
+        return jsonify({'success': False, 'error': 'Task not found.'}), 404
+    if value:
+        repo.set(class_row['id'], quest_id, task_id, value, user_id)
+    else:
+        repo.clear(class_row['id'], task_id)
+    return jsonify({'success': True, 'task_id': task_id, 'due_date': value or None})
 
 
 @bp.route('/classes/<class_id>/quests/<quest_id>/tasks', methods=['POST'])
@@ -1183,6 +1237,11 @@ def update_class_quest(user_id, class_id, quest_id):
 
     if not updates and xp_threshold is None:
         return jsonify({'success': False, 'error': 'Nothing to update.'}), 400
+
+    # The `due_dates` feature, asked only of a call that sends a due date, and
+    # before any write, so a refused call changes nothing.
+    if 'due_date' in data and not _due_dates_enabled(user_id, class_row['organization_id']):
+        return jsonify({'success': False, 'error': _DUE_DATES_OFF}), 403
 
     link = (admin.table('class_quests').select('id, publish_at, student_ids')
             .eq('class_id', class_id).eq('quest_id', quest_id).limit(1).execute()).data

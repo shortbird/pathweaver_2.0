@@ -81,6 +81,38 @@ describe('QuestDetailScreen', () => {
   });
 });
 
+describe('task due dates', () => {
+  // Ticket 26c91e25: a class quest task can carry a due date, one per task
+  // per class, set by the teacher on web. GET /api/quests/<id> sends it on
+  // each task as `due_date`.
+  const withTasks = (quest_tasks: any[]) => (api.get as jest.Mock).mockResolvedValue({
+    data: { quest: { ...mockQuest, quest_tasks }, blocks: [], engagement: null },
+  });
+
+  it('shows a due chip on a dated task and none on an undated one', async () => {
+    withTasks([
+      { id: 'task-1', title: 'Chapters 1-5', pillar: 'stem', xp_value: 50, is_completed: false, order_index: 0,
+        due_date: '2099-10-06T18:00:00+00:00' },
+      { id: 'task-2', title: 'Chapters 6-10', pillar: 'stem', xp_value: 50, is_completed: false, order_index: 1,
+        due_date: null },
+    ]);
+    const result = render(<QuestDetailScreen />);
+    await waitFor(() => expect(result.getByText('Chapters 1-5')).toBeTruthy());
+    expect(result.getAllByTestId('task-due-chip')).toHaveLength(1);
+    expect(result.queryByTestId('task-due-chip-past')).toBeNull();
+  });
+
+  it('marks an unfinished task past its date as past due', async () => {
+    withTasks([
+      { id: 'task-1', title: 'Chapters 1-5', pillar: 'stem', xp_value: 50, is_completed: false, order_index: 0,
+        due_date: '2020-10-06T18:00:00+00:00' },
+    ]);
+    const result = render(<QuestDetailScreen />);
+    await waitFor(() => expect(result.getByTestId('task-due-chip-past')).toBeTruthy());
+    expect(result.getByText(/^Past due/)).toBeTruthy();
+  });
+});
+
 describe('long task titles', () => {
   // iCreate orientation, 2026-08-18: tasks carry their instruction in the
   // title ("Find the classroom that has a bright yellow pocket folder in

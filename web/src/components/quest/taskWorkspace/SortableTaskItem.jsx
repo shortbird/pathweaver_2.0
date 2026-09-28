@@ -9,6 +9,7 @@ import {
 } from '@heroicons/react/24/outline';
 import { getPillarData } from '../../../utils/pillarMappings';
 import useHidePillars from '../../../hooks/useHidePillars';
+import { dueStatus, dueChipClasses } from '../../../utils/dueDate';
 
 // optio-purple. Stands in for the pillar colour where pillars are hidden.
 const BRAND_PURPLE = '#6d469b';
@@ -33,6 +34,7 @@ const SortableTaskItem = ({ task, isSelected, onClick, onRemove, onMoveUp, onMov
 
   const pillarData = getPillarData(task.pillar);
   const isRequired = task.is_required;
+  const due = dueStatus(task.due_date);
 
   return (
     <div
@@ -114,6 +116,15 @@ const SortableTaskItem = ({ task, isSelected, onClick, onRemove, onMoveUp, onMov
               style={{ backgroundColor: hidePillars ? BRAND_PURPLE : pillarData.color }}
             >
               {task.xp_amount || task.xp_value} XP
+            </span>
+          )}
+          {/* The date the class teacher set on this task (iCreate, ticket
+              26c91e25). Only while it is still to do: a finished task is not
+              late. */}
+          {!task.is_completed && due && (
+            <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${dueChipClasses(due)}`}
+              data-testid="task-due-chip">
+              {due.label}
             </span>
           )}
           {/* Delete button inline - hover only, hidden for required tasks */}

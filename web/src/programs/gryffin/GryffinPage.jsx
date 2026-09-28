@@ -59,7 +59,7 @@ export default function GryffinPage() {
       {isStudent ? (
         <>
           {!classId && <StudentAgenda basePath="/gryffin" />}
-          <StudentClassesView basePath="/gryffin" />
+          <StudentClassesView basePath="/gryffin" showAgenda={false} />
         </>
       ) : !isStaff ? (
         <div className="bg-white border border-gray-200 rounded-xl p-8 text-center">

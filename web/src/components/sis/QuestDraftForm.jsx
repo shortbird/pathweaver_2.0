@@ -5,6 +5,7 @@ import TaskSubjectPicker from './TaskSubjectPicker'
 import QuestResourcesPanel from './QuestResourcesPanel'
 import { defaultSubjectForPillar, evenSplit } from '../../constants/diplomaSubjects'
 import { INPUT_CLASS } from '../ui/Input'
+import { isoToDateInput } from './questEditor/ClassSettingsSection'
 
 /**
  * The form for building a school quest: a title, a description, and the preset
@@ -110,7 +111,28 @@ export function followPillar(task, pillar) {
  * "Find the Absences feature in Optio" among them. Hide it only where the
  * default is genuinely as good as any answer.
  */
-export function TaskRows({ tasks, setTasks, addLabel = 'Add a preset task', showPillars = true, showSubjects = true, questId = null, onSaveForAttachments = null }) {
+/**
+ * One task's due date on this class (iCreate, ticket 26c91e25: "different due
+ * dates for each week's reading assignment"). A class setting, not the
+ * quest's: it saves on its own the moment it changes, and it is offered on a
+ * read-only quest too. `taskDue` is {dates: {taskId: iso}, onChange(taskId,
+ * 'YYYY-MM-DD' | '')}; a task typed in and not saved yet has no id and waits.
+ */
+export function TaskDueInput({ task, index, taskDue }) {
+  if (!taskDue || !task.id) return null
+  return (
+    <label className="flex items-center gap-1.5 text-sm text-neutral-600">
+      Due
+      <input type="date" value={isoToDateInput(taskDue.dates?.[task.id])}
+        onChange={(e) => taskDue.onChange(task.id, e.target.value)}
+        aria-label={`Task ${index + 1} due date`}
+        title="Optional. The same date for everyone on this class. Nothing locks after it."
+        className="rounded-lg border border-gray-300 px-2 py-1 text-sm" />
+    </label>
+  )
+}
+
+export function TaskRows({ tasks, setTasks, addLabel = 'Add a preset task', showPillars = true, showSubjects = true, questId = null, onSaveForAttachments = null, taskDue = null }) {
   const update = (i, patch) => setTasks((prev) => prev.map((t, idx) => (idx === i ? { ...t, ...patch } : t)))
   const remove = (i) => setTasks((prev) => prev.filter((_, idx) => idx !== i))
   // iCreate, 2026-09-07 (4da3680d): "I'd also like to be able to duplicate
@@ -178,6 +200,7 @@ export function TaskRows({ tasks, setTasks, addLabel = 'Add a preset task', show
                 onChange={(e) => update(i, { is_required: e.target.checked })} />
               Required
             </label>
+            <TaskDueInput task={t} index={i} taskDue={taskDue} />
             <button type="button" onClick={() => duplicate(i)} disabled={!t.title.trim()}
               className="ml-auto p-1 text-gray-400 hover:text-optio-purple disabled:opacity-30"
               title="Make a copy of this task at the end of the list"
@@ -231,7 +254,7 @@ export function TaskRows({ tasks, setTasks, addLabel = 'Add a preset task', show
  * A quest's tasks for somebody who may read them and not change them: a
  * teacher looking at the office's quest on their class (P6, 2026-09-23).
  */
-export function ReadOnlyTasks({ tasks }) {
+export function ReadOnlyTasks({ tasks, taskDue = null }) {
   const real = (tasks || []).filter((t) => (t.title || '').trim())
   if (!real.length) {
     return <p className="text-sm text-neutral-500">No preset tasks. Students write their own.</p>
@@ -239,12 +262,15 @@ export function ReadOnlyTasks({ tasks }) {
   return (
     <ol className="space-y-1.5" aria-label="Tasks">
       {real.map((t, i) => (
-        <li key={t.id || i} className="text-sm">
-          <span className="text-neutral-400 mr-1.5">{i + 1}.</span>
-          <span className="text-neutral-800">{t.title}</span>
-          <span className="ml-2 text-[11px] px-2 py-0.5 rounded-full bg-gray-100 text-neutral-500">
+        <li key={t.id || i} className="text-sm flex flex-wrap items-center gap-x-2 gap-y-1">
+          <span>
+            <span className="text-neutral-400 mr-1.5">{i + 1}.</span>
+            <span className="text-neutral-800">{t.title}</span>
+          </span>
+          <span className="text-[11px] px-2 py-0.5 rounded-full bg-gray-100 text-neutral-500">
             {PILLAR_LABEL[t.pillar] || t.pillar} · {t.xp_value} XP{t.is_required ? ' · required' : ''}
           </span>
+          <TaskDueInput task={t} index={i} taskDue={taskDue} />
         </li>
       ))}
     </ol>
@@ -291,6 +317,9 @@ export default function QuestDraftForm({
   onSaveForAttachments = null,
   // Where the rows get read-only: a teacher looking at the office's quest.
   readOnly = false,
+  // Opened for a class: each saved task's due date on that class (see
+  // TaskDueInput). Null everywhere else.
+  taskDue = null,
 }) {
   // Decided once, on open: a picker that appeared or vanished mid-edit would
   // be stranger than one that stays put.
@@ -302,7 +331,7 @@ export default function QuestDraftForm({
           <p className="text-base font-semibold text-neutral-900">{title || 'Untitled quest'}</p>
           {description && <p className="text-sm text-neutral-600 mt-1 whitespace-pre-line">{description}</p>}
         </div>
-        <ReadOnlyTasks tasks={tasks} />
+        <ReadOnlyTasks tasks={tasks} taskDue={taskDue} />
       </div>
     )
   }
@@ -325,7 +354,7 @@ export default function QuestDraftForm({
         <p className="text-xs text-neutral-400 mb-2">{taskHint}</p>
         <TaskRows tasks={tasks} setTasks={setTasks} addLabel={addLabel} showPillars={showPillars}
           showSubjects={subjectsShown} questId={questId}
-          onSaveForAttachments={onSaveForAttachments} />
+          onSaveForAttachments={onSaveForAttachments} taskDue={taskDue} />
       </div>
     </div>
   )

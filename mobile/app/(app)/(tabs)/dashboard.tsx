@@ -33,6 +33,8 @@ import { ClassCard } from '@/src/components/class/ClassCard';
 import { CourseCard } from '@/src/components/course/CourseCard';
 import { HomeBountyCard } from '@/src/components/bounties/HomeBountyCard';
 import { useMyClaims } from '@/src/hooks/useBounties';
+import { useStudentAgenda } from '@/src/hooks/useStudentAgenda';
+import { UpcomingCard } from '@/src/components/class/UpcomingCard';
 import { useStartSomething, useIsParent } from '@/src/hooks/useStartSomething';
 
 // ── Quest Card with engagement ──
@@ -292,6 +294,9 @@ export default function DashboardScreen() {
   const { claims: bountyClaims, refetch: refetchClaims } = useMyClaims();
   // Journal topics surfaced on Home (bug #34) — same source as the Journal tab.
   const { topics: journalTopics } = useUnifiedTopics(scopedChildId || undefined);
+  // Class due dates (ticket 26c91e25). Empty for orgs that set none, and the
+  // card then renders nothing.
+  const { items: agendaItems, refetch: refetchAgenda } = useStudentAgenda(scopedChildId);
   const [refreshing, setRefreshing] = useState(false);
   // The role-aware "Optio button" action — same flow as the mobile center tab.
   const startSomething = useStartSomething();
@@ -312,12 +317,14 @@ export default function DashboardScreen() {
       // Refetch on focus too so a bounty just claimed on the detail page
       // appears in "What you're working on" without a manual reload.
       refetchClaims();
-    }, [refetch, refetchClaims])
+      // A task finished on the quest screen drops off Upcoming on return.
+      refetchAgenda();
+    }, [refetch, refetchClaims, refetchAgenda])
   );
 
   const onRefresh = async () => {
     setRefreshing(true);
-    await refetch();
+    await Promise.all([refetch(), refetchAgenda()]);
     setRefreshing(false);
   };
 
@@ -404,6 +411,10 @@ export default function DashboardScreen() {
 
           {/* Welcome */}
           <WelcomeHeader user={scopedChildId ? scopedChild : user} stats={data?.stats} activeQuestCount={activeQuests.length} scopedChildId={scopedChildId} />
+
+          {/* Class work with a due date: upcoming first, past due at the
+              bottom (ticket 26c91e25). Nothing when there is none. */}
+          <UpcomingCard items={agendaItems} />
 
           {/* Unified active-work section. Classes, courses, and quests live in
               one list (classes first, then courses, then quests); each card

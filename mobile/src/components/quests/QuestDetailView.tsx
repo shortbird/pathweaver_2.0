@@ -53,6 +53,7 @@ import { EditMomentModal } from '@/src/components/journal/EditMomentModal';
 import { TaskEditModal } from '@/src/components/tasks/TaskEditModal';
 import { EditEvidenceTextSheet, replaceBlockText } from '@/src/components/quests/EditEvidenceTextSheet';
 import { TaskReviewChip } from '@/src/components/quests/TaskReviewChip';
+import { TaskDueChip } from '@/src/components/quests/TaskDueChip';
 import type { LearningEvent } from '@/src/hooks/useJournal';
 import { useThemeColors } from '@/src/hooks/useThemeColors';
 import { showAlert, confirmAlert } from '@/src/utils/alerts';
@@ -574,6 +575,13 @@ function TaskItem({
                   </HStack>
                 )}
               </HStack>
+              {/* The teacher's due date for this task in this class (ticket
+                  26c91e25). Renders nothing when the task has none. */}
+              {!!task.due_date && (
+                <View className="mt-1">
+                  <TaskDueChip dueDate={task.due_date} isCompleted={task.is_completed} />
+                </View>
+              )}
               {/* A two-line taste of the instructions while collapsed. Without
                   it the row showed a title and nothing else, and the only clue
                   that a task had directions at all was pressing it. */}

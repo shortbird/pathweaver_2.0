@@ -86,6 +86,23 @@ export const questEditorApi = {
     return res.data
   },
 
+  /**
+   * The quest's preset tasks as this class sees them, each with this class's
+   * `due_date` (ISO or null). Ticket 26c91e25.
+   */
+  async loadClassTasks(orgId, classId, questId) {
+    const res = await api.get(withOrg(`/api/sis/classes/${classId}/quests/${questId}/tasks`, orgId))
+    return res.data?.tasks || []
+  },
+
+  /** Set (ISO) or clear (null) one task's due date for this class. */
+  async saveTaskDueDate(orgId, classId, questId, taskId, dueDate) {
+    const res = await api.put(
+      withOrg(`/api/sis/classes/${classId}/quests/${questId}/tasks/${taskId}/due-date`, orgId),
+      { due_date: dueDate || null })
+    return res.data
+  },
+
   async saveClassAudience(orgId, classId, questId, studentIds) {
     const res = await api.put(withOrg(`/api/sis/classes/${classId}/quests/${questId}/students`, orgId),
       { student_ids: studentIds })
