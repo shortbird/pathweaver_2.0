@@ -17,7 +17,7 @@ import { ageFromDob, CLASS_MIN_AGE } from '../../utils/age'
 import { moduleEnabled } from '../../modules/moduleEnabled'
 import { useSchoolContext } from '../../hooks/api/useSchoolContext'
 import { familyNavItemsFor } from '../../pages/school/schoolCards'
-import { OPTIO_ACADEMY_ENROLL_PATH } from '../../config/optioAcademy'
+import { OPTIO_ACADEMY_ENROLL_PATH, inOptioAcademy } from '../../config/optioAcademy'
 
 const HOME_ICON = (
   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -209,6 +209,23 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, isPinned, onTogglePin, isHovere
     })
   }
 
+  // Portfolio: the child's overview (diploma, skills, journal), which a
+  // student reaches from their own dashboard. A scoped parent gets it as a
+  // nav item because their dashboard header is the child's, not a profile.
+  // It sits right under the child's home, not in Learning (2026-09-28): it is
+  // the child's record, the second thing a parent opens after their home.
+  if (isParent && inFamilyScope) {
+    primaryItems.push({
+      name: 'Portfolio',
+      path: '/overview',
+      icon: (
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+        </svg>
+      )
+    })
+  }
+
   // Dashboard: superadmin only. Their Home is the platform cockpit, so this is
   // the one way to look at the student dashboard from their own account.
   if (user?.role === 'superadmin') {
@@ -223,10 +240,13 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, isPinned, onTogglePin, isHovere
     })
   }
 
-  // Quests: a learning surface. Org admins don't work in it; a parent does,
+  const learningItems = []
+
+  // Quests: a learning surface, so it leads the Learning section (it sat in
+  // the top section until 2026-09-28). Org admins don't work in it; a parent does,
   // but only pointed at a child (family scope), never as themselves.
   if (role !== 'org_admin' && (!isParent || inFamilyScope)) {
-    primaryItems.push({
+    learningItems.push({
       name: 'Quests',
       path: '/quests',
       icon: (
@@ -236,8 +256,6 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, isPinned, onTogglePin, isHovere
       )
     })
   }
-
-  const learningItems = []
 
   // Org admins reach bounties (view + create for their org's students) from a
   // tab inside /organization, so it's kept out of their sidebar.
@@ -280,21 +298,6 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, isPinned, onTogglePin, isHovere
       icon: (
         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
-        </svg>
-      )
-    })
-  }
-
-  // Portfolio: the child's overview (diploma, skills, journal), which a
-  // student reaches from their own dashboard. A scoped parent gets it as a
-  // nav item because their dashboard header is the child's, not a profile.
-  if (isParent && inFamilyScope) {
-    learningItems.push({
-      name: 'Portfolio',
-      path: '/overview',
-      icon: (
-        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
         </svg>
       )
     })
@@ -347,8 +350,8 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, isPinned, onTogglePin, isHovere
   // The student's evidence feed (invite observers, see reactions) — and, once
   // they have peer connections, their connected friends' work too. It was "My
   // Feed" while it only ever showed your own items; that name stopped being
-  // true when the feed gained a second source. Still unambiguous against the
-  // observer-side "Student Feed" below, which is a different surface.
+  // true when the feed gained a second source. The observer-side feed below is
+  // a different surface that is also called "Feed"; no one sees both.
   if (isStudent) {
     learningItems.push({
       name: 'Feed',
@@ -393,8 +396,11 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, isPinned, onTogglePin, isHovere
   // school but get the same door as "School Pages" -- /school shows them an
   // org and role picker to preview each school's page.
   const schoolTabs = familyNavItemsFor(schoolOrg, { homepage: Boolean(school?.homepage) })
+  // A family-first school (Optio Academy) has no feed (2026-09-28), so a
+  // member with no family tabs -- a student -- gets no door to an empty page.
+  const feedDoor = school?.homepage && !inOptioAcademy({ user, school })
   const schoolDoor = schoolTabs[0]?.path
-    || ((school?.homepage || user?.role === 'superadmin') ? '/school' : null)
+    || ((feedDoor || user?.role === 'superadmin') ? '/school' : null)
   if (schoolDoor) {
     communityItems.push({
       name: school?.name || (user?.role === 'superadmin' ? 'School Pages' : 'My school'),
@@ -419,11 +425,13 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, isPinned, onTogglePin, isHovere
   })
   if (programTab) communityItems.push(programTab)
 
-  // Observer-side feed of students' work. Named "Student Feed" to distinguish
-  // it from the student's own "My Feed" above.
+  // Observer-side feed of students' work. Just "Feed" (2026-09-28) for the
+  // parents, observers and teachers who see it -- it is the only feed in their
+  // sidebar. Only where the student's own Feed is listed too (a superadmin)
+  // does it keep "Student Feed", so the two stay distinguishable.
   if (hasObserverAccess) {
     communityItems.push({
-      name: 'Student Feed',
+      name: isStudent ? 'Student Feed' : 'Feed',
       path: '/observer/feed',
       icon: (
         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

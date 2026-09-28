@@ -19,6 +19,8 @@ import toast from 'react-hot-toast'
 
 import api from '../../../services/api'
 import { getPillarData } from '../../../utils/pillarMappings'
+import useHidePillars from '../../../hooks/useHidePillars'
+import { BRAND_CHIP, leadSubjectName } from '../../../utils/pillarStandIn'
 
 /**
  * CourseTaskItem - Expandable task card with evidence and completion
@@ -34,7 +36,11 @@ const CourseTaskItem = ({ task, onComplete, onRemove, preview = false }) => {
   const [textEvidence, setTextEvidence] = useState('')
   const fileInputRef = useRef(null)
   const cameraInputRef = useRef(null)
-  const pillar = getPillarData(task.pillar)
+  // 13+ (or a school with the pillars off): the chip names the diploma
+  // subject, in the brand colour, and is left out when the task has none.
+  const hidePillars = useHidePillars()
+  const pillar = hidePillars ? BRAND_CHIP : getPillarData(task.pillar)
+  const label = hidePillars ? leadSubjectName(task) : (pillar?.name || task.pillar)
   const xp = task.xp_value || task.xp_amount || 0
 
   // Lazy-load evidence when expanded (a preview has no evidence of its own)
@@ -161,9 +167,11 @@ const CourseTaskItem = ({ task, onComplete, onRemove, preview = false }) => {
             {task.title}
           </h4>
           <div className="flex items-center gap-2 mt-0.5">
-            <span className={`text-xs px-1.5 py-0.5 rounded ${pillar?.bg || 'bg-gray-100'} ${pillar?.text || 'text-gray-600'}`}>
-              {pillar?.name || task.pillar}
-            </span>
+            {label && (
+              <span className={`text-xs px-1.5 py-0.5 rounded ${pillar?.bg || 'bg-gray-100'} ${pillar?.text || 'text-gray-600'}`}>
+                {label}
+              </span>
+            )}
             <span className="text-xs text-gray-500">{xp} XP</span>
             {evidenceBlocks.length > 0 && (
               <span className="text-xs text-gray-400">{evidenceBlocks.length} evidence</span>

@@ -8,7 +8,6 @@ import { queryKeys } from '../utils/queryKeys';
 import api from '../services/api';
 import QuestDetailHeader from '../components/quest/QuestDetailHeader';
 import QuestEnrollment from '../components/quest/QuestEnrollment';
-import QuestApproachExamples from '../components/quest/QuestApproachExamples';
 import QuestMetadataCard from '../components/quest/QuestMetadataCard';
 import QuestFriendsCard from '../components/quest/QuestFriendsCard';
 import PrintTaskListButton from '../components/quest/PrintTaskListButton'
@@ -151,8 +150,13 @@ const QuestDetail = () => {
         // E3: for Treehouse, AI task generation is opt-in — don't auto-launch the
         // wizard on enroll. The student sees facilitator-authored tasks and can
         // tap "add a task" to bring in AI suggestions when they want new options.
-        if (skipWizard || hasTemplateTasks || programQuest.suppressAutoWizard) {
-          if (data?.tasks_loaded) {
+        // A quest with template tasks opens the wizard only when the student
+        // picked none of them to start with (the backend then leaves
+        // skip_wizard off), so skip_wizard decides, not has_template_tasks.
+        if (skipWizard || (hasTemplateTasks && !options.template_task_ids) || programQuest.suppressAutoWizard) {
+          // tasks_loaded counts template copies too, so only a restart is
+          // announced as one.
+          if (options.load_previous_tasks && data?.tasks_loaded) {
             toast.success(`Restarted quest with ${data.tasks_loaded} previous tasks!`);
           } else {
             toast.success('Enrolled! Your tasks are ready.');
@@ -600,6 +604,10 @@ const QuestDetail = () => {
     );
   }
 
+  // A course a family teaches from its own curriculum (Courses and Credits):
+  // credited task by task, never by the class review.
+  const isOwnCurriculum = quest.metadata?.course_format === 'own_curriculum';
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Hero Section */}
@@ -614,25 +622,6 @@ const QuestDetail = () => {
 
       {/* Main Content */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-2 sm:py-4">
-        {/* Starter Paths Section - show when quest allows customization AND has no template tasks
-            Quests with template tasks show those tasks instead of AI-generated paths */}
-        {quest.allow_custom_tasks !== false &&
-         !quest.preset_tasks?.length &&
-         !quest.template_tasks?.length && (
-          <QuestApproachExamples
-            questId={quest.id}
-            questTitle={quest.title}
-            questDescription={quest.big_idea || quest.description}
-            cachedApproaches={quest.approach_examples}
-            isEnrolled={!!quest.user_enrollment}
-            onEnrollmentComplete={() => {
-              // Refetch quest data to show tasks
-              window.location.reload();
-            }}
-            className="mb-4"
-          />
-        )}
-
         {/* Quest Metadata Card - Deliverables and details */}
         <QuestMetadataCard
           quest={quest}
@@ -640,7 +629,9 @@ const QuestDetail = () => {
         />
 
         {/* Credit class progress (quest_type='class') - subject XP toward credit + submit */}
-        {quest.quest_type === 'class' && quest.user_enrollment && (
+        {/* Not for an own-curriculum course: its credit comes from semester
+            check-ins, and the header carries the one line it needs. */}
+        {quest.quest_type === 'class' && !isOwnCurriculum && quest.user_enrollment && (
           <Suspense fallback={<LoadingFallback />}>
             <CreditClassProgressPanel
               questId={quest.id}
@@ -662,9 +653,11 @@ const QuestDetail = () => {
           />
         )}
 
-        {/* Enrollment and Sample/Preset Tasks. Programs with a simplified task
-            view (Treehouse littles) never see the "Start Personalizing" wizard
-            prompt — their task view handles the empty state itself. */}
+        {/* Enrollment and Sample/Preset Tasks, or the start prompt for a quest
+            with no authored tasks. Programs with a simplified task view
+            (Treehouse littles) never see the "Start Personalizing" wizard
+            prompt -- their task view handles the empty state itself -- but an
+            unenrolled one still gets a plain Start Quest button. */}
         <QuestEnrollment
           quest={quest}
           isQuestCompleted={isQuestCompleted}
@@ -706,6 +699,7 @@ const QuestDetail = () => {
                   tasks={quest.quest_tasks}
                   questId={quest.id}
                   isClassQuest={quest.quest_type === 'class'}
+                  creditPerTask={isOwnCurriculum}
                   showPillars={!quest.is_training}
                   onTaskSelect={handleTaskSelect}
                   onTaskReorder={handleTaskReorder}
@@ -887,11 +881,6 @@ const QuestDetail = () => {
                 questTitle={quest.title}
                 onComplete={handlePersonalizationComplete}
                 onCancel={handlePersonalizationCancel}
-                /* Creator tasks win: when the facilitator authored a task list,
-                   never offer the AI-generated "paths" — those are only a
-                   fallback for quests with no authored tasks. */
-                approachExamples={quest.has_template_tasks ? [] : quest.approach_examples}
-                xpThreshold={quest.xp_threshold}
                 /* Credit class: the transcript subject is fixed at creation and
                    the backend routes 100% of each task's XP into it, so the
                    diploma-credits picker would be a lie. Name the subject

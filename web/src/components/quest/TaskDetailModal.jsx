@@ -2,6 +2,7 @@ import React from 'react';
 import { XMarkIcon, TrophyIcon, BookOpenIcon } from '@heroicons/react/24/outline';
 import { getPillarData } from '../../utils/pillarMappings';
 import useHidePillars from '../../hooks/useHidePillars';
+import { brandPillarData } from '../../utils/pillarStandIn';
 import { SUBJECTS as SHARED_SUBJECTS } from '@shared/subjects';
 import { TRANSCRIPT_SUBJECT_NAMES } from '@shared/credits';
 
@@ -19,7 +20,8 @@ const TaskDetailModal = ({ task, isOpen, onClose }) => {
 
   if (!isOpen || !task) return null;
 
-  const pillarData = getPillarData(task.pillar);
+  // Pillars hidden: the brand colour stands in for the pillar's everywhere.
+  const pillarData = hidePillars ? brandPillarData(getPillarData(task.pillar)) : getPillarData(task.pillar);
 
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto">
@@ -42,9 +44,8 @@ const TaskDetailModal = ({ task, isOpen, onClose }) => {
           >
             <div className="flex items-start justify-between">
               <div className="flex-1">
-                {/* The header keeps the pillar's colour where the pillars are
-                    hidden — it is the only thing giving this modal a hue — but
-                    drops the name. */}
+                {/* Where the pillars are hidden the header is optio-purple
+                    (brandPillarData above) and the name goes. */}
                 {!hidePillars && (
                   <div className="text-xs sm:text-sm font-semibold uppercase tracking-wide text-white/90 mb-2">
                     {pillarData.name}

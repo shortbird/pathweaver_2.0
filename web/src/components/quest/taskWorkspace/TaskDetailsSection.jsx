@@ -3,6 +3,7 @@
 // pillar / XP / subject-credit badges.
 import { TrophyIcon, ExclamationCircleIcon, CheckCircleIcon, SparklesIcon, PencilSquareIcon } from '@heroicons/react/24/outline';
 import SubjectBadges from '../../common/SubjectBadges';
+import { getSubjectName, subjectColor } from '../../../constants/subjects';
 import QuestResourceList from '../QuestResourceList';
 import useIsClamped from '../../../hooks/useIsClamped';
 
@@ -19,6 +20,18 @@ const TaskDetailsSection = ({ canUseTaskGeneration, isDescriptionExpanded, pilla
   const hasCredits = Array.isArray(credits)
     ? credits.length > 0
     : Boolean(credits) && Object.keys(credits).length > 0;
+  const taskXp = task.xp_amount || task.xp_value;
+  // Without the pillars every subject leads, each with its share of the XP,
+  // biggest first -- one section instead of a lead chip over a "Credits" row
+  // that repeated it (2026-09-28). A plain list carries no split, so its chips
+  // are names only.
+  const subjectChips = !hasCredits ? [] : Array.isArray(credits)
+    ? credits.map(key => ({ key, xp: null }))
+    : Object.entries(credits)
+      .map(([key, xp]) => ({ key, xp: Number(xp) || 0 }))
+      .sort((a, b) => b.xp - a.xp);
+  // One subject holding all the XP already says the total.
+  const showTotalXp = pillarsVisible || subjectChips.length !== 1 || subjectChips[0].xp !== Number(taskXp);
 
   return (
   <div className="px-4 sm:px-6 py-5 border-b border-gray-200">
@@ -113,26 +126,45 @@ const TaskDetailsSection = ({ canUseTaskGeneration, isDescriptionExpanded, pilla
           {pillarData?.name}
         </div>
       )}
+      {/* Without the pillar (a student 13+, or a school that switched them
+          off) the diploma subjects lead: "Language Arts", not
+          "Communication" (2026-09-28). */}
+      {!pillarsVisible && subjectChips.map(({ key, xp }) => (
+        <div
+          key={key}
+          className="flex items-center gap-2 px-3 py-2 rounded-lg text-white text-sm font-medium"
+          style={{ backgroundColor: subjectColor(key) }}
+          data-testid="task-subject-chip"
+        >
+          <div className="w-2 h-2 rounded-full bg-white/40" />
+          {getSubjectName(key)}
+          {xp !== null && <span className="font-bold">{xp} XP</span>}
+        </div>
+      ))}
 
       {/* XP badge. It borrows the pillar's colour, so without the
           pillar shown it falls back to the brand purple. */}
-      <div
-        className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-bold"
-        style={{
-          backgroundColor: `${pillarsVisible ? pillarData?.color : BRAND_PURPLE}15`,
-          color: pillarsVisible ? pillarData?.color : BRAND_PURPLE
-        }}
-      >
-        <TrophyIcon className="w-4 h-4" />
-        {task.xp_amount || task.xp_value} XP
-      </div>
+      {showTotalXp && (
+        <div
+          className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-bold"
+          style={{
+            backgroundColor: `${pillarsVisible ? pillarData?.color : BRAND_PURPLE}15`,
+            color: pillarsVisible ? pillarData?.color : BRAND_PURPLE
+          }}
+        >
+          <TrophyIcon className="w-4 h-4" />
+          {!pillarsVisible && subjectChips.length > 1 && <span className="font-medium">Total</span>}
+          {taskXp} XP
+        </div>
+      )}
     </div>
 
-    {/* Subject Credits - separate row.
+    {/* Subject Credits - separate row, only beside a pillar; without one the
+        subjects are the chips above.
         Emptiness, not presence: a task the author marked as not counting
         toward credit carries {} here, and {} is truthy, so the old check drew
         a "Credits" heading with no subjects under it (iCreate, f2c4d88e). */}
-    {hasCredits && (
+    {pillarsVisible && hasCredits && (
       <div className="mt-4 pt-4 border-t border-gray-100">
         <div className="flex items-center gap-3">
           <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">Credits</span>

@@ -5,6 +5,7 @@ import { useAuth } from '../../contexts/AuthContext'
 import { useFamilyScope } from '../../contexts/FamilyScopeContext'
 import { useStudentScope } from '../../hooks/useStudentScope'
 import { getSubjectName } from '../../constants/subjects'
+import { formatCredits } from '../../utils/creditRequirements'
 import { ageFromDob, CLASS_MIN_AGE } from '../../utils/age'
 import { PageLoader } from '../../components/ui/Spinner'
 import HowClassesWork from '../../components/classes/HowClassesWork'
@@ -125,7 +126,7 @@ const MyClasses = () => {
                         <span className="font-medium text-optio-purple">{subjectName}</span>
                         {!!(p?.credits_earned) && (
                           <span className="text-green-700 font-medium">
-                            {p.credits_earned} credit{p.credits_earned > 1 ? 's' : ''} earned
+                            {formatCredits(p.credits_earned)} credit earned
                           </span>
                         )}
                       </div>
@@ -138,7 +139,7 @@ const MyClasses = () => {
                             />
                           </div>
                           <p className="text-xs text-gray-500 mt-1">
-                            {awarded ? 'Credit earned' : `${xpToNext} / ${target} XP toward next credit`}
+                            {awarded ? 'Credit earned' : `${xpToNext} / ${target} XP toward this class`}
                           </p>
                         </div>
                       )}

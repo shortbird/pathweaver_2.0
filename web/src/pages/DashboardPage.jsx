@@ -14,6 +14,7 @@ import DiplomaCreditTracker from '../components/diploma/DiplomaCreditTracker'
 import WeeklyXpGoalCard from '../components/overview/WeeklyXpGoalCard'
 import { PageLoader } from '../components/ui/Spinner'
 import CreateQuestModal from '../components/CreateQuestModal'
+import useHidePillars from '../hooks/useHidePillars'
 import {
   RocketLaunchIcon,
   CheckCircleIcon,
@@ -61,6 +62,9 @@ const pillarStyles = {
 
 // Memoized component for Upcoming Tasks
 const UpcomingTasks = memo(({ activeQuests }) => {
+  // 13+ (or a school with the pillars off): every card takes the brand tint
+  // (the civics style is optio-purple) instead of sorting by pillar colour.
+  const hidePillars = useHidePillars();
   // Get one incomplete task from each active quest, prioritizing pillar variety
   const upcomingTasks = React.useMemo(() => {
     if (!activeQuests || activeQuests.length === 0) return [];
@@ -153,7 +157,7 @@ const UpcomingTasks = memo(({ activeQuests }) => {
     <div className="space-y-3">
       {upcomingTasks.map((task, index) => {
         const pillar = task.pillar?.toLowerCase() || 'wellness';
-        const styles = pillarStyles[pillar] || pillarStyles.wellness;
+        const styles = hidePillars ? pillarStyles.civics : (pillarStyles[pillar] || pillarStyles.wellness);
 
         return (
           <Link
@@ -329,26 +333,13 @@ const DashboardPage = () => {
 
   const displayName = selectedChild?.firstName || user?.first_name
 
-  // Split active quests into in-progress vs completed (100% task completion)
+  // Split active quests into in-progress vs completed by the enrollment's own
+  // status. Finishing every task a student has so far is not finishing the
+  // quest -- quests are open-ended and students add tasks as they go -- so a
+  // task tally must never move a quest out of Current Quests.
   const allActiveQuests = dashboardData?.active_quests || [];
-  const inProgressQuests = allActiveQuests.filter(quest => {
-    const questData = quest.quests || quest;
-    const completedTasks = quest.tasks_completed || quest.completed_tasks || 0;
-    const totalTasks = questData.task_count || questData.total_tasks || 0;
-    // Quest is completed if all tasks are done (and there are tasks)
-    if (totalTasks > 0 && completedTasks >= totalTasks) return false;
-    // Also check status field
-    if (quest.status === 'completed') return false;
-    return true;
-  });
-  const completedActiveQuests = allActiveQuests.filter(quest => {
-    const questData = quest.quests || quest;
-    const completedTasks = quest.tasks_completed || quest.completed_tasks || 0;
-    const totalTasks = questData.task_count || questData.total_tasks || 0;
-    if (totalTasks > 0 && completedTasks >= totalTasks) return true;
-    if (quest.status === 'completed') return true;
-    return false;
-  });
+  const inProgressQuests = allActiveQuests.filter(quest => quest.status !== 'completed');
+  const completedActiveQuests = allActiveQuests.filter(quest => quest.status === 'completed');
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">

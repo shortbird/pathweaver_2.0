@@ -64,8 +64,9 @@ class TestEveryTaskCreatingRouteAsks:
     """The gate is only worth having if nothing routes around it.
 
     These are the endpoints that can end with a row in user_quest_tasks, or
-    that spend an AI call on the way there. If somebody adds an eighth, this
-    test is what tells them to gate it too.
+    that spend an AI call on the way there. If somebody adds a seventh, this
+    test is what tells them to gate it too. (add_path_tasks made seven until
+    the AI starter paths were removed on 2026-09-28.)
     """
 
     GATED = [
@@ -73,7 +74,6 @@ class TestEveryTaskCreatingRouteAsks:
         'generate_tasks',
         'analyze_manual_task',
         'add_manual_tasks_batch',
-        'add_path_tasks',
         'finalize_tasks',
         'accept_task_immediate',
     ]

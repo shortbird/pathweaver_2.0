@@ -5,7 +5,8 @@ this quest by id". This file pins the doors that still answered without it,
 and the second half of the rule itself:
 
   1. GET /api/quest-ai/approach-examples/<id> -- was unauthenticated and
-     started a paid Gemini call for any quest id.
+     started a paid Gemini call for any quest id. Removed outright on
+     2026-09-28 with the rest of the AI "starter paths" feature.
   2. generate-tasks / start-personalization -- took any quest id; now the
      caller must open the quest AND be on it (may_work_on_quest). The credit
      calculator is quest content too.
@@ -299,7 +300,7 @@ def test_family_scope_asks_about_the_child_and_the_parent():
 
 @pytest.mark.unit
 @pytest.mark.parametrize('view_name', [
-    'add_manual_tasks_batch', 'add_path_tasks', 'finalize_tasks', 'accept_task_immediate',
+    'add_manual_tasks_batch', 'finalize_tasks', 'accept_task_immediate',
 ])
 def test_the_task_writing_doors_do_not_enroll_in_a_quest_the_learner_may_not_open(view_name):
     """Each of these creates the user_quests row through
@@ -330,75 +331,15 @@ def test_the_task_writing_doors_do_not_enroll_in_a_quest_the_learner_may_not_ope
 # ── 1. approach examples ──────────────────────────────────────────────────────
 
 @pytest.mark.unit
-def test_approach_examples_needs_a_signed_in_caller(client):
-    response = client.get(f'/api/quest-ai/approach-examples/{QUEST}')
-    assert response.status_code == 401
-
-
-@pytest.mark.unit
-def test_approach_examples_is_rate_limited_per_user():
-    """The reused D5 limiter, keyed by user rather than IP (a school NAT must
-    not share one bucket)."""
-    from routes import quest_ai
-    source = inspect.getsource(quest_ai)
-    block = source[source.index("@bp.route('/approach-examples/<quest_id>'"):
-                   source.index('def get_approach_examples')]
-    assert '@require_auth' in block
-    assert '@rate_limit(' in block and 'per_user=True' in block
-
-
-def _approach(caller, quest, allowed):
-    from routes import quest_ai
-    view = inspect.unwrap(quest_ai.get_approach_examples)
-    admin = MagicMock()
-    chain = admin.table.return_value.select.return_value.eq.return_value.limit.return_value
-    chain.execute.return_value = MagicMock(data=[quest] if quest else [])
-    app = Flask(__name__)
-    with app.test_request_context(f'/api/quest-ai/approach-examples/{QUEST}'), \
-            patch('database.get_supabase_admin_client', return_value=admin), \
-            patch('services.quest_visibility_service.may_open_quest',
-                  return_value=allowed) as gate, \
-            patch('threading.Thread') as thread:
-        quest_ai._generating_quests.discard(QUEST)
-        response = view(caller, QUEST)
-        quest_ai._generating_quests.discard(QUEST)
-    body, status = response
-    return body.get_json(), status, gate, thread
-
-
-@pytest.mark.unit
-def test_approach_examples_for_a_quest_the_caller_may_not_open_is_a_404_and_spends_nothing():
-    payload, status, gate, thread = _approach(STRANGER, _school_quest(), allowed=False)
-    assert status == 404
-    assert payload == {'success': False, 'error': 'Quest not found'}
-    thread.assert_not_called()
-    gate.assert_called_once()
-    assert gate.call_args.args[0] == STRANGER
-
-
-@pytest.mark.unit
-def test_approach_examples_generate_for_a_quest_the_caller_may_open():
-    _payload, status, _gate, thread = _approach(ENROLLED, dict(_catalog(), approach_examples=None),
-                                                allowed=True)
-    assert status == 200
-    thread.assert_called_once()
-
-
-@pytest.mark.unit
-def test_accept_approach_does_not_enroll_in_a_quest_the_caller_may_not_open():
-    from routes import quest_ai
-    view = inspect.unwrap(quest_ai.accept_approach)
-    admin = MagicMock()
-    chain = admin.table.return_value.select.return_value.eq.return_value.limit.return_value
-    chain.execute.return_value = MagicMock(data=[_school_quest()])
-    app = Flask(__name__)
-    with app.test_request_context(f'/api/quest-ai/accept-approach/{QUEST}', method='POST',
-                                  json={'approach_index': -1}), \
-            patch('database.get_supabase_admin_client', return_value=admin), \
-            patch('services.quest_visibility_service.may_open_quest', return_value=False):
-        body, status = view(STRANGER, QUEST)
-    assert status == 404
-    admin.table.return_value.insert.assert_not_called()
+@pytest.mark.parametrize('rule', [
+    '/api/quest-ai/approach-examples/<quest_id>',
+    '/api/quest-ai/accept-approach/<quest_id>',
+    '/api/quests/<quest_id>/add-path-tasks',
+])
+def test_the_starter_path_doors_are_gone(app, rule):
+    """Removed with the feature (2026-09-28) rather than left locked: a door
+    that no longer exists cannot be reopened by a decorator change."""
+    assert rule not in {r.rule for r in app.url_map.iter_rules()}
 
 
 # ── 2. the credit calculator ──────────────────────────────────────────────────

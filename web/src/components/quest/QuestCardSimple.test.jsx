@@ -159,6 +159,19 @@ describe('QuestCardSimple', () => {
       })
       expect(screen.getByText('View on Diploma')).toBeInTheDocument()
     })
+
+    it('stays in progress when every task is done but the quest is not', () => {
+      // 100% of tasks is a student due to add their next one, not a finished
+      // quest -- only the enrollment decides that.
+      renderCard({
+        user_enrollment: { id: 'e-1' },
+        completed_enrollment: false,
+        quest_tasks: [{ id: 't-1', title: 'Task 1', is_completed: true }],
+        progress: { completed_tasks: 1, total_tasks: 1, percentage: 100 }
+      })
+      expect(screen.getByText('Continue')).toBeInTheDocument()
+      expect(screen.queryByText('View on Diploma')).not.toBeInTheDocument()
+    })
   })
 
   // --- Navigation ---

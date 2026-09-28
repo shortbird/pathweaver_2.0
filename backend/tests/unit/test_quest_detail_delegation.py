@@ -67,7 +67,7 @@ def _supabase(log):
         'quests': {
             'id': QUEST, 'title': 'Bridge Building', 'description': 'd', 'big_idea': 'b',
             'header_image_url': None, 'image_url': None, 'quest_type': 'optio',
-            'transcript_subject': None, 'approach_examples': [], 'is_active': True,
+            'transcript_subject': None, 'is_active': True,
             'metadata': {}, 'allow_custom_tasks': True, 'organization_id': None,
             # A catalog quest, so the direct-link rule
             # (services/quest_visibility_service.py) opens it for anyone and

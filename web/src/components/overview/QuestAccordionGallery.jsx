@@ -3,6 +3,21 @@ import PropTypes from 'prop-types';
 import UnifiedEvidenceDisplay from '../evidence/UnifiedEvidenceDisplay';
 import { getPillarGradient, getPillarDisplayName } from '../../config/pillars';
 import useHidePillars from '../../hooks/useHidePillars';
+import { BRAND_GRADIENT, leadSubjectName } from '../../utils/pillarStandIn';
+
+// Where the pillars are hidden (13+, or a school that switched them off) the
+// quest-level pillar chips go, pillar-tinted headers take the brand gradient,
+// and a task's chip names the diploma subject it counts toward instead.
+const TaskPillarChip = ({ pillar, evidence, className }) => {
+  const hidePillars = useHidePillars();
+  const label = hidePillars ? leadSubjectName(evidence) : getPillarDisplayName(pillar);
+  if (!label) return null;
+  return (
+    <span className={`${className} bg-gradient-to-r ${hidePillars ? BRAND_GRADIENT : getPillarGradient(pillar)}`}>
+      {label}
+    </span>
+  );
+};
 
 /**
  * QuestAccordionGallery - Displays portfolio evidence grouped by quest.
@@ -223,7 +238,7 @@ const QuestAccordionGallery = ({ achievements, isOwner, transferCreditsCard }) =
         {filteredGroups.map(group => {
           const isExpanded = expandedQuests.has(group.questId);
           const primaryPillar = group.pillars[0];
-          const gradientClass = getPillarGradient(primaryPillar);
+          const gradientClass = hidePillars ? BRAND_GRADIENT : getPillarGradient(primaryPillar);
 
           return (
             <div
@@ -256,7 +271,7 @@ const QuestAccordionGallery = ({ achievements, isOwner, transferCreditsCard }) =
                 <div className="p-3">
                   <h4 className="text-sm font-semibold text-gray-900 truncate">{group.title}</h4>
                   <div className="flex flex-wrap items-center gap-2 mt-1.5">
-                    {group.pillars.map(pillar => (
+                    {!hidePillars && group.pillars.map(pillar => (
                       <span
                         key={pillar}
                         className={`inline-block px-2 py-0.5 rounded-full text-white text-xs font-medium bg-gradient-to-r ${getPillarGradient(pillar)}`}
@@ -341,9 +356,7 @@ const TaskList = ({ tasks, onEvidenceClick, formatDate }) => (
               )}
             </div>
             <div className="flex items-center gap-2 flex-shrink-0 text-xs text-gray-500">
-              <span className={`px-2 py-0.5 rounded-full text-white bg-gradient-to-r ${getPillarGradient(task.pillar)}`}>
-                {getPillarDisplayName(task.pillar)}
-              </span>
+              <TaskPillarChip pillar={task.pillar} evidence={task.evidence} className="px-2 py-0.5 rounded-full text-white" />
               <span>+{task.xpAwarded} XP</span>
               <span className="hidden sm:inline">{formatDate(task.completedAt)}</span>
             </div>
@@ -380,8 +393,9 @@ const TaskList = ({ tasks, onEvidenceClick, formatDate }) => (
  */
 const QuestDetailModal = ({ group, onClose, formatDate }) => {
   const [activeEvidence, setActiveEvidence] = useState(null);
+  const hidePillars = useHidePillars();
   const primaryPillar = group.pillars[0];
-  const gradientClass = getPillarGradient(primaryPillar);
+  const gradientClass = hidePillars ? BRAND_GRADIENT : getPillarGradient(primaryPillar);
 
   useEffect(() => {
     const handler = (e) => {
@@ -457,9 +471,7 @@ const QuestDetailModal = ({ group, onClose, formatDate }) => {
                   {activeEvidence.taskTitle}
                 </h2>
                 <div className="flex items-center gap-2 mt-1.5">
-                  <span className={`px-2 py-0.5 rounded-full text-white text-xs font-medium bg-gradient-to-r ${getPillarGradient(activeEvidence.pillar)}`}>
-                    {getPillarDisplayName(activeEvidence.pillar)}
-                  </span>
+                  <TaskPillarChip pillar={activeEvidence.pillar} evidence={activeEvidence.evidence} className="px-2 py-0.5 rounded-full text-white text-xs font-medium" />
                   <span className="text-white/80 text-xs">+{activeEvidence.xpAwarded} XP</span>
                   <span className="text-white/60 text-xs">{formatDateLong(activeEvidence.completedAt)}</span>
                 </div>
@@ -470,7 +482,7 @@ const QuestDetailModal = ({ group, onClose, formatDate }) => {
                   {group.title}
                 </h2>
                 <div className="flex flex-wrap items-center gap-2">
-                  {group.pillars.map(pillar => (
+                  {!hidePillars && group.pillars.map(pillar => (
                     <span
                       key={pillar}
                       className={`inline-block px-2.5 py-0.5 rounded-full text-white text-xs font-medium bg-gradient-to-r ${getPillarGradient(pillar)}`}
@@ -516,7 +528,9 @@ const QuestDetailModal = ({ group, onClose, formatDate }) => {
  * Mobile evidence detail - full-screen modal with back to quest.
  */
 const EvidenceDetailView = ({ item, questTitle, onBack }) => {
-  const gradientClass = getPillarGradient(item.pillar);
+  const hidePillars = useHidePillars();
+  const gradientClass = hidePillars ? BRAND_GRADIENT : getPillarGradient(item.pillar);
+  const label = hidePillars ? leadSubjectName(item.evidence) : getPillarDisplayName(item.pillar);
 
   useEffect(() => {
     const handler = (e) => { if (e.key === 'Escape') onBack(); };
@@ -558,9 +572,11 @@ const EvidenceDetailView = ({ item, questTitle, onBack }) => {
             </div>
           </div>
           <div className="flex items-center gap-2 mt-2 ml-10">
-            <span className="px-2 py-0.5 bg-white/20 rounded-full text-white text-xs font-medium">
-              {getPillarDisplayName(item.pillar)}
-            </span>
+            {label && (
+              <span className="px-2 py-0.5 bg-white/20 rounded-full text-white text-xs font-medium">
+                {label}
+              </span>
+            )}
             <span className="text-white/80 text-xs">+{item.xpAwarded} XP</span>
             <span className="text-white/60 text-xs">{formatDateLong(item.completedAt)}</span>
           </div>

@@ -109,21 +109,6 @@ const initialCredits = {
 // so it was the one surface where the wrong name was most visible.
 const SUBJECT_NAMES = TRANSCRIPT_SUBJECT_NAMES;
 
-// Subject colors for UI
-const SUBJECT_COLORS = {
-  science: 'blue',
-  math: 'indigo',
-  language_arts: 'amber',
-  fine_arts: 'pink',
-  digital_literacy: 'cyan',
-  pe: 'green',
-  health: 'teal',
-  social_studies: 'orange',
-  financial_literacy: 'purple',
-  cte: 'slate',
-  electives: 'gray'
-};
-
 const initialState = {
   // 4-step flow: 0=Hero, 1=QuestSelection, 2=Personalization, 3=Evidence, 4=Portfolio
   currentStep: 0,
@@ -301,7 +286,6 @@ export const DemoProvider = ({ children }) => {
       subject,
       name: SUBJECT_NAMES[subject],
       xp,
-      color: SUBJECT_COLORS[subject],
       credits: (xp / XP_PER_CREDIT).toFixed(2)
     }));
   }, [demoState.demoCredits]);
@@ -339,7 +323,6 @@ export const DemoProvider = ({ children }) => {
     demoQuests: DEMO_QUESTS,
     interestChips: INTEREST_CHIPS,
     subjectNames: SUBJECT_NAMES,
-    subjectColors: SUBJECT_COLORS,
     actions: {
       nextStep,
       previousStep,

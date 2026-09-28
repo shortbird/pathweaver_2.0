@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { XMarkIcon, SparklesIcon, ArrowPathIcon } from '@heroicons/react/24/outline';
 import api from '../../services/api';
 import toast from 'react-hot-toast';
+import useHidePillars from '../../hooks/useHidePillars';
+import { BRAND_CHIP, leadSubjectName } from '../../utils/pillarStandIn';
 
 const PILLAR_COLORS = {
   stem: 'bg-blue-100 text-blue-700',
@@ -35,6 +37,9 @@ const EvolveTopicModal = ({
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [tasks, setTasks] = useState([]);
+  // 13+ (or a school with the pillars off): the proposed tasks' chips name a
+  // diploma subject in the brand colour, or are left out, never a pillar.
+  const hidePillars = useHidePillars();
 
   // Fetch AI preview when modal opens
   useEffect(() => {
@@ -242,9 +247,17 @@ const EvolveTopicModal = ({
                           )}
                         </div>
                         <div className="flex items-center gap-2 flex-shrink-0">
-                          <span className={`text-xs px-2 py-0.5 rounded-full ${PILLAR_COLORS[task.pillar] || 'bg-gray-100 text-gray-700'}`}>
-                            {PILLAR_LABELS[task.pillar] || task.pillar}
-                          </span>
+                          {hidePillars ? (
+                            leadSubjectName(task) && (
+                              <span className={`text-xs px-2 py-0.5 rounded-full ${BRAND_CHIP.bg} ${BRAND_CHIP.text}`}>
+                                {leadSubjectName(task)}
+                              </span>
+                            )
+                          ) : (
+                            <span className={`text-xs px-2 py-0.5 rounded-full ${PILLAR_COLORS[task.pillar] || 'bg-gray-100 text-gray-700'}`}>
+                              {PILLAR_LABELS[task.pillar] || task.pillar}
+                            </span>
+                          )}
                           <span className="text-xs font-medium text-gray-500">
                             {task.xp_value} XP
                           </span>

@@ -329,43 +329,13 @@ def get_public_transcript(user_id):
                     'display_name': SUBJECT_DISPLAY_NAMES.get(subject, subject)
                 }
 
-        # Awarded classes (approved in admin class reviews) — mirrors
-        # routes/admin/transcript_generator.py. POE classes whose credit was
-        # deposited into user_subject_xp by the POE award endpoint are
-        # excluded to avoid double-counting with earned_credits.
-        CLASS_CREDIT_VALUE = 0.5
-        class_result = client.table('quests').select(
-            'id, title, transcript_subject, class_review_submitted_at'
-        ).eq('created_by', user_id).eq('quest_type', 'class').eq(
-            'class_review_status', 'credit_awarded'
-        ).order('class_review_submitted_at', desc=False).execute()
-
-        poe_quest_ids = set()
-        if class_result.data:
-            poe_result = client.table('poe_participants').select(
-                'class_quest_id'
-            ).eq('user_id', user_id).not_.is_(
-                'credit_awarded_at', 'null'
-            ).execute()
-            poe_quest_ids = {
-                p['class_quest_id'] for p in (poe_result.data or [])
-                if p.get('class_quest_id')
-            }
-
-        class_credits = []
-        for cq in (class_result.data or []):
-            if cq['id'] in poe_quest_ids:
-                continue
-            subject = cq.get('transcript_subject') or 'electives'
-            class_credits.append({
-                'quest_id': cq['id'],
-                'school_subject': subject,
-                'display_name': SUBJECT_DISPLAY_NAMES.get(subject, subject),
-                'course_name': cq.get('title'),
-                'credits': CLASS_CREDIT_VALUE,
-                'grade': 'A',
-                'awarded_at': cq.get('class_review_submitted_at')
-            })
+        # Awarded classes -- the same rule as the admin transcript
+        # (CoursesAndCreditsRepository.awarded_class_credits).
+        from repositories.courses_and_credits_repository import CoursesAndCreditsRepository
+        class_credits = [
+            {**cc, 'display_name': SUBJECT_DISPLAY_NAMES.get(cc['school_subject'], cc['school_subject'])}
+            for cc in CoursesAndCreditsRepository(client=client).awarded_class_credits(user_id)
+        ]
 
         # Planned credits
         planned_result = client.table('planned_credits').select('*').eq(

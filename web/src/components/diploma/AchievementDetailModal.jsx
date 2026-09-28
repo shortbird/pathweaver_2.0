@@ -1,8 +1,14 @@
 import React from 'react';
 import UnifiedEvidenceDisplay from '../evidence/UnifiedEvidenceDisplay';
 import { getPillarGradient, getPillarDisplayName } from '../../config/pillars';
+import useHidePillars from '../../hooks/useHidePillars';
+import { BRAND_GRADIENT, leadSubjectName } from '../../utils/pillarStandIn';
 
 const AchievementDetailModal = ({ isOpen, onClose, achievement }) => {
+  // Before the early return: hooks cannot run conditionally. 13+ (or a school
+  // with the pillars off): each task's chip names its diploma subject instead.
+  const hidePillars = useHidePillars();
+
   if (!isOpen || !achievement) return null;
 
   // Legacy pillar name mappings for backward compatibility
@@ -94,8 +100,8 @@ const AchievementDetailModal = ({ isOpen, onClose, achievement }) => {
                 .sort(([, a], [, b]) => new Date(a.completed_at) - new Date(b.completed_at))
                 .map(([taskTitle, evidence], index) => {
                 const normalizedPillar = normalizePillarKey(evidence.pillar);
-                const displayPillar = getPillarDisplayName(normalizedPillar);
-                const gradientClass = getPillarGradient(normalizedPillar);
+                const displayPillar = hidePillars ? leadSubjectName(evidence) : getPillarDisplayName(normalizedPillar);
+                const gradientClass = hidePillars ? BRAND_GRADIENT : getPillarGradient(normalizedPillar);
 
                 return (
                   <div key={taskTitle} className="rounded-xl p-4 sm:p-5" style={{ background: 'white', border: '1px solid rgba(109,70,155,0.15)', boxShadow: '0 2px 4px rgba(0,0,0,0.05)' }}>
@@ -107,9 +113,11 @@ const AchievementDetailModal = ({ isOpen, onClose, achievement }) => {
                         <div className="flex-1 min-w-0">
                           <h4 className="font-semibold text-sm sm:text-base leading-tight text-primary">{taskTitle}</h4>
                           <div className="flex flex-wrap items-center gap-2 sm:gap-3 mt-2">
-                            <span className={`inline-block px-2 sm:px-3 py-1 rounded-full text-xs font-bold text-white bg-gradient-to-r ${gradientClass} shadow-optio`}>
-                              {displayPillar}
-                            </span>
+                            {displayPillar && (
+                              <span className={`inline-block px-2 sm:px-3 py-1 rounded-full text-xs font-bold text-white bg-gradient-to-r ${gradientClass} shadow-optio`}>
+                                {displayPillar}
+                              </span>
+                            )}
                             <span className="text-xs sm:text-sm font-medium text-green-600">
                               +{evidence.xp_awarded} Growth Points
                             </span>

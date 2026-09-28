@@ -85,10 +85,6 @@ def build_verification_url(user_id: str, school_name: str, issued_by: str) -> st
     return f"{base}/public/transcript/{user_id}?token={quote(share_token, safe='')}"
 
 
-# Each approved class (quest_type='class', 1000 subject XP target) is worth a
-# fixed half credit on the transcript, with an A grade.
-CLASS_CREDIT_VALUE = 0.5
-
 # The formal names a transcript prints -- 'Mathematics', not 'Math'. Shared
 # with routes/public.py, which renders the same document for a public share
 # link and had its own copy inside the handler, and with the web app.
@@ -197,44 +193,15 @@ def get_transcript_data(admin_user_id, user_id):
                     'display_name': SUBJECT_DISPLAY_NAMES.get(subject, subject)
                 }
 
-        # Awarded classes: class quests approved in admin class reviews.
-        # Derived from class_review_status so already-approved classes appear
-        # without any backfill. A POE class whose credit was awarded through
-        # the POE award endpoint is excluded — that path deposits subject XP
-        # into user_subject_xp (routes/admin/poe.py), so it already surfaces
-        # through earned_credits above and a row here would double-count it.
-        class_result = supabase.table('quests').select(
-            'id, title, transcript_subject, class_review_submitted_at'
-        ).eq('created_by', user_id).eq('quest_type', 'class').eq(
-            'class_review_status', 'credit_awarded'
-        ).order('class_review_submitted_at', desc=False).execute()
-
-        poe_quest_ids = set()
-        if class_result.data:
-            poe_result = supabase.table('poe_participants').select(
-                'class_quest_id'
-            ).eq('user_id', user_id).not_.is_(
-                'credit_awarded_at', 'null'
-            ).execute()
-            poe_quest_ids = {
-                p['class_quest_id'] for p in (poe_result.data or [])
-                if p.get('class_quest_id')
-            }
-
-        class_credits = []
-        for cq in (class_result.data or []):
-            if cq['id'] in poe_quest_ids:
-                continue
-            subject = cq.get('transcript_subject') or 'electives'
-            class_credits.append({
-                'quest_id': cq['id'],
-                'school_subject': subject,
-                'display_name': SUBJECT_DISPLAY_NAMES.get(subject, subject),
-                'course_name': cq.get('title'),
-                'credits': CLASS_CREDIT_VALUE,
-                'grade': 'A',
-                'awarded_at': cq.get('class_review_submitted_at')
-            })
+        # Awarded classes: class quests approved in admin class reviews, half
+        # a credit each. The repository owns the rule, including which
+        # classes are left out because their credit is already subject XP
+        # (utils/class_credits.py).
+        from repositories.courses_and_credits_repository import CoursesAndCreditsRepository
+        class_credits = [
+            {**cc, 'display_name': SUBJECT_DISPLAY_NAMES.get(cc['school_subject'], cc['school_subject'])}
+            for cc in CoursesAndCreditsRepository(client=supabase).awarded_class_credits(user_id)
+        ]
 
         # Planned/in-progress credits
         planned_result = supabase.table('planned_credits').select('*').eq(

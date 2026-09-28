@@ -393,3 +393,32 @@ class TestGuardianOnlySurfacesDidNotWiden:
     def test_open_classes_still_authorizes_on_guardianship(self):
         with patch.object(parent, '_has_org_access', return_value=False):
             assert parent.open_classes('student-1', 'org-1') is None
+
+
+@pytest.mark.unit
+class TestGuardianContextCarriesPriorLearning:
+    """Courses and Credits reads the school from context(), not school_context(),
+    and shows its Prior Learning section only where the school takes it. The flag
+    lived on the school context alone, so for a real parent the section never
+    appeared (2026-09-28)."""
+
+    def _context(self, sis_settings):
+        student = {'student_id': 'kid-1', 'org_id': 'org-1', 'household_id': None,
+                   'name': 'Ada', 'date_of_birth': None}
+        org_row = {'id': 'org-1', 'name': 'Optio Academy', 'ai_features_enabled': False,
+                   'feature_flags': {'sis_settings': sis_settings}}
+        client = Mock()
+        client.table.side_effect = lambda name: _table_returning(
+            [org_row] if name == 'organizations' else [])
+        with patch.object(parent, 'registerable_students', return_value=[student]), \
+             patch.object(parent, '_admin', return_value=client), \
+             patch('utils.storage_urls.sign_stored_urls', return_value={}):
+            return parent.context('parent-1')
+
+    def test_a_school_that_takes_prior_learning_says_so(self):
+        org = self._context({'prior_learning_enabled': True})['orgs'][0]
+        assert org['prior_learning_enabled'] is True
+
+    def test_a_school_that_does_not_says_so_too(self):
+        org = self._context({})['orgs'][0]
+        assert org['prior_learning_enabled'] is False

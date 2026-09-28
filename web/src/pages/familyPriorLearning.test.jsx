@@ -10,7 +10,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render as rtlRender, screen, waitFor, fireEvent } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { MemoryRouter } from 'react-router-dom'
+import { MemoryRouter, Routes, Route } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 
 // The page reads the guardian context through react-query
@@ -252,6 +252,53 @@ describe('choosing which child', () => {
   })
 })
 
+// 2026-09-28: at a family-first school this is a section of Courses and
+// Credits, handed the child that page is about.
+describe('inside Courses and Credits', () => {
+  it('files against the page\'s child without asking which one', async () => {
+    mockPage()
+    mockSendOk()
+    render(<FamilyPriorLearningPage studentId="kid-2" />)
+
+    await stage(file('a.pdf'))
+    expect(screen.queryByLabelText(/who are these for/i)).not.toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: /send 1 document/i }))
+
+    await waitFor(() => expect(api.post).toHaveBeenCalled())
+    expect(api.post.mock.calls[0][1].student_user_id).toBe('kid-2')
+  })
+
+  it('lists only that child\'s sends', async () => {
+    mockPage({
+      records: [
+        { id: 'r1', student_user_id: 'kid-1', title: 'Ada report card', status: 'submitted', evidence: [] },
+        { id: 'r2', student_user_id: 'kid-2', title: 'Linus transcript', status: 'under_review', evidence: [] },
+      ],
+    })
+    render(<FamilyPriorLearningPage studentId="kid-2" />)
+
+    expect(await screen.findByText('Linus transcript')).toBeInTheDocument()
+    expect(screen.queryByText('Ada report card')).not.toBeInTheDocument()
+  })
+
+  it('sends the old standalone address there, at Optio Academy', async () => {
+    api.get.mockImplementation((url) => (url.includes('/parent/context')
+      ? Promise.resolve({ data: { orgs: [{ organization_id: OPTIO_ACADEMY_ORG_ID, organization_name: 'Optio Academy', is_guardian: true }] } })
+      : Promise.resolve({ data: { records: [], students: TWO_KIDS } })))
+    rtlRender(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter initialEntries={['/family/prior-learning']}>
+          <Routes>
+            <Route path="/family/prior-learning" element={<FamilyPriorLearningPage />} />
+            <Route path="/courses-and-credits" element={<p>courses and credits page</p>} />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>,
+    )
+    expect(await screen.findByText('courses and credits page')).toBeInTheDocument()
+  })
+})
+
 describe('when uploads fail', () => {
   it('never says "sent" if not one document made it', async () => {
     mockPage({ students: [TWO_KIDS[0]] })
@@ -339,11 +386,14 @@ describe('the school hub card is opt-in', () => {
   const guardianOrg = (extra) => ({ is_guardian: true, post_registration_flow: 'goals', ...extra })
   const names = (org) => cardsFor(org).map((c) => c.name)
 
-  describe('at Optio Academy, prior learning is the only thing on the page', () => {
+  // Courses and Credits joined it on 2026-09-28 (own-curriculum courses for
+  // the Hearthwood families), and the same day Prior Learning folded into it
+  // as a section; nothing else from the full card set came back.
+  describe('at Optio Academy, the page carries only Courses and Credits', () => {
     const academy = (extra) => guardianOrg({ organization_id: OPTIO_ACADEMY_ORG_ID, ...extra })
 
-    it('carries the prior learning card and nothing else', () => {
-      expect(names(academy({ prior_learning_enabled: true }))).toEqual(['Prior Learning'])
+    it('carries Courses and Credits alone, with prior learning inside it rather than beside it', () => {
+      expect(names(academy({ prior_learning_enabled: true }))).toEqual(['Courses and Credits'])
     })
 
     it('drops the cards this school does not run — the reason the page was pulled', () => {
@@ -354,8 +404,8 @@ describe('the school hub card is opt-in', () => {
       }
     })
 
-    it('is an empty page rather than a wrong one if the flag is ever turned off', () => {
-      expect(names(academy())).toEqual([])
+    it('carries the same one card with the flag off', () => {
+      expect(names(academy())).toEqual(['Courses and Credits'])
     })
 
     it('shows a non-guardian nothing at all', () => {

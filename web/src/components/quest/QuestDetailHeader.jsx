@@ -1,11 +1,10 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../../contexts/AuthContext';
 import toast from 'react-hot-toast';
 import api from '../../services/api';
 import { queryKeys } from '../../utils/queryKeys';
-import { getQuestHeaderImageSync } from '../../utils/questSourceConfig';
 import { useQuestEngagement } from '../../hooks/api/useQuests';
 import { useStudentScope } from '../../hooks/useStudentScope';
 import useIsClamped from '../../hooks/useIsClamped';
@@ -24,6 +23,9 @@ import {
 } from '@heroicons/react/24/outline';
 import { isFocusMode } from '../../utils/focusMode';
 import { useConfirm } from '../../contexts/ConfirmContext'
+
+// The official Optio wordmark (the one the top navigation uses).
+const OPTIO_LOGO_URL = 'https://auth.optioeducation.com/storage/v1/object/public/site-assets/logos/logo_95c9e6ea25f847a2a8e538d96ee9a827.png';
 
 const stripHtml = (html) => {
   if (!html) return '';
@@ -171,7 +173,11 @@ const QuestDetailHeader = ({
   );
 
   // Get quest header image
-  const questImage = quest?.image_url || quest?.header_image_url || getQuestHeaderImageSync(quest?.quest_type);
+  // A quest with no picture of its own gets the Optio brand banner below, not
+  // the old stock header (a plain "Optio" set in text on a flat gradient,
+  // 2026-09-28). The old fallback call was also handed quest_type, a string,
+  // so it always fell through to that stock image.
+  const questImage = quest?.image_url || quest?.header_image_url || null;
 
   // Org-branded quests (e.g. Hearthwood Academy course quests) render the school's
   // logo as a contained banner behind the title — like the Spark branch below —
@@ -193,19 +199,6 @@ const QuestDetailHeader = ({
   const intensity = metadata.intensity;
   const locationDisplay = getLocationDisplay(metadata);
 
-  // Get pillar-based fallback gradient colors
-  const getPillarGradient = () => {
-    const pillar = quest?.pillar_primary || 'stem';
-    const gradients = {
-      stem: 'from-pillar-stem to-pillar-stem-dark',
-      wellness: 'from-pillar-wellness to-pillar-wellness-dark',
-      communication: 'from-pillar-communication to-pillar-communication-dark',
-      civics: 'from-pillar-civics to-pillar-civics-dark',
-      art: 'from-pillar-art to-pillar-art-dark'
-    };
-    return gradients[pillar] || 'from-optio-purple to-optio-pink';
-  };
-
   function getLocationDisplay(metadata) {
     if (!metadata) return null;
     const { location_type, venue_name, location_address } = metadata;
@@ -226,6 +219,20 @@ const QuestDetailHeader = ({
         sessionStorage.removeItem('courseTaskReturnInfo');
         navigate(returnInfo.pathname + returnInfo.search);
         return;
+      } catch (e) {
+        // Fall through to default
+      }
+    }
+    // Return to Courses and Credits if this quest was opened from there
+    const questReturnStr = sessionStorage.getItem('questReturnTo');
+    if (questReturnStr) {
+      sessionStorage.removeItem('questReturnTo');
+      try {
+        const questReturn = JSON.parse(questReturnStr);
+        if (questReturn?.questId === quest?.id && questReturn.path) {
+          navigate(questReturn.path);
+          return;
+        }
       } catch (e) {
         // Fall through to default
       }
@@ -280,7 +287,7 @@ const QuestDetailHeader = ({
               className="absolute right-4 top-1/2 -translate-y-1/2 h-3/4 opacity-20 object-contain"
             />
           </div>
-        ) : !imageError ? (
+        ) : questImage && !imageError ? (
           <img
             src={questImage}
             alt={`${quest?.title || 'Quest'}`}
@@ -289,7 +296,19 @@ const QuestDetailHeader = ({
             fetchpriority="high"
           />
         ) : (
-          <div className={`absolute inset-0 bg-gradient-to-br ${getPillarGradient()}`} />
+          <div className="absolute inset-0 bg-gradient-primary" data-testid="quest-brand-banner">
+            {/* Pinned to the collapsed hero height, like the org-logo banner, so
+                the logo stays put when "Show journey" grows the hero. */}
+            <div className="absolute inset-x-0 top-0 h-[150px] sm:h-[175px] md:h-[200px] flex items-center justify-end pr-4 sm:pr-8 lg:pr-12">
+              <div className="rounded-3xl bg-white/95 px-5 py-3 sm:px-8 sm:py-5 shadow-sm">
+                <img
+                  src={OPTIO_LOGO_URL}
+                  alt="Optio"
+                  className="h-10 sm:h-16 md:h-24 w-auto object-contain"
+                />
+              </div>
+            </div>
+          </div>
         )}
 
         {/* Gradient overlay - fades from white on left to transparent on right.
@@ -360,6 +379,18 @@ const QuestDetailHeader = ({
                   </button>
                 )}
               </>
+            )}
+
+            {/* An own-curriculum course (Courses and Credits): one quiet line
+                instead of a panel. Its credit is the semester check-ins;
+                tasks added here earn more in the same subject. */}
+            {quest?.metadata?.course_format === 'own_curriculum' && (
+              <p className="mt-2 text-xs text-gray-600">
+                Own curriculum. Semester check-ins earn this course&apos;s credit; tasks you add earn more.{' '}
+                <Link to="/courses-and-credits" className="font-medium text-optio-purple hover:underline">
+                  Courses and Credits
+                </Link>
+              </p>
             )}
 
             {/* Engagement/Rhythm Section - inline in hero */}

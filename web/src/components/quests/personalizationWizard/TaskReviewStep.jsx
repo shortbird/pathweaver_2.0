@@ -1,7 +1,10 @@
 // Step 4: the AI's tasks, one at a time. Accept, skip, flag, or push the
 // complexity dial and have it rewritten easier or harder (capped at
-// MAX_ADJUST_STEPS in either direction).
+// MAX_ADJUST_STEPS in either direction). Once one task is accepted the student
+// can finish without reviewing the rest.
 import React from 'react';
+import { getSubjectName } from '../../../constants/subjects';
+import { leadSubject } from '../../../utils/pillarStandIn';
 import {
   ArrowDownIcon, ArrowUpIcon, CheckCircleIcon, CheckIcon, FlagIcon, XMarkIcon,
 } from '@heroicons/react/24/outline';
@@ -10,7 +13,7 @@ const TaskReviewStep = ({
   acceptedTasks, adjustingTask, creationMethod, currentTask, currentTaskIndex,
   embedded, generatedTasks, getPillarData, handleAcceptTask, handleAdjustTask,
   handleSkipTask, hideDiplomaSubjects, hidePillars, loading, MAX_ADJUST_STEPS,
-  setShowFlagModal, step, taskAdjustments,
+  onFinish, setShowFlagModal, step, taskAdjustments,
 }) => (
   <div>
     <div className={embedded ? 'mb-3' : 'mb-6'}>
@@ -90,6 +93,18 @@ const TaskReviewStep = ({
             </div>
           </div>
         )}
+        {/* Without the pillar (a student 13+, or a school that switched them
+            off) the task's main diploma subject leads instead: "Language
+            Arts", not "Communication" (2026-09-28). */}
+        {hidePillars && leadSubject(currentTask.diploma_subjects) && (
+          <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 px-4 py-2 bg-optio-purple/10 text-optio-purple-dark rounded-full">
+              <span className="font-semibold" data-testid="review-lead-subject">
+                {getSubjectName(leadSubject(currentTask.diploma_subjects))}
+              </span>
+            </div>
+          </div>
+        )}
 
         {/* Subject XP Distribution */}
         {currentTask.diploma_subjects && Object.keys(currentTask.diploma_subjects).length > 0 && (
@@ -102,7 +117,7 @@ const TaskReviewStep = ({
                 key={subject}
                 className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-blue-50 text-blue-700 text-xs font-medium"
               >
-                <span>{subject}</span>
+                <span>{getSubjectName(subject)}</span>
                 <span className="text-blue-500">({xp} XP)</span>
               </div>
             ))}
@@ -171,12 +186,25 @@ const TaskReviewStep = ({
       </button>
     </div>
 
-    {/* Progress Summary */}
-    <div className={embedded ? 'bg-blue-50 border border-blue-200 rounded-lg p-2.5' : 'bg-blue-50 border-2 border-blue-200 rounded-xl p-5'}>
+    {/* Progress Summary, with the early exit once there is something to keep */}
+    <div className={`flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 bg-blue-50 border-blue-200 ${
+      embedded ? 'border rounded-lg p-2.5' : 'border-2 rounded-xl p-5'
+    }`}>
       <p className={embedded ? 'text-xs text-blue-900' : 'text-sm text-blue-900'}>
-        💡 <strong>Progress:</strong> You've accepted {acceptedTasks.length} task{acceptedTasks.length !== 1 ? 's' : ''} so far.
+        <strong>Progress:</strong> You've accepted {acceptedTasks.length} task{acceptedTasks.length !== 1 ? 's' : ''} so far.
         {currentTaskIndex === generatedTasks.length - 1 && ' This is the last task!'}
       </p>
+      {acceptedTasks.length > 0 && (
+        <button
+          onClick={onFinish}
+          disabled={loading || adjustingTask}
+          className={`shrink-0 bg-gradient-primary text-white font-bold rounded-lg hover:shadow-lg transition-all disabled:opacity-50 min-h-[40px] ${
+            embedded ? 'px-3 py-1.5 text-xs' : 'px-4 py-2 text-sm'
+          }`}
+        >
+          Finish with {acceptedTasks.length} task{acceptedTasks.length !== 1 ? 's' : ''}
+        </button>
+      )}
     </div>
   </div>
 );

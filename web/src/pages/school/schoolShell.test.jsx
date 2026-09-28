@@ -56,6 +56,7 @@ function renderAt(path) {
             <Route path="/absences" element={<Where />} />
             <Route path="/family/billing" element={<Where />} />
             <Route path="/family/forms" element={<Where />} />
+            <Route path="/courses-and-credits" element={<Where />} />
           </Route>
         </Routes>
       </MemoryRouter>
@@ -117,6 +118,18 @@ describe('SchoolShell', () => {
     expect(screen.getByRole('heading', { level: 1, name: 'iCreate' })).toBeInTheDocument()
     await waitFor(() => expect(screen.getByTestId('where')).toHaveTextContent('/school'))
     expect(screen.queryByRole('tablist')).not.toBeInTheDocument()
+  })
+
+  it('opens Courses and Credits, not an empty feed, at a family-first school', async () => {
+    // Optio Academy had never posted to its feed; it was removed 2026-09-28.
+    const academy = { ...GUARDIAN_ORG, organization_name: 'Optio Academy', family_first_home: true, prior_learning_enabled: true }
+    memberContext = { success: true, orgs: [academy] }
+    parentContext = { orgs: [academy] }
+    orgState = { school: { id: 'org-1', name: 'Optio Academy', homepage: true } }
+    renderAt('/school')
+    await waitFor(() => expect(screen.getByTestId('where')).toHaveTextContent('/courses-and-credits'))
+    expect(screen.queryByRole('tab', { name: 'Feed' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('tab', { name: 'Prior Learning' })).not.toBeInTheDocument()
   })
 
   it('stays out of the way of a superadmin, who belongs to no school', () => {

@@ -178,19 +178,6 @@ def create_quest_v3_clean(user_id):
             except Exception as topic_err:
                 logger.warning(f"Failed to generate topics for quest {quest_id}: {topic_err}")
 
-        # Generate starter path approaches in background
-        try:
-            from utils.background_tasks import generate_approaches_background
-            generate_approaches_background(
-                quest_id=quest_id,
-                quest_title=quest_data['title'],
-                quest_description=quest_data.get('big_idea') or quest_data.get('description', '')
-            )
-            logger.info(f"Triggered background approach generation for quest {quest_id}")
-        except Exception as bg_err:
-            # Don't fail quest creation if background task fails
-            logger.warning(f"Failed to trigger background approach generation: {bg_err}")
-
         return jsonify({
             'success': True,
             'message': 'Quest created successfully. Tasks can now be added per student.',

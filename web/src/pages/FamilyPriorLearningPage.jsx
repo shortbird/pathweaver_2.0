@@ -1,8 +1,10 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
+import { Navigate } from 'react-router-dom'
 import { toast } from 'react-hot-toast'
 import { ArrowUpTrayIcon, DocumentIcon, XMarkIcon } from '@heroicons/react/24/outline'
 import api from '../services/api'
 import { useFamilyOrgSelection } from '../hooks/api/useSchoolContext'
+import { isFamilyFirstHubOrg } from '../config/optioAcademy'
 // Shared with the SIS Prior Learning page, which uploads into the same pipeline.
 import {
   ACCEPT_ATTR, MAX_FILES, isSupported, kindFor, prettySize,
@@ -28,6 +30,14 @@ import {
  * bucket, so everything here renders in the portfolio like the student's own work.
  *
  * Backed by /api/sis/parent/prior-learning (authorized by family relationship).
+ *
+ * Two homes. At a family-first school (Optio Academy) it is a section of
+ * Courses and Credits, not a tab of its own (2026-09-28): what a parent sends
+ * here comes back, once accepted, as transfer credit in that page's subjects,
+ * so sending and seeing the result belong on one page. There it is given the
+ * child the page is about (`studentId`) and shows only that child's sends;
+ * the old /family/prior-learning address redirects to that section. Anywhere
+ * else it is still its own tab of the school page.
  */
 
 const STATUS_STYLES = {
@@ -65,14 +75,16 @@ const StatusPill = ({ status }) => (
   </span>
 )
 
-const FamilyPriorLearningPage = () => {
+const FamilyPriorLearningPage = ({ studentId: fixedStudentId = null, onChange = null }) => {
+  const embedded = Boolean(fixedStudentId)
   // One shared read of where this person is a guardian (hooks/api/
   // useSchoolContext). The students themselves come from the prior-learning
   // read below (it carries eligibility the context does not).
   const { orgs, org, orgId, setOrgId, scopedStudentId, loading, isError } = useFamilyOrgSelection()
   const [records, setRecords] = useState([])
   const [students, setStudents] = useState([])
-  const [studentId, setStudentId] = useState('')
+  const [pickedStudentId, setStudentId] = useState('')
+  const studentId = fixedStudentId || pickedStudentId
   // Files staged in the browser, each {file, note}. Nothing is uploaded until
   // Send — so a parent can drop in eight things, retitle two and drop one.
   const [staged, setStaged] = useState([])
@@ -199,6 +211,7 @@ const FamilyPriorLearningPage = () => {
       setStaged([])
       setSummary('')
       load()
+      onChange?.()
     } catch (err) {
       toast.error(err.response?.data?.error || 'Could not send your documents')
     } finally {
@@ -211,6 +224,7 @@ const FamilyPriorLearningPage = () => {
       await api.delete(`/api/sis/parent/prior-learning/${recordId}?organization_id=${orgId}`)
       toast.success('Removed')
       load()
+      onChange?.()
     } catch (err) {
       toast.error(err.response?.data?.error || 'Could not remove that')
     }
@@ -219,6 +233,14 @@ const FamilyPriorLearningPage = () => {
   if (loading) {
     return <div className="max-w-3xl mx-auto py-10 text-gray-500">Loading…</div>
   }
+
+  // Merged into Courses and Credits at a family-first school: emailed links
+  // and the mobile School door still say /family/prior-learning.
+  if (!embedded && isFamilyFirstHubOrg(org)) {
+    return <Navigate to="/courses-and-credits#prior-learning" replace />
+  }
+
+  const shown = embedded ? records.filter((r) => r.student_user_id === fixedStudentId) : records
 
   if (!orgs.length) {
     return (
@@ -231,7 +253,7 @@ const FamilyPriorLearningPage = () => {
   // A tab of the school page (pages/school/SchoolShell): the shell carries
   // the letterhead and the rail, this is the panel.
   return (
-    <div className="max-w-3xl mx-auto space-y-8">
+    <div className={embedded ? 'space-y-6' : 'max-w-3xl mx-auto space-y-8'}>
       <div>
         <p className="text-gray-600 text-sm">
           Upload records of learning your child did before joining, or outside of, Optio —
@@ -241,7 +263,7 @@ const FamilyPriorLearningPage = () => {
         </p>
       </div>
 
-      {orgs.length > 1 && (
+      {!embedded && orgs.length > 1 && (
         <select className={inputClass} value={orgId} onChange={(e) => setOrgId(e.target.value)}
                 aria-label="School">
           {orgs.map((o) => (
@@ -253,7 +275,7 @@ const FamilyPriorLearningPage = () => {
       <section className="space-y-4">
         {/* Asked first, and only when there's a choice to make — a parent with
             one child should never be made to answer a question with one answer. */}
-        {students.length > 1 && (
+        {!embedded && students.length > 1 && (
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1" htmlFor="pl-student">
               Who are these for?
@@ -342,10 +364,10 @@ const FamilyPriorLearningPage = () => {
       </section>
 
       <section className="space-y-3">
-        <h2 className="font-semibold text-gray-900">What you’ve sent</h2>
-        {!records.length && <p className="text-sm text-gray-500">Nothing yet.</p>}
+        <h2 className={embedded ? 'text-sm font-semibold text-gray-900' : 'font-semibold text-gray-900'}>What you’ve sent</h2>
+        {!shown.length && <p className="text-sm text-gray-500">Nothing yet.</p>}
 
-        {records.map((record) => {
+        {shown.map((record) => {
           const studentName = students.find((s) => s.student_id === record.student_user_id)?.name
           const files = record.evidence || []
           return (

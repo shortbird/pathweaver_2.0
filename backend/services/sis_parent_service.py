@@ -200,6 +200,19 @@ def context(user_id: str) -> Dict[str, Any]:
                 # with the module off logged a ModuleGate warning per visit
                 # (Sentry OPTIO-BACKEND-81).
                 orgs[r['id']]['effective_modules'] = effective_modules_list(r)
+                # A family-first school (Optio Academy) offers Courses and
+                # Credits; the family dashboard links each of its students'
+                # cards there, and must know which school is one.
+                orgs[r['id']]['family_first_home'] = (
+                    ((r.get('feature_flags') or {}).get('sis_settings') or {})
+                    .get('family_first_home') is True)
+                # Courses and Credits reads the school from THIS context, and
+                # carries Prior Learning as a section where the school takes
+                # it (2026-09-28). Without the flag here the section never
+                # showed for a real parent -- only the school context had it.
+                orgs[r['id']]['prior_learning_enabled'] = (
+                    ((r.get('feature_flags') or {}).get('sis_settings') or {})
+                    .get('prior_learning_enabled') is True)
                 # Appointment-booking link (e.g. iCreate's Customized Learning Plan
                 # meetings) so the Schedule Builder can offer "Book appointment".
                 icfg = get_registration_config(r.get('feature_flags'))

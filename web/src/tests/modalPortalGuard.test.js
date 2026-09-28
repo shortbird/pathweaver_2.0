@@ -112,10 +112,11 @@ const BASELINE = [
   'src/components/quest/QuestCompletionCelebration.jsx',
   'src/components/quest/RestartQuestModal.jsx',
   'src/components/quests/QuestPersonalizationWizard.jsx',
-  // The flag-a-task modal's raw backdrop moved here when the wizard was split
-  // into per-step components (QF-02, 2026-09-07) -- same relocation as
-  // GenerationModeModal below, caught the same way.
-  'src/components/quests/personalizationWizard/ChoosePathStep.jsx',
+  // The flag-a-task modal's raw backdrop moved into ChoosePathStep.jsx when the
+  // wizard was split into per-step components (QF-02, 2026-09-07), then here
+  // when the curated-paths step was removed (2026-09-28) -- same relocation as
+  // GenerationModeModal below, the same backdrop and not a new one.
+  'src/components/quests/personalizationWizard/WizardFooter.jsx',
   'src/components/ui/mobile/MobileModal.jsx',
   'src/components/verification/VerificationModal.jsx',
   'src/pages/QuestDetail.jsx',

@@ -22,6 +22,10 @@ const PARENT_ID = 'parent-1'
 
 let currentUserId = STUDENT_ID
 
+// The hook reads AuthContext itself (the 13+ pillar rule); this mock of
+// AuthContext has no context object to give it, and pillars are not what
+// this file tests.
+vi.mock('../../hooks/useHidePillars', () => ({ default: () => false }))
 vi.mock('../../contexts/AuthContext', () => ({
   useAuth: () => ({ user: { id: currentUserId } }),
 }))

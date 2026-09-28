@@ -1,5 +1,5 @@
 import React from 'react'
-import { Outlet, useLocation, useNavigate } from 'react-router-dom'
+import { Navigate, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useOrganization } from '../../contexts/OrganizationContext'
 import { useAuth } from '../../contexts/AuthContext'
 import { useFamilyScope } from '../../contexts/FamilyScopeContext'
@@ -7,6 +7,7 @@ import { useSchoolContext, useFamilyOrgSelection } from '../../hooks/api/useScho
 import { GlassTabBar } from '../../components/ui'
 import SchoolLetterhead from '../../components/school/SchoolLetterhead'
 import { familyNavItemsFor } from './schoolCards'
+import { isFamilyFirstHubOrg } from '../../config/optioAcademy'
 
 /**
  * The school, as one page. The letterhead, then a glass tab rail — Feed,
@@ -36,7 +37,7 @@ import { familyNavItemsFor } from './schoolCards'
  */
 
 // Tabs whose content is one child's: the shell's student picker shows here.
-const PER_CHILD_TABS = new Set(['/schedule-builder', '/family/goals'])
+const PER_CHILD_TABS = new Set(['/schedule-builder', '/family/goals', '/courses-and-credits'])
 
 // Older links: /announcements has always landed on the school page.
 const ALIASES = { '/announcements': '/school' }
@@ -57,6 +58,12 @@ export default function SchoolShell() {
   const tabs = items.map((item) => ({ id: item.path, label: item.tab || item.name }))
   const current = ALIASES[pathname] || pathname
   const active = tabs.some((t) => t.id === current) ? current : null
+
+  // A family-first school has no Feed tab, so /school (old links, a typed
+  // URL) opens its first real tab rather than an empty feed.
+  if (current === '/school' && isFamilyFirstHubOrg(schoolOrg) && tabs.length && !active) {
+    return <Navigate to={tabs[0].id} replace />
+  }
 
   const showStudents = PER_CHILD_TABS.has(current) && students.length > 1
   const activeStudent = students.some((s) => s.student_id === scopedStudentId)

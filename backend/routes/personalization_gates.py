@@ -32,8 +32,8 @@ def quest_not_workable(user_id: str, quest_id: str):
 def quest_not_openable(user_id: str, quest_id: str):
     """404 payload unless the learner may be put on this quest, else None.
 
-    The task-writing doors (add-manual-tasks, add-path-tasks, finalize-tasks,
-    accept-task) write through get_or_create_enrollment, which
+    The task-writing doors (add-manual-tasks, finalize-tasks, accept-task)
+    write through get_or_create_enrollment, which
     creates the user_quests row when there is none -- an enrollment by another
     name. So they are held to the rule POST /api/quests/<id>/enroll applies
     (services/quest_visibility_service.may_open_quest, enrollment form: the

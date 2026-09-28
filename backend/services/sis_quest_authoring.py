@@ -406,11 +406,12 @@ def publish_draft(admin, quest, *, prefer_logo=False):
 # deliberately not copied: identity (id, created_*), anything that belongs to a
 # particular delivery of the quest (lms_*, lti_*, class_review_*), and the
 # lifecycle flags a copy should start clean on (archived_at, deactivated_at,
-# requires_review).
+# requires_review). approach_examples is not copied either: the AI "starter
+# paths" it held were removed on 2026-09-28 and nothing reads the column.
 _COPIED_QUEST_FIELDS = (
     'description', 'big_idea', 'header_image_url', 'image_url',
     'image_search_term', 'material_link', 'curriculum_content',
-    'topics', 'topic_primary', 'approach_examples', 'allow_custom_tasks',
+    'topics', 'topic_primary', 'allow_custom_tasks',
     'xp_threshold', 'transcript_subject', 'recommended_age', 'source_material',
     'is_v3', 'quest_type', 'metadata',
 )

@@ -12,22 +12,44 @@ const TaskListPanel = ({ activeTasks, completedTasks, handleDragEnd, handleMoveD
     flex-shrink-0 border-r border-gray-200 transition-all duration-300 overflow-hidden
   `}>
     <div className="h-full flex flex-col w-64">
-      {/* Task List Header */}
-      <div className="px-3 py-2 border-b border-gray-100 flex items-center justify-between">
+      {/* Task List Header. While tasks are still open, the add button sits
+          here beside the collapse control; with none open it moves into the
+          empty list below, where the next task will appear. */}
+      <div className="px-3 py-2 border-b border-gray-100 flex items-center justify-between gap-2">
         <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
           Tasks ({tasks.length})
         </span>
-        <button
-          onClick={() => setIsTaskListOpen(false)}
-          className="p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded transition-colors"
-          title="Hide task list"
-        >
-          <ChevronLeftIcon className="w-4 h-4" />
-        </button>
+        <div className="flex items-center gap-1">
+          {onAddTask && activeTasks.length > 0 && (
+            <button
+              onClick={onAddTask}
+              className="px-2 py-1 text-xs font-medium text-optio-purple hover:bg-optio-purple/5 rounded transition-colors flex items-center gap-1"
+            >
+              <PlusIcon className="w-3.5 h-3.5" />
+              Add Task
+            </button>
+          )}
+          <button
+            onClick={() => setIsTaskListOpen(false)}
+            className="p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded transition-colors"
+            title="Hide task list"
+          >
+            <ChevronLeftIcon className="w-4 h-4" />
+          </button>
+        </div>
       </div>
 
       {/* Task List */}
       <div className="flex-1 overflow-y-auto px-2 py-2">
+        {onAddTask && activeTasks.length === 0 && (
+          <button
+            onClick={onAddTask}
+            className="w-full py-2 text-sm text-optio-purple hover:bg-optio-purple/5 rounded-lg transition-colors flex items-center justify-center gap-1.5"
+          >
+            <PlusIcon className="w-4 h-4" />
+            Add Task
+          </button>
+        )}
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
           <SortableContext items={activeTasks.map(t => t.id)} strategy={verticalListSortingStrategy}>
             <div className="space-y-2">
@@ -69,19 +91,6 @@ const TaskListPanel = ({ activeTasks, completedTasks, handleDragEnd, handleMoveD
           </div>
         )}
       </div>
-
-      {/* Add Task Button */}
-      {onAddTask && (
-        <div className="p-2 border-t border-gray-100">
-          <button
-            onClick={onAddTask}
-            className="w-full py-2 text-sm text-optio-purple hover:bg-optio-purple/5 rounded-lg transition-colors flex items-center justify-center gap-1.5"
-          >
-            <PlusIcon className="w-4 h-4" />
-            Add Task
-          </button>
-        </div>
-      )}
     </div>
   </div>
 );

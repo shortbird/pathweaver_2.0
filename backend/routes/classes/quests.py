@@ -484,17 +484,6 @@ def create_and_add_class_quest(user_id, org_id, class_id):
         quest_id = quest['id']
         logger.info(f"Created org quest {quest_id} '{title}' for org {org_id}")
 
-        # Generate starter approaches in background
-        try:
-            from utils.background_tasks import generate_approaches_background
-            generate_approaches_background(
-                quest_id=quest_id,
-                quest_title=title,
-                quest_description=description
-            )
-        except Exception as bg_err:
-            logger.warning(f"Failed to trigger background approach generation: {bg_err}")
-
         # Add quest to the class
         assignment = service.add_quest(class_id, quest_id, user_id)
 

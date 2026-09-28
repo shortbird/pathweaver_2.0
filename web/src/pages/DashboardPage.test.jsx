@@ -16,6 +16,9 @@ vi.mock('../contexts/AuthContext', () => ({
 }))
 
 
+// useHidePillars reads AuthContext itself, which the AuthContext mock
+// here does not export. Pillars shown, as for a learner under 13.
+vi.mock('../hooks/useHidePillars', () => ({ default: () => false }))
 vi.mock('../contexts/OrganizationContext', () => ({
   useOrganization: () => orgState
 }))
@@ -473,15 +476,19 @@ describe('DashboardPage', () => {
       refetch: vi.fn()
     })
 
-    it('files a quest with every task done under Completed', () => {
+    it('keeps a quest with every task done in Current Quests', () => {
+      // Quests are open-ended: finishing every task so far means the student
+      // adds the next one, not that the quest is over. Emory Waite's seven
+      // live quests (2026-09-28) all sat under Completed, leaving Current
+      // Quests empty for her and her mother.
       dashboardHookData = withQuests([
-        quest('q-done', { tasks_completed: 3, quests: { id: 'q-done', title: 'Finished', total_tasks: 3 } })
+        quest('q-caught-up', { tasks_completed: 3, quests: { id: 'q-caught-up', title: 'Caught up', total_tasks: 3 } })
       ])
       renderDashboard()
 
-      expect(screen.getByText('Completed Quests')).toBeInTheDocument()
-      // No card in Current Quests -- the empty state is showing there instead.
-      expect(screen.getByText('Pick Up Your First Quest')).toBeInTheDocument()
+      expect(screen.getByText('Caught up')).toBeInTheDocument()
+      expect(screen.queryByText('Completed Quests')).not.toBeInTheDocument()
+      expect(screen.queryByText('Pick Up Your First Quest')).not.toBeInTheDocument()
     })
 
     it('files a quest the backend marked completed under Completed', () => {
@@ -516,7 +523,7 @@ describe('DashboardPage', () => {
     it('shows both sections when the student has one of each', () => {
       dashboardHookData = withQuests([
         quest('q-wip', { tasks_completed: 1, quests: { id: 'q-wip', title: 'Halfway', total_tasks: 4 } }),
-        quest('q-done', { tasks_completed: 2, quests: { id: 'q-done', title: 'Finished', total_tasks: 2 } })
+        quest('q-done', { status: 'completed', tasks_completed: 2, quests: { id: 'q-done', title: 'Finished', total_tasks: 2 } })
       ])
       renderDashboard()
       expect(screen.getByText('Halfway')).toBeInTheDocument()

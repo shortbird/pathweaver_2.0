@@ -1,7 +1,7 @@
 import {
   CalendarDaysIcon, BookOpenIcon, UsersIcon, CreditCardIcon,
   DocumentTextIcon, CheckCircleIcon, CalendarIcon,
-  TableCellsIcon, AcademicCapIcon, TruckIcon, BuildingLibraryIcon,
+  TableCellsIcon, AcademicCapIcon, TruckIcon, BuildingLibraryIcon, ClipboardDocumentListIcon,
 } from '@heroicons/react/24/outline'
 import { isFamilyFirstHubOrg } from '../../config/optioAcademy'
 
@@ -87,6 +87,16 @@ const flowCard = (postRegistrationFlow) => (
     }
 )
 
+/** Optio Academy's diploma page: each subject, the courses in it, and where a
+ *  family adds its own curriculum and sends semester check-ins
+ *  (pages/CoursesAndCreditsPage). On the school page, not a child's card:
+ *  Tanner, 2026-09-28. */
+const coursesAndCreditsCard = {
+  name: 'Courses and Credits', path: '/courses-and-credits', Icon: ClipboardDocumentListIcon,
+  description: 'Add courses, including your own curriculum, and send semester check-ins for credit.',
+  guardianOnly: true,
+}
+
 /** Opt-in per org (feature_flags.sis_settings.prior_learning_enabled), so a
  *  school that doesn't take prior-learning submissions never shows the door. */
 const priorLearningCard = {
@@ -114,12 +124,13 @@ export function cardGroupsFor(org, { viewerRole } = {}) {
   // A family-first school (sis_settings.family_first_home — Optio Academy is
   // the original) runs almost none of the school-community surfaces, so the
   // full card set was a row of doors onto empty rooms — which is why its
-  // parents had this page taken out of the nav entirely. It's back for Prior
-  // Learning, and that is ALL it carries for such a school.
+  // parents had this page taken out of the nav entirely. It came back for
+  // Courses and Credits, and that is ALL it carries for such a school. Prior
+  // Learning was a second card until 2026-09-28; it is a section of Courses
+  // and Credits now, where its accepted credit already showed up.
   if (isFamilyFirstHubOrg(org)) {
-    return org.is_guardian && org.prior_learning_enabled
-      ? [{ id: 'family', title: 'My family', cards: [priorLearningCard] }]
-      : []
+    if (!org.is_guardian) return []
+    return [{ id: 'family', title: 'My family', cards: [coursesAndCreditsCard] }]
   }
   const family = [flowCard(org.post_registration_flow), ...FAMILY_CARDS]
   if (org.prior_learning_enabled) family.push(priorLearningCard)
@@ -168,7 +179,9 @@ export function familyNavItemsFor(org, { homepage = false } = {}) {
   const calendar = (groups.find((g) => g.id === 'school-life')?.cards || [])
     .filter((c) => c.path === '/school-calendar')
   const items = []
-  if (homepage) {
+  // No Feed at a family-first school (2026-09-28): Optio Academy had never
+  // posted to it, so the first tab a parent landed on was an empty page.
+  if (homepage && !isFamilyFirstHubOrg(org)) {
     // Named after the school, like the Community item a non-guardian gets:
     // "Announcements" named the page's feed, not the place (2026-09-16).
     items.push({ name: org.organization_name || 'My school', tab: 'Feed', path: '/school', Icon: BuildingLibraryIcon })

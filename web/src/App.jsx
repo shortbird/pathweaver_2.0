@@ -138,6 +138,7 @@ const PublicCoursePage = lazy(() => import('./pages/courses/PublicCoursePage'))
 const PublicCatalogPage = lazy(() => import('./pages/courses/PublicCatalogPage'))
 const MyClasses = lazy(() => import('./pages/classes/MyClasses'))
 const StartClassPage = lazy(() => import('./pages/classes/StartClassPage'))
+const CoursesAndCreditsPage = lazy(() => import('./pages/CoursesAndCreditsPage'))
 const ScheduleBuilderPage = lazy(() => import('./pages/ScheduleBuilderPage'))
 const ScheduleEmbedPage = lazy(() => import('./pages/ScheduleEmbedPage'))
 const AbsenceReportingPage = lazy(() => import('./pages/AbsenceReportingPage'))
@@ -692,6 +693,11 @@ function App() {
                   {/* Prior learning: a guardian files evidence of learning done
                       before/outside Optio, for the school to award credit for. */}
                   <Route path="family/prior-learning" element={<FamilyPriorLearningPage />} />
+                  {/* Optio Academy's diploma by subject: add a course (own
+                      curriculum or an Optio class) and send semester
+                      check-ins. A school tab, so a parent picks the child in
+                      the shell's picker rather than being bounced to /family. */}
+                  <Route path="courses-and-credits" element={<CoursesAndCreditsPage />} />
                   {/* Goals-mode SIS orgs: parents set a direction + per-subject goals
                       for each child (reviewed in a meeting with school staff). */}
                   <Route path="family/goals" element={<FamilyGoalsPage />} />

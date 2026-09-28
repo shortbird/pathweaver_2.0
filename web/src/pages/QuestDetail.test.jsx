@@ -86,14 +86,15 @@ vi.mock('../components/quest/QuestEnrollment', () => ({
           {isEnrolling ? 'Enrolling...' : 'Start Quest'}
         </button>
       )}
+      {!quest.user_enrollment && (
+        <button data-testid="enroll-picked-none" onClick={() => onEnroll({ template_task_ids: [] })}>
+          Start with no ideas picked
+        </button>
+      )}
       {quest.user_enrollment && <span data-testid="enrolled-status">Enrolled</span>}
       <span data-testid="total-tasks">{totalTasks} tasks</span>
     </div>
   )
-}))
-
-vi.mock('../components/quest/QuestApproachExamples', () => ({
-  default: () => <div data-testid="approach-examples">Approach Examples</div>
 }))
 
 vi.mock('../components/quest/QuestMetadataCard', () => ({
@@ -301,11 +302,6 @@ describe('QuestDetail', () => {
     it('shows enroll button when not enrolled', () => {
       renderQuestDetail()
       expect(screen.getByTestId('enroll-btn')).toBeInTheDocument()
-    })
-
-    it('shows approach examples for customizable quests', () => {
-      renderQuestDetail()
-      expect(screen.getByTestId('approach-examples')).toBeInTheDocument()
     })
   })
 
@@ -630,6 +626,22 @@ describe('QuestDetail', () => {
       })
     })
 
+    // A quest with template tasks, started with none of its ideas picked:
+    // the backend copies nothing and leaves skip_wizard off (2026-09-28).
+    it('opens the wizard when the student picked no template tasks', async () => {
+      questDetailData.enrollMutation = {
+        mutate: resolvesWith({ has_template_tasks: true, skip_wizard: false, tasks_loaded: 0 }),
+        isPending: false
+      }
+      renderQuestDetail()
+
+      fireEvent.click(screen.getByTestId('enroll-picked-none'))
+
+      await waitFor(() => {
+        expect(questDetailData.setShowPersonalizationWizard).toHaveBeenCalledWith(true)
+      })
+    })
+
     it('skips the wizard when the backend says skip_wizard', async () => {
       questDetailData.enrollMutation = {
         mutate: resolvesWith({ enrollment: { skip_wizard: true } }),
@@ -663,8 +675,27 @@ describe('QuestDetail', () => {
     })
 
     it('names the restored task count when a restart reloaded previous tasks', async () => {
+      questDetailData.showRestartModal = true
+      questDetailData.restartModalData = { previousTaskCount: 5, questTitle: 'Learn React Testing' }
       questDetailData.enrollMutation = {
         mutate: resolvesWith({ tasks_loaded: 5 }),
+        isPending: false
+      }
+      renderQuestDetail()
+
+      fireEvent.click(screen.getByTestId('restart-load-previous'))
+
+      await waitFor(() => {
+        expect(toast.success).toHaveBeenCalledWith('Restarted quest with 5 previous tasks!')
+      })
+      expect(questDetailData.setShowPersonalizationWizard).not.toHaveBeenCalled()
+    })
+
+    // tasks_loaded also counts template tasks copied on a first start; that is
+    // not a restart (2026-09-28).
+    it('does not call a first start with template tasks a restart', async () => {
+      questDetailData.enrollMutation = {
+        mutate: resolvesWith({ tasks_loaded: 3, has_template_tasks: true, skip_wizard: true }),
         isPending: false
       }
       renderQuestDetail()
@@ -672,9 +703,8 @@ describe('QuestDetail', () => {
       fireEvent.click(screen.getByTestId('enroll-btn'))
 
       await waitFor(() => {
-        expect(toast.success).toHaveBeenCalledWith('Restarted quest with 5 previous tasks!')
+        expect(toast.success).toHaveBeenCalledWith('Enrolled! Your tasks are ready.')
       })
-      expect(questDetailData.setShowPersonalizationWizard).not.toHaveBeenCalled()
     })
 
     it('offers the restart choice instead of an error on a 409', async () => {

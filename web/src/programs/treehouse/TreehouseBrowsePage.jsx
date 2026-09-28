@@ -8,6 +8,7 @@
 import React, { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { treehouseAPI } from '../../services/api'
+import useHidePillars from '../../hooks/useHidePillars'
 
 const PILLAR_STYLE = {
   art: { emoji: '🎨', ring: 'border-rose-300', chip: 'bg-rose-100 text-rose-700' },
@@ -39,6 +40,9 @@ function QuestCard({ quest }) {
 export default function TreehouseBrowsePage() {
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
+  // A 13+ learner (or a school with the pillars off) gets one list: the
+  // sections are the pillars, so there is nothing else to group them by.
+  const hidePillars = useHidePillars()
 
   useEffect(() => {
     treehouseAPI.quests()
@@ -49,8 +53,11 @@ export default function TreehouseBrowsePage() {
 
   if (loading) return <div className="p-8 text-center text-neutral-400 font-poppins">Loading quests…</div>
 
-  const sections = (data?.categories || []).filter(c => c.quests.length > 0)
-  const uncategorized = data?.uncategorized || []
+  const categorized = (data?.categories || []).filter(c => c.quests.length > 0)
+  const sections = hidePillars ? [] : categorized
+  const uncategorized = hidePillars
+    ? [...categorized.flatMap(c => c.quests), ...(data?.uncategorized || [])]
+    : data?.uncategorized || []
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-8 font-poppins">
@@ -77,7 +84,7 @@ export default function TreehouseBrowsePage() {
 
       {uncategorized.length > 0 && (
         <section className="mt-8">
-          <h2 className="text-xl font-bold text-neutral-800">More Quests</h2>
+          <h2 className="text-xl font-bold text-neutral-800">{hidePillars ? 'Quests' : 'More Quests'}</h2>
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 mt-3">
             {uncategorized.map((q) => <QuestCard key={q.id} quest={q} />)}
           </div>

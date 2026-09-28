@@ -14,6 +14,12 @@ vi.mock('../../contexts/AuthContext', () => ({
   useAuth: () => authState,
 }))
 
+// Family scope: null for a student on their own account, a child for a parent.
+let scopeState = { selectedChild: null, selectedChildId: null }
+vi.mock('../../contexts/FamilyScopeContext', () => ({
+  useFamilyScope: () => scopeState,
+}))
+
 const apiPost = vi.fn()
 const apiPut = vi.fn()
 vi.mock('../../services/api', () => ({
@@ -60,6 +66,37 @@ describe('StartClassPage', () => {
     }
     apiPost.mockResolvedValue({ data: { quest_id: 'q-123' } })
     apiPut.mockResolvedValue({ data: {} })
+    scopeState = { selectedChild: null, selectedChildId: null }
+  })
+
+  it("makes a scoped parent's class on the child's account, gated on the child's age", async () => {
+    // The parent has no birthday on file; the child is 15. The class used to
+    // be made on the parent's own account after asking for the PARENT's
+    // birthday.
+    authState = { user: { id: 'p1', role: 'parent', date_of_birth: null }, refreshUser: vi.fn() }
+    scopeState = {
+      selectedChild: { id: 'kid-1', firstName: 'Ada', dateOfBirth: olderThan(15) },
+      selectedChildId: 'kid-1',
+    }
+    const user = userEvent.setup()
+    renderPage()
+
+    expect(screen.queryByLabelText(/date of birth/i)).not.toBeInTheDocument()
+    await fillToLastStep(user)
+    await user.click(screen.getByRole('button', { name: /create class/i }))
+
+    await waitFor(() => expect(apiPost).toHaveBeenCalled())
+    expect(apiPost.mock.calls[0][1]).toMatchObject({ quest_type: 'class', student_id: 'kid-1' })
+  })
+
+  it("blocks a scoped parent when the child is under the class age", async () => {
+    authState = { user: { id: 'p1', role: 'parent', date_of_birth: olderThan(40) }, refreshUser: vi.fn() }
+    scopeState = {
+      selectedChild: { id: 'kid-2', firstName: 'Bo', dateOfBirth: olderThan(9) },
+      selectedChildId: 'kid-2',
+    }
+    renderPage()
+    expect(screen.getByText(/classes unlock at/i)).toBeInTheDocument()
   })
 
   it('blocks advancing until the class has a name', async () => {

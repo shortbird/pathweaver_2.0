@@ -1,61 +1,12 @@
-// Step 5: the quest's curated paths, plus the flag-a-task modal and the footer
-// that cancels out of the whole wizard. They share this block because the modal
-// and the footer sit outside the step panels in the original layout.
+// The flag-a-task modal and the footer that cancels out of the whole wizard.
+// They sit outside the step panels, so they live here rather than in a step.
 import React from 'react';
 
-const ChoosePathStep = ({
-  ApproachExampleCard, creationMethod, embedded, flagReason, setFlagReason,
-  handleFlagTask, handleSelectPath, hasPaths, loading, onCancel, paths,
-  selectingPathIndex, setSelectingPathIndex, setCreationMethod, setError,
-  setShowFlagModal, setStep, showFlagModal, step, sz, xpThreshold,
+const WizardFooter = ({
+  embedded, flagReason, setFlagReason, handleFlagTask, loading, onCancel,
+  setShowFlagModal, showFlagModal,
 }) => (
   <>
-  {step === 5 && creationMethod === 'path' && hasPaths && (
-    <div>
-      <h2 className={sz.heading}>
-        Choose a Path
-      </h2>
-      <p className={sz.subheading}>
-        Pick a ready-made set of tasks to get started. You can edit, add, or
-        remove tasks afterward.
-        {xpThreshold
-          ? ` Each path's tasks add up to about ${xpThreshold} XP — enough to complete the quest.`
-          : ''}
-      </p>
-
-      <div className={`grid grid-cols-1 sm:grid-cols-2 ${embedded ? 'gap-3 mb-4' : 'gap-4 mb-6'}`}>
-        {paths.map((path, index) => (
-          <ApproachExampleCard
-            key={`${path.label}-${index}`}
-            label={path.label}
-            description={path.description}
-            tasks={path.tasks || []}
-            xpThreshold={xpThreshold || null}
-            accentColor={['purple-50', 'pink-50', 'blue-50', 'teal-50'][index % 4]}
-            isEnrolled={false}
-            isSelecting={selectingPathIndex === index}
-            onSelect={() => handleSelectPath(index)}
-          />
-        ))}
-      </div>
-
-      <div className="flex flex-col sm:flex-row gap-2 sm:justify-between">
-        <button
-          onClick={() => {
-            setStep(1);
-            setCreationMethod(null);
-            setSelectingPathIndex(null);
-            setError(null);
-          }}
-          disabled={selectingPathIndex !== null}
-          className={sz.navBtn}
-        >
-          Back
-        </button>
-      </div>
-    </div>
-  )}
-
   {/* Flag Modal — in-flow card in embedded (LTI iframe) mode, where a
       fixed overlay would center against the full iframe height and clip */}
   {showFlagModal && (
@@ -125,4 +76,4 @@ const ChoosePathStep = ({
   </>
 );
 
-export default ChoosePathStep;
+export default WizardFooter;

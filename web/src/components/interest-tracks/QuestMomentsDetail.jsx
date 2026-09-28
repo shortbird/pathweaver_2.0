@@ -12,6 +12,8 @@ import LearningEventCard from '../learning-events/LearningEventCard';
 import AddToQuestModal from '../learning-events/PromoteToTaskModal';
 import EmptyState from '../ui/EmptyState';
 import { getPillarData } from '../../utils/pillarMappings';
+import useHidePillars from '../../hooks/useHidePillars';
+import { BRAND_CHIP, leadSubjectName } from '../../utils/pillarStandIn';
 
 const QuestMomentsDetail = ({ questId, refreshKey = 0, onMomentConverted, studentId = null }) => {
   const [quest, setQuest] = useState(null);
@@ -20,6 +22,9 @@ const QuestMomentsDetail = ({ questId, refreshKey = 0, onMomentConverted, studen
   const [loadError, setLoadError] = useState(null);
   const [promoteModalOpen, setPromoteModalOpen] = useState(false);
   const [momentToPromote, setMomentToPromote] = useState(null);
+  // 13+ (or a school with the pillars off): a completed task's chip names its
+  // diploma subject, in the brand colour, instead of its pillar.
+  const hidePillars = useHidePillars();
 
   useEffect(() => {
     if (questId) {
@@ -160,7 +165,13 @@ const QuestMomentsDetail = ({ questId, refreshKey = 0, onMomentConverted, studen
                               +{item.xp_value} XP
                             </span>
                           )}
-                          {item.pillar && getPillarData(item.pillar) && (
+                          {hidePillars ? (
+                            leadSubjectName(item) && (
+                              <span className={`px-2 py-0.5 text-xs font-medium rounded border ${BRAND_CHIP.bg} ${BRAND_CHIP.text} ${BRAND_CHIP.border}`}>
+                                {leadSubjectName(item)}
+                              </span>
+                            )
+                          ) : item.pillar && getPillarData(item.pillar) && (
                             <span className={`px-2 py-0.5 text-xs font-medium rounded border ${getPillarData(item.pillar).bg} ${getPillarData(item.pillar).text} ${getPillarData(item.pillar).border}`}>
                               {getPillarData(item.pillar).name}
                             </span>

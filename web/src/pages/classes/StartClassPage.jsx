@@ -3,6 +3,8 @@ import { Link, useNavigate } from 'react-router-dom';
 import { toast } from 'react-hot-toast';
 import api from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
+import { useFamilyScope } from '../../contexts/FamilyScopeContext';
+import { useStudentScope } from '../../hooks/useStudentScope';
 import { SUBJECTS } from '../../constants/subjects';
 import { ageFromDob, CLASS_MIN_AGE } from '../../utils/age';
 import HowClassesWork from '../../components/classes/HowClassesWork';
@@ -20,6 +22,12 @@ import HowClassesWork from '../../components/classes/HowClassesWork';
  * is asked for it first (PUT /api/users/profile); the backend independently
  * refuses a self-service under-13 birthday (COPPA), which surfaces as the block
  * screen.
+ *
+ * In family scope the class is the CHILD's: the child's age is the one that
+ * gates, and the create names the child (`student_id`). It used to check the
+ * parent's birthday and make the class on the parent's own account, where the
+ * child never saw it. A parent is never asked for the child's birthday here --
+ * that is the child's profile, not a step in making a class.
  */
 
 const STEPS = ['name', 'subject', 'details'];
@@ -28,6 +36,8 @@ const STEP_TITLES = { name: 'Name', subject: 'Subject', details: 'Details' };
 const StartClassPage = () => {
   const navigate = useNavigate();
   const { user, refreshUser } = useAuth();
+  const { selectedChild } = useFamilyScope();
+  const { params: scopeParams, isDelegated } = useStudentScope();
 
   const [step, setStep] = useState('name');
   const [title, setTitle] = useState('');
@@ -40,8 +50,8 @@ const StartClassPage = () => {
   const [savingDob, setSavingDob] = useState(false);
   const [dobError, setDobError] = useState(null);
 
-  const age = ageFromDob(user?.date_of_birth);
-  const needsDob = !!user && age === null;
+  const age = ageFromDob(isDelegated ? selectedChild?.dateOfBirth : user?.date_of_birth);
+  const needsDob = !!user && !isDelegated && age === null;
   const isUnderage = age !== null && age < CLASS_MIN_AGE;
 
   useEffect(() => {
@@ -82,6 +92,7 @@ const StartClassPage = () => {
         description: description.trim() || undefined,
         quest_type: 'class',
         transcript_subject: subject.key,
+        ...scopeParams,
       });
 
       const questId = response.data?.quest_id || response.data?.quest?.id;

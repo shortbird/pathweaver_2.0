@@ -160,7 +160,7 @@ def get_quest_detail(user_id: str, quest_id: str):
                 id, title, description, big_idea, header_image_url, image_url,
                 material_link, quest_type, transcript_subject,
                 class_review_status, class_review_submitted_at, class_review_notes,
-                approach_examples, is_active, metadata, allow_custom_tasks,
+                is_active, metadata, allow_custom_tasks,
                 organization_id, lms_course_id, lms_platform, xp_threshold,
                 created_at, created_by, is_public,
                 course_quests(course_id, courses(id, cover_image_url))
@@ -374,7 +374,7 @@ def get_quest_detail(user_id: str, quest_id: str):
             tmpl['resources'] = by_task.get(tmpl.get('id')) or []
 
         # Add template tasks for users who can enroll (not actively enrolled)
-        # This allows frontend to determine whether to show "Choose Your Path" or template tasks
+        # This lets the frontend choose between the template task list and the start prompt
         from routes.quest_types import get_sample_tasks_for_quest, get_course_tasks_for_quest
 
         quest_type = quest_data.get('quest_type', 'optio')

@@ -12,6 +12,10 @@ vi.mock('../../contexts/AIAccessContext', () => ({
 }))
 
 let mockUser = { id: 'u1', preferred_challenge_level: null }
+// The hook reads AuthContext itself (the 13+ pillar rule); this mock of
+// AuthContext has no context object to give it, and pillars are not what
+// this file tests.
+vi.mock('../../hooks/useHidePillars', () => ({ default: () => false }))
 vi.mock('../../contexts/AuthContext', () => ({
   useAuth: () => ({ user: mockUser })
 }))
@@ -19,24 +23,6 @@ vi.mock('../../contexts/AuthContext', () => ({
 vi.mock('../../utils/logger', () => ({
   default: { error: vi.fn(), debug: vi.fn(), warn: vi.fn(), info: vi.fn() }
 }))
-
-const PATHS = [
-  {
-    label: 'The Personal Site',
-    description: 'A site that is all about you.',
-    tasks: [
-      { title: 'Sketch your pages', pillar: 'communication', xp_value: 75, description: 'Plan a sitemap.' },
-      { title: 'Build your homepage', pillar: 'stem', xp_value: 125, description: 'Real HTML.' }
-    ]
-  },
-  {
-    label: 'The Game',
-    description: 'Make a small game.',
-    tasks: [
-      { title: 'Design the rules', pillar: 'stem', xp_value: 100, description: 'Sketch the rules.' }
-    ]
-  }
-]
 
 const baseProps = {
   questId: 'q1',
@@ -49,7 +35,7 @@ beforeEach(() => {
   vi.clearAllMocks()
   mockUser = { id: 'u1', preferred_challenge_level: null }
   api.get.mockResolvedValue({ data: { success: true, subject_xp: [] } })
-  api.post.mockResolvedValue({ data: { success: true, tasks: [], approach_label: 'The Personal Site' } })
+  api.post.mockResolvedValue({ data: { success: true, tasks: [] } })
 })
 
 // Drive the wizard to the AI interests step (step 2).
@@ -72,60 +58,14 @@ const AI_TASKS = [
   { title: 'Teach a Friend Chess Basics', description: 'Show a friend how pieces move.', pillar: 'communication', xp_value: 75, diploma_subjects: { Electives: 75 } }
 ]
 
-describe('QuestPersonalizationWizard - curated paths', () => {
-  it('hides the "Choose a Path" option when approachExamples is an empty array', async () => {
-    render(<QuestPersonalizationWizard {...baseProps} approachExamples={[]} />)
+describe('QuestPersonalizationWizard - creation methods', () => {
+  // The AI "starter paths" option was removed on 2026-09-28; the wizard offers
+  // exactly the two ways to build tasks.
+  it('offers AI Generate and Write My Own, and nothing else', async () => {
+    render(<QuestPersonalizationWizard {...baseProps} />)
     expect(await screen.findByText('AI Generate')).toBeInTheDocument()
     expect(screen.getByText('Write My Own')).toBeInTheDocument()
     expect(screen.queryByText('Choose a Path')).not.toBeInTheDocument()
-  })
-
-  it('hides the "Choose a Path" option when approachExamples is null', async () => {
-    render(<QuestPersonalizationWizard {...baseProps} approachExamples={null} />)
-    expect(await screen.findByText('AI Generate')).toBeInTheDocument()
-    expect(screen.queryByText('Choose a Path')).not.toBeInTheDocument()
-  })
-
-  it('hides the option when entries carry no tasks', async () => {
-    render(
-      <QuestPersonalizationWizard
-        {...baseProps}
-        approachExamples={[{ label: 'Empty', description: 'no tasks', tasks: [] }]}
-      />
-    )
-    expect(await screen.findByText('AI Generate')).toBeInTheDocument()
-    expect(screen.queryByText('Choose a Path')).not.toBeInTheDocument()
-  })
-
-  it('shows the option and opens a picker listing each path', async () => {
-    render(<QuestPersonalizationWizard {...baseProps} approachExamples={PATHS} xpThreshold={500} />)
-    fireEvent.click(await screen.findByText('Choose a Path'))
-
-    // Picker view lists the path labels and their tasks.
-    expect(await screen.findByText('The Personal Site')).toBeInTheDocument()
-    expect(screen.getByText('The Game')).toBeInTheDocument()
-    expect(screen.getByText('Sketch your pages')).toBeInTheDocument()
-  })
-
-  it('creates the path tasks server-side and lands in the post-wizard view', async () => {
-    const onComplete = vi.fn()
-    render(
-      <QuestPersonalizationWizard
-        {...baseProps}
-        onComplete={onComplete}
-        approachExamples={PATHS}
-        xpThreshold={500}
-      />
-    )
-    fireEvent.click(await screen.findByText('Choose a Path'))
-    await screen.findByText('The Personal Site')
-
-    fireEvent.click(screen.getAllByText('Choose This Path')[0])
-
-    await waitFor(() => {
-      expect(api.post).toHaveBeenCalledWith('/api/quests/q1/add-path-tasks', { approach_index: 0 })
-      expect(onComplete).toHaveBeenCalled()
-    })
   })
 })
 

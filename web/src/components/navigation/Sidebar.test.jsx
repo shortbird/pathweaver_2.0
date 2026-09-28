@@ -383,6 +383,17 @@ describe('Sidebar — family scope: a parent working on a child\'s account', () 
     expect(screen.getByRole('link', { name: /^portfolio$/i })).toHaveAttribute('href', '/overview')
   })
 
+  it('puts Portfolio under the child\'s home and leads Learning with Quests', () => {
+    // 2026-09-28: Portfolio moved up from Learning to sit beside the child's
+    // home; Quests moved down from the top section to head Learning.
+    renderSidebar()
+    const hrefs = screen.getAllByRole('link').map((l) => l.getAttribute('href'))
+    const at = (href) => hrefs.indexOf(href)
+    expect(at('/overview')).toBe(at('/dashboard') + 1)
+    expect(at('/quests')).toBe(at('/overview') + 1)
+    expect(at('/quests')).toBeLessThan(at('/bounties'))
+  })
+
   it('renders the scope switcher for anyone with a family', () => {
     renderSidebar()
     expect(screen.getByTestId('profile-switcher')).toBeInTheDocument()
@@ -411,13 +422,20 @@ describe('Sidebar — the two feeds have distinct names', () => {
     expect(screen.queryByRole('link', { name: /^my feed$/i })).not.toBeInTheDocument()
   })
 
-  it('names the observer-side feed Student Feed (superadmin sees both, unambiguously)', () => {
-    // The pair still has to be distinguishable: a superadmin sees the student
-    // surface and the observer surface in one sidebar.
+  it('names the observer-side feed plain Feed for a superadmin too', () => {
+    // A superadmin is not a student, so the student's own Feed is not in their
+    // sidebar and the observer feed has no twin to be told apart from.
     authState.user = { id: 'u1', role: 'superadmin', email: 't@example.com' }
     renderSidebar()
-    expect(screen.getByRole('link', { name: /^student feed$/i })).toHaveAttribute('href', '/observer/feed')
+    expect(screen.getByRole('link', { name: /^feed$/i })).toHaveAttribute('href', '/observer/feed')
     expect(screen.queryByRole('link', { name: /^my feed$/i })).not.toBeInTheDocument()
+  })
+
+  it('names the observer-side feed plain Feed for a parent, who has no other', () => {
+    authState.user = { id: 'p1', role: 'parent', email: 'p@example.com' }
+    renderSidebar()
+    expect(screen.getByRole('link', { name: /^feed$/i })).toHaveAttribute('href', '/observer/feed')
+    expect(screen.queryByRole('link', { name: /^student feed$/i })).not.toBeInTheDocument()
   })
 })
 

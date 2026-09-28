@@ -1,7 +1,8 @@
 import React from 'react';
-import { getPillarData } from '../../utils/pillarMappings';
 import { getSubjectName } from '../../constants/subjects';
-import { FireIcon, BookOpenIcon } from '@heroicons/react/24/outline';
+import useHidePillars from '../../hooks/useHidePillars';
+import TemplateTaskPreview from './TemplateTaskPreview';
+import { BookOpenIcon } from '@heroicons/react/24/outline';
 import { useAuth } from '../../contexts/AuthContext';
 
 // Staff see the student-facing Start Quest button too (they pick quests up to
@@ -14,7 +15,8 @@ const STAFF_ROLES = ['org_admin', 'advisor', 'superadmin', 'campus_coordinator']
  * QuestEnrollment - Handles enrollment UI and template tasks display
  *
  * Updated for unified quest model using template_tasks.
- * Shows all template tasks (required and optional) before enrollment.
+ * Shows the template tasks before enrollment (TemplateTaskPreview), or,
+ * for a quest with none, a start prompt that enrolls and opens the wizard.
  */
 const QuestEnrollment = ({
   quest,
@@ -28,14 +30,15 @@ const QuestEnrollment = ({
 }) => {
   const { hasAnyRole } = useAuth();
   const isStaffViewer = !!hasAnyRole?.(STAFF_ROLES);
+  // 13+ (or a school with the pillars off): each task is labelled by the
+  // subject it counts toward and tinted in the brand colour, not its pillar's.
+  const hidePillars = useHidePillars();
 
   // Determine quest behavior based on unified model
   const allowsCustomization = quest?.allow_custom_tasks !== false;
 
   // Get template tasks
   const templateTasks = quest?.template_tasks || [];
-  const requiredTasks = templateTasks.filter(t => t.is_required);
-  const optionalTasks = templateTasks.filter(t => !t.is_required);
   const hasTemplateTasks = templateTasks.length > 0;
 
   // Show "Ready to personalize" message for enrolled quests with no tasks
@@ -44,6 +47,13 @@ const QuestEnrollment = ({
 
   // Show template tasks when not enrolled and quest has template tasks
   const showTemplateTasks = !quest?.user_enrollment && hasTemplateTasks;
+
+  // Not enrolled and nothing authored to show: this card is the only way to
+  // start the quest. (Until 2026-09-28 the AI "starter paths" card did this;
+  // it was removed and this took over its enroll.) An ended enrollment is
+  // excluded -- QuestDetail offers Reopen for that. Enrolling opens the
+  // personalization wizard (QuestDetail.handleEnroll).
+  const showStartPrompt = !quest?.user_enrollment && !quest?.completed_enrollment && !hasTemplateTasks;
 
   // A credit class the student just created lands here empty. "Personalize this
   // quest" is the wrong mental model for it — the class is theirs already, and
@@ -78,101 +88,59 @@ const QuestEnrollment = ({
         </div>
       )}
 
-      {/* Template Tasks Display */}
-      {showTemplateTasks && (
-        <div className="mb-8">
-          <div className="text-center mb-6">
-            <h2 className="text-3xl font-bold text-gray-900 mb-2">
-              Quest Tasks
-            </h2>
-            <p className="text-lg text-gray-600 max-w-2xl mx-auto">
-              {requiredTasks.length > 0 && optionalTasks.length > 0
-                ? 'Complete the required tasks and choose from optional ones'
-                : requiredTasks.length > 0
-                  ? 'Complete these tasks to finish the quest'
-                  : 'Choose tasks that interest you'}
+      {/* Start Prompt: not enrolled, no authored tasks. Programs with a
+          simplified task view (Treehouse littles) still need the button --
+          nothing else would start the quest -- but they skip the wizard, so
+          the copy only says "start". */}
+      {showStartPrompt && (
+        <div className="text-center py-12 bg-white rounded-xl shadow-md">
+          <BookOpenIcon className="w-12 h-12 mx-auto mb-4 text-gray-400" />
+          <p className="text-lg text-gray-600 mb-2">
+            {hidePersonalizationPrompt ? 'Ready to start this quest?' : 'Ready to personalize this quest?'}
+          </p>
+          {!hidePersonalizationPrompt && (
+            <p className="text-sm text-gray-500 mb-6">
+              {allowsCustomization
+                ? 'Start the quest, then create custom tasks, write your own, or browse the task library'
+                : 'This quest has no preset tasks yet. Contact your teacher.'}
             </p>
-          </div>
-
-          <div className="space-y-3">
-            {templateTasks.map((task, index) => {
-              const pillarData = getPillarData(task.pillar);
-              return (
-                <div
-                  key={task.id}
-                  className="bg-white rounded-xl p-4 border-2 border-gray-100 hover:border-gray-200 transition-all"
-                >
-                  <div className="flex items-start gap-4">
-                    <div
-                      className="flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center font-bold text-white"
-                      style={{ backgroundColor: pillarData.color }}
-                    >
-                      {index + 1}
-                    </div>
-
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-2 flex-wrap">
-                        <h3 className="text-lg font-bold text-gray-900">
-                          {task.title}
-                        </h3>
-                        {task.is_required ? (
-                          <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-700">
-                            Required
-                          </span>
-                        ) : (
-                          <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-blue-100 text-blue-700">
-                            Optional
-                          </span>
-                        )}
-                        <div
-                          className="px-2 py-0.5 rounded-full text-xs font-semibold"
-                          style={{
-                            backgroundColor: `${pillarData.color}20`,
-                            color: pillarData.color
-                          }}
-                        >
-                          {pillarData.name}
-                        </div>
-                        <div
-                          className="px-2 py-0.5 rounded-full text-xs font-bold text-white"
-                          style={{ backgroundColor: pillarData.color }}
-                        >
-                          {task.xp_value} XP
-                        </div>
-                      </div>
-                      {/* whitespace-pre-line keeps the hard returns authors
-                          type into task descriptions (ticket 3a9e16c1). */}
-                      {task.description && (
-                        <p className="text-sm text-gray-700 whitespace-pre-line">
-                          {task.description}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-
-          {/* Enrollment CTA */}
-          {!quest?.user_enrollment && (
-            <div className="mt-6 text-center">
+          )}
+          {(allowsCustomization || hidePersonalizationPrompt) && (
+            <>
               <button
                 onClick={() => onEnroll()}
+                onMouseEnter={onPreloadWizard}
+                onFocus={onPreloadWizard}
                 disabled={isEnrolling}
-                className="btn-primary btn-lg min-h-[44px] touch-manipulation"
+                className={`btn-primary min-h-[44px] touch-manipulation${hidePersonalizationPrompt ? ' mt-4' : ''}`}
               >
-                <FireIcon className="w-5 h-5 inline mr-2" />
-                {isEnrolling ? 'Starting...' : 'Start Quest'}
+                {isEnrolling
+                  ? 'Starting...'
+                  : hidePersonalizationPrompt ? 'Start Quest' : 'Start Personalizing'}
               </button>
               {isStaffViewer && (
                 <p className="mt-2 text-sm text-gray-500">
-                  Students click Start Quest to add this quest and its tasks to their account.
+                  {hidePersonalizationPrompt
+                    ? 'Students click Start Quest to add this quest to their account.'
+                    : 'Students click Start Personalizing to add this quest to their account and build their own tasks.'}
                 </p>
               )}
-            </div>
+            </>
           )}
         </div>
+      )}
+
+      {/* Template Tasks: Start first, then the tasks -- the optional ones
+          as ideas the student picks to take with them (TemplateTaskPreview). */}
+      {showTemplateTasks && (
+        <TemplateTaskPreview
+          quest={quest}
+          tasks={templateTasks}
+          hidePillars={hidePillars}
+          isEnrolling={isEnrolling}
+          onEnroll={onEnroll}
+          isStaffViewer={isStaffViewer}
+        />
       )}
 
     </>

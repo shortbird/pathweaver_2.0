@@ -44,8 +44,10 @@ const WEB_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../
  * phase is structural. They are in PHASE_3_HANDOFF.md.
  * 5 -> 4 on 2026-09-15: NotificationBell's went with its own fetch (the bell
  * reads through hooks/api/useNotifications now).
+ * 4 -> 2 on 2026-09-28: QuestApproachExamples' two went with the component
+ * when the AI starter paths were removed.
  */
-const CONSOLE_BASELINE = 4
+const CONSOLE_BASELINE = 2
 
 let report
 let effectiveConfig

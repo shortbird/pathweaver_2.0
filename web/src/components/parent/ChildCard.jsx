@@ -1,4 +1,5 @@
 import React from 'react'
+import { ClipboardDocumentListIcon } from '@heroicons/react/24/outline'
 import { useChildSummary } from '../../hooks/api/useFamilyChildren'
 import WeeklyXpGoalCard from '../overview/WeeklyXpGoalCard'
 import RhythmBadge from '../quest/RhythmBadge'
@@ -28,6 +29,10 @@ import { timeAgo } from '../../utils/timeFormat'
  * friend request waiting on the parent is announced here as one line that
  * opens that tab, because the answer is wanted this week and the card is
  * where the parent looks.
+ *
+ * A child at a family-first school (Optio Academy) also gets a "Courses and
+ * credits" line, which enters their scope on that page. It is on the school
+ * page too; the card is where a parent thinks about one child's diploma.
  */
 
 const MAX_QUESTS = 3
@@ -99,7 +104,7 @@ function PendingRequestsLine({ childId, onOpenSettings }) {
   )
 }
 
-export default function ChildCard({ child, onOpen, onOpenQuest, onOpenProfile, onOpenSettings }) {
+export default function ChildCard({ child, onOpen, onOpenQuest, onOpenProfile, onOpenSettings, onOpenCourses }) {
   const { data: summary } = useChildSummary(child.id)
   const quiet = summary && !summary.active_quests?.length
 
@@ -134,6 +139,17 @@ export default function ChildCard({ child, onOpen, onOpenQuest, onOpenProfile, o
       <ActiveQuests quests={summary?.active_quests} onOpenQuest={(questId) => onOpenQuest(child, questId)} />
       {quiet && (
         <p className="mt-3 text-xs text-gray-400">No quests yet. Open {child.firstName} to start one.</p>
+      )}
+
+      {onOpenCourses && (
+        <button
+          type="button"
+          onClick={() => onOpenCourses(child)}
+          className="mt-3 w-full text-left text-sm font-medium text-optio-purple hover:underline flex items-center gap-1.5"
+        >
+          <ClipboardDocumentListIcon className="w-4 h-4 flex-shrink-0" />
+          Courses and credits
+        </button>
       )}
 
       <WeeklyXpGoalCard

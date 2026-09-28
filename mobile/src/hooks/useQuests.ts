@@ -81,7 +81,6 @@ function questQualityScore(q: any): number {
   if (q.header_image_url || q.image_url) score += 3;
   if (q.big_idea) score += 2;
   if ((q.description || '').length >= 120) score += 1;
-  if (Array.isArray(q.approach_examples) && q.approach_examples.length > 0) score += 1;
   return score;
 }
 

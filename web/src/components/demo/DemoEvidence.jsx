@@ -10,6 +10,7 @@ import {
   AcademicCapIcon
 } from '@heroicons/react/24/outline';
 import confetti from 'canvas-confetti';
+import { subjectColor, subjectTint } from '../../constants/subjects';
 
 // Subject display names
 const subjectDisplayNames = {
@@ -24,21 +25,6 @@ const subjectDisplayNames = {
   health: 'Health',
   social_studies: 'Social Studies',
   electives: 'Electives'
-};
-
-// Subject colors
-const subjectColors = {
-  science: { bg: 'bg-blue-500', light: 'bg-blue-100', text: 'text-blue-700' },
-  math: { bg: 'bg-indigo-500', light: 'bg-indigo-100', text: 'text-indigo-700' },
-  language_arts: { bg: 'bg-amber-500', light: 'bg-amber-100', text: 'text-amber-700' },
-  fine_arts: { bg: 'bg-pink-500', light: 'bg-pink-100', text: 'text-pink-700' },
-  digital_literacy: { bg: 'bg-cyan-500', light: 'bg-cyan-100', text: 'text-cyan-700' },
-  pe: { bg: 'bg-green-500', light: 'bg-green-100', text: 'text-green-700' },
-  health: { bg: 'bg-teal-500', light: 'bg-teal-100', text: 'text-teal-700' },
-  social_studies: { bg: 'bg-orange-500', light: 'bg-orange-100', text: 'text-orange-700' },
-  financial_literacy: { bg: 'bg-purple-500', light: 'bg-purple-100', text: 'text-purple-700' },
-  cte: { bg: 'bg-slate-500', light: 'bg-slate-100', text: 'text-slate-700' },
-  electives: { bg: 'bg-gray-500', light: 'bg-gray-100', text: 'text-gray-700' }
 };
 
 const EvidenceButton = ({ icon: Icon, label, type, onSubmit, disabled }) => {
@@ -90,7 +76,7 @@ const AnimatedXPCounter = ({ targetValue, duration = 1500 }) => {
 
 const CreditProgressBar = ({ subject, xp, maxXp = 500, animate = false, delay = 0 }) => {
   const [width, setWidth] = useState(0);
-  const colors = subjectColors[subject] || subjectColors.electives;
+  const color = subjectColor(subject);
   const percentage = Math.min((xp / maxXp) * 100, 100);
   const credits = (xp / XP_PER_CREDIT).toFixed(2);
 
@@ -108,15 +94,15 @@ const CreditProgressBar = ({ subject, xp, maxXp = 500, animate = false, delay = 
   return (
     <div className="space-y-1">
       <div className="flex justify-between text-sm">
-        <span className={`font-medium ${colors.text}`}>
+        <span className="font-medium" style={{ color }}>
           {subjectDisplayNames[subject] || subject}
         </span>
         <span className="text-gray-600">{xp} XP ({credits} credits)</span>
       </div>
       <div className="h-3 bg-gray-200 rounded-full overflow-hidden">
         <div
-          className={`h-full ${colors.bg} rounded-full transition-all duration-1000 ease-out`}
-          style={{ width: `${width}%` }}
+          className="h-full rounded-full transition-all duration-1000 ease-out"
+          style={{ width: `${width}%`, backgroundColor: color }}
         />
       </div>
     </div>
@@ -255,11 +241,11 @@ const DemoEvidence = () => {
             <p className="text-gray-600 mt-2">{taskToComplete.description}</p>
             <div className="flex flex-wrap gap-2 mt-3">
               {taskToComplete.subjects?.map((subject) => {
-                const colors = subjectColors[subject] || subjectColors.electives;
                 return (
                   <span
                     key={subject}
-                    className={`text-xs px-2 py-1 rounded-full font-medium ${colors.light} ${colors.text}`}
+                    className="text-xs px-2 py-1 rounded-full font-medium"
+                    style={subjectTint(subject)}
                   >
                     {subjectDisplayNames[subject] || subject}
                   </span>

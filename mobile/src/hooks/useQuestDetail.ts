@@ -97,7 +97,6 @@ export interface QuestDetail {
   /** Set when quest_type='class' — one of the 11 school_subject keys. */
   transcript_subject?: string | null;
   class_review_status?: 'submitted_for_review' | 'credit_awarded' | 'rejected' | null;
-  approach_examples: any;
   allow_custom_tasks: boolean;
   /** Attached to the quest as a whole: the syllabus, the reading list. */
   resources?: QuestResource[];

@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { UsersIcon } from '@heroicons/react/24/outline'
 import { toast } from 'react-hot-toast'
 import { useAuth } from '../../contexts/AuthContext'
+import { useStudentScope } from '../../hooks/useStudentScope'
 import api from '../../services/api'
 
 /**
@@ -16,20 +17,30 @@ import api from '../../services/api'
  * 2026-09-14: six quests, about sixty tasks).
  *
  * Shows only while the quest has no authored task list yet — once it has one
- * the quest form is the editor for it — and only to someone the backend will
- * let do it: staff on their own org's quest, or a superadmin. Renders nothing
- * otherwise, so a student never sees it.
+ * the quest form is the editor for it — and only to staff on their own org's
+ * quest. Renders nothing otherwise, so a student never sees it.
+ *
+ * Not for a superadmin (2026-09-28), although the backend would let one do it:
+ * a superadmin picks quests up to look at them, not to build a list for a
+ * school, and the card sat at the top of every quest they had opened.
+ *
+ * Never on one student's own work (2026-09-28): a credit class or an
+ * own-curriculum course (quest_type 'class') is that student's alone, and a
+ * parent viewing a child's quest in family scope is looking at the child's
+ * list, not building one for students.
  */
 export default function GiveStudentsMyTasksCard({ quest, onDone }) {
   const { user, hasAnyRole } = useAuth()
+  const { isDelegated } = useStudentScope()
   const [busy, setBusy] = useState(false)
 
   const tasks = quest?.quest_tasks || []
-  const isSuperadmin = hasAnyRole?.(['superadmin'])
   const isOrgStaff = hasAnyRole?.(['org_admin', 'advisor'])
     && !!quest?.organization_id
     && quest.organization_id === user?.organization_id
-  const canGive = (isSuperadmin || isOrgStaff)
+  const canGive = isOrgStaff
+    && quest?.quest_type !== 'class'
+    && !isDelegated
     && !!quest?.user_enrollment
     && !quest?.has_template_tasks
     && tasks.length > 0

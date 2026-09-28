@@ -8,21 +8,7 @@ import {
   DocumentTextIcon,
   PhotoIcon
 } from '@heroicons/react/24/outline';
-
-// Subject colors
-const subjectColors = {
-  science: { bg: 'bg-blue-500', light: 'bg-blue-100', text: 'text-blue-700' },
-  math: { bg: 'bg-indigo-500', light: 'bg-indigo-100', text: 'text-indigo-700' },
-  language_arts: { bg: 'bg-amber-500', light: 'bg-amber-100', text: 'text-amber-700' },
-  fine_arts: { bg: 'bg-pink-500', light: 'bg-pink-100', text: 'text-pink-700' },
-  digital_literacy: { bg: 'bg-cyan-500', light: 'bg-cyan-100', text: 'text-cyan-700' },
-  pe: { bg: 'bg-green-500', light: 'bg-green-100', text: 'text-green-700' },
-  health: { bg: 'bg-teal-500', light: 'bg-teal-100', text: 'text-teal-700' },
-  social_studies: { bg: 'bg-orange-500', light: 'bg-orange-100', text: 'text-orange-700' },
-  financial_literacy: { bg: 'bg-purple-500', light: 'bg-purple-100', text: 'text-purple-700' },
-  cte: { bg: 'bg-slate-500', light: 'bg-slate-100', text: 'text-slate-700' },
-  electives: { bg: 'bg-gray-500', light: 'bg-gray-100', text: 'text-gray-700' }
-};
+import { subjectColor } from '../../constants/subjects';
 
 const PortfolioCard = ({ totalXP, creditsEarned, topSubjects, evidenceType }) => {
   // Map evidence type to icon
@@ -62,19 +48,19 @@ const PortfolioCard = ({ totalXP, creditsEarned, topSubjects, evidenceType }) =>
       {/* Subject progress */}
       <div className="p-6 space-y-4">
         <h4 className="font-semibold text-gray-900 text-sm uppercase tracking-wide">Subject Progress</h4>
-        {topSubjects.map(({ subject, name, xp, credits, color }) => {
-          const colors = subjectColors[subject] || subjectColors.electives;
+        {topSubjects.map(({ subject, name, xp }) => {
+          const color = subjectColor(subject);
           const percentage = Math.min((xp / 500) * 100, 100);
           return (
             <div key={subject} className="space-y-1">
               <div className="flex justify-between text-sm">
-                <span className={`font-medium ${colors.text}`}>{name}</span>
+                <span className="font-medium" style={{ color }}>{name}</span>
                 <span className="text-gray-600">{xp} XP</span>
               </div>
               <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
                 <div
-                  className={`h-full ${colors.bg} rounded-full`}
-                  style={{ width: `${percentage}%` }}
+                  className="h-full rounded-full"
+                  style={{ width: `${percentage}%`, backgroundColor: color }}
                 />
               </div>
             </div>

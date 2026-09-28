@@ -4,27 +4,13 @@ import { transferCreditsAPI } from '../../services/api';
 import Button from '../../components/ui/Button';
 import { useConfirm } from '../../contexts/ConfirmContext'
 import { TRANSCRIPT_SUBJECT_NAMES } from '../../utils/creditRequirements';
+import { subjectColor } from '../../constants/subjects';
 
 // Subject display names matching the school_subject enum
 // What an official transcript prints. Shared with the other transcript
 // surfaces and with the backend, which renders the same document -- three
 // components kept their own identical copy of this until 2026-09-09.
 const SUBJECT_NAMES = TRANSCRIPT_SUBJECT_NAMES;
-
-// Subject colors for visual distinction
-const SUBJECT_COLORS = {
-  'language_arts': 'bg-blue-100 border-blue-300',
-  'math': 'bg-green-100 border-green-300',
-  'science': 'bg-purple-100 border-purple-300',
-  'social_studies': 'bg-amber-100 border-amber-300',
-  'financial_literacy': 'bg-emerald-100 border-emerald-300',
-  'health': 'bg-rose-100 border-rose-300',
-  'pe': 'bg-cyan-100 border-cyan-300',
-  'fine_arts': 'bg-pink-100 border-pink-300',
-  'cte': 'bg-slate-100 border-slate-300',
-  'digital_literacy': 'bg-indigo-100 border-indigo-300',
-  'electives': 'bg-gray-100 border-gray-300'
-};
 
 const XP_PER_CREDIT = 2000;
 const MAX_TRANSCRIPT_SIZE = 25 * 1024 * 1024; // 25MB
@@ -440,7 +426,8 @@ const TransferCreditForm = () => {
                   {Object.entries(SUBJECT_NAMES).map(([key, name]) => (
                     <div
                       key={key}
-                      className={`p-3 rounded-lg border-2 ${SUBJECT_COLORS[key]}`}
+                      className="p-3 rounded-lg border-2"
+                      style={{ backgroundColor: `${subjectColor(key)}1A`, borderColor: `${subjectColor(key)}66` }}
                     >
                       <label className="block text-sm font-medium text-gray-800 mb-1">
                         {name}

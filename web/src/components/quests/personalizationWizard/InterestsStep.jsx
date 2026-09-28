@@ -6,6 +6,7 @@ import React from 'react';
 import { CheckIcon } from '@heroicons/react/24/outline';
 
 import SubjectLockToggle from '../SubjectLockToggle';
+import GenerationProgress from './GenerationProgress';
 import { INTEREST_OPTIONS, CHALLENGE_LEVELS, DIPLOMA_SUBJECTS } from './wizardOptions';
 
 const InterestsStep = ({
@@ -224,6 +225,8 @@ const InterestsStep = ({
         aria-labelledby="additional-feedback-label"
       />
     </div>
+
+    {loading && <GenerationProgress embedded={embedded} />}
 
     <div className="flex flex-col sm:flex-row gap-2 sm:justify-between">
       <button

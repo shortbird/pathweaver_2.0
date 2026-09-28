@@ -5,6 +5,7 @@ import UnifiedEvidenceDisplay from '../evidence/UnifiedEvidenceDisplay';
 // CollaborationBadge import removed (badge system removal)
 import { getPillarGradient, getPillarDisplayName } from '../../config/pillars';
 import useHidePillars from '../../hooks/useHidePillars';
+import { BRAND_GRADIENT, leadSubjectName } from '../../utils/pillarStandIn';
 import { CREDIT_REQUIREMENTS, TRANSCRIPT_SUBJECT_NAMES } from '../../utils/creditRequirements';
 import { SUBJECTS as SHARED_SUBJECTS } from '@shared/subjects';
 import './EvidenceMasonryGallery.css';
@@ -328,8 +329,10 @@ const EvidenceMasonryGallery = ({ achievements, onEvidenceClick, isOwner }) => {
           columnClassName="masonry-grid-column"
         >
           {filteredEvidence.map((item) => {
-            const gradientClass = getPillarGradient(item.pillar);
-            const pillarName = getPillarDisplayName(item.pillar);
+            // Pillars hidden: brand header, and the footer names the diploma
+            // subject the task counts toward instead of the pillar.
+            const gradientClass = hidePillars ? BRAND_GRADIENT : getPillarGradient(item.pillar);
+            const pillarName = hidePillars ? leadSubjectName(item.evidence) : getPillarDisplayName(item.pillar);
 
             return (
               <div
@@ -506,7 +509,7 @@ const EvidenceMasonryGallery = ({ achievements, onEvidenceClick, isOwner }) => {
                 {/* Footer with metadata */}
                 <div className="px-4 pb-3 flex items-center justify-between text-xs text-gray-500">
                   <div className="flex items-center gap-1">
-                    {!hidePillars && (
+                    {pillarName && (
                       <span className={`inline-block px-2 py-0.5 rounded-full text-white bg-gradient-to-r ${gradientClass} text-xs font-medium`}>
                         {pillarName}
                       </span>

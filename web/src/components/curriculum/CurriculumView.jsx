@@ -18,6 +18,7 @@ import {
   AcademicCapIcon,
 } from '@heroicons/react/24/outline'
 import { getPillarData } from '../../utils/pillarMappings'
+import useHidePillars from '../../hooks/useHidePillars'
 import api from '../../services/api'
 import { parseContentToSteps } from './utils/contentUtils'
 import LessonItem from './LessonItem'
@@ -122,6 +123,10 @@ const CurriculumView = ({
 }) => {
   // React Router location for detecting navigation
   const location = useLocation()
+  // No pillar chip on the lesson for a 13+ student (or a school with the
+  // pillars off). Staff authoring and previewing are unaffected: the hook
+  // only reads a student's age.
+  const hidePillars = useHidePillars()
 
   // Sidebar state
   const [isSidebarOpen, setIsSidebarOpen] = useState(window.innerWidth >= 768)
@@ -620,7 +625,7 @@ const CurriculumView = ({
             <div>
               {/* Lesson Header */}
               <div className="mb-6 sm:mb-8 pb-4 sm:pb-6 border-b border-gray-200">
-                {selectedLesson.pillar && (
+                {!hidePillars && selectedLesson.pillar && (
                   <div className="mb-2 sm:mb-3">
                     <span className="inline-flex items-center px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-full text-xs font-bold uppercase tracking-wider text-white shadow-sm" style={{ backgroundColor: getPillarData(selectedLesson.pillar).color }}>
                       {getPillarData(selectedLesson.pillar).name}

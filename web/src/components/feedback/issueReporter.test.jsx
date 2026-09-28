@@ -70,6 +70,12 @@ describe('IssueReporter', () => {
     expect(button()).toBeNull()
   })
 
+  it('shows for a parent opted in by preferences.feedback_reporter', () => {
+    authState = { user: { role: 'org_managed', org_role: 'parent', preferences: { feedback_reporter: true } } }
+    render(<IssueReporter />)
+    expect(button()).toBeTruthy()
+  })
+
   it('files a ticket into /api/bug-reports with the type, the org and the page', async () => {
     authState = { user: { role: 'org_managed', org_role: 'advisor', email: 'teach@school.org' } }
     orgState = { organization: { slug: 'icreate', name: 'iCreate' } }

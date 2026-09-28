@@ -70,6 +70,15 @@ describe('Sidebar — school page link', () => {
     expect(screen.getByRole('link', { name: 'iCreate' })).toHaveAttribute('href', '/school')
   })
 
+  it('gives an Optio Academy student no door to the feed the school removed', () => {
+    // A family-first school has no Feed (2026-09-28), and a student has no
+    // family tabs, so the door would open onto an empty page.
+    authState.user = { id: 'u1', role: 'student', email: 's@example.com' }
+    orgState = { organization: null, school: { id: 'org-1', name: 'Optio Academy', homepage: true, family_first_home: true } }
+    renderSidebar()
+    expect(screen.queryAllByRole('link').filter((l) => l.getAttribute('href') === '/school')).toHaveLength(0)
+  })
+
   it('shows nothing to someone in no school', () => {
     authState.user = { id: 'u1', role: 'student', email: 's@example.com' }
     renderSidebar()

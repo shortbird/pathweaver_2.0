@@ -9,6 +9,7 @@ import {
   meetsGraduationRequirements
 } from '../../utils/creditRequirements';
 import { tracksDiplomaCredits } from '../../utils/age';
+import useHidePillars from '../../hooks/useHidePillars';
 
 const CompactSidebar = ({
   totalXP,
@@ -26,7 +27,10 @@ const CompactSidebar = ({
   // elementary learner carried a 26-credit graduation tracker they will not
   // think about for six years, and every high schooler had their actual credit
   // progress pushed below a chart they had no use for.
-  const showsCredits = tracksDiplomaCredits(dateOfBirth);
+  // A school with the pillars off gets the credit view at any age: the radar
+  // is nothing but pillars.
+  const hidePillars = useHidePillars();
+  const showsCredits = tracksDiplomaCredits(dateOfBirth) || hidePillars;
 
   const [isRadarExpanded, setIsRadarExpanded] = useState(true);
   // isBadgesExpanded state removed (January 2026 - Microschool client feedback)

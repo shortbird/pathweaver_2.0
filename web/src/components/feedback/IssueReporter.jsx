@@ -23,6 +23,11 @@ import { setReporterPanelOpen } from './reporterOpen'
  * see it. The rule is isStaffUser, the one definition; the tests hold the
  * teacher and coordinator cases because those are the ones that get lost.
  *
+ * One exception: a non-staff account opted in by hand with
+ * users.preferences.feedback_reporter = true, for a parent we have asked for
+ * feedback (Keely Shaw, Hearthwood, 2026-09-28). Set it in the database; no
+ * UI writes it.
+ *
  * Nothing is sent to the reporter afterwards. Tracking only, by decision.
  */
 const TYPES = {
@@ -52,7 +57,7 @@ export default function IssueReporter() {
     return () => setReporterPanelOpen(false)
   }, [open])
 
-  if (!isStaffUser(user)) return null
+  if (!isStaffUser(user) && !user?.preferences?.feedback_reporter) return null
 
   // Bottom-right corner, on both surfaces (owner's call, 2026-09-14). The
   // first cut stacked it above the web platform's capture button on the

@@ -20,6 +20,8 @@ import ParentMomentCaptureButton from '../../components/parent/ParentMomentCaptu
 import VisibilityApprovalSection from '../../components/parent/VisibilityApprovalSection'
 import { moduleEnabled } from '../../modules/moduleEnabled'
 import { useFamilyAttention } from './FamilyHomeData'
+import { useSisParentContext } from '../../hooks/api/useSchoolContext'
+import { isFamilyFirstHubOrg } from '../../config/optioAcademy'
 
 /**
  * Family Home — the ONE parent dashboard, at /family (2026-09-15).
@@ -109,6 +111,13 @@ export default function FamilyHome() {
   const { children, isLoading, enterScope } = useFamilyScope()
   const invalidateFamily = useInvalidateFamilyChildren()
   const { items: attentionItems } = useFamilyAttention()
+  // Courses and Credits is a family-first school's page (Optio Academy), so
+  // only a child enrolled at one gets the link on their card.
+  const { orgs: parentOrgs } = useSisParentContext()
+  const coursesChildIds = new Set(
+    (parentOrgs || []).filter(isFamilyFirstHubOrg)
+      .flatMap((o) => (o.students || []).map((s) => s.student_id))
+  )
   const [showAddChild, setShowAddChild] = useState(false)
   // In an SIS school the office links students to their family (registration,
   // roster import); a child added from here would land outside the household
@@ -172,6 +181,12 @@ export default function FamilyHome() {
   const openChildQuest = (child, questId) => {
     enterScope(child.id)
     navigate(`/quests/${questId}`)
+  }
+
+  // Their diploma by subject, with the courses and check-ins that fill it.
+  const openChildCourses = (child) => {
+    enterScope(child.id)
+    navigate('/courses-and-credits')
   }
 
   // The child's name opens their full profile (/overview in their scope).
@@ -253,6 +268,7 @@ export default function FamilyHome() {
                 onOpen={openChild}
                 onOpenQuest={openChildQuest}
                 onOpenProfile={openChildProfile}
+                onOpenCourses={coursesChildIds.has(child.id) ? openChildCourses : undefined}
                 onOpenSettings={(c, section) => openSettings(c.id, section)}
               />
             ))}

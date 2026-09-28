@@ -128,6 +128,30 @@ describe('FamilyHome', () => {
       expect(navigateMock).toHaveBeenCalledWith('/dashboard')
     })
 
+    it('links a child at a family-first school to their courses and credits', async () => {
+      mockApiRoutes({
+        '/api/sis/parent/context': {
+          orgs: [
+            { organization_id: 'org-academy', family_first_home: true, students: [{ student_id: 'child-1' }] },
+            { organization_id: 'org-other', family_first_home: false, students: [{ student_id: 'dep-1' }] },
+          ],
+        },
+      })
+      renderFamilyHome()
+      const link = await screen.findByRole('button', { name: 'Courses and credits' })
+      // Only Emma is at the family-first school.
+      expect(screen.getAllByRole('button', { name: 'Courses and credits' })).toHaveLength(1)
+      link.click()
+      expect(scopeState.enterScope).toHaveBeenCalledWith('child-1')
+      expect(navigateMock).toHaveBeenCalledWith('/courses-and-credits')
+    })
+
+    it('offers no courses link to a child outside a family-first school', async () => {
+      renderFamilyHome()
+      await screen.findByText('Emma Smith')
+      expect(screen.queryByRole('button', { name: 'Courses and credits' })).not.toBeInTheDocument()
+    })
+
     it('never offers Act as', async () => {
       // A parent works on a child's account as themselves now (family scope);
       // the token-swapping act-as button is gone for every child, whatever

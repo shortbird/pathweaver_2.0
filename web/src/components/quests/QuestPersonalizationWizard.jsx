@@ -1,10 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import api from '../../services/api';
 import { getPillarData } from '../../utils/pillarMappings';
 import useHidePillars from '../../hooks/useHidePillars';
 import { useStudentScope } from '../../hooks/useStudentScope';
 import ManualTaskCreator from './ManualTaskCreator';
-import ApproachExampleCard from '../quest/ApproachExampleCard';
 import logger from '../../utils/logger';
 import { useAIAccess } from '../../contexts/AIAccessContext';
 import { useAuth } from '../../contexts/AuthContext';
@@ -28,7 +27,7 @@ import { CHALLENGE_LEVELS, DIPLOMA_SUBJECTS, MAX_ADJUST_STEPS } from './personal
 import ChooseMethodStep from './personalizationWizard/ChooseMethodStep';
 import InterestsStep from './personalizationWizard/InterestsStep';
 import TaskReviewStep from './personalizationWizard/TaskReviewStep';
-import ChoosePathStep from './personalizationWizard/ChoosePathStep';
+import WizardFooter from './personalizationWizard/WizardFooter';
 
 /**
  * @param hideDiplomaSubjects   When true, hide Optio-platform-specific
@@ -36,13 +35,6 @@ import ChoosePathStep from './personalizationWizard/ChoosePathStep';
  *     • the "Diploma Credits" picker on the interests step
  *     • the pillar badge + diploma-credits row on the review step
  *   The "Any specific ideas?" textarea stays visible regardless.
- * @param approachExamples      The quest's pre-authored "paths"
- *   (quests.approach_examples). When this is a non-empty array, a third
- *   "Choose a Path" option appears on step 1 letting the student start from a
- *   curated task set. Null/empty → the option is hidden and the wizard behaves
- *   exactly as before (AI Generate + Write My Own only).
- * @param xpThreshold           The quest's XP requirement, shown on each path
- *   card so the student sees a path's total XP against the goal. Optional.
  * @param embedded              When true, render in-flow instead of as a
  *   fixed-position modal. Inside the Canvas LTI iframe the page height is
  *   content-driven (LtiShell frameResize), so `fixed inset-0` centers the
@@ -69,8 +61,6 @@ export default function QuestPersonalizationWizard({
   onCancel,
   hideDiplomaSubjects = false,
   embedded = false,
-  approachExamples = null,
-  xpThreshold = null,
   classSubject = null,
 }) {
   const classSubjectName = classSubject ? getSubjectName(classSubject) : null;
@@ -86,15 +76,7 @@ export default function QuestPersonalizationWizard({
   const { user } = useAuth();
 
   // NEW: Creation method selection
-  const [creationMethod, setCreationMethod] = useState(null); // 'ai' | 'manual' | 'path'
-
-  // Pre-authored "paths" (quests.approach_examples). Only surface paths that
-  // actually carry tasks; a malformed entry should never render an empty card.
-  const paths = Array.isArray(approachExamples)
-    ? approachExamples.filter((p) => p && Array.isArray(p.tasks) && p.tasks.length > 0)
-    : [];
-  const hasPaths = paths.length > 0;
-  const [selectingPathIndex, setSelectingPathIndex] = useState(null);
+  const [creationMethod, setCreationMethod] = useState(null); // 'ai' | 'manual'
 
   // Wizard state
   const [selectedInterests, setSelectedInterests] = useState([]);
@@ -166,7 +148,6 @@ export default function QuestPersonalizationWizard({
 
   // Start personalization session
   const startSession = async (method) => {
-    setCreationMethod(method);
     setLoading(true);
     setError(null);
     try {
@@ -177,6 +158,10 @@ export default function QuestPersonalizationWizard({
       }
       setSessionId(newSessionId);
 
+      // Set with the step, not before the request: the method decides the
+      // step count, so setting it early redrew step 1 of 4 (25%) over step 1
+      // of 3 (33%) and the progress bar ran backwards while this loaded.
+      setCreationMethod(method);
       if (method === 'ai') {
         setStep(2); // Go to interests selection
       } else {
@@ -274,14 +259,17 @@ export default function QuestPersonalizationWizard({
 
       if (accepted) {
         // Track accepted task
-        setAcceptedTasks([...acceptedTasks, currentTask]);
+        const nowAccepted = [...acceptedTasks, currentTask];
+        setAcceptedTasks(nowAccepted);
 
         // Move to next task or complete
         if (currentTaskIndex < generatedTasks.length - 1) {
           setCurrentTaskIndex(currentTaskIndex + 1);
         } else {
-          // All tasks reviewed, complete wizard
-          completeWizard();
+          // All tasks reviewed, complete wizard. Pass the new count: the state
+          // above has not landed yet, and reading it here refused a student
+          // whose only accepted task was the last one.
+          completeWizard(nowAccepted.length);
         }
       }
     } catch (err) {
@@ -405,36 +393,10 @@ export default function QuestPersonalizationWizard({
     }
   };
 
-  // Choose a pre-authored path: materialize its tasks server-side (mirrors the
-  // AI-generated persistence path so XP/completion/grade passback behave the
-  // same) and drop the student into the normal post-wizard quest view.
-  const handleSelectPath = async (index) => {
-    if (selectingPathIndex !== null) return;
-    setSelectingPathIndex(index);
-    setError(null);
-
-    try {
-      const response = await api.post(`/api/quests/${questId}/add-path-tasks`, {
-        ...scope,
-        approach_index: index,
-      });
-
-      if (response.data.success) {
-        onComplete(response.data);
-      } else {
-        setError(response.data.error || 'Failed to start this path');
-        setSelectingPathIndex(null);
-      }
-    } catch (err) {
-      logger.error('Failed to select path:', err);
-      setError(err.response?.data?.error || 'Failed to start this path');
-      setSelectingPathIndex(null);
-    }
-  };
-
-  // Complete wizard
-  const completeWizard = () => {
-    if (acceptedTasks.length > 0) {
+  // Complete wizard. Also the review step's early exit: each accepted task is
+  // already saved on the quest, so finishing needs no further request.
+  const completeWizard = (acceptedCount = acceptedTasks.length) => {
+    if (acceptedCount > 0) {
       onComplete();
     } else {
       setError('You must accept at least one task');
@@ -471,20 +433,28 @@ export default function QuestPersonalizationWizard({
     .join(', ');
 
   const currentTask = generatedTasks[currentTaskIndex];
+
+  // The Generate button sits at the bottom of a long interests form, so the
+  // first generated task would otherwise open below the fold. Bring the wizard
+  // back to its top when the review step appears.
+  const scrollBoxRef = useRef(null);
+  useEffect(() => {
+    if (step !== 4) return;
+    const box = scrollBoxRef.current;
+    if (!box) return;
+    if (embedded) {
+      // Embedded, the host page scrolls rather than the wizard.
+      box.scrollIntoView?.({ block: 'start', behavior: 'smooth' });
+    } else {
+      box.scrollTo?.({ top: 0, behavior: 'smooth' });
+    }
+  }, [step, embedded]);
+
   // AI: method, interests, generation, review (4). Manual: method, manual creator (3).
-  // Path: method, path picker (2). The path picker lives at internal step 5 to
-  // avoid colliding with the AI/manual step blocks, so displayStep maps it to 2.
-  const totalSteps = creationMethod === 'ai' ? 4 : creationMethod === 'path' ? 2 : 3;
-  const displayStep = creationMethod === 'path' && step === 5 ? 2 : step;
+  const totalSteps = creationMethod === 'ai' ? 4 : 3;
 
   // Step 1 column count flexes with how many creation options are visible.
-  const step1OptionCount = 1 /* manual */ + (canUseTaskGeneration ? 1 : 0) + (hasPaths ? 1 : 0);
-  const step1GridCols =
-    step1OptionCount >= 3
-      ? 'md:grid-cols-3'
-      : step1OptionCount === 2
-        ? 'md:grid-cols-2'
-        : 'md:grid-cols-1 max-w-md';
+  const step1GridCols = canUseTaskGeneration ? 'md:grid-cols-2' : 'md:grid-cols-1 max-w-md';
 
   // Compact sizing for the embedded (Canvas iframe) mode. Students are often
   // on small Chromebook screens inside an already-chromed Canvas page, so the
@@ -525,6 +495,7 @@ export default function QuestPersonalizationWizard({
       }
     >
       <div
+        ref={scrollBoxRef}
         className={
           embedded
             ? 'bg-white rounded-2xl w-full'
@@ -537,13 +508,13 @@ export default function QuestPersonalizationWizard({
             <div className={sz.progressWrap}>
               <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-2 gap-2">
                 <span className={sz.progressLabel}>
-                  Step {displayStep} of {totalSteps}
+                  Step {step} of {totalSteps}
                 </span>
               </div>
               <div className={`w-full bg-gray-200 rounded-full ${sz.progressBar}`}>
                 <div
                   className={`bg-gradient-primary ${sz.progressBar} rounded-full transition-all duration-300`}
-                  style={{ width: `${(displayStep / totalSteps) * 100}%` }}
+                  style={{ width: `${(step / totalSteps) * 100}%` }}
                 />
               </div>
             </div>
@@ -559,8 +530,7 @@ export default function QuestPersonalizationWizard({
       {step === 1 && (
         <ChooseMethodStep
           canUseTaskGeneration={canUseTaskGeneration} embedded={embedded}
-          hasPaths={hasPaths} loading={loading} questTitle={questTitle}
-          setCreationMethod={setCreationMethod} setError={setError} setStep={setStep}
+          loading={loading} questTitle={questTitle}
           startSession={startSession} step1GridCols={step1GridCols} sz={sz}
         />
       )}
@@ -602,22 +572,17 @@ export default function QuestPersonalizationWizard({
           generatedTasks={generatedTasks} getPillarData={getPillarData}
           handleAcceptTask={handleAcceptTask} handleAdjustTask={handleAdjustTask}
           handleSkipTask={handleSkipTask} hideDiplomaSubjects={hideDiplomaSubjects}
+          onFinish={() => completeWizard()}
           hidePillars={hidePillars} loading={loading}
           MAX_ADJUST_STEPS={MAX_ADJUST_STEPS} setShowFlagModal={setShowFlagModal}
           step={step} taskAdjustments={taskAdjustments}
         />
       )}
-      {/* Step 5: Choose a Path (path picker) */}
-      <ChoosePathStep
-        ApproachExampleCard={ApproachExampleCard} creationMethod={creationMethod}
-        embedded={embedded} step={step} sz={sz} loading={loading}
-        hasPaths={hasPaths} paths={paths} xpThreshold={xpThreshold}
-        selectingPathIndex={selectingPathIndex} setSelectingPathIndex={setSelectingPathIndex}
-        handleSelectPath={handleSelectPath}
+      <WizardFooter
+        embedded={embedded} loading={loading}
         showFlagModal={showFlagModal} setShowFlagModal={setShowFlagModal}
         flagReason={flagReason} setFlagReason={setFlagReason}
         handleFlagTask={handleFlagTask}
-        setCreationMethod={setCreationMethod} setError={setError} setStep={setStep}
         onCancel={onCancel}
       />
         </div>

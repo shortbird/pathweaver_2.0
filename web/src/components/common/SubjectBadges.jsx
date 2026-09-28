@@ -9,21 +9,23 @@ import PropTypes from 'prop-types';
 import { SUBJECTS as SHARED_SUBJECTS } from '@shared/subjects';
 import { TRANSCRIPT_SUBJECT_NAMES } from '@shared/credits';
 
-// The colour and icon each subject wears. Web-only presentation, so it lives
-// here rather than in the shared vocabulary -- a hex and an emoji are not
-// properties of a school subject.
-const SUBJECT_STYLE = {
-  language_arts: { color: '#8B5CF6', icon: '📖' },
-  math: { color: '#3B82F6', icon: '🔢' },
-  science: { color: '#10B981', icon: '🔬' },
-  social_studies: { color: '#F59E0B', icon: '🌍' },
-  financial_literacy: { color: '#059669', icon: '💰' },
-  health: { color: '#EF4444', icon: '❤️' },
-  pe: { color: '#F97316', icon: '🏃' },
-  fine_arts: { color: '#EC4899', icon: '🎨' },
-  cte: { color: '#6366F1', icon: '🔧' },
-  digital_literacy: { color: '#0EA5E9', icon: '💻' },
-  electives: { color: '#A855F7', icon: '✨' },
+// The icon each subject wears here. Web-only presentation, so it lives here
+// rather than in the shared vocabulary. The colour does NOT: it is the
+// subject's shared accent, the one standard colour per subject on every
+// surface (2026-09-28). This file used to keep a brighter set of its own, so
+// Fine Arts was pink on a badge and magenta on a class.
+const SUBJECT_ICON = {
+  language_arts: '📖',
+  math: '🔢',
+  science: '🔬',
+  social_studies: '🌍',
+  financial_literacy: '💰',
+  health: '❤️',
+  pe: '🏃',
+  fine_arts: '🎨',
+  cte: '🔧',
+  digital_literacy: '💻',
+  electives: '✨',
 };
 
 // A subject reaches this component as a key ('cte'), a picker name ('CTE') or a
@@ -33,13 +35,11 @@ const SUBJECT_STYLE = {
 // remembering all three or getting a grey fallback badge.
 const SUBJECT_CONFIG = Object.fromEntries(
   SHARED_SUBJECTS.flatMap((s) => {
-    // A subject with no style defined here is left OUT of the map on purpose, so
-    // it falls through to the grey default below -- which is what happened
-    // before, when a subject simply had no entry. Emitting a config with an
-    // undefined colour would render a badge with no colour instead.
-    const style = SUBJECT_STYLE[s.key];
-    if (!style) return [];
-    const config = { label: s.name, ...style };
+    // A subject with no accent is left OUT of the map on purpose, so it falls
+    // through to the grey default below. Emitting a config with an undefined
+    // colour would render a badge with no colour instead.
+    if (!s.accent) return [];
+    const config = { label: s.name, color: s.accent, icon: SUBJECT_ICON[s.key] || '📚' };
     const spellings = new Set([s.key, s.name, TRANSCRIPT_SUBJECT_NAMES[s.key] || s.name]);
     return [...spellings].map((spelling) => [spelling, config]);
   })

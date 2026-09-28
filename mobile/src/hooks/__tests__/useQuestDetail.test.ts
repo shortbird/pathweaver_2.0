@@ -19,7 +19,6 @@ const mockQuest = {
   header_image_url: null,
   image_url: null,
   quest_type: 'standard',
-  approach_examples: [],
   allow_custom_tasks: true,
   is_active: true,
   user_enrollment: { id: 'enroll-1' },

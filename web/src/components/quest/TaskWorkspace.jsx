@@ -35,6 +35,10 @@ const TaskWorkspace = ({
   tasks = [],
   questId,
   isClassQuest = false,
+  // An own-curriculum course is a class quest whose credit is requested task
+  // by task (its semester check-ins, and any task the family adds), not by a
+  // whole-class review -- so it keeps the per-task Request Credit button.
+  creditPerTask = false,
   showPillars = true,
   onTaskSelect,
   onTaskReorder,
@@ -734,7 +738,7 @@ const TaskWorkspace = ({
                 task={task} evidenceBlocks={evidenceBlocks}
                 isLoading={isLoading} isSaving={isSaving} error={error}
                 isTaskCompleted={isTaskCompleted} isCompleting={isCompleting}
-                isClassQuest={isClassQuest}
+                isClassQuest={isClassQuest && !creditPerTask}
                 creditStatus={creditStatus} canRequestCredit={canRequestCredit}
                 isRequestingCredit={isRequestingCredit}
                 portfolioPick={portfolioPick} isTogglingPortfolio={isTogglingPortfolio}

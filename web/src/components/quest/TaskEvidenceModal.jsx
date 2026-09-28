@@ -5,6 +5,7 @@ import ModalErrorBoundary from '../ModalErrorBoundary';
 import MobileModal from '../ui/mobile/MobileModal';
 import { getPillarData } from '../../utils/pillarMappings';
 import useHidePillars from '../../hooks/useHidePillars';
+import { brandPillarData } from '../../utils/pillarStandIn';
 import { captureEvent } from '../../services/posthog';
 import api from '../../services/api';
 
@@ -63,7 +64,8 @@ const TaskEvidenceModal = ({ task, onComplete, onClose }) => {
     }
   };
 
-  const pillarData = getPillarData(task.pillar);
+  // Pillars hidden: the brand colour stands in for the pillar's everywhere.
+  const pillarData = hidePillars ? brandPillarData(getPillarData(task.pillar)) : getPillarData(task.pillar);
 
   const blockTypes = {
     text: { icon: DocumentTextIcon, label: 'Text' },

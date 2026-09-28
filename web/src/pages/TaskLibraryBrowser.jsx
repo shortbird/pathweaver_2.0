@@ -3,6 +3,8 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeftIcon, PlusIcon, CheckCircleIcon, BookOpenIcon, EyeIcon, XMarkIcon, FunnelIcon } from '@heroicons/react/24/outline';
 import api from '../services/api';
 import { getPillarData } from '../utils/pillarMappings';
+import useHidePillars from '../hooks/useHidePillars';
+import { brandPillarData } from '../utils/pillarStandIn';
 import toast from 'react-hot-toast';
 import logger from '../utils/logger';
 import SubjectBadges, { getSubjectConfig } from '../components/common/SubjectBadges';
@@ -29,6 +31,11 @@ export default function TaskLibraryBrowser() {
   const confirm = useConfirm()
   const { questId } = useParams();
   const navigate = useNavigate();
+  // 13+ (or a school with the pillars off): no pillar chip -- the subject
+  // badges under it already say what a task counts toward -- and the brand
+  // colour where the pillar's tinted the card.
+  const hidePillars = useHidePillars();
+  const pillarDataFor = (task) => (hidePillars ? brandPillarData(getPillarData(task.pillar)) : getPillarData(task.pillar));
   const [quest, setQuest] = useState(null);
   const [libraryTasks, setLibraryTasks] = useState([]);
   const [selectedTasks, setSelectedTasks] = useState(new Set());
@@ -328,7 +335,7 @@ export default function TaskLibraryBrowser() {
               )}
               <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6 mb-8">
                 {filteredTasks.map((task) => {
-                const pillarData = getPillarData(task.pillar);
+                const pillarData = pillarDataFor(task);
                 const isAdded = addedTasks.has(task.id);
                 const isSelected = selectedTasks.has(task.id);
 
@@ -389,12 +396,14 @@ export default function TaskLibraryBrowser() {
 
                       {/* Pillar Badge + XP Badge Row */}
                       <div className="flex items-center gap-2 mb-2">
-                        <div
-                          className="inline-flex items-center justify-center px-3 py-1 rounded-full text-sm font-semibold text-white"
-                          style={{ backgroundColor: pillarData.color }}
-                        >
-                          {pillarData.name}
-                        </div>
+                        {!hidePillars && (
+                          <div
+                            className="inline-flex items-center justify-center px-3 py-1 rounded-full text-sm font-semibold text-white"
+                            style={{ backgroundColor: pillarData.color }}
+                          >
+                            {pillarData.name}
+                          </div>
+                        )}
                         <div
                           className="px-3 py-1 rounded-full text-sm font-bold"
                           style={{
@@ -478,7 +487,7 @@ export default function TaskLibraryBrowser() {
             {/* Modal Content */}
             <div className="p-6">
               {(() => {
-                const pillarData = getPillarData(detailsModalTask.pillar);
+                const pillarData = pillarDataFor(detailsModalTask);
                 return (
                   <>
                     {/* Task Title */}
@@ -488,12 +497,14 @@ export default function TaskLibraryBrowser() {
 
                     {/* Pillar and XP Badges */}
                     <div className="flex items-center gap-2 mb-4">
-                      <div
-                        className="inline-flex items-center justify-center px-4 py-2 rounded-full text-sm font-semibold text-white"
-                        style={{ backgroundColor: pillarData.color }}
-                      >
-                        {pillarData.name}
-                      </div>
+                      {!hidePillars && (
+                        <div
+                          className="inline-flex items-center justify-center px-4 py-2 rounded-full text-sm font-semibold text-white"
+                          style={{ backgroundColor: pillarData.color }}
+                        >
+                          {pillarData.name}
+                        </div>
+                      )}
                       <div
                         className="px-4 py-2 rounded-full text-sm font-bold"
                         style={{

@@ -22,6 +22,18 @@ logger = get_logger(__name__)
 bp = Blueprint('quest_enrollment', __name__, url_prefix='/api/quests')
 
 
+def template_task_wanted(task, picked_ids):
+    """Does a new enrollment take this template task?
+
+    picked_ids is None when the student chose nothing on the quest page (an
+    older client): every task. Otherwise the required tasks, plus the optional
+    ones the student picked.
+    """
+    if picked_ids is None or task.get('is_required'):
+        return True
+    return str(task.get('id')) in picked_ids
+
+
 @bp.route('/<quest_id>/enroll', methods=['POST'])
 @require_auth
 @student_scope()
@@ -348,6 +360,15 @@ def enroll_in_quest(user_id: str, quest_id: str):
         has_template_tasks = task_summary.get('total_tasks', 0) > 0
         allow_custom = quest.get('allow_custom_tasks', True)
 
+        # The quest page lets a student pick which OPTIONAL template tasks to
+        # start with and sends their ids as template_task_ids (2026-09-28).
+        # Required tasks come regardless. Absent -- older clients, the mobile
+        # app -- every template task is copied, as before. A quest that forbids
+        # custom tasks ignores the pick: its student could not add any back.
+        picked = data.get('template_task_ids')
+        picking = bool(allow_custom) and isinstance(picked, list)
+        picked_ids = {str(i) for i in picked} if picking else None
+
         # Step 1: Copy ALL template tasks (required + optional) to user_quest_tasks
         if has_template_tasks:
             try:
@@ -385,6 +406,8 @@ def enroll_in_quest(user_id: str, quest_id: str):
                         if task.get('id') in skip_ids:
                             logger.info(f"[UNIFIED_ENROLL] Skipping already-existing template task: {task.get('title', '')[:30]}")
                             continue
+                        if not template_task_wanted(task, picked_ids):
+                            continue
                         tasks_to_insert.append({
                             'user_id': user_id,
                             'quest_id': quest_id,
@@ -415,7 +438,11 @@ def enroll_in_quest(user_id: str, quest_id: str):
         # Step 2: Determine if wizard should be shown
         # Skip wizard if: quest has ANY template tasks (they're already copied)
         # Show wizard only if: no template tasks AND custom tasks are allowed
-        if has_template_tasks:
+        # A student who picked nothing from the template (and had no required
+        # task to take) starts empty, and builds their own list in the wizard
+        # like a quest with no template at all.
+        picked_nothing = picking and tasks_copied == 0
+        if has_template_tasks and not picked_nothing:
             # Quest has template tasks - skip wizard, tasks already copied
             skip_wizard = True
             logger.info(f"[UNIFIED_ENROLL] Wizard skipped: quest has {task_summary.get('total_tasks', 0)} template tasks")

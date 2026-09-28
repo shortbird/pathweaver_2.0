@@ -15,6 +15,8 @@ import {
   ClipboardDocumentListIcon,
 } from '@heroicons/react/24/outline'
 import { getPillarData } from '../../utils/pillarMappings'
+import useHidePillars from '../../hooks/useHidePillars'
+import { BRAND_PURPLE } from '../../utils/pillarStandIn'
 
 export const LessonItem = ({
   lesson,
@@ -42,7 +44,9 @@ export const LessonItem = ({
   }
 
   const isCompleted = lesson.is_completed || false
-  const pillarData = getPillarData(lesson.pillar || 'art')
+  // 13+ (or a school with the pillars off): the brand colour, not the pillar's.
+  const hidePillars = useHidePillars()
+  const pillarData = hidePillars ? { color: BRAND_PURPLE } : getPillarData(lesson.pillar || 'art')
 
   // XP threshold completion: lesson is "XP complete" when earned >= threshold
   const hasXpThreshold = xpThreshold > 0

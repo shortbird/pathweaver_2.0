@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import UnifiedEvidenceDisplay from '../evidence/UnifiedEvidenceDisplay';
 import { getPillarGradient, getPillarDisplayName } from '../../config/pillars';
+import useHidePillars from '../../hooks/useHidePillars';
+import { BRAND_GRADIENT, leadSubjectName } from '../../utils/pillarStandIn';
 import { evidenceAPI } from '../../services/api';
 import { TrashIcon } from '@heroicons/react/24/outline';
 import toast from 'react-hot-toast';
@@ -8,8 +10,15 @@ import toast from 'react-hot-toast';
 const EvidenceDetailModal = ({ isOpen, onClose, evidenceItem, onDelete }) => {
   const [deleting, setDeleting] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  // 13+ (or a school with the pillars off): brand header, and the chip names
+  // the diploma subject the task counts toward rather than its pillar.
+  const hidePillars = useHidePillars();
 
   if (!isOpen || !evidenceItem) return null;
+
+  const label = hidePillars
+    ? leadSubjectName(evidenceItem.evidence)
+    : getPillarDisplayName(evidenceItem.pillar);
 
   const blockId = evidenceItem.block?.id;
   const canDelete = !!onDelete && !!blockId;
@@ -61,7 +70,7 @@ const EvidenceDetailModal = ({ isOpen, onClose, evidenceItem, onDelete }) => {
         aria-modal="true"
         aria-label="Evidence Details"
       >
-        <div className={`sticky top-0 p-6 bg-gradient-to-r ${getPillarGradient(evidenceItem.pillar)} z-10`}>
+        <div className={`sticky top-0 p-6 bg-gradient-to-r ${hidePillars ? BRAND_GRADIENT : getPillarGradient(evidenceItem.pillar)} z-10`}>
           <div className="flex justify-between items-center">
             <div className="flex-1 min-w-0">
               <h2 className="text-2xl font-bold text-white mb-1 truncate">{evidenceItem.questTitle}</h2>
@@ -77,9 +86,11 @@ const EvidenceDetailModal = ({ isOpen, onClose, evidenceItem, onDelete }) => {
             </button>
           </div>
           <div className="flex items-center gap-3 mt-3">
-            <span className="inline-block px-3 py-1 bg-white/20 backdrop-blur-sm rounded-full text-white text-sm font-medium">
-              {getPillarDisplayName(evidenceItem.pillar)}
-            </span>
+            {label && (
+              <span className="inline-block px-3 py-1 bg-white/20 backdrop-blur-sm rounded-full text-white text-sm font-medium">
+                {label}
+              </span>
+            )}
             <span className="text-white/90 text-sm">
               +{evidenceItem.xpAwarded} XP
             </span>

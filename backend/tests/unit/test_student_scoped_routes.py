@@ -90,7 +90,6 @@ SCOPED = {
     'quest_personalization.adjust_task_difficulty': True,
     'quest_personalization.analyze_manual_task': True,
     'quest_personalization.add_manual_tasks_batch': True,
-    'quest_personalization.add_path_tasks': True,
     'quest_personalization.finalize_tasks': True,
     'quest_personalization.accept_task_immediate': True,
     'quest_personalization.skip_task_save_to_library': True,

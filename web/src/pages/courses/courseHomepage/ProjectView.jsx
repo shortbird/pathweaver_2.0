@@ -17,6 +17,8 @@ import { CheckCircleIcon as CheckCircleSolid } from '@heroicons/react/24/solid'
 import toast from 'react-hot-toast'
 
 import { getPillarData } from '../../../utils/pillarMappings'
+import useHidePillars from '../../../hooks/useHidePillars'
+import { BRAND_CHIP, leadSubjectName } from '../../../utils/pillarStandIn'
 import stripHtml from './stripHtml'
 import CourseTaskItem from './CourseTaskItem'
 
@@ -32,6 +34,9 @@ const ProjectView = ({ quest, onSelectLesson, fallbackImageUrl, questTasks, ques
   const totalXp = quest.progress?.total_xp || 0
   const earnedXp = quest.progress?.earned_xp || 0
   const [lessonsExpanded, setLessonsExpanded] = useState(true)
+  // 13+ (or a school with the pillars off): suggestion chips name the diploma
+  // subject in the brand colour instead of the pillar.
+  const hidePillars = useHidePillars()
   const [addedSuggestionIds, setAddedSuggestionIds] = useState(new Set())
   const [showWizard, setShowWizard] = useState(false)
   const [localEarnedXp, setLocalEarnedXp] = useState(earnedXp)
@@ -245,7 +250,8 @@ const ProjectView = ({ quest, onSelectLesson, fallbackImageUrl, questTasks, ques
           </h2>
           <div className="flex gap-3 overflow-x-auto pb-2 -mx-1 px-1">
             {suggestedTasks.map(suggestion => {
-              const sPillar = getPillarData(suggestion.pillar)
+              const sPillar = hidePillars ? BRAND_CHIP : getPillarData(suggestion.pillar)
+              const sLabel = hidePillars ? leadSubjectName(suggestion) : (sPillar?.name || suggestion.pillar)
               return (
                 <div
                   key={suggestion.id}
@@ -254,9 +260,11 @@ const ProjectView = ({ quest, onSelectLesson, fallbackImageUrl, questTasks, ques
                   <h4 className="text-sm font-medium text-gray-900 line-clamp-2 mb-2">{suggestion.title}</h4>
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-1.5">
-                      <span className={`text-xs px-1.5 py-0.5 rounded ${sPillar?.bg || 'bg-gray-100'} ${sPillar?.text || 'text-gray-600'}`}>
-                        {sPillar?.name || suggestion.pillar}
-                      </span>
+                      {sLabel && (
+                        <span className={`text-xs px-1.5 py-0.5 rounded ${sPillar?.bg || 'bg-gray-100'} ${sPillar?.text || 'text-gray-600'}`}>
+                          {sLabel}
+                        </span>
+                      )}
                       <span className="text-xs text-gray-500">{suggestion.xp_value || 0} XP</span>
                     </div>
                     <button

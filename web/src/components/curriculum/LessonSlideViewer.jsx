@@ -21,6 +21,8 @@ import {
 } from '@heroicons/react/24/outline'
 import { CheckCircleIcon as CheckCircleSolidIcon, ExclamationCircleIcon } from '@heroicons/react/24/solid'
 import { getPillarData } from '../../utils/pillarMappings'
+import useHidePillars from '../../hooks/useHidePillars'
+import { brandPillarData, leadSubjectName } from '../../utils/pillarStandIn'
 import { getVideoEmbedUrl } from './utils/contentUtils'
 import {
   TextStepContent,
@@ -58,6 +60,9 @@ export const LessonSlideViewer = ({
   const [showPersonalizeWizard, setShowPersonalizeWizard] = useState(false)
   const [showSuggestedTasksModal, setShowSuggestedTasksModal] = useState(false)
   const { canUseLessonHelper } = useAIAccess()
+  // 13+ (or a school with the pillars off): a required task is tinted in the
+  // brand colour and labelled by its diploma subject, not its pillar.
+  const hidePillars = useHidePillars()
 
   // Task activation clarity banner
   const tasksIntroKey = questId ? `optio-tasks-intro-seen-${questId}` : null
@@ -249,7 +254,10 @@ export const LessonSlideViewer = ({
               </h4>
               <div className="grid gap-4 sm:grid-cols-2">
                 {requiredTasks.map((task) => {
-                  const pillarData = getPillarData(task.pillar || 'wellness')
+                  const pillarData = hidePillars
+                    ? brandPillarData(getPillarData(task.pillar || 'wellness'))
+                    : getPillarData(task.pillar || 'wellness')
+                  const taskLabel = hidePillars ? leadSubjectName(task) : pillarData.name
                   const isTaskCompleted = task.is_completed === true
                   const taskQuestId = task.quest_id || questId
                   return (
@@ -290,12 +298,14 @@ export const LessonSlideViewer = ({
                             <p className="text-sm text-gray-600 line-clamp-2 mb-2">{task.description}</p>
                           )}
                           <div className="flex items-center gap-2">
-                            <span
-                              className="text-xs font-medium px-2 py-0.5 rounded-full text-white"
-                              style={{ backgroundColor: pillarData.color }}
-                            >
-                              {pillarData.name}
-                            </span>
+                            {taskLabel && (
+                              <span
+                                className="text-xs font-medium px-2 py-0.5 rounded-full text-white"
+                                style={{ backgroundColor: pillarData.color }}
+                              >
+                                {taskLabel}
+                              </span>
+                            )}
                             {task.xp_value && (
                               <span className="text-xs font-semibold text-optio-purple">
                                 +{task.xp_value} XP

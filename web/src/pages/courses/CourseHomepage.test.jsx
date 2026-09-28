@@ -16,6 +16,9 @@ vi.mock('react-router-dom', async () => {
   }
 })
 
+// useHidePillars reads AuthContext itself, which the AuthContext mock
+// here does not export. Pillars shown, as for a learner under 13.
+vi.mock('../../hooks/useHidePillars', () => ({ default: () => false }))
 vi.mock('../../contexts/AuthContext', () => ({
   useAuth: () => authState
 }))

@@ -254,7 +254,7 @@ gate nobody can get past is a gate somebody deletes.
 | Gate | Where | What it stops |
 |---|---|---|
 | ruff (F/E9/B/S110/S112) | `tests-backend.yml` | CI-01 |
-| mypy (288 modules carry `ignore_errors` in `backend/mypy.ini`, out of 299 named sections; the list only shrinks) | `tests-backend.yml` | CI-01 |
+| mypy (287 modules carry `ignore_errors` in `backend/mypy.ini`, out of 298 named sections; the list only shrinks) | `tests-backend.yml` | CI-01 |
 | pyflakes, filtered to undefined names | `tests-backend.yml` | Missing imports, which Python only finds when a request reaches the line. Four were live on 2026-09-02 |
 | pip-audit, **no suppressions** | `tests-backend.yml` | HYG-03. A future ignore needs a dated reason and a re-check date |
 | `npm audit` via `scripts/audit-gate.mjs` | `tests-web.yml`, `tests-mobile.yml` | Advisories, one at a time, each allowlisted with a reason and an expiry |

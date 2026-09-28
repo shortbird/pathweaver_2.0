@@ -22,6 +22,10 @@ vi.mock('../../services/api', () => ({ default: { get: vi.fn(), post: vi.fn() } 
 vi.mock('../../contexts/AIAccessContext', () => ({
   useAIAccess: () => ({ canUseTaskGeneration: true }),
 }))
+// The hook reads AuthContext itself (the 13+ pillar rule); this mock of
+// AuthContext has no context object to give it, and pillars are not what
+// this file tests.
+vi.mock('../../hooks/useHidePillars', () => ({ default: () => false }))
 vi.mock('../../contexts/AuthContext', () => ({
   useAuth: () => ({ user: { id: 'u1', preferred_challenge_level: null } }),
 }))

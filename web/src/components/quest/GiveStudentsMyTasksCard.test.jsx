@@ -9,6 +9,11 @@ vi.mock('../../contexts/AuthContext', () => ({
   useAuth: () => auth,
 }))
 
+const scope = { isDelegated: false }
+vi.mock('../../hooks/useStudentScope', () => ({
+  useStudentScope: () => scope,
+}))
+
 vi.mock('../../services/api', () => ({
   default: { post: vi.fn() },
 }))
@@ -47,6 +52,21 @@ describe('GiveStudentsMyTasksCard', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     asOrgAdmin()
+    scope.isDelegated = false
+  })
+
+  // One student's own work is never a list to hand to students (2026-09-28).
+  it('renders nothing on a credit class or own-curriculum course', () => {
+    const { container } = render(
+      <GiveStudentsMyTasksCard quest={quest({ quest_type: 'class' })} />
+    )
+    expect(container).toBeEmptyDOMElement()
+  })
+
+  it("renders nothing when a parent is looking at their child's quest", () => {
+    scope.isDelegated = true
+    const { container } = render(<GiveStudentsMyTasksCard quest={quest()} />)
+    expect(container).toBeEmptyDOMElement()
   })
 
   it('offers an org admin their own list on their org quest', () => {
@@ -71,10 +91,11 @@ describe('GiveStudentsMyTasksCard', () => {
     expect(container).toBeEmptyDOMElement()
   })
 
-  it('lets a superadmin do it on any quest', () => {
+  // A superadmin picks quests up to look at them (2026-09-28).
+  it('renders nothing for a superadmin', () => {
     asSuperadmin()
-    render(<GiveStudentsMyTasksCard quest={quest({ organization_id: null })} />)
-    expect(screen.getByText('Give students this task list')).toBeInTheDocument()
+    const { container } = render(<GiveStudentsMyTasksCard quest={quest({ organization_id: null })} />)
+    expect(container).toBeEmptyDOMElement()
   })
 
   it('renders nothing once the quest has an authored task list', () => {

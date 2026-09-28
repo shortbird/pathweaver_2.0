@@ -1,5 +1,6 @@
 import React from 'react';
 import { Card, CardBody, CardFooter } from './ui/Card';
+import useHidePillars from '../hooks/useHidePillars';
 
 /**
  * InvitationCard - Display quest invitation with accept/decline options
@@ -11,6 +12,8 @@ import { Card, CardBody, CardFooter } from './ui/Card';
  */
 const InvitationCard = ({ invitation, onAccept, onDecline, isLoading }) => {
   const { quest, invited_by, invitation_message, created_at } = invitation;
+  // No pillar tag for a 13+ student (or a school with the pillars off).
+  const hidePillars = useHidePillars();
 
   const formatDate = (dateString) => {
     const date = new Date(dateString);
@@ -58,7 +61,7 @@ const InvitationCard = ({ invitation, onAccept, onDecline, isLoading }) => {
         )}
 
         <div className="flex items-center gap-3 text-xs text-gray-500">
-          {quest?.pillar && (
+          {!hidePillars && quest?.pillar && (
             <span className="px-2 py-1 bg-gradient-to-r from-optio-purple/20 to-optio-pink/20 rounded">
               {quest.pillar}
             </span>

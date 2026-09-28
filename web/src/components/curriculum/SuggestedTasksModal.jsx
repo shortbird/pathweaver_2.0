@@ -14,6 +14,8 @@ import {
 import { CheckCircleIcon as CheckCircleSolidIcon } from '@heroicons/react/24/solid'
 import { Modal } from '../ui/Modal'
 import { getPillarData } from '../../utils/pillarMappings'
+import useHidePillars from '../../hooks/useHidePillars'
+import { BRAND_PURPLE, leadSubjectName } from '../../utils/pillarStandIn'
 import api from '../../services/api'
 import toast from 'react-hot-toast'
 
@@ -29,6 +31,12 @@ export const SuggestedTasksModal = ({
   const location = useLocation()
   const [selectedTaskIds, setSelectedTaskIds] = useState(new Set())
   const [isActivating, setIsActivating] = useState(false)
+  // 13+ (or a school with the pillars off): each chip names the task's
+  // diploma subject in the brand colour, or is left out; never the pillar.
+  const hidePillars = useHidePillars()
+  const chipFor = (task) => (hidePillars
+    ? { name: leadSubjectName(task), color: BRAND_PURPLE }
+    : getPillarData(task.pillar || 'wellness'))
 
   // Toggle task selection
   const toggleTaskSelection = (taskId) => {
@@ -187,7 +195,7 @@ export const SuggestedTasksModal = ({
         {availableTasks.length > 0 && (
           <div className="space-y-3">
             {availableTasks.map((task) => {
-              const pillarData = getPillarData(task.pillar || 'wellness')
+              const pillarData = chipFor(task)
               const isSelected = selectedTaskIds.has(task.id)
 
               return (
@@ -219,12 +227,14 @@ export const SuggestedTasksModal = ({
                       <div className="flex items-start justify-between gap-2">
                         <p className="font-semibold text-gray-900">{task.title}</p>
                         <div className="flex items-center gap-2 flex-shrink-0">
-                          <span
-                            className="text-xs font-medium px-2 py-0.5 rounded-full text-white"
-                            style={{ backgroundColor: pillarData.color }}
-                          >
-                            {pillarData.name}
-                          </span>
+                          {pillarData.name && (
+                            <span
+                              className="text-xs font-medium px-2 py-0.5 rounded-full text-white"
+                              style={{ backgroundColor: pillarData.color }}
+                            >
+                              {pillarData.name}
+                            </span>
+                          )}
                           {task.xp_value && (
                             <span className="text-xs font-semibold text-optio-purple whitespace-nowrap">
                               +{task.xp_value} XP
@@ -252,7 +262,7 @@ export const SuggestedTasksModal = ({
             </h4>
             <div className="space-y-2">
               {completedTasks.map((task) => {
-                const pillarData = getPillarData(task.pillar || 'wellness')
+                const pillarData = chipFor(task)
                 return (
                   <div
                     key={task.id}
@@ -264,12 +274,14 @@ export const SuggestedTasksModal = ({
                         <div className="flex items-start justify-between gap-2">
                           <p className="font-medium text-gray-900 text-sm">{task.title}</p>
                           <div className="flex items-center gap-2 flex-shrink-0">
-                            <span
-                              className="text-[10px] font-medium px-1.5 py-0.5 rounded-full text-white"
-                              style={{ backgroundColor: pillarData.color }}
-                            >
-                              {pillarData.name}
-                            </span>
+                            {pillarData.name && (
+                              <span
+                                className="text-[10px] font-medium px-1.5 py-0.5 rounded-full text-white"
+                                style={{ backgroundColor: pillarData.color }}
+                              >
+                                {pillarData.name}
+                              </span>
+                            )}
                             {task.xp_value && (
                               <span className="text-[10px] font-semibold text-green-600 whitespace-nowrap">
                                 +{task.xp_value} XP earned

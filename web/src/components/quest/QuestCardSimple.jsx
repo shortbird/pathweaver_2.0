@@ -92,8 +92,9 @@ const QuestCardSimple = ({ quest, ownOnly = false }) => {
     } catch { /* hook surfaces its own error toast */ }
   };
 
-  // Determine quest state
-  const isCompleted = quest.completed_enrollment || (quest.progress && quest.progress.percentage === 100);
+  // Determine quest state. Only the enrollment says a quest is complete: 100%
+  // of tasks done just means the student is due to add their next one.
+  const isCompleted = Boolean(quest.completed_enrollment);
   const isInProgress = quest.user_enrollment && !isCompleted;
   const isNotStarted = !quest.user_enrollment;
 

@@ -6,6 +6,7 @@ import {
   CheckCircleIcon,
   ExclamationCircleIcon
 } from '@heroicons/react/24/outline';
+import { subjectTint } from '../../constants/subjects';
 
 // Subject display names
 const subjectDisplayNames = {
@@ -20,21 +21,6 @@ const subjectDisplayNames = {
   health: 'Health',
   social_studies: 'Social Studies',
   electives: 'Electives'
-};
-
-// Subject colors for tags
-const subjectColors = {
-  science: 'bg-blue-100 text-blue-700',
-  math: 'bg-indigo-100 text-indigo-700',
-  language_arts: 'bg-amber-100 text-amber-700',
-  fine_arts: 'bg-pink-100 text-pink-700',
-  digital_literacy: 'bg-cyan-100 text-cyan-700',
-  pe: 'bg-green-100 text-green-700',
-  health: 'bg-teal-100 text-teal-700',
-  social_studies: 'bg-orange-100 text-orange-700',
-  financial_literacy: 'bg-purple-100 text-purple-700',
-  cte: 'bg-slate-100 text-slate-700',
-  electives: 'bg-gray-100 text-gray-700'
 };
 
 const InterestChip = ({ interest, isSelected, onToggle, disabled }) => {
@@ -71,7 +57,8 @@ const TaskCard = ({ task, index }) => {
         {task.subjects?.map((subject) => (
           <span
             key={subject}
-            className={`text-xs px-2 py-0.5 rounded-full font-medium ${subjectColors[subject] || 'bg-gray-100 text-gray-700'}`}
+            className="text-xs px-2 py-0.5 rounded-full font-medium"
+            style={subjectTint(subject)}
           >
             {subjectDisplayNames[subject] || subject}
           </span>

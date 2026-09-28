@@ -64,7 +64,6 @@ def enrolled_quest_supabase():
                 'header_image_url': None,
                 'image_url': None,
                 'quest_type': 'optio',
-                'approach_examples': [],
                 'is_active': True,
                 'organization_id': None,
                 # A catalog quest: the direct-link rule

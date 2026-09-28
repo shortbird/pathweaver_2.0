@@ -362,7 +362,10 @@ describe('Sidebar — the teaching section', () => {
 })
 
 describe('Sidebar — the observer feed', () => {
-  const observerFeed = () => screen.queryByRole('link', { name: /^student feed$/i })
+  // Found by where it goes, not its label: it was "Student Feed" until
+  // 2026-09-28 and is "Feed" now.
+  const observerFeed = () =>
+    screen.queryAllByRole('link').find((l) => l.getAttribute('href') === '/observer/feed') ?? null
 
   it.each([
     ['a parent', { id: 'p1', role: 'parent', email: 'p@example.com' }],

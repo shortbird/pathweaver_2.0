@@ -19,6 +19,7 @@ from utils.auth.decorators import require_auth
 from utils.auth.relationships import student_scope
 from utils.guardian_scope import GuardianAccessError, resolve_student_scope
 from utils.api_response_v1 import success_response, error_response
+from utils.class_credits import CLASS_CREDIT_VALUE, CLASS_TARGET_XP, is_own_curriculum
 from utils.school_subjects import SCHOOL_SUBJECTS, get_display_name
 from utils.logger import get_logger
 
@@ -26,7 +27,6 @@ logger = get_logger(__name__)
 
 bp = Blueprint('quest_classes', __name__, url_prefix='/api/quests')
 
-CLASS_TARGET_XP = 1000
 
 
 @bp.route('/class-task-suggestions', methods=['POST'])
@@ -141,12 +141,21 @@ def list_my_classes(user_id: str):
                 continue
             if q.get('quest_type') != 'class' or not q.get('is_active'):
                 continue
+            # Own-curriculum courses live on Courses and Credits, where their
+            # check-ins are; they have no class review to show progress toward.
+            if is_own_curriculum(q):
+                continue
             seen.add(qid)
 
             subject = q.get('transcript_subject')
             progress = _compute_class_progress(supabase, qid, user_id, subject) if subject else {'approved_xp': 0}
             approved_xp = progress['approved_xp']
-            credits_earned = approved_xp // CLASS_TARGET_XP
+            # A class is worth CLASS_CREDIT_VALUE once a reviewer awards it, and
+            # nothing before. This used to be approved_xp // 1000, which printed
+            # "1 credit earned" on a class the transcript counts as half of one
+            # and had not reviewed yet.
+            awarded = q.get('class_review_status') == 'credit_awarded'
+            credits_earned = CLASS_CREDIT_VALUE if awarded else 0
             classes.append({
                 'quest_id': qid,
                 'title': q.get('title'),
@@ -159,7 +168,7 @@ def list_my_classes(user_id: str):
                 'target_xp': CLASS_TARGET_XP,
                 'approved_xp': approved_xp,
                 'credits_earned': credits_earned,
-                'xp_toward_next_credit': approved_xp - (credits_earned * CLASS_TARGET_XP),
+                'xp_toward_next_credit': min(approved_xp, CLASS_TARGET_XP),
             })
 
         return success_response(data={'classes': classes})
@@ -185,7 +194,7 @@ def get_class_progress(user_id: str, quest_id: str):
         # admin client justified: quest fetch feeds the owner-or-superadmin authz check itself; superadmin path then reads the OWNER's completions/tasks (cross-user)
         supabase = get_supabase_admin_client()
         quest = supabase.table('quests') \
-            .select('id, title, quest_type, transcript_subject, class_review_status, class_review_submitted_at, class_review_notes, created_by') \
+            .select('id, title, quest_type, transcript_subject, class_review_status, class_review_submitted_at, class_review_notes, created_by, metadata') \
             .eq('id', quest_id) \
             .single() \
             .execute()
@@ -224,7 +233,15 @@ def get_class_progress(user_id: str, quest_id: str):
             'review_status': q.get('class_review_status'),
             'review_submitted_at': q.get('class_review_submitted_at'),
             'review_notes': q.get('class_review_notes'),
-            'can_submit_for_review': approved_xp >= CLASS_TARGET_XP and q.get('class_review_status') in (None, 'rejected'),
+            # An own-curriculum course earns its credit check-in by check-in
+            # through credit review; a whole-class review on top would award
+            # a second half credit for the same work.
+            'course_format': (q.get('metadata') or {}).get('course_format'),
+            'can_submit_for_review': (
+                not is_own_curriculum(q)
+                and approved_xp >= CLASS_TARGET_XP
+                and q.get('class_review_status') in (None, 'rejected')
+            ),
         })
 
     except GuardianAccessError as e:
@@ -249,7 +266,7 @@ def submit_class_for_review(user_id: str, quest_id: str):
         # admin client justified: quest fetch precedes the created_by ownership check, then writes review-status columns on the quests row (no student RLS write path on quests)
         supabase = get_supabase_admin_client()
         quest = supabase.table('quests') \
-            .select('id, title, quest_type, transcript_subject, class_review_status, created_by') \
+            .select('id, title, quest_type, transcript_subject, class_review_status, created_by, metadata') \
             .eq('id', quest_id) \
             .single() \
             .execute()
@@ -260,6 +277,12 @@ def submit_class_for_review(user_id: str, quest_id: str):
             return error_response(code='NOT_A_CLASS', message='Quest is not a class', status=400)
         if q.get('created_by') != user_id:
             return error_response(code='FORBIDDEN', message='Not your class', status=403)
+        if is_own_curriculum(q):
+            return error_response(
+                code='OWN_CURRICULUM_COURSE',
+                message='This course earns credit through its check-ins, not a class review.',
+                status=409,
+            )
         if q.get('class_review_status') == 'submitted_for_review':
             return error_response(code='ALREADY_SUBMITTED', message='Already awaiting review', status=409)
 

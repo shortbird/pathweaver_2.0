@@ -32,6 +32,9 @@ import { MemoryRouter, Routes, Route } from 'react-router-dom'
 const mockNavigate = vi.fn()
 let authState = {}
 
+// useHidePillars reads AuthContext itself, which the AuthContext mock
+// here does not export. Pillars shown, as for a learner under 13.
+vi.mock('../../hooks/useHidePillars', () => ({ default: () => false }))
 vi.mock('../../contexts/AuthContext', () => ({
   useAuth: () => authState
 }))

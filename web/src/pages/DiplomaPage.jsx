@@ -18,6 +18,7 @@ import {
 } from '../utils/creditRequirements';
 import PublicNoticeBanner from '../components/diploma/PublicNoticeBanner';
 import { canonicalUrl as buildCanonicalUrl } from '../utils/canonicalUrl';
+import useHidePillars from '../hooks/useHidePillars';
 
 
 
@@ -36,6 +37,9 @@ const DiplomaPage = () => {
   const { slug, userId } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
+  // The pick's pillar line is dropped for a 13+ student (or a school with the
+  // pillars off). Reads the viewer, so a public visitor sees it unchanged.
+  const hidePillars = useHidePillars();
 
   // Check if navigated from org progress tab
   const fromOrgProgress = location.state?.from === 'org-progress';
@@ -905,7 +909,7 @@ const DiplomaPage = () => {
                         <p className="text-sm text-gray-600 line-clamp-3 mb-2">{pick.evidence_snippet}</p>
                       )}
                       <div className="flex items-center gap-3 text-xs text-gray-400">
-                        {pick.pillar && <span className="capitalize">{pick.pillar}</span>}
+                        {!hidePillars && pick.pillar && <span className="capitalize">{pick.pillar}</span>}
                         {pick.completed_at && (
                           <span>{new Date(pick.completed_at).toLocaleDateString()}</span>
                         )}
