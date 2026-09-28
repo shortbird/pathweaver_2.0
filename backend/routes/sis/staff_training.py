@@ -1210,9 +1210,9 @@ def publish_training(user_id, training_id):
 @require_role(*ADMIN_ROLES)
 def remove_training(user_id, training_id):
     """Take a quest off the training catalog (the quest itself is untouched,
-    and so is any progress teachers already made on it), or with ?kind=link
-    take a link off it (its done-marks go with it: there is nothing left to
-    have done)."""
+    and so is any progress made on it; people who never started it lose it,
+    see retire_unstarted_enrollments, ticket bd853b5d), or with ?kind=link take
+    a link off it (its done-marks go with it: nothing is left to have done)."""
     org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
@@ -1224,12 +1224,13 @@ def remove_training(user_id, training_id):
             return jsonify({'success': False, 'error': 'Not found'}), 404
         sis_training_service.delete_link(link)
         return jsonify({'success': True})
-    owned = (_admin().table('sis_staff_training').select('id, organization_id')
+    owned = (_admin().table('sis_staff_training').select('id, organization_id, quest_id')
              .eq('id', training_id).limit(1).execute()).data
     if not owned or owned[0].get('organization_id') != org_id:
         return jsonify({'success': False, 'error': 'Not found'}), 404
     _admin().table('sis_staff_training').delete().eq('id', training_id).execute()
-    return jsonify({'success': True})
+    removed = sis_training_service.retire_unstarted_enrollments(org_id, owned[0].get('quest_id'))
+    return jsonify({'success': True, 'unassigned': removed})
 
 
 # ── Doing a link ──────────────────────────────────────────────────────────────

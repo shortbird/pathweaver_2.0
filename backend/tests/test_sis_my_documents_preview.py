@@ -83,7 +83,12 @@ def _as(client_mock, *, is_admin=True, sees_hr=True, org_role='org_admin'):
          patch('services.sis_secure_docs_service._admin', return_value=client_mock), \
          patch('services.sis_service.resolve_org_id', return_value=ORG), \
          patch('services.sis_service.caller_is_admin', return_value=is_admin), \
-         patch('services.sis_service.caller_sees_hr', return_value=sees_hr):
+         patch('services.sis_service.caller_sees_hr', return_value=sees_hr), \
+         patch('services.sis_onboarding_service.checklist_documents', return_value=[]):
+        # My Documents also lists the owner's own checklist uploads since
+        # ticket 21e770cc; these tests are about the secure-store owner filter,
+        # so that second source is empty here (test_sis_my_documents_checklist
+        # covers it).
         yield
 
 

@@ -17,6 +17,7 @@ from utils.logger import get_logger
 from utils import class_membership as membership
 from services import sis_service
 from services import sis_staff_service as staff
+from services import sis_onboarding_service
 from routes.sis import portal_views
 from services import sis_supply_budget_service as supply_budget
 from database import get_supabase_admin_client
@@ -427,6 +428,14 @@ def my_documents(user_id):
     Everything else filed about a staff member — background checks above all —
     stays invisible here. The org filter plus the owner filter is the whole
     access rule; there is no id-based lookup that could be walked.
+
+    "Uploaded themselves" includes what they attached to their own checklist
+    items. Those live on the assignment, not in the secure store, so a teacher
+    who sent in her I-9, W-4 and background check through her tasks saw none of
+    them here while the office's cabinet showed all five (iCreate, 2026-09-28,
+    ticket 21e770cc). Only real uploads come across: an item the OFFICE linked
+    to a store document carries no path, and that document's own sharing flag
+    decides whether the owner sees it.
     """
     org_id, err = sis_service.org_or_error(user_id)
     if err:
@@ -441,9 +450,19 @@ def my_documents(user_id):
             .eq('organization_id', org_id).eq('owner_user_id', owner)
             .eq('shared_with_owner', True)
             .order('created_at', desc=True).execute()).data or []
+    uploads = [d for d in sis_onboarding_service.checklist_documents(org_id, user_id=owner)
+               if d.get('owner_user_id') == owner and d.get('storage_path')]
+    for d in uploads:
+        # The bucket path is the server's business; the page opens by id.
+        d.pop('storage_path', None)
+    # One list, newest first; the two sources write timestamps in different
+    # shapes ('T' vs space), as in secure_documents.list_secure_documents.
+    merged = sorted(rows + uploads,
+                    key=lambda r: (r.get('created_at') or '').replace(' ', 'T'),
+                    reverse=True)
     # So the page can say whose documents these are rather than calling somebody
     # else's contract "yours".
-    return jsonify({'success': True, 'documents': rows,
+    return jsonify({'success': True, 'documents': merged,
                     'previewing': owner != user_id})
 
 
@@ -537,4 +556,7 @@ def my_document_url(user_id, doc_id):
     owner, err = _documents_target(user_id, org_id)
     if err:
         return err
+    if doc_id.startswith('checklist:'):
+        # The owner's own checklist upload, listed by my_documents (ticket 21e770cc).
+        return portal_views.checklist_document_url(org_id, owner, doc_id)
     return portal_views.office_document_url(org_id, owner, doc_id)

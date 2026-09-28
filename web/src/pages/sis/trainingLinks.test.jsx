@@ -32,7 +32,8 @@ vi.mock('./useSisOrg', () => ({
 vi.mock('../../contexts/AuthContext', () => ({
   useAuth: () => ({ user: { id: 'u-admin', role: 'org_admin' } }),
 }))
-vi.mock('../../contexts/ConfirmContext', () => ({ useConfirm: () => async () => true }))
+const { confirmSpy } = vi.hoisted(() => ({ confirmSpy: vi.fn(async () => true) }))
+vi.mock('../../contexts/ConfirmContext', () => ({ useConfirm: () => confirmSpy }))
 vi.mock('./sisRole', () => ({ isSisAdmin: () => true }))
 vi.mock('../../utils/appSurface', () => ({ switchSurfaceInApp: vi.fn() }))
 
@@ -235,5 +236,20 @@ describe('editing a link', () => {
     fireEvent.click(screen.getByRole('button', { name: /remove whole brain teaching/i }))
     await waitFor(() => expect(api.delete).toHaveBeenCalledWith(
       '/api/sis/training/l-1?organization_id=org-1&kind=link'))
+  })
+
+  it('warns that removing a quest takes it off accounts that never started it', async () => {
+    // Ticket bd853b5d (Hallee, iCreate): "Hallee still has the 'Icreate vision
+    // & philosophy Teacher quest' in her learning app, but that's been deleted
+    // from the training section." Removal now ends unstarted enrollments, so
+    // the confirm question says so, and still promises progress is kept.
+    render(<TrainingPanel />)
+    await screen.findByText('Orientation quest')
+    fireEvent.click(screen.getByRole('button', { name: /remove orientation quest/i }))
+    await waitFor(() => expect(api.delete).toHaveBeenCalledWith(
+      '/api/sis/training/tr-1?organization_id=org-1'))
+    const question = confirmSpy.mock.calls.at(-1)[0]
+    expect(question).toMatch(/anyone who has not started it will no longer see it/i)
+    expect(question).toMatch(/anyone who has made progress keeps it/i)
   })
 })

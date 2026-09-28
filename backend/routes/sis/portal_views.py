@@ -144,6 +144,35 @@ def office_document_url(org_id, owner_user_id, doc_id):
     return jsonify({'success': True, 'url': url})
 
 
+def checklist_document_url(org_id, owner_user_id, doc_id):
+    """Open one of this person's own checklist uploads by the
+    `checklist:<assignment>:<item>:<n>` id My Documents lists it under
+    (ticket 21e770cc: a teacher's I-9 and background check showed in the
+    office's cabinet and not in her own portal).
+
+    The id is only looked up among the owner's OWN checklists, so another
+    person's -- or another org's, or a malformed id -- is the same 404, and
+    nothing about which ids exist leaks. A link to a secure-store document has
+    no path here; its own sharing rule decides who opens it."""
+    doc = next((d for d in onboarding.checklist_documents(org_id, user_id=owner_user_id)
+                if d['id'] == doc_id), None) if owner_user_id else None
+    bucket = onboarding.CHECKLIST_BUCKETS.get(doc.get('audience')) if doc else None
+    if (not doc or doc.get('owner_user_id') != owner_user_id
+            or not doc.get('storage_path') or not bucket):
+        return jsonify({'success': False, 'error': 'Document not found'}), 404
+    try:
+        # admin client justified: signed URL on a PRIVATE checklist bucket; the file was found among the owner's own checklists in this org
+        signed = (get_supabase_admin_client().storage.from_(bucket)
+                  .create_signed_url(doc['storage_path'], 3600))
+        url = signed.get('signedURL') or signed.get('signedUrl')
+    except Exception as e:  # noqa: BLE001
+        logger.error(f'checklist document url failed for {doc_id}: {e}')
+        url = None
+    if not url:
+        return jsonify({'success': False, 'error': 'Could not open the document'}), 500
+    return jsonify({'success': True, 'url': url})
+
+
 # ── Tasks ────────────────────────────────────────────────────────────
 
 def list_tasks(org_id, user_id, audience, *, include_done=False):

@@ -40,6 +40,7 @@ from utils.admin_client import admin_client as _admin
 from utils.sis_roles import clean_visible_roles
 from utils.validation import validate_uuid
 from repositories import training_link_repository
+from repositories import training_enrollment_repository
 
 logger = logging.getLogger(__name__)
 
@@ -367,6 +368,45 @@ def delete_link(link):
     """Take a link off the catalog. Its acks go with it (the FK cascades),
     which is right: there is nothing left to have done."""
     _repo().delete_link(link['id'])
+
+
+def retire_unstarted_enrollments(org_id: str, quest_id: str) -> int:
+    """Take a quest that just left the training catalog off the accounts of the
+    people in this org who never started it. Returns how many were ended.
+
+    Removing a training only deleted the catalog row, so the quest stayed on
+    every enrolled account: iCreate removed "Icreate vision & philosophy
+    Teacher quest" from training and a teacher still had it in her learning
+    app (ticket bd853b5d). Anyone with progress keeps it exactly as it is --
+    a completed task or a finished quest is their work, and the catalog
+    promise is "progress untouched". Everyone else's enrollment is set down
+    (is_active false), which is what ending a quest does everywhere else.
+
+    Scoped to this org's people, so the same quest enrolled somewhere else
+    (another school, a platform learner) is never touched. Nothing happens
+    while another catalog row in the org still offers the same quest (say the
+    families' copy of a staff training).
+    """
+    if not org_id or not quest_id:
+        return 0
+    repo = training_enrollment_repository.TrainingEnrollmentRepository(client=_admin())
+    if repo.quest_still_listed(org_id, quest_id):
+        return 0
+    enrollments = [e for e in repo.active_enrollments(quest_id)
+                   if e.get('user_id') and not e.get('completed_at')]
+    if not enrollments:
+        return 0
+    in_org = repo.members(org_id, {e['user_id'] for e in enrollments})
+    started = repo.users_with_completions(quest_id, in_org)
+    ids = [e['id'] for e in enrollments
+           if e['user_id'] in in_org and e['user_id'] not in started]
+    if not ids:
+        return 0
+    from utils.timestamps import now_iso
+    repo.set_down(ids, now_iso())
+    logger.info(f"Training quest {quest_id} removed in org {org_id}: "
+                f"ended {len(ids)} unstarted enrollment(s)")
+    return len(ids)
 
 
 def set_link_done(link, user_id, done):

@@ -1002,7 +1002,8 @@ def signatures_by_document(org_id: str) -> Dict[str, Dict[str, Any]]:
     return out
 
 
-def checklist_documents(org_id: str) -> List[Dict[str, Any]]:
+def checklist_documents(org_id: str,
+                        user_id: Optional[str] = None) -> List[Dict[str, Any]]:
     """Every checklist attachment in the org, shaped like a secure-document row.
 
     The admin's filing cabinet is /secure-documents, but a checklist upload
@@ -1014,11 +1015,18 @@ def checklist_documents(org_id: str) -> List[Dict[str, Any]]:
 
     These rows are read-only in the store — no sis_secure_documents id to
     rename, delete or share — which is what `source: 'checklist'` tells the
-    frontend. `audience` picks the bucket when the file is opened."""
-    rows = fetch_all_rows(lambda: (
-        _admin().table('sis_onboarding_assignments')
-        .select('id, user_id, audience, items')
-        .eq('organization_id', org_id)))
+    frontend. `audience` picks the bucket when the file is opened.
+
+    `user_id` narrows the read to one person's own checklists — the teacher's
+    My Documents, which listed only the secure store and so missed the I-9, W-4
+    and background check a teacher had uploaded to her tasks (iCreate,
+    2026-09-28, ticket 21e770cc)."""
+    def _query():
+        q = (_admin().table('sis_onboarding_assignments')
+             .select('id, user_id, audience, items')
+             .eq('organization_id', org_id))
+        return q.eq('user_id', user_id) if user_id else q
+    rows = fetch_all_rows(_query)
     out: List[Dict[str, Any]] = []
     for r in rows:
         audience = _clean_audience(r.get('audience'))

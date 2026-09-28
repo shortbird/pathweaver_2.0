@@ -150,7 +150,10 @@ const TrainingPanel = () => {
   const remove = async (t) => {
     const question = t.kind === 'link'
       ? `Remove "${t.title}" from training?`
-      : `Remove "${t.title}" from training? The quest itself is kept.`
+      // Removing a quest now takes it off the accounts of people who never
+      // started it (ticket bd853b5d), so the question has to say so.
+      : `Remove "${t.title}" from training? Anyone who has not started it will no longer see it. `
+        + 'Anyone who has made progress keeps it, and the quest itself is kept.'
     if (!(await confirm(question))) return
     try {
       if (t.kind === 'link') await deleteLink.mutateAsync(t.id)
