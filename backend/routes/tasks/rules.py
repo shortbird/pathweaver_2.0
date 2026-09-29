@@ -9,6 +9,8 @@ Academy child was shown the parent's rules. This asks the server, which already
 resolves the child (services/task_rules.py, utils/xp_permissions.py).
 """
 
+import uuid
+
 from flask import jsonify, request
 
 from repositories.task_repository import TaskRepository
@@ -26,6 +28,14 @@ from utils.xp_permissions import (
     is_xp_guide,
     xp_locked_for_learner,
 )
+
+
+def _is_uuid(value: str) -> bool:
+    try:
+        uuid.UUID(value)
+    except ValueError:
+        return False
+    return True
 
 
 @bp.route('/authoring-rules', methods=['GET'])
@@ -59,7 +69,12 @@ def authoring_rules(user_id: str):
 
     task_id = (request.args.get('task_id') or '').strip()
     if task_id:
-        if not TaskRepository().is_owned_by(task_id, user_id):
+        # Not every "task" on the quest page is a task row: a moment attached
+        # to the quest is shown as a virtual task with id "moment-<uuid>"
+        # (routes/quest/detail.py). Handed to the uuid column below, Postgres
+        # refused it with 22P02 and this answered 500 (Sentry, 2026-09-28). No
+        # task row can have an id that is not a uuid, so it is simply not found.
+        if not _is_uuid(task_id) or not TaskRepository().is_owned_by(task_id, user_id):
             return jsonify({'success': False, 'error': 'Task not found'}), 404
         rules['criteria_locked'] = (not guide) and criteria_locked(task_id)
 

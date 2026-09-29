@@ -50,14 +50,21 @@ const TaskDetailsSection = ({ canUseTaskGeneration, isDescriptionExpanded, pilla
       </div>
       {/* Action buttons - right aligned */}
       <div className="flex-shrink-0 flex items-center gap-2">
-        <button
-          onClick={() => setIsEditModalOpen(true)}
-          className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
-          title={pillarsVisible ? 'Edit pillar, XP, and diploma credit' : 'Edit XP and diploma credit'}
-        >
-          <PencilSquareIcon className="w-4 h-4" />
-          Edit
-        </button>
+        {/* A moment attached to the quest arrives as a virtual task
+            ("moment-<uuid>") with no task row behind it, so there is nothing
+            for the task editor to edit; opening it asked the server for the
+            rules of a task that does not exist and got a 500 (Sentry,
+            2026-09-28). Mobile has always hidden it (QuestDetailView). */}
+        {!task.is_moment && (
+          <button
+            onClick={() => setIsEditModalOpen(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+            title={pillarsVisible ? 'Edit pillar, XP, and diploma credit' : 'Edit XP and diploma credit'}
+          >
+            <PencilSquareIcon className="w-4 h-4" />
+            Edit
+          </button>
+        )}
         {canUseTaskGeneration && !task.is_completed && (
           <button
             onClick={() => setIsStepsModalOpen(true)}
