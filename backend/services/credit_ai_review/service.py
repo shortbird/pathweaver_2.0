@@ -29,7 +29,7 @@ from services.base_ai_service import (
 from utils.error_reporting import report_error
 from utils.logger import get_logger
 
-from services.credit_ai_review import evidence_loader, prompt as prompt_mod, store
+from services.credit_ai_review import calibration, evidence_loader, prompt as prompt_mod, store
 from services.credit_ai_review.normalize import normalize_review, skipped_review
 from services.credit_ai_review.schema import RESPONSE_SCHEMA
 
@@ -187,7 +187,8 @@ class CreditAIReviewService(BaseAIService):
             quest=context['quest'], task=context['task'],
             criteria=criteria, criteria_source=criteria_source,
             requested_xp=context['requested_xp'], subjects=context['subjects'],
-            load=load, resubmission=context.get('resubmission'))
+            load=load, resubmission=context.get('resubmission'),
+            calibration=calibration.load())
         parts = prompt_mod.build_parts(text, load)
 
         # Only passed when set: the base default is Config.AI_MAX_RETRIES, and

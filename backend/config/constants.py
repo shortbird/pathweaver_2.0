@@ -158,6 +158,12 @@ MAX_QUEST_XP = 1000
 # the smallest task we will create is also the smallest task we will pay for.
 MIN_TASK_XP = 25
 
+# The only XP values a task may be worth, smallest first. The task creators
+# offer these sizes, the AI sizes to them, and since 2026-09-29 a credit
+# reviewer can only award one of them (routes/credit_dashboard/reviewer_xp.py).
+# The web grader holds the same list (components/credit-dashboard/xpSizes.js).
+TASK_XP_SIZES = (25, 50, 75, 100, 150, 200)
+
 # Quest Validation
 MIN_QUEST_TITLE_LENGTH = 3
 MAX_QUEST_TITLE_LENGTH = 200

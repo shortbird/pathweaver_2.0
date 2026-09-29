@@ -207,10 +207,37 @@ class TestXPOnlyEverGoesDown:
         assert xp['recommended'] == 25
         assert xp['changed'] is False
 
-    def test_it_rounds_to_a_multiple_of_five(self):
-        """The subject split rounds to fives; an odd total lands somewhere nobody chose."""
+    def test_a_lower_figure_snaps_to_a_task_size(self):
+        """A reviewer can only award 25/50/75/100/150/200, so "Apply 113 XP"
+        would be a button that fails. Since 2026-09-29."""
         raw = _answer(xp={'recommended': 113, 'proportionate': False, 'rationale': 'x'})
-        assert _normalize(raw, requested_xp=150)['xp']['recommended'] % 5 == 0
+        assert _normalize(raw, requested_xp=150)['xp']['recommended'] == 100
+
+    def test_snapping_never_rounds_past_the_claim(self):
+        raw = _answer(xp={'recommended': 118, 'proportionate': False, 'rationale': 'x'})
+        assert _normalize(raw, requested_xp=120)['xp']['recommended'] == 100
+
+    def test_a_legacy_claim_that_fits_stays_as_claimed(self):
+        raw = _answer(xp={'recommended': 120, 'proportionate': True, 'rationale': 'x'})
+        xp = _normalize(raw, requested_xp=120)['xp']
+        assert xp['recommended'] == 120
+        assert xp['changed'] is False
+
+
+@pytest.mark.unit
+class TestSubjectsAndWork:
+    def test_the_ai_split_is_kept_as_percentages(self):
+        raw = _answer(subjects=[{'subject': 'language_arts', 'percent': 60},
+                                {'subject': 'social_studies', 'percent': 40}])
+        assert _normalize(raw)['subjects'] == {'language_arts': 60, 'social_studies': 40}
+
+    def test_an_unknown_subject_is_dropped(self):
+        raw = _answer(subjects=[{'subject': 'wizardry', 'percent': 100}])
+        assert _normalize(raw)['subjects'] is None
+
+    def test_the_work_line_is_one_tidy_line(self):
+        raw = _answer(work='  a two-sentence\ncomment  ')
+        assert _normalize(raw)['work'] == 'a two-sentence comment'
 
     def test_a_missing_figure_leaves_the_request_standing(self):
         out = _normalize(_answer(xp={'rationale': 'unsure'}), requested_xp=150)

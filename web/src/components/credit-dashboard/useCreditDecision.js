@@ -4,6 +4,7 @@ import api from '../../services/api'
 import { useConfirm } from '../../contexts/ConfirmContext'
 import { latestAi, rescaleSubjects, sumSubjects } from './aiReview'
 import { clearDraft, readDraft } from './reviewDraft'
+import { isXpSize, XP_SIZES_TEXT } from './xpSizes'
 
 export const XP_REASON_DEFAULT = 'Adjusted during credit review'
 // The platform floor (backend config.constants.MIN_TASK_XP). The server refuses
@@ -141,6 +142,19 @@ export default function useCreditDecision({
    * Losing typed feedback to a stray click is a small thing that costs a
    * reviewer the sentence they were mid-way through writing.
    */
+  /**
+   * Take the AI's subject split, at the XP currently being awarded.
+   *
+   * Through updateSubjects, so it becomes the basis the XP box rescales from,
+   * exactly as a hand edit would.
+   */
+  const aiSubjects = aiReview?.subjects || null
+  const applyAiSubjects = useCallback(() => {
+    if (!aiSubjects) return
+    const next = rescaleSubjects(aiSubjects, xp ?? claimedXp)
+    if (Object.keys(next).length) updateSubjects(next)
+  }, [aiSubjects, xp, claimedXp, updateSubjects])
+
   const applyDraft = async (draft, { silent = false } = {}) => {
     if (!draft) {
       if (!silent) toast.error('No suggestion returned')
@@ -203,6 +217,11 @@ export default function useCreditDecision({
     }
     if (xpIn != null && xpIn < MIN_XP) {
       toast.error(`XP cannot go below ${MIN_XP}.`)
+      return null
+    }
+    if (xpIn != null && canApplyXp && !isXpSize(xpIn)) {
+      // The server refuses an award off the task sizes (reviewer_xp.py).
+      toast.error(`Award ${XP_SIZES_TEXT} XP. The subjects add up to ${xpIn}.`)
       return null
     }
 
@@ -380,7 +399,7 @@ export default function useCreditDecision({
     // derived
     isSuperadmin, canOrgAdminAct, canAdvisorAct, canAct,
     canEditSubjects: canAct, canApplyXp,
-    ai, aiReview, showAi, aiXp, claimedXp,
+    ai, aiReview, showAi, aiXp, claimedXp, aiSubjects, applyAiSubjects,
     // actions
     applyDraft, suggestFeedback, approve, growThis, acceptAi,
   }

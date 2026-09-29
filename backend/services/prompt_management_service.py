@@ -46,6 +46,7 @@ from prompts.components import (
     FORBIDDEN_WORDS,
     ENCOURAGED_WORDS,
 )
+from prompts.credit_review_xp import CREDIT_REVIEW_XP_GUIDE
 
 logger = get_logger(__name__)
 
@@ -196,10 +197,19 @@ class PromptManagementService(BaseService):
             'description': 'Debate action type for lesson chat',
             'is_editable': True
         },
+
+        # Credit review. Read on every AI credit review
+        # (services/credit_ai_review/calibration.py); edited in the grader's Tune AI XP popup.
+        'CREDIT_REVIEW_XP_GUIDE': {
+            'content': CREDIT_REVIEW_XP_GUIDE,
+            'category': 'credit_review',
+            'description': 'The XP scale the AI credit reviewer sizes submitted work by',
+            'is_editable': True
+        },
     }
 
     # Categories for grouping in UI
-    CATEGORIES = ['core', 'tutor', 'lesson', 'quest']
+    CATEGORIES = ['core', 'tutor', 'lesson', 'quest', 'credit_review']
 
     def __init__(self):
         """Initialize the prompt management service."""
@@ -300,11 +310,14 @@ class PromptManagementService(BaseService):
             response = supabase.table('ai_prompt_components')\
                 .select('*')\
                 .eq('name', name)\
-                .maybeSingle()\
+                .limit(1)\
                 .execute()
 
+            # This read was `.maybeSingle()` -- the JavaScript client's name.
+            # supabase-py has no such method, so every read raised, the except
+            # below swallowed it, and an edited component was never used.
             if response.data:
-                component = response.data
+                component = response.data[0]
                 component['source'] = 'database'
 
                 # Check if modified from default

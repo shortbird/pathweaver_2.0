@@ -179,6 +179,8 @@ export const queryKeys = {
     users: (filters) => [...queryKeys.admin.all, 'users', filters],
     quests: (filters) => [...queryKeys.admin.all, 'quests', filters],
     analytics: (timeRange) => [...queryKeys.admin.all, 'analytics', timeRange],
+    // The AI credit reviewer's XP scale and worked examples (the grader's Tune AI XP popup).
+    xpCalibration: () => [...queryKeys.admin.all, 'xp-calibration'],
     // The ticket tracker (/admin/tickets). `tickets.all` is the invalidation
     // root: an edit to one ticket moves it between tabs and changes the counts.
     tickets: {

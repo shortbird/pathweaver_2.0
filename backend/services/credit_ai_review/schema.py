@@ -13,6 +13,8 @@ The schema is a floor, not a guarantee. Everything here is still checked in
 normalize.py, because a well-formed answer can still be a wrong one.
 """
 
+from generated.subjects import SUBJECT_KEYS
+
 RESPONSE_SCHEMA = {
     'type': 'OBJECT',
     'properties': {
@@ -70,6 +72,25 @@ RESPONSE_SCHEMA = {
             },
             'required': ['recommended', 'proportionate', 'rationale'],
         },
+        'subjects': {
+            'type': 'ARRAY',
+            'description': 'The diploma subjects this work earns credit in, as '
+                           'percentages that sum to 100.',
+            'items': {
+                'type': 'OBJECT',
+                'properties': {
+                    'subject': {'type': 'STRING', 'enum': list(SUBJECT_KEYS)},
+                    'percent': {'type': 'INTEGER'},
+                },
+                'required': ['subject', 'percent'],
+            },
+        },
+        'work': {
+            'type': 'STRING',
+            'description': 'One short line naming what the student actually '
+                           'submitted, with no names. E.g. "a two-sentence '
+                           'comment in an online discussion".',
+        },
         'feedback': {
             'type': 'OBJECT',
             'properties': {
@@ -92,7 +113,7 @@ RESPONSE_SCHEMA = {
         },
     },
     'required': ['criteria', 'recommendation', 'confidence', 'summary', 'xp',
-                 'feedback', 'concerns'],
+                 'subjects', 'work', 'feedback', 'concerns'],
 }
 
 # What the prompt shows as an example, and the only instruction available on the
@@ -106,6 +127,8 @@ JSON_EXAMPLE = """{
   "confidence": 0.0,
   "summary": "One short paragraph for the reviewer.",
   "xp": {"recommended": 0, "proportionate": true, "rationale": "One sentence."},
+  "subjects": [{"subject": "language_arts", "percent": 100}],
+  "work": "One short line naming what the student submitted.",
   "feedback": {
     "celebrate": "One or two short, friendly sentences, plain text.",
     "grow_this": "Three to five short sentences, one paragraph, plain text."

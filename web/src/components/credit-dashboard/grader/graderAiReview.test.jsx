@@ -128,6 +128,34 @@ describe('the AI card', () => {
     expect(screen.getByRole('button', { name: /Accept: send back/ })).toBeInTheDocument()
   })
 
+  it('offers the XP tuning popup and example saving to a superadmin', () => {
+    // Where the reviewer disagrees with the AI's XP is where they fix its scale.
+    renderGrader()
+    expect(screen.getByRole('button', { name: 'Tune AI XP' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Save as AI example' })).toBeInTheDocument()
+  })
+
+  it('shows the AI subject split and applies it at the XP being awarded', () => {
+    renderGrader({ ai: { status: 'complete', review: { ...REVIEW, subjects: { math: 100 } } } })
+    expect(screen.getByText(/AI subjects:/)).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Apply AI subjects' }))
+    expect(screen.getByLabelText('XP for math').value).toBe('200')
+    expect(screen.queryByLabelText('XP for science')).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Apply AI subjects' })).toBeNull()
+  })
+
+  it('offers no apply when the split already matches the AI', () => {
+    renderGrader({ ai: { status: 'complete', review: { ...REVIEW, subjects: { science: 100 } } } })
+    expect(screen.getByText(/AI subjects:/)).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Apply AI subjects' })).toBeNull()
+  })
+
+  it('offers no XP tuning to an org admin', () => {
+    renderGrader({ role: 'org_admin', status: 'pending_org_approval' })
+    expect(screen.queryByRole('button', { name: 'Tune AI XP' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Save as AI example' })).toBeNull()
+  })
+
   it('is not shown to an org admin', () => {
     // The AI's verdict is addressed to whoever makes the final call.
     renderGrader({ role: 'org_admin', status: 'pending_org_approval' })
@@ -382,13 +410,25 @@ describe('overriding the XP', () => {
     // approval; now editing a subject moves the number on the button.
     renderGrader()
     fireEvent.click(screen.getByText('Apply 100 XP'))
-    fireEvent.change(screen.getByLabelText('XP for science'), { target: { value: '160' } })
+    fireEvent.change(screen.getByLabelText('XP for science'), { target: { value: '150' } })
     expect(screen.queryByText(/needs/)).toBeNull()
-    fireEvent.click(screen.getByRole('button', { name: /^Approve at 160 XP/ }))
+    fireEvent.click(screen.getByRole('button', { name: /^Approve at 150 XP/ }))
     await waitFor(() => expect(approveBody()).toBeTruthy())
-    expect(approveBody().xp_value).toBe(160)
-    expect(approveBody().subjects).toEqual({ science: 160 })
+    expect(approveBody().xp_value).toBe(150)
+    expect(approveBody().subjects).toEqual({ science: 150 })
     expect(approveBody().xp_reason).toBe('Adjusted during credit review')
+  })
+
+  it('refuses a subject edit that leaves the award off the task sizes', async () => {
+    // Since 2026-09-29 only 25/50/75/100/150/200 can be awarded; the server
+    // refuses anything else, so the grader says so before the row leaves.
+    renderGrader()
+    fireEvent.click(screen.getByText('Apply 100 XP'))
+    fireEvent.change(screen.getByLabelText('XP for science'), { target: { value: '160' } })
+    expect(screen.getByRole('alert')).toHaveTextContent('The subjects add up to 160 XP')
+    fireEvent.click(screen.getByRole('button', { name: /^Approve at 160 XP/ }))
+    expect(toast.error).toHaveBeenCalledWith(expect.stringContaining('The subjects add up to 160'))
+    expect(approveBody()).toBeUndefined()
   })
 
   it('drops the award by the amount of a removed subject', async () => {

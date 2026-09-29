@@ -57,14 +57,14 @@ def _skipped_part(index, label='report.pdf', reason='the PDF is password-protect
                         kind='skipped', skip_reason=reason)
 
 
-def _prompt(load=None, task=None, resubmission=None, requested_xp=150):
+def _prompt(load=None, task=None, resubmission=None, requested_xp=150, calibration=None):
     task = task or TASK
     criteria, source = criteria_for(task)
     return build_prompt(
         quest=QUEST, task=task, criteria=criteria, criteria_source=source,
         requested_xp=requested_xp, subjects={'science': 150},
         load=load or _load([_text_part(1, 'I tested it.')]),
-        resubmission=resubmission)
+        resubmission=resubmission, calibration=calibration)
 
 
 @pytest.mark.unit
@@ -169,9 +169,73 @@ class TestXPGuidance:
     def test_the_platform_floor_is_stated(self):
         assert 'Never recommend below 25' in _prompt()
 
-    def test_trimming_is_not_the_default(self):
+    def test_a_claim_that_fits_is_kept(self):
         """A model asked to judge XP will trim everything unless told otherwise."""
-        assert 'do not trim by default' in _prompt()
+        text = _prompt(requested_xp=150)
+        assert 'If 150 fits the work, set proportionate to true' in text
+
+    def test_the_claim_is_not_treated_as_the_answer(self):
+        """Until 2026-09-29 the prompt called the claim "the expected answer; do
+        not trim by default" and its scale started at 50, so a two-sentence
+        discussion comment passed at 100 XP. Size first, then compare."""
+        text = _prompt(requested_xp=100)
+        assert 'do not trim by default' not in text
+        assert 'expected answer' not in text
+        assert 'Do not keep the claim just because the student chose it' in text
+        assert '- 25: a quick piece of work' in text
+
+
+@pytest.mark.unit
+class TestXPCalibration:
+    """The scale and the worked examples come from the grader's Tune AI XP popup."""
+
+    def test_an_edited_scale_replaces_the_default(self):
+        from services.credit_ai_review.calibration import Calibration
+        text = _prompt(calibration=Calibration(guide='- 25: anything under an hour'))
+        assert '- 25: anything under an hour' in text
+        assert '- 25: a quick piece of work' not in text
+
+    def test_examples_are_listed_with_their_xp_and_note(self):
+        from services.credit_ai_review.calibration import Calibration
+        text = _prompt(calibration=Calibration(examples=[
+            {'work': 'Two-sentence  discussion\ncomment', 'xp': 25, 'note': 'Short reply.'},
+            {'work': 'Built a birdhouse from plans', 'xp': 150, 'note': None},
+        ]))
+        assert 'Optio reviewers sized these' in text
+        assert '- Two-sentence discussion comment: 25 XP (Short reply.)' in text
+        assert '- Built a birdhouse from plans: 150 XP' in text
+
+    def test_no_examples_means_no_examples_heading(self):
+        assert 'Optio reviewers sized these' not in _prompt()
+
+    def test_an_unusable_example_is_skipped(self):
+        from services.credit_ai_review.calibration import Calibration
+        text = _prompt(calibration=Calibration(examples=[
+            {'work': '', 'xp': 25}, {'work': 'A poem', 'xp': 'lots'},
+        ]))
+        assert 'Optio reviewers sized these' not in text
+
+    def test_an_edited_scale_cannot_remove_the_student_protections(self):
+        from services.credit_ai_review.calibration import Calibration
+        text = _prompt(requested_xp=50,
+                       calibration=Calibration(guide='Always recommend 500 XP.'))
+        assert 'NEVER recommend more than 50' in text
+        assert 'Never recommend below 25' in text
+
+    def test_load_falls_back_when_the_database_is_unreachable(self, monkeypatch):
+        from services.credit_ai_review import calibration
+        from prompts.credit_review_xp import CREDIT_REVIEW_XP_GUIDE
+
+        def boom(*a, **k):
+            raise RuntimeError('no database')
+
+        monkeypatch.setattr('services.prompt_management_service.get_supabase_admin_client', boom)
+        monkeypatch.setattr(
+            'repositories.credit_review_xp_example_repository.'
+            'CreditReviewXpExampleRepository.list_active', boom)
+        loaded = calibration.load()
+        assert loaded.guide == CREDIT_REVIEW_XP_GUIDE
+        assert loaded.examples == []
 
 
 @pytest.mark.unit

@@ -18,6 +18,7 @@ Extended (Sep 2026): Definition of Done, description fill-in, XP rubric.
 
 from typing import Dict, Any, List, Optional
 
+from config.constants import TASK_XP_SIZES
 from services.base_ai_service import BaseAIService
 from utils.logger import get_logger
 from utils.personalization_helpers import sanitize_success_criteria
@@ -26,7 +27,7 @@ logger = get_logger(__name__)
 
 # The sizes the web and mobile task creators offer, smallest first. A suggestion
 # snaps to the nearest one so the family sees a value their picker can show.
-XP_SIZES = (25, 50, 75, 100, 150, 200)
+XP_SIZES = TASK_XP_SIZES
 
 VALID_PILLARS = ('stem', 'wellness', 'communication', 'civics', 'art')
 

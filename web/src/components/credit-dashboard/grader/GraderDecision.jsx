@@ -2,10 +2,13 @@ import React, { useState } from 'react'
 import AiBadge from '../AiBadge'
 import AiEvidenceCoverage from '../AiEvidenceCoverage'
 import StudentContext from '../StudentContext'
-import SubjectSplitEditor from './SubjectSplitEditor'
+import SubjectSplitEditor, { formatSubject } from './SubjectSplitEditor'
 import GraderStoryPanel from './GraderStoryPanel'
+import SaveXpExample from './SaveXpExample'
+import XpCalibrationModal from './XpCalibrationPanel'
 import { AI_ACTION_META, formatConfidence } from '../aiReview'
-import { MIN_XP } from '../useCreditDecision'
+import XpSizeInput from '../XpSizeInput'
+import { isXpSize, XP_SIZES_TEXT } from '../xpSizes'
 
 const STATUS_NOTICE = {
   finalized: 'Credit was approved. There is nothing left to decide.',
@@ -33,7 +36,7 @@ const GraderDecision = ({
     feedback, setFeedback, editedSubjects, updateSubjects,
     xp, applyXp, aiSuggestLoading,
     isSuperadmin, canOrgAdminAct, canAct, canEditSubjects, canApplyXp,
-    ai, aiReview, showAi, aiXp, claimedXp,
+    ai, aiReview, showAi, aiXp, claimedXp, aiSubjects, applyAiSubjects,
     applyDraft, suggestFeedback, approve, growThis, acceptAi,
   } = decision
 
@@ -46,6 +49,7 @@ const GraderDecision = ({
 
   // An item nobody can act on does not need an offer to run the AI on it.
   const showAiCard = showAi && (ai?.status !== 'not_run' || canAct)
+  const [tuningXp, setTuningXp] = useState(false)
 
   return (
     <div className="p-4 md:p-5 space-y-5">
@@ -61,7 +65,11 @@ const GraderDecision = ({
           onRerun={() => onRerunAi?.(item.completion_id)}
           rerunLoading={rerunAiLoading}
           onJumpToEvidence={onJumpToEvidence}
+          onTuneXp={isSuperadmin ? () => setTuningXp(true) : null}
         />
+      )}
+      {isSuperadmin && (
+        <XpCalibrationModal isOpen={tuningXp} onClose={() => setTuningXp(false)} />
       )}
 
       {canAct ? (
@@ -90,6 +98,24 @@ const GraderDecision = ({
             editable={canApplyXp}
             onChange={applyXp}
           />
+          {isSuperadmin && showAi && (
+            <SaveXpExample
+              key={`xp-example-${item.completion_id}`}
+              completionId={item.completion_id}
+              taskTitle={item.task_title || detail?.task?.title}
+              xp={effectiveXp}
+              subjects={editedSubjects}
+            />
+          )}
+
+          {showAi && aiSubjects && (
+            <AiSubjectsLine
+              aiSubjects={aiSubjects}
+              current={editedSubjects}
+              canApply={canEditSubjects}
+              onApply={applyAiSubjects}
+            />
+          )}
 
           <SubjectSplitEditor
             subjects={editedSubjects}
@@ -220,7 +246,7 @@ const DraftChip = ({ label, onClick }) => (
  */
 const AiRecommendationCard = ({
   ai, review, claimedXp, canApplyXp, canAccept, acceptedXp,
-  onAccept, onRerun, rerunLoading, onJumpToEvidence,
+  onAccept, onRerun, rerunLoading, onJumpToEvidence, onTuneXp,
 }) => {
   const status = ai?.status || 'not_run'
   const running = status === 'queued' || status === 'running'
@@ -318,6 +344,15 @@ const AiRecommendationCard = ({
 
           {review.xp && (
             <div className="rounded-lg bg-white border border-gray-200 p-3">
+              {onTuneXp && (
+                <button
+                  type="button"
+                  onClick={onTuneXp}
+                  className="float-right ml-2 text-xs font-medium text-optio-purple hover:text-optio-purple-dark min-h-[32px] md:min-h-0 touch-manipulation"
+                >
+                  Tune AI XP
+                </button>
+              )}
               {review.xp.changed ? (
                 <>
                   <p className="text-sm text-gray-800">
@@ -412,31 +447,14 @@ const AiRecommendationCard = ({
  * split sit still until they clicked away, which read as the split not
  * following at all. Blur still clamps whatever is left to the floor.
  */
+/**
+ * The XP to award. Only a task size (25, 50, 75, 100, 150, 200) can be chosen;
+ * the arrows step between them (XpSizeInput). A subject edit can still leave a
+ * total off the scale, and that is said here, before approve refuses it.
+ */
 const XpField = ({ claimedXp, xp, aiXp, aiRationale, editable, onChange }) => {
   const shown = xp ?? claimedXp
-  const [draft, setDraft] = useState(String(shown ?? ''))
-
-  // A value that arrived from elsewhere (the AI, a revert) replaces the draft.
-  const [seen, setSeen] = useState(shown)
-  if (seen !== shown) {
-    setSeen(shown)
-    setDraft(String(shown ?? ''))
-  }
-
-  const type = (value) => {
-    setDraft(value)
-    const n = parseInt(value, 10)
-    if (Number.isNaN(n) || n < MIN_XP) return
-    onChange(n === claimedXp ? null : n)
-  }
-
-  const commit = () => {
-    const n = parseInt(draft, 10)
-    if (Number.isNaN(n)) { setDraft(String(shown ?? '')); return }
-    const clamped = Math.max(MIN_XP, n)
-    setDraft(String(clamped))
-    onChange(clamped === claimedXp ? null : clamped)
-  }
+  const offScale = xp != null && !isXpSize(xp)
 
   return (
     <div>
@@ -467,16 +485,10 @@ const XpField = ({ claimedXp, xp, aiXp, aiRationale, editable, onChange }) => {
       </div>
       {editable ? (
         <div className="flex items-center gap-3">
-          <input
+          <XpSizeInput
             id="grader-xp"
-            type="number"
-            min={MIN_XP}
-            step="5"
-            inputMode="numeric"
-            value={draft}
-            onChange={e => type(e.target.value)}
-            onBlur={commit}
-            onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); e.currentTarget.blur() } }}
+            value={shown}
+            onChange={n => onChange(n === claimedXp ? null : n)}
             className="w-28 text-base md:text-sm rounded-lg border border-gray-200 focus:ring-2 focus:ring-optio-purple/20 focus:border-optio-purple px-3 py-2"
           />
           {xp != null && xp !== claimedXp && (
@@ -492,6 +504,46 @@ const XpField = ({ claimedXp, xp, aiXp, aiRationale, editable, onChange }) => {
         <p className="text-sm text-gray-700">
           {claimedXp} XP <span className="text-xs text-gray-400">· Optio sets the final XP</span>
         </p>
+      )}
+      {editable && offScale && (
+        <p role="alert" className="mt-1 text-xs text-amber-700">
+          The subjects add up to {xp} XP. Award {XP_SIZES_TEXT} XP.
+        </p>
+      )}
+    </div>
+  )
+}
+
+
+/**
+ * The AI's own subject split, as percentages, beside the one being awarded.
+ * When the reviewer approves a split that differs from it, the approval queues
+ * a suggested example for the Tune AI XP popup (calibration_capture.py).
+ */
+const AiSubjectsLine = ({ aiSubjects, current, canApply, onApply }) => {
+  const entries = Object.entries(aiSubjects || {})
+  if (!entries.length) return null
+  const total = Object.values(current || {}).reduce((t, v) => t + (parseInt(v, 10) || 0), 0)
+  const matches = total > 0 && entries.every(([k, pct]) =>
+    Math.abs(Math.round(((parseInt(current?.[k], 10) || 0) * 100) / total) - pct) < 10)
+    && Object.keys(current || {}).every(k => aiSubjects[k] || !(parseInt(current[k], 10) > 0))
+
+  return (
+    <div className="flex items-center justify-between gap-2 flex-wrap text-xs -mb-2">
+      <p className="text-gray-600">
+        <span className="font-medium text-optio-purple">AI subjects:</span>{' '}
+        <span className="capitalize">
+          {entries.map(([k, pct]) => `${formatSubject(k)} ${pct}%`).join(', ')}
+        </span>
+      </p>
+      {canApply && !matches && (
+        <button
+          type="button"
+          onClick={onApply}
+          className="font-medium text-optio-purple hover:text-optio-purple-dark min-h-[32px] md:min-h-0 touch-manipulation"
+        >
+          Apply AI subjects
+        </button>
       )}
     </div>
   )

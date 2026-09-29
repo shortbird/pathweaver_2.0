@@ -140,18 +140,51 @@ describe('GraderView — superadmin can review at any stage', () => {
     expect(split()).toEqual(['75', '25'])
     expect(screen.getByRole('button', { name: /^approve at 100 xp/i })).toBeInTheDocument()
 
-    // Typing 250 passes through 25 on the way. The split is rescaled from the
-    // task's own 150/50 each time, so the 25 leaves no rounding behind.
+    // A size is taken as soon as it is typed. The split is rescaled from the
+    // task's own 150/50 each time, so passing through 25 leaves no rounding.
     fireEvent.change(box, { target: { value: '25' } })
     expect(split()).toEqual(['20', '5'])
-    fireEvent.change(box, { target: { value: '250' } })
-    expect(split()).toEqual(['185', '65'])
 
-    // Blur clamps a figure under the floor to the floor.
+    // Anything off the scale waits for blur, then snaps to the nearest size
+    // (2026-09-29: only 25/50/75/100/150/200 can be awarded).
+    fireEvent.change(box, { target: { value: '250' } })
+    expect(split()).toEqual(['20', '5'])
+    fireEvent.blur(box)
+    expect(box.value).toBe('200')
+    expect(split()).toEqual(['150', '50'])
+
     fireEvent.change(box, { target: { value: '7' } })
     fireEvent.blur(box)
     expect(box.value).toBe('25')
     expect(split()).toEqual(['20', '5'])
+  })
+
+  it('steps the XP box between task sizes only', () => {
+    renderGrader({
+      role: 'superadmin', status: 'pending_review',
+      task: { xp_value: 100, diploma_subjects: ['math'], subject_xp_distribution: { math: 100 } },
+      suggested_subjects: { math: 100 },
+      props: { item: { ...itemStub, xp_value: 100, diploma_status: 'pending_review' } },
+    })
+    const box = screen.getByLabelText('XP to award')
+
+    fireEvent.keyDown(box, { key: 'ArrowUp' })
+    expect(box.value).toBe('150')
+    fireEvent.keyDown(box, { key: 'ArrowUp' })
+    expect(box.value).toBe('200')
+    fireEvent.keyDown(box, { key: 'ArrowUp' })
+    expect(box.value).toBe('200')
+
+    // A spinner click arrives as a change of exactly one.
+    fireEvent.change(box, { target: { value: '199' } })
+    expect(box.value).toBe('150')
+    fireEvent.change(box, { target: { value: '149' } })
+    expect(box.value).toBe('100')
+    fireEvent.keyDown(box, { key: 'ArrowDown' })
+    fireEvent.keyDown(box, { key: 'ArrowDown' })
+    fireEvent.keyDown(box, { key: 'ArrowDown' })
+    fireEvent.keyDown(box, { key: 'ArrowDown' })
+    expect(box.value).toBe('25')
   })
 
   it('plain org_admin still sees the original "Approve for Optio Review" label', () => {

@@ -33,12 +33,14 @@ from utils.evidence_labels import plain_paragraph, truncate
 from services.credit_ai_review.evidence_loader import LoadResult
 from services.credit_ai_review.prompt import PROMPT_VERSION
 from services.credit_ai_review.schema import RECOMMENDATIONS, VERDICTS
+from services.credit_ai_review.subject_mix import snap_xp_down, to_percent
 
 MAX_FLAGS = 20
 MAX_CONCERNS = 8
 MAX_FEEDBACK_CHARS = 900
 MAX_SUMMARY_CHARS = 1500
 MAX_NOTE_CHARS = 300
+MAX_WORK_CHARS = 200
 
 #: Below this, the model is telling us it is guessing. Take it at its word.
 MIN_APPROVE_CONFIDENCE = 0.6
@@ -78,6 +80,8 @@ def normalize_review(raw: Any, *, criteria: List[str], criteria_source: str,
         'confidence': confidence,
         'summary': truncate(raw.get('summary') or '', MAX_SUMMARY_CHARS) or None,
         'xp': _normalize_xp(raw.get('xp'), requested_xp, flags),
+        'subjects': to_percent(raw.get('subjects')) or None,
+        'work': ' '.join(truncate(raw.get('work') or '', MAX_WORK_CHARS).split()) or None,
         'feedback': _normalize_feedback(raw.get('feedback'), flags),
         'concerns': _normalize_concerns(raw.get('concerns')),
         'flags': _dedupe(flags)[:MAX_FLAGS],
@@ -108,6 +112,8 @@ def skipped_review(*, reason: str, load: Optional[LoadResult] = None,
         'summary': None,
         'skip_reason': reason,
         'xp': None,
+        'subjects': None,
+        'work': None,
         'feedback': {'celebrate': None, 'grow_this': None},
         'concerns': [],
         'flags': _dedupe(flags)[:MAX_FLAGS],
@@ -259,9 +265,9 @@ def _guard_recommendation(recommendation: str, criteria: List[Dict[str, Any]],
 def _normalize_xp(raw: Any, requested_xp: int, flags: List[str]) -> Dict[str, Any]:
     """The XP proposal, clamped so it can only ever cost the student less.
 
-    Rounded to a multiple of 5 because the subject split rounds that way
-    (utils/subject_xp.py); an odd total there gets silently adjusted into the
-    largest subject, which is a number nobody chose.
+    A lower number is snapped to a task size (TASK_XP_SIZES), because a
+    reviewer can only award one of those; "Apply 60 XP" would be a button that
+    fails. A claim that fits stays as claimed, even a legacy one off the scale.
     """
     requested = max(int(requested_xp or 0), 0)
     raw = raw if isinstance(raw, dict) else {}
@@ -278,10 +284,9 @@ def _normalize_xp(raw: Any, requested_xp: int, flags: List[str]) -> Dict[str, An
         recommended = requested
     if recommended < MIN_TASK_XP:
         recommended = MIN_TASK_XP
-    recommended = max(MIN_TASK_XP, 5 * round(recommended / 5))
-    if requested and recommended > requested:
-        # Rounding up past the request after the floor kicked in.
-        recommended = requested
+    if recommended < requested:
+        snapped = snap_xp_down(recommended, requested)
+        recommended = snapped if snapped is not None else requested
 
     return {
         'requested': requested,

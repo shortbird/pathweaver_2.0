@@ -188,6 +188,14 @@ def approve_credit(user_id: str, completion_id: str):
 
         record_ai_outcome(admin_supabase, completion_id, data, xp_result)
 
+        # Optio's final call disagreed with the AI? Queue it as a suggested
+        # example for the Tune AI XP popup. Never fails the approval.
+        from services.credit_ai_review.calibration_capture import capture_from_approval
+        capture_from_approval(
+            admin_supabase, completion_id=completion_id, task=task_data,
+            final_xp=xp_value, approved_subjects=approved_subjects,
+            reviewer_id=user_id)
+
         logger.info(f"Superadmin {user_id[:8]} finalized credit {completion_id[:8]}, {total_xp_finalized} XP finalized")
 
         return success_response(

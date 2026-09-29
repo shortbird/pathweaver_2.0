@@ -51,6 +51,14 @@ def apply_reviewer_xp(admin, data: Dict[str, Any], *, completion: Dict[str, Any]
     if new_xp == current_xp:
         return None, None
 
+    from config.constants import TASK_XP_SIZES
+    if new_xp not in TASK_XP_SIZES:
+        # A reviewer awards a task size or keeps the claim. Since 2026-09-29;
+        # the grader's XP field only steps between these.
+        sizes = ', '.join(str(x) for x in TASK_XP_SIZES)
+        return None, error_response(code='VALIDATION_ERROR',
+                                    message=f'XP must be one of {sizes}.', status=400)
+
     reason = (data.get('xp_reason') or '').strip()
     if not reason:
         # An adjustment with no recorded reason is indistinguishable from a data

@@ -21,15 +21,17 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Optional
 
-from config.constants import MIN_TASK_XP
+from config.constants import MIN_TASK_XP, TASK_XP_SIZES
+from generated.subjects import SUBJECT_KEYS
 from prompts.credit_review_tone import APPROVE_TONE, FORMAT_RULES, GROW_THIS_TONE
 
+from services.credit_ai_review.calibration import Calibration
 from services.credit_ai_review.evidence_loader import EvidencePart, LoadResult
 from services.credit_ai_review.schema import JSON_EXAMPLE
 
 #: Bumped whenever the prompt or the schema changes, so two stored reviews can
 #: be compared without wondering whether they were asked the same question.
-PROMPT_VERSION = 'credit-review/2026-09-11.1'
+PROMPT_VERSION = 'credit-review/2026-09-29.2'
 
 CRITERIA_FROM_SUCCESS = 'success_criteria'
 CRITERIA_FROM_DESCRIPTION = 'task_description'
@@ -59,8 +61,14 @@ def build_prompt(*, quest: Dict[str, Any], task: Dict[str, Any],
                  criteria: List[str], criteria_source: str,
                  requested_xp: int, subjects: Dict[str, int],
                  load: LoadResult,
-                 resubmission: Optional[Dict[str, Any]] = None) -> str:
-    """The text half of the request. Attachments follow it, in block order."""
+                 resubmission: Optional[Dict[str, Any]] = None,
+                 calibration: Optional[Calibration] = None) -> str:
+    """The text half of the request. Attachments follow it, in block order.
+
+    ``calibration`` is the editable XP scale and worked examples
+    (calibration.py). None means the built-in scale and no examples, which is
+    what a test gets without touching the database.
+    """
     criteria_block = '\n'.join(
         f'[C{i}] {c}' for i, c in enumerate(criteria, start=1))
 
@@ -95,7 +103,14 @@ Subject credit split: {subjects_str}
 DEFINITION OF DONE -- judge each of these separately:
 {criteria_block}
 {criteria_note}
-{_xp_section(requested_xp)}
+{_xp_section(requested_xp, calibration or Calibration())}
+
+{_subjects_section(subjects_str)}
+
+WHAT THE WORK IS
+In "work", name what the student actually submitted in one short line, with no
+names: "a two-sentence comment in an online discussion", "a 20-photo build log
+of a birdhouse". Describe the evidence, not the task title.
 
 {_evidence_section(load)}
 {_resubmission_section(resubmission)}
@@ -142,20 +157,76 @@ GUARDRAILS
 """
 
 
-def _xp_section(requested_xp: int) -> str:
+def _xp_section(requested_xp: int, calibration: Calibration) -> str:
+    """The editable scale and examples, then the rules no edit can remove.
+
+    Until 2026-09-29 this told the model a short task was 50-100 XP and that the
+    claim was "the expected answer; do not trim by default", so it waved through
+    a two-sentence discussion comment at 100 XP. The claim is a starting point
+    now, not an answer: size the work, then compare.
+    """
+    examples = _xp_examples(calibration.examples)
+    sizes = ', '.join(str(x) for x in TASK_XP_SIZES)
     return f"""JUDGING THE XP
 The student set the XP value themselves when they planned the task, so it is a
-claim about scope, not a fact. Compare it to what the evidence shows.
-- Roughly: a short focused task is 50-100 XP, a standard one 50-150, a genuinely
-  big multi-session project 200.
-- Recommend a LOWER number only when the evidence shows clearly less work than
-  {requested_xp} XP implies -- a single photo where a project was planned, one
-  paragraph where a study was described.
+claim about scope, not a fact. First size the work the evidence shows, then
+compare that size to the claim of {requested_xp} XP.
+
+THE SCALE:
+{calibration.guide}
+{examples}
+THE RULES:
+- If the work is smaller than {requested_xp} XP implies, recommend the size that
+  fits it: one of {sizes}.
+  Do not keep the claim just because the student chose it.
+- If {requested_xp} fits the work, set proportionate to true and recommend
+  {requested_xp}.
 - NEVER recommend more than {requested_xp}. Raising it is not yours to do.
 - Never recommend below {MIN_TASK_XP}, which is the platform floor.
-- If {requested_xp} fits the work, set proportionate to true and recommend
-  {requested_xp}. That is the expected answer; do not trim by default.
 - Give one sentence of rationale either way."""
+
+
+def _xp_examples(examples: List[Dict[str, Any]]) -> str:
+    """Optio's own past calls, as a list the model can match work against.
+
+    Written by superadmins, not students, so these are instructions we mean.
+    """
+    lines = []
+    for ex in examples or []:
+        work = ' '.join(str(ex.get('work') or '').split())
+        try:
+            xp = int(ex.get('xp') or 0)
+        except (TypeError, ValueError):
+            continue
+        if not work or xp <= 0:
+            continue
+        note = ' '.join(str(ex.get('note') or '').split())
+        raw_split = ex.get('subjects')
+        split: Dict[str, Any] = raw_split if isinstance(raw_split, dict) else {}
+        subjects = ', '.join(f'{k} {v}%' for k, v in split.items())
+        lines.append(f'- {work}: {xp} XP'
+                     + (f'; subjects {subjects}' if subjects else '')
+                     + (f' ({note})' if note else ''))
+    if not lines:
+        return ''
+    return ('\nEXAMPLES -- Optio reviewers sized these. Match their XP and subjects '
+            'when the work is similar:\n' + '\n'.join(lines) + '\n')
+
+
+def _subjects_section(subjects_str: str) -> str:
+    """The split the task claims, and the AI's own read of it.
+
+    Its answer is shown to the reviewer beside the task's split, and when the
+    reviewer approves a different one, that difference becomes a suggested
+    example (calibration_capture.py).
+    """
+    keys = ', '.join(SUBJECT_KEYS)
+    return f"""JUDGING THE SUBJECTS
+The task splits its credit as: {subjects_str}. Say which diploma subjects this
+work actually earns credit in, as whole percentages that sum to 100, using only
+these keys: {keys}. Keep the task's split when it fits the work. Change it when
+the evidence is mostly about something else. The worked examples above show how
+Optio reviewers split similar work."""
 
 
 def _evidence_section(load: LoadResult) -> str:
