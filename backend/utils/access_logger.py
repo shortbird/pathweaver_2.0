@@ -172,25 +172,37 @@ class AccessLogger:
             # handshake on a path that is rare by construction. Outside a
             # request context there is no second client to reach for and this
             # is the singleton again, unchanged.
-            attempts = {'n': 0}
-
-            def _write():
-                attempts['n'] += 1
-                if attempts['n'] == 1:
-                    client = get_supabase_admin_singleton()
-                else:
-                    from database import get_supabase_admin_client
-                    # admin client justified: the same FERPA audit insert as the
-                    # attempt above, retried on a second connection pool; writes
-                    # only student_access_logs, never reads user data
-                    client = get_supabase_admin_client()
+            #
+            # And attempt two follows ANY failure of attempt one, not only the
+            # ones is_retryable_error recognises. The shared HTTP/2 connection
+            # fails in more shapes than a classifier can list: another thread
+            # racing it surfaced as h2's StreamIDTooLowError("9 is lower than
+            # 9") and as a bare KeyError(9) from httpx's stream table (Sentry,
+            # 2026-09-28, a parent opening evidence documents on iOS), neither
+            # matched, so the second pool was never asked and both rows were
+            # lost. A KeyError says nothing a pattern could match. The cost of
+            # retrying a genuinely bad row is one more refusal; the cost of not
+            # retrying is a missing disclosure.
+            def _insert(client):
                 return client.table('student_access_logs').insert(row).execute()
 
-            with_connection_retry(
-                _write,
-                max_retries=2,
-                operation_name='access_log_insert',
-            )
+            try:
+                _insert(get_supabase_admin_singleton())
+            except Exception as first_error:
+                logger.warning(
+                    f"[AccessLogger] First write failed, retrying on a second "
+                    f"client: {type(first_error).__name__}: {first_error}"
+                )
+                from database import get_supabase_admin_client
+                # admin client justified: the same FERPA audit insert as the
+                # attempt above, retried on a second connection pool; writes
+                # only student_access_logs, never reads user data
+                retry_client = get_supabase_admin_client()
+                with_connection_retry(
+                    lambda: _insert(retry_client),
+                    max_retries=1,
+                    operation_name='access_log_insert',
+                )
 
             logger.info(
                 f"[AccessLogger] Logged access to student {student_id} data",

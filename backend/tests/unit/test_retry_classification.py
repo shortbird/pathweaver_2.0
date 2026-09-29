@@ -59,3 +59,12 @@ class TestPermanentFailuresStayPermanent:
 
     def test_an_ordinary_application_error_is_not_retried(self):
         assert not is_retryable_error(ValueError('student not found'))
+
+
+@pytest.mark.unit
+def test_h2_refusing_a_raced_stream_is_retried():
+    """Tickets a05d9630 / 581b78db (Sentry, 2026-09-28): two threads racing the
+    shared HTTP/2 connection raise h2's StreamIDTooLowError unwrapped. Nothing
+    was sent, so a second attempt is safe, and it used to be refused one."""
+    import h2.exceptions
+    assert is_retryable_error(h2.exceptions.StreamIDTooLowError(9, 9))

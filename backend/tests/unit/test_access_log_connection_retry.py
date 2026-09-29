@@ -14,6 +14,7 @@ student's schedule.
 
 from unittest.mock import patch
 
+import h2.exceptions
 import httpx
 import pytest
 
@@ -96,6 +97,12 @@ def _log_with(client, retry_client=None):
     # dashboard. httpx raises this as LocalProtocolError, which the retry
     # handler matches by wording, not type.
     httpx.LocalProtocolError('Invalid input StreamInputs.SEND_HEADERS in state 5'),
+    # Tickets a05d9630 / 581b78db (Sentry, 2026-09-28): the same race in two
+    # shapes the classifier did not know, h2's StreamIDTooLowError and a bare
+    # KeyError(9) from httpx's stream table. Neither was retried, and a parent
+    # opening evidence documents on iOS lost both FERPA rows.
+    h2.exceptions.StreamIDTooLowError(9, 9),
+    KeyError(9),
 ])
 def test_a_dropped_connection_is_retried_and_the_row_lands(dropped):
     client = _Client([dropped, object()])
@@ -152,3 +159,17 @@ def test_a_drop_on_both_clients_still_does_not_raise():
     assert _log_with(dropped, retry_client=also_dropped) is False
     assert dropped._insert.attempts == 1
     assert also_dropped._insert.attempts == 1
+
+
+def test_any_first_failure_reaches_the_second_client():
+    """Tickets a05d9630 / 581b78db: the first attempt's failure used to go
+    through is_retryable_error, and a shape it did not know (a bare KeyError
+    from httpx's HTTP/2 stream table) was re-raised without ever asking the
+    second pool. Any failure of attempt one now gets attempt two, on the other
+    client; only attempt two is held to the classifier."""
+    raced = _Client([ValueError('an error nobody has classified')])
+    fresh = _Client([object()])
+
+    assert _log_with(raced, retry_client=fresh) is True
+    assert raced._insert.attempts == 1
+    assert fresh._insert.attempts == 1

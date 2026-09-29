@@ -54,8 +54,16 @@ def _httpx_transport_errors() -> tuple:
     # Deliberately not the whole TransportError tree: LocalProtocolError is our
     # own malformed request and UnsupportedProtocol is a bad URL. Neither gets
     # better on a second attempt.
-    return (httpx.TimeoutException, httpx.NetworkError,
-            httpx.RemoteProtocolError, httpx.ProxyError)
+    transport = (httpx.TimeoutException, httpx.NetworkError,
+                 httpx.RemoteProtocolError, httpx.ProxyError)
+    # h2's own errors reach us unwrapped when two threads race the shared
+    # HTTP/2 connection: StreamIDTooLowError("9 is lower than 9"), Sentry
+    # 2026-09-28. The request never went out, so the next attempt is safe.
+    try:
+        import h2.exceptions
+    except ImportError:
+        return transport
+    return transport + (h2.exceptions.ProtocolError,)
 
 
 # Exceptions that should trigger retry
