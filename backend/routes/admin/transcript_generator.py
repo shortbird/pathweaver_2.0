@@ -92,6 +92,13 @@ SUBJECT_DISPLAY_NAMES = dict(TRANSCRIPT_SUBJECT_NAMES)
 
 VALID_SUBJECTS = list(SUBJECT_DISPLAY_NAMES.keys())
 
+# A planned credit is a course not yet finished, so 'completed' is not one of
+# its states: a finished course comes from a class, a quest or a transfer, and
+# only those print on the official transcript (ticket 9200a103, item 1). The
+# form used to offer "Completed", and five rows in prod carry it from then;
+# they stay readable in the editor and never print.
+PLANNED_STATUSES = ('in_progress', 'dropped')
+
 
 @bp.route('/<user_id>', methods=['GET'])
 @require_school_admin
@@ -316,6 +323,8 @@ def add_planned_credit(admin_user_id, user_id):
         source = data.get('source', '').strip() or None
         notes = data.get('notes', '').strip() or None
         status = data.get('status', 'in_progress')
+        if status not in PLANNED_STATUSES:
+            return error_response('Invalid status', status_code=400)
 
         if not school_subject or school_subject not in VALID_SUBJECTS:
             return error_response(f'Invalid subject. Valid: {", ".join(VALID_SUBJECTS)}', status_code=400)
@@ -366,7 +375,7 @@ def update_planned_credit(admin_user_id, user_id, credit_id):
         if 'credits' in data:
             update_data['credits'] = float(data['credits'])
         if 'status' in data:
-            if data['status'] not in ('in_progress', 'completed', 'dropped'):
+            if data['status'] not in PLANNED_STATUSES:
                 return error_response('Invalid status', status_code=400)
             update_data['status'] = data['status']
         if 'source' in data:

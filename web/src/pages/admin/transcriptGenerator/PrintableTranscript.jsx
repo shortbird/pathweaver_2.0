@@ -10,11 +10,23 @@ import {
 import { EditableField, DatePickerField } from './EditableFields';
 import { SUBJECT_OPTIONS } from './subjectOptions';
 
+// A course goes on the official transcript only when it is finished: Optio
+// awards only an A, so an unfinished course has no grade to print (ticket
+// 9200a103, item 1). A planned credit is never finished -- a finished course
+// comes from a class, a quest or a transfer -- so no planned row prints,
+// whatever its status. The editor still lists them, because this is where they
+// are managed, but each carries no-print, which hides it from the browser print
+// stylesheet and from the PDF (Download and Transfer to School both strip
+// .no-print in onclone).
+const isOnOfficialTranscript = (row) => row.type !== 'planned';
+
 const PrintableTranscript = ({
   accreditation, creditRows, dateIssued, dateOfBirth, gpa, handleDeletePlannedCredit,
   isWascAccredited, orgName, overrides, saveOverrides, setOverrides,
   startEdit, startSplit, student, studentName, transferCredits, updateOverride, userId,
-}) => (
+}) => {
+  const hasOfficialRows = creditRows.some(isOnOfficialTranscript);
+  return (
   <div className="max-w-5xl mx-auto px-6 py-8">
     <div id="printable-transcript" className="bg-white shadow-sm" style={{ fontFamily: 'Georgia, "Times New Roman", Times, serif' }}>
       {/* Transcript header */}
@@ -95,7 +107,9 @@ const PrintableTranscript = ({
             {creditRows.map((row, i) => (
               <tr
                 key={`${row.type}-${row.subject}-${i}`}
-                className={`border-b border-gray-200 ${row.status === 'In Progress' ? 'bg-amber-50 print:bg-transparent' : ''} ${row.status === 'Dropped' ? 'text-gray-400 line-through' : ''}`}
+                data-testid="transcript-row"
+                title={isOnOfficialTranscript(row) ? undefined : 'Planned credits are not on the printed transcript'}
+                className={`border-b border-gray-200 ${isOnOfficialTranscript(row) ? '' : 'no-print'} ${row.status === 'In Progress' ? 'bg-amber-50' : ''} ${row.status === 'Dropped' ? 'text-gray-400 line-through' : ''}`}
               >
                 <td className="py-2 text-gray-900">{row.subject}</td>
                 <td className="py-2 text-gray-700">
@@ -124,15 +138,15 @@ const PrintableTranscript = ({
                 </td>
                 <td className="py-2 text-center font-medium text-gray-900">{row.credits.toFixed(2)}</td>
                 <td className="py-2 text-center">
-                  {row.status === 'Completed' ? (
+                  {isOnOfficialTranscript(row) ? (
                     <span className="font-bold text-gray-900">{row.grade || 'A'}</span>
                   ) : (
                     <span className={`text-xs font-medium px-2 py-0.5 rounded ${
                       row.status === 'In Progress'
-                        ? 'bg-amber-100 text-amber-800 print:bg-transparent print:text-gray-600 print:italic'
+                        ? 'bg-amber-100 text-amber-800'
                         : 'bg-gray-100 text-gray-500'
                     }`}>
-                      {row.status}
+                      {row.status} &middot; not printed
                     </span>
                   )}
                 </td>
@@ -199,10 +213,10 @@ const PrintableTranscript = ({
                 </td>
               </tr>
             ))}
-            {creditRows.length === 0 && (
+            {!hasOfficialRows && (
               <tr>
                 <td colSpan={6} className="py-8 text-center text-gray-400 italic">
-                  No credits recorded
+                  No completed credits recorded
                 </td>
               </tr>
             )}
@@ -239,6 +253,7 @@ const PrintableTranscript = ({
       </div>
     </div>
   </div>
-);
+  );
+};
 
 export default PrintableTranscript;

@@ -337,26 +337,16 @@ def get_public_transcript(user_id):
             for cc in CoursesAndCreditsRepository(client=client).awarded_class_credits(user_id)
         ]
 
-        # Planned credits
-        planned_result = client.table('planned_credits').select('*').eq(
-            'user_id', user_id
-        ).order('created_at', desc=False).execute()
-
-        planned_credits = []
-        for pc in (planned_result.data or []):
-            planned_credits.append({
-                'school_subject': pc['school_subject'],
-                'display_name': SUBJECT_DISPLAY_NAMES.get(pc['school_subject'], pc['school_subject']),
-                'course_name': pc['course_name'],
-                'credits': float(pc['credits']),
-                'status': pc['status'],
-                'source': pc.get('source')
-            })
+        # A shared transcript is an official one, and a planned credit is never
+        # on it: planned means not finished, and a course goes on the official
+        # transcript only when it is finished (ticket 9200a103, item 1). They
+        # are not even read here, so none can leave the server. The key stays,
+        # empty, for clients that still expect it. The admin editor lists them.
+        planned_credits: list = []
 
         total_earned = sum(c['credits'] for c in earned_credits.values())
         total_class = sum(cc['credits'] for cc in class_credits)
         total_transfer = sum(tc['total_credits'] for tc in transfer_credits)
-        total_planned = sum(pc['credits'] for pc in planned_credits if pc['status'] == 'in_progress')
 
         return jsonify({
             'success': True,
@@ -377,7 +367,6 @@ def get_public_transcript(user_id):
                     'earned_credits': round(total_earned, 2),
                     'class_credits': round(total_class, 2),
                     'transfer_credits': round(total_transfer, 2),
-                    'planned_credits': round(total_planned, 2),
                     'total_completed': round(total_earned + total_class + total_transfer, 2),
                     'gpa': compute_gpa(earned_credits, class_credits, transfer_credits),
                 }

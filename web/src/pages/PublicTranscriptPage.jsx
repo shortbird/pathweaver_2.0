@@ -10,7 +10,6 @@ import {
   COMMISSION_ADDRESS,
   COMMISSION_WEBSITE,
 } from '../constants/accreditation';
-import { TRANSCRIPT_SUBJECT_NAMES } from '../utils/creditRequirements';
 
 // html2pdf is loaded ON DEMAND, not at module scope (QF-06). It pulls in
 // html2canvas and jsPDF -- a large chunk -- and this page renders long before
@@ -28,10 +27,6 @@ async function loadHtml2Pdf() {
 // nothing consults cannot be right, it can only mislead whoever copies it next.
 // Requirements and elective overflow live in utils/creditRequirements.
 
-// What an official transcript prints. Shared with the other transcript
-// surfaces and with the backend, which renders the same document -- three
-// components kept their own identical copy of this until 2026-09-09.
-const SUBJECT_DISPLAY_NAMES = TRANSCRIPT_SUBJECT_NAMES;
 
 const PublicTranscriptPage = () => {
   const { userId } = useParams();
@@ -107,7 +102,7 @@ const PublicTranscriptPage = () => {
     );
   }
 
-  const { student, earned_credits, class_credits, transfer_credits, planned_credits, overrides, totals, accreditation } = data;
+  const { student, earned_credits, class_credits, transfer_credits, overrides, totals, accreditation } = data;
   const field = (key, fallback) => overrides?.[key] !== undefined && overrides[key] !== '' ? overrides[key] : fallback;
   // Show the ACS WASC mark only when this transcript is issued under Optio
   // Academy's accreditation (backend decides; partners with their own
@@ -188,15 +183,9 @@ const PublicTranscriptPage = () => {
     });
   });
 
-  (planned_credits || []).forEach(pc => {
-    rows.push({
-      subject: SUBJECT_DISPLAY_NAMES[pc.school_subject] || pc.display_name || pc.school_subject,
-      course: pc.course_name,
-      source: pc.source || '',
-      credits: pc.credits,
-      status: pc.status === 'in_progress' ? 'In Progress' : pc.status === 'completed' ? 'Completed' : 'Dropped'
-    });
-  });
+  // No planned credit is on an official transcript: planned means not
+  // finished, and only finished courses print (ticket 9200a103, item 1).
+  // Planned credits are managed in the full transcript editor.
 
   rows.sort((a, b) => {
     if (a.status === 'Completed' && b.status !== 'Completed') return -1;

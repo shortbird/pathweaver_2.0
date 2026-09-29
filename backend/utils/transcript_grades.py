@@ -14,6 +14,12 @@ Two kinds of grade reach a transcript, and the rule for each is fixed:
 
 GPA is the credit-weighted mean of those grades on a 4-point scale, over
 completed credit only. Planned and in-progress credit has no grade yet.
+
+A course goes on the official transcript only when it is finished (ticket
+9200a103, item 1). A planned credit is by definition not finished, so no planned
+credit reaches a shared or printed transcript, whatever its status. A finished
+course comes from a class, a quest or a transfer. The admin editor still lists
+planned credits, because that is where they are managed.
 """
 
 from typing import Any, Dict, Iterable, List, Optional

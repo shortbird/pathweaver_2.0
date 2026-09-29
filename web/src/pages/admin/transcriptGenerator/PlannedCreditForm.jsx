@@ -58,7 +58,6 @@ const PlannedCreditForm = ({
               className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500"
             >
               <option value="in_progress">In Progress</option>
-              <option value="completed">Completed</option>
               <option value="dropped">Dropped</option>
             </select>
           </div>

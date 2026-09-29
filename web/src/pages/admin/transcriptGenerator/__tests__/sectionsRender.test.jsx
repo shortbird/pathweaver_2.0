@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { render, screen, fireEvent } from '@testing-library/react'
 import { MemoryRouter, Routes, Route } from 'react-router-dom'
 
 /**
@@ -38,6 +38,12 @@ const DATA = {
   planned_credits: [{
     id: 'pc1', display_name: 'Fine Arts', course_name: 'Ceramics I',
     credits: 0.5, status: 'in_progress',
+  }, {
+    id: 'pc2', display_name: 'Fine Arts', course_name: 'Pottery II',
+    credits: 0.5, status: 'dropped',
+  }, {
+    id: 'pc3', display_name: 'Health', course_name: 'First Aid',
+    credits: 0.5, status: 'completed',
   }],
   totals: { total_credits: 4 },
   accreditation: { source: 'optio' },
@@ -85,6 +91,52 @@ describe('transcript generator sections render after the split', () => {
     expect(screen.getAllByText('Language Arts').length).toBeGreaterThan(0)
     expect(screen.getByText('Green Canyon High')).toBeInTheDocument()
     expect(screen.getByText('Ceramics I')).toBeInTheDocument()
+  })
+
+  // Ticket 9200a103, item 1: Optio awards only an A, so a course goes on the
+  // transcript only when it is finished. The old table printed Ceramics I with
+  // "In Progress" in the Grade column. A planned credit is never finished
+  // (Tanner, 2026-09-29), so no planned row prints -- not even one saved as
+  // 'completed' before the form stopped offering it. The editor must still
+  // list them (this is where planned credits are managed), but the rows must
+  // not print: .no-print is what both the print stylesheet and the PDF
+  // onclone strip.
+  it('ticket 9200a103: keeps planned credits in the editor but off the printed transcript', async () => {
+    renderPage()
+    const rowOf = async (name) => (await screen.findByText(name)).closest('tr')
+
+    const inProgress = await rowOf('Ceramics I')
+    const dropped = await rowOf('Pottery II')
+    const legacyCompleted = await rowOf('First Aid')
+    // Still visible and editable in the admin editor.
+    expect(inProgress).toBeInTheDocument()
+    expect(dropped).toBeInTheDocument()
+    expect(inProgress.querySelector('[title="Edit"]')).not.toBeNull()
+    // ...but hidden from print and from the PDF, whatever the status.
+    expect(inProgress).toHaveClass('no-print')
+    expect(dropped).toHaveClass('no-print')
+    expect(legacyCompleted).toHaveClass('no-print')
+    expect(legacyCompleted.textContent).toContain('not printed')
+
+    // Finished credit (quest, transfer) prints, with its grade.
+    for (const name of ['Mathematics', 'Green Canyon High', 'Biology']) {
+      expect(await rowOf(name)).not.toHaveClass('no-print')
+    }
+
+    // Nothing printable carries an unfinished status.
+    const printable = screen.getAllByTestId('transcript-row').filter(r => !r.classList.contains('no-print'))
+    printable.forEach(r => {
+      expect(r.textContent).not.toMatch(/In Progress|Dropped/)
+    })
+  })
+
+  it('the planned-credit form does not offer Completed (ticket 9200a103)', async () => {
+    renderPage()
+    fireEvent.click(await screen.findByText('Add Planned Credit'))
+    const options = screen.getAllByRole('option').map(o => o.getAttribute('value'))
+    expect(options).toContain('in_progress')
+    expect(options).toContain('dropped')
+    expect(options).not.toContain('completed')
   })
 
   it('opens the planned-credit form from the toolbar', async () => {

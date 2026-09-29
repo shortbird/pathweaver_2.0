@@ -3,12 +3,7 @@ import { Link } from 'react-router-dom';
 import api from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
 import { isSchoolAdminUser } from '../../utils/userRoles';
-import { TRANSCRIPT_SUBJECT_NAMES } from '../../utils/creditRequirements';
 
-// What an official transcript prints. Shared with the other transcript
-// surfaces and with the backend, which renders the same document -- three
-// components kept their own identical copy of this until 2026-09-09.
-const SUBJECT_DISPLAY_NAMES = TRANSCRIPT_SUBJECT_NAMES;
 
 const TranscriptSection = ({ studentId }) => {
   const { user } = useAuth();
@@ -50,7 +45,7 @@ const TranscriptSection = ({ studentId }) => {
 
   if (!canViewTranscript || loading || !exists || !data) return null;
 
-  const { student, earned_credits, class_credits, transfer_credits, planned_credits, overrides, totals } = data;
+  const { student, earned_credits, class_credits, transfer_credits, overrides, totals } = data;
   const field = (key, fallback) => overrides?.[key] !== undefined && overrides[key] !== '' ? overrides[key] : fallback;
   const formatDate = (d) => d ? new Date(d).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : '';
 
@@ -114,15 +109,9 @@ const TranscriptSection = ({ studentId }) => {
     });
   });
 
-  (planned_credits || []).forEach(pc => {
-    rows.push({
-      subject: SUBJECT_DISPLAY_NAMES[pc.school_subject] || pc.school_subject,
-      course: pc.course_name,
-      source: pc.source || '',
-      credits: pc.credits,
-      status: pc.status === 'in_progress' ? 'In Progress' : pc.status === 'completed' ? 'Completed' : 'Dropped'
-    });
-  });
+  // No planned credit is on an official transcript: planned means not
+  // finished, and only finished courses print (ticket 9200a103, item 1).
+  // Planned credits are managed in the full transcript editor.
 
   rows.sort((a, b) => {
     if (a.status === 'Completed' && b.status !== 'Completed') return -1;
@@ -154,9 +143,6 @@ const TranscriptSection = ({ studentId }) => {
         <span>Completed: <strong className="text-gray-900">{totals.total_completed.toFixed(1)}</strong></span>
         {totals.gpa != null && (
           <span>GPA: <strong className="text-gray-900">{field('gpa', totals.gpa.toFixed(2))}</strong></span>
-        )}
-        {totals.planned_credits > 0 && (
-          <span>In Progress: <strong className="text-gray-900">{totals.planned_credits.toFixed(1)}</strong></span>
         )}
       </div>
 

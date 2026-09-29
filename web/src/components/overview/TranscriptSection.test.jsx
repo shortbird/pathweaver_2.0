@@ -134,3 +134,42 @@ describe('admins still get the transcript', () => {
     await waitFor(() => expect(container).toBeEmptyDOMElement())
   })
 })
+
+describe('only finished courses are on the transcript (ticket 9200a103, item 1)', () => {
+  // Optio awards only an A, so a course goes on the transcript only when it is
+  // finished. This summary is headed "Official Transcript" and used to list
+  // in-progress planned credits with an "In Progress" chip and an "In
+  // Progress" total. The admin endpoint still returns them for the editor.
+  // A planned credit is never finished (Tanner, 2026-09-29), so none shows,
+  // including a row saved as 'completed' before the form stopped offering it.
+  it('ticket 9200a103: leaves every planned credit off, keeps finished credit', async () => {
+    api.get
+      .mockResolvedValueOnce({ data: { data: { exists: true } } })
+      .mockResolvedValueOnce({
+        data: {
+          data: {
+            ...transcriptPayload.data.data,
+            earned_credits: { math: { display_name: 'Mathematics', credits: 1 } },
+            planned_credits: [
+              { school_subject: 'fine_arts', course_name: 'Ceramics I', credits: 0.5, status: 'in_progress' },
+              { school_subject: 'science', course_name: 'Chemistry', credits: 1, status: 'dropped' },
+              { school_subject: 'health', course_name: 'First Aid', credits: 0.5, status: 'completed' },
+            ],
+            totals: { total_completed: 1, planned_credits: 0.5, gpa: 4 },
+          }
+        }
+      })
+
+    renderFor({ role: 'superadmin' })
+
+    expect(await screen.findByText('Mathematics')).toBeInTheDocument()
+    expect(screen.queryByText('First Aid')).toBeNull()
+    expect(screen.queryByText('Ceramics I')).toBeNull()
+    expect(screen.queryByText('Chemistry')).toBeNull()
+    expect(screen.queryByText('In Progress')).toBeNull()
+    expect(screen.queryByText(/In Progress:/)).toBeNull()
+    // Totals and GPA come from completed credit only.
+    expect(screen.getByText('1.0')).toBeInTheDocument()
+    expect(screen.getByText('4.00')).toBeInTheDocument()
+  })
+})
