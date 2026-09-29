@@ -474,7 +474,7 @@ class DependentRepository(BaseRepository):
                 response = self.client.auth.admin.create_user({**attributes, 'id': dependent_id})
                 created_id = getattr(getattr(response, 'user', None), 'id', None)
                 if created_id and str(created_id) != str(dependent_id):
-                    raise ValidationError("Failed to create authentication account")
+                    raise ValidationError("Failed to create authentication account") from e
         except ValidationError:
             raise
         except Exception as e:
