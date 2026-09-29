@@ -1060,7 +1060,8 @@ def drop_class(user_id: str, org_id: str, student_user_id: str, class_id: str) -
         .eq('class_id', class_id).eq('student_id', student_user_id).execute()
     ).data or []
     if enr and enr[0].get('status') == 'active':
-        _admin().table('class_enrollments').update({'status': 'withdrawn'}).eq('id', enr[0]['id']).execute()
+        _admin().table('class_enrollments').update(
+            {'status': 'withdrawn', 'status_changed_by': user_id}).eq('id', enr[0]['id']).execute()
         from services.class_group_sync_service import sync_class_group
         sync_class_group(class_id, actor_id=user_id)
         from services import sis_waitlist_service

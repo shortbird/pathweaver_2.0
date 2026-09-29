@@ -818,6 +818,23 @@ def student_classes(user_id, student_id):
     return jsonify({'success': True, 'classes': sis_service.list_student_classes(org_id, student_id)})
 
 
+@bp.route('/students/<student_id>/class-history', methods=['GET'])
+@require_role(*ADMIN_ROLES)
+@require_relationship_to('student_id', allow=('org_staff',), discloses='schedule')
+def student_class_history(user_id, student_id):
+    """Every class this student was added to, dropped from or waitlisted for,
+    newest first (iCreate, ticket fee0d486). See services/class_history_service
+    for what a backfilled date means."""
+    org_id, err = sis_service.org_or_error(user_id)
+    if err:
+        return err
+    if not sis_service.student_in_org(student_id, org_id):
+        return jsonify({'success': False, 'error': 'Student not found'}), 404
+    from services import class_history_service
+    return jsonify({'success': True,
+                    'history': class_history_service.get_student_class_history(org_id, student_id)})
+
+
 @bp.route('/students/<student_id>/message', methods=['POST'])
 @require_role(*ADMIN_ROLES)
 @require_relationship_to('student_id', allow=('org_staff',))

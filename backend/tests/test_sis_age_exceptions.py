@@ -179,8 +179,10 @@ class TestResolve:
         assert result['request']['status'] == 'approved'
         enrollments = tables['class_enrollments']
         # 'withdrawn', not 'dropped' — the class_enrollments CHECK constraint
-        # only allows active|completed|withdrawn.
-        enrollments.update.assert_called_once_with({'status': 'withdrawn'})
+        # only allows active|completed|withdrawn. status_changed_by names the
+        # approver in the class history (class_enrollment_events).
+        enrollments.update.assert_called_once_with(
+            {'status': 'withdrawn', 'status_changed_by': 'staff1'})
         enrollments.upsert.assert_called_once()
         clear_waitlist.assert_called_once_with('org1', 'class1', 'stu1')
         # both the dropped class's group and the new class's group re-sync

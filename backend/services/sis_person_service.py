@@ -217,9 +217,9 @@ def remove_person(org_id: str, target_id: str, actor_id: str,
                               f'({", ".join(sorted(preview["blocking"]))}). '
                               'Archive them instead — it hides them without losing history.'),
                     'blocking': preview['blocking']}
-        result = _delete(org_id, target_id, name)
+        result = _delete(org_id, target_id, name, actor_id=actor_id)
     else:
-        result = _archive(org_id, target_id, name, student=is_student(u))
+        result = _archive(org_id, target_id, name, student=is_student(u), actor_id=actor_id)
     audit_removal(org_id, actor_id,
                   'sis_person_deleted' if result.get('deleted') else 'sis_person_archived',
                   'user', target_id, {
@@ -230,7 +230,8 @@ def remove_person(org_id: str, target_id: str, actor_id: str,
     return result
 
 
-def _release_class_seats(org_id: str, target_id: str) -> int:
+def _release_class_seats(org_id: str, target_id: str,
+                         actor_id: Optional[str] = None) -> int:
     """Withdraw the student's active class seats and free anything they hold on a
     waitlist, so class counts don't keep counting someone who is gone."""
     rows = (
@@ -239,7 +240,7 @@ def _release_class_seats(org_id: str, target_id: str) -> int:
     ).data or []
     for r in rows:
         _admin().table('class_enrollments').update(
-            {'status': 'withdrawn'}).eq('id', r['id']).execute()
+            {'status': 'withdrawn', 'status_changed_by': actor_id}).eq('id', r['id']).execute()
     try:
         from services.class_group_sync_service import sync_class_group
         for r in rows:
@@ -255,8 +256,9 @@ def _release_class_seats(org_id: str, target_id: str) -> int:
     return len(rows)
 
 
-def _archive(org_id: str, target_id: str, name: str, student: bool) -> Dict[str, Any]:
-    seats = _release_class_seats(org_id, target_id)
+def _archive(org_id: str, target_id: str, name: str, student: bool,
+             actor_id: Optional[str] = None) -> Dict[str, Any]:
+    seats = _release_class_seats(org_id, target_id, actor_id)
     if student:
         # Withdrawn is the status the People list and dashboards already treat as
         # "no longer here", so nothing else needs to learn a new state.
@@ -279,8 +281,9 @@ def _archive(org_id: str, target_id: str, name: str, student: bool) -> Dict[str,
     return {'archived': True, 'name': name, 'detached': True, 'seats_released': seats}
 
 
-def _delete(org_id: str, target_id: str, name: str) -> Dict[str, Any]:
-    seats = _release_class_seats(org_id, target_id)
+def _delete(org_id: str, target_id: str, name: str,
+            actor_id: Optional[str] = None) -> Dict[str, Any]:
+    seats = _release_class_seats(org_id, target_id, actor_id)
     admin = _admin()
     for table, column in (('household_members', 'user_id'),
                           ('school_enrollments', 'student_user_id'),

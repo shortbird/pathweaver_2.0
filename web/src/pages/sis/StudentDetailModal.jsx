@@ -22,11 +22,13 @@ import { ageFromDob, fitsAge, conflictsWith } from '../../utils/schedule'
 import GlassTabBar from '../../components/ui/GlassTabBar'
 import { useRecordDoors } from '../../components/sis/recordDoorsContext'
 import { INPUT_CLASS } from '../../components/ui/Input'
+import ClassHistorySection from '../../components/sis/ClassHistorySection'
 
 /**
  * Tabbed per-student management modal.
  *   Profile  — details (name/email/DOB) + status/grade, family, emergency contacts, account actions
- *   Schedule — the student's active classes (teacher + link to the class's quest), plus enroll
+ *   Schedule — the student's active classes (teacher + link to the class's quest), plus enroll,
+ *              plus the class history (every add, drop and waitlist, newest first)
  *   Message  — message the student through the platform messaging system
  * The Profile "Save" lives in the header so the modal doesn't grow taller.
  */
@@ -478,7 +480,14 @@ const SchedulePanel = ({ student, orgId }) => {
   // as a timetable (iCreate, 2026-09-14, 5e553e23).
   const classes = [...(enrolled.data || [])].sort(byDayAndTime)
   const loading = enrolled.isLoading
-  const reload = enrolled.refetch
+  const queryClient = useQueryClient()
+  // An enroll or a drop is a new line in the class history below, too.
+  const reload = () => {
+    enrolled.refetch()
+    queryClient.invalidateQueries({
+      queryKey: queryKeys.sis.studentClassHistory(student.student_id, orgId),
+    })
+  }
 
   useEffect(() => {
     if (enrolled.isError) toast.error('Could not load schedule')
@@ -615,6 +624,10 @@ const SchedulePanel = ({ student, orgId }) => {
             Show the {excluded} that clash{excluded === 1 ? 'es' : ''} with their week or age band
           </label>
         )}
+      </div>
+
+      <div className="border-t border-gray-100 pt-4">
+        <ClassHistorySection studentId={student.student_id} orgId={orgId} />
       </div>
     </div>
   )

@@ -38,6 +38,7 @@ SIS_STUDENT_ROUTES = (
     'sis.get_student',
     'sis.list_emergency_contacts',
     'sis.message_student',
+    'sis.student_class_history',
     'sis.student_classes',
     'sis.update_enrollment',
     'sis.update_student',

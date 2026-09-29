@@ -109,6 +109,7 @@ export const queryKeys = {
     studentContacts: (studentId) => [...queryKeys.sis.all, 'studentContacts', studentId],
     studentRecord: (studentId, orgId) => [...queryKeys.sis.all, 'studentRecord', studentId, orgId],
     studentClasses: (studentId, orgId) => [...queryKeys.sis.all, 'studentClasses', studentId, orgId],
+    studentClassHistory: (studentId, orgId) => [...queryKeys.sis.all, 'studentClassHistory', studentId, orgId],
     orgClassList: (orgId) => [...queryKeys.sis.all, 'orgClassList', orgId],
     // The Quests page: every quest the org owns and where each is in use.
     questLibrary: (orgId) => [...queryKeys.sis.all, 'questLibrary', orgId],

@@ -234,7 +234,7 @@ def archive_class(user_id, class_id):
     # double-bookings). Re-sync the chat group to drop those students too.
     dropped = (
         supabase.table('class_enrollments')
-        .update({'status': 'withdrawn'})
+        .update({'status': 'withdrawn', 'status_changed_by': user_id})
         .eq('class_id', class_id).eq('status', 'active').execute()
     ).data or []
     supabase.table('org_classes').update(
@@ -592,7 +592,8 @@ def enroll_student(user_id, class_id):
     from services import sis_waitlist_service
     if existing:
         if existing[0].get('status') != 'active':
-            supabase.table('class_enrollments').update({'status': 'active'}).eq('id', existing[0]['id']).execute()
+            supabase.table('class_enrollments').update(
+                {'status': 'active', 'status_changed_by': user_id}).eq('id', existing[0]['id']).execute()
             sync_class_group(class_id, actor_id=user_id)
             roster_alerts.notify_teachers_of_new_student(class_id, student_id, actor_id=user_id)
             sis_waitlist_service.clear_entry_for_enrollment(org_id, class_id, student_id)
@@ -657,7 +658,10 @@ def unenroll_student(user_id, class_id, student_id):
     if not existing or existing[0].get('status') != 'active':
         return jsonify({'success': True, 'not_enrolled': True})
 
-    supabase.table('class_enrollments').update({'status': 'withdrawn'}).eq('id', existing[0]['id']).execute()
+    # status_changed_by names who dropped them in the class history
+    # (class_enrollment_events, written by a trigger on this update).
+    supabase.table('class_enrollments').update(
+        {'status': 'withdrawn', 'status_changed_by': user_id}).eq('id', existing[0]['id']).execute()
     from services.class_group_sync_service import sync_class_group
     sync_class_group(class_id, actor_id=user_id)
     from services import sis_waitlist_service

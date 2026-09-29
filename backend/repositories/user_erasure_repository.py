@@ -144,6 +144,10 @@ ANONYMIZE_REFS: Tuple[Tuple[str, str], ...] = (
     # departing family populates themselves. NOT NULL until the 20260825
     # migration, which is why it blocked every such parent's erasure.
     ('class_enrollments', 'enrolled_by'),
+    # Class history (20260929145429): who dropped or re-added a student, and
+    # the actor on each history event. Both ON DELETE SET NULL.
+    ('class_enrollments', 'status_changed_by'),
+    ('class_enrollment_events', 'actor_id'),
     # CRM assistant (20260925150000): the staff member who connected the
     # mailbox, created a to-do, or clicked Send. All ON DELETE SET NULL.
     ('crm_drafts', 'sent_by'),

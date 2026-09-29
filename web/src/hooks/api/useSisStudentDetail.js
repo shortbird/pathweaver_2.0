@@ -64,6 +64,21 @@ export const useStudentClasses = (studentId, orgId) => useQuery({
   staleTime: 30 * 1000,
 })
 
+/**
+ * Every class this student was added to, dropped from or waitlisted for,
+ * newest first (iCreate, ticket fee0d486). A row with date_known false is a
+ * drop from before the history was recorded: its date is not real.
+ */
+export const useStudentClassHistory = (studentId, orgId) => useQuery({
+  queryKey: queryKeys.sis.studentClassHistory(studentId, orgId),
+  queryFn: async () => {
+    const r = await api.get(`/api/sis/students/${studentId}/class-history?organization_id=${orgId}`)
+    return r.data?.history || []
+  },
+  enabled: !!studentId && !!orgId,
+  staleTime: 30 * 1000,
+})
+
 /** Every class in the org, for the "add to a class" picker. */
 export const useOrgClassList = (orgId) => useQuery({
   queryKey: queryKeys.sis.orgClassList(orgId),
