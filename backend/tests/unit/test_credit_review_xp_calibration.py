@@ -49,7 +49,7 @@ class TestAnEditedScaleIsRead:
 class TestExampleValidation:
     def _clean(self, app, data, partial=False):
         from routes.credit_dashboard.xp_calibration import _clean_example
-        with app.app_context():
+        with app.test_request_context():
             changes, error = _clean_example(data, partial=partial)
         return changes, (error[1] if error else None)
 
@@ -201,7 +201,7 @@ class TestSuggestedExamples:
 class TestReviewerAwardsATaskSize:
     def _apply(self, app, xp_value, current=100):
         from routes.credit_dashboard.reviewer_xp import apply_reviewer_xp
-        with app.app_context():
+        with app.test_request_context():
             return apply_reviewer_xp(MagicMock(), {'xp_value': xp_value},
                                      completion={'id': 'c-1'}, task={'id': 't-1', 'xp_value': current},
                                      student_id='s-1', reviewer_id='r-1')
