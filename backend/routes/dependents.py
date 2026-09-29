@@ -716,7 +716,8 @@ def promote_dependent(user_id, dependent_id):
         if not data:
             raise ValidationError("Request body is required")
 
-        email = data.get('email', '').strip()
+        # Lower-cased like add-login, so the in-use check compares like with like.
+        email = data.get('email', '').strip().lower()
         password = data.get('password', '').strip()
 
         # Validate required fields

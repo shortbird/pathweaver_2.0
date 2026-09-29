@@ -66,7 +66,12 @@ PATTERNS = (
 #: sis/goals.py, the weekly digest and the my-children / my-dependents routes
 #: moved over, and the five extra patterns
 #: above were added (they matched nothing new once those four were done).
-BASELINE = 107
+#:
+#: 2026-09-29: 107 -> 109. DependentRepository._ensure_parent_link WRITES the
+#: link (read-then-insert-or-approve) when a parent promotes their dependent to
+#: an independent account, so the parent keeps the child once
+#: managed_by_parent_id is cleared (ticket 4c26966c). It decides no access.
+BASELINE = 109
 
 
 def _count():

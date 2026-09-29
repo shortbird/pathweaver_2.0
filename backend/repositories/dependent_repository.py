@@ -364,7 +364,8 @@ class DependentRepository(BaseRepository):
             password: Password for the new independent account
 
         Returns:
-            Updated user record
+            Updated user record. Its id is dependent_id: promotion never
+            changes a user's id.
 
         Raises:
             NotFoundError: If dependent not found
@@ -372,8 +373,8 @@ class DependentRepository(BaseRepository):
             ValidationError: If promotion fails
         """
         # Get dependent and verify ownership. owner_only: promotion hands the
-        # account to the child permanently and cuts every guardian's management
-        # link, so it stays with the guardian who created it.
+        # account to the child permanently and ends managed_by_parent_id, so it
+        # stays with the guardian who created it.
         dependent = self.get_dependent(dependent_id, parent_id, owner_only=True)
 
         # Check promotion eligibility
@@ -384,52 +385,140 @@ class DependentRepository(BaseRepository):
                 f"Eligible on {promotion_date.strftime('%B %d, %Y')} (13th birthday)."
             )
 
+        # Cheap pre-check against the profile table, before anything is
+        # written. It cannot see an address held only in auth.users, so
+        # GoTrue's own duplicate error is translated below as well.
+        email_check = self.client.table('users').select('id').eq('email', email).execute()
+        if email_check.data:
+            raise ValidationError("This email is already in use by another account")
+
+        # The id never changes (ticket 4c26966c). create_dependent already made
+        # an auth user -- a stub with a placeholder email -- whose id IS this
+        # profile's id, so promotion hands that same auth user a real email and
+        # password. The old code created a SECOND auth user and rewrote users.id
+        # to match it, which orphaned every row keyed to the child (~40 tables
+        # reference users.id) and left the placeholder auth user behind.
+        # add-login in routes/dependents.py made the same move for the same
+        # reason; this is the other half of it.
+        #
+        # Order matters, and each step leaves a state a retry can finish:
+        #   1. auth credentials  -- if this fails, nothing else is written.
+        #   2. parent link       -- written BEFORE managed_by_parent_id is
+        #                           cleared, so the parent never loses sight of
+        #                           the child in between.
+        #   3. public.users      -- email + dependent flags in ONE update, since
+        #                           check_dependent_no_email forbids an email
+        #                           while is_dependent is still true.
+        # A failure after step 1 leaves the auth user already holding the
+        # address; a retry passes the profile-table check (users.email is still
+        # NULL) and update_user_by_id on the same user is accepted again.
+        promoted_at = datetime.utcnow().isoformat()
+        auth_attributes = {
+            'email': email,
+            'password': password,
+            'email_confirm': True,
+            'user_metadata': {
+                'display_name': dependent.get('display_name'),
+                'promoted_from_dependent': True,
+                'promoted_at': promoted_at,
+            },
+        }
+        self._set_promoted_credentials(dependent_id, auth_attributes)
+
+        # Owner decision: promotion hands the child their own login, it does
+        # not take them out of the family. managed_by_parent_id is the link
+        # that goes away, so the promoting parent gets an approved
+        # parent_student_links row in its place -- the link the family view
+        # (utils.class_membership.links_of_parent) and is_parent_of already
+        # read for a student with their own login. household_members is left
+        # alone: a shared household keeps working as it did.
+        self._ensure_parent_link(parent_id, dependent_id)
+
+        update_data = {
+            'email': email,
+            'is_dependent': False,
+            'managed_by_parent_id': None,
+        }
         try:
-            # Create Supabase Auth account
-            from database import get_supabase_admin_client
-            # admin client justified: repository layer — default client for data-access methods; callers should inject a user client when RLS scoping is required
-            admin_client = get_supabase_admin_client()
-
-            # Check if email is already in use (prevents unclear Supabase auth errors)
-            email_check = admin_client.table('users').select('id').eq('email', email).execute()
-            if email_check.data:
-                raise ValidationError("This email is already in use by another account")
-
-            auth_response = admin_client.auth.admin.create_user({
-                'email': email,
-                'password': password,
-                'email_confirm': True,
-                'user_metadata': {
-                    'display_name': dependent.get('display_name'),
-                    'promoted_from_dependent': True,
-                    'promoted_at': datetime.utcnow().isoformat()
-                }
-            })
-
-            if not auth_response.user:
-                raise ValidationError("Failed to create authentication account")
-
-            # Update user record to remove dependent status
-            update_data = {
-                'email': email,
-                'is_dependent': False,
-                'managed_by_parent_id': None,
-                'id': auth_response.user.id  # Update to match Supabase Auth ID
-            }
-
-            # Note: This is a complex operation that may require data migration
-            # For now, we'll update the existing record
             result = self.client.table('users')\
                 .update(update_data)\
                 .eq('id', dependent_id)\
                 .execute()
-
-            logger.info(f"Promoted dependent {dependent_id} to independent account {auth_response.user.id}")
-            return result.data[0] if result.data else update_data
-
         except Exception as e:
-            logger.error(f"Error promoting dependent {dependent_id}: {e}")
+            logger.error(f"Promoted dependent {dependent_id} in auth but the profile update failed: {e}")
             raise ValidationError(f"Failed to promote dependent: {str(e)}") from e
+
+        logger.info(f"Promoted dependent {dependent_id} to an independent account (id unchanged)")
+        if result.data:
+            return result.data[0]
+        return {**dependent, **update_data}
+
+    def _set_promoted_credentials(self, dependent_id: str, attributes: Dict[str, Any]) -> None:
+        """Give the dependent's existing auth user a real email and password.
+
+        Every dependent in production has an auth.users row (238 of 238 on
+        2026-09-29), because create_dependent makes one first. If one is ever
+        missing, the auth user is created with the SAME id rather than a new
+        one: the profile id is the thing that must not move.
+        """
+        from utils.validation.breached_password import (
+            BREACHED_PASSWORD_MESSAGE, is_weak_password_error,
+        )
+        try:
+            try:
+                self.client.auth.admin.update_user_by_id(dependent_id, attributes)
+            except Exception as e:
+                if not self._is_auth_user_missing(e):
+                    raise
+                logger.warning(f"Dependent {dependent_id} had no auth user; creating one with the same id")
+                response = self.client.auth.admin.create_user({**attributes, 'id': dependent_id})
+                created_id = getattr(getattr(response, 'user', None), 'id', None)
+                if created_id and str(created_id) != str(dependent_id):
+                    raise ValidationError("Failed to create authentication account")
+        except ValidationError:
+            raise
+        except Exception as e:
+            message = str(e).lower()
+            if 'already been registered' in message or 'already exists' in message:
+                raise ValidationError("This email is already in use by another account") from e
+            if is_weak_password_error(e):
+                raise ValidationError(BREACHED_PASSWORD_MESSAGE) from e
+            logger.error(f"Failed to set login credentials while promoting dependent {dependent_id}: {e}")
+            raise ValidationError("Failed to promote dependent: could not set login credentials") from e
+
+    @staticmethod
+    def _is_auth_user_missing(exc: Exception) -> bool:
+        if getattr(exc, 'code', None) == 'user_not_found':
+            return True
+        if getattr(exc, 'status', None) == 404:
+            return True
+        return 'user not found' in str(getattr(exc, 'message', '') or exc).lower()
+
+    def _ensure_parent_link(self, parent_id: str, student_id: str) -> None:
+        """Approved parent_student_links row from parent to student. Idempotent:
+        an existing approved row is left alone, any other status is raised to
+        approved (the parent is the child's managing guardian, which outranks a
+        stale pending or rejected request)."""
+        try:
+            existing = self.client.table('parent_student_links').select('id, status')\
+                .eq('parent_user_id', parent_id).eq('student_user_id', student_id)\
+                .execute().data or []
+            if not existing:
+                self.client.table('parent_student_links').insert({
+                    'parent_user_id': parent_id,
+                    'student_user_id': student_id,
+                    'status': 'approved',
+                    'admin_verified': True,
+                    'admin_notes': 'Auto-linked when the parent promoted their dependent to their own account',
+                }).execute()
+            elif existing[0].get('status') != 'approved':
+                self.client.table('parent_student_links')\
+                    .update({'status': 'approved'})\
+                    .eq('id', existing[0]['id']).execute()
+        except Exception as e:
+            logger.error(f"Failed to link parent {parent_id} to promoted dependent {student_id}: {e}")
+            raise ValidationError(
+                "Failed to promote dependent: could not keep the parent link") from e
 
     def _calculate_age(self, date_of_birth: date) -> int:
         """
