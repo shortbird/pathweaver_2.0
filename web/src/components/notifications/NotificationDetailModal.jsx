@@ -213,7 +213,10 @@ const NotificationDetailModal = ({ notification, isOpen, onClose }) => {
               <ReactMarkdown>{fullContent}</ReactMarkdown>
             </div>
           ) : (
-            <p className="text-gray-700">{fullContent}</p>
+            // A message's line breaks kept, and a long unbroken token (an
+            // email, a link) wrapped rather than run past the modal
+            // (f2ad5cda).
+            <p className="text-gray-700 whitespace-pre-wrap [overflow-wrap:anywhere]">{fullContent}</p>
           )}
 
           {/* Action link if available. An internal path routes in place --

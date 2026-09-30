@@ -315,7 +315,7 @@ const GroupChatWindow = ({ group, onBack, source, onMakeTask = null }) => {
                 isOwn={isOwn}
               >
                 {(open, hold) => (
-                <div className={`max-w-[75%] md:max-w-md ${isOwn ? 'order-2' : ''}`}>
+                <div className={`max-w-[75%] md:max-w-md min-w-0 ${isOwn ? 'order-2' : ''}`}>
                   {/* Sender name (for others' messages) */}
                   {!isOwn && showAvatar && (
                     <p className="text-xs text-gray-500 mb-1 ml-1">{senderName}</p>
@@ -340,8 +340,14 @@ const GroupChatWindow = ({ group, onBack, source, onMakeTask = null }) => {
                     {/* Spacer for messages without avatar */}
                     {!isOwn && !showAvatar && <div className="w-8 flex-shrink-0" />}
 
-                    {/* Message bubble + hover actions */}
-                    <div className="relative">
+                    {/* Message bubble + hover actions. min-w-0: a flex item
+                        will not shrink below its content's longest unbroken
+                        word, so an email address or a long id pushed the
+                        bubble past the pane and the scroller's
+                        overflow-x-hidden cut it off (iCreate, 2026-09-29,
+                        f2ad5cda: "Some of the messages I've received extend
+                        too far horizontally past the frame of the chat"). */}
+                    <div className="relative min-w-0">
                       {!isDeleted && !isEditing && !msg.isOptimistic && !asSchool && (
                         <MessageActionBar
                           open={open}

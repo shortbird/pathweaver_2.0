@@ -642,3 +642,73 @@ describe('who already has the quest, in the Give picker (ebfc9253)', () => {
 // at create time) are the quest editor's now; a draft has an id from the
 // first minute, so links and files go on through the attachments panel.
 // components/sis/questEditor.test.jsx holds that behaviour.
+
+/**
+ * Ticket f90b9cd7 (iCreate, 2026-09-30): "It would be nice to be able to sort
+ * quests (like classes)."
+ *
+ * One header click sorts both lists the same way; with no click the rows keep
+ * the order the server sent, which is what the page always showed.
+ */
+describe('sorting the quest library', () => {
+  const quest = (id, title, extra = {}) => ({
+    id, title, description: '', task_count: 0, tasks: [],
+    made_by: { id: 'u-molly', name: 'Molly Christensen', teacher: false },
+    curricula: [], classes: [], updated_at: '2026-09-01T12:00:00Z', ...extra,
+  })
+  const teacher = { id: 'u-sam', name: 'Sam Teacher', teacher: true }
+  const SORTABLE = {
+    ...LIBRARY,
+    quests: [
+      quest('a', 'Pottery', { task_count: 5 }),
+      quest('b', 'Archery', { task_count: 1 }),
+      quest('c', 'Knitting', { task_count: 3 }),
+      quest('t1', 'Zoology', { made_by: teacher, task_count: 2 }),
+      quest('t2', 'Baking', { made_by: teacher, task_count: 4 }),
+    ],
+  }
+  const titlesIn = (heading) => {
+    const section = screen.getByRole('heading', { name: new RegExp(heading) }).closest('section')
+    return within(section).getAllByRole('row').slice(1)
+      .map((r) => within(r).getAllByRole('cell')[0].querySelector('.font-medium').textContent)
+  }
+  const header = (name) => screen.getAllByRole('button', { name: new RegExp(`^${name}`) })[0]
+
+  beforeEach(() => {
+    api.get.mockImplementation((url) => Promise.resolve({
+      data: url.startsWith('/api/sis/quest-editor/drafts') ? { drafts: [] } : SORTABLE,
+    }))
+  })
+
+  it('keeps the server order until a header is clicked', async () => {
+    render(<QuestsPanel />)
+    await screen.findByText('Pottery')
+    expect(titlesIn('School library')).toEqual(['Pottery', 'Archery', 'Knitting'])
+    expect(titlesIn('Teacher-made')).toEqual(['Zoology', 'Baking'])
+  })
+
+  it('sorts each list ascending, then descending, on the same header', async () => {
+    render(<QuestsPanel />)
+    await screen.findByText('Pottery')
+    // Two tables, one header each; both reflect the one sort.
+    fireEvent.click(header('Quest'))
+    expect(titlesIn('School library')).toEqual(['Archery', 'Knitting', 'Pottery'])
+    expect(titlesIn('Teacher-made')).toEqual(['Baking', 'Zoology'])
+    screen.getAllByRole('button', { name: /^Quest/ }).forEach((b) => (
+      expect(b).toHaveAttribute('aria-sort', 'ascending')))
+
+    fireEvent.click(header('Quest'))
+    expect(titlesIn('School library')).toEqual(['Pottery', 'Knitting', 'Archery'])
+    expect(titlesIn('Teacher-made')).toEqual(['Zoology', 'Baking'])
+  })
+
+  it('sorts a count column as a number', async () => {
+    render(<QuestsPanel />)
+    await screen.findByText('Pottery')
+    fireEvent.click(header('Tasks'))
+    expect(titlesIn('School library')).toEqual(['Archery', 'Knitting', 'Pottery'])
+    fireEvent.click(header('Tasks'))
+    expect(titlesIn('School library')).toEqual(['Pottery', 'Knitting', 'Archery'])
+    expect(titlesIn('Teacher-made')).toEqual(['Baking', 'Zoology'])
+  })
+})

@@ -17,12 +17,19 @@ import { splitUrls } from '../announcements/AnnouncementBody'
  *
  * The text is rendered as text — React escapes it — so nothing a person types
  * into a chat can become markup, and only an http(s) match becomes an anchor.
+ *
+ * `[overflow-wrap:anywhere]` and not only `break-words`: break-words wraps a
+ * long word once the box is sized, but does not lower the box's min-content
+ * width, so inside a flex row an unbroken email or domain still set the
+ * bubble's width and ran off the edge of the chat (iCreate, 2026-09-29,
+ * f2ad5cda: "Some of the messages I've received extend too far horizontally
+ * past the frame of the chat so I can't see the full message").
  */
 export default function MessageText({ text, className = '' }) {
   if (!text) return null
   const segments = splitUrls(text)
   return (
-    <p className={`whitespace-pre-wrap break-words ${className}`}>
+    <p className={`whitespace-pre-wrap break-words [overflow-wrap:anywhere] ${className}`}>
       {segments.map((s, i) => (s.url ? (
         <a
           key={i}

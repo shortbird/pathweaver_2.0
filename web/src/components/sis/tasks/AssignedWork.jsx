@@ -9,6 +9,7 @@ import { SignatureBatchCard } from './SignatureBatches'
 import StatusPill from '../ui/StatusPill'
 import { officeTaskApi, useAssignedTasks, useTaskSchedules } from '../../../hooks/api/useTasks'
 import { useConfirm } from '../../../contexts/ConfirmContext'
+import BatchEditor from './BatchEditor'
 
 /**
  * Assigned -- everything the office has asked of people.
@@ -60,8 +61,26 @@ const asAssignment = (p) => ({ ...p, template_name: p.title, status: p.native_st
 
 /** One send: title, done/total, and its people. */
 export function BatchCard({ orgId, batch: b, onChanged, openOn = {} }) {
+  const confirm = useConfirm()
   const [saving, setSaving] = useState(false)
+  const [editing, setEditing] = useState(false)
   const named = Object.keys(openOn).length > 0
+  // Ticket a063cbd9 (a campus coordinator): "Can't delete tasks." Unassigning
+  // 30 people one card at a time was the only way to take a send back.
+  const deleteBatch = async () => {
+    const started = b.people.filter((p) => p.done_count > 0).length
+    const warning = started
+      ? `\n\n${started} of them already started it. Any documents they uploaded are kept.`
+      : ''
+    if (!(await confirm(`Delete "${b.title}" for all ${b.total} ${b.total === 1 ? 'person' : 'people'}?${warning}`))) return
+    try {
+      await officeTaskApi.deleteBatch(orgId, b.key)
+      toast.success('Deleted')
+      onChanged?.()
+    } catch (err) {
+      toast.error(err?.response?.data?.error || 'Could not delete it')
+    }
+  }
   const saveTemplate = async () => {
     const first = b.people[0]
     if (!first) return
@@ -100,11 +119,28 @@ export function BatchCard({ orgId, batch: b, onChanged, openOn = {} }) {
           {b.thread_link && (
             <Link to={b.thread_link} className="text-optio-purple hover:underline">Open the thread</Link>
           )}
-          <button type="button" onClick={saveTemplate} disabled={saving}
-            className="ml-auto text-optio-purple hover:underline disabled:opacity-50">
-            Save as template
-          </button>
+          <span className="ml-auto flex items-center gap-2">
+            <button type="button" onClick={saveTemplate} disabled={saving}
+              className="text-optio-purple hover:underline disabled:opacity-50">
+              Save as template
+            </button>
+            {/* Out here, not in the summary: the summary is the card's
+                expand target, and a destructive action one pixel from it is
+                a mis-click waiting to happen (ChecklistReview says the same). */}
+            <button type="button" onClick={() => setEditing(true)}
+              className="px-2.5 py-1 rounded border border-gray-300 text-neutral-700 hover:bg-gray-50">
+              Edit task
+            </button>
+            <button type="button" onClick={deleteBatch}
+              className="px-2.5 py-1 rounded border border-red-200 text-red-600 hover:bg-red-50"
+              title="Delete this task for everyone on it">
+              Delete task
+            </button>
+          </span>
         </div>
+        {editing && (
+          <BatchEditor orgId={orgId} batch={b} onClose={() => setEditing(false)} onSaved={onChanged} />
+        )}
         <table className="w-full text-sm">
           <thead>
             <tr className="text-left text-xs text-neutral-500">

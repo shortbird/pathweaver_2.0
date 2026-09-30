@@ -36,13 +36,63 @@ const DAYS = [['Mon', 0], ['Tue', 1], ['Wed', 2], ['Thu', 3], ['Fri', 4], ['Sat'
 const AUDIENCES = [['staff', 'Staff'], ['family', 'Families'], ['student', 'Students']]
 const PRIORITIES = [['', 'Normal'], ['low', 'Low'], ['high', 'High'], ['urgent', 'Urgent']]
 
-const emptyStep = () => ({ title: '', needs_document: false, needs_signature: false,
+export const emptyStep = () => ({ title: '', needs_document: false, needs_signature: false,
   needs_approval: false, required: true })
 
 const todayYmd = () => {
   const d = new Date()
   const pad = (n) => String(n).padStart(2, '0')
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+}
+
+/**
+ * The steps of a multi-step task: a title per step and what each asks for.
+ * Shared by the composer and the editor for a task already sent
+ * (BatchEditor), so the two can never ask different questions of a step.
+ */
+export function StepList({ steps, setStep, onRemove, onAdd }) {
+  return (
+    <div className="space-y-2">
+      <span className="block text-xs font-medium text-neutral-500">Steps</span>
+      {steps.map((s, i) => (
+        <div key={i} className="rounded-lg border border-gray-200 p-2 space-y-1.5">
+          <div className="flex items-center gap-2">
+            <input value={s.title} onChange={(e) => setStep(i, { title: e.target.value })}
+              placeholder={`Step ${i + 1}`} className={inputClass}
+              aria-label={`Step ${i + 1}`} />
+            <button type="button" onClick={() => onRemove(i)}
+              aria-label={`Remove step ${i + 1}`}
+              className="text-neutral-400 hover:text-red-600 font-bold px-1">×</button>
+          </div>
+          <div className="flex items-center gap-4 flex-wrap text-xs text-neutral-600">
+            {[['needs_document', 'They upload a file'], ['needs_signature', 'They sign it'],
+              ['needs_approval', 'Office approves it']].map(([field, label]) => (
+              <label key={field} className="flex items-center gap-1.5 cursor-pointer">
+                <input type="checkbox" checked={!!s[field]}
+                  onChange={(e) => setStep(i, { [field]: e.target.checked })}
+                  aria-label={`Step ${i + 1}: ${label}`}
+                  className="h-4 w-4 rounded border-gray-300 accent-purple-700" />
+                {label}
+              </label>
+            ))}
+            <label className="flex items-center gap-1.5 cursor-pointer">
+              <input type="checkbox" checked={s.required === false}
+                onChange={(e) => setStep(i, { required: !e.target.checked })}
+                className="h-4 w-4 rounded border-gray-300 accent-purple-700" />
+              Optional
+            </label>
+          </div>
+          {s.needs_signature && (
+            <input value={s.link || ''} onChange={(e) => setStep(i, { link: e.target.value })}
+              placeholder="Link to what they are signing (optional)"
+              className={inputClass} aria-label={`Step ${i + 1} link`} />
+          )}
+        </div>
+      ))}
+      <button type="button" onClick={onAdd}
+        className="text-sm text-optio-purple hover:underline">+ Another step</button>
+    </div>
+  )
 }
 
 function useRecipients(orgId, audience) {
@@ -246,7 +296,7 @@ export default function AssignComposer({ orgId, sigEndpoint, allowHr = false, on
             </span>
             <select value={templateId} onChange={(e) => applyTemplate(e.target.value)}
               className={inputClass} aria-label="Start from a template">
-              <option value="">A new task</option>
+              <option value="">Start from scratch</option>
               {templates.map((t) => (
                 <option key={t.id} value={t.id}>{t.name}</option>
               ))}
@@ -308,46 +358,9 @@ export default function AssignComposer({ orgId, sigEndpoint, allowHr = false, on
           )}
 
           {multiStep && (
-            <div className="space-y-2">
-              <span className="block text-xs font-medium text-neutral-500">Steps</span>
-              {steps.map((s, i) => (
-                <div key={i} className="rounded-lg border border-gray-200 p-2 space-y-1.5">
-                  <div className="flex items-center gap-2">
-                    <input value={s.title} onChange={(e) => setStep(i, { title: e.target.value })}
-                      placeholder={`Step ${i + 1}`} className={inputClass}
-                      aria-label={`Step ${i + 1}`} />
-                    <button type="button" onClick={() => setSteps((prev) => prev.filter((_, idx) => idx !== i))}
-                      aria-label={`Remove step ${i + 1}`}
-                      className="text-neutral-400 hover:text-red-600 font-bold px-1">×</button>
-                  </div>
-                  <div className="flex items-center gap-4 flex-wrap text-xs text-neutral-600">
-                    {[['needs_document', 'They upload a file'], ['needs_signature', 'They sign it'],
-                      ['needs_approval', 'Office approves it']].map(([field, label]) => (
-                      <label key={field} className="flex items-center gap-1.5 cursor-pointer">
-                        <input type="checkbox" checked={!!s[field]}
-                          onChange={(e) => setStep(i, { [field]: e.target.checked })}
-                          aria-label={`Step ${i + 1}: ${label}`}
-                          className="h-4 w-4 rounded border-gray-300 accent-purple-700" />
-                        {label}
-                      </label>
-                    ))}
-                    <label className="flex items-center gap-1.5 cursor-pointer">
-                      <input type="checkbox" checked={s.required === false}
-                        onChange={(e) => setStep(i, { required: !e.target.checked })}
-                        className="h-4 w-4 rounded border-gray-300 accent-purple-700" />
-                      Optional
-                    </label>
-                  </div>
-                  {s.needs_signature && (
-                    <input value={s.link || ''} onChange={(e) => setStep(i, { link: e.target.value })}
-                      placeholder="Link to what they are signing (optional)"
-                      className={inputClass} aria-label={`Step ${i + 1} link`} />
-                  )}
-                </div>
-              ))}
-              <button type="button" onClick={() => setSteps((prev) => [...prev, emptyStep()])}
-                className="text-sm text-optio-purple hover:underline">+ Another step</button>
-            </div>
+            <StepList steps={steps} setStep={setStep}
+              onRemove={(i) => setSteps((prev) => prev.filter((_, idx) => idx !== i))}
+              onAdd={() => setSteps((prev) => [...prev, emptyStep()])} />
           )}
 
           <div className="flex items-center gap-4 flex-wrap text-sm">
@@ -476,10 +489,16 @@ export default function AssignComposer({ orgId, sigEndpoint, allowHr = false, on
           <div className="flex items-center gap-3">
             <span className="text-xs text-neutral-500">{total} selected</span>
             {!signing && !templateId && (
-              <label className="flex items-center gap-1.5 text-xs text-neutral-600 cursor-pointer">
+              <label className="flex items-start gap-1.5 text-xs text-neutral-600 cursor-pointer max-w-xs">
                 <input type="checkbox" checked={saveTemplate} onChange={(e) => setSaveTemplate(e.target.checked)}
-                  className="h-4 w-4 rounded border-gray-300 accent-purple-700" />
-                Save as a template
+                  className="mt-0.5 h-4 w-4 rounded border-gray-300 accent-purple-700" />
+                <span>
+                  <span>Save as a template</span>
+                  {/* Ticket f794810e: "I don't know what save as template does." */}
+                  <span className="block text-neutral-400">
+                    Saves this title, description and steps so you can send it again from the Templates tab.
+                  </span>
+                </span>
               </label>
             )}
           </div>

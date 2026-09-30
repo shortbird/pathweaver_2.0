@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useState, useRef, useEffect, useMemo } from 'react'
 import { PhotoIcon, XMarkIcon } from '@heroicons/react/24/outline'
 import SearchSelect from '../ui/SearchSelect'
 import {
@@ -91,16 +91,67 @@ export default function ClassFieldsEditor({
   // does not belong among the draft fields — but it also does not deserve a
   // full-width bar of its own to hold one toggle.
   headerAside = null,
+  // (message) -> void. Called with the custom-time error ('' when there is
+  // none) whenever it changes, and with '' when the editor unmounts. The
+  // refused time never reaches the draft, so a host cannot see it there; this
+  // is how the host knows to hold its Save (4b38bb72).
+  onTimeErrorChange = null,
 }) {
   const set = (patch) => onChange(patch)
   const pickable = timeBlocks.filter((b) => !b.label)
+
+  // Custom time: a class that meets outside the school's teaching blocks.
+  // iCreate, 2026-09-30 (4b38bb72): "I'm creating a teacher assignment ...
+  // 'Lunch Monitor'. The trouble I'm running into is that it isn't during one
+  // of the blocks." The block pickers only offered teaching blocks, so a duty
+  // over lunch (a labelled block) or any off-grid hour could not be entered.
+  // The scheduler never needed a block — class_meetings.start_time/end_time are
+  // authoritative and block_id is simply left empty when the times match none.
+  //
+  // `timeMode` is null until the user picks, so the mode follows the saved
+  // times: a class whose times fit no block opens in Custom time and shows
+  // them, rather than a block select pointing at nothing. Deriving it (instead
+  // of seeding state once) also survives the blocks arriving after mount.
+  const [timeMode, setTimeMode] = useState(null)
+  const savedEnd = d.start_time && d.duration_minutes ? addMin(d.start_time, d.duration_minutes) : ''
+  const offBlock = Boolean(d.start_time) && pickable.length > 0 && (
+    !pickable.some((b) => hhmm(b.start) === hhmm(d.start_time))
+    || (savedEnd && !pickable.some((b) => hhmm(b.end) === savedEnd))
+  )
+  const customTime = pickable.length > 0 && (timeMode === 'custom' || (timeMode == null && offBlock))
+  // The end the user typed. Held here, not only in the draft, because an end
+  // before the start cannot be expressed as a duration — it is refused, and
+  // the draft keeps the last valid time while the input shows what was typed.
+  const [customEnd, setCustomEnd] = useState(null)
+  const shownEnd = customEnd ?? savedEnd
+  const customTimeError = customTime && d.start_time && shownEnd
+    && !(minutesBetween(d.start_time, shownEnd) > 0)
+    ? 'End time must be after the start time' : ''
+  // Through a ref, so a host that passes a new arrow each render does not
+  // re-fire the report (and loop through its own setState) every render.
+  const reportTimeError = useRef(onTimeErrorChange)
+  // Refreshed in an effect, not during render; effects run in order, so the
+  // report below always calls the latest callback.
+  useEffect(() => { reportTimeError.current = onTimeErrorChange })
+  useEffect(() => { reportTimeError.current?.(customTimeError) }, [customTimeError])
+  useEffect(() => () => reportTimeError.current?.(''), [])
+  const setCustomStart = (start) => {
+    setCustomEnd(shownEnd)
+    const mins = minutesBetween(start, shownEnd)
+    set(mins > 0 ? { start_time: start, duration_minutes: String(mins) } : { start_time: start })
+  }
+  const setCustomEndTime = (end) => {
+    setCustomEnd(end)
+    const mins = minutesBetween(d.start_time, end)
+    if (mins > 0) set({ duration_minutes: String(mins) })
+  }
 
   const normalizedRooms = (rooms || [])
     .map((r) => (typeof r === 'string' ? { name: r, description: '' } : { name: r?.name || '', description: r?.description || '' }))
     .filter((r) => r.name)
 
   const matchedRoom = normalizedRooms.find((r) => r.name === d.location)
-  const [customRoom, setCustomRoom] = React.useState(() => Boolean(d.location && !matchedRoom))
+  const [customRoom, setCustomRoom] = useState(() => Boolean(d.location && !matchedRoom))
 
   // Which rooms are already taken at the hours THIS class meets. iCreate,
   // 2026-09-04: "on the drop down menu for the rooms, maybe it can show which
@@ -108,7 +159,7 @@ export default function ClassFieldsEditor({
   // follows the days and times as they are edited, and it ignores this class's
   // own booking — a class is not competing with itself for its room.
   const draftEnd = addMin(d.start_time, d.duration_minutes)
-  const busyRooms = React.useMemo(() => {
+  const busyRooms = useMemo(() => {
     if (!d.start_time || !draftEnd || !d.days_of_week?.length) return {}
     // hhmm() on BOTH sides before comparing. The draft carries "11:30" and the
     // server sends Postgres time as "11:30:00", and as strings "11:30" sorts
@@ -266,23 +317,54 @@ export default function ClassFieldsEditor({
 
         <Field label="Time">
           {pickable.length ? (
-            <div className="flex items-center gap-1">
-              <select className={`${cell} px-1`} value={d.start_time} aria-label="Start block"
-                onChange={(e) => {
-                  const b = pickable.find((x) => hhmm(x.start) === e.target.value)
-                  if (b) set({ start_time: hhmm(b.start), duration_minutes: String(blockMinutes(b)) })
-                }}>
-                <option value="" disabled>Start</option>
-                {pickable.map((b, i) => <option key={i} value={hhmm(b.start)}>{fmt12ap(b.start)}</option>)}
-              </select>
-              <span className="text-neutral-300">–</span>
-              <select className={`${cell} px-1`} value={addMin(d.start_time, d.duration_minutes)} aria-label="End time"
-                disabled={!d.start_time}
-                onChange={(e) => set({ duration_minutes: String(minutesBetween(d.start_time, e.target.value)) })}>
-                {blockEndOptions(timeBlocks, d.start_time, addMin(d.start_time, d.duration_minutes)).map((end) => (
-                  <option key={end} value={end}>{fmt12ap(end)}</option>
-                ))}
-              </select>
+            <div className="flex flex-col gap-1.5">
+              <div className="flex items-center gap-1">
+                <select className={`${cell} px-1`} value={customTime ? '__custom__' : hhmm(d.start_time)}
+                  aria-label="Start block"
+                  onChange={(e) => {
+                    if (e.target.value === '__custom__') {
+                      // Keep whatever time was there, so the inputs open on
+                      // the block's hours as a starting point.
+                      setTimeMode('custom')
+                      setCustomEnd(savedEnd || null)
+                      return
+                    }
+                    const b = pickable.find((x) => hhmm(x.start) === e.target.value)
+                    if (b) {
+                      setTimeMode('block')
+                      setCustomEnd(null)
+                      set({ start_time: hhmm(b.start), duration_minutes: String(blockMinutes(b)) })
+                    }
+                  }}>
+                  <option value="" disabled>Start</option>
+                  {pickable.map((b, i) => <option key={i} value={hhmm(b.start)}>{fmt12ap(b.start)}</option>)}
+                  <option value="__custom__">Custom time…</option>
+                </select>
+                {!customTime && (
+                  <>
+                    <span className="text-neutral-300">–</span>
+                    <select className={`${cell} px-1`} value={addMin(d.start_time, d.duration_minutes)} aria-label="End time"
+                      disabled={!d.start_time}
+                      onChange={(e) => set({ duration_minutes: String(minutesBetween(d.start_time, e.target.value)) })}>
+                      {blockEndOptions(timeBlocks, d.start_time, addMin(d.start_time, d.duration_minutes)).map((end) => (
+                        <option key={end} value={end}>{fmt12ap(end)}</option>
+                      ))}
+                    </select>
+                  </>
+                )}
+              </div>
+              {customTime && (
+                <>
+                  <input type="time" className={cell} value={hhmm(d.start_time)} aria-label="Start time"
+                    onChange={(e) => setCustomStart(e.target.value)} />
+                  <input type="time" className={cell} value={shownEnd} aria-label="End time"
+                    aria-invalid={customTimeError ? true : undefined}
+                    onChange={(e) => setCustomEndTime(e.target.value)} />
+                  {customTimeError && (
+                    <p role="alert" className="text-[11px] text-red-600 leading-tight">{customTimeError}</p>
+                  )}
+                </>
+              )}
             </div>
           ) : (
             /* Stacked, not side by side: in the five-across Schedule band the

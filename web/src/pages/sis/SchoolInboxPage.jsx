@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { Navigate, useSearchParams } from 'react-router-dom'
-import { useQueryClient } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   AcademicCapIcon,
   ArrowLeftIcon,
@@ -33,7 +33,8 @@ import { useGrantedThreads } from '../../hooks/api/useSisMessaging'
 import { formatMessageTime } from '../../components/communication/MessageParts'
 import { useAuth } from '../../contexts/AuthContext'
 import { isSisAdmin } from './sisRole'
-import { useSisOrg } from './useSisOrg'
+import { useSisOrg, withOrg } from './useSisOrg'
+import api from '../../services/api'
 import { Spinner } from '../../components/ui/Spinner'
 import GlassTabBar from '../../components/ui/GlassTabBar'
 
@@ -98,6 +99,19 @@ const matchesSearch = (q, ...names) => !q || names.some((n) => normalise(n).incl
 const convoNames = (c) => [
   memberName(c), c.other_user?.display_name, c.other_user?.organization_name,
 ]
+// A class chat (audience family or student) is listed on My messages beside
+// the staff rooms, and has to be told apart from them at a glance.
+const CLASS_CHAT_TAG = { family: 'Parents', student: 'Students' }
+const isClassChat = (g) => Boolean(CLASS_CHAT_TAG[g.audience])
+
+// Threads waiting on a reply, per tab -- the same two numbers the sidebar
+// badge (InboxUnreadBadge) adds together, from the same endpoints.
+const needsReplyFrom = (res) => {
+  if (!res) return null
+  const data = res?.data?.data ?? res?.data ?? {}
+  return Number(data.needs_reply_threads ?? 0) || 0
+}
+
 const groupNames = (g) => [
   g.name,
   ...(g.members || []).map((m) => m.display_name
@@ -372,6 +386,50 @@ const SchoolInboxPage = () => {
           : threadView === 'waiting' ? waitingOnThem(c)
             : isResolved(c)
     ))
+  // Each tab's count, shown on every tab whichever is open (iCreate,
+  // 2026-09-29, 1570c67a: "On messaging on the side bar it says I have 3
+  // messages, but idk where those are." The sidebar summed both tabs; the tab
+  // bar showed only the open tab's number, and that one counted unread
+  // MESSAGES, not threads). Now both tabs read the sidebar's two halves --
+  // threads needing a reply, groups not counted -- so the tab numbers add up
+  // to the sidebar's. The open tab uses its own loaded list once it has one
+  // (the same rule, live), so marking a thread handled moves it at once.
+  const countsEnabled = !!user?.id && !(admin && isSuperadmin && !orgId)
+  const { data: tabCounts } = useQuery({
+    queryKey: ['sis', 'inboxTabCounts', orgId, admin],
+    enabled: countsEnabled,
+    refetchInterval: 60000,
+    staleTime: 30000,
+    queryFn: async () => {
+      const [mine, school] = await Promise.all([
+        api.get('/api/messages/unread-count?threads=1').catch(() => null),
+        admin
+          // expect403: see InboxUnreadBadge (OPTIO-WEB-24).
+          ? api.get(withOrg('/api/school-inbox/unread-count', isSuperadmin ? orgId : null), { expect403: true })
+            .catch(() => null)
+          : Promise.resolve(null),
+      ])
+      return { mine: needsReplyFrom(mine), school: needsReplyFrom(school) }
+    },
+  })
+  const listReady = listEnabled && !listLoading
+  const mineCount = tab === 'mine' && listReady ? openCount : tabCounts?.mine
+  const schoolCount = viewingSchool && listReady ? openCount : tabCounts?.school
+  // When the open tab's live count moves (a reply, a thread marked handled),
+  // the sidebar badge and the other tab's figure are re-read, so all three
+  // numbers keep agreeing.
+  const liveCountRef = useRef(null)
+  const liveCount = listReady && (tab === 'mine' || viewingSchool) ? `${tab}:${openCount}` : null
+  useEffect(() => {
+    if (!liveCount) return
+    const prev = liveCountRef.current
+    liveCountRef.current = liveCount
+    if (prev && prev.split(':')[0] === liveCount.split(':')[0] && prev !== liveCount) {
+      queryClient.invalidateQueries({ queryKey: ['sis', 'inboxUnread'] })
+      queryClient.invalidateQueries({ queryKey: ['sis', 'inboxTabCounts'] })
+    }
+  }, [liveCount])
+
   const THREAD_VIEWS = [
     ['open', `Needs a reply${openCount ? ` (${openCount})` : ''}`],
     ['waiting', 'Waiting on them'],
@@ -395,8 +453,16 @@ const SchoolInboxPage = () => {
   //
   // Every group the school owns is on the School tab, whoever is in it: since
   // Compose (2026-09-23) a school group can hold families and students too.
-  // My messages still lists only staff rooms -- a teacher's class chats have
-  // their own page.
+  //
+  // My messages lists EVERY group the caller is a member of, class parent and
+  // student chats included. It used to list staff rooms only, on the grounds
+  // that a teacher's class chats had their own page -- but nothing in the
+  // console pointed there, so a message in a class chat could be reached only
+  // from the bell and was gone once the bell closed (iCreate, 2026-09-29,
+  // 8a5f0d24: "Sometimes I get messages I can only access from the
+  // notification button... when I close it, it's gone"; b8e2f0c9: "the
+  // messages tab on the left doesn't show all messages"). Class chats sit
+  // under their own heading, tagged Parents or Students.
   const groupsEnabled = isMessages && !viewingGranted && !!user?.id
     && !(viewingSchool && isSuperadmin && !orgId)
   const { data: groupsData, isFetched: groupsFetched } = useGroups(user?.id, { source, enabled: groupsEnabled })
@@ -404,12 +470,14 @@ const SchoolInboxPage = () => {
   const allGroups = useMemo(() => (viewingGranted ? (grantedData?.groups || [])
     : (groupsData?.groups || (Array.isArray(groupsData) ? groupsData : []) || [])),
   [groupsData, grantedData, viewingGranted])
-  const staffGroups = useMemo(() => [...allGroups]
-    .filter((g) => schoolSide || (g.audience || 'staff') === 'staff')
+  const sortedGroups = useMemo(() => [...allGroups]
     .sort((a, b) => new Date(b.last_message_at || b.created_at || 0)
       - new Date(a.last_message_at || a.created_at || 0)),
-  [allGroups, schoolSide])
-  const shownGroups = query ? staffGroups.filter((g) => matchesSearch(query, ...groupNames(g))) : staffGroups
+  [allGroups])
+  const searchedGroups = query ? sortedGroups.filter((g) => matchesSearch(query, ...groupNames(g))) : sortedGroups
+  // The School tab keeps one list (the school's groups, whoever is in them).
+  const shownGroups = schoolSide ? searchedGroups : searchedGroups.filter((g) => !isClassChat(g))
+  const shownClassChats = schoolSide ? [] : searchedGroups.filter(isClassChat)
   const groupsLoaded = viewingGranted ? !grantedLoading : groupsFetched
 
   // ?group=<id> opens that group, the same consume-once rule as ?conversation=
@@ -426,15 +494,40 @@ const SchoolInboxPage = () => {
   const wantedGroup = searchParams.get('group')
   useEffect(() => {
     if (!wantedGroup || !isMessages) return
-    const match = staffGroups.find((g) => g.id === wantedGroup)
-      || allGroups.find((g) => g.id === wantedGroup)
+    const match = allGroups.find((g) => g.id === wantedGroup)
       || (groupsLoaded ? { id: wantedGroup, name: '' } : null)
     if (!match) return
     setSelectedGroup(match)
     const next = new URLSearchParams(searchParams)
     next.delete('group')
     setSearchParams(next, { replace: true })
-  }, [wantedGroup, isMessages, staffGroups, allGroups, groupsLoaded])
+  }, [wantedGroup, isMessages, allGroups, groupsLoaded])
+
+  // One group row, for the staff rooms and the class chats alike. A class chat
+  // carries a Parents or Students tag, so "Art" the parents' room and "Art" the
+  // students' room are never mistaken for each other or for a staff room.
+  const renderGroupRow = (g) => (
+    <button key={g.id} type="button" onClick={() => setSelectedGroup(g)}
+      aria-pressed={selectedGroup?.id === g.id}
+      className={`w-full text-left flex items-center gap-2 px-3 py-2 transition-colors ${
+        selectedGroup?.id === g.id ? 'bg-optio-purple/5' : 'hover:bg-gray-50'}`}>
+      <ChatBubbleLeftRightIcon className="w-4 h-4 text-optio-purple flex-shrink-0" />
+      <span className="min-w-0 flex-1 truncate text-sm text-neutral-800">{g.name}</span>
+      {!schoolSide && isClassChat(g) && (
+        <span className="flex-shrink-0 rounded bg-gray-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-neutral-500">
+          {CLASS_CHAT_TAG[g.audience]}
+        </span>
+      )}
+      {g.member_count > 0 && (
+        <span className="text-xs text-neutral-400 flex-shrink-0">{g.member_count}</span>
+      )}
+      {g.unread_count > 0 && (
+        <span className="flex-shrink-0 rounded-full bg-optio-purple px-1.5 py-0.5 text-[11px] font-semibold text-white">
+          {g.unread_count}
+        </span>
+      )}
+    </button>
+  )
 
   // The open thread's row as the list has it now -- `selected` is a snapshot
   // from the click, and the resolved mark lands on the list.
@@ -480,8 +573,8 @@ const SchoolInboxPage = () => {
         align="start" size="md" className="mb-4" aria-label="Messaging sections"
         tabs={[
           ...(admin || hasGranted || viewingGranted ? [{ id: 'school', label: `${orgName || 'School'} inbox`,
-            badge: tab === 'school' && totalUnread > 0 ? totalUnread : null }] : []),
-          { id: 'mine', label: 'My messages', badge: tab === 'mine' && totalUnread > 0 ? totalUnread : null },
+            badge: schoolCount > 0 ? schoolCount : null }] : []),
+          { id: 'mine', label: 'My messages', badge: mineCount > 0 ? mineCount : null },
           ...(admin ? [{ id: 'sent', label: 'Sent' }] : []),
         ]}
         active={tab} onSelect={setTab}
@@ -566,23 +659,15 @@ const SchoolInboxPage = () => {
                 <p className="px-3 pt-1 pb-1.5 text-[11px] font-semibold uppercase tracking-wide text-neutral-400">
                   Group threads
                 </p>
-                {shownGroups.map((g) => (
-                  <button key={g.id} type="button" onClick={() => setSelectedGroup(g)}
-                    aria-pressed={selectedGroup?.id === g.id}
-                    className={`w-full text-left flex items-center gap-2 px-3 py-2 transition-colors ${
-                      selectedGroup?.id === g.id ? 'bg-optio-purple/5' : 'hover:bg-gray-50'}`}>
-                    <ChatBubbleLeftRightIcon className="w-4 h-4 text-optio-purple flex-shrink-0" />
-                    <span className="min-w-0 flex-1 truncate text-sm text-neutral-800">{g.name}</span>
-                    {g.member_count > 0 && (
-                      <span className="text-xs text-neutral-400 flex-shrink-0">{g.member_count}</span>
-                    )}
-                    {g.unread_count > 0 && (
-                      <span className="flex-shrink-0 rounded-full bg-optio-purple px-1.5 py-0.5 text-[11px] font-semibold text-white">
-                        {g.unread_count}
-                      </span>
-                    )}
-                  </button>
-                ))}
+                {shownGroups.map(renderGroupRow)}
+              </div>
+            )}
+            {shownClassChats.length > 0 && (
+              <div className="border-b border-gray-100 py-1">
+                <p className="px-3 pt-1 pb-1.5 text-[11px] font-semibold uppercase tracking-wide text-neutral-400">
+                  Class chats
+                </p>
+                {shownClassChats.map(renderGroupRow)}
               </div>
             )}
             {loading ? (
@@ -590,7 +675,7 @@ const SchoolInboxPage = () => {
                 <Spinner />
               </div>
             ) : query && shownConversations.length === 0 ? (
-              shownGroups.length > 0 ? null : (
+              shownGroups.length + shownClassChats.length > 0 ? null : (
                 <div className="flex flex-col items-center justify-center h-64 p-4 text-center">
                   <MagnifyingGlassIcon className="w-12 h-12 text-gray-300 mb-3" />
                   <p className="text-sm font-medium text-neutral-700 mb-1">No conversations match</p>
@@ -735,7 +820,8 @@ const SchoolInboxPage = () => {
                     ].filter(Boolean).map((t) => ` · ${t}`).join('')
                     return (
                       <div key={message.id} className={`flex ${fromMe ? 'justify-end' : 'justify-start'}`}>
-                        <div className="max-w-[75%]">
+                        {/* min-w-0: see GroupChatWindow (f2ad5cda). */}
+                        <div className="max-w-[75%] min-w-0">
                           <MessageBubble
                             message={message}
                             isOwn={fromMe}

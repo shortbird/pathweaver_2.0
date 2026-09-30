@@ -29,6 +29,18 @@ describe('MessageBubble', () => {
     expect(seen).toHaveAttribute('title', 'Ada L, Sam P')
   })
 
+  // f2ad5cda (iCreate advisor, 2026-09-29): "Some of the messages I've
+  // received extend too far horizontally past the frame of the chat so I
+  // can't see the full message." break-words alone does not lower the
+  // min-content width, so a long email or id still widened the bubble.
+  it('wraps a long unbroken token anywhere, not only at word breaks', () => {
+    const token = 'x'.repeat(150) + '@example.org'
+    render(<MessageBubble message={{ ...message, message_content: token }} />)
+    const text = screen.getByText(token)
+    expect(text.className).toContain('[overflow-wrap:anywhere]')
+    expect(text.className).toContain('whitespace-pre-wrap')
+  })
+
   it('shows who wrote a school message the family was told about', () => {
     render(<MessageBubble message={{ ...message, sender_label: 'Tam T for iCreate' }} />)
     expect(screen.getByText('Tam T for iCreate')).toBeInTheDocument()

@@ -24,6 +24,10 @@ export default function ClassForm({ onCancel = null, onSubmit, initial = null, s
   const [imagePreview, setImagePreview] = useState(initial?.image_url || null)
   const [error, setError] = useState('')
   const [submitting, setSubmitting] = useState(false)
+  // The editor's own custom-time error (an end before the start). The refused
+  // time is not in the draft, so without this Save would quietly store the
+  // last valid time instead of the one on screen (4b38bb72).
+  const [timeError, setTimeError] = useState('')
 
   useEffect(() => () => {
     // Only object URLs (new uploads) need revoking, not an existing image_url.
@@ -52,6 +56,7 @@ export default function ClassForm({ onCancel = null, onSubmit, initial = null, s
       setError('Class name is required')
       return
     }
+    if (timeError) return  // the editor already says why, beside the time
     const ageMin = numOrUndef(draft.min_age)
     const ageMax = numOrUndef(draft.max_age)
     if (ageMin !== undefined && ageMax !== undefined && ageMin > ageMax) {
@@ -91,6 +96,7 @@ export default function ClassForm({ onCancel = null, onSubmit, initial = null, s
           imagePreview={imagePreview}
           onImageChange={pickImage}
           onImageRemove={removeImage}
+          onTimeErrorChange={setTimeError}
         />
 
         {!isEdit && (
@@ -119,7 +125,7 @@ export default function ClassForm({ onCancel = null, onSubmit, initial = null, s
             Cancel
           </button>
         )}
-        <button type="submit" disabled={submitting || !draft.name.trim()}
+        <button type="submit" disabled={submitting || !draft.name.trim() || Boolean(timeError)}
           className="px-4 py-2 bg-gradient-primary text-white rounded-lg hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-opacity">
           {submitting ? 'Saving...' : isEdit ? 'Save changes' : 'Create Class'}
         </button>

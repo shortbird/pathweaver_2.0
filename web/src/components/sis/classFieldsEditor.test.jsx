@@ -10,6 +10,7 @@
  * consolidation: one grid, everything in it, and a payload builder that can't
  * quietly omit a field.
  */
+import React, { useState } from 'react'
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen, fireEvent, within } from '@testing-library/react'
 
@@ -359,5 +360,119 @@ describe('the room picker says what is already in each room', () => {
           Gym: [{ class_id: 'other', class_name: 'Choir', day_of_week: 2, start_time: '14:30:00', end_time: '15:30:00' }],
         }} />)
     expect(screen.getByText(/Gym is already booked at this time by Choir\./)).toBeInTheDocument()
+  })
+})
+
+/**
+ * Ticket 4b38bb72 (iCreate, 2026-09-30): "I'm creating a teacher assignment ...
+ * 'Lunch Monitor'. The trouble I'm running into is that it isn't during one of
+ * the blocks. Can we have a way to change the time selections or does that
+ * mess up the scheduler?"
+ *
+ * It does not: class_meetings.start_time/end_time are the truth and block_id is
+ * left empty when the times fit no block. The editor was the only thing in the
+ * way — with blocks set up it offered block starts and block ends, and Lunch
+ * (a labelled block) was never one of them.
+ */
+describe('a class can meet outside the school blocks', () => {
+  const BLOCKS = [
+    { start: '09:00', end: '10:00' },
+    { start: '10:00', end: '11:00' },
+    { start: '11:30', end: '12:00', label: 'Lunch' },
+    { start: '12:00', end: '13:00' },
+  ]
+
+  // Applies each patch the way a host does, so a sequence of edits reads the
+  // draft the previous edit produced.
+  const Harness = ({ initial, onChange }) => {
+    const [draft, setDraft] = useState(initial)
+    return (
+      <ClassFieldsEditor draft={draft} staff={STAFF} timeBlocks={BLOCKS}
+        onChange={(patch) => { onChange(patch); setDraft((d) => ({ ...d, ...patch })) }} />
+    )
+  }
+  const mount = (meetings) => {
+    const onChange = vi.fn()
+    render(<Harness initial={toDraft({ ...CLASS, meetings })} onChange={onChange} />)
+    return onChange
+  }
+  const ON_BLOCK = [{ day_of_week: 1, start_time: '09:00:00', end_time: '10:00:00' }]
+  const AT_LUNCH = [{ day_of_week: 1, start_time: '11:30:00', end_time: '12:00:00' }]
+
+  it('offers Custom time beside the blocks', () => {
+    mount(ON_BLOCK)
+    expect(within(screen.getByLabelText('Start block')).getByRole('option', { name: 'Custom time…' }))
+      .toBeInTheDocument()
+  })
+
+  it('shows start and end inputs once Custom time is chosen, and emits the times typed', () => {
+    const onChange = mount(ON_BLOCK)
+    fireEvent.change(screen.getByLabelText('Start block'), { target: { value: '__custom__' } })
+    // Opens on the block's own hours as a starting point.
+    expect(screen.getByLabelText('Start time')).toHaveValue('09:00')
+    expect(screen.getByLabelText('End time')).toHaveValue('10:00')
+
+    fireEvent.change(screen.getByLabelText('Start time'), { target: { value: '11:30' } })
+    fireEvent.change(screen.getByLabelText('End time'), { target: { value: '12:00' } })
+    expect(onChange).toHaveBeenLastCalledWith({ duration_minutes: '30' })
+    expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ start_time: '11:30' }))
+  })
+
+  it('saves a custom time as that start and length', () => {
+    const d = { ...toDraft({ ...CLASS, meetings: AT_LUNCH }) }
+    expect(draftToPayload(d)).toMatchObject({ start_time: '11:30', duration_minutes: 30 })
+  })
+
+  it('opens an off-block class in Custom time, showing its saved times', () => {
+    // The saved value wins: a block select would have pointed at nothing, and
+    // the first save would have moved the class into a block.
+    mount(AT_LUNCH)
+    expect(screen.getByLabelText('Start block')).toHaveValue('__custom__')
+    expect(screen.getByLabelText('Start time')).toHaveValue('11:30')
+    expect(screen.getByLabelText('End time')).toHaveValue('12:00')
+  })
+
+  it('treats an end that is not a block end as a custom time too', () => {
+    mount([{ day_of_week: 1, start_time: '09:00:00', end_time: '09:45:00' }])
+    expect(screen.getByLabelText('Start block')).toHaveValue('__custom__')
+    expect(screen.getByLabelText('End time')).toHaveValue('09:45')
+  })
+
+  it('keeps the block pickers for a class that fills its blocks', () => {
+    const onChange = mount(ON_BLOCK)
+    expect(screen.getByLabelText('Start block')).toHaveValue('09:00')
+    expect(screen.queryByLabelText('Start time')).not.toBeInTheDocument()
+    fireEvent.change(screen.getByLabelText('Start block'), { target: { value: '10:00' } })
+    expect(onChange).toHaveBeenCalledWith({ start_time: '10:00', duration_minutes: '60' })
+    // Multi-block span still offered from the block end picker.
+    fireEvent.change(screen.getByLabelText('End time'), { target: { value: '13:00' } })
+    expect(onChange).toHaveBeenLastCalledWith({ duration_minutes: '180' })
+  })
+
+  it('goes back to a block from Custom time', () => {
+    const onChange = mount(AT_LUNCH)
+    fireEvent.change(screen.getByLabelText('Start block'), { target: { value: '12:00' } })
+    expect(onChange).toHaveBeenCalledWith({ start_time: '12:00', duration_minutes: '60' })
+    expect(screen.getByLabelText('Start block')).toHaveValue('12:00')
+    expect(screen.queryByLabelText('Start time')).not.toBeInTheDocument()
+  })
+
+  it('refuses an end before the start', () => {
+    const onChange = mount(AT_LUNCH)
+    fireEvent.change(screen.getByLabelText('End time'), { target: { value: '11:00' } })
+    expect(screen.getByRole('alert')).toHaveTextContent('End time must be after the start time')
+    // Nothing reaches the draft: it keeps the last valid length.
+    expect(onChange).not.toHaveBeenCalled()
+    fireEvent.change(screen.getByLabelText('End time'), { target: { value: '12:15' } })
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    expect(onChange).toHaveBeenLastCalledWith({ duration_minutes: '45' })
+  })
+
+  it('refuses a start moved past the end', () => {
+    const onChange = mount(AT_LUNCH)
+    fireEvent.change(screen.getByLabelText('Start time'), { target: { value: '12:30' } })
+    expect(screen.getByRole('alert')).toBeInTheDocument()
+    // The start moves; the length does not go negative.
+    expect(onChange).toHaveBeenLastCalledWith({ start_time: '12:30' })
   })
 })

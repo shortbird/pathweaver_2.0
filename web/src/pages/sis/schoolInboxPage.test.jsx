@@ -46,8 +46,16 @@ const { api, state } = vi.hoisted(() => {
     schoolConvos: [], schoolMessages: [], myConvos: [], myMessages: [], roster: [],
     groups: [], schoolGroups: [], groupMessages: [],
     audience: null, granted: null, sends: [], sendDetail: null, staff: [], openedBy: [],
+    mineNeedsReply: 0, schoolNeedsReply: 0,
   }
   const apiData = (url) => {
+    // The two halves of the sidebar badge, which the tab bar now shows too.
+    if (url.startsWith('/api/messages/unread-count')) {
+      return { data: { data: { needs_reply_threads: state.mineNeedsReply } } }
+    }
+    if (url.startsWith('/api/school-inbox/unread-count')) {
+      return { data: { data: { needs_reply_threads: state.schoolNeedsReply } } }
+    }
     // Group threads: the school's (School tab) and the caller's own (Mine).
     if (url === '/api/school-inbox/groups') {
       return { data: { data: { groups: state.schoolGroups, inbox_user_id: 'inbox-1' } } }
@@ -131,6 +139,8 @@ beforeEach(() => {
   state.sendDetail = null
   state.staff = []
   state.openedBy = []
+  state.mineNeedsReply = 0
+  state.schoolNeedsReply = 0
   vi.clearAllMocks()
 })
 
@@ -559,17 +569,46 @@ describe('group threads sent from this page', () => {
     expect(screen.getByText('3')).toBeInTheDocument()
   })
 
-  // A class's family or student group is the class page's, not the office's.
-  it('leaves family and student groups out', async () => {
+  // This test used to pin the opposite ("leaves family and student groups
+  // out"): My messages listed staff rooms only, on the grounds that class
+  // chats had their own page. Nothing in the console led there, so a class
+  // chat message could be read only from the bell and vanished with it.
+  // 8a5f0d24 (iCreate advisor, 2026-09-29): "Sometimes I get messages I can
+  // only access from the notification button... when I close it, it's
+  // gone." b8e2f0c9: "There appear to be 2 different views... the messages
+  // tab on the left doesn't show all messages; 'view details' from
+  // notifications shows all." The product owner decided My messages lists
+  // every group the caller belongs to, class chats labelled as such.
+  it('lists family and student class chats on My messages, labelled apart from staff rooms', async () => {
     authUser = { id: 'me-1', role: 'advisor' }
     state.groups = [
+      group(),
       group({ id: 'g2', name: 'Art class families', audience: 'family' }),
       group({ id: 'g3', name: 'Art class students', audience: 'student' }),
     ]
     render(<SchoolInboxPage />)
-    await waitFor(() => expect(api.get).toHaveBeenCalledWith('/api/groups'))
+    const families = await screen.findByText('Art class families')
+    const students = screen.getByText('Art class students')
+    // Their own heading, below the staff rooms, each tagged by audience.
+    expect(screen.getByText('Group threads')).toBeInTheDocument()
+    expect(screen.getByText('Class chats')).toBeInTheDocument()
+    expect(within(families.closest('button')).getByText('Parents')).toBeInTheDocument()
+    expect(within(students.closest('button')).getByText('Students')).toBeInTheDocument()
+    expect(within(screen.getByText('Elementary teachers').closest('button')).queryByText('Parents')).toBeNull()
+
+    // And they open in place, read as a member.
+    fireEvent.click(families)
+    await waitFor(() => expect(api.get).toHaveBeenCalledWith('/api/groups/g2/messages'))
+  })
+
+  // The School tab is unchanged: it lists the groups the school owns, and a
+  // class chat the admin happens to be in is not the office's.
+  it('does not add the caller’s class chats to the School tab', async () => {
+    state.groups = [group({ id: 'g2', name: 'Art class families', audience: 'family' })]
+    state.schoolGroups = []
+    render(<SchoolInboxPage />, { route: '/inbox?tab=school' })
+    await waitFor(() => expect(api.get).toHaveBeenCalledWith('/api/school-inbox/groups'))
     expect(screen.queryByText('Art class families')).toBeNull()
-    expect(screen.queryByText('Art class students')).toBeNull()
   })
 
   // 61b762a5: "When I click on 'view details' for the message that Molly
@@ -588,7 +627,8 @@ describe('group threads sent from this page', () => {
     expect(await screen.findByText('Field trip forms are due Friday, please remind everyone'))
       .toBeInTheDocument()
     expect(api.get).toHaveBeenCalledWith('/api/groups/g3/messages')
-    // Still not listed among the staff group threads.
+    // Listed now (8a5f0d24), under Class chats, not among the staff rooms.
+    expect(screen.getByText('Class chats')).toBeInTheDocument()
     expect(screen.queryByText('Group threads')).toBeNull()
   })
 
@@ -604,6 +644,50 @@ describe('group threads sent from this page', () => {
     render(<SchoolInboxPage />)
     await screen.findByText('Pat Family')
     expect(screen.queryByText('Group threads')).toBeNull()
+  })
+})
+
+// 1570c67a (iCreate org_admin on /inbox?tab=school, 2026-09-29): "On
+// messaging on the side bar it says I have 3 messages, but idk where those
+// are." The sidebar added both tabs' threads needing a reply; the tab bar
+// showed a number on the OPEN tab only, so the other tab's share was
+// invisible. Each tab now shows its count whichever is open, from the same
+// two endpoints as the sidebar, so the numbers add up.
+describe('tab counts', () => {
+  const tabNamed = (re) => screen.getAllByRole('tab').find((t) => re.test(t.textContent))
+
+  it('shows My messages’ count while the School tab is open', async () => {
+    state.mineNeedsReply = 2
+    state.schoolNeedsReply = 1
+    render(<SchoolInboxPage />, { route: '/inbox?tab=school' })
+    await waitFor(() => expect(tabNamed(/My messages/).textContent).toContain('2'))
+    expect(api.get).toHaveBeenCalledWith('/api/messages/unread-count?threads=1')
+  })
+
+  it('shows the School tab’s count while My messages is open', async () => {
+    state.mineNeedsReply = 2
+    state.schoolNeedsReply = 1
+    render(<SchoolInboxPage />, { route: '/inbox?tab=mine' })
+    await waitFor(() => expect(tabNamed(/inbox/).textContent).toContain('1'))
+    expect(api.get).toHaveBeenCalledWith('/api/school-inbox/unread-count', { expect403: true })
+  })
+
+  it('counts threads needing a reply on the open tab, not unread messages', async () => {
+    // One thread, five unread messages: the sidebar says 1, so the tab does.
+    state.schoolConvos = [{ ...convo(1, 'Greta'), unread_count: 5, last_message_sender_id: 'u1' }]
+    state.schoolNeedsReply = 1
+    render(<SchoolInboxPage />, { route: '/inbox?tab=school' })
+    await screen.findByText('Greta Family')
+    const school = tabNamed(/inbox/)
+    await waitFor(() => expect(school.textContent).toMatch(/inbox1$/))
+    expect(school.textContent).not.toContain('5')
+  })
+
+  it('does not ask for the school count for a teacher', async () => {
+    authUser = { id: 'me-1', role: 'advisor' }
+    render(<SchoolInboxPage />)
+    await waitFor(() => expect(api.get).toHaveBeenCalledWith('/api/messages/unread-count?threads=1'))
+    expect(api.get).not.toHaveBeenCalledWith('/api/school-inbox/unread-count', expect.anything())
   })
 })
 

@@ -438,6 +438,243 @@ def save_as_template(org_id: str, actor_id: str, task_id: str,
     }, actor_id=actor_id)
 
 
+# ── Changing what was sent ──────────────────────────────────────────────────
+#
+# Three tickets, one afternoon (2026-09-30):
+#   6eeaef78 "I would like to be able to edit tasks."
+#   35d879db "Tasks can't be reassigned to someone else."
+#   a063cbd9 "Can't delete tasks" (a campus coordinator)
+# Before this the only way to fix a typo in a task sent to 30 people was to
+# unassign all 30 by hand and send it again.
+
+# What a step asks the person to do. Wording (title, description, link, due
+# date) is how the office phrases the ask; these are the ask itself.
+_STEP_ASKS = ('needs_document', 'needs_signature', 'needs_approval')
+_STEP_OWNED = ('title', 'description', 'link', 'required') + _STEP_ASKS
+
+# The progress a step carries on one person's task. A step that starts over
+# loses its status and the office's review of it -- never the files or the
+# signature, which are the person's own work and outlive a changed rule.
+_STEP_RESET = {'status': 'pending', 'submitted_at': None, 'approved_by': None,
+               'approved_at': None, 'admin_notes': None}
+
+
+def _has_work(item: Dict[str, Any]) -> bool:
+    return (item.get('status') != 'pending' or bool(onboarding.item_documents(item))
+            or bool(item.get('signature')))
+
+
+def merge_steps(current: List[Dict[str, Any]], edited: List[Dict[str, Any]],
+                old_due: Optional[str], new_due: Optional[str]) -> List[Dict[str, Any]]:
+    """One person's steps after the office edits the task they were sent.
+
+    A step's identity is its `key` (sis_onboarding_service._clean_items): the
+    editor sends every existing step back with its key, and a step without one
+    is new. The rules, in the order they matter:
+
+      - Same key, and it asks for nothing it did not ask for before: the
+        person's progress is KEPT. Rewording a step, making it optional, or
+        dropping its approval must not undo work somebody already did -- that
+        is the whole reason the office wanted to edit instead of re-send.
+      - Same key, but it now asks for MORE (an upload, a signature, the
+        office's approval it did not need before): the step starts over,
+        because "done" was an answer to a smaller question. Files and a
+        signature already on it stay attached; the person re-ticks it.
+      - A new step arrives pending.
+      - A step the edit removed goes where it is still untouched, and stays
+        where it carries work. Somebody's uploaded ID does not vanish because
+        the office tidied the task -- the rule sync_assignments already
+        applies to a template pushed onto tasks in flight.
+
+    A step whose due date was the task's own follows the task's new one; a
+    step with its own date keeps it.
+    """
+    by_key = {i.get('key'): i for i in current if isinstance(i, dict)}
+    merged: List[Dict[str, Any]] = []
+    for step in edited:
+        cur = by_key.get(step['key'])
+        due = step.get('due_date')
+        if not due or due == old_due:
+            due = new_due
+        if cur is None:
+            merged.append(onboarding._fresh({'key': step['key'], 'document_id': None,
+                                             **{f: step.get(f) for f in _STEP_OWNED},
+                                             'due_date': due}))
+            continue
+        # Only what the office owns -- the wording and the rules -- comes from
+        # the edit. Progress is the person's; a bound document_id names their
+        # own copy of a contract, so neither is ever taken from the editor.
+        item = {**cur, **{f: step.get(f) for f in _STEP_OWNED}, 'due_date': due}
+        asks_more = any(step.get(f) and not cur.get(f) for f in _STEP_ASKS)
+        if asks_more and cur.get('status') != 'pending':
+            item.update(_STEP_RESET)
+        merged.append(item)
+    edited_keys = {s['key'] for s in edited}
+    for item in current:
+        if isinstance(item, dict) and item.get('key') not in edited_keys and _has_work(item):
+            merged.append(item)
+    return merged
+
+
+def _clean_due(value: Any) -> Optional[str]:
+    v = str(value or '').strip()[:10]
+    if not v:
+        return None
+    try:
+        return datetime.strptime(v, '%Y-%m-%d').date().isoformat()
+    except ValueError:
+        raise ValueError('Invalid due date') from None
+
+
+def edit_batch(org_id: str, key: str, data: Dict[str, Any]) -> Dict[str, Any]:
+    """Change a sent task for everyone on its card (ticket 6eeaef78).
+
+    `data` may carry title, description, due_date, priority and items; a
+    field left out is left alone. Each person's progress is merged step by
+    step (merge_steps). Nobody is notified: an edit is a correction, and a
+    "New task" notice for a task they already have would read as a second one.
+    """
+    repo = _repo()
+    rows = repo.list_batch(org_id, key)
+    if not rows:
+        return {'error': 'Task not found', 'status': 404}
+
+    fields: Dict[str, Any] = {}
+    if 'title' in data:
+        title = (data.get('title') or '').strip()
+        if not title:
+            return {'error': 'The task needs a title', 'status': 400}
+        fields['template_name'] = title
+    if 'priority' in data:
+        priority = data.get('priority') or None
+        if priority is not None and priority not in onboarding.PRIORITIES:
+            return {'error': 'Invalid priority', 'status': 400}
+        fields['priority'] = priority
+    new_due_given = 'due_date' in data
+    if new_due_given:
+        try:
+            fields['due_date'] = _clean_due(data.get('due_date'))
+        except ValueError as e:
+            return {'error': str(e), 'status': 400}
+    edited = None
+    if 'items' in data:
+        edited = onboarding._clean_items(data.get('items'))
+        if edited is None:
+            return {'error': 'Every step needs a title', 'status': 400}
+        if not edited:
+            return {'error': 'Add at least one step', 'status': 400}
+    update_description = 'description' in data
+    description = (data.get('description') or '').strip() or None
+
+    saved = []
+    for row in rows:
+        old_due = str(row['due_date'])[:10] if row.get('due_date') else None
+        new_due = fields['due_date'] if new_due_given else old_due
+        current = [i for i in (row.get('items') or []) if isinstance(i, dict)]
+        if edited is not None:
+            items = merge_steps(current, edited, old_due, new_due)
+        elif new_due_given:
+            items = [{**i, 'due_date': new_due} if (not i.get('due_date') or
+                                                   str(i['due_date'])[:10] == old_due) else i
+                     for i in current]
+        else:
+            items = current
+        saved.append(onboarding._save_items(row, items, description=description,
+                                            update_description=update_description,
+                                            extra=fields))
+    return {'updated': len(saved)}
+
+
+def reassign_task(org_id: str, actor_id: str, task_id: str,
+                  target_id: Optional[str]) -> Dict[str, Any]:
+    """Move one person's task to somebody else in the school (ticket 35d879db).
+
+    The new person gets a fresh copy -- every step pending -- on the same
+    card, and the old person's row goes. Progress does not transfer: a step
+    ticked, a file uploaded or a name signed is what THAT person did, and
+    handing it to someone else would have them "sign" a document they never
+    saw. (The same reason unassigning and re-assigning starts fresh; the old
+    person's uploads stay in storage, as they do on an unassign.) The thread
+    goes with the old row, because it was a conversation with the old person.
+
+    Refused: somebody outside the school, the person who already has it, and
+    anybody who already holds this task on the same card.
+    """
+    target_id = str(target_id or '').strip()
+    if not target_id:
+        return {'error': 'Pick who it goes to', 'status': 400}
+    repo = _repo()
+    row = repo.get(task_id)
+    if (not row or row.get('organization_id') != org_id
+            or row.get('kind') not in onboarding.TASK_KINDS):
+        return {'error': 'Task not found', 'status': 404}
+    if row.get('schedule_id'):
+        # A repeating task's people are the schedule's recipient list; moving
+        # one day's copy would leave the schedule minting it for the old one.
+        return {'error': 'A repeating task is changed from its schedule', 'status': 400}
+    if target_id == row.get('user_id'):
+        return {'error': 'It is already assigned to that person', 'status': 400}
+    try:
+        onboarding.assert_recipients_in_org(org_id, [target_id])
+    except onboarding.RecipientNotInOrg as e:
+        return {'error': str(e), 'status': 400}
+    if any(r.get('user_id') == target_id for r in repo.list_batch(org_id, batch_key(row))):
+        return {'error': 'That person already has this task', 'status': 409}
+
+    items = []
+    for i in (row.get('items') or []):
+        if isinstance(i, dict):
+            step = {k: v for k, v in i.items() if k != 'sign_docs'}
+            # A bound document is the old person's own copy (a contract with
+            # their name on it); the new person must not sign it.
+            step['document_id'] = None
+            items.append(onboarding._fresh(step))
+    new_row = {k: v for k, v in row.items()
+               if k not in ('id', 'created_at', 'updated_at', 'user_name', 'done_count',
+                            'total_count', 'signature_statement')}
+    # legacy_submission_id is unique (one row per retired request) and the old
+    # row still holds it until the new one is safely in.
+    new_row.update({'user_id': target_id, 'items': items, 'status': 'in_progress',
+                    # Still the send of whoever sent it: the card's "Assigned
+                    # by" and the comment notices keep pointing at them.
+                    'assigned_by': row.get('assigned_by') or actor_id,
+                    'legacy_submission_id': None})
+    inserted = repo.insert_task(new_row)
+    if not inserted:
+        return {'error': 'Could not reassign it', 'status': 500}
+    repo.delete_tasks(org_id, [row['id']])
+    if row.get('blocks_access'):
+        # The hold moves with the task: off the old person, onto the new.
+        onboarding.sis_access_gate.clear_cache(row.get('user_id'))
+        onboarding.sis_access_gate.clear_cache(target_id)
+    title = row.get('template_name') or 'Task'
+    onboarding._notify_assigned(org_id, inserted, title, len(items),
+                                str(row['due_date']) if row.get('due_date') else None)
+    return {'task': shape_task(inserted, _names([target_id, inserted.get('assigned_by')])),
+            'from_user_id': row.get('user_id')}
+
+
+def delete_batch(org_id: str, key: str) -> Dict[str, Any]:
+    """Take a whole card back off everyone on it (ticket a063cbd9).
+
+    Uploaded documents are left in storage, as on a single unassign
+    (sis_onboarding_service.unassign): an accidental delete must not destroy
+    a background check someone already sent in.
+    """
+    repo = _repo()
+    rows = repo.list_batch(org_id, key)
+    if not rows:
+        return {'error': 'Task not found', 'status': 404}
+    deleted = repo.delete_tasks(org_id, [r['id'] for r in rows])
+    for r in rows:
+        if r.get('blocks_access'):
+            # Taking the paperwork back takes the hold with it.
+            onboarding.sis_access_gate.clear_cache(r.get('user_id'))
+    kept = sum(len(onboarding.item_documents(i)) for r in rows
+               for i in (r.get('items') or []) if isinstance(i, dict))
+    return {'deleted': deleted, 'documents_kept': kept}
+
+
 # ── Dashboard numbers ───────────────────────────────────────────────────────
 
 def dashboard_counts(org_id: str, today: str) -> Dict[str, int]:

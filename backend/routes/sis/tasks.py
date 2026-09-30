@@ -345,6 +345,55 @@ def assigned_batches(user_id):
     return jsonify({'success': True, 'batches': tasks.list_batches(org_id)})
 
 
+@bp.route('/tasks/batches/<batch_key>', methods=['PATCH'])
+@require_role(*ADMIN_ROLES)
+@require_module(*TASK_MODULES, any_of=True)
+def edit_assigned_batch(user_id, batch_key):
+    """Edit a sent task for everyone on its card (ticket 6eeaef78).
+
+    `batch_key` is the card's `key` from /tasks/assigned. Body: any of title,
+    description, due_date, priority, items[]. Each person's step progress is
+    merged, not reset (sis_tasks_service.merge_steps says how)."""
+    org_id, err = sis_service.org_or_error(user_id)
+    if err:
+        return err
+    result = tasks.edit_batch(org_id, batch_key, request.get_json(silent=True) or {})
+    if result.get('error'):
+        return jsonify({'success': False, 'error': result['error']}), result.get('status', 400)
+    return jsonify({'success': True, **result})
+
+
+@bp.route('/tasks/batches/<batch_key>', methods=['DELETE'])
+@require_role(*ADMIN_ROLES)
+@require_module(*TASK_MODULES, any_of=True)
+def delete_assigned_batch(user_id, batch_key):
+    """Take a whole card back off everyone on it (ticket a063cbd9). Uploaded
+    documents are kept in storage."""
+    org_id, err = sis_service.org_or_error(user_id)
+    if err:
+        return err
+    result = tasks.delete_batch(org_id, batch_key)
+    if result.get('error'):
+        return jsonify({'success': False, 'error': result['error']}), result.get('status', 400)
+    return jsonify({'success': True, **result})
+
+
+@bp.route('/tasks/<task_id>/reassign', methods=['POST'])
+@require_role(*ADMIN_ROLES)
+@require_module(*TASK_MODULES, any_of=True)
+def reassign_assigned_task(user_id, task_id):
+    """Move one person's task to somebody else in the school (ticket
+    35d879db). Body: {user_id}. The new person starts fresh."""
+    org_id, err = sis_service.org_or_error(user_id)
+    if err:
+        return err
+    data = request.get_json(silent=True) or {}
+    result = tasks.reassign_task(org_id, user_id, task_id, data.get('user_id'))
+    if result.get('error'):
+        return jsonify({'success': False, 'error': result['error']}), result.get('status', 400)
+    return jsonify({'success': True, **result})
+
+
 @bp.route('/tasks/<task_id>/save-template', methods=['POST'])
 @require_role(*ADMIN_ROLES)
 @require_module(*TASK_MODULES, any_of=True)

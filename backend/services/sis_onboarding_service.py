@@ -1530,7 +1530,11 @@ def load_assignment_for_admin(org_id: str, assignment_id: str) -> Optional[Dict[
 
 def _save_items(assignment: Dict[str, Any], items: List[Dict[str, Any]],
                 description: Optional[str] = None,
-                update_description: bool = False) -> Dict[str, Any]:
+                update_description: bool = False,
+                extra: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    """Write a task's steps and the status they add up to. `extra` carries
+    other columns written in the same statement (an edit of a sent task
+    changes its title and due date alongside its steps)."""
     if assignment.get('blocks_access'):
         # Signing needs no invalidation (a held user is never cached), but an
         # admin clearing a signature re-imposes a hold on someone the cache may
@@ -1545,11 +1549,14 @@ def _save_items(assignment: Dict[str, Any], items: List[Dict[str, Any]],
     payload: Dict[str, Any] = {'items': items, 'status': status, 'updated_at': _now()}
     if update_description:
         payload['description'] = description
+    if extra:
+        payload.update(extra)
     row = (_admin().table('sis_onboarding_assignments')
            .update(payload)
            .eq('id', assignment['id']).execute()).data
     return row[0] if row else {**assignment, 'items': items, 'status': status,
-                              **({'description': description} if update_description else {})}
+                              **({'description': description} if update_description else {}),
+                              **(extra or {})}
 
 
 # ── Typed signatures ─────────────────────────────────────────────────────────

@@ -12,7 +12,8 @@ from utils.auth.decorators import require_auth, validate_uuid_param
 from utils.auth.relationships import require_relationship_to
 from middleware.error_handler import AuthorizationError, NotFoundError
 from utils.pillar_utils import get_pillar_name
-from utils.roles import get_effective_role
+from utils.roles import get_effective_roles
+from utils.sis_roles import ADMIN_ROLES
 from utils.logger import get_logger
 from utils.storage_urls import sign_stored_url
 from utils.access_logger import AccessLogger
@@ -52,27 +53,38 @@ def map_pillar_name_to_id(pillar_name):
 
 def verify_advisor_access(supabase, advisor_user_id, student_user_id):
     """
-    Verify advisor/org_admin has access to view this student's data.
+    Verify the caller may view this student's data.
 
     Access is granted if:
     1. User is superadmin (universal access)
-    2. User is assigned to the student via advisor_student_assignments
-    3. User is org_admin in the same organization as the student
+    2. User holds any SIS ADMIN_ROLES role (org_admin, campus_coordinator) in
+       the same organization as the student
+    3. User is assigned to the student via advisor_student_assignments
+
+    Rule 2 used to test only the singular effective role against 'org_admin',
+    so campus coordinators -- an org admin minus the finances -- got a 403 on
+    the SIS People page's student overview even though the route decorator had
+    already let them through (tickets 71528c9f, 430edcfe). All effective roles
+    are checked, so a coordinator who is also a teacher keeps access too.
+
+    This also guards routes/advisor/learning_moments.py; the widening there is
+    intended for the same reason.
     """
     try:
-        # Get user's role info
-        user_response = supabase.table('users').select('''
-            role, org_role, organization_id
-        ''').eq('id', advisor_user_id).single().execute()
+        # org_roles (plural) is required: a multi-role account can carry the
+        # admin role only in the array. id lets an active role view apply.
+        user_response = supabase.table('users').select(
+            'id, role, org_role, org_roles, organization_id'
+        ).eq('id', advisor_user_id).single().execute()
 
         if not user_response.data:
             raise AuthorizationError("User not found")
 
         user = user_response.data
-        effective_role = get_effective_role(user)
+        roles = set(get_effective_roles(user))
 
         # Superadmin has universal access
-        if effective_role == 'superadmin':
+        if 'superadmin' in roles:
             return True
 
         # Get student's organization
@@ -86,8 +98,8 @@ def verify_advisor_access(supabase, advisor_user_id, student_user_id):
         student_org_id = student_response.data.get('organization_id')
         advisor_org_id = user.get('organization_id')
 
-        # Org admin in same organization has access
-        if effective_role == 'org_admin' and advisor_org_id and advisor_org_id == student_org_id:
+        # Front office (org admin or campus coordinator) in the same org
+        if roles & set(ADMIN_ROLES) and advisor_org_id and advisor_org_id == student_org_id:
             return True
 
         # Check for advisor assignment

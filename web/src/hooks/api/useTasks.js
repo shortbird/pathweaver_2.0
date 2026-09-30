@@ -78,6 +78,17 @@ export const officeTaskApi = {
   assign: (orgId, body) => post('/api/sis/tasks', { organization_id: orgId, ...body }),
   saveAsTemplate: (orgId, taskId, name) =>
     post(`/api/sis/tasks/${taskId}/save-template`, { organization_id: orgId, name }),
+  // A card on Assigned is addressed by its `key` (batch:<id>, template:<id>
+  // or task:<id>), which the server reads back into the same rows it grouped.
+  editBatch: (orgId, batchKey, fields) =>
+    api.patch(`/api/sis/tasks/batches/${encodeURIComponent(batchKey)}`, { organization_id: orgId, ...fields }),
+  deleteBatch: (orgId, batchKey) =>
+    api.delete(withOrg(`/api/sis/tasks/batches/${encodeURIComponent(batchKey)}`, orgId)),
+  // Who a task can go to: the people of one audience in the school.
+  recipients: (orgId, audience) =>
+    api.get(withOrg(`/api/sis/staff-admin/onboarding/recipients?audience=${audience || 'staff'}`, orgId)),
+  reassign: (orgId, taskId, userId) =>
+    post(`/api/sis/tasks/${taskId}/reassign`, { organization_id: orgId, user_id: userId }),
   updateSchedule: (orgId, scheduleId, fields) =>
     api.patch(`/api/sis/tasks/schedules/${scheduleId}`, { organization_id: orgId, ...fields }),
   grid: (orgId, scheduleId, { since, until } = {}) => {

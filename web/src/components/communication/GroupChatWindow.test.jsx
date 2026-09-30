@@ -48,6 +48,31 @@ describe('GroupChatWindow', () => {
     expect(screen.getByText(/No messages yet/i)).toBeInTheDocument()
   })
 
+  // f2ad5cda (iCreate advisor, 2026-09-29): "The messaging chat view is too
+  // cropped. Some of the messages I've received extend too far horizontally
+  // past the frame of the chat so I can't see the full message." An unbroken
+  // token set the flex item's min-content width; jsdom has no layout, so the
+  // test pins the two classes that let the bubble shrink and the token wrap.
+  it('lets a message with a long unbroken token wrap inside the pane', () => {
+    const token = 'registration-confirmation-' + 'x'.repeat(120) + '@icreate.example.org'
+    groupMessages = {
+      data: {
+        messages: [
+          { id: 'm1', sender_id: 'other', message_content: token, sender: { first_name: 'Bo', last_name: 'Lee' }, created_at: '2025-01-01T10:00:00Z' }
+        ]
+      },
+      isLoading: false
+    }
+    render(<GroupChatWindow group={group} />)
+    const text = screen.getByText(token)
+    expect(text.className).toContain('[overflow-wrap:anywhere]')
+    // The bubble's flex-item wrapper (the one holding the action bar) may
+    // shrink below its content's width.
+    const wrapper = text.closest('.relative')
+    expect(wrapper).not.toBeNull()
+    expect(wrapper.className).toContain('min-w-0')
+  })
+
   it('renders group messages from self and others', () => {
     groupMessages = {
       data: {

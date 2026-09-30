@@ -72,6 +72,15 @@ const ClassesTable = ({ classes, staff, timeBlocks = [], rooms = [], roomOccupan
   const [imagePreviews, setImagePreviews] = useState({})
   const [expandedId, setExpandedId] = useState(null)
   const [saving, setSaving] = useState(null) // class_id mid-save
+  // class_id -> the editor's custom-time error. The refused time is not in the
+  // draft, so without this Save would store the last valid time instead of the
+  // one on screen (4b38bb72). The editor reports '' as it unmounts.
+  const [timeErrors, setTimeErrors] = useState({})
+  const reportTimeError = (id, msg) => setTimeErrors((prev) => {
+    if ((prev[id] || '') === msg) return prev
+    const { [id]: _, ...rest } = prev
+    return msg ? { ...rest, [id]: msg } : rest
+  })
   const [offering, setOffering] = useState(null) // class_id mid seat-offer
   const [sort, setSort] = useState([]) // ordered [{ key, dir }] — index 0 is primary
 
@@ -137,7 +146,7 @@ const ClassesTable = ({ classes, staff, timeBlocks = [], rooms = [], roomOccupan
 
   const save = async (c) => {
     const d = drafts[c.id]
-    if (!d || !d.name.trim()) return
+    if (!d || !d.name.trim() || timeErrors[c.id]) return
     setSaving(c.id)
     try {
       const ok = await onSave(c, draftToPayload(d), imageFiles[c.id] || null)
@@ -294,6 +303,7 @@ const ClassesTable = ({ classes, staff, timeBlocks = [], rooms = [], roomOccupan
                         imagePreview={imagePreviews[c.id] ?? c.image_url ?? null}
                         onImageChange={(file) => pickImage(c, file)}
                         onImageRemove={() => clearImage(c)}
+                        onTimeErrorChange={(msg) => reportTimeError(c.id, msg)}
                         headerAside={(
                           /* On the heading line, not a bar of its own. It still
                              says "saves now", because it is the one control here
@@ -372,7 +382,7 @@ const ClassesTable = ({ classes, staff, timeBlocks = [], rooms = [], roomOccupan
                             <button onClick={() => cancel(c.id)} disabled={busy}
                               className="text-sm text-neutral-500 hover:underline disabled:opacity-50">Cancel</button>
                           )}
-                          <button onClick={() => save(c)} disabled={busy || !dirty || !d.name.trim()}
+                          <button onClick={() => save(c)} disabled={busy || !dirty || !d.name.trim() || Boolean(timeErrors[c.id])}
                             className="px-4 py-1.5 rounded-lg text-sm font-semibold bg-gradient-primary text-white hover:opacity-90 disabled:opacity-50">
                             {busy ? 'Saving…' : 'Save'}
                           </button>

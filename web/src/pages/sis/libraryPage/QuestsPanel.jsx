@@ -18,6 +18,7 @@ import SearchSelect from '../../../components/ui/SearchSelect'
 import EmptyState from '../../../components/ui/EmptyState'
 import Button from '../../../components/ui/Button'
 import PopMenu from '../../../components/sis/ui/PopMenu'
+import SortHeader from '../../../components/ui/SortHeader'
 
 /**
  * QuestsPanel -- every quest the school owns, in one list, with where each
@@ -325,7 +326,34 @@ const SCOPES = [
 
 const isTeacherMade = (q) => Boolean(q.made_by?.teacher)
 
-function QuestTable({ rows, onAssign, onAttach, onEdit, onDuplicate, duplicatingId }) {
+// What each sortable column sorts by. iCreate, 2026-09-30 (f90b9cd7): "It
+// would be nice to be able to sort quests (like classes)." Counts for the
+// list columns, since "which quests are on nothing yet" is the question the
+// office scans those columns for.
+const SORT_VALUE = {
+  title: (q) => (q.title || '').toLowerCase(),
+  made_by: (q) => (q.made_by?.name || 'The school').toLowerCase(),
+  tasks: (q) => q.task_count || 0,
+  curricula: (q) => (q.curricula || []).length,
+  classes: (q) => (q.classes || []).length,
+  updated: (q) => q.updated_at || '',
+}
+
+/** Rows in `sort` order; no sort keeps the order the server sent. */
+export const sortQuests = (rows, sort) => {
+  if (!sort?.key || !SORT_VALUE[sort.key]) return rows
+  const value = SORT_VALUE[sort.key]
+  const dir = sort.dir === 'desc' ? -1 : 1
+  return [...rows].sort((a, b) => {
+    const av = value(a); const bv = value(b)
+    let cmp = typeof av === 'number' && typeof bv === 'number'
+      ? av - bv : String(av).localeCompare(String(bv))
+    if (cmp === 0) cmp = SORT_VALUE.title(a).localeCompare(SORT_VALUE.title(b))
+    return cmp * dir
+  })
+}
+
+function QuestTable({ rows, sort, onSort, onAssign, onAttach, onEdit, onDuplicate, duplicatingId }) {
   // Which row's actions menu is open. One kebab per row instead of four links:
   // the links wrapped into a ragged block on every row and read as clutter
   // (owner, 2026-09-22).
@@ -340,9 +368,9 @@ function QuestTable({ rows, onAssign, onAttach, onEdit, onDuplicate, duplicating
     <div className="bg-white rounded-xl border border-gray-200 overflow-x-auto">
       <table className="w-full table-fixed text-sm min-w-[56rem]">
         <colgroup>
-          <col className="w-[30%]" />
+          <col className="w-[29%]" />
           <col className="w-[12%]" />
-          <col className="w-[7%]" />
+          <col className="w-[8%]" />
           <col className="w-[18%]" />
           <col className="w-[19%]" />
           <col className="w-[9%]" />
@@ -350,18 +378,18 @@ function QuestTable({ rows, onAssign, onAttach, onEdit, onDuplicate, duplicating
         </colgroup>
         <thead className="bg-neutral-50 text-neutral-500 text-left">
           <tr>
-            <th className="px-4 py-3 font-medium">Quest</th>
-            <th className="px-3 py-3 font-medium">Made by</th>
-            <th className="px-3 py-3 font-medium">Tasks</th>
-            <th className="px-3 py-3 font-medium">On curriculum</th>
+            <SortHeader label="Quest" col="title" sort={sort} onSort={onSort} />
+            <SortHeader label="Made by" col="made_by" sort={sort} onSort={onSort} />
+            <SortHeader label="Tasks" col="tasks" sort={sort} onSort={onSort} />
+            <SortHeader label="On curriculum" col="curricula" sort={sort} onSort={onSort} />
             {/* "Assigned to" read as "assigned to the curriculum", which is
                 the column beside it ("What if it's not assigned to the
                 class?" -- iCreate, 2026-09-22, 3e4c6a0a). It holds classes,
                 and a quest in the library belongs to no class until somebody
                 puts it in one, which "In classes" says and "Assigned to" did
                 not. */}
-            <th className="px-3 py-3 font-medium">In classes</th>
-            <th className="px-3 py-3 font-medium">Updated</th>
+            <SortHeader label="In classes" col="classes" sort={sort} onSort={onSort} />
+            <SortHeader label="Updated" col="updated" sort={sort} onSort={onSort} />
             <th className="px-3 py-3" />
           </tr>
         </thead>
@@ -439,6 +467,13 @@ export default function QuestsPanel() {
   const loading = !!orgId && isLoading
   const [search, setSearch] = useState('')
   const [scope, setScope] = useState('all')
+  // null = the order the server sent, which is what the page always showed.
+  // One sort for the whole panel: when the office's and the teachers' quests
+  // show as two lists, a header click sorts each list the same way.
+  const [sort, setSort] = useState(null)
+  const toggleSort = (key) => setSort((prev) => (
+    prev?.key === key ? { key, dir: prev.dir === 'asc' ? 'desc' : 'asc' } : { key, dir: 'asc' }
+  ))
   const [assigning, setAssigning] = useState(null) // quest id
   const [attaching, setAttaching] = useState(null) // quest id
   const [editing, setEditing] = useState(null) // quest id
@@ -468,13 +503,13 @@ export default function QuestsPanel() {
     const inScope = quests.filter((qu) => (
       scope === 'all' || (scope === 'teacher') === isTeacherMade(qu)
     ))
-    if (!q) return inScope
-    return inScope.filter((qu) => (
+    if (!q) return sortQuests(inScope, sort)
+    return sortQuests(inScope.filter((qu) => (
       `${qu.title} ${qu.description || ''} ${qu.made_by?.name || ''} `
       + `${(qu.curricula || []).map((c) => c.title).join(' ')} `
       + `${(qu.classes || []).map((c) => c.name).join(' ')}`
-    ).toLowerCase().includes(q))
-  }, [quests, search, scope])
+    ).toLowerCase().includes(q)), sort)
+  }, [quests, search, scope, sort])
 
   // With no filter the two libraries read as two lists, the office's first.
   // A school with no teacher-made quests yet sees one list and no empty
@@ -564,7 +599,7 @@ export default function QuestsPanel() {
                   {heading} <span className="font-normal text-neutral-400">({sectionRows.length})</span>
                 </h2>
               )}
-              <QuestTable rows={sectionRows} onAssign={setAssigning} onAttach={setAttaching}
+              <QuestTable rows={sectionRows} sort={sort} onSort={toggleSort} onAssign={setAssigning} onAttach={setAttaching}
                 onEdit={setEditing} onDuplicate={onDuplicate} duplicatingId={duplicatingId} />
             </section>
           ))}

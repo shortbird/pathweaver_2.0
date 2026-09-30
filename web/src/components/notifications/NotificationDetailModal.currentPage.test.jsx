@@ -53,6 +53,24 @@ describe('NotificationDetailModal on the page it links to', () => {
   })
 })
 
+// f2ad5cda (iCreate advisor, 2026-09-29): "Some of the messages I've
+// received extend too far horizontally past the frame of the chat so I can't
+// see the full message." The bell's modal shows the same message body, and
+// its <p> had no wrapping rule either.
+describe('NotificationDetailModal message body', () => {
+  it('wraps a long unbroken token and keeps the line breaks', () => {
+    const token = 'x'.repeat(150) + '@example.org'
+    render(
+      <MemoryRouter initialEntries={['/dashboard']}>
+        <NotificationDetailModal notification={{ ...note(null), message: token }} isOpen onClose={() => {}} />
+      </MemoryRouter>,
+    )
+    const body = screen.getByText(token)
+    expect(body.className).toContain('[overflow-wrap:anywhere]')
+    expect(body.className).toContain('whitespace-pre-wrap')
+  })
+})
+
 describe('linksToCurrentPage', () => {
   const at = (pathname, search = '') => ({ pathname, search })
 

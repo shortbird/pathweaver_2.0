@@ -15,12 +15,21 @@ your own task") are the authorization.
 
 from __future__ import annotations
 
+import uuid
 from typing import Any, Dict, Iterable, List, Optional
 
 from repositories.base_repository import BaseRepository
 from utils.db_fetch import fetch_all_rows
 
 TASK_KINDS = ('checklist', 'task')
+
+
+def _is_uuid(value: str) -> bool:
+    try:
+        uuid.UUID(str(value))
+        return True
+    except (ValueError, TypeError):
+        return False
 
 
 class SisTaskRepository(BaseRepository):
@@ -68,6 +77,55 @@ class SisTaskRepository(BaseRepository):
                 .lt('expires_at', now_iso)
                 .execute()).data or []
         return len(rows)
+
+    def list_batch(self, organization_id: str, key: str) -> List[Dict[str, Any]]:
+        """Every row on one of the office's Assigned cards, in this org.
+
+        `key` is sis_tasks_service.batch_key's: 'batch:<id>' for a send,
+        'template:<id>' for older rows grouped under their template, and
+        'task:<id>' for an older one-off. The filters are exactly the grouping
+        list_batches applies -- tasks, not documents sent for signature, and
+        never a recurring occurrence -- so the card the office clicked is the
+        set of rows an edit or a delete touches, no more. An unreadable key
+        is an empty card. A send can reach every family in a school, so this
+        pages rather than trusting the 1,000-row cap.
+        """
+        kind_, _, ident = (key or '').partition(':')
+        if kind_ not in ('batch', 'template', 'task') or not _is_uuid(ident):
+            return []
+
+        def _q():
+            q = (self.client.table(self.table_name).select('*')
+                 .eq('organization_id', organization_id)
+                 .in_('kind', list(TASK_KINDS))
+                 .is_('schedule_id', 'null'))
+            if kind_ == 'batch':
+                return q.eq('batch_id', ident)
+            if kind_ == 'template':
+                return q.eq('template_id', ident).is_('batch_id', 'null')
+            return q.eq('id', ident).is_('batch_id', 'null').is_('template_id', 'null')
+        return fetch_all_rows(_q)
+
+    def update_task(self, task_id: str, fields: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        rows = (self.client.table(self.table_name).update(fields)
+                .eq('id', task_id).execute()).data
+        return rows[0] if rows else None
+
+    def insert_task(self, row: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        rows = self.client.table(self.table_name).insert(row).execute().data
+        return rows[0] if rows else None
+
+    def delete_tasks(self, organization_id: str, task_ids: Iterable[str]) -> int:
+        """Delete these tasks, org-scoped in the statement itself so an id
+        from another school cannot ride along. Their comments cascade."""
+        ids = [t for t in task_ids if t]
+        deleted = 0
+        for i in range(0, len(ids), 100):
+            rows = (self.client.table(self.table_name).delete()
+                    .eq('organization_id', organization_id)
+                    .in_('id', ids[i:i + 100]).execute()).data or []
+            deleted += len(rows)
+        return deleted
 
     def count_open(self, organization_id: str) -> int:
         """Tasks somebody still owes. Counted by Postgres, never len()."""

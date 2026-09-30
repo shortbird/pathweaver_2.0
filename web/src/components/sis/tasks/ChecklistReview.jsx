@@ -4,6 +4,8 @@ import { withOrg } from '../../../pages/sis/useSisOrg'
 import { useConfirm } from '../../../contexts/ConfirmContext'
 import { itemDocuments } from '../../../pages/sis/checklistDocuments'
 import { sisOnboardingApi } from '../../../hooks/api/useSisOnboarding'
+import { officeTaskApi } from '../../../hooks/api/useTasks'
+import SearchSelect from '../../ui/SearchSelect'
 import StatusPill from '../ui/StatusPill'
 
 /**
@@ -83,6 +85,11 @@ export const AssignmentCard = ({ orgId, assignment: a, onChanged, badge = null, 
   // the picker. Null = not asked yet, [] = asked and they hold nothing.
   const [filed, setFiled] = useState(null)
   const [attachingKey, setAttachingKey] = useState(null)
+  // Reassign (ticket 35d879db): null = closed; a list = the people it can go
+  // to, loaded when the office first opens the picker.
+  const [reassignTo, setReassignTo] = useState(null)
+  const [target, setTarget] = useState('')
+  const [moving, setMoving] = useState(false)
 
   const openAttach = async (itemKey) => {
     setAttachingKey(itemKey)
@@ -157,6 +164,41 @@ export const AssignmentCard = ({ orgId, assignment: a, onChanged, badge = null, 
       onChanged?.()
     } catch (err) {
       toast.error(err?.response?.data?.error || 'Could not remove it')
+    }
+  }
+
+  const openReassign = async () => {
+    setReassignTo([])
+    try {
+      const r = await officeTaskApi.recipients(orgId, a.audience)
+      setReassignTo((r.data?.recipients || []).filter((p) => p.id !== a.user_id))
+    } catch {
+      toast.error('Could not load the people to choose from')
+      setReassignTo(null)
+    }
+  }
+
+  // The new person starts fresh: what the old one ticked, uploaded or signed
+  // was theirs (the server says why, sis_tasks_service.reassign_task).
+  const reassign = async () => {
+    const to = (reassignTo || []).find((p) => p.id === target)
+    if (!to) return
+    const done = a.done_count || 0
+    const warning = done
+      ? `\n\n${a.user_name} finished ${done} of ${a.total_count} steps. ${to.name} starts from the beginning.`
+      : ''
+    if (!(await confirm(`Move "${a.template_name}" from ${a.user_name} to ${to.name}?${warning}`))) return
+    setMoving(true)
+    try {
+      await officeTaskApi.reassign(orgId, a.id, to.id)
+      toast.success(`Reassigned to ${to.name}`)
+      setReassignTo(null)
+      setTarget('')
+      onChanged?.()
+    } catch (err) {
+      toast.error(err?.response?.data?.error || 'Could not reassign it')
+    } finally {
+      setMoving(false)
     }
   }
 
@@ -283,9 +325,32 @@ export const AssignmentCard = ({ orgId, assignment: a, onChanged, badge = null, 
           )
         })}
       </ul>
-      <div className="px-3 pb-3 pt-1 border-t border-gray-100">
-        <button onClick={unassign}
-          className="text-xs text-red-600 hover:underline"
+      {/* Buttons, not a small link at the bottom: "Can't delete tasks"
+          (a063cbd9) was partly this one being impossible to find. */}
+      <div className="px-3 pb-3 pt-2 border-t border-gray-100 flex items-center gap-2 flex-wrap">
+        {reassignTo === null ? (
+          <button type="button" onClick={openReassign}
+            className="px-2.5 py-1 rounded border border-gray-300 text-xs text-neutral-700 hover:bg-gray-50"
+            title="Give this to someone else — they start from the beginning">
+            Reassign
+          </button>
+        ) : (
+          <span className="inline-flex items-center gap-2 flex-wrap">
+            <span className="w-56">
+              <SearchSelect value={target} onChange={setTarget} options={reassignTo}
+                getId={(p) => p.id} getLabel={(p) => p.name || 'Unnamed'}
+                placeholder="Who should do it?" />
+            </span>
+            <button type="button" onClick={reassign} disabled={!target || moving}
+              className="px-2.5 py-1 rounded bg-optio-purple text-white text-xs disabled:opacity-50">
+              {moving ? 'Moving…' : 'Move it'}
+            </button>
+            <button type="button" onClick={() => { setReassignTo(null); setTarget('') }}
+              className="text-xs text-neutral-500 hover:text-neutral-800">Cancel</button>
+          </span>
+        )}
+        <button type="button" onClick={unassign}
+          className="px-2.5 py-1 rounded border border-red-200 text-xs text-red-600 hover:bg-red-50"
           title="Remove this — any documents they uploaded are kept">
           Unassign
         </button>
