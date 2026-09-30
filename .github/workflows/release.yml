@@ -113,7 +113,7 @@ jobs:
       # commits is about a year of this repository's history, which is as
       # far back as a ticket's fix_commit can reasonably reach.
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           fetch-depth: 2000
       - name: Wait for this commit to be live
@@ -249,7 +249,7 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           # For the tracker report at the end (git rev-list); see smoke.
           fetch-depth: 2000
