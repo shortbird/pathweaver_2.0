@@ -141,6 +141,14 @@ export const askParent = () =>
 
 // -- the parent's side --------------------------------------------------------
 
+/** The school's Friends defaults for students with no parent linked (org
+ *  admin). `orgId` only matters for a superadmin, who names the org. */
+export const getOrgFriendsSettings = (orgId) =>
+  api.get('/api/connections/org/settings', { params: orgId ? { organization_id: orgId } : {} }).then(unwrap)
+
+export const setOrgFriendsSettings = (orgId, patch) =>
+  api.put('/api/connections/org/settings', { ...patch, ...(orgId ? { organization_id: orgId } : {}) }).then(unwrap)
+
 export const getChildPolicy = (childId) =>
   api.get(`/api/connections/children/${childId}/policy`).then(unwrap)
 

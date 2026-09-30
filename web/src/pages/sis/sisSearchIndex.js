@@ -108,6 +108,7 @@ export const SUB_ENTRIES = [
   { under: '/settings', ...settingsCard('kiosk', 'Kiosk devices', ['kiosk', 'classroom device', 'ipad', 'tablet login']) },
   { under: '/settings', ...settingsCard('help-video', 'Getting-started video', ['help video', 'welcome video', 'tutorial']) },
   { under: '/settings', ...settingsCard('step-printing', 'Printing', ['print', 'step printing', 'worksheets']) },
+  { under: '/settings', ...settingsCard('friends', 'Friends', ['friends', 'collaborate', 'friend codes', 'share a quest']) },
 ]
 
 /**

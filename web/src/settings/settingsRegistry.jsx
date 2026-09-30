@@ -11,6 +11,7 @@ import ParentDigestCard from './cards/ParentDigestCard'
 import PillarsCard from './cards/PillarsCard'
 import StepPrintingCard from './cards/StepPrintingCard'
 import IncidentReportsCard from './cards/IncidentReportsCard'
+import FriendsCard from './cards/FriendsCard'
 import { moduleEnabled } from '../modules/moduleEnabled'
 
 /**
@@ -57,6 +58,10 @@ export const SETTINGS_CARDS = [
   { key: 'help-video', surfaces: ['console', 'learning'], Component: HelpVideoCard },
   { key: 'pillars', surfaces: ['learning'], Component: PillarsCard },
   { key: 'step-printing', surfaces: ['console', 'learning'], Component: StepPrintingCard },
+  // The school's Friends default for students with no parent linked. Both
+  // surfaces: an LMS-only school (Apogee Odessa) needs it as much as a
+  // console school does, and until 2026-09-30 neither had a screen for it.
+  { key: 'friends', module: 'friends', surfaces: ['console', 'learning'], Component: FriendsCard },
 ]
 
 export function settingsCardsFor({ surface, org, seesFinance }) {

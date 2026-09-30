@@ -1074,6 +1074,11 @@ def collaborate(user_id: str, peer_id: str, quest_id: str) -> Dict[str, Any]:
     if title is None:
         raise PeerConnectionError('Quest not found')
     already = repo.is_on_quest(peer_id, quest_id)
+    # The record is what lets the friend open a quest the inviter built for
+    # themselves (quest_visibility_service reads it through
+    # collaboration_inviter); the notification alone opened nothing, and the
+    # friend landed on "Quest not found" (Apogee Odessa, 2026-09-29).
+    repo.record_collaboration(quest_id, user_id, peer_id)
     name = _display_name(user_id)
     _notify(peer_id, 'quest_invitation',
             f"{name} wants to collaborate on {title}",
@@ -1085,6 +1090,58 @@ def collaborate(user_id: str, peer_id: str, quest_id: str) -> Dict[str, Any]:
     logger.info('[friends] %s invited %s to collaborate on %s',
                 str(user_id)[:8], str(peer_id)[:8], str(quest_id)[:8])
     return {'invited': True, 'already_on_quest': already}
+
+
+def collaboration_inviter(invitee_id: str, quest_id: str) -> Optional[str]:
+    """The friend whose Collaborate invite still lets this student into the
+    quest, or None.
+
+    An invite counts while the two are still friends (is_peer_of: an active
+    connection and no block, so a parent turning Friends off, or either
+    student blocking the other, ends it) and the inviter is still on the
+    quest. Most recent invite first. Once the student starts the quest their
+    own enrollment keeps it open, whatever happens to the invite.
+    """
+    from repositories.peer_connection_repository import PeerConnectionRepository
+    if not invitee_id or not quest_id:
+        return None
+    repo = PeerConnectionRepository()
+    for inviter_id in repo.collaboration_inviters(invitee_id, quest_id):
+        if pa.is_peer_of(invitee_id, inviter_id) and repo.is_on_quest(inviter_id, quest_id):
+            return inviter_id
+    return None
+
+
+def collaboration_tasks(invitee_id: str, quest_id: str) -> List[Dict[str, Any]]:
+    """The task list a collaborator starts with: the inviter's approved tasks
+    on their current enrollment, as rows ready for the invitee's enrollment
+    (the caller adds user_id, quest_id and user_quest_id). Empty when there is
+    no live invite or the inviter has no tasks yet, and the student builds
+    their own list as on any quest.
+
+    diploma_subjects is always carried: an insert that omits it credits the
+    work as Electives by column default.
+    """
+    from repositories.peer_connection_repository import PeerConnectionRepository
+    inviter_id = collaboration_inviter(invitee_id, quest_id)
+    if not inviter_id:
+        return []
+    repo = PeerConnectionRepository()
+    enrollment_id = repo.active_enrollment_id(inviter_id, quest_id)
+    if not enrollment_id:
+        return []
+    return [{
+        'title': t['title'],
+        'description': t.get('description') or '',
+        'pillar': t.get('pillar'),
+        'xp_value': t.get('xp_value') or 100,
+        'order_index': t.get('order_index') or 0,
+        'is_required': bool(t.get('is_required')),
+        'is_manual': True,
+        'approval_status': 'approved',
+        'diploma_subjects': t.get('diploma_subjects') or ['Electives'],
+        'subject_xp_distribution': t.get('subject_xp_distribution') or {},
+    } for t in repo.approved_tasks(enrollment_id)]
 
 
 def messageable_friend_ids(user_id: str) -> List[str]:

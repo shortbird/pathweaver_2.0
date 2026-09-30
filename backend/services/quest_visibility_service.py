@@ -43,6 +43,10 @@ anybody. One opens when the person:
   * created it, or has a user_quests row for it, or is a superadmin;
   * can reach it as a released Project in a course (Optio's own course
     projects are non-public global quests -- 168 of them on 2026-09-24);
+  * was invited with Friends' Collaborate by a friend who is still a friend
+    and still on the quest (quest_collaboration_invites, 2026-09-30). This opens it
+    and lets the student start it; peer_connection_service.
+    collaboration_inviter is the rule;
   * or, for the caller only, has a relationship to its creator or to a student
     enrolled in it (PERSONAL_QUEST_RELATIONSHIPS through
     utils.auth.relationships.relationship_between, the require_relationship_to
@@ -144,7 +148,21 @@ def _may_open_personal_as(repo: QuestRepository, user_id: str,
         return False
     if _is_superadmin(user):
         return True
-    return repo.reachable_through_course(user_id, user.get('organization_id'), quest_id)
+    if repo.reachable_through_course(user_id, user.get('organization_id'), quest_id):
+        return True
+    return _invited_to_collaborate(user_id, quest_id)
+
+
+def _invited_to_collaborate(user_id: str, quest_id: str) -> bool:
+    """A friend on the quest invited this student with Collaborate (owner,
+    2026-09-30). Fails closed."""
+    try:
+        from services.peer_connection_service import collaboration_inviter
+        return collaboration_inviter(user_id, quest_id) is not None
+    except Exception as e:  # noqa: BLE001 -- a failed lookup grants nothing
+        logger.warning(f"[QUEST VISIBILITY] collaboration lookup failed for "
+                       f"{user_id[:8]} on {str(quest_id)[:8]}: {e}")
+        return False
 
 
 def _related_to_quest_people(repo: QuestRepository, caller_id: str,

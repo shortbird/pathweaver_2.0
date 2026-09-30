@@ -435,6 +435,30 @@ def enroll_in_quest(user_id: str, quest_id: str):
                 logger.error(f"[UNIFIED_ENROLL] Error copying template tasks: {str(task_error)}", exc_info=True)
                 # Continue - don't fail enrollment if task copy fails
 
+        # Step 1b: A friend invited this student with Collaborate and the quest
+        # has no template: the student starts with the friend's task list, so
+        # the two work from the same plan (Apogee Odessa, 2026-09-29). Each
+        # copy is the student's own from here; evidence and XP stay separate.
+        # Only on a first enrollment: a restart keeps its own tasks.
+        collab_copied = 0
+        if not has_template_tasks and allow_custom and not existing.data:
+            try:
+                from services.peer_connection_service import collaboration_tasks
+                collab_rows = collaboration_tasks(user_id, quest_id)
+                if collab_rows:
+                    # admin client justified: quest enrollment writes user_quests / user_quest_tasks scoped to caller (self) under @require_auth
+                    get_supabase_admin_client().table('user_quest_tasks').insert([
+                        {**row, 'user_id': user_id, 'quest_id': quest_id,
+                         'user_quest_id': enrollment['id']}
+                        for row in collab_rows
+                    ]).execute()
+                    collab_copied = len(collab_rows)
+                    tasks_copied += collab_copied
+                    logger.info(f"[UNIFIED_ENROLL] Copied {collab_copied} collaborator tasks for user {user_id[:8]}")
+            except Exception as collab_error:
+                logger.error(f"[UNIFIED_ENROLL] Error copying collaborator tasks: {collab_error}", exc_info=True)
+                # Continue - the student can still build their own list
+
         # Step 2: Determine if wizard should be shown
         # Skip wizard if: quest has ANY template tasks (they're already copied)
         # Show wizard only if: no template tasks AND custom tasks are allowed
@@ -442,7 +466,7 @@ def enroll_in_quest(user_id: str, quest_id: str):
         # task to take) starts empty, and builds their own list in the wizard
         # like a quest with no template at all.
         picked_nothing = picking and tasks_copied == 0
-        if has_template_tasks and not picked_nothing:
+        if (has_template_tasks and not picked_nothing) or collab_copied:
             # Quest has template tasks - skip wizard, tasks already copied
             skip_wizard = True
             logger.info(f"[UNIFIED_ENROLL] Wizard skipped: quest has {task_summary.get('total_tasks', 0)} template tasks")

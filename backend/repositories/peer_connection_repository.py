@@ -183,6 +183,43 @@ class PeerConnectionRepository(BaseRepository):
             return None
         return rows[0].get('title') or 'a quest'
 
+    # -- quest_collaboration_invites: the invite a Collaborate button leaves behind --
+
+    def record_collaboration(self, quest_id: str, inviter_id: str, invitee_id: str) -> None:
+        """Remember that `inviter_id` asked `invitee_id` to do this quest with
+        them. A second invite refreshes the date; the pair stays one row."""
+        self.client.table('quest_collaboration_invites').upsert(
+            {'quest_id': quest_id, 'inviter_id': inviter_id,
+             'invitee_id': invitee_id, 'invited_at': now_iso()},
+            on_conflict='quest_id,inviter_id,invitee_id',
+        ).execute()
+
+    def collaboration_inviters(self, invitee_id: str, quest_id: str) -> List[str]:
+        """Who invited this student to this quest, most recent first. Whether
+        each one still counts (friend, on the quest) is the caller's
+        question."""
+        rows = self.client.table('quest_collaboration_invites').select('inviter_id') \
+            .eq('invitee_id', invitee_id).eq('quest_id', quest_id) \
+            .order('invited_at', desc=True).execute().data or []
+        return [r['inviter_id'] for r in rows]
+
+    def active_enrollment_id(self, user_id: str, quest_id: str) -> Optional[str]:
+        """The student's in-progress enrollment on the quest, if any."""
+        rows = self.client.table('user_quests').select('id') \
+            .eq('user_id', user_id).eq('quest_id', quest_id).eq('is_active', True) \
+            .is_('completed_at', 'null').order('started_at', desc=True) \
+            .limit(1).execute().data or []
+        return rows[0]['id'] if rows else None
+
+    def approved_tasks(self, user_quest_id: str) -> List[Dict[str, Any]]:
+        """An enrollment's approved tasks in order: what a collaborator's
+        copy starts from."""
+        return self.client.table('user_quest_tasks') \
+            .select('title, description, pillar, xp_value, order_index, is_required, '
+                    'diploma_subjects, subject_xp_distribution') \
+            .eq('user_quest_id', user_quest_id).eq('approval_status', 'approved') \
+            .order('order_index').execute().data or []
+
     def active_count_for(self, student_id: str) -> int:
         """How many friends this student has right now -- the number the
         confirm dialog names before a parent turns Friends off."""
