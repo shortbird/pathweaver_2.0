@@ -87,26 +87,42 @@ def test_office_inbox_id_is_only_the_offices():
         assert school_inbox_service.office_inbox_id('teacher-1') is None
 
 
-def _send_as_school_to(recipient_is_staff, **kwargs):
+def _send_as_school_to(recipient_is_staff, *, office=None, **kwargs):
     dm = MagicMock()
     with patch.object(school_inbox_service, 'school_account', return_value=(ORG, 'inbox-1')), \
          patch.object(school_inbox_service, 'is_org_staff', return_value=recipient_is_staff) as staff, \
+         patch.object(school_inbox_service, 'office_inbox_id', return_value=office), \
          patch('services.direct_message_service.DirectMessageService', return_value=dm):
         school_inbox_service.send_as_school(ORG, 'r-1', 'hi', sent_by='becky', **kwargs)
-    return dm.send_message.call_args.kwargs, staff
+    return dm.send_message.call_args, staff
+
+
+def test_the_office_hears_from_the_person_not_the_school():
+    """iCreate, 2026-09-30: Becky's "Announcements" notes to Marika (office,
+    and a parent there) went out as the school. Marika's phone rang with "New
+    message from iCreate", and the thread was hidden from her My messages."""
+    call, _ = _send_as_school_to(True, office='inbox-1', reply_to_message_id='m-9')
+    assert call.args[:2] == ('becky', 'r-1')
+    assert 'sent_by_user_id' not in call.kwargs
+    assert 'reply_to_message_id' not in call.kwargs
+
+
+def test_another_schools_office_still_hears_from_this_school():
+    call, _ = _send_as_school_to(False, office='inbox-other')
+    assert call.args[:2] == ('inbox-1', 'r-1')
 
 
 def test_a_colleague_is_told_who_wrote_a_school_message():
     """"I would like it if you signed your name so it is easy for us to tell
     which CC or admin is sending the messages" (iCreate, 2026-09-24)."""
-    kwargs, staff = _send_as_school_to(True)
-    assert kwargs['show_sender_name'] is True
+    call, staff = _send_as_school_to(True)
+    assert call.kwargs['show_sender_name'] is True
     staff.assert_called_once_with('org-1', 'r-1')
 
 
 def test_a_family_still_hears_from_the_school():
-    kwargs, _ = _send_as_school_to(False)
-    assert 'show_sender_name' not in kwargs
+    call, _ = _send_as_school_to(False)
+    assert 'show_sender_name' not in call.kwargs
 
 
 def test_is_org_staff_needs_this_org_and_a_staff_role():

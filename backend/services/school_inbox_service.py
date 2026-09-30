@@ -191,6 +191,16 @@ def send_as_school(org, recipient_id: str, content: str, *, sent_by: Optional[st
     extra: Dict[str, Any] = {}
     if not push:
         extra['push'] = False
+    # The office reads the school inbox as the school, so a message from the
+    # school to one of them is a thread with themselves: My messages hides it
+    # (office_inbox_id) and the School tab files it under their own name. It
+    # goes from the person who wrote it instead. iCreate, 2026-09-30: Becky's
+    # notes to Marika, who is also a parent there, so Compose wrote as the
+    # school, rang her phone and could not be found anywhere.
+    # A reply_to_message_id points into the school thread, so it stays behind.
+    if author and author != recipient_id and office_inbox_id(recipient_id) == inbox_user_id:
+        return DirectMessageService().send_message(
+            author, recipient_id, content, attachments=attachments or [], **extra)
     if author and (show_sender_name or is_org_staff((row or {}).get('id'), recipient_id)):
         extra['show_sender_name'] = True
     return DirectMessageService().send_message(
