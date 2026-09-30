@@ -28,7 +28,7 @@ WTForms==3.2.1
 # Database and Authentication
 supabase==2.18.1
 python-dotenv==1.2.2
-PyJWT==2.13.0
+PyJWT==2.15.1
 redis==5.2.1
 
 # AI and API Integration
@@ -142,7 +142,7 @@ pyasn1-modules==0.4.2
 pyparsing==3.2.3
 rsa==4.9.1
 uritemplate==4.2.0
-urllib3==2.7.0
+urllib3==2.8.0
 cachetools==5.5.2
 charset_normalizer==3.4.3
 # Invoice PDFs (backend/services/sis_invoice_pdf.py). Must stay in step with
