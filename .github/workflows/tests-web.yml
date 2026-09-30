@@ -19,7 +19,9 @@ permissions:
 jobs:
   web:
     name: Web Tests
-    runs-on: ubuntu-latest
+    # 10 until 2026-09-30: release 36758955533 passed all 484 files and was
+    # cancelled while writing coverage at 10m15s; green runs had been 6-9m.
+    timeout-minutes: 15
     timeout-minutes: 10
     steps:
       - name: Checkout code
