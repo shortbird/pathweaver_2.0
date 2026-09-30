@@ -64,7 +64,7 @@ jobs:
 
       - name: Open or update an issue when the scan fails
         if: failure()
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         env:
           SCAN_EXIT_CODE: ${{ steps.scan.outputs.code }}
         with:
