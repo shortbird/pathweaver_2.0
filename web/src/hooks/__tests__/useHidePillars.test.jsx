@@ -11,10 +11,13 @@ import { AuthContext } from '../../contexts/AuthContext'
 import { OrganizationContext } from '../../contexts/OrganizationContext'
 import FamilyScopeContext from '../../contexts/FamilyScopeContext'
 
+// From the LOCAL date, like ageFromDob. toISOString() is the UTC date, which is
+// already tomorrow on a US evening, so "13 years ago" became a birthday one day
+// short of 13 and the test failed every night after 6 pm Mountain.
 const yearsAgo = (n) => {
   const d = new Date()
-  d.setFullYear(d.getFullYear() - n)
-  return d.toISOString().slice(0, 10)
+  const pad = (x) => String(x).padStart(2, '0')
+  return `${d.getFullYear() - n}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
 }
 
 const run = ({ user = null, child = null, org = null } = {}) =>

@@ -418,7 +418,7 @@ def test_direct_db_calls_do_not_grow(layer):
 
 #: routes/ + services/ combined. A call may move DOWN a layer; the total may not
 #: grow. Keep this equal to BASELINES['routes'] + BASELINES['services'].
-UPPER_TOTAL_BASELINE = 2224 + 1807
+UPPER_TOTAL_BASELINE = 2206 + 1807
 
 
 def test_the_upper_layers_do_not_grow_in_total():
