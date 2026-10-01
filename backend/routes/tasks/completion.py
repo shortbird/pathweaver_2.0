@@ -1,4 +1,4 @@
-"""Task completion + finalization endpoints.
+"""Task completion endpoint.
 
 Split from ``routes/tasks.py`` on 2026-04-14.
 """
@@ -10,7 +10,6 @@ from flask import request
 from database import get_supabase_admin_client
 from repositories.base_repository import NotFoundError
 from routes.tasks import bp
-from routes.tasks.xp_helpers import SUBJECT_NORMALIZATION, get_subject_xp_distribution
 from services.atomic_quest_service import atomic_quest_service  # noqa: F401 (historical import kept for parity)
 from services.evidence_service import EvidenceService
 from services.webhook_service import WebhookService
@@ -415,136 +414,5 @@ def complete_task(user_id: str, task_id: str):
         return error_response(
             code='TASK_COMPLETION_ERROR',
             message='Failed to complete task',
-            status=500
-        )
-
-
-@bp.route('/<task_id>/finalize', methods=['POST'])
-@require_auth
-def finalize_task(user_id: str, task_id: str):
-    """
-    Finalize a task that has been marked ready for diploma credit.
-    Moves subject XP from pending to finalized.
-
-    This endpoint is called by students after superadmin suggests the work
-    is ready for diploma credit. It completes the iterative feedback loop.
-    """
-    try:
-        # admin client justified: task CRUD writes scoped to caller (self) under @require_auth; cross-user only after parent/advisor relationship verification
-        admin_supabase = get_supabase_admin_client()
-
-        # Get the completion record for this task
-        completion = admin_supabase.table('quest_task_completions')\
-            .select('''
-                id, user_id, diploma_status,
-                user_quest_task_id,
-                user_quest_tasks!user_quest_task_id(
-                    diploma_subjects, subject_xp_distribution, xp_value, title
-                )
-            ''')\
-            .eq('user_quest_task_id', task_id)\
-            .eq('user_id', user_id)\
-            .single()\
-            .execute()
-
-        if not completion.data:
-            return error_response(
-                code='NOT_FOUND',
-                message='Task completion not found',
-                status=404
-            )
-
-        completion_data = completion.data
-
-        # Verify the task is ready for finalization
-        # Support both old 'ready_for_credit' and new 'approved' statuses
-        if completion_data['diploma_status'] not in ('ready_for_credit', 'approved'):
-            if completion_data['diploma_status'] in ('finalized', 'approved'):
-                return error_response(
-                    code='ALREADY_FINALIZED',
-                    message='This task has already been finalized',
-                    status=400
-                )
-            return error_response(
-                code='NOT_READY',
-                message='This task is not yet ready for diploma credit. Wait for reviewer feedback.',
-                status=400
-            )
-
-        # Get subject XP distribution. This used to inline its own copy of the
-        # subject_xp_distribution -> diploma_subjects fallback, which drifted
-        # from the shared helper and read diploma_subjects XP amounts as
-        # percentages. Finalizing is the step that moves pending XP onto the
-        # transcript, so a split that disagrees with the credit-request step
-        # strands XP in pending forever.
-        task_data = completion_data.get('user_quest_tasks') or {}
-        subject_xp_distribution = get_subject_xp_distribution(
-            task_data, task_data.get('xp_value') or 0
-        )
-
-        now = datetime.utcnow().isoformat()
-        total_xp_finalized = 0
-
-        # Move XP from pending to finalized for each subject
-        for subject, subject_xp in subject_xp_distribution.items():
-            normalized = SUBJECT_NORMALIZATION.get(subject, subject.lower().replace(' ', '_'))
-
-            existing = admin_supabase.table('user_subject_xp')\
-                .select('id, xp_amount, pending_xp')\
-                .eq('user_id', user_id)\
-                .eq('school_subject', normalized)\
-                .execute()
-
-            if existing.data:
-                record = existing.data[0]
-                # Move from pending to actual XP
-                new_xp = record['xp_amount'] + subject_xp
-                new_pending = max(0, (record.get('pending_xp') or 0) - subject_xp)
-
-                admin_supabase.table('user_subject_xp')\
-                    .update({
-                        'xp_amount': new_xp,
-                        'pending_xp': new_pending,
-                        'updated_at': now
-                    })\
-                    .eq('id', record['id'])\
-                    .execute()
-            else:
-                # Create new record with finalized XP
-                admin_supabase.table('user_subject_xp').insert({
-                    'user_id': user_id,
-                    'school_subject': normalized,
-                    'xp_amount': subject_xp,
-                    'pending_xp': 0,
-                    'updated_at': now
-                }).execute()
-
-            total_xp_finalized += subject_xp
-            logger.info(f"Finalized {subject_xp} XP for {normalized} subject for user {user_id[:8]}")
-
-        # Update completion record to approved/finalized
-        admin_supabase.table('quest_task_completions').update({
-            'diploma_status': 'approved',
-            'finalized_at': now
-        }).eq('id', completion_data['id']).execute()
-
-        task_title = task_data.get('title', 'Task')
-        logger.info(f"User {user_id[:8]} finalized task {task_id[:8]} for {total_xp_finalized} subject XP")
-
-        return success_response(
-            data={
-                'task_id': task_id,
-                'diploma_status': 'approved',
-                'subject_xp_finalized': total_xp_finalized,
-                'subjects': list(subject_xp_distribution.keys())
-            },
-            message=f"'{task_title}' finalized! {total_xp_finalized} XP added to your diploma credits."
-        )
-
-    except Exception as e:
-        logger.error(f"Error finalizing task {task_id}: {str(e)}")
-        return error_response(
-            code='FINALIZE_ERROR',
-            message='Failed to finalize task for diploma credit',
             status=500
         )
