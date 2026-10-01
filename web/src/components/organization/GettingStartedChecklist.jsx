@@ -46,14 +46,22 @@ const STEPS = [
  *
  * Status is derived from live org data (member counts, classes, class quests),
  * so it survives page reloads and multiple admins. Hidden once every step is
- * done or the admin dismisses it.
+ * done or the admin closes it.
+ *
+ * Closing it hides it for this browser session only; it comes back next visit
+ * until the setup is done. Ticking "Don't show again" before closing hides it
+ * for good in this browser. The X used to always mean "for good", which left an
+ * admin who closed it to get it out of the way with no way to find it again.
  */
 export default function GettingStartedChecklist({ orgId, onNavigate }) {
   const dismissKey = `orgSetupChecklistDismissed_${orgId}`
   const [counts, setCounts] = useState(null)
-  // localStorage can be unavailable (Safari private mode, restricted envs)
+  const [dontShowAgain, setDontShowAgain] = useState(false)
+  // Web storage can be unavailable (Safari private mode, restricted envs)
   const [dismissed, setDismissed] = useState(() => {
-    try { return localStorage.getItem(dismissKey) === 'true' } catch { return false }
+    try {
+      return localStorage.getItem(dismissKey) === 'true' || sessionStorage.getItem(dismissKey) === 'true'
+    } catch { return false }
   })
 
   useEffect(() => {
@@ -75,7 +83,9 @@ export default function GettingStartedChecklist({ orgId, onNavigate }) {
   if (doneCount === STEPS.length) return null
 
   const handleDismiss = () => {
-    try { localStorage.setItem(dismissKey, 'true') } catch { /* ignore */ }
+    try {
+      (dontShowAgain ? localStorage : sessionStorage).setItem(dismissKey, 'true')
+    } catch { /* ignore */ }
     setDismissed(true)
   }
 
@@ -134,6 +144,16 @@ export default function GettingStartedChecklist({ orgId, onNavigate }) {
           )
         })}
       </div>
+
+      <label className="mt-4 flex items-center gap-2 text-sm text-gray-500 cursor-pointer select-none">
+        <input
+          type="checkbox"
+          checked={dontShowAgain}
+          onChange={(e) => setDontShowAgain(e.target.checked)}
+          className="w-4 h-4 rounded border-gray-300 text-optio-purple focus:ring-optio-purple"
+        />
+        Don't show again
+      </label>
     </div>
   )
 }
