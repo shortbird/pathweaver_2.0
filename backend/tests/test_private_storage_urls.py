@@ -247,6 +247,41 @@ class TestBatchSigning:
         out = sign_stored_urls([original], client=client)
         assert out[original].endswith('token=solo')
 
+    def test_a_batch_failure_the_fallback_recovers_is_a_warning_not_an_error(self, caplog):
+        """OPTIO-BACKEND-9Z, ticket 86e804c6 (2026-09-30): one storage read
+        timeout on the batch call filed a high-priority Sentry issue although
+        the fallback signed every path and the page loaded. Only a path the
+        fallback cannot sign is an error."""
+        import logging
+        client = MagicMock()
+        store = MagicMock()
+        store.create_signed_urls.side_effect = TimeoutError('The read operation timed out')
+        store.create_signed_url.side_effect = lambda p, ttl: {
+            'signedURL': f'{SIGN_BASE}/user-uploads/{p}?token=solo'
+        }
+        client.storage.from_.return_value = store
+
+        original = f'{PUBLIC_BASE}/user-uploads/a.jpg'
+        with caplog.at_level(logging.WARNING):
+            out = sign_stored_urls([original], client=client)
+        assert out[original].endswith('token=solo')
+        batch = [r for r in caplog.records if 'Batch sign failed' in r.getMessage()]
+        assert batch and all(r.levelno == logging.WARNING for r in batch)
+        assert not [r for r in caplog.records if r.levelno >= logging.ERROR]
+
+    def test_a_path_the_fallback_cannot_sign_is_still_an_error(self, caplog):
+        import logging
+        client = MagicMock()
+        store = MagicMock()
+        store.create_signed_urls.side_effect = TimeoutError('timed out')
+        store.create_signed_url.side_effect = TimeoutError('timed out')
+        client.storage.from_.return_value = store
+
+        with caplog.at_level(logging.WARNING):
+            sign_stored_urls([f'{PUBLIC_BASE}/user-uploads/a.jpg'], client=client)
+        assert any(r.levelno == logging.ERROR and 'Failed to sign object' in r.getMessage()
+                   for r in caplog.records)
+
     def test_sign_in_place_rewrites_named_fields(self, storage_client):
         rows = [
             {'id': '1', 'image_url': f'{PUBLIC_BASE}/family-images/h1/a.jpg'},

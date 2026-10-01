@@ -301,7 +301,14 @@ def sign_stored_urls(
             store = (client or _admin()).storage.from_(found_bucket)
             results = store.create_signed_urls(list(paths.keys()), ttl)
         except Exception as e:  # noqa: BLE001
-            logger.error(f"[storage] Batch sign failed for {found_bucket}: {e}")
+            # A warning, not an error: the one-at-a-time fallback below signs
+            # every path the batch did not, and a path it cannot sign logs its
+            # own error there. A single storage read timeout on a working page
+            # opened a high-priority Sentry issue and a ticket
+            # (OPTIO-BACKEND-9Z, ticket 86e804c6, 2026-09-30) although the
+            # page loaded.
+            logger.warning("[storage] Batch sign failed for %s, signing one at a time: %s",
+                           found_bucket, e)
             results = None
 
         if results:
