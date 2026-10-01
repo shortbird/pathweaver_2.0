@@ -118,6 +118,44 @@ class CrmPersonNotesRepository(BaseRepository):
                 .eq('email', email).limit(1).execute()).data
         return rows[0] if rows else None
 
+    # ------------------------------------------------------------ meeting notes import
+
+    def users_by_emails(self, emails: List[str]) -> List[Dict[str, Any]]:
+        """Exact, case-insensitive. One small query per address because an
+        ilike over a list is not available, and a meeting has few guests."""
+        out: List[Dict[str, Any]] = []
+        for email in dict.fromkeys(e.strip().lower() for e in emails if e):
+            rows = (self.client.table('users')
+                    .select('id, email, first_name, last_name, role, org_role')
+                    .ilike('email', email).limit(10).execute()).data or []
+            # Same `_` wildcard trap as user_id_for_email.
+            out.extend(r for r in rows if (r.get('email') or '').lower() == email)
+        return out
+
+    def users_by_full_name(self, first: str, last: str) -> List[Dict[str, Any]]:
+        return (self.client.table('users')
+                .select('id, email, first_name, last_name, role, org_role')
+                .ilike('first_name', first.strip()).ilike('last_name', last.strip())
+                .limit(5).execute()).data or []
+
+    def users_by_ids(self, ids: List[str]) -> List[Dict[str, Any]]:
+        if not ids:
+            return []
+        return (self.client.table('users')
+                .select('id, email, first_name, last_name, role, org_role')
+                .in_('id', ids).execute()).data or []
+
+    def has_doc_note(self, user_id: str, doc_url: str) -> bool:
+        rows = (self.client.table(self.table_name).select('id')
+                .eq('user_id', user_id).eq('doc_url', doc_url).limit(1).execute()).data
+        return bool(rows)
+
+    def has_lead_doc_note(self, lead_id: str, doc_url: str) -> bool:
+        rows = (self.client.table('crm_events').select('id')
+                .eq('lead_id', lead_id).eq('event_type', 'note')
+                .eq('detail->>doc_url', doc_url).limit(1).execute()).data
+        return bool(rows)
+
     def get_note(self, note_id: str) -> Optional[Dict[str, Any]]:
         rows = (self.client.table(self.table_name).select('*')
                 .eq('id', note_id).limit(1).execute()).data

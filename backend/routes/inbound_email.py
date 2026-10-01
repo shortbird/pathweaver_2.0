@@ -79,6 +79,25 @@ def inbound_email():
     except (TypeError, ValueError):
         attachment_count = 0
 
+    # Google Meet notes forwarded by the owner's Gmail filter go onto CRM
+    # files, not into a message thread. See services/meet_notes_import_service.py.
+    from services import meet_notes_import_service as meet_notes
+    if meet_notes.is_import_address(envelope_to, form.get('to')):
+        try:
+            result = meet_notes.handle_inbound(
+                to_header=form.get('to'),
+                envelope_to=envelope_to,
+                from_header=form.get('from'),
+                subject=form.get('subject'),
+                text=form.get('text'),
+                html=form.get('html'),
+                dkim=form.get('dkim'),
+            )
+        except Exception as e:  # noqa: BLE001
+            logger.error(f"Meet notes import failed: {e}")
+            return jsonify({'status': 'error'}), 200
+        return jsonify({'status': result.get('status')}), 200
+
     try:
         status, detail = relay_service.handle_inbound(
             to_header=form.get('to'),
