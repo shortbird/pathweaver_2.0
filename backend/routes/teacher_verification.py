@@ -12,18 +12,45 @@ from datetime import datetime
 
 from utils.logger import get_logger
 from utils.storage_urls import sign_in_place
+from services import sis_service
+# The console's Submissions tab already answers "whose work is this teacher's
+# to review"; this queue asks the same question and must get the same answer.
+from routes.sis.submissions import _scope_classes, _class_maps, _match_class
 
 logger = get_logger(__name__)
 
 bp = Blueprint('teacher_verification', __name__, url_prefix='/api/teacher')
 
 
+def _review_scope(user_id, org_id):
+    """None = the whole school (org admin, coordinator, superadmin). Otherwise
+    (class_ids, enrolled, attached) for the classes this teacher teaches.
+
+    A teacher reviews work a student did in one of the teacher's classes: the
+    student is enrolled in it AND the quest is attached to it. The same rule as
+    the console's Submissions tab (routes/sis/submissions.py).
+
+    This queue used to be the whole school. iCreate, ticket aa7c8e19
+    (2026-09-30), from a teacher: "I'm seeing submissions from classes and
+    students I'm not responsible for." It had been org-wide all along, but it
+    matched no students until 2026-09-25, so nobody saw it until then.
+    """
+    if sis_service.caller_is_admin(user_id):
+        return None
+    classes = _scope_classes(user_id, org_id)
+    class_ids = list(classes.keys())
+    if not class_ids:
+        return [], {}, {}
+    enrolled, attached = _class_maps(class_ids)
+    return class_ids, enrolled, attached
+
+
 @bp.route('/pending-verifications', methods=['GET'])
 @require_advisor
 def get_pending_verifications(user_id):
     """
-    Get all task completions awaiting teacher verification.
-    Returns tasks completed by students in the advisor's organization.
+    Task completions awaiting teacher verification: the teacher's own classes
+    (see _review_scope), or the whole school for an org admin.
     """
     try:
         # admin client justified: teacher verification reads cross-user student task completions for advisor's org students under @require_role(advisor/superadmin)
@@ -46,38 +73,57 @@ def get_pending_verifications(user_id):
 
         org_id = advisor_response.data['organization_id']
 
-        # Get all students in the organization. An org member's role is
-        # 'org_managed' and the student part lives in org_role, so asking for
-        # role='student' alone found nobody at a school.
-        students_response = admin.table('users')\
-            .select('id, display_name, email')\
-            .eq('organization_id', org_id)\
-            .or_('role.eq.student,org_role.eq.student')\
-            .execute()
+        empty = jsonify({'success': True, 'pending_verifications': [], 'count': 0}), 200
+        scope = _review_scope(user_id, org_id)
 
-        if not students_response.data:
-            return jsonify({
-                'success': True,
-                'pending_verifications': [],
-                'count': 0
-            }), 200
+        if scope is None:
+            # The whole school. An org member's role is 'org_managed' and the
+            # student part lives in org_role, so asking for role='student'
+            # alone found nobody at a school.
+            students = admin.table('users')\
+                .select('id, display_name, email')\
+                .eq('organization_id', org_id)\
+                .or_('role.eq.student,org_role.eq.student')\
+                .execute().data or []
+            quest_ids = None
+        else:
+            class_ids, enrolled, attached = scope
+            enrolled_ids = set().union(*enrolled.values()) if enrolled else set()
+            quest_ids = set().union(*attached.values()) if attached else set()
+            if not enrolled_ids or not quest_ids:
+                return empty
+            from repositories.user_repository import UserRepository
+            students = list(UserRepository(client=admin).find_by_ids(
+                sorted(enrolled_ids), 'id, display_name, email').values())
 
-        student_ids = [s['id'] for s in students_response.data]
-        students_map = {s['id']: s for s in students_response.data}
+        if not students:
+            return empty
+
+        student_ids = [s['id'] for s in students]
+        students_map = {s['id']: s for s in students}
 
         # Task completions no teacher has reviewed yet. subject_verified_at is
         # set by an approve or a reject (migration 20260925120000).
-        completions_response = admin.table('quest_task_completions')\
+        completions_query = admin.table('quest_task_completions')\
             .select('id, user_id, task_id, quest_id, user_quest_task_id, completed_at, evidence_url, evidence_text')\
-            .in_('user_id', student_ids)\
+            .in_('user_id', student_ids)
+        if quest_ids is not None:
+            completions_query = completions_query.in_('quest_id', sorted(quest_ids))
+        completions_response = completions_query\
             .is_('subject_verified_at', 'null')\
             .order('completed_at', desc=True)\
             .limit(100)\
             .execute()
 
+        completions = completions_response.data or []
+        if scope is not None:
+            # Enrolled in one class and the quest attached to another is not
+            # this teacher's work: both must meet in the same class.
+            completions = [c for c in completions
+                           if _match_class(c, class_ids, enrolled, attached)]
+
         # The tasks behind them, with their quest's title, in one read. This
         # was a query per completion (a hundred round trips for a full queue).
-        completions = completions_response.data or []
         task_ids = list({c.get('user_quest_task_id') or c.get('task_id')
                          for c in completions if c.get('user_quest_task_id') or c.get('task_id')})
         tasks_map = {}
@@ -208,7 +254,7 @@ def verify_task_completion(user_id, task_completion_id):
 
         # Get the task completion
         completion_response = admin.table('quest_task_completions')\
-            .select('id, user_id')\
+            .select('id, user_id, quest_id')\
             .eq('id', task_completion_id)\
             .limit(1)\
             .execute()
@@ -216,10 +262,10 @@ def verify_task_completion(user_id, task_completion_id):
         if not completion_response.data:
             raise NotFoundError('Task completion not found')
 
-        student_id = completion_response.data[0].get('user_id')
+        completion = completion_response.data[0]
+        student_id = completion.get('user_id')
 
-        # The queue is the teacher's whole school, so the check is the same:
-        # the student belongs to the reviewer's organization (a superadmin may
+        # The student belongs to the reviewer's organization (a superadmin may
         # review anyone). This read users.advisor_id, a column that has never
         # existed, so every approve failed.
         people = admin.table('users')\
@@ -236,6 +282,18 @@ def verify_task_completion(user_id, task_completion_id):
                 'success': False,
                 'error': 'You are not authorized to verify this student\'s work'
             }), 403
+
+        # And, for a teacher, the work was done in one of their own classes:
+        # the same scope the queue shows (ticket aa7c8e19).
+        if reviewer.get('role') != 'superadmin':
+            scope = _review_scope(user_id, reviewer['organization_id'])
+            if scope is not None:
+                class_ids, enrolled, attached = scope
+                if not _match_class(completion, class_ids, enrolled, attached):
+                    return jsonify({
+                        'success': False,
+                        'error': 'You are not authorized to verify this student\'s work'
+                    }), 403
 
         # Update the completion with verification data
         update_data = {

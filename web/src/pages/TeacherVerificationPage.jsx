@@ -6,6 +6,13 @@ import api from '../services/api'
 import VerificationModal from '../components/verification/VerificationModal'
 import { useConfirm } from '../contexts/ConfirmContext'
 import { sumSubjects } from '../components/credit-dashboard/aiReview'
+import { moduleEnabled } from '../modules/moduleEnabled'
+import { switchSurfaceInApp } from '../utils/appSurface'
+
+// A SIS school reviews in the console's Submissions tab, the queue its
+// teachers' classes feed. The sidebar and the home strip already send them
+// there; a bookmark or an old link to this page still landed here.
+export const SIS_SUBMISSIONS_PATH = '/classes?tab=submissions'
 
 // Quick Approve accepts the suggested split as it stands, so it is offered
 // only when that split exists and adds up to the task's XP -- the same bar the
@@ -24,10 +31,15 @@ const TeacherVerificationPage = () => {
   const [error, setError] = useState(null)
   const [processingTaskId, setProcessingTaskId] = useState(null)
   const [selectedCompletion, setSelectedCompletion] = useState(null)
+  const sisEnabled = user?.organization ? moduleEnabled(user.organization, 'sis') : false
 
   useEffect(() => {
+    if (sisEnabled) {
+      switchSurfaceInApp('sis', SIS_SUBMISSIONS_PATH)
+      return
+    }
     fetchPendingTasks()
-  }, [])
+  }, [sisEnabled])
 
   const fetchPendingTasks = async () => {
     try {
@@ -86,7 +98,7 @@ const TeacherVerificationPage = () => {
     await fetchPendingTasks()
   }
 
-  if (loading) {
+  if (loading || sisEnabled) {
     return (
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="flex justify-center items-center h-64">
