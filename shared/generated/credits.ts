@@ -23,6 +23,9 @@ export const TOTAL_CREDITS_REQUIRED = 24.0;
 /** The one bucket defined as "anything", so the only one surplus may flow into. */
 export const ELECTIVE_SUBJECT = 'electives';
 
+/** Youngest age that may take a credit class (quest_type='class'). */
+export const CLASS_MIN_AGE = 13;
+
 /** In transcript order. */
 export const CREDIT_REQUIREMENTS_DATA: readonly CreditRequirement[] = [
   {

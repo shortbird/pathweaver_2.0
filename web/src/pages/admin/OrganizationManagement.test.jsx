@@ -33,6 +33,12 @@ vi.mock('../../components/organization/QuestsTab', () => ({
   default: ({ orgId }) => <div data-testid="quests-tab">Quests for {orgId}</div>
 }))
 
+// A credit-class partner's card reads through react-query; it has its own
+// tests (components/partner/partnerClassesCard.test.jsx).
+vi.mock('../../components/partner/PartnerClassesCard', () => ({
+  default: () => null
+}))
+
 vi.mock('../../components/classes', () => ({
   ClassList: ({ orgId }) => <div data-testid="class-list">Classes for {orgId}</div>,
   ClassDetailPage: () => <div data-testid="class-detail">Class Detail</div>

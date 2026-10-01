@@ -29,6 +29,7 @@
   "xpPerCredit": 2000,
   "totalCreditsRequired": 24,
   "electiveSubject": "electives",
+  "classMinAge": 13,
   "subjects": [
     {
       "key": "language_arts",

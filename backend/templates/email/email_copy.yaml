@@ -919,3 +919,45 @@ emails:
       text: "Log in to Optio"
       url: "{{ login_url }}"
     signature: "team"
+
+  # Sent when a credit-class partner (services/partner_offering_service.py)
+  # adds a NEW student to its class. Carries a set-your-password invite link,
+  # never a password. Not org_course_welcome: that one describes courses and
+  # promises OnFire's six months of support.
+  partner_class_welcome:
+    subject: "Welcome to Optio - your class is ready"
+    title: "Your class is ready"
+    greeting: "Hi {{ student_name }},"
+    paragraphs:
+      - "{{ org_name }} set you up with an Optio account for <strong>{{ class_title }}</strong>. When you finish it, it counts as half a credit of {{ subject_name }} on an accredited high school transcript."
+    bullet_points:
+      - "The class is a list of tasks. Each one says what to do and what counts as done."
+      - "You earn XP as you finish tasks. The class is complete at 1,000 XP."
+      - "Everything you make is saved to your portfolio."
+    highlight_box:
+      title: "Setting up your login"
+      content: "Click the button below to choose your password. From then on you'll sign in with:"
+      bullet_points:
+        - "<strong>{{ student_email }}</strong>"
+    closing_paragraphs:
+      - "After you set your password, open My Classes and start with the first task."
+      - "This link expires in {{ expiry_days }} days. If it has expired, use \"Forgot password\" on the login page with this email address."
+    cta:
+      text: "Set My Password"
+      url: "{{ invite_link }}"
+    signature: "team"
+    footer_extra: "If this wasn't expected, you can ignore this email or reply to let us know."
+
+  # Sent when a credit-class partner adds its class to a student who already
+  # has an Optio login. No credentials.
+  partner_class_added:
+    subject: "A new class is on your Optio account"
+    title: "A new class is ready for you"
+    greeting: "Hi {{ student_name }},"
+    paragraphs:
+      - "{{ org_name }} added <strong>{{ class_title }}</strong> to your Optio account. When you finish it, it counts as half a credit of {{ subject_name }}."
+      - "Log in with your usual email and password and open My Classes. If you've forgotten your password, use the \"Forgot password\" link on the login page."
+    cta:
+      text: "Log in to Optio"
+      url: "{{ login_url }}"
+    signature: "team"

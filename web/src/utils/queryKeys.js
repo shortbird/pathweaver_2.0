@@ -197,8 +197,15 @@ export const queryKeys = {
       all: ['admin', 'billing'],
       invoices: (orgId) => [...queryKeys.admin.billing.all, 'invoices', orgId || ''],
       orgs: () => [...queryKeys.admin.billing.all, 'orgs'],
+      // Students a credit-class partner owes for in a month.
+      partnerSeats: (orgId, month) => [...queryKeys.admin.billing.all, 'partner-seats', orgId || '', month || ''],
     },
   },
+
+  // A credit-class partner's classes, links and students (routes/partner_offerings.py).
+  partnerOfferings: (orgId) => ['partner-offerings', orgId || ''],
+  // The public /offer/:slug page.
+  offer: (slug) => ['offer', slug || ''],
 
   // Utility functions
   invalidateUser: (queryClient, userId) => {

@@ -107,3 +107,22 @@ class TestCopyTemplateTasksToEnrollment:
             admin, 'quest-1', 'user-1', 'uq-1', template_tasks=[]
         ) == 0
         assert inserted == []
+
+
+class TestSuccessCriteriaCarried:
+    """A partner's class passes each task's Definition of Done in the template
+    list (services/partner_offering_service.py); a table-read template has none."""
+
+    def test_a_template_carrying_criteria_copies_them(self):
+        admin, inserted = make_admin_client({'tmpl-1'})
+        copy_template_tasks_to_enrollment(
+            admin, 'quest-1', 'user-1', 'uq-1',
+            template_tasks=[{**task('tmpl-1'), 'success_criteria': ['Five examples', 'One page']}],
+        )
+        assert inserted[0]['success_criteria'] == ['Five examples', 'One page']
+
+    def test_a_template_without_criteria_writes_null_not_an_empty_list(self):
+        admin, inserted = make_admin_client({'tmpl-1'})
+        copy_template_tasks_to_enrollment(admin, 'quest-1', 'user-1', 'uq-1',
+                                          template_tasks=[task('tmpl-1'), {**task('tmpl-2'), 'success_criteria': []}])
+        assert [r['success_criteria'] for r in inserted] == [None, None]

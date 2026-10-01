@@ -33,7 +33,8 @@ function todayParts() {
   return { y: t.getFullYear(), m: t.getMonth() + 1, d: t.getDate() };
 }
 
-export const CLASS_MIN_AGE = 13;
+// One value for the backend, web and mobile: shared/data/credits.json.
+export { CLASS_MIN_AGE } from '@shared/credits';
 
 /**
  * Age at which the diploma becomes the thing a learner is working toward.

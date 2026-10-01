@@ -2,6 +2,7 @@ import axios from 'axios'
 import type { AxiosError, AxiosRequestConfig } from 'axios'
 import { shouldUseAuthHeaders } from '../utils/browserDetection'
 import logger from '../utils/logger'
+import { isPublicPath } from '../utils/publicPaths'
 import { captureException } from './sentry'
 import { isMasqueradeActiveOrPending } from './masqueradeGate'
 import { postRefreshWithRetry, isUnrecoverableAuthFailure } from './sessionRecovery'
@@ -412,52 +413,7 @@ api.interceptors.response.use(
         tokenStore.clearTokens()
 
         // Only redirect to login if we're not already on auth pages or public pages
-        const authPaths = ['/login', '/register', '/email-verification', '/forgot-password', '/reset-password', '/staff/welcome', '/', '/terms', '/privacy', '/academy-agreement', '/academy-handbook', '/services', '/catalog', '/how-it-works', '/poe', '/auth/callback']
-        const currentPath = window.location.pathname
-        const isPublicDiploma = currentPath.startsWith('/public/diploma/') || currentPath.startsWith('/portfolio/')
-        const isConsultationPage = currentPath === '/consultation'
-        const isDemoPage = currentPath === '/demo'
-        const isQuestsPage = currentPath.startsWith('/quests') || currentPath.startsWith('/badges')
-        const isJoinPage = currentPath.startsWith('/join/')
-        const isPublicCoursePage = currentPath.startsWith('/course/')
-        const isObserverAcceptPage = currentPath.startsWith('/observer/accept/')
-        const isPublicReportPage = currentPath.startsWith('/report/')
-        const isSharedPage = currentPath.startsWith('/shared/')
-        const isInvitationPage = currentPath.startsWith('/invitation/')
-        const isDocsPage = currentPath.startsWith('/docs')
-        const isPublicTranscript = currentPath.startsWith('/public/transcript/')
-        const isPromoPage = currentPath.startsWith('/for-students')
-        const isMarketingPage = currentPath === '/philosophy' || currentPath === '/for-families' || currentPath === '/for-schools' || currentPath === '/classes' || currentPath === '/how-it-works'
-        // Canvas LTI iframe pages — a refresh failure here should never
-        // navigate to /login; the iframe lives in someone else's chrome.
-        const isLtiPage = currentPath.startsWith('/lti-')
-        // The kiosks (/kiosk for any org, /treehouse-kiosk for the Treehouse
-        // program) are public, token-gated shared-device pages. Every page load
-        // runs /api/auth/me, and a fresh iPad has no session, so the refresh
-        // fails on the very first visit — before an admin has even pasted the
-        // device code. That, and the 401 right after a student logs out to hand
-        // off the device, must keep us on the kiosk, not bounce to /login.
-        // (/kiosk was missing from this list until 2026-09-07 and could not be
-        // set up at all: a cold load went straight to /login.)
-        const isKiosk = currentPath === '/kiosk' || currentPath.startsWith('/kiosk/')
-          || currentPath.startsWith('/treehouse-kiosk')
-        // Org login pages (/login/<slug>) are themselves login pages — a 401
-        // from the background session check must not bounce a school's
-        // students off their branded login onto the main /login.
-        const isOrgLoginPage = currentPath.startsWith('/login/')
-        // Family registration funnel (/enroll/<code>, legacy
-        // /register/icreate/<code>) — public entry links shared with
-        // anonymous families; the app-load session check 401s for them by
-        // design and must not eat the link with a bounce to /login.
-        const isRegistrationFunnel = currentPath.startsWith('/enroll/') || currentPath.startsWith('/register/icreate/')
-        // POE pilot pages. authPaths lists '/poe' as an exact match, which left
-        // the deeper ones (/poe/showcase, the key-gated summary sent to POE
-        // leadership) bouncing anonymous visitors to /login on the app-load
-        // session check — the link looked broken to exactly the people it was
-        // sent to. Prefix-match the whole area.
-        const isPoePage = currentPath === '/poe' || currentPath.startsWith('/poe/')
-
-        if (!authPaths.includes(currentPath) && !isPublicDiploma && !isConsultationPage && !isDemoPage && !isQuestsPage && !isJoinPage && !isPublicCoursePage && !isObserverAcceptPage && !isPublicReportPage && !isSharedPage && !isInvitationPage && !isDocsPage && !isPublicTranscript && !isPromoPage && !isMarketingPage && !isLtiPage && !isKiosk && !isOrgLoginPage && !isRegistrationFunnel && !isPoePage) {
+        if (!isPublicPath(window.location.pathname)) {
           window.location.href = '/login'
         }
 

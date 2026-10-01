@@ -206,6 +206,11 @@ def register_all(app):
     # to get that file back under its size cap. Paths do not overlap, so the URLs
     # are unchanged.
     app.register_blueprint(organization_courses.bp, url_prefix='/api/admin/organizations')
+    # A partner's credit class: its dashboard on the org prefix, its public
+    # buyer link on /api/offers (routes/partner_offerings.py).
+    from routes import partner_offerings
+    app.register_blueprint(partner_offerings.partner_bp, url_prefix='/api/admin/organizations')
+    app.register_blueprint(partner_offerings.buyer_bp)
     # Membership + username-login student accounts (QB-04 split).
     from routes.admin import organization_users
     app.register_blueprint(organization_users.bp, url_prefix='/api/admin/organizations')

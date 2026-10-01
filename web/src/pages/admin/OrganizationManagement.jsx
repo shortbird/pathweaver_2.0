@@ -11,6 +11,7 @@ import QuestsTab from '../../components/organization/QuestsTab'
 import OrgCoursesTab from '../../components/organization/OrgCoursesTab'
 import OrgClassesTab from '../../components/organization/OrgClassesTab'
 import GettingStartedChecklist from '../../components/organization/GettingStartedChecklist'
+import PartnerClassesCard from '../../components/partner/PartnerClassesCard'
 import CreditReviewDashboardPage from '../CreditReviewDashboardPage'
 import BountyBoardPage from '../BountyBoardPage'
 import OrgStudentProgress from '../../components/admin/OrgStudentProgress'
@@ -227,6 +228,8 @@ export default function OrganizationManagement() {
           />
         )}
       </div>
+
+      <PartnerClassesCard orgId={orgId} />
 
       <GettingStartedChecklist orgId={orgId} onNavigate={handleTabChange} />
 

@@ -68,6 +68,30 @@ def create_invoice(superadmin_user_id):
     return jsonify({'invoice': invoice}), 201
 
 
+@bp.route('/partner-seats', methods=['GET'])
+@require_superadmin
+def partner_seats(superadmin_user_id):
+    """How many students a credit-class partner owes for, per class, for
+    ?month=YYYY-MM (default this month). The billing form turns it into an
+    invoice line; nothing is sent from here."""
+    from database import get_supabase_admin_client
+    from services import partner_offering_service as offerings
+    try:
+        org_id = _org_or_none(request.args.get('organization_id'))
+    except org_billing.OrgBillingError as exc:
+        return _refusal(exc)
+    if not org_id:
+        return jsonify({'error': 'organization_id is required'}), 400
+    try:
+        # admin client justified: superadmin-only billing read of a partner's
+        #   enrollments (service-role-only tables)
+        seats = offerings.billable_students(get_supabase_admin_client(), org_id,
+                                            request.args.get('month') or None)
+    except offerings.OfferingError as err:
+        return jsonify(err.payload()), err.status
+    return jsonify(seats)
+
+
 _ACTIONS = {
     'remind': lambda inv_id, body: org_billing.resend_invoice(inv_id),
     'void': lambda inv_id, body: org_billing.void_invoice(inv_id),

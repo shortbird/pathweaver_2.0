@@ -16,6 +16,7 @@
  */
 
 import {
+  CLASS_MIN_AGE,
   CREDIT_REQUIREMENTS_DATA,
   ELECTIVE_SUBJECT,
   TOTAL_CREDITS_REQUIRED,
@@ -23,7 +24,7 @@ import {
   type CreditRequirement,
 } from './generated/credits';
 
-export { ELECTIVE_SUBJECT, TOTAL_CREDITS_REQUIRED, XP_PER_CREDIT };
+export { CLASS_MIN_AGE, ELECTIVE_SUBJECT, TOTAL_CREDITS_REQUIRED, XP_PER_CREDIT };
 export type { CreditRequirement };
 
 export interface SubjectCredit {

@@ -104,6 +104,12 @@ def copy_template_tasks_to_enrollment(admin, quest_id, user_id, user_quest_id,
         'subject_xp_distribution': t.get('subject_xp_distribution'),
         'source_template_task_id': t.get('id') if t.get('id') in valid_template_ids else None,
         'source_task_id': t.get('id'),
+        # quest_template_tasks has no such column, so this is None (the column
+        # default) for every template read from the table. A caller that built
+        # the template list itself may carry one: a partner's class keeps each
+        # task's Definition of Done in its description and passes it here
+        # (services/partner_offering_service.py).
+        'success_criteria': t.get('success_criteria') or None,
     } for t in template_tasks]
 
     try:

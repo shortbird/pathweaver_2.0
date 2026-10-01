@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react'
 import { useAdminInvoiceAction, useAdminInvoices, useBillingOrgs } from '../../hooks/api/useAdminBilling'
 import { ConfirmDialog } from '../../components/ui'
 import { formatCents } from '../../utils/money'
+import PartnerSeatsHint from '../../components/partner/PartnerSeatsHint'
 
 /**
  * /admin/billing: Optio's own invoices, on Optio's Stripe account.
@@ -176,6 +177,15 @@ export default function AdminBillingPage() {
             </select>
           </label>
         </div>
+
+        <PartnerSeatsHint
+          orgId={form.orgId}
+          onAddLine={line => setForm(f => {
+            // Fill the first line if it is still blank, else add one.
+            const blank = f.lines.length === 1 && !f.lines[0].description && !f.lines[0].amount
+            return { ...f, lines: blank ? [line] : [...f.lines, line] }
+          })}
+        />
 
         <div className="space-y-2 mt-5">
           {form.lines.map((l, i) => (

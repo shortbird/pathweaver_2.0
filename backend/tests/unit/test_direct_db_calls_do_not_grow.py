@@ -248,7 +248,12 @@ BASELINES = {
     # 2026-09-24: 2236 -> 2233. Requests and forms retired into tasks (iCreate
     # meeting 2026-09-23): routes/sis/parent_forms.py and the staff_admin form
     # routes were deleted.
-    'routes': 2224,
+    # 2026-09-30 (partner credit classes): 2224 -> 2206, measured on HEAD plus
+    # that change alone. OnFire's account lookup and creation moved out of
+    # routes/admin/organization_courses.py into services/partner_accounts.py
+    # (-2 here, +2 in services, which still sits at its 1807 ceiling); the rest
+    # had already fallen without the ceiling following.
+    'routes': 2206,
     # 2026-09-09: 1828 -> 1830. The deletion sweep's reactivation guard, in
     # account_deletion_service: one read for dependents added after the request,
     # one write to rescind it. The sweep is a cron entrypoint that already owns

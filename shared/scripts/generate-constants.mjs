@@ -261,6 +261,9 @@ export const TOTAL_CREDITS_REQUIRED = ${pyf(credits.totalCreditsRequired)};
 /** The one bucket defined as "anything", so the only one surplus may flow into. */
 export const ELECTIVE_SUBJECT = ${ts(credits.electiveSubject)};
 
+/** Youngest age that may take a credit class (quest_type='class'). */
+export const CLASS_MIN_AGE = ${credits.classMinAge};
+
 /** In transcript order. */
 export const CREDIT_REQUIREMENTS_DATA: readonly CreditRequirement[] = [
 ${rows}
@@ -284,6 +287,9 @@ TOTAL_CREDITS_REQUIRED = ${pyf(credits.totalCreditsRequired)}
 
 # The one bucket defined as "anything", so the only one surplus may flow into.
 ELECTIVE_SUBJECT = ${py(credits.electiveSubject)}
+
+# Youngest age that may take a credit class (quest_type='class').
+CLASS_MIN_AGE = ${credits.classMinAge}
 
 # Credits each subject must contribute to the ${credits.totalCreditsRequired}-credit diploma.
 DIPLOMA_CREDIT_REQUIREMENTS = {

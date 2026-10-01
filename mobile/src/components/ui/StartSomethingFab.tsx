@@ -12,6 +12,7 @@
  */
 
 import React, { useState } from 'react';
+import { CLASS_MIN_AGE } from '@shared/credits';
 import { useAuthStore } from '@/src/stores/authStore';
 import { useStartSomethingStore } from '@/src/stores/startSomethingStore';
 import { StartSomethingSheet } from '@/src/components/journal/StartSomethingSheet';
@@ -44,7 +45,7 @@ function computeClassGate(user: any): ClassGate {
   let age = today.getFullYear() - birth.getFullYear();
   const monthDiff = today.getMonth() - birth.getMonth();
   if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birth.getDate())) age--;
-  return age >= 13 ? 'ok' : 'under-13';
+  return age >= CLASS_MIN_AGE ? 'ok' : 'under-13';
 }
 
 export function StartSomethingFab({ onCaptureMoment, onCreated }: StartSomethingFabProps) {

@@ -16,6 +16,9 @@ TOTAL_CREDITS_REQUIRED = 24.0
 # The one bucket defined as "anything", so the only one surplus may flow into.
 ELECTIVE_SUBJECT = 'electives'
 
+# Youngest age that may take a credit class (quest_type='class').
+CLASS_MIN_AGE = 13
+
 # Credits each subject must contribute to the 24-credit diploma.
 DIPLOMA_CREDIT_REQUIREMENTS = {
     'language_arts': 4.0,

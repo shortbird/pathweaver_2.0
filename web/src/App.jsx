@@ -49,6 +49,7 @@ const ForgotPasswordPage = lazy(() => import('./pages/ForgotPasswordPage'))
 const ResetPasswordPage = lazy(() => import('./pages/ResetPasswordPage'))
 const StaffWelcomePage = lazy(() => import('./pages/StaffWelcomePage'))
 const CourseWelcomePage = lazy(() => import('./pages/CourseWelcomePage'))
+const OfferPage = lazy(() => import('./pages/OfferPage'))
 const SisLaunchPage = lazy(() => import('./pages/SisLaunchPage'))
 const AuthCallback = lazy(() => import('./pages/AuthCallback'))
 const AcceptInvitationPage = lazy(() => import('./pages/AcceptInvitationPage'))
@@ -581,6 +582,8 @@ function App() {
                 <Route path="reset-password" element={<ResetPasswordPage />} />
                 <Route path="staff/welcome" element={<StaffWelcomePage />} />
                 <Route path="student/welcome" element={<CourseWelcomePage />} />
+                {/* A credit-class partner's buyer link (routes/partner_offerings.py). */}
+                <Route path="offer/:slug" element={<OfferPage />} />
                 <Route path="auth/callback" element={<AuthCallback />} />
                 <Route path="email-verification" element={<EmailVerificationPage />} />
                 <Route path="terms" element={<TermsOfService />} />

@@ -118,6 +118,8 @@ FUNCTION_FORM = {
                              '(the student-shaped routes in the same module take the decorator)',
     'routes/credit_dashboard/items.py': 'org reviewer filter, resolved inside the caller org scope',
     'routes/kiosk.py': 'device token flow; the student is the device owner, not the caller',
+    'routes/partner_offerings.py': 'a partner org admin picks which child on an existing parent login gets '
+                                   'its class; the id must be one students_behind_email returned for that address',
 }
 
 
