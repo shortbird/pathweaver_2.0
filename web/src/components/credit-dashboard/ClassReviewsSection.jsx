@@ -1,12 +1,20 @@
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { toast } from 'react-hot-toast'
 import api from '../../services/api'
-import EvidenceDisplay from '../evidence/EvidenceDisplay'
+import ClassTaskReview from './ClassTaskReview'
+import ClassReviewEmail from './ClassReviewEmail'
+import { isRunningAiStatus } from './aiReview'
 
 // Holistic review of student class submissions — a class shows as one unit
-// (its title, subject, approved XP, and the tasks that built it), not as
-// individual task credit requests. Rendered as a tab inside the Credit
-// Review Dashboard.
+// (its title, subject, approved XP, and the tasks that built it). Each task is
+// still accepted or sent back on its own, with the same AI review as the
+// credit queue (ClassTaskReview). Rendered as a tab inside the Credit Review
+// Dashboard.
+
+// How often, and for how long, to re-read a class while its AI reviews run.
+// Bounded like useAiReviewPolling: past this the reviewer presses Re-run.
+const AI_POLL_MS = 5000
+const AI_POLL_MAX = 36
 
 const STATUS_OPTIONS = [
   { value: 'submitted_for_review', label: 'Awaiting Review' },
@@ -28,8 +36,6 @@ const ClassReviewsSection = ({ onReviewed }) => {
   const [selectedId, setSelectedId] = useState(null)
   const [detail, setDetail] = useState(null)
   const [detailLoading, setDetailLoading] = useState(false)
-  const [rejectNotes, setRejectNotes] = useState('')
-  const [acting, setActing] = useState(false)
 
   const fetchItems = useCallback(async () => {
     try {
@@ -48,7 +54,6 @@ const ClassReviewsSection = ({ onReviewed }) => {
 
   const selectItem = async (item) => {
     setSelectedId(item.quest_id)
-    setRejectNotes('')
     try {
       setDetailLoading(true)
       const res = await api.get(`/api/admin/class-reviews/${item.quest_id}`)
@@ -60,93 +65,142 @@ const ClassReviewsSection = ({ onReviewed }) => {
     }
   }
 
-  const approve = async () => {
-    if (!selectedId) return
-    setActing(true)
+  // Silent: a decision or a finished AI review must not blank the evidence
+  // the reviewer is reading.
+  const selectedRef = useRef(selectedId)
+  useEffect(() => { selectedRef.current = selectedId }, [selectedId])
+  const refreshDetail = useCallback(async () => {
+    const questId = selectedRef.current
+    if (!questId) return
     try {
-      await api.post(`/api/admin/class-reviews/${selectedId}/approve`, {})
-      toast.success('Class approved — transcript credit awarded')
-      setSelectedId(null)
-      setDetail(null)
-      fetchItems()
-      onReviewed?.()
-    } catch (err) {
-      toast.error(err.response?.data?.error?.message || 'Approve failed')
-    } finally {
-      setActing(false)
+      const res = await api.get(`/api/admin/class-reviews/${questId}`)
+      if (selectedRef.current === questId) setDetail(res.data?.data || res.data)
+    } catch {
+      // The next poll or decision tries again.
     }
+  }, [])
+
+  const aiRunning = (detail?.tasks || []).some(t => isRunningAiStatus(t.ai?.status))
+  useEffect(() => {
+    if (!aiRunning) return undefined
+    let polls = 0
+    const timer = setInterval(() => {
+      polls += 1
+      if (polls > AI_POLL_MAX) { clearInterval(timer); return }
+      refreshDetail()
+    }, AI_POLL_MS)
+    return () => clearInterval(timer)
+  }, [aiRunning, selectedId, refreshDetail])
+
+  const returnedCount = detail?.task_review_counts?.returned || 0
+
+  const finished = () => {
+    setSelectedId(null)
+    setDetail(null)
+    fetchItems()
+    onReviewed?.()
   }
 
-  const reject = async () => {
-    if (!selectedId) return
-    if (!rejectNotes.trim()) {
-      toast.error('Notes are required to reject')
-      return
-    }
-    setActing(true)
-    try {
-      await api.post(`/api/admin/class-reviews/${selectedId}/reject`, { notes: rejectNotes.trim() })
-      toast.success('Class rejected — student notified')
-      setSelectedId(null)
-      setDetail(null)
-      setRejectNotes('')
-      fetchItems()
-      onReviewed?.()
-    } catch (err) {
-      toast.error(err.response?.data?.error?.message || 'Reject failed')
-    } finally {
-      setActing(false)
-    }
-  }
+  // The queue and the review never share the screen. The queue is short and a
+  // review is long, so a sidebar beside the review was mostly blank while it
+  // squeezed the evidence. Opening a class trades the list for a slim bar.
+  const selectedIndex = items.findIndex(it => it.quest_id === selectedId)
+  const backToList = () => { setSelectedId(null); setDetail(null) }
 
-  return (
-    <div className="grid grid-cols-1 lg:grid-cols-[1fr_2fr] gap-6">
-      <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
-        <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200">
+  if (!selectedId) {
+    return (
+      <div className="relative bg-white border border-gray-200 rounded-xl overflow-hidden">
+        <div className="flex items-center justify-between gap-3 px-4 py-3 border-b border-gray-200">
           <h2 className="font-semibold text-gray-900">Class submissions</h2>
           <select
             value={status}
             onChange={(e) => setStatus(e.target.value)}
+            aria-label="Filter by status"
             className="text-sm border border-gray-300 rounded-md px-2 py-1"
           >
             {STATUS_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
           </select>
         </div>
-        <div className="max-h-[70vh] overflow-y-auto">
-          {loading ? (
-            <div className="p-6 text-center text-gray-500 text-sm">Loading…</div>
-          ) : items.length === 0 ? (
-            <div className="p-6 text-center text-gray-500 text-sm">No class submissions</div>
-          ) : items.map((it) => (
-            <button
-              key={it.quest_id}
-              type="button"
-              onClick={() => selectItem(it)}
-              className={`w-full text-left px-4 py-3 border-b border-gray-100 hover:bg-gray-50 ${selectedId === it.quest_id ? 'bg-optio-purple/5' : ''}`}
-            >
-              <div className="flex items-center justify-between gap-2">
-                <div className="font-medium text-gray-900 truncate">{it.title}</div>
-                <span className={`text-[10px] px-2 py-0.5 rounded-full ${STATUS_BADGE[it.review_status] || 'bg-gray-100 text-gray-700'}`}>
-                  {it.review_status?.replace(/_/g, ' ')}
-                </span>
-              </div>
-              <div className="text-sm text-gray-500 mt-1">
-                {it.student_name} • {it.transcript_subject_display}
-              </div>
-              {it.submitted_at && (
-                <div className="text-xs text-gray-400 mt-0.5">
-                  Submitted {new Date(it.submitted_at).toLocaleDateString()}
+        {loading ? (
+          <div className="p-6 text-center text-gray-500 text-sm">Loading…</div>
+        ) : items.length === 0 ? (
+          <div className="p-6 text-center text-gray-500 text-sm">No class submissions</div>
+        ) : (
+          <div className="grid gap-3 p-3 sm:grid-cols-2 xl:grid-cols-3">
+            {items.map((it) => (
+              <button
+                key={it.quest_id}
+                type="button"
+                onClick={() => selectItem(it)}
+                className="text-left px-4 py-3 rounded-lg border border-gray-200 hover:border-optio-purple/40 hover:bg-gray-50 min-w-0"
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div className="font-medium text-gray-900 truncate">{it.title}</div>
+                  <span className={`shrink-0 text-[10px] px-2 py-0.5 rounded-full ${STATUS_BADGE[it.review_status] || 'bg-gray-100 text-gray-700'}`}>
+                    {it.review_status?.replace(/_/g, ' ')}
+                  </span>
                 </div>
-              )}
+                <div className="text-sm text-gray-500 mt-1 truncate">
+                  {it.student_name} • {it.transcript_subject_display}
+                </div>
+                {it.submitted_at && (
+                  <div className="text-xs text-gray-400 mt-0.5">
+                    Submitted {new Date(it.submitted_at).toLocaleDateString()}
+                  </div>
+                )}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  return (
+    // relative: the AI verdicts carry screen-reader text (sr-only, which is
+    // position:absolute). With no positioned ancestor inside the scroll area
+    // it anchored to the page instead, and a long review stretched the page
+    // ~40,000px past the email box as blank scroll.
+    <div className="relative space-y-3">
+      <div className="flex items-center gap-2 bg-white border border-gray-200 rounded-xl px-3 py-2">
+        <button type="button" onClick={backToList} className="btn-quiet px-3 text-sm">
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+          </svg>
+          All classes
+        </button>
+        <div className="flex-1" />
+        {items.length > 1 && selectedIndex >= 0 && (
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              onClick={() => selectItem(items[selectedIndex - 1])}
+              disabled={selectedIndex <= 0}
+              className="btn-quiet px-2.5"
+              aria-label="Previous class"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+              </svg>
             </button>
-          ))}
-        </div>
+            <span className="text-sm text-gray-500 tabular-nums px-1">{selectedIndex + 1} / {items.length}</span>
+            <button
+              type="button"
+              onClick={() => selectItem(items[selectedIndex + 1])}
+              disabled={selectedIndex >= items.length - 1}
+              className="btn-quiet px-2.5"
+              aria-label="Next class"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+              </svg>
+            </button>
+          </div>
+        )}
       </div>
 
-      <div className="bg-white border border-gray-200 rounded-xl">
-        {!selectedId ? (
-          <div className="p-12 text-center text-gray-400">Select a class to review</div>
-        ) : detailLoading ? (
+      <div className="bg-white border border-gray-200 rounded-xl min-w-0 break-words">
+        {detailLoading ? (
           <div className="p-12 text-center text-gray-500">Loading…</div>
         ) : detail ? (
           <div className="p-6">
@@ -172,7 +226,10 @@ const ClassReviewsSection = ({ onReviewed }) => {
               <div className="bg-optio-purple/5 border border-optio-purple/20 rounded-lg p-3">
                 <div className="text-[10px] uppercase tracking-wider text-optio-purple font-semibold">Approved XP</div>
                 <div className="text-2xl font-bold text-optio-purple-dark">{detail.approved_subject_xp}</div>
-                <div className="text-xs text-optio-purple-dark">in {detail.quest.transcript_subject_display}</div>
+                <div className="text-xs text-optio-purple-dark">
+                  in {detail.quest.transcript_subject_display}
+                  {detail.total_subject_xp > detail.approved_subject_xp && ` (${detail.total_subject_xp - detail.approved_subject_xp} sent back)`}
+                </div>
               </div>
               <div className="bg-optio-pink/5 border border-optio-pink/20 rounded-lg p-3">
                 <div className="text-[10px] uppercase tracking-wider text-optio-pink font-semibold">Target</div>
@@ -187,27 +244,26 @@ const ClassReviewsSection = ({ onReviewed }) => {
             </div>
 
             <div className="mb-6">
-              <h4 className="text-sm font-semibold text-gray-900 mb-2">Tasks &amp; evidence ({detail.tasks.length})</h4>
+              <div className="flex items-baseline justify-between gap-2 mb-2">
+                <h4 className="text-sm font-semibold text-gray-900">Tasks &amp; evidence ({detail.tasks.length})</h4>
+                {detail.task_review_counts && detail.tasks.length > 0 && (
+                  <span className="text-xs text-gray-500">
+                    {detail.task_review_counts.accepted} of {detail.tasks.length} accepted
+                    {returnedCount > 0 && ` • ${returnedCount} sent back`}
+                  </span>
+                )}
+              </div>
               <div className="border border-gray-200 rounded-lg overflow-hidden">
                 {detail.tasks.length === 0 ? (
                   <div className="p-4 text-sm text-gray-500">No completed tasks yet</div>
                 ) : detail.tasks.map((t) => (
-                  <div key={t.completion_id} className="px-4 py-3 border-b border-gray-100 last:border-b-0">
-                    <div className="flex items-center justify-between gap-3">
-                      <div className="font-medium text-gray-900 truncate">{t.title}</div>
-                      <div className="text-xs text-gray-500 whitespace-nowrap">
-                        {t.subject_xp_attributed} XP{t.xp_value !== t.subject_xp_attributed ? ` • ${t.xp_value} total` : ''}
-                      </div>
-                    </div>
-                    {t.description && (
-                      <div className="text-xs text-gray-500 mt-1">{t.description}</div>
-                    )}
-                    {t.evidence_blocks?.length > 0 && (
-                      <div className="mt-3">
-                        <EvidenceDisplay blocks={t.evidence_blocks} emptyMessage="" />
-                      </div>
-                    )}
-                  </div>
+                  <ClassTaskReview
+                    key={t.completion_id}
+                    questId={detail.quest.id}
+                    task={t}
+                    canDecide={detail.quest.review_status === 'submitted_for_review'}
+                    onChanged={refreshDetail}
+                  />
                 ))}
               </div>
             </div>
@@ -220,34 +276,7 @@ const ClassReviewsSection = ({ onReviewed }) => {
             )}
 
             {detail.quest.review_status === 'submitted_for_review' && (
-              <div className="border-t border-gray-200 pt-4">
-                <div className="flex flex-col gap-3">
-                  <textarea
-                    value={rejectNotes}
-                    onChange={(e) => setRejectNotes(e.target.value)}
-                    placeholder="If rejecting, write notes for the student (what to keep building, what to evidence better)…"
-                    className="w-full text-sm border border-gray-300 rounded-md p-2 min-h-[80px]"
-                  />
-                  <div className="flex justify-end gap-2">
-                    <button
-                      type="button"
-                      onClick={reject}
-                      disabled={acting || !rejectNotes.trim()}
-                      className="px-4 py-2 border border-red-300 text-red-700 rounded-md hover:bg-red-50 disabled:opacity-50"
-                    >
-                      Reject
-                    </button>
-                    <button
-                      type="button"
-                      onClick={approve}
-                      disabled={acting}
-                      className="px-4 py-2 bg-gradient-primary text-white rounded-md disabled:opacity-50"
-                    >
-                      Approve credit
-                    </button>
-                  </div>
-                </div>
-              </div>
+              <ClassReviewEmail detail={detail} onSent={finished} />
             )}
           </div>
         ) : null}

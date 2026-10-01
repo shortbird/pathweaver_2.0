@@ -694,14 +694,8 @@ def send_class_credit_awarded_notification(quest_id: str) -> bool:
 
         student = data['student']
         student_name = student.get('first_name') or _display_name(student)
-        parent_emails = [p['email'] for p in data['parents'] if _is_real_email(p.get('email'))]
-        student_email = student.get('email') if _is_real_email(student.get('email')) else None
-
-        if student_email:
-            to_email, cc = student_email, parent_emails
-        elif parent_emails:
-            to_email, cc = parent_emails[0], parent_emails[1:]
-        else:
+        to_email, cc = _recipients(data)
+        if not to_email:
             logger.warning(f"Credit award email skipped for quest {quest_id[:8]}: no reachable addresses")
             return False
 
@@ -729,6 +723,99 @@ def send_class_credit_awarded_notification(quest_id: str) -> bool:
     except Exception as e:  # noqa: BLE001
         logger.error(f"Credit award notification failed for quest {quest_id[:8]}: {e}", exc_info=True)
         return False
+
+
+def _recipients(data: Dict[str, Any]) -> Tuple[Optional[str], List[str]]:
+    """The student, cc their parents; a parent when the student has no real
+    address (an under-13 dependent)."""
+    student = data.get('student') or {}
+    parent_emails = [p['email'] for p in data.get('parents') or [] if _is_real_email(p.get('email'))]
+    student_email = student.get('email') if _is_real_email(student.get('email')) else None
+    if student_email:
+        return student_email, parent_emails
+    if parent_emails:
+        return parent_emails[0], parent_emails[1:]
+    return None, []
+
+
+def _student_only(data: Dict[str, Any]) -> Tuple[Optional[str], List[str]]:
+    """The class review email goes to the student alone, never cc parents
+    (the reviewer's call, 2026-09-30). A student with no real address gets
+    no email; Send still saves the decision."""
+    email = (data.get('student') or {}).get('email')
+    return (email if _is_real_email(email) else None), []
+
+
+def class_review_recipients(quest_id: str) -> Dict[str, Any]:
+    """Who the class review email goes to, for the page to show before Send."""
+    data = collect_class_credit_data(quest_id)
+    if not data:
+        return {'to': None, 'cc': []}
+    to_email, cc = _student_only(data)
+    return {'to': to_email, 'cc': cc}
+
+
+def send_class_review_email(quest_id: str, subject: str, body: str,
+                            attach_portfolio: bool,
+                            to_override: Optional[str] = None) -> bool:
+    """Send the reviewer's own class review email to the student (only),
+    with the evidence portfolio attached when the class earned its credit.
+    Synchronous; use send_class_review_email_async when a portfolio is built.
+
+    ``to_override`` is "Send draft to me": the identical email, portfolio and
+    all, delivered to the reviewer instead of the student."""
+    try:
+        if attach_portfolio:
+            pdf, data = generate_class_credit_pdf(quest_id)
+        else:
+            pdf, data = None, collect_class_credit_data(quest_id)
+        if not data:
+            logger.warning(f"Class review email skipped, no data for quest {quest_id[:8]}")
+            return False
+        to_email, cc = (to_override, []) if to_override else _student_only(data)
+        if not to_email:
+            logger.warning(f"Class review email skipped for quest {quest_id[:8]}: no reachable addresses")
+            return False
+        attachments = None
+        if pdf:
+            attachments = [{
+                'filename': _safe_filename(_display_name(data['student']), data['quest'].get('title') or 'Class'),
+                'content': pdf,
+                'mimetype': 'application/pdf',
+            }]
+        from services.email_service import email_service
+        sent = email_service.send_class_review_email(
+            to_email=to_email, subject=subject, body_text=body,
+            cc=cc or None, attachments=attachments)
+        logger.info(f"Class review email for quest {quest_id[:8]}: sent={sent}, "
+                    f"cc={len(cc)}, attachment={'yes' if pdf else 'no'}")
+        return sent
+    except Exception as e:  # noqa: BLE001
+        logger.error(f"Class review email failed for quest {quest_id[:8]}: {e}", exc_info=True)
+        return False
+
+
+def send_class_review_email_async(quest_id: str, subject: str, body: str,
+                                  to_override: Optional[str] = None) -> None:
+    """Fire-and-forget, portfolio attached: the build fetches every asset.
+    Serialized through _BUILD_SLOT like the award email."""
+    from flask import current_app
+    app = current_app._get_current_object()
+
+    def _run():
+        if not _BUILD_SLOT.acquire(timeout=_BUILD_WAIT_SECONDS):
+            logger.error(f"Class review email for quest {quest_id[:8]} dropped: "
+                         f"portfolio builder busy for {_BUILD_WAIT_SECONDS}s")
+            return
+        try:
+            with app.app_context():
+                send_class_review_email(quest_id, subject, body, attach_portfolio=True,
+                                        to_override=to_override)
+        finally:
+            _BUILD_SLOT.release()
+
+    threading.Thread(target=_run, daemon=True).start()
+    logger.info(f"[BG] Spawned class review email for quest {quest_id[:8]}")
 
 
 def notify_class_credit_awarded_async(quest_id: str) -> None:

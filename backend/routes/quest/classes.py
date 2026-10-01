@@ -295,9 +295,10 @@ def submit_class_for_review(user_id: str, quest_id: str):
                 status=400,
             )
 
+        submitted_at = datetime.now(timezone.utc).isoformat()
         supabase.table('quests').update({
             'class_review_status': 'submitted_for_review',
-            'class_review_submitted_at': datetime.now(timezone.utc).isoformat(),
+            'class_review_submitted_at': submitted_at,
             'class_review_notes': None,
         }).eq('id', quest_id).execute()
 
@@ -319,6 +320,19 @@ def submit_class_for_review(user_id: str, quest_id: str):
             )
         except Exception as alert_err:
             logger.error(f"Failed to queue class-submission alert for {quest_id[:8]}: {alert_err}", exc_info=True)
+
+        # Open a review round per task (and per task sent back last time) so
+        # the AI has read the work before a reviewer opens the class. Best
+        # effort: opening the class in the review queue does the same.
+        try:
+            from services.class_task_review_service import ClassTaskReviewService
+            ClassTaskReviewService(client=supabase).ensure_rounds({
+                **q,
+                'class_review_status': 'submitted_for_review',
+                'class_review_submitted_at': submitted_at,
+            })
+        except Exception as round_err:
+            logger.error(f"Failed to open class task review rounds for {quest_id[:8]}: {round_err}", exc_info=True)
 
         logger.info(f"User {user_id[:8]} submitted class {quest_id[:8]} ({subject}) for review")
         return success_response(data={'quest_id': quest_id, 'review_status': 'submitted_for_review'})

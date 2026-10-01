@@ -244,7 +244,18 @@ class CreditAIReviewService(BaseAIService):
             return None
         completion = completions[0]
 
-        if completion.get('diploma_status') not in store.REVIEWABLE_STATUSES:
+        quest: Dict[str, Any] = {}
+        if completion.get('quest_id'):
+            quests = self.admin.table('quests').select(
+                'id, title, description, quest_type, class_review_status'
+            ).eq('id', completion['quest_id']).limit(1).execute().data
+            quest = quests[0] if quests else {}
+
+        # A class task keeps diploma_status 'none' (services/
+        # class_task_review_service.py): it is reviewable while its class is.
+        in_class_review = (quest.get('quest_type') == 'class'
+                           and quest.get('class_review_status') == 'submitted_for_review')
+        if completion.get('diploma_status') not in store.REVIEWABLE_STATUSES and not in_class_review:
             return None
 
         rounds = self.admin.table('diploma_review_rounds').select(
@@ -264,11 +275,7 @@ class CreditAIReviewService(BaseAIService):
             ).eq('id', completion['user_quest_task_id']).limit(1).execute().data
             task = tasks[0] if tasks else {}
 
-        quest: Dict[str, Any] = {}
-        if completion.get('quest_id'):
-            quests = self.admin.table('quests').select(
-                'id, title, description').eq('id', completion['quest_id']).limit(1).execute().data
-            quest = quests[0] if quests else {}
+        quest = {k: quest.get(k) for k in ('id', 'title', 'description')} if quest else {}
 
         from utils.subject_xp import get_subject_xp_distribution
         requested_xp = int(task.get('xp_value') or 0)

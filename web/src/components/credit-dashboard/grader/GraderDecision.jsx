@@ -244,9 +244,16 @@ const DraftChip = ({ label, onClick }) => (
  * XP the button will award. There is no confirmation because there is nothing
  * the dialog could tell the reviewer that the card has not already.
  */
-const AiRecommendationCard = ({
+export const AiRecommendationCard = ({
   ai, review, claimedXp, canApplyXp, canAccept, acceptedXp,
   onAccept, onRerun, rerunLoading, onJumpToEvidence, onTuneXp,
+  // The class review reuses this card and has no keyboard shortcut for it.
+  acceptShortcut = 'x',
+  titleId = 'grader-ai-title',
+  // The class review decides a task without sending anything, so it words
+  // the button and the note for its own flow.
+  acceptLabel,
+  noteLabel,
 }) => {
   const status = ai?.status || 'not_run'
   const running = status === 'queued' || status === 'running'
@@ -257,12 +264,12 @@ const AiRecommendationCard = ({
 
   return (
     <section
-      aria-labelledby="grader-ai-title"
+      aria-labelledby={titleId}
       className="rounded-xl border border-optio-purple/20 bg-optio-purple/5 p-4 space-y-3"
     >
       <div className="flex items-center justify-between gap-2 flex-wrap">
         <div className="flex items-center gap-2">
-          <h3 id="grader-ai-title" className="text-xs font-semibold uppercase tracking-wider text-optio-purple">
+          <h3 id={titleId} className="text-xs font-semibold uppercase tracking-wider text-optio-purple">
             AI recommendation
           </h3>
           <AiBadge status={status} action={review?.recommendation} confidence={review?.confidence} />
@@ -377,7 +384,7 @@ const AiRecommendationCard = ({
           {note && (
             <div className="rounded-lg bg-white border border-gray-200 p-3">
               <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">
-                {noteKind === 'grow_this' ? 'Note it would send back' : 'Note it would send'}
+                {noteLabel || (noteKind === 'grow_this' ? 'Note it would send back' : 'Note it would send')}
               </p>
               <p className="text-sm text-gray-700 whitespace-pre-wrap">{note}</p>
             </div>
@@ -400,10 +407,10 @@ const AiRecommendationCard = ({
               onClick={onAccept}
               className="btn-primary w-full min-h-[48px]"
             >
-              {review.recommendation === 'approve'
+              {acceptLabel || (review.recommendation === 'approve'
                 ? `Accept: approve at ${acceptedXp} XP`
-                : 'Accept: send back with this note'}
-              <Kbd>x</Kbd>
+                : 'Accept: send back with this note')}
+              {acceptShortcut && <Kbd>{acceptShortcut}</Kbd>}
             </button>
           ) : review.recommendation === 'needs_human' ? (
             <p className="text-sm text-amber-900 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">

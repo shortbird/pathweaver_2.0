@@ -320,7 +320,7 @@ const EvidenceBlock = ({ block, onDelete, onDeleteItem, onUpdateBlock, onEdit, d
                 href={item.url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex-1 flex items-center gap-3 p-3 bg-gray-50 rounded-lg border border-gray-200 hover:border-gray-400 transition-colors"
+                className="flex-1 min-w-0 flex items-center gap-3 p-3 bg-gray-50 rounded-lg border border-gray-200 hover:border-gray-400 transition-colors"
               >
                 <DocumentIcon className="w-5 h-5 text-gray-500 flex-shrink-0" />
                 <div className="flex-1 min-w-0">
@@ -328,10 +328,10 @@ const EvidenceBlock = ({ block, onDelete, onDeleteItem, onUpdateBlock, onEdit, d
                     {item.title || item.filename || 'Document'}
                   </span>
                   {item.filename && item.title !== item.filename && (
-                    <span className="text-xs text-gray-400 truncate">{item.filename}</span>
+                    <span className="block text-xs text-gray-400 truncate">{item.filename}</span>
                   )}
                 </div>
-                <ArrowTopRightOnSquareIcon className="w-4 h-4 text-gray-400" />
+                <ArrowTopRightOnSquareIcon className="w-4 h-4 text-gray-400 flex-shrink-0" />
               </a>
               {onDeleteItem && (
                 <button
@@ -433,8 +433,12 @@ const EvidenceDisplay = ({
   onEdit,
   onDeleteWithUndo,
   onUndoDelete,
-  emptyMessage = 'No evidence submitted yet'
+  emptyMessage = 'No evidence submitted yet',
+  // A reviewer reads the evidence top to bottom, in order; the masonry that
+  // suits a student's own quest page scatters it across two columns.
+  singleColumn = false
 }) => {
+  const columns = singleColumn ? 'columns-1' : 'columns-1 md:columns-2';
   const [showUndoToast, setShowUndoToast] = useState(false);
   const [lastDeletedBlockId, setLastDeletedBlockId] = useState(null);
 
@@ -488,7 +492,7 @@ const EvidenceDisplay = ({
           <SortableContext items={blocks.map(b => b.id)} strategy={rectSortingStrategy}>
             {/* Masonry: single column on mobile (swipe-to-delete intact), two
                 staggered columns on desktop so images show large and uncropped. */}
-            <div className="columns-1 md:columns-2 gap-4">
+            <div className={`${columns} gap-4`}>
               {blocks.map((block) => (
                 <SortableEvidenceBlock
                   key={block.id}
@@ -517,7 +521,7 @@ const EvidenceDisplay = ({
   // Without reordering
   return (
     <>
-      <div className="columns-1 md:columns-2 gap-4 [&>*]:mb-4 [&>*]:break-inside-avoid">
+      <div className={`${columns} gap-4 [&>*]:mb-4 [&>*]:break-inside-avoid`}>
         {blocks.map((block) => (
           <SwipeableBlock key={block.id} onDelete={() => handleDeleteWithUndo(block.id)}>
             <EvidenceBlock

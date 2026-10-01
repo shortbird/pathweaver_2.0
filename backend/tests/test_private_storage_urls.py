@@ -1033,6 +1033,7 @@ _EVIDENCE_READ_PATHS = (
     'backend/routes/lti/evidence.py',                    # the LMS grader's iframe
     'backend/routes/tasks/credit.py',                    # evidence_snapshot
     'backend/routes/teacher_verification.py',            # the verification queue
+    'backend/routes/admin/class_reviews.py',             # the class credit review
     'backend/services/learning_events_service.py',       # journal + public portfolio
     'backend/services/interest_tracks_service.py',
     'backend/services/evidence_report_service.py',       # public share-token report

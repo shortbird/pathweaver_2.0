@@ -4,6 +4,7 @@ Email service for sending custom transactional emails using Jinja2 templates
 import base64
 import html as html_lib
 import os
+import re
 from typing import Optional, List, Dict, Any
 
 import requests
@@ -824,6 +825,43 @@ class EmailService(BaseService):
             # education record even on the rare send where the portfolio PDF
             # failed to build and there is no attachment to trip the same guard.
             contains_student_records=True
+        )
+
+    def send_class_review_email(
+        self,
+        to_email: str,
+        subject: str,
+        body_text: str,
+        cc: Optional[List[str]] = None,
+        attachments: Optional[List[Dict[str, Any]]] = None
+    ) -> bool:
+        """The one email a student gets when a reviewer finishes a class
+        review: the reviewer's own draft, built from each task's feedback and
+        edited on the class review page, in the branded wrapper.
+
+        Rendered straight into crm_generic.html rather than through
+        _render_with_generic_wrapper, because that path runs body_html through
+        Jinja and a reviewer typing "{{" would break the send."""
+        bold = re.compile(r'\*\*(.+?)\*\*')
+        paragraphs = [p.strip() for p in (body_text or '').replace('\r\n', '\n').split('\n\n')]
+        # Escaped first, so **Title** is the only markup a reviewer can add.
+        body_html = ''.join(
+            '<p class="text">'
+            + bold.sub(r'<strong>\1</strong>', html_lib.escape(p)).replace('\n', '<br>')
+            + '</p>'
+            for p in paragraphs if p
+        )
+        html_body = self.jinja_env.get_template('email/crm_generic.html').render(
+            email_subject=subject, body_html=body_html)
+        return self.send_email(
+            to_email=to_email,
+            subject=subject,
+            html_body=html_body,
+            text_body=bold.sub(r'\1', body_text or ''),
+            cc=cc,
+            attachments=attachments,
+            # Quotes a reviewer's feedback on a child's schoolwork.
+            contains_student_records=True,
         )
 
     def send_class_review_submitted_admin_email(
