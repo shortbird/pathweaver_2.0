@@ -148,14 +148,21 @@ describe('release dates', () => {
     mockServer({ quests: [quest()] })
     render(withConfirm(<ClassQuestsManager classId="c1" scheduledEnabled />))
 
+    // A week from today, not a fixed day: the date written here was
+    // 2026-10-01, and on that morning the quest was simply released, the
+    // "Releases ..." line never appeared, and the test timed out.
+    const soon = new Date(Date.now() + 7 * 86400000)
+    const day = [soon.getFullYear(), soon.getMonth() + 1, soon.getDate()]
+    const value = day.map((n) => String(n).padStart(2, '0')).join('-')
+
     fireEvent.click(await screen.findByRole('button', { name: /Set release date/ }))
-    fireEvent.change(screen.getByLabelText('Release date for Rock Cycle'), { target: { value: '2026-10-01' } })
+    fireEvent.change(screen.getByLabelText('Release date for Rock Cycle'), { target: { value } })
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
 
     await waitFor(() => expect(api.patch).toHaveBeenCalledTimes(1))
     const [url, body] = api.patch.mock.calls[0]
     expect(url).toBe('/api/sis/classes/c1/quests/q1')
-    expect(localDay(body.publish_at)).toEqual([2026, 10, 1])
+    expect(localDay(body.publish_at)).toEqual(day)
     expect(await screen.findByText(/^Releases /)).toBeInTheDocument()
   })
 
