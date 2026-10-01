@@ -152,6 +152,7 @@ const FamilyResourcesPage = lazy(() => import('./pages/FamilyResourcesPage'))
 const FamilyCalendarPage = lazy(() => import('./pages/FamilyCalendarPage'))
 const FamilyDirectoryPage = lazy(() => import('./pages/FamilyDirectoryPage'))
 const FamilyGoalsPage = lazy(() => import('./pages/FamilyGoalsPage'))
+const FamilyWeeklyGoalsPage = lazy(() => import('./pages/FamilyWeeklyGoalsPage'))
 const FamilyStudentPage = lazy(() => import('./pages/FamilyStudentPage'))
 const FamilyStudentSchedulePage = lazy(() => import('./pages/FamilyStudentSchedulePage'))
 const FamilyBillingPage = lazy(() => import('./pages/FamilyBillingPage'))
@@ -704,6 +705,9 @@ function App() {
                   {/* Goals-mode SIS orgs: parents set a direction + per-subject goals
                       for each child (reviewed in a meeting with school staff). */}
                   <Route path="family/goals" element={<FamilyGoalsPage />} />
+                  {/* Weekly goals the coach sets each Monday and checks on
+                      Thursday: a student's own, or a parent's children's. */}
+                  <Route path="weekly-goals" element={<FamilyWeeklyGoalsPage />} />
                 </Route>
                 {/* The family dashboard: every parent's home (2026-09-15). Open
                     to anyone with children on their account -- the page itself

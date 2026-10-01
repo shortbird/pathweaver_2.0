@@ -65,10 +65,21 @@ const BountyDetailPage = () => {
   const myClaim = useMemo(() => myClaims.find(c => c.bounty_id === bountyId), [myClaims, bountyId])
   const isActive = bounty?.status === 'active'
   const isPoster = bounty?.poster_id === user?.id
+  // A school's staff review its bounties when the school runs the SIS
+  // Bounties block; the server says so (bounty_service.can_manage).
+  const canReview = isPoster || Boolean(bounty?.can_manage)
   const deliverables = bounty?.deliverables || []
   const completedIds = myClaim?.evidence?.completed_deliverables || []
   const deliverableEvidence = myClaim?.evidence?.deliverable_evidence || {}
   const isClaimEditable = myClaim && (myClaim.status === 'claimed' || myClaim.status === 'revision_requested')
+  // A bounty posted without proof (a daily chore): the student ticks a step
+  // themselves, and a photo is optional. Older bounties have no field and ask.
+  const needsProof = bounty?.requires_evidence !== false
+  const canTick = Boolean(myClaim && isClaimEditable && !needsProof)
+
+  const tickStep = (deliverableId, done) => toggleMutation.mutate({
+    bountyId, claimId: myClaim.id, deliverableId, completed: done,
+  })
 
   const handleClaim = () => claimMutation.mutate(bountyId)
 
@@ -248,9 +259,14 @@ const BountyDetailPage = () => {
 
         {/* Deliverables */}
         <div className="border-t border-gray-100 pt-4">
-          <h3 className="text-sm font-semibold text-gray-900 mb-3">
-            Deliverables ({deliverables.length})
+          <h3 className="text-sm font-semibold text-gray-900">
+            Steps ({deliverables.length})
           </h3>
+          <p className="text-xs text-gray-500 mt-0.5 mb-3">
+            {needsProof
+              ? 'Add a photo, file or note to finish each step.'
+              : 'Tick each step when it is done. A photo is optional.'}
+          </p>
           <div className="space-y-2">
             {deliverables.map((d, i) => {
               const isCompleted = completedIds.includes(d.id)
@@ -263,7 +279,23 @@ const BountyDetailPage = () => {
                 >
                   {/* Status icon */}
                   <div className="mt-0.5 flex-shrink-0">
-                    {isCompleted ? (
+                    {canTick ? (
+                      <button
+                        type="button"
+                        role="checkbox"
+                        aria-checked={isCompleted}
+                        aria-label={`${d.text}: ${isCompleted ? 'done' : 'not done'}`}
+                        disabled={toggleMutation.isPending}
+                        onClick={() => tickStep(d.id, !isCompleted)}
+                        className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors ${isCompleted ? 'bg-green-500 border-green-500 text-white' : 'border-gray-300 hover:border-optio-purple'}`}
+                      >
+                        {isCompleted && (
+                          <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20" aria-hidden>
+                            <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                          </svg>
+                        )}
+                      </button>
+                    ) : isCompleted ? (
                       <svg className="w-5 h-5 text-green-500" fill="currentColor" viewBox="0 0 20 20">
                         <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                       </svg>
@@ -296,7 +328,7 @@ const BountyDetailPage = () => {
                       <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
                       </svg>
-                      Upload
+                      {needsProof ? 'Upload' : 'Add photo'}
                     </button>
                   )}
                 </div>
@@ -351,6 +383,15 @@ const BountyDetailPage = () => {
         <div className="bg-green-50 rounded-xl p-5 border border-green-200 text-center">
           <h3 className="font-bold text-green-900 mb-1">Bounty completed!</h3>
           {rewardText && <p className="text-green-700">You earned {rewardText}.</p>}
+          {bounty.repeatable && isActive && !deadlinePassed && (
+            <button
+              onClick={handleClaim}
+              disabled={claimMutation.isPending}
+              className="mt-2 text-sm font-medium text-optio-purple hover:underline min-h-[32px]"
+            >
+              {claimMutation.isPending ? 'Starting...' : 'Do it again'}
+            </button>
+          )}
         </div>
       )}
       {myClaim?.status === 'rejected' && (
@@ -386,7 +427,7 @@ const BountyDetailPage = () => {
       {/* Poster: Review submitted claims. Uses the same SubmissionReviewCard as
           the board's review queue — the previous inline copy shared ONE
           feedback string across every student's textarea. */}
-      {isPoster && (bounty.claims || []).some(c => c.status === 'submitted') && (
+      {canReview && (bounty.claims || []).some(c => c.status === 'submitted') && (
         <div className="mt-6 space-y-4">
           <h3 className="text-lg font-bold text-gray-900">
             Submissions for Review ({(bounty.claims || []).filter(c => c.status === 'submitted').length})

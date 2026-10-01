@@ -281,8 +281,10 @@ class TestTheRestOfThePayload:
         # the explicitly hidden ones — the frontend's filter vocabulary and the
         # gate agree by construction. The kiosk is not in this list any more:
         # it lost its SIS parent on 2026-09-07 (LMS-only schools run it).
+        # Weekly goals and bounty management (2026-10-01) are opt-in too, so
+        # they are reported off here.
         assert data['settings'] == {
-            'hidden_modules': ['billing', 'clp', 'community'],
+            'hidden_modules': ['billing', 'bounty_management', 'clp', 'community', 'weekly_goals'],
             'prior_learning_enabled': True,
             'post_registration_flow': 'goals',
         }

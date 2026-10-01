@@ -171,6 +171,9 @@ export const queryKeys = {
     detail: (bountyId) => [...queryKeys.bounties.all, 'detail', bountyId],
     myClaims: ['bounties', 'my-claims'],
     myPosted: ['bounties', 'my-posted'],
+    // Every bounty posted to one school (the SIS Bounties block).
+    school: (orgId) => ['bounties', 'school', orgId],
+    schoolAll: ['bounties', 'school'],
   },
 
   // Admin queries

@@ -29,6 +29,10 @@ export interface Bounty {
   }[];
   deliverables: { id: string; text: string }[];
   status: string;
+  // A school job a student may do again once their last round is approved.
+  repeatable?: boolean;
+  // False: students tick a step with no photo or note (daily chores).
+  requires_evidence?: boolean;
   claims_count?: number;
   // The detail/review endpoint (useBountyDetail) embeds the full claim list;
   // list endpoints omit it. Optional so both response shapes fit one type.

@@ -232,6 +232,20 @@ export default function BountyDetailPage() {
     }
   };
 
+  // A bounty posted without proof (a daily chore): the student ticks a step
+  // themselves and a photo is optional. Older bounties have no field and ask.
+  const needsProof = bounty?.requires_evidence !== false;
+
+  const handleTick = async (deliverableId: string) => {
+    if (!id || !myClaim) return;
+    try {
+      await toggleDeliverable(id, myClaim.id, deliverableId, true);
+      await refetchClaims();
+    } catch (err: any) {
+      showAlert('Error', err.response?.data?.error || 'Failed to update this step');
+    }
+  };
+
   const handleUncheck = async (deliverableId: string) => {
     if (!id || !myClaim) return;
     try {
@@ -385,6 +399,13 @@ export default function BountyDetailPage() {
                         : 'Completed! Your reward is on its way'}
                     </UIText>
                   </HStack>
+                  {bounty.repeatable && bounty.status === 'active' && (
+                    <Pressable onPress={handleClaim} disabled={claiming} className="mt-2 items-center">
+                      <UIText size="sm" className="text-optio-purple font-poppins-semibold">
+                        {claiming ? 'Starting…' : 'Do it again'}
+                      </UIText>
+                    </Pressable>
+                  )}
                 </View>
               )}
               {myClaim?.status === 'submitted' && (
@@ -468,13 +489,21 @@ export default function BountyDetailPage() {
                   <VStack space="xs">
                     <HStack className="items-start gap-3">
                       {/* Status icon */}
-                      <View className="mt-0.5">
+                      <Pressable
+                        className="mt-0.5"
+                        disabled={!(isClaimEditable && !needsProof)}
+                        onPress={() => (isCompleted ? handleUncheck(d.id) : handleTick(d.id))}
+                        accessibilityRole="checkbox"
+                        accessibilityState={{ checked: isCompleted }}
+                        accessibilityLabel={d.text}
+                        hitSlop={8}
+                      >
                         {isCompleted ? (
                           <Ionicons name="checkmark-circle" size={22} color="#16A34A" />
                         ) : (
                           <View style={{ width: 22, height: 22, borderRadius: 11, borderWidth: 2, borderColor: c.border }} />
                         )}
-                      </View>
+                      </Pressable>
 
                       {/* Text */}
                       <VStack className="flex-1 min-w-0">
@@ -502,7 +531,7 @@ export default function BountyDetailPage() {
                             <HStack className="items-center gap-1">
                               <Ionicons name="cloud-upload-outline" size={16} color={c.brand} />
                               <UIText size="xs" className="text-optio-purple font-poppins-medium">
-                                {isCompleted ? 'Add' : 'Upload'}
+                                {isCompleted ? 'Add' : needsProof ? 'Upload' : 'Photo'}
                               </UIText>
                             </HStack>
                           </Pressable>

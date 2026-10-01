@@ -49,6 +49,29 @@ class BountyService(BaseService):
         except Exception:
             return False
 
+    def can_manage(self, user_id: str, bounty: Dict[str, Any]) -> bool:
+        """May this person edit, delete and review this bounty? The poster and
+        a superadmin always. Staff of the bounty's school too, when the school
+        runs the Bounties block in the SIS (module 'bounty_management'): a
+        school's jobs are the school's, so any coach can approve a chore
+        another coach posted (Apogee Cache Valley, 2026-10-01). Without the
+        block nothing changes -- the poster owns it."""
+        if bounty.get('poster_id') == user_id or self.is_superadmin(user_id):
+            return True
+        org_id = bounty.get('organization_id')
+        if not org_id:
+            return False
+        user = self.repository.get_user_roles_row(user_id)
+        if not user or user.get('organization_id') != org_id or not self._is_staff_user(user):
+            return False
+        from modules.enabled import module_enabled
+        return module_enabled(org_id, 'bounty_management')
+
+    def get_org_bounties_with_claims(self, org_id: str) -> List[Dict[str, Any]]:
+        """Every bounty posted to a school, each with its claims: the SIS
+        Bounties page. The route gates the caller to that school's staff."""
+        return self._enrich_bounties_with_claims(self.repository.get_org_bounties(org_id))
+
     def _get_posters_student_ids(self, poster_id: str) -> Optional[set]:
         """Resolve the set of student IDs the poster is authorized to target
         with a family-visibility bounty. Union of:
@@ -288,7 +311,12 @@ class BountyService(BaseService):
             'visibility': visibility,
             'allowed_student_ids': allowed_student_ids,
             'sponsored_reward': sponsor,
-            'organization_id': data.get('organization_id'),
+            # An 'organization' bounty with no school named belongs to the
+            # poster's school. The web form never sent one, so a web
+            # "My Organization" bounty was visible to nobody (found
+            # 2026-10-01; none existed in prod).
+            'organization_id': data.get('organization_id') or (
+                poster_org_id if visibility == 'organization' else None),
             # Optional cohort restriction (The Treehouse "differentiate boards by
             # cohort"): when set, only students enrolled in this org_class see it.
             'cohort_class_id': data.get('cohort_class_id') or None,
@@ -296,6 +324,11 @@ class BountyService(BaseService):
             # never appear on a student board; anything unspecified stays a
             # student bounty, which is every bounty that existed before this.
             'audience': audience,
+            # A school job a student may do again once their last round is
+            # approved: daily chores (Apogee Cache Valley, 2026-10-01).
+            'repeatable': bool(data.get('repeatable')),
+            # Off: students tick a step with no photo or note (daily chores).
+            'requires_evidence': data.get('requires_evidence', True) is not False,
         }
 
         bounty = self.repository.create_bounty(bounty_data)
@@ -337,7 +370,7 @@ class BountyService(BaseService):
         if not bounty:
             raise NotFoundError(f"Bounty {bounty_id} not found")
 
-        if bounty['poster_id'] != poster_id and not self.is_superadmin(poster_id):
+        if not self.can_manage(poster_id, bounty):
             raise ValidationError("Only the poster can edit this bounty")
 
         updates = {}
@@ -350,6 +383,12 @@ class BountyService(BaseService):
 
         if 'description' in data:
             updates['description'] = data['description'].strip()
+
+        if 'repeatable' in data:
+            updates['repeatable'] = bool(data['repeatable'])
+
+        if 'requires_evidence' in data:
+            updates['requires_evidence'] = data['requires_evidence'] is not False
 
         if 'max_participants' in data:
             try:
@@ -381,6 +420,10 @@ class BountyService(BaseService):
             if (bounty.get('audience') or 'students') == 'staff' and data['visibility'] != 'organization':
                 raise ValidationError("Staff bounties must use 'organization' visibility")
             updates['visibility'] = data['visibility']
+            if data['visibility'] == 'organization' and not bounty.get('organization_id'):
+                poster_row = self.repository.get_user_roles_row(bounty['poster_id'])
+                if poster_row and poster_row.get('organization_id'):
+                    updates['organization_id'] = poster_row['organization_id']
 
         if 'allowed_student_ids' in data:
             val = data['allowed_student_ids']
@@ -486,8 +529,10 @@ class BountyService(BaseService):
         claims + student names + latest reviews when the viewer is the poster
         or a superadmin."""
         bounty = self.get_bounty_for_viewer(bounty_id, viewer_id)
-        if bounty['poster_id'] == viewer_id or self.is_superadmin(viewer_id):
-            return self._enrich_bounties_with_claims([bounty])[0]
+        if self.can_manage(viewer_id, bounty):
+            # can_manage tells the page to show the review queue to a coach
+            # who did not post the bounty (the SIS Bounties block).
+            return {**self._enrich_bounties_with_claims([bounty])[0], 'can_manage': True}
         return bounty
 
     @staticmethod
@@ -646,7 +691,7 @@ class BountyService(BaseService):
         claim before their work disappears — deletion cascades claims and
         reviews, and previously did so silently."""
         bounty = self.get_bounty(bounty_id)
-        if bounty['poster_id'] != user_id and not self.is_superadmin(user_id):
+        if not self.can_manage(user_id, bounty):
             raise ValidationError("Only the poster or superadmin can delete this bounty")
 
         claims = self.repository.get_bounty_claims(bounty_id)
@@ -925,6 +970,11 @@ class BountyService(BaseService):
                 reopened = self.repository.update_claim_status(existing['id'], 'claimed')
                 logger.info(f"Student {student_id[:8]} re-opened rejected claim {existing['id'][:8]}")
                 return reopened
+            if existing['status'] == 'approved' and bounty.get('repeatable'):
+                restarted = self.repository.restart_claim(existing['id'])
+                logger.info(f"Student {student_id[:8]} started another round of repeatable "
+                            f"bounty {bounty_id[:8]}")
+                return restarted
             raise ValidationError("You've already claimed this bounty")
 
         # Check capacity (0 = unlimited)
@@ -1001,14 +1051,21 @@ class BountyService(BaseService):
         # Require evidence when completing. Filter to well-formed entries first:
         # a bare [{}] used to satisfy the check, and a dict payload would be
         # iterated by keys and splice bare strings into the JSONB.
+        # A bounty posted without proof (requires_evidence false -- a daily
+        # chore, Apogee Cache Valley 2026-10-01: "daily chores like cleaning up
+        # don't necessarily need a picture every day") is checked off with
+        # none; anything the student does attach is still kept.
+        needs_proof = bounty.get('requires_evidence', True) is not False
         if completed:
+            if deliverable_evidence is None and not needs_proof:
+                deliverable_evidence = []
             if not isinstance(deliverable_evidence, list):
                 raise ValidationError("Evidence must be a list of evidence items")
             deliverable_evidence = [
                 e for e in deliverable_evidence
                 if isinstance(e, dict) and e.get('type') and e.get('content')
             ]
-            if not deliverable_evidence:
+            if not deliverable_evidence and needs_proof:
                 raise ValidationError("At least one piece of evidence is required to complete a deliverable")
 
         # Update completed deliverables list and evidence
@@ -1200,11 +1257,12 @@ class BountyService(BaseService):
         if claim['status'] != 'submitted':
             raise ValidationError("Can only review submitted claims")
 
-        # Only the bounty's poster (or a superadmin) can review submissions.
+        # Only the bounty's poster (or a superadmin, or the school's staff when
+        # the school runs the SIS Bounties block -- can_manage) can review.
         # Without this, the decorator's role check alone would let any
         # parent/observer act on bounties that aren't theirs.
         bounty = self.repository.get_bounty_by_id(claim['bounty_id'])
-        if bounty and bounty['poster_id'] != reviewer_id and not self.is_superadmin(reviewer_id):
+        if bounty and not self.can_manage(reviewer_id, bounty):
             raise ValidationError("Only the bounty's poster can review this submission")
 
         # Create review record

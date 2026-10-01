@@ -58,6 +58,8 @@ export default function CreateBountyPage() {
   const [customRewards, setCustomRewards] = useState<string[]>([]);
   const [visibility, setVisibility] = useState<'public' | 'family' | 'organization'>('family');
   const [limitClaims, setLimitClaims] = useState(false);
+  const [repeatable, setRepeatable] = useState(false);
+  const [requiresEvidence, setRequiresEvidence] = useState(true);
   const [maxClaims, setMaxClaims] = useState('10');
   // Native date picker holds the deadline as a Date. Default: 30 days out at
   // end-of-day so a "March 20" deadline doesn't time out at midnight.
@@ -105,6 +107,8 @@ export default function CreateBountyPage() {
           setLimitClaims(true);
           setMaxClaims(String(bounty.max_participants));
         }
+        setRepeatable(Boolean(bounty.repeatable));
+        setRequiresEvidence(bounty.requires_evidence !== false);
         if (bounty.deadline) setDeadline(new Date(bounty.deadline));
         setSelectedKids(bounty.allowed_student_ids || []);
       } catch {
@@ -223,6 +227,8 @@ export default function CreateBountyPage() {
         description: description.trim(),
         pillar,
         max_participants: limitClaims ? (parseInt(maxClaims, 10) || 0) : 0,
+        repeatable,
+        requires_evidence: requiresEvidence,
         visibility,
         deliverables: deliverables.filter((d) => d.trim()),
         rewards,
@@ -594,6 +600,42 @@ export default function CreateBountyPage() {
                   </HStack>
                 )}
               </VStack>
+
+              {/* Proof: off lets a student just tick a step (daily chores). */}
+              <Pressable onPress={() => setRequiresEvidence((v) => !v)}>
+                <HStack className="items-center justify-between">
+                  <VStack className="flex-1 pr-3">
+                    <UIText size="sm" className="font-poppins-medium">Ask for proof on each step</UIText>
+                    <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">
+                      {requiresEvidence ? 'Students add a photo or note to finish each step.' : 'Students just tick each step. Good for daily chores.'}
+                    </UIText>
+                  </VStack>
+                  <View style={{
+                    width: 48, height: 28, borderRadius: 14, padding: 2,
+                    backgroundColor: requiresEvidence ? c.brand : c.surfaceMuted,
+                    alignItems: requiresEvidence ? 'flex-end' : 'flex-start',
+                  }}>
+                    <View style={{ width: 24, height: 24, borderRadius: 12, backgroundColor: '#fff' }} />
+                  </View>
+                </HStack>
+              </Pressable>
+
+              {/* Repeatable: a daily chore a student can do again once approved. */}
+              <Pressable onPress={() => setRepeatable((v) => !v)}>
+                <HStack className="items-center justify-between">
+                  <VStack className="flex-1 pr-3">
+                    <UIText size="sm" className="font-poppins-medium">Repeatable</UIText>
+                    <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">Can be done again after each approval, like a daily chore.</UIText>
+                  </VStack>
+                  <View style={{
+                    width: 48, height: 28, borderRadius: 14, padding: 2,
+                    backgroundColor: repeatable ? c.brand : c.surfaceMuted,
+                    alignItems: repeatable ? 'flex-end' : 'flex-start',
+                  }}>
+                    <View style={{ width: 24, height: 24, borderRadius: 12, backgroundColor: '#fff' }} />
+                  </View>
+                </HStack>
+              </Pressable>
             </>
           )}
 

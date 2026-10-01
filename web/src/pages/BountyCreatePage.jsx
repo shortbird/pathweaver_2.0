@@ -11,6 +11,7 @@ import toast from 'react-hot-toast'
 import { PageLoader } from '../components/ui/Spinner'
 import BountyAiDraftPanel from '../components/bounty/BountyAiDraftPanel'
 import useHidePillars from '../hooks/useHidePillars'
+import { getAppSurface } from '../utils/appSurface'
 
 const PILLARS = [
   { key: 'stem', label: 'STEM' },
@@ -20,11 +21,72 @@ const PILLARS = [
   { key: 'wellness', label: 'Wellness' },
 ]
 
+// Who can take a bounty on, in the order a newcomer should read them: the
+// narrowest audience first. "Everyone on Optio" is last on purpose -- it is the
+// one a school almost never means.
 const VISIBILITY_OPTIONS = [
-  { key: 'public', label: 'All Optio Users', desc: 'Anyone on the platform can see and claim this bounty' },
-  { key: 'family', label: 'Linked Students', desc: 'Only students linked to your account can see this bounty' },
-  { key: 'organization', label: 'My Organization', desc: 'Only members of your organization can see this bounty' },
+  { key: 'organization', label: 'My school', desc: 'Students at your school.' },
+  { key: 'family', label: 'Students linked to me', desc: 'Your own children and the students linked to your account.' },
+  { key: 'public', label: 'Everyone on Optio', desc: 'Any student on Optio can find it and take it on.' },
 ]
+
+const fieldCls = (hasError) => `input-field ${hasError ? 'border-red-500' : ''}`
+
+/** One numbered part of the form: a title and, under it, what it is for. */
+const Section = ({ step, title, hint, children }) => (
+  <section className="bg-white rounded-xl border border-gray-200 shadow-sm p-5 sm:p-6">
+    <div className="flex items-start gap-3 mb-4">
+      {step && (
+        <span aria-hidden className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-optio-purple/10 text-sm font-semibold text-optio-purple">
+          {step}
+        </span>
+      )}
+      <div>
+        <h2 className="text-base font-semibold text-gray-900">{title}</h2>
+        {hint && <p className="text-sm text-gray-500 mt-0.5">{hint}</p>}
+      </div>
+    </div>
+    <div className="space-y-4">{children}</div>
+  </section>
+)
+
+/** An on/off switch with its label and one line of explanation. */
+const Toggle = ({ id, label, hint, checked, onChange, children }) => (
+  <div>
+    <div className="flex items-start justify-between gap-4">
+      <label htmlFor={id} className="cursor-pointer">
+        <span className="block text-sm font-medium text-gray-900">{label}</span>
+        {hint && <span className="block text-sm text-gray-500">{hint}</span>}
+      </label>
+      <button
+        id={id}
+        type="button"
+        role="switch"
+        aria-checked={checked}
+        onClick={() => onChange(!checked)}
+        className={`relative mt-0.5 inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors duration-200 ${checked ? 'bg-optio-purple' : 'bg-gray-300'}`}
+      >
+        <span className={`inline-block h-5 w-5 rounded-full bg-white shadow transition-transform duration-200 ${checked ? 'translate-x-5' : 'translate-x-0.5'}`} />
+      </button>
+    </div>
+    {checked && children && <div className="mt-3">{children}</div>}
+  </div>
+)
+
+const RemoveButton = ({ onClick, label }) => (
+  <button type="button" onClick={onClick} aria-label={label}
+    className="p-2 text-gray-400 hover:text-red-500 rounded-lg min-h-[40px] min-w-[40px] flex items-center justify-center">
+    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+    </svg>
+  </button>
+)
+
+const PlusIcon = () => (
+  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+  </svg>
+)
 
 const OPTIO_LOGO = 'https://auth.optioeducation.com/storage/v1/object/public/site-assets/logos/gradient_fav.svg'
 const OPTIO_USERS = ['tanner bowman']
@@ -68,7 +130,11 @@ const BountyCreatePage = () => {
   const posterRole = user?.role === 'org_managed'
     ? (user?.org_roles?.[0] || user?.org_role)
     : user?.role
-  const defaultVisibility = (posterRole === 'parent' || posterRole === 'observer') ? 'family' : 'public'
+  // In the SIS console a bounty is the school's (its Bounties block): a chore
+  // posted there must not reach the whole platform by default.
+  const defaultVisibility = (posterRole === 'parent' || posterRole === 'observer')
+    ? 'family'
+    : (getAppSurface() === 'sis' && user?.organization_id ? 'organization' : 'public')
 
   // The route itself is only auth-gated; a student who deep-links here used to
   // fill in the whole form and learn about the 403 from a red toast at the end.
@@ -83,6 +149,8 @@ const BountyCreatePage = () => {
     title: '',
     description: '',
     max_participants: 0,
+    repeatable: false,
+    requires_evidence: true,
     visibility: defaultVisibility,
     cohort_class_id: '', // optional: limit a bounty to one cohort/class
     deadline: '', // optional; empty = backend default (one year out)
@@ -95,6 +163,8 @@ const BountyCreatePage = () => {
   const [dependents, setDependents] = useState([])
   const [selectedKids, setSelectedKids] = useState([]) // empty = all kids
   const [cohorts, setCohorts] = useState([]) // org classes (cohorts) for optional restriction
+  // "0 = no limit" read as jargon; the limit is a switch with a number under it.
+  const [limitClaims, setLimitClaims] = useState(false)
 
   // Fetch dependents + linked students for family visibility.
   //
@@ -164,10 +234,13 @@ const BountyCreatePage = () => {
       title: existingBounty.title || '',
       description: existingBounty.description || '',
       max_participants: existingBounty.max_participants || 0,
+      repeatable: Boolean(existingBounty.repeatable),
+      requires_evidence: existingBounty.requires_evidence !== false,
       visibility: existingBounty.visibility || 'public',
       cohort_class_id: existingBounty.cohort_class_id || '',
       deadline: existingBounty.deadline ? existingBounty.deadline.slice(0, 10) : '',
     })
+    setLimitClaims((existingBounty.max_participants || 0) > 0)
     const dels = (existingBounty.deliverables || []).map(d => (
       typeof d === 'string' ? { id: null, text: d } : { id: d.id || null, text: d.text || '' }
     ))
@@ -231,10 +304,10 @@ const BountyCreatePage = () => {
 
   const validate = () => {
     const newErrors = {}
-    if (!formData.title.trim()) newErrors.title = 'Title is required'
-    if (!formData.description.trim()) newErrors.description = 'Description is required'
+    if (!formData.title.trim()) newErrors.title = 'Give the bounty a name'
+    if (!formData.description.trim()) newErrors.description = 'Tell students what to do'
     const nonEmptyDels = deliverables.filter(d => d.text.trim())
-    if (nonEmptyDels.length === 0) newErrors.deliverables = 'At least one deliverable is required'
+    if (nonEmptyDels.length === 0) newErrors.deliverables = 'Add at least one step'
 
     // Flag broken rewards instead of silently dropping them at submit — a
     // parent who typed 20 XP used to have that reward vanish with no message.
@@ -243,7 +316,11 @@ const BountyCreatePage = () => {
     else if (rewards.some(r => r.type === 'xp' && (!r.pillar || r.value < 25 || r.value > 200))) {
       newErrors.rewards = 'Each XP reward needs a pillar and a value between 25 and 200'
     } else if (rewards.some(r => r.type === 'custom' && !r.text.trim())) {
-      newErrors.rewards = 'Custom rewards need a description (or remove the empty one)'
+      newErrors.rewards = 'Describe the prize, or remove the empty one'
+    }
+
+    if (limitClaims && formData.max_participants < 1) {
+      newErrors.max_participants = 'Set how many students can take it on, or turn off the limit'
     }
 
     if (formData.deadline) {
@@ -269,7 +346,9 @@ const BountyCreatePage = () => {
     const payload = {
       title: formData.title,
       description: formData.description,
-      max_participants: formData.max_participants,
+      max_participants: limitClaims ? formData.max_participants : 0,
+      repeatable: formData.repeatable,
+      requires_evidence: formData.requires_evidence,
       visibility: formData.visibility,
       // Keep existing deliverable ids on edit so in-flight claims survive.
       deliverables: deliverables.filter(d => d.text.trim())
@@ -277,8 +356,9 @@ const BountyCreatePage = () => {
       rewards: validRewards,
       // Send selected kids for family visibility; empty/null = all kids
       allowed_student_ids: formData.visibility === 'family' && selectedKids.length > 0 ? selectedKids : null,
-      // Optional cohort restriction (only students in this class see the bounty)
-      cohort_class_id: formData.cohort_class_id || null,
+      // Optional cohort restriction (only students in this class see the
+      // bounty). Offered only for a school bounty, so it is cleared otherwise.
+      cohort_class_id: formData.visibility === 'organization' ? (formData.cohort_class_id || null) : null,
     }
     if (formData.deadline) {
       payload.deadline = new Date(`${formData.deadline}T23:59:59`).toISOString()
@@ -309,11 +389,44 @@ const BountyCreatePage = () => {
     setErrors({})
   }
 
+
   const formHasContent = !!(formData.title.trim() || formData.description.trim()
     || deliverables.some(d => d.text.trim()) || rewards.length > 0)
 
   const isPending = createMutation.isPending || updateMutation.isPending
   const hasOrg = !!user?.organization_id
+
+  // Offer only the audiences this person can actually post to: "My school"
+  // needs a school, "Students linked to me" needs linked students (or is a
+  // parent's own default). The one already chosen always stays visible.
+  const visibilityOptions = VISIBILITY_OPTIONS.filter(v => {
+    if (v.key === formData.visibility) return true
+    if (v.key === 'organization') return hasOrg
+    if (v.key === 'family') return dependents.length > 0 || posterRole === 'parent' || posterRole === 'observer'
+    return true
+  })
+
+  const fullName = `${user?.first_name || ''} ${user?.last_name || ''}`.trim()
+  const isOptio = user?.role === 'superadmin' || OPTIO_USERS.includes(fullName.toLowerCase())
+  const sponsorName = isOptio ? 'Optio' : (user?.display_name || fullName || 'You')
+
+  const chooseVisibility = (key) => {
+    handleChange('visibility', key)
+    if (key !== 'family') setSelectedKids([])
+    if (key !== 'organization') handleChange('cohort_class_id', '')
+  }
+
+  const toggleKid = (kid) => {
+    const allSelected = selectedKids.length === 0
+    const isSelected = allSelected || selectedKids.includes(kid.id)
+    setSelectedKids(prev => {
+      // Switching from "all" to a list: everyone except this one.
+      if (allSelected) return dependents.map(d => d.id).filter(id => id !== kid.id)
+      if (isSelected) return prev.filter(id => id !== kid.id)
+      const next = [...prev, kid.id]
+      return next.length === dependents.length ? [] : next
+    })
+  }
 
   if (isEdit && loadingBounty) {
     return (
@@ -322,352 +435,316 @@ const BountyCreatePage = () => {
   }
 
   return (
-    <div className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <div className="max-w-3xl mx-auto px-4 py-8">
       <button
+        type="button"
         onClick={() => navigate(backTo)}
-        className="flex items-center gap-2 text-gray-500 hover:text-gray-700 mb-6 min-h-[44px]"
+        className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-optio-purple mb-4 min-h-[40px]"
       >
-        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
         </svg>
-        Back to Bounty Board
+        Back
       </button>
 
-      <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-2">
-        {isEdit ? 'Edit Bounty' : 'Post a Bounty'}
-      </h1>
-      <p className="text-gray-500 text-sm mb-6">
-        Create clear, objective deliverables so students know exactly what to do.
-      </p>
-
       <div className="mb-6">
-        <BountyAiDraftPanel onDrafted={applyAiIdea} hasDraft={formHasContent} kids={dependents} />
+        <h1 className="text-2xl font-bold text-gray-900">{isEdit ? 'Edit bounty' : 'Post a bounty'}</h1>
+        <p className="text-sm text-gray-500 mt-1 max-w-xl">
+          A bounty is a task students can choose to take on. They check off each step, turn it in,
+          and you approve it to give them the reward.
+        </p>
+        {!isEdit && (
+          <div className="mt-3">
+            <BountyAiDraftPanel onDrafted={applyAiIdea} hasDraft={formHasContent} kids={dependents} />
+          </div>
+        )}
       </div>
 
-      <form onSubmit={handleSubmit} className="space-y-6">
-        {/* Title */}
-        <div>
-          <label htmlFor="bounty-title" className="block text-sm font-medium text-gray-700 mb-1">Title</label>
-          <input
-            id="bounty-title"
-            type="text"
-            value={formData.title}
-            onChange={(e) => handleChange('title', e.target.value)}
-            placeholder="What's the challenge?"
-            aria-describedby={errors.title ? 'bounty-title-error' : undefined}
-            className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-optio-purple ${errors.title ? 'border-red-500' : 'border-gray-300'}`}
-          />
-          {errors.title && <p id="bounty-title-error" role="alert" className="mt-1 text-sm text-red-600">{errors.title}</p>}
-        </div>
+      <form onSubmit={handleSubmit} className="space-y-5" noValidate>
+        <Section step={1} title="What is it?" hint="A short name, and what students should do.">
+          <div>
+            <label htmlFor="bounty-title" className="block text-sm font-medium text-gray-700 mb-1">Name</label>
+            <input
+              id="bounty-title"
+              type="text"
+              value={formData.title}
+              onChange={(e) => handleChange('title', e.target.value)}
+              placeholder='e.g. "Clean the supply room"'
+              aria-describedby={errors.title ? 'bounty-title-error' : undefined}
+              className={fieldCls(errors.title)}
+            />
+            {errors.title && <p id="bounty-title-error" role="alert" className="mt-1 text-sm text-red-600">{errors.title}</p>}
+          </div>
+          <div>
+            <label htmlFor="bounty-description" className="block text-sm font-medium text-gray-700 mb-1">Instructions</label>
+            <textarea
+              id="bounty-description"
+              value={formData.description}
+              onChange={(e) => handleChange('description', e.target.value)}
+              placeholder="What should students do, and why does it matter?"
+              rows={3}
+              aria-describedby={errors.description ? 'bounty-description-error' : undefined}
+              className={`${fieldCls(errors.description)} resize-y`}
+            />
+            {errors.description && <p id="bounty-description-error" role="alert" className="mt-1 text-sm text-red-600">{errors.description}</p>}
+          </div>
+        </Section>
 
-        {/* Description */}
-        <div>
-          <label htmlFor="bounty-description" className="block text-sm font-medium text-gray-700 mb-1">Description</label>
-          <textarea
-            id="bounty-description"
-            value={formData.description}
-            onChange={(e) => handleChange('description', e.target.value)}
-            placeholder="What is this bounty about? Give students context."
-            rows={3}
-            aria-describedby={errors.description ? 'bounty-description-error' : undefined}
-            className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-optio-purple resize-none ${errors.description ? 'border-red-500' : 'border-gray-300'}`}
-          />
-          {errors.description && <p id="bounty-description-error" role="alert" className="mt-1 text-sm text-red-600">{errors.description}</p>}
-        </div>
-
-        {/* Deliverables */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Deliverables</label>
-          <p className="text-xs text-gray-400 mb-3">
-            Be as specific and objective as possible. Students will check these off as they complete them.
-          </p>
-          <div className="space-y-2">
+        <Section
+          step={2}
+          title="Steps to finish"
+          hint={formData.requires_evidence
+            ? 'Students add a photo or note as proof to finish each step. Make each one easy to check.'
+            : 'Students tick each step off themselves when it is done.'}
+        >
+          <ol className="space-y-2">
             {deliverables.map((d, i) => (
-              <div key={i} className="flex gap-2">
-                <div className="flex items-center justify-center w-6 h-6 mt-3 rounded border-2 border-gray-300 flex-shrink-0">
-                  <span className="text-xs text-gray-400">{i + 1}</span>
-                </div>
+              <li key={i} className="flex items-center gap-2">
+                <span aria-hidden className="w-6 text-right text-sm text-gray-400">{i + 1}.</span>
                 <input
                   type="text"
                   value={d.text}
                   onChange={(e) => updateDeliverable(i, e.target.value)}
-                  placeholder={`Deliverable ${i + 1}...`}
-                  aria-label={`Deliverable ${i + 1}`}
-                  className="flex-1 px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-optio-purple"
+                  placeholder={i === 0 ? 'e.g. "Put every book back on the shelf"' : 'Another step'}
+                  aria-label={`Step ${i + 1}`}
+                  className={`${fieldCls(errors.deliverables && i === 0)} flex-1`}
                 />
                 {deliverables.length > 1 && (
-                  <button type="button" onClick={() => removeDeliverable(i)} className="p-2 text-gray-400 hover:text-red-500 min-h-[44px]">
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                  </button>
+                  <RemoveButton onClick={() => removeDeliverable(i)} label={`Remove step ${i + 1}`} />
                 )}
-              </div>
+              </li>
             ))}
-          </div>
-          <button type="button" onClick={addDeliverable} className="mt-2 flex items-center gap-1 text-sm text-optio-purple font-medium hover:text-optio-purple-dark min-h-[36px]">
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-            </svg>
-            Add deliverable
+          </ol>
+          <button type="button" onClick={addDeliverable} className="btn-ghost">
+            <PlusIcon /> Add a step
           </button>
-          {errors.deliverables && <p role="alert" className="mt-1 text-sm text-red-600">{errors.deliverables}</p>}
-        </div>
-
-        {/* Rewards */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Rewards</label>
-          <p className="text-xs text-gray-400 mb-3">
-            What students earn for completing this bounty. Add XP and/or custom rewards.
-          </p>
-          <div className="space-y-3">
-            {rewards.map((r, i) => (
-              <div key={i} className="flex gap-2 items-start p-3 bg-gray-50 rounded-lg">
-                {r.type === 'xp' ? (
-                  <div className="flex-1 space-y-2">
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs font-semibold text-optio-purple bg-optio-purple/10 px-2 py-0.5 rounded">XP</span>
-                      <input
-                        type="number"
-                        value={r.value}
-                        onChange={(e) => updateReward(i, 'value', parseInt(e.target.value) || 0)}
-                        min={25}
-                        max={200}
-                        className="w-20 px-2 py-1.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-optio-purple text-sm"
-                      />
-                      <span className="text-xs text-gray-400">XP (25-200)</span>
-                    </div>
-                    {/* Pillar buttons hidden for schools that switched the
-                        pillars off; the reward keeps its 'stem' default, which
-                        those orgs never see anywhere. Every reward row gets a
-                        default on creation, so hiding the control can never
-                        leave the pillar unset behind the validation below. */}
-                    {!hidePillars && (
-                      <div className="flex flex-wrap gap-1.5">
-                        {PILLARS.map(p => (
-                          <button
-                            key={p.key}
-                            type="button"
-                            onClick={() => updateReward(i, 'pillar', p.key)}
-                            className={`px-2.5 py-1 rounded text-xs font-medium transition-all ${
-                              r.pillar === p.key ? 'bg-optio-purple text-white' : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-100'
-                            }`}
-                          >
-                            {p.label}
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                ) : (
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="text-xs font-semibold text-amber-600 bg-amber-50 px-2 py-0.5 rounded">Custom</span>
-                    </div>
-                    <input
-                      type="text"
-                      value={r.text}
-                      onChange={(e) => updateReward(i, 'text', e.target.value)}
-                      placeholder='e.g. "Pizza night", "$10 gift card"'
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-optio-purple text-sm"
-                    />
-                  </div>
-                )}
-                <button type="button" onClick={() => removeReward(i)} className="p-1 text-gray-400 hover:text-red-500 mt-1">
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                  </button>
-              </div>
-            ))}
+          {errors.deliverables && <p role="alert" className="text-sm text-red-600">{errors.deliverables}</p>}
+          <div className="border-t border-gray-100 pt-4">
+            <Toggle
+              id="bounty-requires-evidence"
+              label="Ask for proof on each step"
+              hint={formData.requires_evidence
+                ? 'Students upload a photo, file or note before a step counts as done.'
+                : 'Off: students just tick the step. Good for daily chores that do not need a picture every day.'}
+              checked={formData.requires_evidence}
+              onChange={(v) => handleChange('requires_evidence', v)}
+            />
           </div>
-          <div className="flex gap-2 mt-2">
-            <button type="button" onClick={() => addReward('xp')} className="flex items-center gap-1 text-sm text-optio-purple font-medium hover:text-optio-purple-dark min-h-[36px]">
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-              </svg>
-              Add XP reward
-            </button>
-            <button type="button" onClick={() => addReward('custom')} className="flex items-center gap-1 text-sm text-amber-600 font-medium hover:text-amber-700 min-h-[36px]">
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-              </svg>
-              Add custom reward
-            </button>
-          </div>
-          {errors.rewards && <p role="alert" className="mt-1 text-sm text-red-600">{errors.rewards}</p>}
-        </div>
+        </Section>
 
-        {/* Visibility */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">Who can see this bounty?</label>
-          <div className="space-y-2">
-            {VISIBILITY_OPTIONS
-              .filter(v => v.key !== 'organization' || hasOrg)
-              .map(v => (
-                <div key={v.key}>
-                  <label
-                    className={`flex items-start gap-3 p-3 rounded-lg border-2 cursor-pointer transition-all ${
-                      formData.visibility === v.key
-                        ? 'border-optio-purple bg-optio-purple/5'
-                        : 'border-gray-200 hover:border-gray-300'
-                    }`}
-                  >
+        <Section
+          step={3}
+          title="Reward"
+          hint="XP counts toward school credit. A prize, like a library book or extra free time, does not, so use a prize for chores."
+        >
+          {rewards.length === 0 && (
+            <p className="rounded-lg border border-dashed border-gray-300 px-4 py-3 text-sm text-gray-500">
+              No reward yet. You can post without one.
+            </p>
+          )}
+          {rewards.map((r, i) => (
+            <div key={i} className="flex items-start gap-2 rounded-lg border border-gray-100 bg-gray-50/60 p-3">
+              {r.type === 'xp' ? (
+                <div className="flex-1 space-y-2">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-xs font-semibold text-optio-purple bg-optio-purple/10 px-2 py-0.5 rounded">XP</span>
                     <input
-                      type="radio"
-                      name="visibility"
-                      value={v.key}
-                      checked={formData.visibility === v.key}
-                      onChange={() => {
-                        handleChange('visibility', v.key)
-                        if (v.key !== 'family') setSelectedKids([])
-                      }}
-                      className="mt-0.5 text-optio-purple focus:ring-optio-purple"
+                      type="number"
+                      value={r.value}
+                      onChange={(e) => updateReward(i, 'value', parseInt(e.target.value) || 0)}
+                      min={25}
+                      max={200}
+                      aria-label="XP amount"
+                      className="w-24 rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-optio-purple/20"
                     />
-                    <div>
-                      <span className="text-sm font-medium text-gray-900">{v.label}</span>
-                      <p className="text-xs text-gray-500 mt-0.5">{v.desc}</p>
-                    </div>
-                  </label>
-
-                  {/* Inline kid selector when "My Kids Only" is selected and user has >1 kid */}
-                  {v.key === 'family' && formData.visibility === 'family' && dependents.length > 0 && (
-                    <div className="ml-8 mt-2 p-3 bg-gray-50 rounded-lg border border-gray-200">
-                      <p className="text-xs font-medium text-gray-600 mb-2">Which users can see this bounty?</p>
-                      <label
-                        className={`flex items-center gap-2 px-3 py-2 rounded-md cursor-pointer transition-all mb-1 ${
-                          selectedKids.length === 0 ? 'bg-optio-purple/10 text-optio-purple' : 'hover:bg-gray-100 text-gray-700'
-                        }`}
-                        onClick={() => setSelectedKids([])}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={selectedKids.length === 0}
-                          onChange={() => setSelectedKids([])}
-                          className="rounded text-optio-purple focus:ring-optio-purple"
-                        />
-                        <span className="text-sm font-medium">All linked students</span>
-                      </label>
-                      {dependents.map(kid => {
-                        const allSelected = selectedKids.length === 0
-                        const isSelected = allSelected || selectedKids.includes(kid.id)
-                        return (
-                          <label
-                            key={kid.id}
-                            className={`flex items-center gap-2 px-3 py-2 rounded-md cursor-pointer transition-all ${
-                              isSelected ? 'bg-optio-purple/10 text-optio-purple' : 'hover:bg-gray-100 text-gray-700'
-                            }`}
-                          >
-                            <input
-                              type="checkbox"
-                              checked={isSelected}
-                              onChange={() => {
-                                setSelectedKids(prev => {
-                                  if (allSelected) {
-                                    // Switching from "all" to explicit: select everyone except this one
-                                    return dependents.map(d => d.id).filter(id => id !== kid.id)
-                                  }
-                                  if (isSelected) {
-                                    return prev.filter(id => id !== kid.id)
-                                  }
-                                  const next = [...prev, kid.id]
-                                  // If all are now selected, switch back to "all" mode
-                                  if (next.length === dependents.length) return []
-                                  return next
-                                })
-                              }}
-                              className="rounded text-optio-purple focus:ring-optio-purple"
-                            />
-                            <span className="text-sm">{kid.display_name || kid.first_name || 'Unnamed'}</span>
-                          </label>
-                        )
-                      })}
+                    <span className="text-sm text-gray-500">XP, from 25 to 200</span>
+                  </div>
+                  {/* Pillar buttons hidden for schools that switched the
+                      pillars off; the reward keeps its 'stem' default, which
+                      those orgs never see anywhere. Every reward row gets a
+                      default on creation, so hiding the control can never
+                      leave the pillar unset behind the validation. */}
+                  {!hidePillars && (
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <span className="text-xs text-gray-500 mr-1">Area:</span>
+                      {PILLARS.map(p => (
+                        <button
+                          key={p.key}
+                          type="button"
+                          aria-pressed={r.pillar === p.key}
+                          onClick={() => updateReward(i, 'pillar', p.key)}
+                          className={`px-2.5 py-1 rounded-full text-xs font-medium transition-all ${
+                            r.pillar === p.key ? 'bg-optio-purple text-white' : 'bg-white border border-gray-200 text-gray-600 hover:border-optio-purple'
+                          }`}
+                        >
+                          {p.label}
+                        </button>
+                      ))}
                     </div>
                   )}
                 </div>
-              ))}
-          </div>
-        </div>
-
-        {/* Max Students */}
-        <div>
-          <label htmlFor="bounty-max-claims" className="block text-sm font-medium text-gray-700 mb-1">Max Claims</label>
-          <input
-            id="bounty-max-claims"
-            type="number"
-            value={formData.max_participants}
-            onChange={(e) => handleChange('max_participants', Math.max(0, parseInt(e.target.value) || 0))}
-            min={0}
-            placeholder="0 = no limit"
-            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-optio-purple"
-          />
-          <p className="text-xs text-gray-400 mt-1">{formData.max_participants === 0 ? 'No limit' : `${formData.max_participants} max`}</p>
-        </div>
-
-        {/* Deadline (optional) */}
-        <div>
-          <label htmlFor="bounty-deadline" className="block text-sm font-medium text-gray-700 mb-1">Deadline (optional)</label>
-          <input
-            id="bounty-deadline"
-            type="date"
-            value={formData.deadline}
-            onChange={(e) => handleChange('deadline', e.target.value)}
-            aria-describedby={errors.deadline ? 'bounty-deadline-error' : undefined}
-            className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-optio-purple ${errors.deadline ? 'border-red-500' : 'border-gray-300'}`}
-          />
-          <p className="text-xs text-gray-400 mt-1">
-            After the deadline, students can no longer start this bounty. Leave blank for a year from now.
-          </p>
-          {errors.deadline && <p id="bounty-deadline-error" role="alert" className="mt-1 text-sm text-red-600">{errors.deadline}</p>}
-        </div>
-
-        {/* Cohort restriction (only shown when the org has cohorts/classes) */}
-        {cohorts.length > 0 && (
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Limit to cohort</label>
-            <select
-              value={formData.cohort_class_id}
-              onChange={(e) => handleChange('cohort_class_id', e.target.value)}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-optio-purple"
-            >
-              <option value="">All students</option>
-              {cohorts.map((c) => (
-                <option key={c.id} value={c.id}>{c.name}</option>
-              ))}
-            </select>
-            <p className="text-xs text-gray-400 mt-1">Only students in the chosen cohort will see this bounty.</p>
-          </div>
-        )}
-
-        {/* Sponsor preview */}
-        {(() => {
-          const fullName = `${user?.first_name || ''} ${user?.last_name || ''}`.trim()
-          const isOptio = user?.role === 'superadmin' || OPTIO_USERS.includes(fullName.toLowerCase())
-          const sponsorName = isOptio ? 'Optio' : (user?.display_name || fullName || 'You')
-          return (
-            <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg border border-gray-200">
-              {isOptio ? (
-                <img src={OPTIO_LOGO} alt="Optio" className="w-6 h-6 rounded-sm" />
               ) : (
-                <div className="w-6 h-6 rounded-sm bg-optio-purple/20 flex items-center justify-center text-xs font-bold text-optio-purple">
-                  {sponsorName.charAt(0).toUpperCase()}
+                <div className="flex-1 flex items-center gap-2">
+                  <span className="text-xs font-semibold text-amber-700 bg-amber-50 px-2 py-0.5 rounded">Prize</span>
+                  <input
+                    type="text"
+                    value={r.text}
+                    onChange={(e) => updateReward(i, 'text', e.target.value)}
+                    placeholder='e.g. "Rent one library book"'
+                    aria-label="Prize"
+                    className="flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-optio-purple/20"
+                  />
                 </div>
               )}
-              <div>
-                <span className="text-sm text-gray-500">Posted by </span>
-                <span className="text-sm font-medium text-gray-900">{sponsorName}</span>
-              </div>
+              <RemoveButton onClick={() => removeReward(i)} label={r.type === 'xp' ? 'Remove XP reward' : 'Remove prize'} />
             </div>
-          )
-        })()}
+          ))}
+          <div className="flex flex-wrap gap-2">
+            <button type="button" onClick={() => addReward('xp')} className="btn-quiet">
+              <PlusIcon /> Add XP
+            </button>
+            <button type="button" onClick={() => addReward('custom')} className="btn-quiet">
+              <PlusIcon /> Add a prize
+            </button>
+          </div>
+          {errors.rewards && <p role="alert" className="text-sm text-red-600">{errors.rewards}</p>}
+        </Section>
 
-        <button
-          type="submit"
-          disabled={isPending}
-          className="btn-primary w-full min-h-[44px]"
-        >
-          {isPending ? 'Saving...' : isEdit ? 'Save Changes' : 'Post Bounty'}
-        </button>
+        <Section step={4} title="Who can take it on?">
+          <div className="space-y-2" role="radiogroup" aria-label="Who can take it on?">
+            {visibilityOptions.map(v => (
+              <div key={v.key}>
+                <label
+                  className={`flex items-start gap-3 rounded-lg border p-3 cursor-pointer transition-all ${
+                    formData.visibility === v.key ? 'border-optio-purple bg-optio-purple/5' : 'border-gray-200 hover:border-gray-300'
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    name="visibility"
+                    value={v.key}
+                    checked={formData.visibility === v.key}
+                    onChange={() => chooseVisibility(v.key)}
+                    className="mt-1 text-optio-purple focus:ring-optio-purple"
+                  />
+                  <span>
+                    <span className="block text-sm font-medium text-gray-900">{v.label}</span>
+                    <span className="block text-sm text-gray-500">{v.desc}</span>
+                  </span>
+                </label>
+
+                {v.key === 'organization' && formData.visibility === 'organization' && cohorts.length > 0 && (
+                  <div className="ml-8 mt-2">
+                    <label htmlFor="bounty-cohort" className="block text-sm font-medium text-gray-700 mb-1">Only one class (optional)</label>
+                    <select
+                      id="bounty-cohort"
+                      value={formData.cohort_class_id}
+                      onChange={(e) => handleChange('cohort_class_id', e.target.value)}
+                      className="input-field"
+                    >
+                      <option value="">Every student at the school</option>
+                      {cohorts.map((c) => (
+                        <option key={c.id} value={c.id}>{c.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
+                {v.key === 'family' && formData.visibility === 'family' && dependents.length > 0 && (
+                  <div className="ml-8 mt-2 rounded-lg border border-gray-100 bg-gray-50/60 p-3">
+                    <p className="text-xs font-medium text-gray-600 mb-1">Which students?</p>
+                    <label className="flex items-center gap-2 px-2 py-1.5 rounded-md cursor-pointer text-sm">
+                      <input
+                        type="checkbox"
+                        checked={selectedKids.length === 0}
+                        onChange={() => setSelectedKids([])}
+                        className="rounded text-optio-purple focus:ring-optio-purple"
+                      />
+                      All of them
+                    </label>
+                    {dependents.map(kid => (
+                      <label key={kid.id} className="flex items-center gap-2 px-2 py-1.5 rounded-md cursor-pointer text-sm">
+                        <input
+                          type="checkbox"
+                          checked={selectedKids.length === 0 || selectedKids.includes(kid.id)}
+                          onChange={() => toggleKid(kid)}
+                          className="rounded text-optio-purple focus:ring-optio-purple"
+                        />
+                        {kid.display_name || kid.first_name || 'Unnamed'}
+                      </label>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </Section>
+
+        <Section title="Options" hint="All optional. Leave them off for a one-time task with no limit.">
+          <Toggle
+            id="bounty-repeatable"
+            label="Repeatable"
+            hint="A student can do it again after each approval, like a daily chore."
+            checked={formData.repeatable}
+            onChange={(v) => handleChange('repeatable', v)}
+          />
+          <Toggle
+            id="bounty-limit"
+            label="Limit how many students can take it on"
+            hint="Off means any number of students."
+            checked={limitClaims}
+            onChange={(v) => {
+              setLimitClaims(v)
+              if (v && formData.max_participants < 1) handleChange('max_participants', 1)
+            }}
+          >
+            <div className="flex items-center gap-2">
+              <label htmlFor="bounty-max-claims" className="text-sm text-gray-700">Up to</label>
+              <input
+                id="bounty-max-claims"
+                type="number"
+                min={1}
+                value={formData.max_participants}
+                onChange={(e) => handleChange('max_participants', Math.max(0, parseInt(e.target.value) || 0))}
+                className="w-24 rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-optio-purple/20"
+              />
+              <span className="text-sm text-gray-700">students</span>
+            </div>
+            {errors.max_participants && <p role="alert" className="mt-1 text-sm text-red-600">{errors.max_participants}</p>}
+          </Toggle>
+          <div>
+            <label htmlFor="bounty-deadline" className="block text-sm font-medium text-gray-900">Last day to start</label>
+            <p className="text-sm text-gray-500 mb-2">Leave it blank to keep the bounty open for a year.</p>
+            <input
+              id="bounty-deadline"
+              type="date"
+              value={formData.deadline}
+              onChange={(e) => handleChange('deadline', e.target.value)}
+              aria-describedby={errors.deadline ? 'bounty-deadline-error' : undefined}
+              className={`${fieldCls(errors.deadline)} sm:max-w-xs`}
+            />
+            {errors.deadline && <p id="bounty-deadline-error" role="alert" className="mt-1 text-sm text-red-600">{errors.deadline}</p>}
+          </div>
+        </Section>
+
+        <div className="flex flex-col-reverse sm:flex-row sm:items-center sm:justify-between gap-3 pt-2">
+          <div className="flex items-center gap-2 text-sm text-gray-500">
+            {isOptio ? (
+              <img src={OPTIO_LOGO} alt="" className="w-5 h-5 rounded-sm" />
+            ) : (
+              <span aria-hidden className="w-5 h-5 rounded-sm bg-optio-purple/10 flex items-center justify-center text-xs font-bold text-optio-purple">
+                {sponsorName.charAt(0).toUpperCase()}
+              </span>
+            )}
+            <span>Students see it as posted by <span className="font-medium text-gray-900">{sponsorName}</span></span>
+          </div>
+          <div className="flex gap-2">
+            <button type="button" onClick={() => navigate(backTo)} className="btn-quiet min-h-[44px]">Cancel</button>
+            <button type="submit" disabled={isPending} className="btn-primary min-h-[44px]">
+              {isPending ? 'Saving...' : isEdit ? 'Save changes' : 'Post bounty'}
+            </button>
+          </div>
+        </div>
       </form>
     </div>
   )

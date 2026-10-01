@@ -90,6 +90,10 @@ export const NAV_SECTIONS = [
       // Prior Learning — opt-in per org (Optio Academy today).
       { name: 'Prior Learning', path: '/prior-learning', adminOnly: true, priorLearningMode: true, d: ICONS.doc, keywords: ['transfer credit', 'transcript'] },
       { name: 'Goals', path: '/goals', goalsMode: true, d: ICONS.doc, keywords: ['direction', 'subject goals'] },
+      // Monday goals and the Thursday check-in (Apogee Cache Valley); opt-in.
+      { name: 'Weekly Goals', path: '/weekly-goals', d: ICONS.check, keywords: ['planner', 'freedom', 'check-in', 'complaints'] },
+      // The school's bounties: chores, jobs and their rewards; opt-in.
+      { name: 'Bounties', path: '/bounties', d: ICONS.clipboard, keywords: ['chores', 'school jobs', 'rewards', 'perks', 'points'] },
     ],
   },
   {

@@ -188,6 +188,49 @@ class TestClaimBounty:
         service.repository.update_claim_status.assert_called_once_with(existing_id, 'claimed')
         service.repository.create_claim.assert_not_called()
 
+    def test_repeatable_bounty_starts_another_round_after_approval(self):
+        """A daily chore: once a round is approved, claiming again restarts the
+        same claim row (the unique index allows one per student)."""
+        service = _make_service()
+        existing_id = str(uuid.uuid4())
+        service.repository.get_bounty_by_id.return_value = {
+            'id': str(uuid.uuid4()), 'status': 'active', 'max_participants': 0,
+            'repeatable': True,
+        }
+        service.repository.get_claim_by_bounty_and_student.return_value = {
+            'id': existing_id, 'status': 'approved',
+        }
+        service.repository.restart_claim.return_value = {'id': existing_id, 'status': 'claimed'}
+
+        claim = service.claim_bounty(str(uuid.uuid4()), str(uuid.uuid4()))
+        assert claim['status'] == 'claimed'
+        service.repository.restart_claim.assert_called_once_with(existing_id)
+        service.repository.create_claim.assert_not_called()
+
+    def test_one_time_bounty_cannot_be_claimed_again_after_approval(self):
+        service = _make_service()
+        service.repository.get_bounty_by_id.return_value = {
+            'id': str(uuid.uuid4()), 'status': 'active', 'max_participants': 0,
+        }
+        service.repository.get_claim_by_bounty_and_student.return_value = {
+            'id': str(uuid.uuid4()), 'status': 'approved',
+        }
+        with pytest.raises(ValidationError, match="already claimed"):
+            service.claim_bounty(str(uuid.uuid4()), str(uuid.uuid4()))
+        service.repository.restart_claim.assert_not_called()
+
+    def test_repeatable_bounty_mid_round_is_still_already_claimed(self):
+        service = _make_service()
+        service.repository.get_bounty_by_id.return_value = {
+            'id': str(uuid.uuid4()), 'status': 'active', 'max_participants': 0,
+            'repeatable': True,
+        }
+        service.repository.get_claim_by_bounty_and_student.return_value = {
+            'id': str(uuid.uuid4()), 'status': 'submitted',
+        }
+        with pytest.raises(ValidationError, match="already claimed"):
+            service.claim_bounty(str(uuid.uuid4()), str(uuid.uuid4()))
+
     def test_claim_past_deadline_rejected(self):
         service = _make_service()
         service.repository.get_bounty_by_id.return_value = {

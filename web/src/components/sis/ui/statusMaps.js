@@ -40,6 +40,14 @@ export const STATUS_MAPS = {
     draft: { label: 'Draft', tone: NEUTRAL },
     reviewed: { label: 'Reviewed', tone: 'bg-green-100 text-green-700' },
   },
+  /** A student's week (WeeklyGoalsPage): where the check-in stands. */
+  week: {
+    not_set: { label: 'No goals yet', tone: NEUTRAL },
+    goals_set: { label: 'Goals set', tone: 'bg-optio-purple/10 text-optio-purple' },
+    earned: { label: 'Freedom', tone: 'bg-green-100 text-green-700' },
+    not_earned: { label: 'No freedom', tone: 'bg-amber-100 text-amber-700' },
+    checked_in: { label: 'Checked in', tone: NEUTRAL },
+  },
   /** A task, on anybody's list (TaskCard) and on the office's Assigned cards. */
   task: {
     todo: { label: 'To do', tone: 'bg-optio-purple/10 text-optio-purple' },

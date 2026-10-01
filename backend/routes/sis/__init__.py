@@ -1173,6 +1173,10 @@ def register_sis_routes(app):
     from routes.sis.gradebook import bp as gradebook_bp
     from routes.sis.engagement import bp as engagement_bp
     from routes.sis.goals import bp as goals_bp
+    # Weekly goals and the Thursday check-in (Apogee Cache Valley, 2026-10-01).
+    from routes.sis.weekly_goals import bp as weekly_goals_bp
+    # The school's bounties in one place (Apogee Cache Valley, 2026-10-01).
+    from routes.sis.bounties import bp as sis_bounties_bp
     from routes.sis.student_records import bp as student_records_bp
     from routes.sis.community import bp as community_bp
     from routes.sis.messaging import bp as messaging_bp
@@ -1216,6 +1220,8 @@ def register_sis_routes(app):
         (gradebook_bp, 'classes'),
         (engagement_bp, 'classes'),
         (goals_bp, 'goals'),
+        (weekly_goals_bp, 'weekly_goals'),
+        (sis_bounties_bp, 'bounty_management'),
         (student_records_bp, 'sis'),
         (settings_bp, 'sis'),
         (community_bp, 'community'),
@@ -1267,6 +1273,8 @@ def register_sis_routes(app):
     app.register_blueprint(gradebook_bp)
     app.register_blueprint(engagement_bp)
     app.register_blueprint(goals_bp)
+    app.register_blueprint(weekly_goals_bp)
+    app.register_blueprint(sis_bounties_bp)
     app.register_blueprint(student_records_bp)
     app.register_blueprint(community_bp)
     app.register_blueprint(messaging_bp)

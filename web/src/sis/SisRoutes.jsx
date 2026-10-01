@@ -84,6 +84,16 @@ const ModuleGate = ({ path, children }) => {
   return children
 }
 
+// /bounties is the student side's page everywhere except a school that runs
+// the Bounty Management block (Apogee Cache Valley, 2026-10-01). Off, a link
+// to it still hands over to the learning app, as it did before the block
+// existed, rather than landing on the dashboard.
+const BountiesGate = ({ children }) => {
+  const { activeOrg } = useSisOrg()
+  if (isPathHidden('/bounties', activeOrg)) return <LearningRedirect />
+  return children
+}
+
 // CLPs are iCreate's workflow, so the page is opt-in rather than opt-out, and
 // isClpEnabled asks for more than the module map can: an explicit
 // sis_settings.clp_enabled on top of the 'clp' module being on. Kept alongside
@@ -166,6 +176,10 @@ const CalendarPage = lazy(() => import('../pages/sis/CalendarPage'))
 const CommunityPage = lazy(() => import('../pages/sis/CommunityPage'))
 const SettingsPage = lazy(() => import('../pages/sis/SettingsPage'))
 const GoalsReviewPage = lazy(() => import('../pages/sis/GoalsReviewPage'))
+const WeeklyGoalsPage = lazy(() => import('../pages/sis/WeeklyGoalsPage'))
+const SisBountiesPage = lazy(() => import('../pages/sis/SisBountiesPage'))
+const BountyCreatePage = lazy(() => import('../pages/BountyCreatePage'))
+const BountyDetailPage = lazy(() => import('../pages/BountyDetailPage'))
 const ReportsPage = lazy(() => import('../pages/sis/ReportsPage'))
 const PriorLearningPage = lazy(() => import('../pages/sis/PriorLearningPage'))
 const LibraryPage = lazy(() => import('../pages/sis/LibraryPage'))
@@ -219,6 +233,11 @@ const SisRoutes = () => (
       <Route path="tuition" element={<TuitionRedirect />} />
       <Route path="attendance" element={<ClassesRedirect tab="attendance" />} />
       <Route path="goals" element={<ModuleGate path="/goals"><GoalsReviewPage /></ModuleGate>} />
+      <Route path="weekly-goals" element={<ModuleGate path="/weekly-goals"><WeeklyGoalsPage /></ModuleGate>} />
+      <Route path="bounties" element={<BountiesGate><SisBountiesPage /></BountiesGate>} />
+      <Route path="bounties/create" element={<BountiesGate><BountyCreatePage /></BountiesGate>} />
+      <Route path="bounties/:bountyId/edit" element={<BountiesGate><BountyCreatePage /></BountiesGate>} />
+      <Route path="bounties/:bountyId" element={<BountiesGate><BountyDetailPage /></BountiesGate>} />
       <Route path="submissions" element={<ClassesRedirect tab="submissions" />} />
       <Route path="prior-learning" element={<AdminRoute><ModuleGate path="/prior-learning"><PriorLearningPage /></ModuleGate></AdminRoute>} />
       <Route path="reports" element={<AdminRoute><ModuleGate path="/reports"><ReportsPage /></ModuleGate></AdminRoute>} />

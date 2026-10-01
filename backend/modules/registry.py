@@ -176,6 +176,19 @@ def _defs() -> Tuple[ModuleDef, ...]:
         ModuleDef('goals', 'Goals', 'people', (),
                   default='off', parent='sis',
                   surfaces=('console', 'family'), legacy='goals_mode'),
+        # Goals a coach sets each Monday and checks on Thursday, and the freedom
+        # the check-in earns (Apogee Cache Valley, 2026-10-01). Off unless an
+        # org asks: it is one school's weekly routine, not a default.
+        ModuleDef('weekly_goals', 'Weekly Goals', 'people', (),
+                  default='off', parent='sis',
+                  surfaces=('console', 'family')),
+        # The school's bounties in the console: every bounty posted to the
+        # school and its claims, and any staff member may edit or review them
+        # (bounty_service.can_manage). The student board stays 'bounties'.
+        # Apogee Cache Valley's chores and perks, 2026-10-01; opt-in.
+        ModuleDef('bounty_management', 'Bounty Management', 'learning', (),
+                  default='off', parent='sis', requires=('bounties',),
+                  surfaces=('console',)),
         # New key: /submissions had no module key at all before this registry.
         ModuleDef('submissions', 'Submissions Inbox', 'operations',
                   ('Submissions Inbox',),

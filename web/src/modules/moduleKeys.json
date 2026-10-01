@@ -33,6 +33,16 @@
     "requires": [],
     "requires_any": []
   },
+  "bounty_management": {
+    "default": "off",
+    "gate": "flags",
+    "legacy": null,
+    "parent": "sis",
+    "requires": [
+      "bounties"
+    ],
+    "requires_any": []
+  },
   "calendar": {
     "default": "on",
     "gate": "flags",
@@ -267,6 +277,14 @@
     "requires": [
       "credits"
     ],
+    "requires_any": []
+  },
+  "weekly_goals": {
+    "default": "off",
+    "gate": "flags",
+    "legacy": null,
+    "parent": "sis",
+    "requires": [],
     "requires_any": []
   },
   "xp": {

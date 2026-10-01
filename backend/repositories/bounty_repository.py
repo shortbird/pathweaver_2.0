@@ -80,6 +80,33 @@ class BountyRepository(BaseRepository):
             logger.error(f"Error fetching bounties for poster {poster_id[:8]}: {e}")
             raise DatabaseError("Failed to fetch poster bounties") from e
 
+    def get_org_bounties(self, org_id: str) -> List[Dict[str, Any]]:
+        """Every bounty posted to one organization, newest first: the SIS
+        Bounties page. Bounded by what one school posts."""
+        try:
+            response = (
+                self.client.table('bounties')
+                .select('*')
+                .eq('organization_id', org_id)
+                .order('created_at', desc=True)
+                .execute()
+            )
+            return response.data or []
+        except APIError as e:
+            logger.error(f"Error fetching bounties for org {org_id[:8]}: {e}")
+            raise DatabaseError("Failed to fetch organization bounties") from e
+
+    def get_user_roles_row(self, user_id: str) -> Optional[Dict[str, Any]]:
+        """role, org_role, org_roles and organization_id for one user."""
+        try:
+            rows = (self.client.table('users')
+                    .select('id, role, org_role, org_roles, organization_id')
+                    .eq('id', user_id).limit(1).execute()).data
+            return rows[0] if rows else None
+        except APIError as e:
+            logger.error(f"Error fetching roles for user {user_id[:8]}: {e}")
+            return None
+
     def update_bounty_status(self, bounty_id: str, status: str) -> Dict[str, Any]:
         """Update bounty status."""
         try:
@@ -270,6 +297,24 @@ class BountyRepository(BaseRepository):
         except APIError as e:
             logger.error(f"Error updating claim {claim_id}: {e}")
             raise DatabaseError("Failed to update claim status") from e
+
+    def restart_claim(self, claim_id: str) -> Dict[str, Any]:
+        """Open an approved claim on a repeatable bounty for another round. The
+        claim row is reused (one per student per bounty is a unique index);
+        each approved round keeps its own bounty_reviews row as the history."""
+        try:
+            response = self.client.table('bounty_claims').update({
+                'status': 'claimed', 'evidence': None,
+                'submitted_at': None, 'reviewed_at': None,
+            }).eq('id', claim_id).execute()
+            if not response.data:
+                raise NotFoundError(f"Claim {claim_id} not found")
+            return response.data[0]
+        except NotFoundError:
+            raise
+        except APIError as e:
+            logger.error(f"Error restarting claim {claim_id}: {e}")
+            raise DatabaseError("Failed to restart claim") from e
 
     def get_claims_for_bounties(self, bounty_ids: List[str]) -> Dict[str, List[Dict[str, Any]]]:
         """All claims for a set of bounties, grouped by bounty_id. One query

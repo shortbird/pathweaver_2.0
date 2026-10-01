@@ -22,6 +22,22 @@ export const useBounties = (filters = {}, options = {}) => {
 }
 
 /**
+ * Every bounty posted to the school, with claims: the SIS Bounties page.
+ * `path` already carries the org (withOrg) for a superadmin viewing a school.
+ */
+export const useSchoolBounties = (orgId, path, options = {}) => {
+  return useQuery({
+    queryKey: queryKeys.bounties.school(orgId),
+    queryFn: async () => {
+      const response = await api.get(path)
+      return response.data.bounties || []
+    },
+    enabled: Boolean(orgId),
+    ...options,
+  })
+}
+
+/**
  * Hook for fetching a single bounty by ID
  */
 export const useBountyDetail = (bountyId, options = {}) => {
@@ -246,6 +262,7 @@ export const useReviewBounty = () => {
     onSuccess: (data, { bountyId, decision }) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.bounties.detail(bountyId) })
       queryClient.invalidateQueries({ queryKey: queryKeys.bounties.myPosted })
+      queryClient.invalidateQueries({ queryKey: queryKeys.bounties.schoolAll })
       // Say what actually happened — "Review submitted!" left the poster
       // unsure which button they'd pressed.
       if (decision === 'approved') {

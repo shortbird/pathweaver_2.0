@@ -349,6 +349,58 @@ def list_goals(user_id):
     })
 
 
+@bp.route('/students/<student_id>/year', methods=['PUT'])
+@require_role(*STAFF_ROLES)
+@require_relationship_to('student_id', allow=('org_staff',))
+def staff_save_year_goals(user_id, student_id):
+    """Staff set a student's year goal per subject. Body: {subjects: [{subject,
+    year_goal}]}. For schools where the coach, not the parent, writes the
+    annual goals (Apogee Cache Valley, 2026-10-01: weekly goals are "based on
+    annual goals"). Goals mode is not required: that flag puts goal setting in
+    the parents' registration flow, and these schools set goals in school.
+
+    Only the year goals change; a long-term goal or direction a parent wrote
+    is kept. A row staff write is born reviewed -- there is nothing to review."""
+    org_id = sis_service.resolve_org_id(user_id, sis_service.requested_org_id())
+    if not org_id:
+        return jsonify({'success': False, 'error': 'No organization in context'}), 400
+
+    from repositories.sis_weekly_goal_repository import SisWeeklyGoalRepository
+    repo = SisWeeklyGoalRepository()
+    student = repo.user_row(student_id)
+    if not student or student.get('organization_id') != org_id:
+        return jsonify({'success': False, 'error': 'Student not found'}), 404
+    _enabled, subjects, school_year = _goals_config(repo.org_row(org_id) or {})
+
+    wanted = {e['subject']: e['year_goal']
+              for e in _sanitize_subjects((request.json or {}).get('subjects'))}
+    existing = repo.annual_goal_for_year(org_id, student_id, school_year)
+    old = {s.get('subject'): s for s in ((existing or {}).get('subjects') or [])
+           if isinstance(s, dict)}
+    merged = [{
+        'subject': subject,
+        'year_goal': wanted.get(subject, (old.get(subject) or {}).get('year_goal') or ''),
+        'long_term': (old.get(subject) or {}).get('long_term') or '',
+    } for subject in subjects]
+
+    now = _now_iso()
+    if existing:
+        saved = repo.write_annual_goal(existing['id'], {'subjects': merged, 'updated_at': now})
+    else:
+        saved = repo.write_annual_goal(None, {
+            'organization_id': org_id,
+            'student_user_id': student_id,
+            'school_year': school_year,
+            'subjects': merged,
+            'status': 'reviewed',
+            'reviewed_by': user_id,
+            'reviewed_at': now,
+            'created_by': user_id,
+            'updated_at': now,
+        })
+    return jsonify({'success': True, 'goal': saved})
+
+
 @bp.route('/<goal_id>/review', methods=['POST'])
 @require_role(*STAFF_ROLES)
 def review_goal(user_id, goal_id):
