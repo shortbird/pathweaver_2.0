@@ -1084,11 +1084,14 @@ def notify_family_of_invoice_change(org_id: str, invoice: Dict[str, Any],
     number = invoice.get('invoice_number') or 'your invoice'
     try:
         from services import sis_notifications
+        # The family's own billing page. '/billing' is the office's: a parent
+        # who followed it landed on their dashboard, or on a staff login from
+        # the phone (71 notices in September, audit 2026-10-01).
         sis_notifications.notify(
             contact,
             f'{number} {direction}',
             f'{what} It is now ${to_total / 100:,.2f}.',
-            link='/billing', organization_id=org_id)
+            link='/family/billing', organization_id=org_id)
     except Exception as e:  # noqa: BLE001 — the edit already committed
         logger.warning(f"Could not notify family about invoice {invoice.get('id')}: {e}")
 

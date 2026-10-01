@@ -530,3 +530,20 @@ class TestNoFeeOnAFee:
     def test_a_plain_invoice_gets_the_rate(self):
         with patch('services.sis_billing_service.compute_processing_fee', return_value=8832):
             assert billing._fee_to_add('org1', {'processing_fee_cents': 0}, 303500) == 8832
+
+
+@pytest.mark.unit
+class TestTheFamilyIsToldWhereToLook:
+    def test_the_notice_links_the_familys_billing_page_not_the_offices(self):
+        """'/billing' is the console's page. A parent who followed it landed on
+        their dashboard, or on a staff login from the phone: 71 notices in
+        September 2026 (docs/messaging/MESSAGING_AUDIT_2026-10-01.md)."""
+        invoice = {'id': 'inv1', 'household_id': 'hh1', 'invoice_number': 'INV-7',
+                   'total_cents': 12000}
+        with patch.object(billing, '_household_primary_contact', return_value='parent-1'), \
+             patch('services.sis_notifications.notify') as notify:
+            billing.notify_family_of_invoice_change('org1', invoice, 10000, 'Pottery was added.')
+        notify.assert_called_once()
+        assert notify.call_args.kwargs['link'] == '/family/billing'
+        assert notify.call_args.args[1] == 'INV-7 went up'
+

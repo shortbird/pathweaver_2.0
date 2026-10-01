@@ -198,7 +198,15 @@ def send_as_school(org, recipient_id: str, content: str, *, sent_by: Optional[st
     # notes to Marika, who is also a parent there, so Compose wrote as the
     # school, rang her phone and could not be found anywhere.
     # A reply_to_message_id points into the school thread, so it stays behind.
-    if author and author != recipient_id and office_inbox_id(recipient_id) == inbox_user_id:
+    if author and office_inbox_id(recipient_id) == inbox_user_id:
+        # Somebody in the office writing to themselves as the school (their
+        # own household from the People page) was the one way left to put a
+        # message in that hidden thread: it rang "New message from iCreate"
+        # on their own phone and counted in a badge nothing could clear
+        # (audit 2026-10-01). There is nobody to send it to.
+        if author == recipient_id:
+            raise ValueError('You read this inbox as the school, so this message '
+                             'would only come back to you.')
         return DirectMessageService().send_message(
             author, recipient_id, content, attachments=attachments or [], **extra)
     if author and (show_sender_name or is_org_staff((row or {}).get('id'), recipient_id)):

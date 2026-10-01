@@ -107,6 +107,21 @@ def test_the_office_hears_from_the_person_not_the_school():
     assert 'reply_to_message_id' not in call.kwargs
 
 
+def test_nobody_in_the_office_writes_to_themselves_as_the_school():
+    """The last way into the thread My messages leaves out: an office member
+    messaging their own household from the People page. It rang their own
+    phone as the school and sat in a badge nothing could clear (audit
+    2026-10-01)."""
+    import pytest
+    dm = MagicMock()
+    with patch.object(school_inbox_service, 'school_account', return_value=(ORG, 'inbox-1')), \
+         patch.object(school_inbox_service, 'office_inbox_id', return_value='inbox-1'), \
+         patch('services.direct_message_service.DirectMessageService', return_value=dm):
+        with pytest.raises(ValueError):
+            school_inbox_service.send_as_school(ORG, 'becky', 'hi', sent_by='becky')
+    dm.send_message.assert_not_called()
+
+
 def test_another_schools_office_still_hears_from_this_school():
     call, _ = _send_as_school_to(False, office='inbox-other')
     assert call.args[:2] == ('inbox-1', 'r-1')
