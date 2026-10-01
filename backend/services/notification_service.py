@@ -14,6 +14,28 @@ from utils.validation.sanitizers import pgrst_pattern
 
 logger = get_logger(__name__)
 
+# The school inbox is read in the console, and only there: the mobile app has
+# no screen for it, on purpose (owner, 2026-10-01). A notice about it used to
+# ring the office's phones anyway, and the tap opened "not available in the
+# mobile app" -- the alert nobody could find that started the messaging audit
+# (docs/messaging/MESSAGING_AUDIT_2026-10-01.md). So a school-inbox notice
+# sends no phone push, and the mobile app's list and badge leave it out. The
+# bell on the web and in the console, and the browser push, are unchanged.
+#
+# The marker is the link: every school-inbox notice opens the console's inbox
+# (school_inbox_service.school_inbox_link), including the older rows that
+# carry a bare '/inbox'.
+SCHOOL_INBOX_LINK_PREFIX = '/inbox'
+# "Not a school-inbox notice", as a PostgREST or-filter. An or, because NOT
+# LIKE on its own also drops every row that has no link at all.
+_NOT_SCHOOL_INBOX = 'link.is.null,link.not.like./inbox*'
+
+
+def is_school_inbox_link(link: Optional[str]) -> bool:
+    """Whether a notification with this link is a school-inbox notice."""
+    return bool(link) and str(link).startswith(SCHOOL_INBOX_LINK_PREFIX)
+
+
 # Notification types that should trigger web push notifications
 WEB_PUSH_NOTIFICATION_TYPES = {
     'message_received',
@@ -209,8 +231,10 @@ class NotificationService(BaseService):
                     url=link
                 )
 
-            # Send mobile push notification (Expo) for broader set of types
-            if push and notification and notification_type in MOBILE_PUSH_NOTIFICATION_TYPES:
+            # Send mobile push notification (Expo) for broader set of types.
+            # Never for the school inbox, which the phone cannot open.
+            if (push and notification and notification_type in MOBILE_PUSH_NOTIFICATION_TYPES
+                    and not is_school_inbox_link(link)):
                 self._send_expo_push_notification(
                     user_id=user_id,
                     title=title,
@@ -233,6 +257,7 @@ class NotificationService(BaseService):
         page: int = 1,
         q: Optional[str] = None,
         types: Optional[List[str]] = None,
+        exclude_school_inbox: bool = False,
     ) -> List[Dict[str, Any]]:
         """
         Get one page of a user's notifications, newest first.
@@ -248,6 +273,8 @@ class NotificationService(BaseService):
             page: Which page of `limit` rows (1 = newest)
             q: Text to find in the title or message (case-insensitive)
             types: Only these notification types (see resolve_type_filter)
+            exclude_school_inbox: Leave out school-inbox notices (the mobile
+                app; see SCHOOL_INBOX_LINK_PREFIX)
 
         Returns:
             List of notification records
@@ -256,6 +283,9 @@ class NotificationService(BaseService):
             query = self.supabase.table('notifications')\
                 .select('*')\
                 .eq('user_id', user_id)
+
+            if exclude_school_inbox:
+                query = query.or_(_NOT_SCHOOL_INBOX)
 
             if unread_only:
                 query = query.eq('is_read', False)
@@ -283,22 +313,26 @@ class NotificationService(BaseService):
             logger.error(f"Error fetching notifications: {str(e)}")
             raise
 
-    def get_unread_count(self, user_id: str) -> int:
+    def get_unread_count(self, user_id: str, exclude_school_inbox: bool = False) -> int:
         """
         Get count of unread notifications for a user.
 
         Args:
             user_id: User ID
+            exclude_school_inbox: Leave out school-inbox notices, so the
+                mobile badge counts what the mobile list shows
 
         Returns:
             Number of unread notifications
         """
         try:
-            result = self.supabase.table('notifications')\
+            query = self.supabase.table('notifications')\
                 .select('id', count='exact')\
                 .eq('user_id', user_id)\
-                .eq('is_read', False)\
-                .execute()
+                .eq('is_read', False)
+            if exclude_school_inbox:
+                query = query.or_(_NOT_SCHOOL_INBOX)
+            result = query.execute()
 
             return result.count or 0
 
@@ -406,22 +440,27 @@ class NotificationService(BaseService):
             logger.error(f"Error marking group message notifications as read: {str(e)}")
             return 0
 
-    def mark_all_as_read(self, user_id: str) -> int:
+    def mark_all_as_read(self, user_id: str, exclude_school_inbox: bool = False) -> int:
         """
         Mark all notifications as read for a user.
 
         Args:
             user_id: User ID
+            exclude_school_inbox: Leave school-inbox notices as they are:
+                "mark all read" on the phone must not clear, in the console,
+                notices the phone never showed
 
         Returns:
             Number of notifications updated
         """
         try:
-            result = self.supabase.table('notifications')\
+            query = self.supabase.table('notifications')\
                 .update({'is_read': True})\
                 .eq('user_id', user_id)\
-                .eq('is_read', False)\
-                .execute()
+                .eq('is_read', False)
+            if exclude_school_inbox:
+                query = query.or_(_NOT_SCHOOL_INBOX)
+            result = query.execute()
 
             count = len(result.data) if result.data else 0
             logger.info(f"Marked {count} notifications as read for user {user_id[:8]}")
@@ -456,21 +495,25 @@ class NotificationService(BaseService):
             logger.error(f"Error deleting notification: {str(e)}")
             raise
 
-    def delete_all_notifications(self, user_id: str) -> int:
+    def delete_all_notifications(self, user_id: str, exclude_school_inbox: bool = False) -> int:
         """
         Delete all notifications for a user.
 
         Args:
             user_id: User ID
+            exclude_school_inbox: Keep school-inbox notices (see
+                mark_all_as_read)
 
         Returns:
             Number of notifications deleted
         """
         try:
-            result = self.supabase.table('notifications')\
+            query = self.supabase.table('notifications')\
                 .delete()\
-                .eq('user_id', user_id)\
-                .execute()
+                .eq('user_id', user_id)
+            if exclude_school_inbox:
+                query = query.or_(_NOT_SCHOOL_INBOX)
+            result = query.execute()
 
             count = len(result.data) if result.data else 0
             logger.info(f"Deleted {count} notifications for user {user_id[:8]}")

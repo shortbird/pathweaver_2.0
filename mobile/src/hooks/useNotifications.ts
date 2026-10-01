@@ -83,7 +83,11 @@ export function useNotificationSubscription(
     const channel = supabase
       .channel(channelName)
       .on('broadcast', { event: 'new_notification' }, (payload: any) => {
-        if (payload.payload) {
+        // The school inbox is read in the web console; this app has no screen
+        // for it. The server leaves its notices out of this app's list and
+        // count, and sends no push for them, so the live update is dropped
+        // too -- or the badge would count a row the list will never show.
+        if (payload.payload && !isSchoolInboxNotice(payload.payload)) {
           callbackRef.current?.(payload.payload);
         }
       })
@@ -98,6 +102,11 @@ export function useNotificationSubscription(
       }
     };
   }, [userId]);
+}
+
+/** A notice about the school inbox: its link opens the console's /inbox. */
+export function isSchoolInboxNotice(notification: { link?: string | null } | null | undefined): boolean {
+  return typeof notification?.link === 'string' && notification.link.startsWith('/inbox');
 }
 
 // ── API helpers ──

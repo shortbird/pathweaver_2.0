@@ -22,6 +22,14 @@ logger = get_logger(__name__)
 bp = Blueprint('notifications', __name__, url_prefix='/api/notifications')
 
 
+def _on_the_phone() -> bool:
+    """Whether the mobile app is asking. It has no screen for the school
+    inbox, so its list, its badge and its bulk actions leave those notices
+    out (notification_service.SCHOOL_INBOX_LINK_PREFIX)."""
+    from utils.client_platform import MOBILE, request_client_platform
+    return request_client_platform() == MOBILE
+
+
 def _is_safe_internal_link(link) -> bool:
     """Whether a notification `link` is a safe internal app path.
 
@@ -84,10 +92,12 @@ def get_notifications(user_id: str):
             page=page,
             q=q,
             types=types,
+            exclude_school_inbox=_on_the_phone(),
         )
 
         # Get unread count
-        unread_count = service.get_unread_count(user_id)
+        unread_count = service.get_unread_count(
+            user_id, exclude_school_inbox=_on_the_phone())
 
         return jsonify({
             'success': True,
@@ -127,7 +137,7 @@ def get_unread_count(user_id: str):
         supabase = get_supabase_admin_client()
         service = NotificationService(supabase)
 
-        count = service.get_unread_count(user_id)
+        count = service.get_unread_count(user_id, exclude_school_inbox=_on_the_phone())
 
         return jsonify({
             'success': True,
@@ -180,7 +190,7 @@ def mark_all_as_read(user_id: str):
         supabase = get_supabase_admin_client()
         service = NotificationService(supabase)
 
-        count = service.mark_all_as_read(user_id)
+        count = service.mark_all_as_read(user_id, exclude_school_inbox=_on_the_phone())
 
         return jsonify({
             'success': True,
@@ -233,7 +243,7 @@ def delete_all_notifications(user_id: str):
         supabase = get_supabase_admin_client()
         service = NotificationService(supabase)
 
-        count = service.delete_all_notifications(user_id)
+        count = service.delete_all_notifications(user_id, exclude_school_inbox=_on_the_phone())
 
         return jsonify({
             'success': True,

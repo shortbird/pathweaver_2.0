@@ -438,7 +438,12 @@ class TestOfficeRows:
         assert row['link'] == f'/inbox?tab=school&group={GROUP}'
         assert row['metadata']['school_inbox'] is True
         assert row['metadata']['count'] == 2
-        assert chat.pushed_to().count(OFFICE) == 1
+        # One alert until it is read -- in the browser. The phone gets none:
+        # the mobile app has no school inbox to open it in (owner, 2026-10-01;
+        # this pinned a phone push until then, see
+        # test_school_inbox_stays_off_the_phone.py).
+        assert chat.web_pushed_to().count(OFFICE) == 1
+        assert OFFICE not in chat.pushed_to()
         # The inbox account is a member nobody logs in as.
         assert chat.db.bell(INBOX) == []
 
@@ -450,7 +455,9 @@ class TestOfficeRows:
         chat.say('Can someone cover Tuesday?')
 
         assert len(chat.db.bell(OFFICE)) == 1
-        assert OFFICE in chat.pushed_to()
+        # The browser push is the office's alert; the phone never gets one.
+        assert OFFICE in chat.web_pushed_to()
+        assert OFFICE not in chat.pushed_to()
 
 
 # ---------------------------------------------------------------------------

@@ -425,7 +425,14 @@ tables (`school_thread_grants`, `message_email_relays`) are still in the databas
 once more. Production ran the old code between the repair and the deploy, so a few
 new personal threads and per-message bell rows will exist. The script is idempotent.
 
-Still open: the mobile app cannot show the school inbox (§3.3), which this build
-makes more visible, because a family's message to an office member now always
-lands there. Also open: the dead links and `/communication` (§3.4), one badge
-definition (§3.3), notification settings on the web, and decision 2.
+**The school inbox stays off the phone** (owner, 2026-10-01, after the build: the
+mobile app correctly has no school inbox, so its notices must not go there). A
+school-inbox notice writes its bell row and browser push and sends no phone push;
+the mobile app's list, badge, "mark all read" and live update leave it out
+(`notification_service.SCHOOL_INBOX_LINK_PREFIX`, `routes/notifications._on_the_phone`,
+mobile `isSchoolInboxNotice`). The marker is the link, `/inbox...`, which every
+school-inbox notice carries. This closes the report that started the audit: a
+phone alert with nowhere to open.
+
+Still open: the dead links and `/communication` (§3.4), one badge definition
+(§3.3), notification settings on the web, and decision 2.

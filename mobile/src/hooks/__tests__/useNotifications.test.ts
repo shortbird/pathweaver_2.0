@@ -2,13 +2,17 @@
  * useNotifications hook tests - fetch, mark read, delete, unread count.
  */
 
+import { renderHook } from '@testing-library/react-native';
 import api from '@/src/services/api';
+import { supabase } from '@/src/services/supabaseClient';
 import {
   fetchNotifications,
   fetchUnreadCount,
   markNotificationRead,
   markAllRead,
   deleteNotification,
+  isSchoolInboxNotice,
+  useNotificationSubscription,
 } from '../useNotifications';
 
 jest.mock('@/src/services/api', () => require('@/src/__tests__/utils/mockApi').mockApiModule());
@@ -98,3 +102,39 @@ describe('useNotifications API helpers', () => {
     expect(api.delete).toHaveBeenCalledWith('/api/notifications/n1');
   });
 });
+
+// The school inbox is read in the web console, and this app has no screen for
+// it. An alert about it used to ring the office's phones and open "not
+// available in the mobile app" (iCreate, 2026-09-30: "I have this
+// notification on my phone, but I can't find it"). The server now sends no
+// push for it and leaves it out of this app's list and count; the live
+// update has to be dropped too, or the badge counts a row the list never shows.
+describe('school-inbox notices stay off the phone', () => {
+  it('knows a school-inbox notice by its link', () => {
+    expect(isSchoolInboxNotice({ link: '/inbox?tab=school&conversation=c1' })).toBe(true);
+    expect(isSchoolInboxNotice({ link: '/inbox' })).toBe(true);
+    expect(isSchoolInboxNotice({ link: '/communication?user=u1' })).toBe(false);
+    expect(isSchoolInboxNotice({ link: null })).toBe(false);
+    expect(isSchoolInboxNotice(undefined)).toBe(false);
+  });
+
+  it('drops the live update for one and passes every other', () => {
+    let handler: (event: any) => void = () => {};
+    (supabase.channel as jest.Mock).mockReturnValueOnce({
+      on: jest.fn(function (this: any, _kind: string, _filter: any, cb: (event: any) => void) {
+        handler = cb;
+        return this;
+      }),
+      subscribe: jest.fn().mockReturnThis(),
+    });
+    const onNew = jest.fn();
+    renderHook(() => useNotificationSubscription('u1', onNew));
+
+    handler({ payload: { id: 'n1', link: '/inbox?tab=school&conversation=c1' } });
+    expect(onNew).not.toHaveBeenCalled();
+
+    handler({ payload: { id: 'n2', link: '/communication?user=u2' } });
+    expect(onNew).toHaveBeenCalledWith({ id: 'n2', link: '/communication?user=u2' });
+  });
+});
+
