@@ -135,7 +135,8 @@ UNIVERSE = {KATE: 'staff', TEACH: 'staff', AIDE: 'staff', ADA: 'student', MUM: '
 
 @pytest.fixture
 def universe():
-    with patch.object(compose, '_universe', return_value=dict(UNIVERSE)):
+    with patch.object(compose, '_universe', return_value=dict(UNIVERSE)), \
+         patch.object(compose, '_staff', return_value=STAFF):
         yield
 
 
@@ -292,6 +293,59 @@ class TestCompose:
         fields = repo.create_send.call_args.args[0]
         assert fields['group_id'] == 'g1' and fields['group_message_id'] == 'gm1'
         assert result['mode'] == 'group'
+
+    def test_a_staff_group_with_a_teacher_who_is_a_parent_is_a_staff_room(self, repo):
+        """iCreate, ticket 6f9ed4fb (2026-09-30): "it says 'parents' on echo
+        dots - when it was all sent to teachers." Three of the 41 staff were
+        also guardians, _universe filed them as family, and the room became a
+        parents' room. In a group, a member of staff is staff."""
+        svc = Mock()
+        svc.create_group.return_value = {'id': 'g1'}
+        svc.send_message.return_value = {'id': 'gm1'}
+        # TEACH is Ada's parent as well as a teacher: _universe says family.
+        teacher_parent = dict(UNIVERSE, **{TEACH: 'family'})
+        with patch.object(compose, '_universe', return_value=teacher_parent), \
+             patch.object(compose, '_staff', return_value=STAFF), \
+             patch('services.group_message_service.GroupMessageService', return_value=svc), \
+             patch.object(compose, '_default_name', return_value='Echo Dots'):
+            result = compose.compose(ORG, KATE, body='Who has the Echo Dots?',
+                                     recipient_ids=[TEACH, AIDE], mode='group')
+        assert svc.create_group.call_args.kwargs['audience'] == 'staff'
+        # A staff room from My messages is the sender's own, not the school's.
+        svc.create_school_group.assert_not_called()
+        assert result['as_school'] is False
+
+    def test_a_real_parent_still_makes_a_family_room(self, repo):
+        """The other direction: _room_kinds changes staff only. MUM is not
+        staff, so a room with her in it stays a family room."""
+        svc = Mock()
+        svc.create_school_group.return_value = {'id': 'g1'}
+        svc.send_message.return_value = {'id': 'gm1'}
+        teacher_parent = dict(UNIVERSE, **{TEACH: 'family'})
+        with patch.object(compose, '_universe', return_value=teacher_parent), \
+             patch.object(compose, '_staff', return_value=STAFF), \
+             patch('services.group_message_service.GroupMessageService', return_value=svc), \
+             patch('services.school_inbox_service.school_account', return_value=({}, 'inbox')), \
+             patch.object(compose, '_default_name', return_value='x'):
+            compose.compose(ORG, KATE, body='Hi', recipient_ids=[TEACH, MUM], mode='group')
+        assert svc.create_school_group.call_args.kwargs['audience'] == 'family'
+
+    def test_room_kinds_leaves_non_staff_alone(self):
+        with patch.object(compose, '_staff', return_value=STAFF):
+            kinds = compose._room_kinds(ORG, {TEACH: 'family', MUM: 'family', ADA: 'student'})
+        assert kinds == {TEACH: 'staff', MUM: 'family', ADA: 'student'}
+
+    def test_a_direct_message_to_a_teacher_parent_still_goes_as_the_school(self, repo):
+        """_universe's family-over-staff rule stays for one-to-one sends:
+        only a group reads its members as staff."""
+        teacher_parent = dict(UNIVERSE, **{TEACH: 'family'})
+        with patch.object(compose, '_universe', return_value=teacher_parent), \
+             patch.object(compose, '_staff', return_value=STAFF) as staff, \
+             patch('services.school_inbox_service.send_as_school', return_value=_dm()) as send:
+            result = compose.compose(ORG, KATE, body='Hi', recipient_ids=[TEACH])
+        assert result['as_school'] is True
+        send.assert_called_once()
+        staff.assert_not_called()
 
     def test_a_group_with_a_student_is_a_student_room(self):
         assert compose._group_audience(['staff', 'family', 'student']) == 'student'

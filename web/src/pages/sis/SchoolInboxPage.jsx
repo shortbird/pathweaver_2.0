@@ -100,9 +100,13 @@ const convoNames = (c) => [
   memberName(c), c.other_user?.display_name, c.other_user?.organization_name,
 ]
 // A class chat (audience family or student) is listed on My messages beside
-// the staff rooms, and has to be told apart from them at a glance.
+// the staff rooms, and has to be told apart from them at a glance. It is a
+// class's chat, so it has a class: audience alone also matched teachers'
+// groups the column default had filed as 'family', and "Echo Dots", sent to
+// 41 teachers, sat under Class chats tagged Parents (iCreate, ticket
+// 6f9ed4fb, 2026-09-30).
 const CLASS_CHAT_TAG = { family: 'Parents', student: 'Students' }
-const isClassChat = (g) => Boolean(CLASS_CHAT_TAG[g.audience])
+const isClassChat = (g) => Boolean(g.source_class_id && CLASS_CHAT_TAG[g.audience])
 
 // Threads waiting on a reply, per tab -- the same two numbers the sidebar
 // badge (InboxUnreadBadge) adds together, from the same endpoints.

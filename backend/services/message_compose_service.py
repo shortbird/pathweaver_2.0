@@ -300,6 +300,20 @@ def _universe(org_id: str, teacher_id: Optional[str] = None) -> Dict[str, str]:
 
 # ── The send ──────────────────────────────────────────────────────────────────
 
+def _room_kinds(org_id: str, kinds: Dict[str, str]) -> Dict[str, str]:
+    """A group room's kinds: a member of staff sits in it as staff, even when
+    they are also a guardian here.
+
+    _universe keeps family over staff because a message to one person is
+    written as the school when they are a parent. A room is different: a
+    teacher who also has a child at the school is in a teachers' group as a
+    teacher. iCreate, ticket 6f9ed4fb (2026-09-30): "Echo Dots", sent to 41
+    staff, was filed as a parents' room because three of them were also
+    guardians, and the inbox tagged it "Parents"."""
+    staff_ids = {p['id'] for p in _staff(org_id)}
+    return {r: ('staff' if r in staff_ids else k) for r, k in kinds.items()}
+
+
 def _group_audience(kinds: Iterable[str]) -> str:
     """group_conversations.audience for a mixed room. A room with a student in
     it is a student room (every adult's words in it are screened, like a class
@@ -339,6 +353,8 @@ def compose(org_id: str, actor_id: str, *, body: str, recipient_ids: Iterable[st
             raise ValueError('You can message staff, and the students and families of your own classes')
         raise ValueError('Everyone you message has to be staff, a student or a parent at this school')
     kinds = {r: universe[r] for r in wanted}
+    if mode == 'group' and len(wanted) > 1:
+        kinds = _room_kinds(org_id, kinds)
 
     title = (subject or '').strip()
     content = f'{title}\n\n{body}' if title else body

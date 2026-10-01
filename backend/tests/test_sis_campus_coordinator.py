@@ -542,9 +542,12 @@ class TestCreatingAGroupInAnotherOrg:
                          audience='staff')
         assert table.insert.call_args_list[0][0][0]['audience'] == 'staff'
 
-    def test_a_group_with_no_audience_does_not_set_the_column(self):
-        """Class chats and the learning app's own group modal pass none; the
-        column default keeps answering for them."""
+    def test_a_group_with_no_audience_takes_one_from_its_members(self):
+        """The learning app's own group modal passes none. This used to leave
+        the column default ('family') answering, which is how a teachers'
+        group came to be tagged "Parents" in the school inbox (iCreate, ticket
+        6f9ed4fb, 2026-09-30). With no members to read it is a staff room;
+        tests/test_group_default_audience.py covers the members."""
         svc, table = self._service('org_managed', 'org-1')
         table.execute.side_effect = [
             Mock(data={'organization_id': 'org-1', 'role': 'org_managed'}),
@@ -552,4 +555,4 @@ class TestCreatingAGroupInAnotherOrg:
             Mock(data=[{'id': 'member-1'}]),
         ]
         svc.create_group('kate', 'Book club')
-        assert 'audience' not in table.insert.call_args_list[0][0][0]
+        assert table.insert.call_args_list[0][0][0]['audience'] == 'staff'

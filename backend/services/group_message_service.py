@@ -323,6 +323,7 @@ class GroupMessageService(BaseService):
                 'created_at': datetime.utcnow().isoformat(),
                 'updated_at': datetime.utcnow().isoformat()
             }
+            audience = audience or self._audience_for_members(supabase, member_ids)
             if audience:
                 group['audience'] = audience
 
@@ -345,6 +346,44 @@ class GroupMessageService(BaseService):
         except Exception as e:
             logger.error(f"Error creating group: {str(e)}")
             raise
+
+    def _audience_for_members(self, supabase, member_ids: Optional[List[str]]) -> Optional[str]:
+        """The audience of a group whose caller did not name one, from who is
+        in it: any student makes it a student room (screened like a class
+        chat), else any parent a family room, else a staff room. A member of
+        staff who is also a parent counts as staff.
+
+        The New group button (POST /api/groups) named none, so every group it
+        made took the column default, 'family', and the school inbox tagged a
+        teachers' group "Parents" (iCreate, ticket 6f9ed4fb, 2026-09-30).
+        None, the column default, only when the members cannot be read.
+        """
+        ids = [m for m in (member_ids or []) if m]
+        if not ids:
+            return 'staff'
+        try:
+            from repositories.user_repository import UserRepository
+            rows = list(UserRepository(client=supabase)
+                        .find_by_ids(ids, 'id, role, org_role, org_roles').values())
+        except Exception as e:  # noqa: BLE001 -- the group still gets made
+            logger.warning(f"Could not read group members to set the audience: {e}")
+            return None
+        from utils.roles import get_effective_roles
+        staff_roles = self.GROUP_CREATOR_ROLES | {'superadmin'}
+        kinds = set()
+        for row in rows:
+            roles = set(get_effective_roles(row))
+            if 'student' in roles:
+                kinds.add('student')
+            elif roles & staff_roles:
+                kinds.add('staff')
+            else:
+                kinds.add('family')
+        if 'student' in kinds:
+            return 'student'
+        if 'family' in kinds:
+            return 'family'
+        return 'staff'
 
     @staticmethod
     def _member_row(group_id: str, user_id: str, role: str, *, added_by: str) -> Dict[str, Any]:

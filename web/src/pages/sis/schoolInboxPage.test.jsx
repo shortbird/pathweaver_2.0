@@ -583,8 +583,8 @@ describe('group threads sent from this page', () => {
     authUser = { id: 'me-1', role: 'advisor' }
     state.groups = [
       group(),
-      group({ id: 'g2', name: 'Art class families', audience: 'family' }),
-      group({ id: 'g3', name: 'Art class students', audience: 'student' }),
+      group({ id: 'g2', name: 'Art class families', audience: 'family', source_class_id: 'c-art' }),
+      group({ id: 'g3', name: 'Art class students', audience: 'student', source_class_id: 'c-art' }),
     ]
     render(<SchoolInboxPage />)
     const families = await screen.findByText('Art class families')
@@ -601,10 +601,25 @@ describe('group threads sent from this page', () => {
     await waitFor(() => expect(api.get).toHaveBeenCalledWith('/api/groups/g2/messages'))
   })
 
+  // iCreate, ticket 6f9ed4fb (2026-09-30): "it says 'parents' on echo dots -
+  // when it was all sent to teachers." A group with no class is not a class
+  // chat, whatever its audience column says.
+  it('lists a family-audience group with no class as a group thread, untagged', async () => {
+    authUser = { id: 'me-1', role: 'advisor' }
+    state.groups = [
+      group({ id: 'g4', name: 'Echo Dots', audience: 'family', source_class_id: null }),
+    ]
+    render(<SchoolInboxPage />)
+    const echo = await screen.findByText('Echo Dots')
+    expect(screen.getByText('Group threads')).toBeInTheDocument()
+    expect(screen.queryByText('Class chats')).toBeNull()
+    expect(within(echo.closest('button')).queryByText('Parents')).toBeNull()
+  })
+
   // The School tab is unchanged: it lists the groups the school owns, and a
   // class chat the admin happens to be in is not the office's.
   it('does not add the caller’s class chats to the School tab', async () => {
-    state.groups = [group({ id: 'g2', name: 'Art class families', audience: 'family' })]
+    state.groups = [group({ id: 'g2', name: 'Art class families', audience: 'family', source_class_id: 'c-art' })]
     state.schoolGroups = []
     render(<SchoolInboxPage />, { route: '/inbox?tab=school' })
     await waitFor(() => expect(api.get).toHaveBeenCalledWith('/api/school-inbox/groups'))
@@ -618,7 +633,7 @@ describe('group threads sent from this page', () => {
   // a class chat is not in the staff-room list, so the link did nothing.
   it('opens a class chat named by ?group= even though it is not listed', async () => {
     authUser = { id: 'me-1', role: 'advisor' }
-    state.groups = [group({ id: 'g3', name: 'Art class students', audience: 'student' })]
+    state.groups = [group({ id: 'g3', name: 'Art class students', audience: 'student', source_class_id: 'c-art' })]
     state.groupMessages = [
       { id: 'gm3', sender_id: 'u9', message_content: 'Field trip forms are due Friday, please remind everyone',
         created_at: '2026-09-22T10:00:00Z', sender: { id: 'u9', first_name: 'Molly' } },
