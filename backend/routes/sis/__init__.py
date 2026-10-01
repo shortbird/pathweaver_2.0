@@ -27,6 +27,7 @@ from services import sis_payment_profile
 from services import sis_holds
 from services import sis_person_service
 from services import family_student_service
+from services import family_guardian_service
 from services import sis_attach_service
 from services import emergency_contacts_service as emergency_contacts
 from repositories.household_repository import HouseholdRepository
@@ -706,6 +707,26 @@ def add_household_child(user_id, household_id):
     if err:
         return err
     result = family_student_service.add_child_to_household(
+        org_id, household_id, user_id, request.json or {})
+    status = result.pop('status', 201)
+    if status >= 400:
+        return jsonify({'success': False, **result}), status
+    return jsonify({'success': True, **result}), status
+
+
+@bp.route('/households/<household_id>/guardians', methods=['POST'])
+@require_role(*ADMIN_ROLES)
+def add_household_guardian(user_id, household_id):
+    """Add a parent to this family by name and email -- the second parent who
+    has no Optio account yet. The account is made now, joins the family, and
+    gets a set-your-password email (services/family_guardian_service.py).
+
+    Body: first_name, last_name, email.
+    """
+    org_id, err = sis_service.org_or_error(user_id)
+    if err:
+        return err
+    result = family_guardian_service.add_guardian_to_household(
         org_id, household_id, user_id, request.json or {})
     status = result.pop('status', 201)
     if status >= 400:

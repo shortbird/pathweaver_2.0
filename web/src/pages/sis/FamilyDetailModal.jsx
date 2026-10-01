@@ -24,6 +24,7 @@ import GlassTabBar from '../../components/ui/GlassTabBar'
 import { formatCents as money } from '../../utils/money'
 import FamilyBillingPanel from './familyDetail/FamilyBillingPanel'
 import AddChildForm from './familyDetail/AddChildForm'
+import AddParentForm from './familyDetail/AddParentForm'
 import { INPUT_CLASS } from '../../components/ui/Input'
 
 const FUNDING_OPTIONS = [
@@ -291,6 +292,9 @@ const MembersSection = ({ household, orgId, members, onSaved, onOpenUser }) => {
   // existing account and creating one are different enough forms that sharing
   // one would ask staff to read both to use either.
   const [addingChild, setAddingChild] = useState(false)
+  // The third door: a parent with no account yet (the second parent in a
+  // family that registered under one login).
+  const [addingParent, setAddingParent] = useState(false)
   const [form, setForm] = useState({ user_id: '', email: '', relationship: 'student' })
   const list = household.members || []
   const primaryId = household.primary_contact_user_id
@@ -335,8 +339,9 @@ const MembersSection = ({ household, orgId, members, onSaved, onOpenUser }) => {
       <div className="flex items-center justify-between mb-2">
         <h4 className="text-xs font-semibold uppercase tracking-wide text-neutral-400">Members</h4>
         <span className="flex items-center gap-3">
-          {!addingChild && <button onClick={() => { setAddingChild(true); setAdding(false) }} className="text-sm text-optio-purple font-medium hover:underline">+ Add a child</button>}
-          {!adding && <button onClick={() => { setAdding(true); setAddingChild(false) }} className="text-sm text-optio-purple font-medium hover:underline">+ Add member</button>}
+          {!addingParent && <button onClick={() => { setAddingParent(true); setAdding(false); setAddingChild(false) }} className="text-sm text-optio-purple font-medium hover:underline">+ Add a parent</button>}
+          {!addingChild && <button onClick={() => { setAddingChild(true); setAdding(false); setAddingParent(false) }} className="text-sm text-optio-purple font-medium hover:underline">+ Add a child</button>}
+          {!adding && <button onClick={() => { setAdding(true); setAddingChild(false); setAddingParent(false) }} className="text-sm text-optio-purple font-medium hover:underline">+ Add member</button>}
         </span>
       </div>
       <div className="space-y-1">
@@ -404,6 +409,13 @@ const MembersSection = ({ household, orgId, members, onSaved, onOpenUser }) => {
             <button onClick={() => setAdding(false)} className="text-sm text-neutral-500 hover:underline">Cancel</button>
           </div>
         </div>
+      )}
+      {addingParent && (
+        <AddParentForm
+          householdId={household.id} orgId={orgId}
+          onDone={() => { setAddingParent(false); onSaved?.() }}
+          onCancel={() => setAddingParent(false)}
+        />
       )}
       {addingChild && (
         <AddChildForm

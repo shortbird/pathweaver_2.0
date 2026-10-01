@@ -75,6 +75,10 @@ export const sisFamilyApi = {
   // A child the family has no Optio account for: addMember connects one that
   // exists, this one creates it (under 13 a managed profile, 13+ their own login).
   addChild: (householdId, body) => api.post(`/api/sis/households/${householdId}/children`, body),
+  // A parent with no Optio account yet: the account is made, joins the family,
+  // and gets a set-your-password email. An adult already at the school is just
+  // connected.
+  addGuardian: (householdId, body) => api.post(`/api/sis/households/${householdId}/guardians`, body),
   removeMember: (householdId, userId, orgId) =>
     api.delete(`/api/sis/households/${householdId}/members/${userId}?organization_id=${orgId}`),
   message: (householdId, subject, body, orgId) =>

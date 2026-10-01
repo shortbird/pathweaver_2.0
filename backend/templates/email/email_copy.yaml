@@ -423,6 +423,20 @@ emails:
     closing_paragraph: "This link expires in {{ expiry_days }} days. If it has expired, use \"Forgot password\" on the login page with this email address."
     signature: "support"
 
+  guardian_account_invite:
+    subject: "{{ org_name }} set up your Optio parent account"
+    title: "Your Optio account is ready"
+    salutation: "Hi {{ user_name }},"
+    paragraphs:
+      - "{{ org_name }} added you to your family on Optio. Optio is where you see your children's classes, schedule, and learning, and message the school."
+      - "To get started, click the button below and choose a password. You'll sign in with this email address."
+    cta:
+      text: "Set My Password"
+      url: "{{ invite_link }}"
+    link_fallback: "If the button doesn't work, copy and paste this link into your browser:"
+    closing_paragraph: "This link expires in {{ expiry_days }} days. If it has expired, use \"Forgot password\" on the login page with this email address."
+    signature: "support"
+
   student_account_invite:
     subject: "{{ parent_name }} set up your Optio account"
     title: "Your Optio account is ready"
