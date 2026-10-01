@@ -11,21 +11,16 @@ This is also how a family's request reaches the right person now. Forms are
 gone (the tasks stream removes them); a parent uses "Message the school", and
 the office makes the message a task for whoever should handle it.
 
-Two writes, in this order:
+One write: the task, through sis_onboarding_service.assign_task -- the one
+task table (sis_onboarding_assignments), with the thread it came from
+(source_conversation_id / source_group_id / source_message_id) and what to do
+about it (action 'reply' | 'do'). The tasks page reads those to offer "Open
+the thread".
 
-  1. The task, through sis_onboarding_service.assign_task -- the one task
-     table (sis_onboarding_assignments), with the thread it came from
-     (source_conversation_id / source_group_id / source_message_id) and what
-     to do about it (action 'reply' | 'do'). The tasks page reads those to
-     offer "Open the thread".
-  2. The grant (school_thread_grants): the assignee may open that one thread
-     in the console and answer it as the school. The grant carries the task
-     id, and school_inbox_service.active_grants treats a finished or deleted
-     task as the end of the access.
-
-A task without its grant is recoverable (the office can open the thread
-itself); a grant without its task would be access with no end, so the task
-goes first and a failed task writes no grant.
+The task goes to somebody in the front office, because the front office is
+who can open a school thread. Until 2026-10-01 it could go to any teacher,
+with a grant (school_thread_grants) for that one thread; in production nobody
+was ever given one, and the access rule it needed sat on every thread read.
 """
 
 from typing import Any, Dict, List, Optional
@@ -40,17 +35,6 @@ MAX_TITLE = 120
 MAX_NOTE = 2000
 #: How much of the message a task quotes: enough to know which one it was.
 QUOTE_CHARS = 280
-
-
-# admin client justified: school_thread_grants is service-role only (RLS on,
-#   no policies); the route gates the caller to the org's front office before
-#   a grant is written.
-from utils.admin_client import admin_client as _admin  # noqa: E402
-
-
-def _repo():
-    from repositories.school_thread_repository import SchoolThreadRepository
-    return SchoolThreadRepository(client=_admin())
 
 
 def _title(action: str, member_name: Optional[str], thread_name: Optional[str],
@@ -92,15 +76,15 @@ def create_task_from_thread(org_id: str, assigner_id: str, assignee_id: str, *,
                             thread_name: Optional[str] = None,
                             quote: Optional[str] = None,
                             quote_sender: Optional[str] = None) -> Dict[str, Any]:
-    """Make the task and grant the thread. Returns {task, grant}.
+    """Make the task. Returns {task}.
 
     Exactly one of conversation_id / group_id names the thread; message_id is
     the message the office picked, when it picked one. `member_name`,
     `thread_name`, `quote` and `quote_sender` only word the task.
 
     Raises ValueError on anything the office can fix (no thread, an assignee
-    who is not staff here, an action or priority the task table refuses) and
-    RuntimeError when the task could not be written.
+    outside the front office, an action or priority the task table refuses)
+    and RuntimeError when the task could not be written.
     """
     if bool(conversation_id) == bool(group_id):
         raise ValueError('Pick one thread to make a task from')
@@ -111,10 +95,10 @@ def create_task_from_thread(org_id: str, assigner_id: str, assignee_id: str, *,
     if not assignee_id:
         raise ValueError('Choose who the task is for')
 
-    from services import sis_messaging_service
-    staff = {p['id'] for p in sis_messaging_service.staff_recipients(org_id)}
-    if assignee_id not in staff:
-        raise ValueError('The task has to go to somebody on staff at this school')
+    from services import school_inbox_service
+    if assignee_id not in set(school_inbox_service.admin_recipient_ids(org_id)):
+        raise ValueError('The task has to go to somebody in the front office: '
+                         'they are who can open this thread')
 
     task_title = ((title or '').strip()[:MAX_TITLE]
                   or _title(action, member_name, thread_name, quote))
@@ -142,12 +126,7 @@ def create_task_from_thread(org_id: str, assigner_id: str, assignee_id: str, *,
         if error:
             raise ValueError(error)
         raise RuntimeError('The task could not be created')
-    task = rows[0]
-
-    grant = _repo().create_grant(
-        organization_id=org_id, user_id=assignee_id, task_id=task.get('id'),
-        granted_by=assigner_id, conversation_id=conversation_id, group_id=group_id)
-    return {'task': task, 'grant': grant}
+    return {'task': rows[0]}
 
 
 def _created_rows(created: Any) -> List[Dict[str, Any]]:

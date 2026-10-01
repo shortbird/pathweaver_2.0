@@ -396,7 +396,7 @@ def register_all(app):
     from routes.push_subscriptions import bp as push_subscriptions_bp
     app.register_blueprint(push_subscriptions_bp)
 
-    # ── Inbound mail (SendGrid Inbound Parse -> Optio messages) ───────────────
+    # ── Inbound mail (SendGrid Inbound Parse -> CRM Meet notes) ───────────────
     from routes.inbound_email import bp as inbound_email_bp
     app.register_blueprint(inbound_email_bp)
 

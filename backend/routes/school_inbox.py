@@ -11,14 +11,9 @@ Access: ADMIN_ROLES (org_admin, campus_coordinator, superadmin) — the same tie
 that runs the rest of the front office. A superadmin picks the org with
 ?organization_id=; everyone else is locked to their own org.
 
-One exception, per thread (iCreate, 2026-09-23, d93b24d2): a staff member the
-office handed a thread to with a task ("Make a task", thread_task_service)
-holds a grant for it. The routes that open ONE thread -- read it, answer it --
-take STAFF_ROLES and then ask school_inbox_service.thread_access, which lets in
-the office or a live grant for exactly that thread. Everything that lists or
-manages the inbox (the thread list, resolve, the badge, the group list, making
-a task) stays ADMIN_ROLES. A granted teacher's reply goes out as the school
-with their name shown to the family ("Kate for iCreate").
+Every route is ADMIN_ROLES. For a week a teacher could be handed one thread
+with a task and answer it as the school (d93b24d2); nobody ever was, and the
+grant was removed on 2026-10-01 (school_inbox_service.thread_access).
 """
 
 from flask import Blueprint, request
@@ -30,7 +25,7 @@ from utils.auth.decorators import require_role
 from utils.auth.relationships import require_relationship_to
 from utils.api_response import success_response, error_response
 from utils.logger import get_logger
-from utils.sis_roles import ADMIN_ROLES, STAFF_ROLES
+from utils.sis_roles import ADMIN_ROLES
 from utils.validation.validators import validate_string_length
 from middleware.error_handler import ValidationError
 
@@ -82,13 +77,11 @@ def list_threads(user_id: str):
 
 
 @bp.route('/conversations/<conversation_id>', methods=['GET'])
-@require_role(*STAFF_ROLES)
+@require_role(*ADMIN_ROLES)
 def get_thread(user_id: str, conversation_id: str):
     """One thread's messages, read as the school. Marks the member's messages
     read (the inbox is shared: one staff member reading reads for all) and
-    records WHICH staff member opened it (9b46c748), returned as `opened_by`.
-
-    The office, or a staff member with a live grant for this thread."""
+    records WHICH staff member opened it (9b46c748), returned as `opened_by`."""
     try:
         ctx, err = _resolve_inbox(user_id)
         if err:
@@ -128,28 +121,20 @@ def get_thread(user_id: str, conversation_id: str):
 
 
 @bp.route('/conversations/<target_user_id>/send', methods=['POST'])
-@require_role(*STAFF_ROLES)
+@require_role(*ADMIN_ROLES)
 @require_relationship_to('target_user_id', allow=('org_staff',))
 def send_as_school(user_id: str, target_user_id: str):
     """Reply to a member as the school. The member sees the school's name;
     sent_by_user_id records the actual author for the rest of the team.
 
-    A staff member outside the office may send only into a thread they hold a
-    live grant for -- the school's existing thread with this member -- and
-    their reply names them to the member ("Kate for iCreate", d93b24d2). They
-    cannot start a new thread as the school."""
+    A reply typed into the school's existing thread stays in that thread. With
+    no thread yet this starts one, and send_as_school decides the voice: the
+    school's for a family or student, the author's own for a colleague."""
     try:
         ctx, err = _resolve_inbox(user_id)
         if err:
             return err
-        via = 'office' if sis_service.caller_is_admin(user_id) else None
-        if not via:
-            convo = school_inbox_service.conversation_with_member(
-                ctx['inbox_user_id'], target_user_id)
-            if convo and school_inbox_service.thread_access(
-                    user_id, ctx['org'], conversation_id=convo['id']):
-                via = 'grant'
-        if not via:
+        if not school_inbox_service.thread_access(user_id, ctx['org']):
             return error_response('Conversation not found', status_code=404,
                                   error_code='not_found')
         data = request.get_json() or {}
@@ -160,11 +145,13 @@ def send_as_school(user_id: str, target_user_id: str):
         if content:
             validate_string_length(content, 'content', max_length=2000)
 
+        convo = school_inbox_service.conversation_with_member(
+            ctx['inbox_user_id'], target_user_id)
         message = school_inbox_service.send_as_school(
             ctx['org'], target_user_id, content, sent_by=user_id,
             reply_to_message_id=data.get('reply_to_message_id'),
             attachments=attachments,
-            **({'show_sender_name': True} if via == 'grant' else {}),
+            in_thread=bool(convo and convo.get('last_message_at')),
         )
         return success_response({
             'message': message,
@@ -242,10 +229,8 @@ def unread_count(user_id: str):
 #
 # Access is school_inbox_service.school_group_access on every id route: the
 # group must be owned by an org's inbox account, and the caller must be that
-# org's front office (or a superadmin), or hold a live grant for that group
-# (d93b24d2). ADMIN_ROLES alone would let one school's admin read another
-# school's group by id; the id routes take STAFF_ROLES so a granted teacher
-# reaches the check at all.
+# org's front office (or a superadmin). ADMIN_ROLES alone would let one
+# school's admin read another school's group by id.
 
 group_service = GroupMessageService()
 
@@ -283,7 +268,7 @@ def _school_group_or_404(user_id, group_id):
 
 
 @bp.route('/groups/<group_id>', methods=['GET'])
-@require_role(*STAFF_ROLES)
+@require_role(*ADMIN_ROLES)
 def get_school_group(user_id: str, group_id: str):
     """Group details (members, pin, settings), read as the school."""
     try:
@@ -301,7 +286,7 @@ def get_school_group(user_id: str, group_id: str):
 
 
 @bp.route('/groups/<group_id>/messages', methods=['GET'])
-@require_role(*STAFF_ROLES)
+@require_role(*ADMIN_ROLES)
 def get_school_group_messages(user_id: str, group_id: str):
     """One page of a school group, read as the school. Reading it marks it read
     for the whole office, the same shared read state as the school's DMs."""
@@ -315,6 +300,14 @@ def get_school_group_messages(user_id: str, group_id: str):
                                           limit=limit, offset=offset)
         school_inbox_service.record_thread_read(access['org']['id'], user_id,
                                                 group_id=group_id)
+        # The office's bell holds one row per chat now, and a new message only
+        # rings when that row has been read. Reading the group here has to
+        # read the row, or it absorbs every later message in silence.
+        try:
+            from services.notification_service import NotificationService
+            NotificationService().mark_group_message_notifications_read(user_id, group_id)
+        except Exception as read_err:  # noqa: BLE001
+            logger.warning(f"School group bell sync failed: {read_err}")
         return success_response({
             'messages': messages,
             'group_id': group_id,
@@ -334,7 +327,7 @@ def get_school_group_messages(user_id: str, group_id: str):
 
 
 @bp.route('/groups/<group_id>/messages', methods=['POST'])
-@require_role(*STAFF_ROLES)
+@require_role(*ADMIN_ROLES)
 def send_to_school_group(user_id: str, group_id: str):
     """Write in a school group. The school's membership lets the caller in; the
     message is sent under the caller's own name."""
@@ -368,38 +361,7 @@ def send_to_school_group(user_id: str, group_id: str):
                               error_code='internal_error')
 
 
-# ── Threads handed to a staff member, and making the task ────────────────────
-
-
-@bp.route('/granted', methods=['GET'])
-@require_role(*STAFF_ROLES)
-def list_granted_threads(user_id: str):
-    """The school threads the caller holds a live grant for: what a teacher
-    sees under the school's name in the console (d93b24d2). Shaped like the
-    inbox's own lists so the page renders them with the same rows."""
-    try:
-        ctx, err = _resolve_inbox(user_id)
-        if err:
-            return err
-        ids = school_inbox_service.granted_thread_ids(user_id, ctx['org']['id'])
-        conversations = []
-        if ids['conversations']:
-            conversations = [c for c in message_service.get_user_conversations(ctx['inbox_user_id'])
-                             if c.get('id') in ids['conversations']]
-        groups = []
-        if ids['groups']:
-            groups = [g for g in _groups().get_school_groups(ctx['inbox_user_id'])
-                      if g.get('id') in ids['groups']]
-        return success_response({
-            'organization': {'id': ctx['org']['id'], 'name': ctx['org']['name']},
-            'inbox_user_id': ctx['inbox_user_id'],
-            'conversations': conversations,
-            'groups': groups,
-        })
-    except Exception as e:
-        logger.error(f"Error listing granted school threads: {str(e)}")
-        return error_response('Failed to load your school threads', status_code=500,
-                              error_code='internal_error')
+# ── Making a task from a thread ───────────────────────────────────────────────
 
 
 def _task_payload():
@@ -418,8 +380,8 @@ def _task_payload():
 @bp.route('/conversations/<conversation_id>/task', methods=['POST'])
 @require_role(*ADMIN_ROLES)
 def make_task_from_conversation(user_id: str, conversation_id: str):
-    """Turn a school thread (or one message in it) into a task for a staff
-    member, and give them the thread (bf8b754d, d93b24d2).
+    """Turn a school thread (or one message in it) into a task for somebody
+    in the front office (bf8b754d).
 
     Body: {assignee_id, action: 'reply'|'do', due_date?, priority?, note?,
            message_id?, title?}
@@ -459,8 +421,6 @@ def make_task_from_group(user_id: str, group_id: str):
     access, err = _school_group_or_404(user_id, group_id)
     if err:
         return err
-    if access.get('via') != 'office':
-        return error_response('Group not found', status_code=404, error_code='not_found')
     body = _task_payload()
     quote, quote_sender = _quoted(body['message_id'], None, access, group_id=group_id)
     if body['message_id'] and quote is None:

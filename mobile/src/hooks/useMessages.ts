@@ -134,6 +134,9 @@ export interface Group {
   last_message_at: string | null;
   last_message_preview: string | null;
   unread_count: number;
+  /** The viewer muted this chat's alerts: no bell notification and no push
+   *  for it. Their own setting; `unread_count` above still climbs. */
+  muted?: boolean;
   // Matches GET /api/groups/:id — each member row carries its `role` in the
   // group ('admin' | 'member') plus a hydrated `user` object.
   members?: {
@@ -354,14 +357,6 @@ export async function forwardMessageToSchool(messageId: string) {
   return data.data || data;
 }
 
-/** Superadmin: mail a copy of this message to your own inbox.
- *  Returns { emailed_to, replies_enabled } — replies_enabled says whether
- *  answering that email posts back into this thread. */
-export async function emailMessageToMe(messageId: string) {
-  const { data } = await messageAPI.emailToMe(messageId);
-  return data.data || data;
-}
-
 export async function deleteGroupMessage(groupId: string, messageId: string) {
   const { data } = await groupAPI.deleteMessage(groupId, messageId);
   return data.data || data;
@@ -488,6 +483,13 @@ export async function createGroup(name: string, description?: string, memberIds?
 /** Mark group messages as read */
 export async function markGroupRead(groupId: string) {
   const { data } = await groupAPI.markRead(groupId);
+  return data.data || data;
+}
+
+/** Mute or unmute one chat's alerts for the signed-in member. Returns
+ *  { muted } as the server saved it. */
+export async function setGroupMuted(groupId: string, muted: boolean) {
+  const { data } = await groupAPI.mute(groupId, muted);
   return data.data || data;
 }
 

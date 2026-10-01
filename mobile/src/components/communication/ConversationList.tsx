@@ -229,6 +229,7 @@ function groupRowEqual(a: GroupRowProps, b: GroupRowProps) {
     x.unread_count === y.unread_count &&
     x.last_message_at === y.last_message_at &&
     x.last_message_preview === y.last_message_preview &&
+    !!x.muted === !!y.muted &&
     groupChipsKey(x) === groupChipsKey(y)
   );
 }
@@ -270,13 +271,26 @@ const GroupRow = React.memo(function GroupRow({
       </View>
       <View className="flex-1 ml-3">
         <View className="flex-row items-center justify-between">
-          <UIText
-            size="sm"
-            className={`font-poppins-semibold flex-1 ${group.unread_count ? 'text-typo dark:text-dark-typo' : 'text-typo-700 dark:text-dark-typo-700'}`}
-            numberOfLines={1}
-          >
-            {group.name}
-          </UIText>
+          <View className="flex-row items-center flex-1">
+            <UIText
+              size="sm"
+              className={`font-poppins-semibold flex-shrink ${group.unread_count ? 'text-typo dark:text-dark-typo' : 'text-typo-700 dark:text-dark-typo-700'}`}
+              numberOfLines={1}
+            >
+              {group.name}
+            </UIText>
+            {/* A muted chat still counts unread on this row; the icon says
+                why nothing about it reaches the bell or the phone. */}
+            {!!group.muted && (
+              <Ionicons
+                name="notifications-off-outline"
+                size={14}
+                color={iconMuted}
+                style={{ marginLeft: 4 }}
+                accessibilityLabel="Alerts muted"
+              />
+            )}
+          </View>
           {group.last_message_at && (
             <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400 ml-2">
               {formatTime(group.last_message_at)}

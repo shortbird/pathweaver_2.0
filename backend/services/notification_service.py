@@ -389,15 +389,12 @@ class NotificationService(BaseService):
             Number of notifications updated
         """
         try:
-            result = self.supabase.table('notifications')\
-                .update({'is_read': True})\
-                .eq('user_id', user_id)\
-                .eq('type', 'message_received')\
-                .eq('is_read', False)\
-                .eq('metadata->>group_id', group_id)\
-                .execute()
-
-            count = len(result.data) if result.data else 0
+            # The query lives in the repository so the group service can run
+            # the same one on its own client while a chat is open
+            # (GroupMessageService.get_messages) without a second copy of it.
+            from repositories.notification_repository import NotificationRepository
+            count = NotificationRepository(client=self.supabase).mark_group_messages_read(
+                user_id, group_id)
             if count:
                 logger.info(
                     f"Marked {count} group message notifications read for user "

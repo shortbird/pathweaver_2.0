@@ -11,14 +11,18 @@ import { INPUT_CLASS as field } from '../ui/Input'
  * iCreate, 2026-09-23 (bf8b754d): "Replies in messaging can be turned into
  * tasks and assigned to school staff. these show in the assignee's tasks page.
  * if the task is to reply, they click the task and are directed to the message
- * thread to reply. otherwise they can mark the task as done." And d93b24d2:
- * the person given the task may be a teacher with no school inbox -- "they get
- * the whole thread and can reply."
+ * thread to reply. otherwise they can mark the task as done."
  *
- * The server writes the task and gives the assignee the thread until the task
- * is done (thread_task_service). Their reply goes out as the school with their
- * name shown to the family.
+ * The task goes to somebody in the front office, because the front office is
+ * who can open a school thread (thread_task_service holds the same rule). It
+ * could go to any teacher, with the thread lent to them, until 2026-10-01;
+ * nobody was ever given one.
  */
+
+/** The people who read the school inbox: admins and campus coordinators. */
+const OFFICE_ROLES = ['org_admin', 'campus_coordinator']
+export const officeStaff = (people) => (people || [])
+  .filter((p) => (p.roles || []).some((r) => OFFICE_ROLES.includes(r)))
 
 export const PRIORITIES = [
   { value: 'low', label: 'Low' },
@@ -35,7 +39,7 @@ export default function MakeTaskModal({ isOpen, ...props }) {
 function MakeTaskDialog({ onClose, orgId, conversationId = null, groupId = null,
   message = null, threadLabel = '', onCreated }) {
   const staffQuery = useStaffRecipients(orgId)
-  const staff = staffQuery.isError ? [] : (staffQuery.data ?? null)
+  const staff = staffQuery.isError ? [] : (staffQuery.data ? officeStaff(staffQuery.data) : null)
   const makeTask = useMakeThreadTask(orgId)
   const [assignee, setAssignee] = useState('')
   const [action, setAction] = useState('reply')
@@ -98,10 +102,10 @@ function MakeTaskDialog({ onClose, orgId, conversationId = null, groupId = null,
             <SearchSelect value={assignee} onChange={setAssignee} options={staff}
               getId={(p) => p.id}
               getLabel={(p) => ((p.role_labels || []).length ? `${p.name} (${p.role_labels.join(', ')})` : p.name)}
-              placeholder="Search staff" />
+              placeholder="Search the front office" />
           )}
           <span className="block text-xs text-neutral-500 mt-1">
-            They can read the whole thread and answer it as the school until the task is done.
+            Somebody in the front office. The task links to this thread.
           </span>
         </div>
         <fieldset>

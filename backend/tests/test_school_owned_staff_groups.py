@@ -10,6 +10,11 @@ school-inbox account, the actor is recorded as the sender of what they wrote,
 and the org's front office reads it the way it reads the school's DMs. A group
 sent from My messages stays the actor's own.
 
+The school-tab send itself is message_compose_service's since 2026-09-23 and
+is tested in test_message_compose.py; the older staff composer
+(sis_messaging_service) lost its unreachable "as the school" half on
+2026-10-01, and the three tests of it went with it.
+
 Also here, 11f6ad24: the bell notification for a member's message to the school
 linked to '/inbox' with no thread, so "View details" went nowhere.
 """
@@ -89,29 +94,6 @@ def staff():
 
 @pytest.mark.unit
 class TestSchoolTabGroupIsOwnedByTheSchool:
-    def test_compose_from_the_school_tab_creates_a_school_group(self, staff):
-        """ac84b6cd: the School tab's group is the school's, written by Kate."""
-        svc = Mock()
-        svc.create_school_group.return_value = {'id': 'group-1'}
-        svc.send_message.return_value = {'id': 'msg-1'}
-        with patch('services.group_message_service.GroupMessageService', return_value=svc), \
-             patch.object(school_inbox_service, 'school_account', return_value=(ORG, INBOX)):
-            result = messaging.compose(ORG_ID, KATE, body='Gate code changed',
-                                       recipient_ids=[TEACHER_A, TEACHER_B],
-                                       as_school=True)
-
-        assert result['mode'] == 'group'
-        svc.create_group.assert_not_called()
-        args = svc.create_school_group.call_args
-        assert args.args[:3] == (ORG_ID, INBOX, KATE)
-        assert sorted(args.kwargs['member_ids']) == [TEACHER_A, TEACHER_B]
-        assert args.kwargs['audience'] == 'staff'
-        # The actor is the sender of the message; the school's membership is
-        # what lets them post.
-        send = svc.send_message.call_args
-        assert send.args[0] == KATE
-        assert send.kwargs['on_behalf_of'] == INBOX
-
     def test_a_school_group_is_created_by_the_inbox_and_records_the_actor(self):
         """The group row and memberships: the inbox creates and administers
         it, every membership names Kate as who added it, and Kate is not a
@@ -138,27 +120,6 @@ class TestSchoolTabGroupIsOwnedByTheSchool:
         with patch.object(svc, 'can_create_group', return_value=False):
             with pytest.raises(ValueError):
                 svc.create_school_group(ORG_ID, INBOX, PARENT, 'x', [TEACHER_A])
-
-    def test_the_school_tab_group_fails_rather_than_filing_it_personally(self, staff):
-        """No inbox account: a retryable error, never the old personal group."""
-        svc = Mock()
-        with patch('services.group_message_service.GroupMessageService', return_value=svc), \
-             patch.object(school_inbox_service, 'school_account', return_value=(ORG, None)):
-            with pytest.raises(RuntimeError):
-                messaging.compose(ORG_ID, KATE, body='Hi',
-                                  recipient_ids=[TEACHER_A, TEACHER_B], as_school=True)
-        svc.create_group.assert_not_called()
-
-    def test_separate_messages_from_the_school_tab_go_as_the_school(self, staff):
-        sent = []
-        with patch.object(school_inbox_service, 'send_as_school',
-                          side_effect=lambda org, rid, content, **k: sent.append((org, rid, k))
-                          or {'conversation_id': f'conv-{rid}'}):
-            result = messaging.compose(ORG_ID, KATE, body='Paperwork', mode='separate',
-                                       recipient_ids=[TEACHER_A, TEACHER_B], as_school=True)
-        assert result['sent'] == 2
-        assert {rid for _o, rid, _k in sent} == {TEACHER_A, TEACHER_B}
-        assert {k['sent_by'] for _o, _r, k in sent} == {KATE}
 
 
 @pytest.mark.unit

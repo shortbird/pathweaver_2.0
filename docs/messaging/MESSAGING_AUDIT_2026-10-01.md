@@ -374,3 +374,58 @@ messages. That is not built yet.
 Still open from §3.4: the other dead links (`/sis`, `/credit-review`,
 `/parent-dashboard`, `/treehouse/facilitator`, the Expo path, the absolute waitlist
 URL, `/forms` for parents) and the retired `/communication` path.
+
+## 10. Decisions and the build that followed (2026-10-01)
+
+The owner answered §6:
+
+1. Office to family is always the school thread.
+2. A school without the console delivers to the admin's own messages. Not built;
+   Hearthwood was set aside.
+3. Class chats: one bell row per chat with a count, one phone alert per chat until
+   it is opened, and a mute switch per chat.
+4. Remove teacher thread grants and reply by email.
+
+What was built from those answers, and where the rule lives:
+
+**One sender rule** (`message_compose_service.voice_for`,
+`school_inbox_service.send_as_school`). A family or student hears from the school.
+Somebody on staff hears from the colleague who wrote, by name, including a teacher
+who is also a parent. One exception, about the thread and not the person: a reply
+typed into the school's existing thread with a teacher stays there, signed. The
+Compose dialog's From line reads `voice` from the server per person and can say
+"iCreate and you" for a mixed send. Gone: family-over-staff precedence, `_room_kinds`,
+the client's own copy of the rule, and the unreachable "as the school" half of
+`sis_messaging_service`.
+
+**One thread between the office and a family**
+(`school_inbox_service.office_family_route`). A personal message between current
+office staff and a family or student of the same console school is school mail in
+both directions: the office member's goes out as the school with their name
+recorded; the family's goes to the school inbox. Not within one family (an office
+member writing to their own child or the child's other parent), not for archived
+staff, not for teachers, not for a school without the console. The contact list
+follows the same rule (`school_mail_contact_ids`), and the console sends the
+office to the school tab after such a send. The 11 existing personal threads with
+messages (42 messages, iCreate and Horizon) were merged into the school's threads.
+
+**Quieter class chats** (`group_message_service._deliver_group_notifications`,
+`notification_repository`). One unread bell row per member per chat, rewritten in
+place with a count; a push only when a new row is made. Mute is a
+`notification_preferences` row keyed `chat_muted:<group_id>`, so no schema change;
+`POST /api/groups/<id>/mute`, a toggle in the chat header on web and mobile. 1,652
+old per-message bell rows were folded into 326 counted rows.
+
+**Removed.** Teacher thread grants: every school-inbox route is `ADMIN_ROLES`, "Make
+a task" assigns within the front office. Reply by email: the relay service, its
+route and the two client actions; the inbound webhook stays for Meet notes. Both
+tables (`school_thread_grants`, `message_email_relays`) are still in the database.
+
+**After the release**, run `backend/scripts/move_office_school_threads.py --apply`
+once more. Production ran the old code between the repair and the deploy, so a few
+new personal threads and per-message bell rows will exist. The script is idempotent.
+
+Still open: the mobile app cannot show the school inbox (§3.3), which this build
+makes more visible, because a family's message to an office member now always
+lands there. Also open: the dead links and `/communication` (§3.4), one badge
+definition (§3.3), notification settings on the web, and decision 2.

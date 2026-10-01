@@ -80,6 +80,55 @@ def test_the_office_does_not_see_its_school_thread_in_my_messages(client, auth_h
     assert [c['id'] for c in r.get_json()['data']['conversations']] == ['c2']
 
 
+def _post_dm(client, auth_headers, route):
+    school_msg = {'id': 'm1', 'conversation_id': 'c-school', 'sender_id': 'inbox-1'}
+    with patch.object(school_inbox_service, 'office_family_route', return_value=route), \
+         patch.object(school_inbox_service, 'send_as_school', return_value=school_msg) as school, \
+         patch.object(dm_routes.message_service, 'send_message',
+                      return_value={'id': 'm2', 'conversation_id': 'c-x'}) as personal:
+        r = client.post('/api/messages/conversations/target-1/send', headers=auth_headers,
+                        json={'content': 'hi', 'reply_to_message_id': 'm-0'})
+    return r, school, personal
+
+
+def test_an_office_members_message_to_a_parent_goes_out_as_the_school(client, auth_headers, mock_verify_token):
+    mock_verify_token.return_value = 'marika'
+    r, school, personal = _post_dm(client, auth_headers, {
+        'direction': 'to_family', 'org': ORG, 'inbox_user_id': 'inbox-1'})
+    assert r.status_code == 200
+    assert r.get_json()['data']['conversation_id'] == 'c-school'
+    assert school.call_args.args[:3] == (ORG, 'target-1', 'hi')
+    assert school.call_args.kwargs['sent_by'] == 'test-user-123'
+    personal.assert_not_called()
+
+
+def test_a_parents_message_to_an_office_member_lands_in_the_school_inbox(client, auth_headers, mock_verify_token):
+    mock_verify_token.return_value = 'mum'
+    r, school, personal = _post_dm(client, auth_headers, {
+        'direction': 'to_office', 'org': ORG, 'inbox_user_id': 'inbox-1'})
+    assert r.status_code == 200
+    school.assert_not_called()
+    assert personal.call_args.args[:3] == ('test-user-123', 'inbox-1', 'hi')
+
+
+def test_any_other_message_is_the_personal_one_it_looks_like(client, auth_headers, mock_verify_token):
+    mock_verify_token.return_value = 'tam'
+    r, school, personal = _post_dm(client, auth_headers, None)
+    assert r.status_code == 200
+    school.assert_not_called()
+    assert personal.call_args.args[:3] == ('test-user-123', 'target-1', 'hi')
+    assert personal.call_args.kwargs['reply_to_message_id'] == 'm-0'
+
+
+def test_contacts_leave_out_the_people_reached_through_the_school():
+    contacts = [{'id': 'tam'}, {'id': 'mum'}, {'id': 'inbox-1', 'is_school': True}]
+    with patch.object(school_inbox_service, 'school_mail_contact_ids',
+                      return_value={'mum'}) as rule:
+        dm_routes._drop_school_mail_contacts(contacts, 'marika')
+    assert [c['id'] for c in contacts] == ['tam', 'inbox-1']
+    assert rule.call_args.args == ('marika', ['tam', 'mum'])
+
+
 def test_office_inbox_id_is_only_the_offices():
     with patch.object(school_inbox_service, 'member_org', return_value=ORG), \
          patch('services.sis_service.caller_is_admin', side_effect=[True, False]):
@@ -97,24 +146,28 @@ def _send_as_school_to(recipient_is_staff, *, office=None, **kwargs):
     return dm.send_message.call_args, staff
 
 
-def test_the_office_hears_from_the_person_not_the_school():
+def test_somebody_on_staff_hears_from_the_person_not_the_school():
     """iCreate, 2026-09-30: Becky's "Announcements" notes to Marika (office,
     and a parent there) went out as the school. Marika's phone rang with "New
-    message from iCreate", and the thread was hidden from her My messages."""
-    call, _ = _send_as_school_to(True, office='inbox-1', reply_to_message_id='m-9')
-    assert call.args[:2] == ('becky', 'r-1')
-    assert 'sent_by_user_id' not in call.kwargs
-    assert 'reply_to_message_id' not in call.kwargs
+    message from iCreate", and the thread was hidden from her My messages.
+    The same holds for a teacher who is a parent here (audit 2026-10-01): a
+    new message to a colleague is the author's own."""
+    for office in ('inbox-1', None):
+        call, staff = _send_as_school_to(True, office=office, reply_to_message_id='m-9')
+        assert call.args[:2] == ('becky', 'r-1')
+        assert 'sent_by_user_id' not in call.kwargs
+        assert 'reply_to_message_id' not in call.kwargs
+        staff.assert_called_once_with('org-1', 'r-1')
 
 
-def test_nobody_in_the_office_writes_to_themselves_as_the_school():
-    """The last way into the thread My messages leaves out: an office member
-    messaging their own household from the People page. It rang their own
-    phone as the school and sat in a badge nothing could clear (audit
-    2026-10-01)."""
+def test_nobody_on_staff_writes_to_themselves_as_the_school():
+    """An office member messaging their own household from the People page
+    rang their own phone as the school and sat in a badge nothing could clear
+    (audit 2026-10-01)."""
     import pytest
     dm = MagicMock()
     with patch.object(school_inbox_service, 'school_account', return_value=(ORG, 'inbox-1')), \
+         patch.object(school_inbox_service, 'is_org_staff', return_value=True), \
          patch.object(school_inbox_service, 'office_inbox_id', return_value='inbox-1'), \
          patch('services.direct_message_service.DirectMessageService', return_value=dm):
         with pytest.raises(ValueError):
@@ -122,22 +175,135 @@ def test_nobody_in_the_office_writes_to_themselves_as_the_school():
     dm.send_message.assert_not_called()
 
 
-def test_another_schools_office_still_hears_from_this_school():
-    call, _ = _send_as_school_to(False, office='inbox-other')
+def test_a_reply_in_a_teachers_thread_stays_in_it_signed():
+    """A teacher wrote to the office; the answer belongs in that thread, and
+    says who gave it. "I would like it if you signed your name so it is easy
+    for us to tell which CC or admin is sending the messages" (iCreate,
+    2026-09-24)."""
+    call, _ = _send_as_school_to(True, in_thread=True, reply_to_message_id='m-9')
     assert call.args[:2] == ('inbox-1', 'r-1')
-
-
-def test_a_colleague_is_told_who_wrote_a_school_message():
-    """"I would like it if you signed your name so it is easy for us to tell
-    which CC or admin is sending the messages" (iCreate, 2026-09-24)."""
-    call, staff = _send_as_school_to(True)
     assert call.kwargs['show_sender_name'] is True
-    staff.assert_called_once_with('org-1', 'r-1')
+    assert call.kwargs['sent_by_user_id'] == 'becky'
+    assert call.kwargs['reply_to_message_id'] == 'm-9'
 
 
-def test_a_family_still_hears_from_the_school():
-    call, _ = _send_as_school_to(False)
-    assert 'show_sender_name' not in call.kwargs
+def test_the_office_has_no_such_thread_so_it_is_always_personal():
+    call, _ = _send_as_school_to(True, office='inbox-1', in_thread=True)
+    assert call.args[:2] == ('becky', 'r-1')
+
+
+def test_a_family_hears_from_the_school():
+    for in_thread in (False, True):
+        call, _ = _send_as_school_to(False, in_thread=in_thread)
+        assert call.args[:2] == ('inbox-1', 'r-1')
+        assert call.kwargs['sent_by_user_id'] == 'becky'
+        assert 'show_sender_name' not in call.kwargs
+
+
+# ── One thread between the office and a family ──
+
+def _route(sender, target, *, office_of, uses_inbox=True, staff=(), member=True, family=False,
+           current=True):
+    with patch.object(school_inbox_service, 'office_inbox_id',
+                      side_effect=lambda u: 'inbox-1' if u == office_of else None), \
+         patch.object(school_inbox_service, 'member_org', return_value=ORG), \
+         patch.object(school_inbox_service, 'org_uses_school_inbox', return_value=uses_inbox), \
+         patch.object(school_inbox_service, 'admin_recipient_ids',
+                      return_value=[office_of] if current and office_of else []), \
+         patch('services.sis_service.member_org_id', return_value='org-1' if member else None), \
+         patch.object(school_inbox_service, 'is_org_staff', side_effect=lambda o, u: u in staff), \
+         patch.object(school_inbox_service, '_own_family', return_value=family):
+        return school_inbox_service.office_family_route(sender, target)
+
+
+def test_the_office_writes_to_a_family_as_the_school():
+    """Owner decision, 2026-10-01: a parent held two threads with one person,
+    "iCreate" and "Marika Connole", and an answer in the second was read by
+    nobody else in the office."""
+    route = _route('marika', 'mum', office_of='marika')
+    assert route['direction'] == 'to_family' and route['inbox_user_id'] == 'inbox-1'
+
+
+def test_a_family_writing_to_an_office_member_reaches_the_school_inbox():
+    route = _route('mum', 'marika', office_of='marika')
+    assert route['direction'] == 'to_office' and route['org'] == ORG
+
+
+def test_colleagues_keep_their_own_thread():
+    assert _route('marika', 'tam', office_of='marika', staff=('tam',)) is None
+
+
+def test_a_teacher_keeps_their_own_threads_with_families():
+    assert _route('tam', 'mum', office_of=None, staff=('tam',)) is None
+
+
+def test_an_office_member_writing_to_their_own_child_is_a_parent():
+    assert _route('marika', 'her-kid', office_of='marika', family=True) is None
+
+
+def test_a_school_without_the_console_keeps_personal_threads():
+    """Nobody there reads a school inbox, so an admin's own messages are how
+    a family reaches a person (org_uses_school_inbox)."""
+    assert _route('teresa', 'mum', office_of='teresa', uses_inbox=False) is None
+
+
+def test_a_coordinator_who_left_the_staff_is_a_parent_again():
+    """Katrine at iCreate: archived as staff, still holding the role columns,
+    still a parent. Her thread with another parent is theirs."""
+    assert _route('katrine', 'mum', office_of='katrine', current=False) is None
+    assert _route('mum', 'katrine', office_of='katrine', current=False) is None
+
+
+def test_somebody_outside_the_school_is_not_school_mail():
+    assert _route('marika', 'stranger', office_of='marika', member=False) is None
+
+
+def test_own_family_is_a_child_or_a_co_parent():
+    kids = {'marika': {'kid'}, 'dad': {'kid'}, 'mum': {'other-kid'}}
+    with patch('utils.class_membership.children_of_parent',
+               side_effect=lambda u: kids.get(u, set())), \
+         patch('utils.class_membership.guardians_by_student',
+               side_effect=lambda ids: {i: {p for p, k in kids.items() if i in k} for i in ids}):
+        assert school_inbox_service._own_family('marika', 'kid')
+        assert school_inbox_service._own_family('kid', 'marika')
+        assert school_inbox_service._own_family('marika', 'dad')
+        assert not school_inbox_service._own_family('marika', 'mum')
+
+
+def test_the_office_is_not_offered_families_by_name_nor_families_the_office():
+    """The contact list's half of the rule: nobody is offered a thread their
+    message would not land in."""
+    with patch.object(school_inbox_service, '_office_of', return_value=ORG), \
+         patch('services.message_compose_service.people_kinds',
+               return_value={'tam': 'staff', 'mum': 'family', 'ada': 'student', 'kid': 'student'}), \
+         patch.object(school_inbox_service, '_family_circle', return_value={'kid'}):
+        hidden = school_inbox_service.school_mail_contact_ids(
+            'marika', ['tam', 'mum', 'ada', 'kid', 'support'])
+    assert hidden == {'mum', 'ada'}
+
+    with patch.object(school_inbox_service, '_office_of', return_value=None), \
+         patch.object(school_inbox_service, 'office_inbox_id', return_value=None), \
+         patch.object(school_inbox_service, 'member_org', return_value=ORG), \
+         patch.object(school_inbox_service, 'org_uses_school_inbox', return_value=True), \
+         patch.object(school_inbox_service, 'is_org_staff', return_value=False), \
+         patch.object(school_inbox_service, 'admin_recipient_ids', return_value=['marika', 'becky']), \
+         patch.object(school_inbox_service, '_own_family', side_effect=lambda a, b: b == 'becky'):
+        hidden = school_inbox_service.school_mail_contact_ids('mum', ['marika', 'becky', 'tam'])
+    assert hidden == {'marika'}
+
+
+def test_a_teacher_is_offered_everyone_as_before():
+    with patch.object(school_inbox_service, '_office_of', return_value=None), \
+         patch.object(school_inbox_service, 'office_inbox_id', return_value=None), \
+         patch.object(school_inbox_service, 'member_org', return_value=ORG), \
+         patch.object(school_inbox_service, 'org_uses_school_inbox', return_value=True), \
+         patch.object(school_inbox_service, 'is_org_staff', return_value=True):
+        assert school_inbox_service.school_mail_contact_ids('tam', ['marika', 'mum']) == set()
+
+
+def test_a_failed_contact_rule_hides_nobody():
+    with patch.object(school_inbox_service, '_office_of', side_effect=RuntimeError('db')):
+        assert school_inbox_service.school_mail_contact_ids('mum', ['marika']) == set()
 
 
 def test_is_org_staff_needs_this_org_and_a_staff_role():

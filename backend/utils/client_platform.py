@@ -39,10 +39,12 @@ CLIENT_HEADER = 'X-Optio-Client'
 MOBILE = 'mobile'
 WEB = 'web'
 SIS = 'sis'
-EMAIL = 'email'   # an inbound email reply relayed into a thread; never a client
+EMAIL = 'email'   # a reply relayed in from email, until 2026-10-01; never a client
 
-# What a request may claim about itself. `email` is set by the relay service
-# on the server side, so it is not accepted from the header.
+# What a request may claim about itself. `email` was set on the server by the
+# reply-by-email relay (removed 2026-10-01: five uses, no replies). Stored
+# rows carry it and the column's CHECK allows it, so it stays a known
+# platform; it is still not accepted from the header.
 CLIENT_PLATFORMS = (MOBILE, WEB, SIS)
 PLATFORMS = CLIENT_PLATFORMS + (EMAIL,)
 

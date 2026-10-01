@@ -177,6 +177,7 @@ export default function MessagesScreen() {
             onBack={handleBack}
             onRead={handleThreadRead}
             onDeleted={() => { setSelected(null); refetchGroups(); }}
+            onMuteChanged={refetchGroups}
           />
         );
       }
@@ -252,6 +253,7 @@ export default function MessagesScreen() {
             group={selected.group}
             onRead={handleThreadRead}
             onDeleted={() => { setSelected(null); refetchGroups(); }}
+            onMuteChanged={refetchGroups}
           />
         ) : (
           <View className="flex-1 items-center justify-center bg-white dark:bg-dark-surface-100">

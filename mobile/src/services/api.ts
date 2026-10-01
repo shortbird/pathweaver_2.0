@@ -854,10 +854,6 @@ export const messageAPI = {
   // Superadmin only: hand a support-thread message off to the sender's school inbox.
   forwardToSchool: (messageId: string) =>
     api.post(`/api/messages/${messageId}/forward-to-school`, {}),
-  // Superadmin only: mail a copy of a message to your own inbox, so it waits
-  // there until it is answered.
-  emailToMe: (messageId: string) =>
-    api.post(`/api/messages/${messageId}/email-to-me`, {}),
   unreadCount: () => api.get('/api/messages/unread-count'),
   contacts: () => api.get('/api/messages/contacts'),
   canMessage: (targetUserId: string) =>
@@ -901,6 +897,10 @@ export const groupAPI = {
     api.patch(`/api/groups/${groupId}/settings`, settings),
   markRead: (groupId: string) =>
     api.post(`/api/groups/${groupId}/read`, {}),
+  /** Mute or unmute this chat's alerts for the signed-in member: no bell
+   *  notification and no push while muted. Unread counts are unaffected. */
+  mute: (groupId: string, muted: boolean) =>
+    api.post(`/api/groups/${groupId}/mute`, { muted }),
   availableMembers: (groupId: string) =>
     api.get(`/api/groups/${groupId}/available-members`),
 };

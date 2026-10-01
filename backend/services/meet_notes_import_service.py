@@ -61,6 +61,8 @@ MAX_SUMMARY_CHARS = 20_000
 DENVER = ZoneInfo('America/Denver')
 
 _ADDRESS_RE = re.compile(r'notes\+([a-f0-9]{24})@', re.IGNORECASE)
+# A bare address, or "Display Name <addr@host>".
+_FROM_RE = re.compile(r'<([^<>@\s]+@[^<>@\s]+)>|([^<>@\s]+@[^<>@\s]+)')
 _TITLE_RE = re.compile(r'Notes from [“"](.+?)[”"]')
 _GENERATED_RE = re.compile(
     r'auto-generated on\s+([A-Z][a-z]+\s+\d{1,2},\s+\d{4}),\s+(\d{1,2}:\d{2}\s*[AP]M)', re.IGNORECASE)
@@ -102,9 +104,17 @@ def import_address() -> Optional[str]:
 
 def is_import_address(*values: Optional[str]) -> bool:
     """True when any recipient field names the import address. A notes+ token
-    that is not ours is still claimed, so it never falls through to the reply
-    relay and gets logged there as a broken reply."""
+    that is not ours is still claimed, so the rejection is logged here as a
+    wrong import token and not by the webhook as mail for nobody."""
     return any(v and _ADDRESS_RE.search(v) for v in values)
+
+
+def _sender_email(from_header: Optional[str]) -> Optional[str]:
+    """The address in a From header, lowercased. None when there is none."""
+    found = _FROM_RE.search(from_header or '')
+    if not found:
+        return None
+    return (found.group(1) or found.group(2) or '').strip().lower() or None
 
 
 def _token_matches(*values: Optional[str]) -> bool:
@@ -292,13 +302,11 @@ def handle_inbound(*, to_header: Optional[str], envelope_to: Optional[str],
                    dkim: Optional[str]) -> Dict[str, Any]:
     """Attach one forwarded notes email. Never raises for a bad message: the
     webhook answers 200 either way (see routes/inbound_email.py)."""
-    from services.message_email_relay_service import extract_sender_email
-
     if not _token_matches(envelope_to, to_header):
         logger.warning('Meet notes rejected: wrong import token')
         return {'status': 'ignored', 'detail': 'bad token'}
 
-    sender = extract_sender_email(from_header) or ''
+    sender = _sender_email(from_header) or ''
     sender_domain = sender.rsplit('@', 1)[-1]
     # SendGrid reports "{@google.com : pass}". The token already gates this;
     # DKIM stops a leaked address from carrying a forged Gemini email.

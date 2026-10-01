@@ -36,8 +36,6 @@ interface Props {
   onPin?: () => void;
   /** Superadmin support threads only: forward to the sender's school inbox. */
   onForward?: () => void;
-  /** Superadmin only: mail a copy of this message to your own inbox. */
-  onEmailToSelf?: () => void;
   /** Someone else's message: file a report (Friends phase 3). The moderation
    *  queue can take a direct message down. */
   onReport?: () => void;
@@ -65,7 +63,6 @@ export function MessageActionsSheet({
   onDelete,
   onPin,
   onForward,
-  onEmailToSelf,
   onReport,
 }: Props) {
   const c = useThemeColors();
@@ -104,14 +101,6 @@ export function MessageActionsSheet({
       label: 'Forward to school inbox',
       icon: 'arrow-redo-outline',
       onPress: onForward,
-    });
-  }
-  if (onEmailToSelf) {
-    rows.push({
-      key: 'email-to-me',
-      label: 'Email this to me',
-      icon: 'mail-outline',
-      onPress: onEmailToSelf,
     });
   }
   if (isOwn && onEdit) {

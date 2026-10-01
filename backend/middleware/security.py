@@ -78,7 +78,7 @@ class SecurityMiddleware:
             # multipart/form-data. Multipart already falls through below, but
             # this is stated explicitly rather than inherited from the
             # file-upload branch: a provider that ever posts urlencoded would
-            # otherwise turn every inbound reply into a silent 400, and the
+            # otherwise turn every inbound mail into a silent 400, and the
             # symptom (mail vanishes) points nowhere near this line.
             if (request.path or '') == '/api/email/inbound':
                 should_skip = True

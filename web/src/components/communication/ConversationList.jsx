@@ -1,5 +1,5 @@
 import React, { useMemo, useEffect, useRef, useCallback, useState } from 'react'
-import { AcademicCapIcon, ChevronDownIcon, ChevronRightIcon, MagnifyingGlassIcon, MapPinIcon, UserIcon, UsersIcon, PlusIcon, LifebuoyIcon } from '@heroicons/react/24/outline'
+import { AcademicCapIcon, BellSlashIcon, ChevronDownIcon, ChevronRightIcon, MagnifyingGlassIcon, MapPinIcon, UserIcon, UsersIcon, PlusIcon, LifebuoyIcon } from '@heroicons/react/24/outline'
 import { useSearchParams } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
 import { useQuery } from '@tanstack/react-query'
@@ -54,6 +54,18 @@ const GroupConversationItem = React.memo(({ group, isSelected, onSelect }) => {
             <h3 className={`truncate ${isUnread ? 'font-bold text-gray-900' : 'font-semibold text-gray-800'}`}>
               {group.name}
             </h3>
+            {/* A muted chat still counts unread here; this says why nothing
+                about it reaches the bell or the phone. */}
+            {group.muted && (
+              <span
+                role="img"
+                aria-label="Alerts muted"
+                title="Alerts muted"
+                className="flex-shrink-0 text-gray-400"
+              >
+                <BellSlashIcon className="w-3.5 h-3.5" />
+              </span>
+            )}
             {/* The meeting time replaces the bare "Class" tag rather than
                 joining it: it says the same thing and, unlike the tag, tells
                 two identically-named class chats apart. */}

@@ -1,20 +1,19 @@
-"""A school-inbox thread, handed to a staff member with a task.
+"""A school-inbox thread, turned into a task for the front office, and who may
+open a school thread at all.
 
-Tickets bf8b754d and d93b24d2 (iCreate, meeting of 2026-09-23): "Replies in
-messaging can be turned into tasks and assigned to school staff" and
-"assigning a message to a teacher/staff (who doesn't have access to the school
-inbox) - they get the whole thread and can reply."
+Ticket bf8b754d (iCreate, meeting of 2026-09-23): "Replies in messaging can be
+turned into tasks and assigned to school staff."
 
-What these pin:
+From 2026-09-23 to 2026-10-01 the task could go to any teacher, with the thread
+lent to them through a grant (school_thread_grants, d93b24d2). In production
+nobody was ever given one, and the owner removed it. The tests for grants went
+with the feature; these pin what replaced it:
+
   - create_task_from_thread calls the tasks stream's assign_task with the
-    agreed keyword contract, then writes the grant with the task's id; a task
-    that fails writes no grant (access with no end);
-  - a grant is live only while its task exists and is not finished, and a
-    dead one is revoked on sight;
-  - the thread routes let in the office OR a live grant for that exact thread,
-    and nobody else learns the thread exists;
-  - a granted teacher's reply goes out as the school with their name shown to
-    the family ("Tam T for iCreate"), and the office's replies do not;
+    agreed keyword contract, and only for somebody in the front office;
+  - the thread routes let in the office and nobody else, and nobody else
+    learns the thread exists;
+  - a reply typed into an existing thread stays in it (in_thread);
   - which staff member opened a thread is recorded and returned.
 """
 
@@ -30,36 +29,28 @@ ORG_ID = 'org-1'
 ORG = {'id': ORG_ID, 'name': 'iCreate', 'is_active': True, 'inbox_user_id': 'inbox-1'}
 INBOX = 'inbox-1'
 KATE = 'kate'        # front office
-TAM = 'tam'          # a teacher, no school inbox of their own
+BECKY = 'becky'      # front office
+TAM = 'tam'          # a teacher: no school inbox
 MUM = 'mum'
-CONVO = {'id': 'conv-1', 'participant_1_id': MUM, 'participant_2_id': INBOX}
-STAFF = [{'id': KATE, 'name': 'Kate A', 'roles': ['org_admin']},
-         {'id': TAM, 'name': 'Tam T', 'roles': ['advisor']}]
+CONVO = {'id': 'conv-1', 'participant_1_id': MUM, 'participant_2_id': INBOX,
+         'last_message_at': '2026-09-30T12:00:00Z'}
 
 
 # ── Making the task ──────────────────────────────────────────────────────────
 
 @pytest.fixture
-def staff():
-    with patch('services.sis_messaging_service.staff_recipients', return_value=STAFF):
+def office():
+    with patch.object(inbox, 'admin_recipient_ids', return_value=[KATE, BECKY]):
         yield
-
-
-@pytest.fixture
-def grants():
-    repo = Mock()
-    repo.create_grant.side_effect = lambda **k: {'id': 'grant-1', **k}
-    with patch.object(tasks, '_repo', return_value=repo):
-        yield repo
 
 
 @pytest.mark.unit
 class TestCreateTaskFromThread:
-    def test_the_task_uses_the_agreed_contract_then_grants_the_thread(self, staff, grants):
-        assign = Mock(return_value=[{'id': 'task-1', 'user_id': TAM}])
+    def test_the_task_uses_the_agreed_contract(self, office):
+        assign = Mock(return_value=[{'id': 'task-1', 'user_id': BECKY}])
         with patch('services.sis_onboarding_service.assign_task', assign, create=True):
             result = tasks.create_task_from_thread(
-                ORG_ID, KATE, TAM, conversation_id='conv-1', message_id='msg-1',
+                ORG_ID, KATE, BECKY, conversation_id='conv-1', message_id='msg-1',
                 action='reply', due_date='2026-09-30', priority='high',
                 note='She needs the form by Friday', member_name='Mia Lark',
                 quote='Can someone send the field trip form?', quote_sender='Mia Lark')
@@ -67,7 +58,7 @@ class TestCreateTaskFromThread:
         kwargs = assign.call_args.kwargs
         assert assign.call_args.args == ()
         assert kwargs['org_id'] == ORG_ID and kwargs['assigner_id'] == KATE
-        assert kwargs['recipients'] == [TAM]
+        assert kwargs['recipients'] == [BECKY]
         assert kwargs['title'] == 'Reply to Mia Lark'
         assert kwargs['action'] == 'reply' and kwargs['priority'] == 'high'
         assert kwargs['due_date'] == '2026-09-30'
@@ -76,22 +67,18 @@ class TestCreateTaskFromThread:
         assert kwargs['source_message_id'] == 'msg-1'
         assert 'She needs the form by Friday' in kwargs['description']
         assert 'Mia Lark wrote: "Can someone send the field trip form?"' in kwargs['description']
+        assert result == {'task': {'id': 'task-1', 'user_id': BECKY}}
 
-        grant = grants.create_grant.call_args.kwargs
-        assert grant == {'organization_id': ORG_ID, 'user_id': TAM, 'task_id': 'task-1',
-                         'granted_by': KATE, 'conversation_id': 'conv-1', 'group_id': None}
-        assert result['task']['id'] == 'task-1'
-
-    def test_a_do_task_is_worded_from_the_message(self, staff, grants):
+    def test_a_do_task_is_worded_from_the_message(self, office):
         assign = Mock(return_value=[{'id': 't'}])
         with patch('services.sis_onboarding_service.assign_task', assign, create=True):
-            tasks.create_task_from_thread(ORG_ID, KATE, TAM, group_id='g1', action='do',
+            tasks.create_task_from_thread(ORG_ID, KATE, BECKY, group_id='g1', action='do',
                                           thread_name='Tuesday cover',
                                           quote='Room 4 is locked\nplease check')
         assert assign.call_args.kwargs['title'] == 'Follow up with Tuesday cover: Room 4 is locked'
         assert assign.call_args.kwargs['source_group_id'] == 'g1'
 
-    def test_the_call_binds_to_the_real_assign_task(self, staff, grants):
+    def test_the_call_binds_to_the_real_assign_task(self, office):
         """The tests above replace assign_task with a Mock, which accepts any
         keywords. This one checks the call against the real signature, so a
         renamed parameter on the tasks side fails here, not in production."""
@@ -101,23 +88,25 @@ class TestCreateTaskFromThread:
         assign = Mock(return_value={'tasks': [{'id': 'task-9'}], 'batch_id': 'b'})
         with patch('services.sis_onboarding_service.assign_task', assign):
             result = tasks.create_task_from_thread(
-                ORG_ID, KATE, TAM, conversation_id='conv-1', message_id='m',
+                ORG_ID, KATE, BECKY, conversation_id='conv-1', message_id='m',
                 action='reply', due_date='2026-09-30', priority='normal', note='n')
         real.bind(**assign.call_args.kwargs)
         assert result['task']['id'] == 'task-9'
 
-    def test_a_failed_task_writes_no_grant(self, staff, grants):
+    def test_a_failed_task_is_the_offices_to_fix(self, office):
         with patch('services.sis_onboarding_service.assign_task',
                    Mock(return_value={'error': 'Pick at least one person'}), create=True):
             with pytest.raises(ValueError, match='Pick at least one person'):
-                tasks.create_task_from_thread(ORG_ID, KATE, TAM, conversation_id='conv-1')
-        grants.create_grant.assert_not_called()
+                tasks.create_task_from_thread(ORG_ID, KATE, BECKY, conversation_id='conv-1')
 
-    def test_only_staff_of_this_school_can_be_given_a_thread(self, staff, grants):
+    @pytest.mark.parametrize('assignee', [TAM, MUM])
+    def test_only_the_front_office_can_be_given_a_thread(self, office, assignee):
+        """A teacher cannot open a school thread, so a task that links to one
+        would be a task nobody can do."""
         assign = Mock()
         with patch('services.sis_onboarding_service.assign_task', assign, create=True):
-            with pytest.raises(ValueError):
-                tasks.create_task_from_thread(ORG_ID, KATE, MUM, conversation_id='conv-1')
+            with pytest.raises(ValueError, match='front office'):
+                tasks.create_task_from_thread(ORG_ID, KATE, assignee, conversation_id='conv-1')
         assign.assert_not_called()
 
     @pytest.mark.parametrize('kwargs', [
@@ -126,9 +115,9 @@ class TestCreateTaskFromThread:
         {'conversation_id': 'c', 'action': 'call'},
         {'conversation_id': 'c', 'priority': 'soon'},
     ])
-    def test_what_the_office_can_fix_is_a_value_error(self, staff, grants, kwargs):
+    def test_what_the_office_can_fix_is_a_value_error(self, office, kwargs):
         with pytest.raises(ValueError):
-            tasks.create_task_from_thread(ORG_ID, KATE, TAM, **kwargs)
+            tasks.create_task_from_thread(ORG_ID, KATE, BECKY, **kwargs)
 
     def test_an_envelope_around_the_rows_is_accepted(self):
         assert tasks._created_rows({'rows': [{'id': 'a'}]}) == [{'id': 'a'}]
@@ -136,57 +125,17 @@ class TestCreateTaskFromThread:
         assert tasks._created_rows({'error': 'x'}) == []
 
 
-# ── Which grants are live ────────────────────────────────────────────────────
-
-def _thread_repo(grants, statuses):
-    repo = Mock()
-    repo.unrevoked_grants.return_value = grants
-    repo.task_statuses.return_value = statuses
-    return repo
-
+# ── Who may open a school thread ─────────────────────────────────────────────
 
 @pytest.mark.unit
-class TestActiveGrants:
-    def test_an_open_task_keeps_the_thread_a_finished_or_deleted_one_ends_it(self):
-        rows = [
-            {'id': 'g-open', 'organization_id': ORG_ID, 'task_id': 't-open', 'conversation_id': 'c'},
-            {'id': 'g-done', 'organization_id': ORG_ID, 'task_id': 't-done', 'conversation_id': 'c'},
-            {'id': 'g-gone', 'organization_id': ORG_ID, 'task_id': 't-gone', 'conversation_id': 'c'},
-            {'id': 'g-null', 'organization_id': ORG_ID, 'task_id': None, 'conversation_id': 'c'},
-            {'id': 'g-exp', 'organization_id': ORG_ID, 'task_id': 't-exp', 'conversation_id': 'c'},
-        ]
-        repo = _thread_repo(rows, {'t-open': 'in_progress', 't-done': 'complete',
-                                   't-exp': 'expired'})
-        with patch.object(inbox, '_thread_repo', return_value=repo):
-            live = inbox.active_grants(TAM, conversation_id='c')
-        assert [g['id'] for g in live] == ['g-open']
-        assert sorted(repo.revoke.call_args.args[0]) == ['g-done', 'g-exp', 'g-gone', 'g-null']
-
-    def test_another_schools_grant_is_not_this_ones(self):
-        repo = _thread_repo([{'id': 'g', 'organization_id': 'org-2', 'task_id': 't'}],
-                            {'t': 'in_progress'})
-        with patch.object(inbox, '_thread_repo', return_value=repo):
-            assert inbox.active_grants(TAM, conversation_id='c', organization_id=ORG_ID) == []
-
-    def test_a_failed_lookup_is_no_access(self):
-        repo = Mock()
-        repo.unrevoked_grants.side_effect = RuntimeError('db down')
-        with patch.object(inbox, '_thread_repo', return_value=repo):
-            assert inbox.active_grants(TAM, conversation_id='c') == []
-
-    def test_thread_access_office_then_grant_then_nobody(self):
+class TestThreadAccess:
+    def test_the_office_and_nobody_else(self):
         with patch('services.sis_service.caller_is_admin', return_value=True):
             assert inbox.thread_access(KATE, ORG, conversation_id='c') == 'office'
-        with patch('services.sis_service.caller_is_admin', return_value=False), \
-             patch.object(inbox, 'active_grants', return_value=[{'id': 'g'}]) as grants:
-            assert inbox.thread_access(TAM, ORG, conversation_id='c') == 'grant'
-        assert grants.call_args.kwargs == {'conversation_id': 'c', 'group_id': None,
-                                           'organization_id': ORG_ID}
-        with patch('services.sis_service.caller_is_admin', return_value=False), \
-             patch.object(inbox, 'active_grants', return_value=[]):
+        with patch('services.sis_service.caller_is_admin', return_value=False):
             assert inbox.thread_access(TAM, ORG, conversation_id='c') is None
 
-    def test_a_granted_teacher_opens_a_school_group(self):
+    def test_a_school_group_is_the_offices_too(self):
         group_repo = Mock()
         group_repo.group_owner_row.return_value = {
             'id': 'g1', 'is_active': True, 'created_by': INBOX, 'organization_id': ORG_ID}
@@ -194,20 +143,18 @@ class TestActiveGrants:
              patch.object(inbox, 'org_for_inbox_user', return_value=ORG), \
              patch.object(inbox, 'admin_recipient_ids', return_value=[KATE]), \
              patch('services.group_message_service.GroupMessageService._is_superadmin',
-                   return_value=False), \
-             patch.object(inbox, 'active_grants', side_effect=lambda u, **k: [{'id': 'g'}] if u == TAM else []):
-            assert inbox.school_group_access(TAM, 'g1')['via'] == 'grant'
+                   return_value=False):
             assert inbox.school_group_access(KATE, 'g1')['via'] == 'office'
+            assert inbox.school_group_access(TAM, 'g1') is None
             assert inbox.school_group_access(MUM, 'g1') is None
 
-    def test_a_granted_teacher_hears_about_the_familys_answer(self):
+    def test_a_familys_message_rings_the_office_only(self):
         notifier = Mock()
-        with patch.object(inbox, 'admin_recipient_ids', return_value=[KATE]), \
-             patch.object(inbox, 'grant_holder_ids', return_value=[TAM]), \
+        with patch.object(inbox, 'admin_recipient_ids', return_value=[KATE, BECKY]), \
              patch('services.notification_service.NotificationService', return_value=notifier):
             inbox.notify_admins_of_member_message(ORG, MUM, 'Mia', 'hello', conversation_id='conv-1')
         notified = [c.kwargs['user_id'] for c in notifier.create_notification.call_args_list]
-        assert notified == [KATE, TAM]
+        assert notified == [KATE, BECKY]
 
 
 # ── The routes ───────────────────────────────────────────────────────────────
@@ -223,8 +170,8 @@ def _admin_client_for_role(role):
 
 
 @pytest.fixture
-def as_teacher():
-    with patch('database.get_supabase_admin_client', return_value=_admin_client_for_role('advisor')), \
+def as_office():
+    with patch('database.get_supabase_admin_client', return_value=_admin_client_for_role('org_admin')), \
          patch('services.sis_service.resolve_org_id', return_value=ORG_ID), \
          patch.object(inbox, 'school_account', return_value=(ORG, INBOX)):
         yield
@@ -239,111 +186,107 @@ class TestThreadRoutes:
              patch.object(inbox, 'thread_access', return_value=access), \
              patch.object(inbox, 'mark_conversation_read') as mark, \
              patch.object(inbox, 'record_thread_read') as record, \
-             patch.object(inbox, 'thread_readers', return_value=[{'user_id': TAM, 'name': 'Tam T'}]), \
+             patch.object(inbox, 'thread_readers', return_value=[{'user_id': KATE, 'name': 'Kate A'}]), \
              patch('routes.school_inbox.message_service', svc):
             resp = client.get('/api/school-inbox/conversations/conv-1', headers=auth_headers)
         return resp, mark, record
 
-    def test_a_teacher_with_a_grant_reads_the_whole_thread(self, client, auth_headers,
-                                                            mock_verify_token, as_teacher):
-        resp, mark, record = self._get(client, auth_headers, 'grant')
+    def test_the_office_reads_the_whole_thread_and_is_recorded(self, client, auth_headers,
+                                                               mock_verify_token, as_office):
+        resp, mark, record = self._get(client, auth_headers, 'office')
         assert resp.status_code == 200
         body = json.loads(resp.data)
         data = body.get('data', body)
-        assert data['access'] == 'grant'
-        assert data['opened_by'] == [{'user_id': TAM, 'name': 'Tam T'}]
+        assert data['access'] == 'office'
+        assert data['opened_by'] == [{'user_id': KATE, 'name': 'Kate A'}]
         record.assert_called_once_with(ORG_ID, 'test-user-123', conversation_id='conv-1')
 
-    def test_a_teacher_without_one_is_told_it_does_not_exist(self, client, auth_headers,
-                                                             mock_verify_token, as_teacher):
+    def test_a_caller_without_access_is_told_it_does_not_exist(self, client, auth_headers,
+                                                               mock_verify_token, as_office):
         resp, mark, record = self._get(client, auth_headers, None)
         assert resp.status_code == 404
         mark.assert_not_called()
         record.assert_not_called()
 
-    def test_a_student_never_reaches_the_check(self, client, auth_headers, mock_verify_token):
+    @pytest.mark.parametrize('role', ['advisor', 'student'])
+    def test_a_teacher_or_student_never_reaches_the_check(self, client, auth_headers,
+                                                          mock_verify_token, role):
         with patch('database.get_supabase_admin_client',
-                   return_value=_admin_client_for_role('student')):
-            resp = client.get('/api/school-inbox/conversations/conv-1', headers=auth_headers)
-        assert resp.status_code == 403
+                   return_value=_admin_client_for_role(role)):
+            read = client.get('/api/school-inbox/conversations/conv-1', headers=auth_headers)
+            send = client.post(f'/api/school-inbox/conversations/{MUM}/send',
+                               headers=auth_headers, json={'content': 'hi'})
+        assert read.status_code == 403
+        assert send.status_code == 403
 
-    def _send(self, client, auth_headers, *, admin, convo, access):
-        with patch('services.sis_service.caller_is_admin', return_value=admin), \
+    def _send(self, client, auth_headers, *, convo):
+        with patch('services.sis_service.caller_is_admin', return_value=True), \
              patch.dict('utils.auth.relationships.RELATIONSHIPS', {'org_staff': lambda a, b: True}), \
              patch.object(inbox, 'conversation_with_member', return_value=convo), \
-             patch.object(inbox, 'thread_access', return_value=access), \
              patch.object(inbox, 'send_as_school',
                           return_value={'id': 'm2', 'conversation_id': 'conv-1'}) as send:
             resp = client.post(f'/api/school-inbox/conversations/{MUM}/send',
                                headers=auth_headers, json={'content': 'The form is attached'})
         return resp, send
 
-    def test_a_granted_reply_names_the_teacher_to_the_family(self, client, auth_headers,
-                                                             mock_verify_token, as_teacher):
-        resp, send = self._send(client, auth_headers, admin=False, convo=CONVO, access='grant')
+    def test_a_reply_in_an_existing_thread_stays_in_it(self, client, auth_headers,
+                                                       mock_verify_token, as_office):
+        resp, send = self._send(client, auth_headers, convo=CONVO)
         assert resp.status_code == 200
         assert send.call_args.kwargs['sent_by'] == 'test-user-123'
-        assert send.call_args.kwargs['show_sender_name'] is True
+        assert send.call_args.kwargs['in_thread'] is True
 
-    def test_an_office_reply_stays_under_the_schools_name(self, client, auth_headers,
-                                                          mock_verify_token, as_teacher):
-        resp, send = self._send(client, auth_headers, admin=True, convo=None, access=None)
+    @pytest.mark.parametrize('convo', [None, {**CONVO, 'last_message_at': None}])
+    def test_with_no_thread_yet_it_is_a_new_message(self, client, auth_headers,
+                                                    mock_verify_token, as_office, convo):
+        """send_as_school then decides the voice: the school for a family, the
+        author for a colleague. A row nobody has written in is not a thread."""
+        resp, send = self._send(client, auth_headers, convo=convo)
         assert resp.status_code == 200
-        assert 'show_sender_name' not in send.call_args.kwargs
+        assert send.call_args.kwargs['in_thread'] is False
 
-    def test_a_teacher_cannot_start_a_thread_as_the_school(self, client, auth_headers,
-                                                           mock_verify_token, as_teacher):
-        resp, send = self._send(client, auth_headers, admin=False, convo=None, access=None)
-        assert resp.status_code == 404
-        send.assert_not_called()
-
-    def test_making_a_task_is_the_offices(self, client, auth_headers, mock_verify_token, as_teacher):
-        resp = client.post('/api/school-inbox/conversations/conv-1/task', headers=auth_headers,
-                           json={'assignee_id': TAM})
+    def test_making_a_task_is_the_offices(self, client, auth_headers, mock_verify_token):
+        with patch('database.get_supabase_admin_client',
+                   return_value=_admin_client_for_role('advisor')):
+            resp = client.post('/api/school-inbox/conversations/conv-1/task', headers=auth_headers,
+                               json={'assignee_id': KATE})
         assert resp.status_code == 403
 
     def test_making_a_task_passes_the_thread_and_the_message(self, client, auth_headers,
-                                                             mock_verify_token):
-        with patch('database.get_supabase_admin_client',
-                   return_value=_admin_client_for_role('org_admin')), \
-             patch('services.sis_service.resolve_org_id', return_value=ORG_ID), \
-             patch.object(inbox, 'school_account', return_value=(ORG, INBOX)), \
-             patch.object(inbox, 'conversation_for_inbox', return_value=CONVO), \
+                                                             mock_verify_token, as_office):
+        with patch.object(inbox, 'conversation_for_inbox', return_value=CONVO), \
              patch.object(inbox, 'user_display_names', return_value={MUM: 'Mia Lark'}), \
              patch.object(inbox, 'message_in_thread',
                           return_value={'id': 'msg-1', 'sender_id': MUM,
                                         'message_content': 'Where is the form?'}), \
              patch('services.thread_task_service.create_task_from_thread',
-                   return_value={'task': {'id': 't1'}, 'grant': {'id': 'g1'}}) as make:
+                   return_value={'task': {'id': 't1'}}) as make:
             resp = client.post('/api/school-inbox/conversations/conv-1/task', headers=auth_headers,
-                               json={'assignee_id': TAM, 'message_id': 'msg-1', 'action': 'reply',
+                               json={'assignee_id': BECKY, 'message_id': 'msg-1', 'action': 'reply',
                                      'priority': 'high', 'due_date': '2026-09-30'})
         assert resp.status_code == 201
         args, kwargs = make.call_args
-        assert args == (ORG_ID, 'test-user-123', TAM)
+        assert args == (ORG_ID, 'test-user-123', BECKY)
         assert kwargs['conversation_id'] == 'conv-1' and kwargs['message_id'] == 'msg-1'
         assert kwargs['member_name'] == 'Mia Lark'
         assert kwargs['quote'] == 'Where is the form?' and kwargs['quote_sender'] == 'Mia Lark'
 
-    def test_a_message_from_another_thread_is_refused(self, client, auth_headers, mock_verify_token):
-        with patch('database.get_supabase_admin_client',
-                   return_value=_admin_client_for_role('org_admin')), \
-             patch('services.sis_service.resolve_org_id', return_value=ORG_ID), \
-             patch.object(inbox, 'school_account', return_value=(ORG, INBOX)), \
-             patch.object(inbox, 'conversation_for_inbox', return_value=CONVO), \
+    def test_a_message_from_another_thread_is_refused(self, client, auth_headers,
+                                                      mock_verify_token, as_office):
+        with patch.object(inbox, 'conversation_for_inbox', return_value=CONVO), \
              patch.object(inbox, 'user_display_names', return_value={}), \
              patch.object(inbox, 'message_in_thread', return_value=None), \
              patch('services.thread_task_service.create_task_from_thread') as make:
             resp = client.post('/api/school-inbox/conversations/conv-1/task', headers=auth_headers,
-                               json={'assignee_id': TAM, 'message_id': 'elsewhere'})
+                               json={'assignee_id': BECKY, 'message_id': 'elsewhere'})
         assert resp.status_code == 400
         make.assert_not_called()
 
 
-# ── "Tam T for iCreate" ──────────────────────────────────────────────────────
+# ── "Kate A for iCreate" ─────────────────────────────────────────────────────
 
 @pytest.mark.unit
-def test_the_family_sees_who_wrote_a_granted_reply():
+def test_a_colleague_sees_who_wrote_a_school_reply():
     from services import messaging_extras_service as extras
     repo = Mock()
     repo.user_names.return_value = {TAM: {'id': TAM, 'first_name': 'Tam', 'last_name': 'T'}}

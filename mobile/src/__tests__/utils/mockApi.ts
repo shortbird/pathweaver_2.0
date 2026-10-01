@@ -108,6 +108,7 @@ export function mockApiModule() {
       editMessage: jest.fn().mockResolvedValue({ data: {} }),
       deleteMessage: jest.fn().mockResolvedValue({ data: {} }),
       pin: jest.fn().mockResolvedValue({ data: {} }),
+      mute: jest.fn().mockResolvedValue({ data: {} }),
       updateSettings: jest.fn().mockResolvedValue({ data: {} }),
       markRead: jest.fn().mockResolvedValue({ data: {} }),
       availableMembers: jest.fn().mockResolvedValue({ data: {} }),

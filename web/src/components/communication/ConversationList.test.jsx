@@ -172,6 +172,24 @@ describe('ConversationList', () => {
     expect(screen.getByText('No conversations yet')).toBeInTheDocument()
   })
 
+  // Owner decision, 2026-10-01: a member can mute a chat's alerts. The row
+  // still counts unread, so it has to say why the bell stayed quiet.
+  it('marks a muted group, and only a muted group', async () => {
+    renderList({
+      groupConversations: [
+        { ...groups[0], muted: true, unread_count: 3 },
+        { id: 'g2', name: 'Book Club', last_message_at: '2025-01-01T00:00:00Z', unread_count: 0, member_count: 5, muted: false }
+      ]
+    })
+    await waitFor(() => expect(screen.getByText('Study Group')).toBeInTheDocument())
+
+    const marks = screen.getAllByLabelText('Alerts muted')
+    expect(marks).toHaveLength(1)
+    expect(marks[0].closest('button')).toHaveTextContent('Study Group')
+    // Muting silences the bell, not the list: the unread badge is still there.
+    expect(marks[0].closest('button')).toHaveTextContent('3')
+  })
+
   // A parent of three reported the class threads as unusable on 2026-09-09:
   // 37 rows named after the class and nothing else, several sharing a name,
   // "so I would have to look it up before I can even respond." The mobile app

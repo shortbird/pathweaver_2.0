@@ -6,6 +6,7 @@ import {
   ArrowLeftIcon,
   ChatBubbleLeftRightIcon,
   CheckCircleIcon,
+  ChevronRightIcon,
   ClipboardDocumentCheckIcon,
   InboxIcon,
   MagnifyingGlassIcon,
@@ -25,11 +26,11 @@ import {
   conversationsQueryKey,
 } from '../../hooks/api/useDirectMessages'
 import useMessagingRealtime from '../../hooks/api/useMessagingRealtime'
+import usePersistedChoice from '../../hooks/usePersistedChoice'
 import { useGroups } from '../../hooks/api/useGroupMessages'
 import ComposeMessageModal from '../../components/sis/ComposeMessageModal'
 import MakeTaskModal from '../../components/sis/MakeTaskModal'
 import SentMessagesPanel from '../../components/sis/SentMessagesPanel'
-import { useGrantedThreads } from '../../hooks/api/useSisMessaging'
 import { formatMessageTime } from '../../components/communication/MessageParts'
 import { useAuth } from '../../contexts/AuthContext'
 import { isSisAdmin } from './sisRole'
@@ -65,11 +66,15 @@ import GlassTabBar from '../../components/ui/GlassTabBar'
  * (one person) and "Message a group" (staff or families).
  *
  * "Make a task" turns a school thread, or one message in it, into a task for
- * somebody on staff (bf8b754d). A teacher given one has no school inbox, so
- * the School tab shows THEM just the threads they were handed (d93b24d2):
- * the whole thread, answered as the school, with their name shown to the
- * family. The server decides who may open what
- * (school_inbox_service.thread_access); this page only lists it.
+ * somebody in the front office (bf8b754d). Only the office reads the school
+ * inbox: for a week a teacher could be handed one thread with a task
+ * (d93b24d2), nobody ever was, and that view was removed on 2026-10-01.
+ *
+ * Who a thread belongs to follows who is in it (owner decision, 2026-10-01):
+ * the office and a family or student have ONE thread, the school's, on the
+ * school tab; My messages holds the office's threads with staff, and a
+ * teacher's own threads. The server holds the rule
+ * (school_inbox_service.office_family_route); this page follows it.
  *
  * Both thread sources go through the same React Query hooks, composer, row
  * and bubble as /messages (useDirectMessages with a `source`, MessageInput,
@@ -107,6 +112,15 @@ const convoNames = (c) => [
 // 6f9ed4fb, 2026-09-30).
 const CLASS_CHAT_TAG = { family: 'Parents', student: 'Students' }
 const isClassChat = (g) => Boolean(g.source_class_id && CLASS_CHAT_TAG[g.audience])
+
+// Which of the list's two group sections are open. People first: an admin
+// reads individual messages all day and class chats rarely, and the groups
+// used to sit above them (iCreate, ticket efa9bbed, 2026-10-01: "I would like
+// individual messages to appear at the top ... Group threads and Class chats
+// could be drop down buttons"). Closed until opened, and remembered on this
+// browser; a closed section still shows its unread count.
+const SECTIONS_KEY = 'sis_inbox_open_sections'
+const validSections = (v) => (v && typeof v === 'object' && !Array.isArray(v) ? v : null)
 
 // Threads waiting on a reply, per tab -- the same two numbers the sidebar
 // badge (InboxUnreadBadge) adds together, from the same endpoints.
@@ -152,13 +166,11 @@ const SchoolInboxPage = () => {
       // to a colleague as the school, into the inbox the whole office reads
       // (iCreate, 2026-09-25). A bare ?conversation= is a school thread (the
       // office's bell and the People-page Message panel link that way).
-      : rawTab === 'school' || (admin && !rawTab && searchParams.get('conversation')) ? 'school' : 'mine'
+      : admin && (rawTab === 'school' || (!rawTab && searchParams.get('conversation'))) ? 'school' : 'mine'
   const isMessages = tab === 'school' || tab === 'mine'
-  // The school inbox is only ever read on the School tab. The office reads
-  // all of it; anybody else reads the threads handed to them with a task.
+  // The school inbox is only ever read on the School tab, by the office.
   const viewingSchool = admin && tab === 'school'
-  const viewingGranted = !admin && tab === 'school'
-  const schoolSide = viewingSchool || viewingGranted
+  const schoolSide = viewingSchool
   const setTab = (t) => setSearchParams({ tab: t }, { replace: true })
   const [selected, setSelected] = useState(null)
   // The thread-name search box, shared by every tab.
@@ -182,7 +194,7 @@ const SchoolInboxPage = () => {
     [isSuperadmin, orgId])
   const source = schoolSide ? schoolSource : undefined
 
-  const listEnabled = isMessages && !viewingGranted && !!user?.id
+  const listEnabled = isMessages && !!user?.id
     && !(viewingSchool && isSuperadmin && !orgId)
   const { data: listData, isLoading: listLoading } = useConversations(user?.id, {
     source,
@@ -193,22 +205,13 @@ const SchoolInboxPage = () => {
     // is one org's, so it can afford to look more often.
     refetchInterval: viewingSchool ? 30000 : 120000,
   })
-  // The threads handed to a non-office staff member with a task (d93b24d2).
-  // Fetched for them on every tab so the School tab only appears when there
-  // is something on it.
-  const { data: grantedData, isLoading: grantedLoading } = useGrantedThreads(
-    user?.id, isSuperadmin ? orgId : null,
-    { enabled: !admin, refetchInterval: viewingGranted ? 30000 : 120000 })
-  const hasGranted = ((grantedData?.conversations || []).length + (grantedData?.groups || []).length) > 0
-  const loading = viewingGranted ? grantedLoading : listLoading
-  const conversations = (viewingGranted ? grantedData?.conversations : listData?.conversations) || []
-  const inboxUserId = viewingSchool ? (listData?.inbox_user_id || null)
-    : viewingGranted ? (grantedData?.inbox_user_id || null) : null
+  const loading = listLoading
+  const conversations = listData?.conversations || []
+  const inboxUserId = viewingSchool ? (listData?.inbox_user_id || null) : null
   // The school's name labels its tab from either tab, so once the school list
   // has loaded, read it back out of the cache rather than only off the list
   // that is on screen.
   const orgName = listData?.organization?.name
-    || grantedData?.organization?.name
     || activeOrg?.name
     || queryClient.getQueryData(conversationsQueryKey(user?.id, schoolSource))?.organization?.name
     || ''
@@ -289,9 +292,13 @@ const SchoolInboxPage = () => {
   // Declared AFTER the reset above on purpose. Effects run in source order, so
   // the other way round the reset fired second and cleared the thread this one
   // had just opened -- ?to= appeared to do nothing at all.
+  //
+  // On either Messages tab: a link to a parent or student, for the office,
+  // names the school tab (StudentProgressTab), and the thread it opens is
+  // the school's.
   const wantedTo = searchParams.get('to')
   useEffect(() => {
-    if (!wantedTo || tab !== 'mine') return
+    if (!wantedTo || !isMessages) return
     const existing = conversations.find((c) => c.other_user?.id === wantedTo)
     setSelectedGroupState(null)
     setSelected((current) => {
@@ -347,6 +354,17 @@ const SchoolInboxPage = () => {
         cacheId: selected.id || undefined,
         source,
       })
+      // The office and a family have one thread, the school's. A message
+      // typed to a parent or student from My messages went out as the school
+      // (the server's rule), so follow it to the tab where it and the reply
+      // live rather than leave an empty thread open here.
+      const row = sent?.message
+      const sentAsSchool = !schoolSide && row?.sender_id && row.sender_id !== user?.id
+      if (sentAsSchool && admin && sent.conversation_id) {
+        // useSendMessage has already said why.
+        setSearchParams({ tab: 'school', conversation: sent.conversation_id }, { replace: true })
+        return
+      }
       const convoId = selected.id || sent?.conversation_id
       if (convoId && convoId !== selected.id) setSelected((c) => ({ ...c, id: convoId }))
     } catch {
@@ -467,13 +485,13 @@ const SchoolInboxPage = () => {
   // notification button... when I close it, it's gone"; b8e2f0c9: "the
   // messages tab on the left doesn't show all messages"). Class chats sit
   // under their own heading, tagged Parents or Students.
-  const groupsEnabled = isMessages && !viewingGranted && !!user?.id
+  const groupsEnabled = isMessages && !!user?.id
     && !(viewingSchool && isSuperadmin && !orgId)
   const { data: groupsData, isFetched: groupsFetched } = useGroups(user?.id, { source, enabled: groupsEnabled })
   // Every group this list could open, class chats included.
-  const allGroups = useMemo(() => (viewingGranted ? (grantedData?.groups || [])
-    : (groupsData?.groups || (Array.isArray(groupsData) ? groupsData : []) || [])),
-  [groupsData, grantedData, viewingGranted])
+  const allGroups = useMemo(
+    () => groupsData?.groups || (Array.isArray(groupsData) ? groupsData : []) || [],
+    [groupsData])
   const sortedGroups = useMemo(() => [...allGroups]
     .sort((a, b) => new Date(b.last_message_at || b.created_at || 0)
       - new Date(a.last_message_at || a.created_at || 0)),
@@ -482,7 +500,7 @@ const SchoolInboxPage = () => {
   // The School tab keeps one list (the school's groups, whoever is in them).
   const shownGroups = schoolSide ? searchedGroups : searchedGroups.filter((g) => !isClassChat(g))
   const shownClassChats = schoolSide ? [] : searchedGroups.filter(isClassChat)
-  const groupsLoaded = viewingGranted ? !grantedLoading : groupsFetched
+  const groupsLoaded = groupsFetched
 
   // ?group=<id> opens that group, the same consume-once rule as ?conversation=
   // (the bell's link for a reply in a school group, 11f6ad24).
@@ -533,6 +551,38 @@ const SchoolInboxPage = () => {
     </button>
   )
 
+  const [openSections, setOpenSections] = usePersistedChoice(SECTIONS_KEY, {}, { validate: validSections })
+  // A group opened from a link or the bell shows where it lives in the list,
+  // until the reader has said otherwise for that section.
+  const selectedGroupSection = !selectedGroup ? null
+    : shownClassChats.some((g) => g.id === selectedGroup.id) ? 'classChats'
+      : shownGroups.some((g) => g.id === selectedGroup.id) ? 'groups' : null
+  const renderGroupSection = (key, label, groups) => {
+    if (!groups.length) return null
+    const unread = groups.reduce((n, g) => n + (g.unread_count || 0), 0)
+    const chosen = openSections[key] ?? (selectedGroupSection === key)
+    // A search looks inside both sections, so it opens them.
+    const open = Boolean(query) || Boolean(chosen)
+    return (
+      <div className="border-t border-gray-100">
+        <button type="button" onClick={() => setOpenSections((prev) => ({ ...prev, [key]: !chosen }))}
+          aria-expanded={open}
+          className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-gray-50">
+          <ChevronRightIcon className={`w-3.5 h-3.5 flex-shrink-0 text-neutral-400 transition-transform ${open ? 'rotate-90' : ''}`} />
+          <span className="flex-1 text-[11px] font-semibold uppercase tracking-wide text-neutral-500">{label}</span>
+          <span className="text-xs text-neutral-400">{groups.length}</span>
+          {unread > 0 && (
+            <span className="flex-shrink-0 rounded-full bg-optio-purple px-1.5 py-0.5 text-[11px] font-semibold text-white"
+              aria-label={`${unread} unread in ${label}`}>
+              {unread}
+            </span>
+          )}
+        </button>
+        {open && <div className="pb-1">{groups.map(renderGroupRow)}</div>}
+      </div>
+    )
+  }
+
   // The open thread's row as the list has it now -- `selected` is a snapshot
   // from the click, and the resolved mark lands on the list.
   const selectedRow = (selected?.id && conversations.find((c) => c.id === selected.id)) || selected
@@ -561,10 +611,10 @@ const SchoolInboxPage = () => {
             {viewingSchool ? (
               <>The shared {orgName ? <span className="font-medium">{orgName}</span> : 'school'} inbox. Everyone in the
                 office reads it, and replies go out as {orgName || 'the school'}.</>
-            ) : viewingGranted ? (
-              <>Threads the office gave you with a task. Your replies go out from {orgName || 'the school'} with your name.</>
             ) : tab === 'mine' ? (
-              <>Your own threads. Staff see your name; parents and students always hear from {orgName || 'the school'}.</>
+              admin
+                ? <>Your own threads with staff, under your name. Parents and students are on the {orgName || 'school'} inbox tab.</>
+                : <>Your own threads. Everyone you write to sees your name.</>
             ) : (
               <>Messages sent with Compose, and who has read them.</>
             )}
@@ -576,7 +626,7 @@ const SchoolInboxPage = () => {
       <GlassTabBar
         align="start" size="md" className="mb-4" aria-label="Messaging sections"
         tabs={[
-          ...(admin || hasGranted || viewingGranted ? [{ id: 'school', label: `${orgName || 'School'} inbox`,
+          ...(admin ? [{ id: 'school', label: `${orgName || 'School'} inbox`,
             badge: schoolCount > 0 ? schoolCount : null }] : []),
           { id: 'mine', label: 'My messages', badge: mineCount > 0 ? mineCount : null },
           ...(admin ? [{ id: 'sent', label: 'Sent' }] : []),
@@ -634,15 +684,13 @@ const SchoolInboxPage = () => {
               writes as the school; from My messages, as you (families and
               students always hear from the school -- see the modal). A
               teacher composes as themselves, to staff and their own classes
-              (message_compose_service), and not from a granted School tab. */}
-          {(admin || !viewingGranted) && (
-            <div className="border-b border-gray-100 p-3">
-              <button type="button" onClick={() => setCompose(viewingSchool ? 'school' : 'mine')}
-                className="w-full inline-flex items-center justify-center gap-1.5 rounded-lg border border-optio-purple/40 px-3 py-2 text-sm font-semibold text-optio-purple hover:bg-optio-purple/5 transition-colors">
-                <PencilSquareIcon className="w-4 h-4" /> Compose
-              </button>
-            </div>
-          )}
+              (message_compose_service). */}
+          <div className="border-b border-gray-100 p-3">
+            <button type="button" onClick={() => setCompose(viewingSchool ? 'school' : 'mine')}
+              className="w-full inline-flex items-center justify-center gap-1.5 rounded-lg border border-optio-purple/40 px-3 py-2 text-sm font-semibold text-optio-purple hover:bg-optio-purple/5 transition-colors">
+              <PencilSquareIcon className="w-4 h-4" /> Compose
+            </button>
+          </div>
           <div className="flex items-center gap-1 px-2 py-1.5 border-b border-gray-100" role="group"
             aria-label="Filter threads">
             {THREAD_VIEWS.map(([value, label]) => (
@@ -656,24 +704,8 @@ const SchoolInboxPage = () => {
             ))}
           </div>
           <div className="flex-1 overflow-y-auto">
-            {/* Group threads first: they are the newest thing the office did,
-                and they were the ones that disappeared. */}
-            {shownGroups.length > 0 && (
-              <div className="border-b border-gray-100 py-1">
-                <p className="px-3 pt-1 pb-1.5 text-[11px] font-semibold uppercase tracking-wide text-neutral-400">
-                  Group threads
-                </p>
-                {shownGroups.map(renderGroupRow)}
-              </div>
-            )}
-            {shownClassChats.length > 0 && (
-              <div className="border-b border-gray-100 py-1">
-                <p className="px-3 pt-1 pb-1.5 text-[11px] font-semibold uppercase tracking-wide text-neutral-400">
-                  Class chats
-                </p>
-                {shownClassChats.map(renderGroupRow)}
-              </div>
-            )}
+            {/* People first, then the two group sections as drop-downs
+                (ticket efa9bbed; see SECTIONS_KEY). */}
             {loading ? (
               <div className="flex items-center justify-center h-40">
                 <Spinner />
@@ -693,9 +725,7 @@ const SchoolInboxPage = () => {
                 <p className="text-xs text-neutral-500">
                   {viewingSchool
                     ? 'When a family or staff member messages the school, the thread shows up here.'
-                    : viewingGranted
-                      ? 'When the office gives you a thread with a task, it shows up here.'
-                      : 'When someone messages you, the thread shows up here.'}
+                    : 'When someone messages you, the thread shows up here.'}
                 </p>
               </div>
             ) : shownConversations.length === 0 ? (
@@ -720,6 +750,8 @@ const SchoolInboxPage = () => {
                 />
               ))
             )}
+            {renderGroupSection('groups', 'Group threads', shownGroups)}
+            {renderGroupSection('classChats', 'Class chats', shownClassChats)}
           </div>
         </div>
 
@@ -760,9 +792,7 @@ const SchoolInboxPage = () => {
                   {schoolSide && (
                     <p className="text-xs text-neutral-500 flex items-center gap-1">
                       <AcademicCapIcon className="w-3.5 h-3.5" />
-                      {viewingGranted
-                        ? `Replying as ${orgName || 'the school'}, with your name`
-                        : `Replying as ${orgName || 'the school'}`}
+                      {`Replying as ${orgName || 'the school'}`}
                     </p>
                   )}
                   {schoolSide && openedBy.length > 0 && (
@@ -784,7 +814,7 @@ const SchoolInboxPage = () => {
                 {/* A thread answered somewhere else -- in person, from the
                     other inbox -- has no reply to send and would otherwise sit
                     under Needs a reply forever (iCreate, 5c858931). */}
-                {!viewingGranted && selectedRow.id && hasTraffic(selectedRow) && (
+                {selectedRow.id && hasTraffic(selectedRow) && (
                   isResolved(selectedRow) ? (
                     <button type="button" onClick={() => setResolved(selectedRow, false)} disabled={resolveMutation.isPending}
                       className="shrink-0 inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border border-gray-300 text-xs text-neutral-600 hover:bg-gray-50 disabled:opacity-50">

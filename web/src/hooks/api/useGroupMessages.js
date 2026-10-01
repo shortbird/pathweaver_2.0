@@ -418,6 +418,76 @@ export const useUpdateGroupSettings = () => {
   })
 }
 
+// The member's own lists of groups, never the school's: a mute belongs to a
+// membership, and the front office reads a school group without one.
+const memberGroupLists = {
+  queryKey: ['groups'],
+  predicate: (query) => query.queryKey[2] !== 'school'
+}
+
+const setGroupMuted = (queryClient, groupId, muted) => {
+  queryClient.setQueriesData(memberGroupLists, (old) => {
+    if (!old?.groups) return old
+    return { ...old, groups: old.groups.map((g) => (g.id === groupId ? { ...g, muted } : g)) }
+  })
+  queryClient.setQueryData(groupQueryKey(groupId), (old) => {
+    if (!old) return old
+    if (old.group) return { ...old, group: { ...old.group, muted } }
+    return { ...old, muted }
+  })
+}
+
+// Mute or unmute one chat's alerts for the current member. A muted chat puts
+// nothing in their bell and sends their phone no push; its unread count in
+// Messages still climbs, and nobody else in the chat is affected.
+//
+// Optimistic, because the control is a toggle: the bell in the header and the
+// icon on the list row flip on the click and flip back if the server refuses.
+export const useMuteGroup = () => {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({ groupId, muted }) => {
+      const response = await api.post(`/api/groups/${groupId}/mute`, { muted })
+      return response.data.data || response.data
+    },
+    onMutate: async ({ groupId, muted }) => {
+      const detailKey = groupQueryKey(groupId)
+      // A list or detail poll in flight would land after this and put the old
+      // value back until the next one.
+      await Promise.all([
+        queryClient.cancelQueries(memberGroupLists),
+        queryClient.cancelQueries({ queryKey: detailKey, exact: true })
+      ])
+      const previousLists = queryClient.getQueriesData(memberGroupLists)
+      const previousDetail = queryClient.getQueryData(detailKey)
+      setGroupMuted(queryClient, groupId, muted)
+      return { previousLists, previousDetail, detailKey }
+    },
+    onSuccess: (data, { groupId, muted }) => {
+      const saved = typeof data?.muted === 'boolean' ? data.muted : muted
+      setGroupMuted(queryClient, groupId, saved)
+      toast.success(saved ? 'Alerts muted for this chat' : 'Alerts are back on for this chat')
+    },
+    onError: (error, variables, context) => {
+      for (const [key, data] of context?.previousLists || []) {
+        queryClient.setQueryData(key, data)
+      }
+      if (context?.detailKey) {
+        queryClient.setQueryData(context.detailKey, context.previousDetail)
+      }
+      toast.error(error.response?.data?.error || 'Failed to update alerts for this chat')
+    },
+    // onMutate cancelled whatever was loading. If that was the chat's first
+    // detail fetch, nothing would ask again and the header would sit on the
+    // list row's copy; asking here is also what brings the server's answer in.
+    onSettled: (data, error, { groupId }) => {
+      queryClient.invalidateQueries({ queryKey: groupQueryKey(groupId), exact: true })
+      queryClient.invalidateQueries(memberGroupLists)
+    }
+  })
+}
+
 // Mark group as read
 export const useMarkGroupAsRead = () => {
   const queryClient = useQueryClient()

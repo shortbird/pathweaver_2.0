@@ -45,7 +45,7 @@ const { api, state } = vi.hoisted(() => {
   const state = {
     schoolConvos: [], schoolMessages: [], myConvos: [], myMessages: [], roster: [],
     groups: [], schoolGroups: [], groupMessages: [],
-    audience: null, granted: null, sends: [], sendDetail: null, staff: [], openedBy: [],
+    audience: null, sends: [], sendDetail: null, staff: [], openedBy: [],
     mineNeedsReply: 0, schoolNeedsReply: 0,
   }
   const apiData = (url) => {
@@ -69,9 +69,6 @@ const { api, state } = vi.hoisted(() => {
     if (url.includes('/api/school-inbox/conversations/')) {
       return { data: { data: { messages: state.schoolMessages, inbox_user_id: 'inbox-1',
         opened_by: state.openedBy } } }
-    }
-    if (url.startsWith('/api/school-inbox/granted')) {
-      return { data: { data: state.granted || { conversations: [], groups: [] } } }
     }
     if (url.startsWith('/api/sis/messaging/audience')) return { data: state.audience || {} }
     if (url.startsWith('/api/sis/messaging/recipients')) return { data: { people: state.staff } }
@@ -134,13 +131,17 @@ beforeEach(() => {
   state.schoolGroups = []
   state.groupMessages = []
   state.audience = null
-  state.granted = null
   state.sends = []
   state.sendDetail = null
   state.staff = []
   state.openedBy = []
   state.mineNeedsReply = 0
   state.schoolNeedsReply = 0
+  // The two group sections are drop-downs, closed until opened (ticket
+  // efa9bbed). The tests of what is IN them start with both open; the tests
+  // of the drop-downs themselves clear this.
+  window.localStorage.setItem('sis_inbox_open_sections',
+    JSON.stringify({ groups: true, classChats: true }))
   vi.clearAllMocks()
 })
 
@@ -566,7 +567,9 @@ describe('group threads sent from this page', () => {
     state.groups = [group({ unread_count: 3 })]
     render(<SchoolInboxPage />)
     await screen.findByText('Elementary teachers')
-    expect(screen.getByText('3')).toBeInTheDocument()
+    // On the row, and on the section's header for when it is closed.
+    expect(screen.getAllByText('3')).toHaveLength(2)
+    expect(screen.getByLabelText('3 unread in Group threads')).toBeInTheDocument()
   })
 
   // This test used to pin the opposite ("leaves family and student groups
@@ -767,16 +770,21 @@ describe('school-owned group threads on the School tab', () => {
 
 // ── Messaging rework (iCreate meeting, 2026-09-23) ───────────────────────────
 
-describe('SchoolInboxPage — tasks, grants and receipts', () => {
+describe('SchoolInboxPage — tasks and receipts', () => {
   // bf8b754d: a thread becomes a task for somebody on staff.
   it('makes a task from the whole thread', async () => {
     state.schoolConvos = [convo(1, 'Greta')]
-    state.staff = [{ id: 'tam', name: 'Tam T', role_labels: ['Teacher'] }]
+    // Only the front office is offered: a teacher cannot open the thread.
+    state.staff = [
+      { id: 'tam', name: 'Tam T', roles: ['campus_coordinator'], role_labels: ['Coordinator'] },
+      { id: 'ned', name: 'Ned Teacher', roles: ['advisor'], role_labels: ['Teacher'] },
+    ]
     render(<SchoolInboxPage />, { route: '/inbox?conversation=c1' })
     fireEvent.click(await screen.findByRole('button', { name: /Make a task/ }))
     const dialog = await screen.findByRole('dialog')
-    fireEvent.focus(await within(dialog).findByPlaceholderText('Search staff'))
-    fireEvent.change(within(dialog).getByPlaceholderText('Search staff'), { target: { value: 'Tam' } })
+    fireEvent.focus(await within(dialog).findByPlaceholderText('Search the front office'))
+    expect(screen.queryByText(/^Ned Teacher/)).toBeNull()
+    fireEvent.change(within(dialog).getByPlaceholderText('Search the front office'), { target: { value: 'Tam' } })
     fireEvent.mouseDown(await screen.findByText(/^Tam T/, { selector: 'button, button *' }))
     fireEvent.click(within(dialog).getByRole('button', { name: 'Make task' }))
     await waitFor(() => expect(api.post).toHaveBeenCalledWith(
@@ -789,15 +797,15 @@ describe('SchoolInboxPage — tasks, grants and receipts', () => {
     state.schoolConvos = [convo(1, 'Greta')]
     state.schoolMessages = [{ id: 'm1', sender_id: 'u1', message_content: 'Can I get the trip form?',
       created_at: '2026-08-30T12:00:00Z' }]
-    state.staff = [{ id: 'tam', name: 'Tam T' }]
+    state.staff = [{ id: 'tam', name: 'Tam T', roles: ['org_admin'] }]
     render(<SchoolInboxPage />, { route: '/inbox?conversation=c1' })
     await screen.findByText('Can I get the trip form?')
     // The thread's own button is first; the message's is under the bubble.
     const buttons = screen.getAllByRole('button', { name: 'Make a task' })
     fireEvent.click(buttons[buttons.length - 1])
     const dialog = await screen.findByRole('dialog')
-    fireEvent.focus(await within(dialog).findByPlaceholderText('Search staff'))
-    fireEvent.change(within(dialog).getByPlaceholderText('Search staff'), { target: { value: 'Tam' } })
+    fireEvent.focus(await within(dialog).findByPlaceholderText('Search the front office'))
+    fireEvent.change(within(dialog).getByPlaceholderText('Search the front office'), { target: { value: 'Tam' } })
     fireEvent.mouseDown(await screen.findByText(/^Tam T/, { selector: 'button, button *' }))
     fireEvent.click(within(dialog).getByLabelText(/Do something about it/))
     fireEvent.click(within(dialog).getByRole('button', { name: 'Make task' }))
@@ -817,33 +825,15 @@ describe('SchoolInboxPage — tasks, grants and receipts', () => {
     expect(screen.queryByText(/Opened by Me/)).toBeNull()
   })
 
-  // d93b24d2: a teacher given a thread "gets the whole thread and can reply".
-  it('shows a teacher the threads handed to them, and they reply as the school', async () => {
+  // The school inbox is the office's. A teacher could be lent one thread
+  // with a task (d93b24d2) until 2026-10-01; nobody ever was.
+  it('gives a teacher no school tab, even from a link that names it', async () => {
     authUser = { id: 'me-1', role: 'advisor' }
-    state.granted = {
-      conversations: [convo(1, 'Greta')], groups: [],
-      inbox_user_id: 'inbox-1', organization: { name: 'Hearthwood' },
-    }
-    state.schoolMessages = [{ id: 'm1', sender_id: 'u1', message_content: 'Hello?',
-      created_at: '2026-08-30T12:00:00Z' }]
     render(<SchoolInboxPage />, { route: '/inbox?tab=school&conversation=c1' })
-    expect(await screen.findByText('Hello?')).toBeInTheDocument()
-    expect(screen.getByText(/Replying as Hearthwood, with your name/)).toBeInTheDocument()
-    // Nothing the office manages: no Compose, no Make a task, no Mark handled.
-    expect(screen.queryByRole('button', { name: 'Compose' })).toBeNull()
-    expect(screen.queryByRole('button', { name: /Make a task/ })).toBeNull()
-    expect(screen.queryByRole('button', { name: /Mark handled/ })).toBeNull()
-    fireEvent.change(screen.getByPlaceholderText('Reply as Hearthwood...'), { target: { value: 'Attached' } })
-    fireEvent.click(screen.getByLabelText('Send message'))
-    await waitFor(() => expect(api.post).toHaveBeenCalledWith(
-      '/api/school-inbox/conversations/u1/send', { content: 'Attached' }))
-  })
-
-  it('gives a teacher with no handed threads no school tab', async () => {
-    authUser = { id: 'me-1', role: 'advisor' }
-    render(<SchoolInboxPage />)
-    await waitFor(() => expect(api.get).toHaveBeenCalledWith('/api/school-inbox/granted'))
+    await waitFor(() => expect(api.get).toHaveBeenCalledWith('/api/messages/conversations'))
     expect(screen.queryByRole('tab', { name: /^Hearthwood/ })).toBeNull()
+    expect(api.get).not.toHaveBeenCalledWith('/api/school-inbox/conversations')
+    expect(screen.getByRole('button', { name: 'Compose' })).toBeInTheDocument()
   })
 
   // 9b46c748: "Read by N of M" for a Compose send, and who.
@@ -924,3 +914,94 @@ describe('thread search', () => {
     expect(screen.getByText('No conversations match')).toBeInTheDocument()
   })
 })
+
+// iCreate, ticket efa9bbed (2026-10-01): "I would like individual messages to
+// appear at the top. I can ignore the class chats for the most part as I don't
+// have to be checking those often. Group threads and Class chats could be drop
+// down buttons."
+describe('SchoolInboxPage — people first, groups in drop-downs', () => {
+  const room = (over = {}) => ({
+    id: 'g1', name: 'Elementary teachers', audience: 'staff', member_count: 10,
+    unread_count: 0, last_message_at: '2026-09-22T10:00:00Z', ...over,
+  })
+  const classChat = (over = {}) => room({
+    id: 'g2', name: 'Art', audience: 'family', source_class_id: 'c-art', ...over })
+
+  beforeEach(() => { window.localStorage.removeItem('sis_inbox_open_sections') })
+
+  it('lists individual threads above both group sections', async () => {
+    authUser = { id: 'me-1', role: 'advisor' }
+    state.myConvos = [convo(1, 'Greta')]
+    state.groups = [room(), classChat()]
+    render(<SchoolInboxPage />, { route: '/inbox?tab=mine' })
+    fireEvent.click(await screen.findByRole('button', { name: 'All' }))
+    const person = await screen.findByText('Greta Family')
+    const groups = await screen.findByRole('button', { name: /Group threads/ })
+    const chats = screen.getByRole('button', { name: /Class chats/ })
+    const after = (a, b) => Boolean(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING)
+    expect(after(person, groups)).toBe(true)
+    expect(after(groups, chats)).toBe(true)
+  })
+
+  it('keeps both sections closed until opened, with their count and unread showing', async () => {
+    authUser = { id: 'me-1', role: 'advisor' }
+    state.groups = [room(), classChat({ unread_count: 3 }), classChat({ id: 'g3', name: 'Robotics', unread_count: 1 })]
+    render(<SchoolInboxPage />, { route: '/inbox?tab=mine' })
+    const chats = await screen.findByRole('button', { name: /Class chats/ })
+    expect(chats).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.queryByText('Art')).toBeNull()
+    expect(screen.queryByText('Elementary teachers')).toBeNull()
+    // Nothing is hidden silently: two chats, four unread.
+    expect(chats).toHaveTextContent('2')
+    expect(screen.getByLabelText('4 unread in Class chats')).toBeInTheDocument()
+
+    fireEvent.click(chats)
+    expect(chats).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.getByText('Art')).toBeInTheDocument()
+    expect(screen.queryByText('Elementary teachers')).toBeNull()
+    fireEvent.click(chats)
+    expect(screen.queryByText('Art')).toBeNull()
+  })
+
+  it('remembers an opened section on this browser', async () => {
+    authUser = { id: 'me-1', role: 'advisor' }
+    state.groups = [room()]
+    const first = render(<SchoolInboxPage />, { route: '/inbox?tab=mine' })
+    fireEvent.click(await screen.findByRole('button', { name: /Group threads/ }))
+    expect(screen.getByText('Elementary teachers')).toBeInTheDocument()
+    first.unmount()
+    render(<SchoolInboxPage />, { route: '/inbox?tab=mine' })
+    expect(await screen.findByText('Elementary teachers')).toBeInTheDocument()
+  })
+
+  it('a search looks inside closed sections', async () => {
+    authUser = { id: 'me-1', role: 'advisor' }
+    state.groups = [room(), classChat()]
+    render(<SchoolInboxPage />, { route: '/inbox?tab=mine' })
+    await screen.findByRole('button', { name: /Class chats/ })
+    fireEvent.change(screen.getByPlaceholderText(/Search/), { target: { value: 'art' } })
+    expect(await screen.findByText('Art')).toBeInTheDocument()
+    expect(screen.queryByText('Elementary teachers')).toBeNull()
+  })
+
+  it('a group opened from a link opens the section it lives in', async () => {
+    authUser = { id: 'me-1', role: 'advisor' }
+    state.groups = [room(), classChat()]
+    render(<SchoolInboxPage />, { route: '/inbox?tab=mine&group=g2' })
+    const chats = await screen.findByRole('button', { name: /Class chats/ })
+    await waitFor(() => expect(chats).toHaveAttribute('aria-expanded', 'true'))
+    expect(screen.getByRole('button', { name: /Group threads/ })).toHaveAttribute('aria-expanded', 'false')
+  })
+
+  it('the school tab puts families above the school group threads too', async () => {
+    state.schoolConvos = [convo(1, 'Greta')]
+    state.schoolGroups = [room({ id: 'sg1', name: 'Tuesday cover' })]
+    render(<SchoolInboxPage />, { route: '/inbox?tab=school' })
+    fireEvent.click(await screen.findByRole('button', { name: 'All' }))
+    const person = await screen.findByText('Greta Family')
+    const groups = await screen.findByRole('button', { name: /Group threads/ })
+    expect(Boolean(person.compareDocumentPosition(groups) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true)
+    expect(screen.queryByText('Tuesday cover')).toBeNull()
+  })
+})
+

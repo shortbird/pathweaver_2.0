@@ -123,6 +123,10 @@ def test_audience_is_one_entry_per_person_with_every_kind():
     assert people[MUM]['kinds'] == ['family']
     assert people[MUM]['child_ids'] == [ADA, BEN]
     assert people[ADA]['kinds'] == ['student'] and people[ADA]['class_ids'] == ['c1']
+    # Who each hears from, stated once by the server for the composer's From
+    # line: a teacher who is also a parent here is a colleague.
+    assert people[TEACH]['voice'] == 'you' and people[KATE]['voice'] == 'you'
+    assert people[MUM]['voice'] == 'school' and people[ADA]['voice'] == 'school'
     assert result['without_birthdate'] == 1  # Ben
     assert result['classes'][0]['teacher_ids'] == [TEACH]
     assert result['classes'][0]['aide_ids'] == [AIDE]
@@ -167,20 +171,22 @@ class TestCompose:
         with pytest.raises(ValueError):
             compose.compose(ORG, KATE, body='Hi', recipient_ids=[KATE])
 
-    def test_families_and_students_hear_from_the_school_even_from_my_messages(self, universe, repo):
+    def test_families_and_students_hear_from_the_school_and_staff_from_the_sender(self, universe, repo):
         """A parent's reply belongs in the School Inbox, not in one colleague's
-        own messages, so as_school=False does not change who they hear from."""
+        own messages, so as_school=False does not change who they hear from.
+        The teacher in the same send hears from Kate: one send, each person by
+        the one rule (voice_for)."""
         sent_by_school, sent_personally = [], []
         dm = Mock()
-        dm.send_message.side_effect = lambda s, r, c, **k: (sent_personally.append(r), _dm(f'p-{r}'))[1]
+        dm.send_message.side_effect = lambda s, r, c, **k: (sent_personally.append((s, r)), _dm(f'p-{r}'))[1]
         with patch('services.school_inbox_service.send_as_school',
                    side_effect=lambda org, r, c, **k: (sent_by_school.append((r, k)), _dm(f's-{r}'))[1]), \
              patch('services.direct_message_service.DirectMessageService', return_value=dm):
             result = compose.compose(ORG, KATE, body='Hi', recipient_ids=[MUM, ADA, TEACH],
                                      mode='separate', as_school=False)
 
-        assert [r for r, _ in sent_by_school] == [MUM, ADA, TEACH]
-        assert sent_personally == []
+        assert [r for r, _ in sent_by_school] == [MUM, ADA]
+        assert sent_personally == [(KATE, TEACH)]
         assert all(k['sent_by'] == KATE and k['fallback_sender'] == KATE for _, k in sent_by_school)
         assert result['as_school'] is True and result['sent'] == 3
 
@@ -294,58 +300,69 @@ class TestCompose:
         assert fields['group_id'] == 'g1' and fields['group_message_id'] == 'gm1'
         assert result['mode'] == 'group'
 
-    def test_a_staff_group_with_a_teacher_who_is_a_parent_is_a_staff_room(self, repo):
+    def test_somebody_on_staff_is_staff_whatever_else_they_are(self):
         """iCreate, ticket 6f9ed4fb (2026-09-30): "it says 'parents' on echo
         dots - when it was all sent to teachers." Three of the 41 staff were
-        also guardians, _universe filed them as family, and the room became a
-        parents' room. In a group, a member of staff is staff."""
+        also guardians and were filed as family. And the audit of 2026-10-01:
+        one send to two teachers reached the one with a child here as the
+        school. Staff wins, for a group and for one person alike."""
+        with patch.object(compose, '_staff', return_value=STAFF), \
+             patch.object(compose, '_students', return_value=STUDENTS), \
+             patch.object(compose, '_family_ids', return_value={MUM, TEACH}):
+            kinds = compose._universe(ORG)
+            assert compose.people_kinds(ORG) == kinds
+        assert kinds[TEACH] == 'staff' and kinds[KATE] == 'staff'
+        assert kinds[MUM] == 'family' and kinds[ADA] == 'student'
+
+    def test_voice_for_is_the_whole_rule(self):
+        assert compose.voice_for(['staff']) == 'you'
+        assert compose.voice_for(['staff', 'family']) == 'you'
+        assert compose.voice_for(['family']) == 'school'
+        assert compose.voice_for(['student']) == 'school'
+        assert compose.voice_for(['family'], as_teacher=True) == 'you'
+
+    def test_a_staff_group_from_my_messages_is_the_senders_own(self, universe, repo):
         svc = Mock()
         svc.create_group.return_value = {'id': 'g1'}
         svc.send_message.return_value = {'id': 'gm1'}
-        # TEACH is Ada's parent as well as a teacher: _universe says family.
-        teacher_parent = dict(UNIVERSE, **{TEACH: 'family'})
-        with patch.object(compose, '_universe', return_value=teacher_parent), \
-             patch.object(compose, '_staff', return_value=STAFF), \
-             patch('services.group_message_service.GroupMessageService', return_value=svc), \
+        with patch('services.group_message_service.GroupMessageService', return_value=svc), \
              patch.object(compose, '_default_name', return_value='Echo Dots'):
             result = compose.compose(ORG, KATE, body='Who has the Echo Dots?',
                                      recipient_ids=[TEACH, AIDE], mode='group')
         assert svc.create_group.call_args.kwargs['audience'] == 'staff'
-        # A staff room from My messages is the sender's own, not the school's.
         svc.create_school_group.assert_not_called()
         assert result['as_school'] is False
 
-    def test_a_real_parent_still_makes_a_family_room(self, repo):
-        """The other direction: _room_kinds changes staff only. MUM is not
-        staff, so a room with her in it stays a family room."""
+    def test_a_parent_in_the_room_makes_it_the_schools_family_room(self, universe, repo):
         svc = Mock()
         svc.create_school_group.return_value = {'id': 'g1'}
         svc.send_message.return_value = {'id': 'gm1'}
-        teacher_parent = dict(UNIVERSE, **{TEACH: 'family'})
-        with patch.object(compose, '_universe', return_value=teacher_parent), \
-             patch.object(compose, '_staff', return_value=STAFF), \
-             patch('services.group_message_service.GroupMessageService', return_value=svc), \
+        with patch('services.group_message_service.GroupMessageService', return_value=svc), \
              patch('services.school_inbox_service.school_account', return_value=({}, 'inbox')), \
              patch.object(compose, '_default_name', return_value='x'):
             compose.compose(ORG, KATE, body='Hi', recipient_ids=[TEACH, MUM], mode='group')
         assert svc.create_school_group.call_args.kwargs['audience'] == 'family'
 
-    def test_room_kinds_leaves_non_staff_alone(self):
-        with patch.object(compose, '_staff', return_value=STAFF):
-            kinds = compose._room_kinds(ORG, {TEACH: 'family', MUM: 'family', ADA: 'student'})
-        assert kinds == {TEACH: 'staff', MUM: 'family', ADA: 'student'}
+    def test_a_note_to_one_teacher_comes_from_the_colleague_who_wrote_it(self, universe, repo):
+        dm = Mock()
+        dm.send_message.return_value = _dm()
+        with patch('services.school_inbox_service.send_as_school') as school, \
+             patch('services.direct_message_service.DirectMessageService', return_value=dm):
+            result = compose.compose(ORG, KATE, body='Hi', recipient_ids=[TEACH], as_school=True)
+        school.assert_not_called()
+        assert dm.send_message.call_args.args[:2] == (KATE, TEACH)
+        assert result['as_school'] is False
 
-    def test_a_direct_message_to_a_teacher_parent_still_goes_as_the_school(self, repo):
-        """_universe's family-over-staff rule stays for one-to-one sends:
-        only a group reads its members as staff."""
-        teacher_parent = dict(UNIVERSE, **{TEACH: 'family'})
-        with patch.object(compose, '_universe', return_value=teacher_parent), \
-             patch.object(compose, '_staff', return_value=STAFF) as staff, \
-             patch('services.school_inbox_service.send_as_school', return_value=_dm()) as send:
-            result = compose.compose(ORG, KATE, body='Hi', recipient_ids=[TEACH])
-        assert result['as_school'] is True
-        send.assert_called_once()
-        staff.assert_not_called()
+    def test_a_school_group_fails_rather_than_being_filed_personally(self, universe, repo):
+        """No inbox account: a retryable error, never a personal group the
+        office cannot see (ac84b6cd)."""
+        svc = Mock()
+        with patch('services.group_message_service.GroupMessageService', return_value=svc), \
+             patch('services.school_inbox_service.school_account', return_value=({}, None)):
+            with pytest.raises(RuntimeError):
+                compose.compose(ORG, KATE, body='Hi', recipient_ids=[TEACH, AIDE],
+                                mode='group', as_school=True)
+        svc.create_group.assert_not_called()
 
     def test_a_group_with_a_student_is_a_student_room(self):
         assert compose._group_audience(['staff', 'family', 'student']) == 'student'

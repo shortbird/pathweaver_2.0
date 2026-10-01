@@ -33,6 +33,7 @@ import {
   deleteGroupMessage,
   pinGroupMessage,
   setGroupAnnouncementOnly,
+  setGroupMuted,
   type Group,
   type Message,
 } from '@/src/hooks/useMessages';
@@ -68,6 +69,9 @@ interface Props {
   onDeleted?: () => void;
   /** Called once the group has been marked read, so the bell can drop its count. */
   onRead?: () => void;
+  /** Called after the member mutes or unmutes the chat, so the list that owns
+   *  the row can show (or drop) its muted icon without waiting for its poll. */
+  onMuteChanged?: (muted: boolean) => void;
 }
 
 function formatTime(ts: string) {
@@ -179,7 +183,7 @@ function AdminSettings({
   );
 }
 
-export function GroupChatWindow({ group, onBack, onDeleted, onRead }: Props) {
+export function GroupChatWindow({ group, onBack, onDeleted, onRead, onMuteChanged }: Props) {
   const c = useThemeColors();
   const { user } = useAuthStore();
   const isSuperadmin = user?.role === 'superadmin';
@@ -209,6 +213,19 @@ export function GroupChatWindow({ group, onBack, onDeleted, onRead }: Props) {
   const [pinnedFallback, setPinnedFallback] = useState<Message | null>(null);
   const [announcementOnly, setAnnouncementOnly] = useState(false);
   const [savingSettings, setSavingSettings] = useState(false);
+  // Whether this member muted the chat's alerts. In order of trust: what they
+  // just pressed here; the detail fetch; the list row the chat was opened from
+  // (which can be a poll old, and a chat opened from a push has no real row).
+  // Both are checked against the chat's id because on desktop this window
+  // stays mounted while the selection changes, with the last chat's press and
+  // detail still in hand.
+  const [mutePress, setMutePress] = useState<{ groupId: string; muted: boolean } | null>(null);
+  const [savingMute, setSavingMute] = useState(false);
+  const muted = mutePress?.groupId === group.id
+    ? mutePress.muted
+    : groupDetail?.id === group.id && typeof groupDetail.muted === 'boolean'
+      ? groupDetail.muted
+      : !!group.muted;
   const {
     pending, pickAttachments, removeAttachment, clearAttachments, readyAttachments, uploading,
   } = usePendingAttachments();
@@ -371,6 +388,27 @@ export function GroupChatWindow({ group, onBack, onDeleted, onRead }: Props) {
     }
   };
 
+  // Optimistic, like the announcement-only switch above: the bell flips on the
+  // tap and flips back if the server refuses.
+  const handleToggleMute = async () => {
+    const groupId = group.id;
+    const next = !muted;
+    setSavingMute(true);
+    setMutePress({ groupId, muted: next });
+    try {
+      const res = await setGroupMuted(groupId, next);
+      const saved = typeof res?.muted === 'boolean' ? res.muted : next;
+      setMutePress({ groupId, muted: saved });
+      toast.success(saved ? 'Alerts muted for this chat' : 'Alerts are back on for this chat');
+      onMuteChanged?.(saved);
+    } catch (e: any) {
+      setMutePress({ groupId, muted: !next });
+      toast.error(e?.response?.data?.error || 'Failed to update alerts for this chat');
+    } finally {
+      setSavingMute(false);
+    }
+  };
+
   const [reportingMsg, setReportingMsg] = useState<Message | null>(null);
   const sendReport = async (msg: Message, reason: (typeof REPORT_REASONS)[number]['value']) => {
     try {
@@ -526,6 +564,29 @@ export function GroupChatWindow({ group, onBack, onDeleted, onRead }: Props) {
         </View>
       </View>
       <View className="flex-row items-center" style={{ gap: 8 }}>
+        <Pressable
+          onPress={handleToggleMute}
+          disabled={savingMute}
+          hitSlop={8}
+          accessibilityRole="button"
+          accessibilityState={{ selected: muted, disabled: savingMute }}
+          accessibilityLabel={muted ? 'Unmute alerts for this chat' : 'Mute alerts for this chat'}
+          style={{
+            width: 36,
+            height: 36,
+            borderRadius: 18,
+            alignItems: 'center',
+            justifyContent: 'center',
+            backgroundColor: c.surfaceMuted,
+            opacity: savingMute ? 0.5 : 1,
+          }}
+        >
+          <Ionicons
+            name={muted ? 'notifications-off-outline' : 'notifications-outline'}
+            size={18}
+            color={muted ? c.iconMuted : c.icon}
+          />
+        </Pressable>
         <Pressable
           onPress={() => setShowMembers((v) => !v)}
           accessibilityRole="button"

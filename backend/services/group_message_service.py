@@ -542,6 +542,7 @@ class GroupMessageService(BaseService):
                 'members': member_list,
                 'member_count': len(member_list),
                 'pinned_message': pinned,
+                'muted': group_id in self._muted_group_ids(supabase, user_id, [group_id]),
                 **context.get(group_id, {}),
             }
 
@@ -645,6 +646,37 @@ class GroupMessageService(BaseService):
             logger.warning(f"Could not attach guardian class context for {user_id}: {e}")
             return {}
 
+    @staticmethod
+    def _muted_group_ids(supabase, user_id: str, group_ids: List[str]) -> set:
+        """Which of these chats the member muted, for the list and the header.
+
+        Best-effort: the flag draws a bell icon, and a failed lookup must not
+        take the Messages list down with it.
+        """
+        try:
+            from repositories.notification_repository import NotificationRepository
+            return NotificationRepository(client=supabase).muted_group_ids(user_id, group_ids)
+        except Exception as e:  # noqa: BLE001
+            logger.warning(f"Could not read muted chats for {user_id}: {e}")
+            return set()
+
+    def set_muted(self, user_id: str, group_id: str, muted: bool) -> bool:
+        """Mute or unmute one chat's alerts for one member; returns the new state.
+
+        A muted chat writes this member no bell row and sends their phone no
+        push (_deliver_group_notifications). It still counts unread in
+        Messages, and nobody else in the chat is affected or told.
+
+        Members only: a mute is a setting on a membership, and the office
+        reading a school-owned group through the school inbox has none.
+        """
+        if not self.is_group_member(user_id, group_id):
+            raise ValueError("You are not a member of this group")
+        from repositories.notification_repository import NotificationRepository
+        NotificationRepository(client=self._get_client()).set_chat_muted(
+            user_id, group_id, bool(muted))
+        return bool(muted)
+
     def get_unread_total(self, user_id: str) -> int:
         """Unread GROUP messages across every group this user belongs to.
 
@@ -745,6 +777,7 @@ class GroupMessageService(BaseService):
                     member_counts[gid] = member_counts.get(gid, 0) + 1
 
             child_context = self._guardian_class_context(user_id, rows)
+            muted_ids = self._muted_group_ids(supabase, user_id, active_ids)
 
             result = []
             for group in rows:
@@ -771,6 +804,8 @@ class GroupMessageService(BaseService):
                     **group,
                     'member_count': member_counts.get(group['id'], 0),
                     'unread_count': unread_count,
+                    # Whether THIS member muted the chat's alerts (set_muted).
+                    'muted': group['id'] in muted_ids,
                     **child_context.get(group['id'], {}),
                 })
 
@@ -1174,6 +1209,21 @@ class GroupMessageService(BaseService):
                 'last_read_at': datetime.utcnow().isoformat()
             }).eq('group_id', group_id).eq('user_id', user_id).execute()
 
+            # ...and their bell row for this chat, for the same reason: this
+            # fetch is the open chat polling, so they are reading it. The
+            # clients post /read once, on opening; a message that arrived
+            # after that left an unread row behind, and since 2026-10-01 an
+            # unread row is what holds back the next push
+            # (_deliver_group_notifications). Someone who watched a reply
+            # arrive at nine would not have been told about the three o'clock
+            # one.
+            try:
+                from repositories.notification_repository import NotificationRepository
+                NotificationRepository(client=supabase).mark_group_messages_read(
+                    user_id, group_id)
+            except Exception as notif_err:  # noqa: BLE001
+                logger.warning(f"Failed to clear group message notifications on fetch: {notif_err}")
+
             return result
 
         except Exception as e:
@@ -1274,62 +1324,172 @@ class GroupMessageService(BaseService):
 
             member_ids = {m['user_id'] for m in (members.data or [])}
 
-            # Create notification for each member
             notification_service = NotificationService()
             message_preview = content[:50] + '...' if len(content) > 50 else content
 
+            # Who hears about it, and as what. Everyone in an audience gets the
+            # same title, link and metadata, which is what lets
+            # _deliver_group_notifications rewrite their rows together.
+            audiences: List[Dict[str, Any]] = []
+
             if school_org:
-                link = school_inbox_service.school_inbox_link(group_id=group_id)
-                for admin_id in school_inbox_service.admin_recipient_ids(school_org['id']):
+                school_name = school_org.get('name') or 'School'
+                audiences.append({
+                    'who': 'office user',
                     # A colleague who is also in the room hears about it as a
                     # member, below; the sender needs no bell for their own words.
-                    if admin_id == sender_id or admin_id in member_ids:
-                        continue
-                    try:
-                        notification_service.create_notification(
-                            user_id=admin_id,
-                            notification_type='message_received',
-                            title=f"{school_org.get('name') or 'School'} inbox: {group_name}",
-                            message=f'{sender_name}: {message_preview}',
-                            link=link,
-                            metadata={'group_id': group_id, 'sender_id': sender_id,
-                                      'sender_name': sender_name, 'school_inbox': True,
-                                      'organization_id': school_org['id'],
-                                      'full_content': content},
-                            organization_id=organization_id,
-                        )
-                    except Exception as e:  # noqa: BLE001
-                        logger.warning(f"Failed to notify office user {admin_id}: {str(e)}")
+                    'user_ids': [
+                        admin_id
+                        for admin_id in school_inbox_service.admin_recipient_ids(school_org['id'])
+                        if admin_id != sender_id and admin_id not in member_ids
+                    ],
+                    'title': f"{school_name} inbox: {group_name}",
+                    'title_for': lambda count: (
+                        f"{school_name} inbox: {count} new messages in {group_name}"),
+                    'link': school_inbox_service.school_inbox_link(group_id=group_id),
+                    'metadata': {'group_id': group_id, 'sender_id': sender_id,
+                                 'sender_name': sender_name, 'school_inbox': True,
+                                 'organization_id': school_org['id'],
+                                 'full_content': content},
+                    # The office is not in the room, so it has nothing to mute.
+                    'can_mute': False,
+                    'create_kwargs': {},
+                })
 
-            for member in (members.data or []):
-                if member['user_id'] == school_inbox_id:
-                    continue
-                try:
-                    notification_service.create_notification(
-                        user_id=member['user_id'],
-                        notification_type='message_received',
-                        title=f'New message in {group_name}',
-                        message=f'{sender_name}: {message_preview}',
-                        link=f'/communication?group={group_id}',
-                        metadata={
-                            'group_id': group_id,
-                            'sender_id': sender_id,
-                            'sender_name': sender_name,
-                            # The whole message, for the notification's
-                            # detail view: the 50-character preview was all
-                            # a teacher could read of it (61b762a5).
-                            'full_content': content,
-                        },
-                        organization_id=organization_id,
-                        **({} if push else {'push': False})
-                    )
-                except Exception as e:
-                    logger.warning(f"Failed to notify user {member['user_id']}: {str(e)}")
-                    continue
+            audiences.append({
+                'who': 'user',
+                'user_ids': [m['user_id'] for m in (members.data or [])
+                             if m['user_id'] != school_inbox_id],
+                'title': f'New message in {group_name}',
+                'title_for': lambda count: f'{count} new messages in {group_name}',
+                'link': f'/communication?group={group_id}',
+                'metadata': {
+                    'group_id': group_id,
+                    'sender_id': sender_id,
+                    'sender_name': sender_name,
+                    # The whole message, for the notification's
+                    # detail view: the 50-character preview was all
+                    # a teacher could read of it (61b762a5).
+                    'full_content': content,
+                },
+                'can_mute': True,
+                'create_kwargs': {} if push else {'push': False},
+            })
+
+            self._deliver_group_notifications(
+                supabase, notification_service, group_id,
+                body=f'{sender_name}: {message_preview}',
+                organization_id=organization_id,
+                audiences=audiences,
+            )
 
         except Exception as e:
             # Don't fail the message send if notifications fail
             logger.warning(f"Failed to send group message notifications: {str(e)}")
+
+    def _deliver_group_notifications(self, supabase, notification_service,
+                                     group_id: str, *, body: str,
+                                     organization_id: Optional[str],
+                                     audiences: List[Dict[str, Any]]) -> None:
+        """One unread bell row per chat per person, and one push until they read it.
+
+        A chat used to write a bell row and send a push for every message to
+        every member. iCreate parents are in 13 class chats on average, and
+        6,456 of the 7,641 message notifications written in the 30 days to
+        2026-10-01 were these: a busy afternoon in one class chat buried
+        everything else in the bell and buzzed a phone once a message.
+
+        Owner decision, 2026-10-01. For each recipient:
+
+          * they muted the chat: nothing. (The chat's own unread count in
+            Messages is counted from group_members.last_read_at and is not
+            touched by any of this.)
+          * they already hold an unread row for the chat: that row is
+            rewritten -- "3 new messages in Art", the newest preview, moved to
+            the top of the bell -- with no push and no Realtime broadcast.
+            The phone already buzzed for this chat and they have not looked;
+            and the mobile app adds one to its badge for every
+            `new_notification` broadcast, so broadcasting a rewrite would
+            count a row that is already counted.
+          * otherwise: a row is created as before, which pushes.
+
+        Reading the chat, or the row, marks it read, so the next message
+        starts a new row and pushes again.
+
+        Best-effort throughout, like the fan-out it replaced: a failed lookup
+        falls back to the old behaviour for that message (nobody muted, nothing
+        unread) rather than to silence, and no failure reaches the send.
+        """
+        from repositories.notification_repository import NotificationRepository
+        repo = NotificationRepository(client=supabase)
+
+        members = [uid for a in audiences if a['can_mute'] for uid in a['user_ids']]
+        muted: set = set()
+        if members:
+            try:
+                muted = repo.muted_member_ids(group_id, members)
+            except Exception as e:  # noqa: BLE001
+                logger.warning(f"Could not read who muted group {group_id}: {str(e)}")
+
+        recipients = [uid for a in audiences for uid in a['user_ids']
+                      if not (a['can_mute'] and uid in muted)]
+        unread: Dict[str, Dict[str, Any]] = {}
+        if recipients:
+            try:
+                unread = repo.unread_group_message_rows(group_id, recipients)
+            except Exception as e:  # noqa: BLE001
+                logger.warning(
+                    f"Could not read unread notifications for group {group_id}: {str(e)}")
+
+        for audience in audiences:
+            # Rows standing for the same number of messages get the same new
+            # title, so they go in one UPDATE: in a class chat nobody has
+            # opened since lunch that is every member at once, not a request
+            # per member.
+            rows_by_count: Dict[int, Dict[str, str]] = {}
+            fresh: List[str] = []
+            for uid in audience['user_ids']:
+                if audience['can_mute'] and uid in muted:
+                    continue
+                row = unread.get(uid)
+                if row:
+                    rows_by_count.setdefault(row['count'] + 1, {})[row['id']] = uid
+                else:
+                    fresh.append(uid)
+
+            for count, owner_by_row in rows_by_count.items():
+                try:
+                    written = repo.bump_group_message_rows(
+                        list(owner_by_row),
+                        title=audience['title_for'](count),
+                        message=body,
+                        link=audience['link'],
+                        metadata={**audience['metadata'], 'count': count},
+                    )
+                except Exception as e:  # noqa: BLE001
+                    logger.warning(
+                        f"Failed to update group notifications for {group_id}: {str(e)}")
+                    continue
+                # Someone who read their row between the lookup and the write
+                # has nothing unread any more: they start a new row, and it
+                # pushes, exactly as if they had read it a minute earlier.
+                fresh.extend(uid for row_id, uid in owner_by_row.items()
+                             if row_id not in written)
+
+            for uid in fresh:
+                try:
+                    notification_service.create_notification(
+                        user_id=uid,
+                        notification_type='message_received',
+                        title=audience['title'],
+                        message=body,
+                        link=audience['link'],
+                        metadata={**audience['metadata'], 'count': 1},
+                        organization_id=organization_id,
+                        **audience['create_kwargs']
+                    )
+                except Exception as e:  # noqa: BLE001
+                    logger.warning(f"Failed to notify {audience['who']} {uid}: {str(e)}")
 
     def get_available_members(self, user_id: str, group_id: str) -> List[Dict[str, Any]]:
         """

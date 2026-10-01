@@ -5,8 +5,7 @@ import { withOrg } from '../../pages/sis/useSisOrg'
 /**
  * The SIS Messaging page's reads and writes (iCreate meeting, 2026-09-23):
  * Compose's audience and send (bf8b754d, 8ee000b6), the Sent list with read
- * receipts (9b46c748), "Make a task" from a thread, and the threads a staff
- * member was handed with one (d93b24d2).
+ * receipts (9b46c748), and "Make a task" from a thread.
  *
  * `orgId` follows withOrg: a superadmin names the org, everyone else passes
  * null and the server pins them to their own.
@@ -17,7 +16,6 @@ export const messagingKeys = {
   staff: (orgId) => ['sis-messaging', 'staff', orgId || null],
   sends: (orgId) => ['sis-messaging', 'sends', orgId || null],
   send: (orgId, id) => ['sis-messaging', 'send', orgId || null, id],
-  granted: (userId, orgId) => ['school-granted', userId, orgId || null],
 }
 
 /** Everybody Compose can write to, with the class split and staff quick picks. */
@@ -71,15 +69,4 @@ export const useMakeThreadTask = (orgId) => useMutation({
       : `/api/school-inbox/conversations/${conversationId}/task`
     return (await api.post(withOrg(path, orgId), body)).data
   },
-})
-
-/** The school threads a non-office staff member holds a task for. */
-export const useGrantedThreads = (userId, orgId, { enabled = true, refetchInterval = 120000 } = {}) => useQuery({
-  queryKey: messagingKeys.granted(userId, orgId),
-  queryFn: async () => {
-    const r = await api.get(withOrg('/api/school-inbox/granted', orgId))
-    return r.data?.data || r.data
-  },
-  enabled: enabled && !!userId,
-  refetchInterval,
 })

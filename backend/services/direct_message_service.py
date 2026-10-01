@@ -506,9 +506,9 @@ class DirectMessageService(BaseService):
 
         sent_from: the surface the message came from. Left None by every
         client-facing caller, which is the point: it is read off the request
-        (utils/client_platform.py) so no route has to remember to pass it. The
-        email relay passes 'email' because its request is the mail provider's
-        webhook, not a user's client.
+        (utils/client_platform.py) so no route has to remember to pass it.
+        'email' is on rows written by the reply-by-email relay, which was
+        removed on 2026-10-01; nothing passes it now.
 
         Returns:
             Created message record (enriched with reply preview)

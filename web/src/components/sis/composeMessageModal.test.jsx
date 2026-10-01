@@ -22,7 +22,7 @@ vi.mock('react-hot-toast', () => ({
 }))
 vi.mock('../../pages/sis/useSisOrg', () => ({ withOrg: (url) => url }))
 
-import ComposeMessageModal, { filterPeople, classPartIds, senderFor } from './ComposeMessageModal'
+import ComposeMessageModal, { filterPeople, classPartIds, senderFor, voiceOf } from './ComposeMessageModal'
 
 const TAM = { id: 'tam', name: 'Tam Teacher', kinds: ['staff', 'family'], staff_kinds: ['teacher'], role_labels: ['Teacher'], child_ids: ['ada'], children: ['Ada'] }
 const AL = { id: 'al', name: 'Al Aide', kinds: ['staff'], staff_kinds: ['teacher'], role_labels: ['Teacher'] }
@@ -42,19 +42,27 @@ const render = (ui) => {
 }
 
 describe('senderFor', () => {
-  const counts = (staff, family = 0, student = 0) => ({ staff, family, student })
-  it('matches message_compose_service: families and students hear from the school', () => {
-    expect(senderFor({ asSchool: false, group: false, counts: counts(1, 1) })).toBe('school')
-    expect(senderFor({ asSchool: false, group: false, counts: counts(0, 0, 1) })).toBe('school')
+  const voices = (you, school = 0) => ({ you, school })
+  it('families and students hear from the school', () => {
+    expect(senderFor({ asSchool: false, group: false, voices: voices(0, 2) })).toBe('school')
   })
   it('staff written to separately hear from you, whichever tab', () => {
-    expect(senderFor({ asSchool: true, group: false, counts: counts(2) })).toBe('you')
-    expect(senderFor({ asSchool: false, group: false, counts: counts(2) })).toBe('you')
+    expect(senderFor({ asSchool: true, group: false, voices: voices(2) })).toBe('you')
+    expect(senderFor({ asSchool: false, group: false, voices: voices(2) })).toBe('you')
   })
-  it('a staff group from the school tab is the school\'s; a teacher is always themselves', () => {
-    expect(senderFor({ asSchool: true, group: true, counts: counts(3) })).toBe('school')
-    expect(senderFor({ asSchool: false, group: true, counts: counts(3) })).toBe('you')
-    expect(senderFor({ asSchool: true, asTeacher: true, group: false, counts: counts(1, 1) })).toBe('you')
+  it('a separate send to staff and families says both', () => {
+    expect(senderFor({ asSchool: true, group: false, voices: voices(1, 3) })).toBe('both')
+  })
+  it('a group has one owner', () => {
+    expect(senderFor({ asSchool: true, group: true, voices: voices(3) })).toBe('school')
+    expect(senderFor({ asSchool: false, group: true, voices: voices(3) })).toBe('you')
+    expect(senderFor({ asSchool: false, group: true, voices: voices(1, 2) })).toBe('school')
+  })
+  it('somebody on staff is a colleague, even when they are also a parent', () => {
+    // The server's `voice` wins; without one the same rule is applied here.
+    expect(voiceOf(TAM)).toBe('you')
+    expect(voiceOf(MUM)).toBe('school')
+    expect(voiceOf({ ...MUM, voice: 'you' })).toBe('you')
   })
 })
 
@@ -106,7 +114,9 @@ describe('ComposeMessageModal', () => {
     fireEvent.mouseDown(await screen.findByText('Art', { selector: 'button, button *' }))
     fireEvent.click(await screen.findByRole('button', { name: /^Aide: Al Aide/ }))
     fireEvent.click(screen.getByRole('button', { name: /^Families/ }))
-    expect(screen.getByText(/1 staff member, 2 parents/)).toBeInTheDocument()
+    // Tam is one of the Art families and a teacher: counted as staff, the
+    // way she is written to.
+    expect(screen.getByText(/2 staff, 1 parent/)).toBeInTheDocument()
     fireEvent.click(screen.getByLabelText(/Push notification/))
     fireEvent.click(screen.getByLabelText(/^Email/))
     fireEvent.change(screen.getByLabelText('Message'), { target: { value: 'Clay day Friday' } })
@@ -126,8 +136,11 @@ describe('ComposeMessageModal', () => {
     render(<ComposeMessageModal isOpen onClose={vi.fn()} asSchool orgName="iCreate" />)
     fireEvent.click(await screen.findByLabelText('Select Kate Office'))
     expect(screen.getByText('From:').parentElement).toHaveTextContent('From: You')
+    // A teacher who is also a parent here is still a colleague.
+    fireEvent.click(screen.getByLabelText('Select Tam Teacher'))
+    expect(screen.getByText('From:').parentElement).toHaveTextContent('From: You')
     fireEvent.click(screen.getByLabelText('Select Mia Lark'))
-    expect(screen.getByText('From:').parentElement).toHaveTextContent('From: iCreate')
+    expect(screen.getByText('From:').parentElement).toHaveTextContent('From: iCreate and you')
   })
 
   it('keeps a pick when the filter moves on', async () => {

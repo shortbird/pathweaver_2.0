@@ -427,6 +427,30 @@ def mark_as_read(user_id: str, group_id: str):
         )
 
 
+@bp.route('/<group_id>/mute', methods=['POST'])
+@require_auth
+def mute_group(user_id: str, group_id: str):
+    """
+    Mute or unmute this chat's alerts for the caller: {"muted": true|false}.
+
+    A muted chat writes the caller no bell notification and sends their phone
+    no push. Members only, and it changes nothing for anyone else in the chat.
+    """
+    data = request.get_json(silent=True) or {}
+    muted = data.get('muted')
+    # A real boolean, not bool(value): "false" is a non-empty string, and
+    # muting a chat because a client sent the word would be the wrong way to
+    # be forgiving.
+    if not isinstance(muted, bool):
+        return error_response('muted must be true or false', status_code=400,
+                              error_code="validation_error")
+    try:
+        return success_response({'muted': group_service.set_muted(user_id, group_id, muted)})
+    except ValueError as e:
+        logger.warning(f"Permission error muting group: {str(e)}")
+        return error_response(str(e), status_code=403, error_code="forbidden")
+
+
 @bp.route('/<group_id>/available-members', methods=['GET'])
 @require_auth
 def get_available_members(user_id: str, group_id: str):

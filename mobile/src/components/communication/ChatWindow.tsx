@@ -29,7 +29,6 @@ import {
   editDirectMessage,
   deleteDirectMessage,
   forwardMessageToSchool,
-  emailMessageToMe,
   type Contact,
   type Message,
 } from '@/src/hooks/useMessages';
@@ -240,22 +239,6 @@ export function ChatWindow({ contact, conversationId, onBack, onRead }: Props) {
       );
     } catch (e: any) {
       toast.error(e?.response?.data?.error || 'Could not forward this message');
-    }
-  };
-
-  // Superadmin: push a message into the inbox where this work actually gets
-  // triaged. No confirm — it only mails the viewer's own address, and the
-  // point is that it takes one tap while reading the thread on a phone.
-  const handleEmailToSelf = async (msg: Message) => {
-    try {
-      const res = await emailMessageToMe(msg.id);
-      toast.success(
-        res?.replies_enabled
-          ? `Emailed to ${res.emailed_to} — reply to that email to answer here`
-          : `Emailed to ${res?.emailed_to || 'your inbox'}`
-      );
-    } catch (e: any) {
-      toast.error(e?.response?.data?.error || 'Could not email this message');
     }
   };
 
@@ -620,7 +603,6 @@ export function ChatWindow({ contact, conversationId, onBack, onRead }: Props) {
       onEdit={() => actionsFor && startEdit(actionsFor)}
       onDelete={() => actionsFor && handleDelete(actionsFor)}
       onForward={isSuperadmin ? () => actionsFor && handleForwardToSchool(actionsFor) : undefined}
-      onEmailToSelf={isSuperadmin ? () => actionsFor && handleEmailToSelf(actionsFor) : undefined}
       onReport={() => actionsFor && setReportingMsg(actionsFor)}
     />
   );

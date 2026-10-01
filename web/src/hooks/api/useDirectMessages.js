@@ -152,6 +152,16 @@ export const useSendMessage = () => {
       queryClient.setQueryData(context.key, (old) =>
         patchThread(old, (messages) => settleOptimistic(messages, context.optimisticId, data?.message)))
 
+      // The front office and a family or student have one thread, the
+      // school's: a personal message between them is sent as the school
+      // (backend school_inbox_service.office_family_route). Say so, or the
+      // bubble just written here vanishes on the next poll with no reason.
+      const row = data?.message
+      if (!variables.source?.school && variables.currentUserId
+          && row?.sender_id && row.sender_id !== variables.currentUserId) {
+        toast('Sent from the school. This thread is in the school inbox.')
+      }
+
       // Invalidate conversations list to update last message preview
       queryClient.invalidateQueries({ queryKey: ['conversations'] })
 

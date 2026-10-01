@@ -31,10 +31,12 @@ import { useComposeAudience, useSendCompose } from '../../hooks/api/useSisMessag
  *   - The Optio message is always sent. Push and email are per-send toggles.
  *
  * Families and students always hear from the school, whichever tab this was
- * opened from, so their replies land in the School Inbox. Staff written to
- * one at a time always hear from you (iCreate, 2026-09-25: a note "just to
- * Molly" sent as the school went to the whole office). The dialog says which
- * before anything is sent: `senderFor` mirrors message_compose_service.
+ * opened from, so their replies land in the School Inbox. Somebody on staff
+ * always hears from you, even when they are also a parent here (iCreate,
+ * 2026-09-25: a note "just to Molly" sent as the school went to the whole
+ * office). The server says which for each person (`voice` on the audience,
+ * message_compose_service.voice_for); `senderFor` only adds them up, so the
+ * From line cannot disagree with what is sent.
  *
  * A teacher (asTeacher) sees only staff and their own classes' students and
  * families, always writes as themselves, and has no email copy -- the server
@@ -53,15 +55,20 @@ const KIND_WORDS = { staff: ['staff member', 'staff'], family: ['parent', 'paren
 
 const plural = (n, [one, many]) => `${n} ${n === 1 ? one : many}`
 
+/** The server's answer for one person, with the same rule as a fallback. */
+export const voiceOf = (p) => p.voice || (p.kinds.includes('staff') ? 'you' : 'school')
+
 /**
- * Who a send will come from, as the server decides it
- * (message_compose_service.compose): 'school' or 'you'. `counts` is
- * {staff, family, student}.
+ * Who a send will come from: 'school', 'you', or 'both' when a separate send
+ * mixes staff with families. `voices` is {school, you}, the count of chosen
+ * people with each `voice`. A group has one owner: the school's when anyone
+ * in it hears from the school, or when a staff group is started from the
+ * school inbox.
  */
-export const senderFor = ({ asSchool, asTeacher = false, group, counts }) => {
-  if (asTeacher) return 'you'
-  if (counts.family > 0 || counts.student > 0) return 'school'
-  return group && asSchool ? 'school' : 'you'
+export const senderFor = ({ asSchool, group, voices }) => {
+  if (group) return voices.school > 0 || asSchool ? 'school' : 'you'
+  if (voices.school > 0 && voices.you > 0) return 'both'
+  return voices.school > 0 ? 'school' : 'you'
 }
 
 /** Does this person pass the role filter? An empty filter passes everyone. */
@@ -183,19 +190,23 @@ function ComposeDialog({ orgId, orgName = '', asSchool = false, asTeacher = fals
   })
 
   // What the selection is, in words: "3 staff, 12 parents, 1 student".
+  // Somebody on staff counts as staff, whatever else they are: that is how
+  // they are written to.
   const counts = { staff: 0, family: 0, student: 0 }
+  const voices = { school: 0, you: 0 }
   chosen.forEach((id) => {
     const p = byId.get(id)
     if (!p) return
-    const kind = p.kinds.includes('student') ? 'student' : p.kinds.includes('family') ? 'family' : 'staff'
+    const kind = p.kinds.includes('staff') ? 'staff' : p.kinds.includes('student') ? 'student' : 'family'
     counts[kind] += 1
+    voices[voiceOf(p)] += 1
   })
   const summary = Object.entries(counts).filter(([, n]) => n)
     .map(([k, n]) => plural(n, KIND_WORDS[k])).join(', ')
-  const hasFamily = counts.family > 0 || counts.student > 0
+  const hasFamily = voices.school > 0
   const willBeGroup = mode === 'group' && chosen.size > 1
   const school = orgName || 'the school'
-  const from = senderFor({ asSchool, asTeacher, group: willBeGroup, counts })
+  const from = senderFor({ asSchool: asSchool && !asTeacher, group: willBeGroup, voices })
 
   const send = async () => {
     if (!chosen.size) { toast.error('Choose at least one person'); return }
@@ -263,14 +274,18 @@ function ComposeDialog({ orgId, orgName = '', asSchool = false, asTeacher = fals
         <div className="space-y-4">
           <div className="rounded-lg bg-neutral-50 border border-gray-200 px-3 py-2 text-sm" aria-live="polite">
             <span className="text-neutral-500">From: </span>
-            <span className="font-semibold text-neutral-900">{from === 'school' ? school : 'You'}</span>
+            <span className="font-semibold text-neutral-900">
+              {from === 'school' ? school : from === 'both' ? `${school} and you` : 'You'}
+            </span>
             {!asTeacher && (
               <span className="block text-xs text-neutral-500 mt-0.5">
                 {from === 'you'
-                  ? `Staff see your name, and their replies come to your My messages. Parents and students always hear from ${school}.`
-                  : hasFamily
-                    ? `Parents and students always hear from ${school}. Their replies come to the ${school} inbox.`
-                    : `A group from ${school}. Everyone in it sees that you wrote each message.`}
+                  ? 'Staff see your name, and their replies come to your My messages.'
+                  : from === 'both'
+                    ? `Parents and students hear from ${school}, and their replies come to the ${school} inbox. Staff hear from you, and their replies come to your My messages.`
+                    : hasFamily
+                      ? `Parents and students hear from ${school}. Their replies come to the ${school} inbox.`
+                      : `A group from ${school}. Everyone in it sees that you wrote each message.`}
               </span>
             )}
           </div>

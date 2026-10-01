@@ -1,5 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react'
 import {
+  BellIcon,
+  BellSlashIcon,
   Cog6ToothIcon,
   UsersIcon,
   ArrowLeftIcon,
@@ -15,7 +17,8 @@ import {
   useToggleGroupMessageReaction,
   useEditGroupMessage,
   useDeleteGroupMessage,
-  usePinGroupMessage
+  usePinGroupMessage,
+  useMuteGroup
 } from '../../hooks/api/useGroupMessages'
 import useMessagingRealtime from '../../hooks/api/useMessagingRealtime'
 import GroupSettingsModal from './GroupSettingsModal'
@@ -33,8 +36,9 @@ import { REPORT_REASONS, reportContent } from '../../services/friendsAPI'
  * every action is theirs. `{ school: true, orgId }` is the SIS School tab
  * reading a group the school owns (iCreate, ac84b6cd): the front office reads
  * and writes it through /api/school-inbox/groups without being a member, so
- * the member-only actions -- reactions, edit, delete, pin, report, settings --
- * are not offered, and reading marks it read for the office on the server.
+ * the member-only actions -- reactions, edit, delete, pin, report, settings,
+ * mute -- are not offered, and reading marks it read for the office on the
+ * server.
  */
 const GroupChatWindow = ({ group, onBack, source, onMakeTask = null }) => {
   const asSchool = !!source?.school
@@ -74,6 +78,7 @@ const GroupChatWindow = ({ group, onBack, source, onMakeTask = null }) => {
   const editMessageMutation = useEditGroupMessage()
   const deleteMessageMutation = useDeleteGroupMessage()
   const pinMessageMutation = usePinGroupMessage()
+  const muteMutation = useMuteGroup()
 
   // Live updates for the open group (polling remains as a fallback)
   useMessagingRealtime({ kind: 'group', id: group?.id, source, enabled: !!group?.id })
@@ -85,6 +90,11 @@ const GroupChatWindow = ({ group, onBack, source, onMakeTask = null }) => {
   const announcementOnly = !!groupDetails?.announcement_only
   const pinnedMessage = groupDetails?.pinned_message || null
   const canPost = !announcementOnly || isAdmin
+  // Whether this member muted the chat's alerts. The detail says so once it
+  // has loaded; until then the list row the chat was opened from does. (The
+  // console's class Messages tab opens a chat from a class payload that has no
+  // such field, which is why the detail is the one to trust.)
+  const muted = !!(groupDetails?.muted ?? group?.muted)
 
   // "Zayah · Tue 9:30 AM" for a guardian's class chat, empty for everyone else.
   // A class chat is named after its class and nothing else, so a parent opening
@@ -245,14 +255,31 @@ const GroupChatWindow = ({ group, onBack, source, onMakeTask = null }) => {
           </div>
         </div>
 
+        {/* Member-only, both of them. The school reading its own group is not
+            a member, so it has no alerts of its own to mute here. */}
         {!asSchool && (
-          <button
-            onClick={() => setShowSettings(true)}
-            className="p-2 text-gray-600 hover:bg-gray-100 rounded-full transition-colors"
-            title="Group Settings"
-          >
-            <Cog6ToothIcon className="w-5 h-5" />
-          </button>
+          <div className="flex items-center gap-1 flex-shrink-0">
+            <button
+              type="button"
+              onClick={() => muteMutation.mutate({ groupId: group.id, muted: !muted })}
+              disabled={muteMutation.isPending}
+              aria-pressed={muted}
+              aria-label={muted ? 'Unmute alerts for this chat' : 'Mute alerts for this chat'}
+              title={muted ? 'Unmute alerts for this chat' : 'Mute alerts for this chat'}
+              className={`p-2 rounded-full hover:bg-gray-100 transition-colors disabled:opacity-50 ${
+                muted ? 'text-gray-400' : 'text-gray-600'
+              }`}
+            >
+              {muted ? <BellSlashIcon className="w-5 h-5" /> : <BellIcon className="w-5 h-5" />}
+            </button>
+            <button
+              onClick={() => setShowSettings(true)}
+              className="p-2 text-gray-600 hover:bg-gray-100 rounded-full transition-colors"
+              title="Group Settings"
+            >
+              <Cog6ToothIcon className="w-5 h-5" />
+            </button>
+          </div>
         )}
       </div>
 

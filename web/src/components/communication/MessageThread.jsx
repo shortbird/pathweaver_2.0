@@ -23,10 +23,7 @@ const MessageThread = ({
   canReport = false,
   // Set only for superadmin support threads: forward a received message to the
   // sender's school inbox.
-  onForward,
-  // Superadmin only: mail a copy of a message to the viewer's own inbox, so it
-  // sits somewhere that nags until it is answered.
-  onEmailToSelf
+  onForward
 }) => {
   const confirm = useConfirm()
   const { user } = useAuth()
@@ -112,14 +109,12 @@ const MessageThread = ({
                   canEdit={isSender}
                   canDelete={isSender}
                   canForward={!!onForward && !isSender}
-                  canEmailToSelf={!!onEmailToSelf}
                   canReport={canReport && !isSender}
                   onReact={(emoji) => onToggleReaction?.(message, emoji)}
                   onReply={() => onReply?.(message)}
                   onEdit={() => setEditingId(message.id)}
                   onDelete={() => handleDelete(message)}
                   onForward={() => onForward?.(message)}
-                  onEmailToSelf={() => onEmailToSelf?.(message)}
                   onReport={() => setReportingId(message.id)}
                 />
               )}

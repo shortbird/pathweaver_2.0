@@ -1,9 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, fireEvent } from '@testing-library/react'
 import GroupChatWindow from './GroupChatWindow'
 
 let groupMessages = { data: { messages: [] }, isLoading: false }
 let groupDetails = { data: null }
+const muteGroup = vi.fn()
 
 vi.mock('../../contexts/AuthContext', () => ({ useAuth: () => ({ user: { id: 'u1' } }) }))
 vi.mock('../../hooks/api/useGroupMessages', () => ({
@@ -14,7 +15,8 @@ vi.mock('../../hooks/api/useGroupMessages', () => ({
   useToggleGroupMessageReaction: () => ({ mutate: vi.fn() }),
   useEditGroupMessage: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useDeleteGroupMessage: () => ({ mutate: vi.fn() }),
-  usePinGroupMessage: () => ({ mutate: vi.fn(), isPending: false })
+  usePinGroupMessage: () => ({ mutate: vi.fn(), isPending: false }),
+  useMuteGroup: () => ({ mutate: muteGroup, isPending: false })
 }))
 vi.mock('../../hooks/api/useMessagingRealtime', () => ({
   default: vi.fn(),
@@ -201,6 +203,47 @@ describe('GroupChatWindow', () => {
     ] } }
     render(<GroupChatWindow group={group} />)
     expect(screen.getByText('· Seen by 1')).toHaveAttribute('title', 'Ada L')
+  })
+
+  // Owner decision, 2026-10-01: a member can mute one chat's alerts. A muted
+  // chat puts nothing in their bell and sends their phone no push.
+  describe('muting the chat', () => {
+    it('offers Mute on a chat whose alerts are on, and asks to mute it', () => {
+      render(<GroupChatWindow group={group} />)
+      const toggle = screen.getByRole('button', { name: 'Mute alerts for this chat' })
+      expect(toggle).toHaveAttribute('title', 'Mute alerts for this chat')
+      expect(toggle).toHaveAttribute('aria-pressed', 'false')
+      fireEvent.click(toggle)
+      expect(muteGroup).toHaveBeenCalledWith({ groupId: 'g1', muted: true })
+    })
+
+    it('offers Unmute on a chat the list row says is muted', () => {
+      render(<GroupChatWindow group={{ ...group, muted: true }} />)
+      const toggle = screen.getByRole('button', { name: 'Unmute alerts for this chat' })
+      expect(toggle).toHaveAttribute('aria-pressed', 'true')
+      fireEvent.click(toggle)
+      expect(muteGroup).toHaveBeenCalledWith({ groupId: 'g1', muted: false })
+    })
+
+    // The console's class Messages tab opens a chat from a class payload with
+    // no `muted` on it, and a list row can be up to 30 seconds old.
+    it('trusts the loaded detail over the row the chat was opened from', () => {
+      groupDetails = { data: { group: { id: 'g1', muted: true, members: [{ user_id: 'u1', role: 'member' }] } } }
+      const first = render(<GroupChatWindow group={group} />)
+      expect(screen.getByRole('button', { name: 'Unmute alerts for this chat' })).toBeInTheDocument()
+      first.unmount()
+
+      groupDetails = { data: { group: { id: 'g1', muted: false, members: [] } } }
+      render(<GroupChatWindow group={{ ...group, muted: true }} />)
+      expect(screen.getByRole('button', { name: 'Mute alerts for this chat' })).toBeInTheDocument()
+    })
+
+    // The front office reads a school-owned group without being a member, so
+    // there is no membership to hang a mute on.
+    it('is not offered when the school reads its own group', () => {
+      render(<GroupChatWindow group={{ ...group, muted: true }} source={{ school: true, orgId: 'o1' }} />)
+      expect(screen.queryByRole('button', { name: /mute alerts for this chat/i })).not.toBeInTheDocument()
+    })
   })
 
   it('offers Make a task on each message when the school reads it', () => {

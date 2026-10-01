@@ -253,7 +253,10 @@ BASELINES = {
     # routes/admin/organization_courses.py into services/partner_accounts.py
     # (-2 here, +2 in services, which still sits at its 1807 ceiling); the rest
     # had already fallen without the ceiling following.
-    'routes': 2206,
+    # 2026-10-01: 2206 -> 2203. Reply-by-email removed (5 sends, no reply
+    # ever): direct_messages.email_message_to_me went, and the three reads
+    # that authorized it went with it. Measured on HEAD plus that change alone.
+    'routes': 2203,
     # 2026-09-09: 1828 -> 1830. The deletion sweep's reactivation guard, in
     # account_deletion_service: one read for dependents added after the request,
     # one write to rescind it. The sweep is a cron entrypoint that already owns
@@ -335,7 +338,10 @@ BASELINES = {
     # deleted with the forms; the task center's new reads went into
     # repositories/sis_task_repository.py, not here.
     # Integration branch 2026-09-24: the four iCreate streams together.
-    'services': 1807,
+    # 2026-10-01: 1807 -> 1802. services/message_email_relay_service.py was
+    # deleted with reply-by-email; its five calls read and wrote
+    # message_email_relays. Measured on HEAD plus that change alone.
+    'services': 1802,
     # 2026-09-09: 135 -> 136. class_membership.children_in_classes, the inverse
     # of parents_of_students: which of a guardian's children sit in each of a
     # set of classes. It answers "whose class chat is this?" for the messaging
@@ -418,7 +424,7 @@ def test_direct_db_calls_do_not_grow(layer):
 
 #: routes/ + services/ combined. A call may move DOWN a layer; the total may not
 #: grow. Keep this equal to BASELINES['routes'] + BASELINES['services'].
-UPPER_TOTAL_BASELINE = 2206 + 1807
+UPPER_TOTAL_BASELINE = 2203 + 1802
 
 
 def test_the_upper_layers_do_not_grow_in_total():
