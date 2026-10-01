@@ -1,7 +1,8 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi, afterEach } from 'vitest'
 import {
   applyFilters, sortRows, roleChipOptions, statusOptions, familyOptions,
   isFormer, statusOf, EMPTY_FILTERS, QUICK_VIEWS, quickViewOf, applyQuickView,
+  withTodaysAge,
 } from './peopleFilters'
 
 /**
@@ -164,5 +165,39 @@ describe('quick views', () => {
     expect(quickViewOf({ ...EMPTY_FILTERS, role: 'student' })).toBe('students')
     expect(quickViewOf({ ...EMPTY_FILTERS, role: 'advisor' })).toBeNull()
     expect(quickViewOf({ ...EMPTY_FILTERS, role: 'student', family: 'none' })).toBeNull()
+  })
+})
+
+describe('age on People is today\'s age', () => {
+  // iCreate, ticket 9382b209 (2026-09-30): "Sage Louw turned 8 on 9/11/2018,
+  // but he's showing as 7 years old." The roster's age is as of the first day
+  // of school (2026-08-24 there); People shows the age today.
+  afterEach(() => vi.useRealTimers())
+  const SAGE = row('Sage', { is_student: true, roles: ['student'], age: 7, date_of_birth: '2018-09-11' })
+
+  it('replaces the school-year age with the age today', () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date(2026, 8, 30))
+    expect(withTodaysAge([SAGE])[0].age).toBe(8)
+  })
+
+  it('does not count the birthday before the day comes', () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date(2026, 8, 10))
+    expect(withTodaysAge([SAGE])[0].age).toBe(7)
+  })
+
+  it('leaves a student without a birthday unknown, and adults alone', () => {
+    const noDob = row('Nod', { is_student: true, roles: ['student'], age: null, date_of_birth: null })
+    const mum = row('Mum', { age: null, date_of_birth: '1985-01-01' })
+    const [a, b] = withTodaysAge([noDob, mum])
+    expect(a.age).toBeNull()
+    expect(b.age).toBeNull()
+  })
+
+  it('does not change the roster rows it was given', () => {
+    const rows = [SAGE]
+    withTodaysAge(rows)
+    expect(rows[0].age).toBe(7)
   })
 })

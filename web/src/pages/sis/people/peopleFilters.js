@@ -14,6 +14,7 @@
 import { matchesPersonSearch } from '../../../utils/personSearch'
 import { matchesPaymentFilter } from '../PaymentMethodPills'
 import { statusLabel } from '../../../components/sis/ui/statusMaps'
+import { ageFromDob } from '../../../utils/age'
 
 export const STAFF_ROLES = ['org_admin', 'campus_coordinator', 'advisor']
 
@@ -214,6 +215,19 @@ export const familyOptions = (rows, f) => {
     { key: 'former', label: 'Former family', count: former },
   ].filter((o) => o.count > 0 || o.key === f.family)
 }
+
+/**
+ * The People page shows a student's age today. The roster's `age` is the
+ * school-year age (as of the first day of school, services/sis_age.py), which
+ * class eligibility and the other SIS screens keep using. On a list of people
+ * the office reads it as "how old is this child", and a birthday since the
+ * first day looked like a bug. iCreate, ticket 9382b209 (2026-09-30): "Sage
+ * Louw turned 8 on 9/11/2018, but he's showing as 7 years old." Rule chosen by
+ * Tanner the same day: today's age on People only. The sort and the CSV
+ * export read the same number the table shows.
+ */
+export const withTodaysAge = (rows) =>
+  rows.map((r) => (r.is_student ? { ...r, age: ageFromDob(r.date_of_birth) } : r))
 
 export const sortRows = (rows, sort) => {
   const dir = sort.dir === 'asc' ? 1 : -1

@@ -107,6 +107,10 @@ describe('People export', () => {
   }
 
   it('exports the rows on screen, with an Age column', async () => {
+    // The Age column is today's age from the birthday (ticket 9382b209), so
+    // pin today: Ryder (2017-03-02) is 9 until March 2027.
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date(2026, 8, 30))
     render(<PeoplePage />)
     await screen.findByText('Ryder Swenson')
     await exportCsv()
@@ -114,6 +118,19 @@ describe('People export', () => {
     expect(header.split(',')).toContain('Age')
     expect(rows).toHaveLength(3)
     expect(downloaded).toContain('Ryder Swenson,Ryder,Swenson,9,2017-03-02')
+    vi.useRealTimers()
+  })
+
+  it('shows and exports the age today, not the school-year age (ticket 9382b209)', async () => {
+    // The server says 9 (the first-day-of-school age); on 2027-03-05 Ryder
+    // (2017-03-02) is 10, and People says so.
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date(2027, 2, 5))
+    render(<PeoplePage />)
+    await screen.findByText('Ryder Swenson')
+    await exportCsv()
+    expect(downloaded).toContain('Ryder Swenson,Ryder,Swenson,10,2017-03-02')
+    vi.useRealTimers()
   })
 
   it('respects the Students filter instead of dumping the whole org', async () => {

@@ -21,7 +21,7 @@ import PersonActionsModal from './people/PersonActionsModal'
 import StaffDuplicatesBanner from './people/StaffDuplicatesBanner'
 import {
   EMPTY_FILTERS, applyFilters, sortRows, isStaff, asStaffRow,
-  QUICK_VIEWS, quickViewOf, applyQuickView,
+  QUICK_VIEWS, quickViewOf, applyQuickView, withTodaysAge,
 } from './people/peopleFilters'
 import GlassTabBar from '../../components/ui/GlassTabBar'
 import PopMenu from '../../components/sis/ui/PopMenu'
@@ -130,7 +130,8 @@ const PeoplePage = () => {
     if (changed) setParams(next, { replace: true })
   }, [orgId])
 
-  const visible = useMemo(() => sortRows(applyFilters(roster, filters), sort), [roster, filters, sort])
+  const people = useMemo(() => withTodaysAge(roster), [roster])
+  const visible = useMemo(() => sortRows(applyFilters(people, filters), sort), [people, filters, sort])
   const hiddenCount = roster.length - visible.length
   const studentsWithoutFamily = useMemo(
     () => roster.filter((r) => r.is_student && !r.household_id && !['withdrawn', 'graduated'].includes(r.enrollment_status)).length,
