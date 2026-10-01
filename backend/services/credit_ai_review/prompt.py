@@ -31,7 +31,7 @@ from services.credit_ai_review.schema import JSON_EXAMPLE
 
 #: Bumped whenever the prompt or the schema changes, so two stored reviews can
 #: be compared without wondering whether they were asked the same question.
-PROMPT_VERSION = 'credit-review/2026-09-29.2'
+PROMPT_VERSION = 'credit-review/2026-09-30.1'
 
 CRITERIA_FROM_SUCCESS = 'success_criteria'
 CRITERIA_FROM_DESCRIPTION = 'task_description'
@@ -168,9 +168,10 @@ def _xp_section(requested_xp: int, calibration: Calibration) -> str:
     examples = _xp_examples(calibration.examples)
     sizes = ', '.join(str(x) for x in TASK_XP_SIZES)
     return f"""JUDGING THE XP
-The student set the XP value themselves when they planned the task, so it is a
-claim about scope, not a fact. First size the work the evidence shows, then
-compare that size to the claim of {requested_xp} XP.
+The task's XP value was set when the task was planned -- by the student, a
+teacher, or an AI that sized the task on the same scale below. It is a claim
+about the work the task asks for. First size the work the evidence shows, then
+compare it to the task as written and to the claim of {requested_xp} XP.
 
 THE SCALE:
 {calibration.guide}
@@ -181,6 +182,11 @@ THE RULES:
   Do not keep the claim just because the student chose it.
 - If {requested_xp} fits the work, set proportionate to true and recommend
   {requested_xp}.
+- If the evidence does everything the task and its Definition of Done ask
+  for, at the amount they ask for, the claim fits: recommend {requested_xp}.
+  The task was sized on this scale when it was written, so fully doing it
+  earns its XP. Recommend less only when the evidence shows less work than the
+  task asked for.
 - NEVER recommend more than {requested_xp}. Raising it is not yours to do.
 - Never recommend below {MIN_TASK_XP}, which is the platform floor.
 - Give one sentence of rationale either way."""

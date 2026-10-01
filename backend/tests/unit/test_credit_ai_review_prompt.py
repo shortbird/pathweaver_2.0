@@ -182,7 +182,8 @@ class TestXPGuidance:
         assert 'do not trim by default' not in text
         assert 'expected answer' not in text
         assert 'Do not keep the claim just because the student chose it' in text
-        assert '- 25: a quick piece of work' in text
+        # The scale starts at 25 (the shared one, prompts/xp_scale.py).
+        assert '- 25: a quick task' in text
 
 
 @pytest.mark.unit
@@ -315,8 +316,22 @@ class TestTheApprovalNote:
         text = _prompt()
         approve = text[text.index('For the "celebrate" note:'):text.index('For the "grow_this" note:')]
         assert 'Warm, friendly, positive, calm' in approve
-        assert 'This looks great' in approve
         assert 'One exclamation point at most' in approve
+
+    def test_it_varies_the_opening(self):
+        """The first class review (2026-09-30) gathered eleven approval notes
+        into one email and most opened "This looks great!" -- copied from the
+        prompt's own first example. The examples no longer share an opening
+        and the stock openers are named as ones to avoid."""
+        text = _prompt()
+        approve = text[text.index('For the "celebrate" note:'):text.index('For the "grow_this" note:')]
+        assert 'VARY THE OPENING' in approve
+        examples = approve[approve.index('EXAMPLES OF THE REGISTER'):]
+        quoted = [line.strip()[3:] for line in examples.splitlines() if line.strip().startswith('- "')]
+        assert len(quoted) >= 3
+        assert len({q.split()[0].lower() for q in quoted}) == len(quoted)
+        for stock in ('This looks great', 'Really nice work', 'Great job', 'Nice work'):
+            assert not any(q.startswith(stock) for q in quoted)
 
     def test_the_return_note_keeps_its_length_and_firmness(self):
         text = _prompt()

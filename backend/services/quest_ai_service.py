@@ -14,6 +14,8 @@ from app_config import Config
 from services.base_ai_service import BaseAIService, AIParsingError, GENERATION_CONFIGS, AIServiceOverloadedError
 from database import get_supabase_admin_client
 from utils.logger import get_logger
+from utils.task_xp import snap_to_task_size
+from prompts.xp_scale import TASK_XP_RULES
 
 # Import shared prompt components
 from prompts.components import (
@@ -291,7 +293,7 @@ Return ONLY valid JSON (no markdown code blocks):
               BAD: "Synthesize research from multiple sources to formulate a comprehensive analysis of the subject matter."
             - pillar: One of [{', '.join(self.valid_pillars)}]
             - school_subjects: Array of relevant school subjects from [{', '.join([self.school_subject_display_names[s] for s in self.school_subjects])}]
-            - xp_value: XP points (25-150 based on complexity)
+            - xp_value: one size from the XP scale below, matched to the work the description asks for
             - evidence_prompt: Simple options for showing work (writing, video, poster, project, etc.)
 
             Tasks should:
@@ -302,6 +304,8 @@ Return ONLY valid JSON (no markdown code blocks):
 
             Evidence prompts should suggest multiple ways students could demonstrate learning:
             "Could be demonstrated through a written reflection, video presentation, creative project, model, website, or other format that shows your understanding"
+
+            {TASK_XP_RULES}
 
             Return as valid JSON array with these exact field names.
             """
@@ -484,14 +488,16 @@ Produce ONE quest:
       not the unit: a unit can be history while the essay task inside it is
       history AND language arts. Name a second or third subject only when the
       task genuinely does that work too.
-    - xp_value: 25-150, a multiple of 25, scaled to real effort. 25 is a hard
-      floor — a smaller number is not storable, so use 25 when asked for less.
+    - xp_value: one of 25, 50, 75, 100, 150, sized on the XP scale below to the
+      work the task asks for. 25 is a hard floor — a smaller number is not
+      storable, so use 25 when asked for less.
     - is_required: true for the core of the unit, false for extensions. Set it
       on EVERY task. If the teacher's instructions name which tasks are
       required, every task they did not name is false — "make the first task
       required" means exactly one true.{count_rule}
 {extra}
 {style_rules}
+{TASK_XP_RULES}
 Do not mention grades, points beyond XP, deadlines, or assessment rubrics.
 
 {JSON_OUTPUT_INSTRUCTIONS}
@@ -738,7 +744,7 @@ Return a single JSON object: {{"title": str, "description": str, "tasks": [...]}
           BAD: "Create a comprehensive visual representation synthesizing the fundamental concepts."
         - pillar: One of [{', '.join(self.valid_pillars)}] that best matches the lesson content
         - school_subjects: Array of relevant school subjects from [{', '.join([self.school_subject_display_names[s] for s in self.school_subjects])}]
-        - xp_value: XP points (25-150 based on complexity and time required)
+        - xp_value: one size from the XP scale below, matched to the work the description asks for
         - evidence_prompt: Simple options for showing work (writing, video, poster, project, etc.)
 
         Tasks should:
@@ -750,6 +756,8 @@ Return a single JSON object: {{"title": str, "description": str, "tasks": [...]}
 
         Evidence prompts should be flexible:
         "Demonstrate your understanding through a written summary, video explanation, visual diagram, practical example, or other format of your choice"
+
+        {TASK_XP_RULES}
 
         Return ONLY a valid JSON array with these exact field names. No markdown, no code blocks.
         """
@@ -939,7 +947,7 @@ Return a single JSON object: {{"title": str, "description": str, "tasks": [...]}
              BAD: "Synthesize your conceptual understanding to formulate a comprehensive project plan."
            - pillar: One of [{', '.join(self.valid_pillars)}]
            - school_subjects: Array of relevant school subjects from [{', '.join([self.school_subject_display_names[s] for s in self.school_subjects])}]
-           - xp_value: Points 25-150 based on how hard it is
+           - xp_value: one size from the XP scale below, matched to the work the description asks for
            - evidence_prompt: Simple options for showing work (writing, video, poster, photos, etc.)
            - order_index: Sequential number starting from 1
 
@@ -948,6 +956,8 @@ Return a single JSON object: {{"title": str, "description": str, "tasks": [...]}
         - The TASK can be challenging, but the WORDS should be simple
         - Tasks should build on each other
         - Total XP should be 200-600 points
+
+        {TASK_XP_RULES}
 
         Return as valid JSON with exact field names shown above.
         """
@@ -1218,12 +1228,9 @@ Return a single JSON object: {{"title": str, "description": str, "tasks": [...]}
         max_xp default of 150 preserves every existing caller; personalization
         passes 200 for challenge-level tasks (matches the accept-time cap).
         """
-        try:
-            xp = int(xp_value)
-            # Clamp to reasonable range (halved scale)
-            return max(25, min(max_xp, xp))
-        except (ValueError, TypeError):
-            return 50
+        # Onto the shared task sizes (prompts/xp_scale.py), not merely a clamp:
+        # a 125 or a 60 is a size neither the reviewer nor the grader has.
+        return snap_to_task_size(xp_value, default=50, hi=max_xp)
 
     def clone_quest_to_optio(self, source_quest: Dict) -> Dict[str, Any]:
         """

@@ -122,20 +122,11 @@ class TestXpDistribution:
     def _tasks(self, values):
         return [{'title': f't{i}', 'xp_value': v} for i, v in enumerate(values)]
 
-    @pytest.mark.parametrize('level,anchor', [
-        ('easier', 75), ('standard', 100), ('challenge', 200), (None, 100),
-    ])
-    def test_half_of_tasks_anchor_at_level_value(self, service, level, anchor):
-        tasks = service._enforce_xp_distribution(
-            self._tasks([50, 50, 50, 50, 50, 50]), challenge_level=level
-        )
-        assert sum(1 for t in tasks if t['xp_value'] == anchor) >= len(tasks) // 2
-
-    def test_already_anchored_batch_untouched(self, service):
-        tasks = service._enforce_xp_distribution(
-            self._tasks([100, 100, 100, 150, 50, 75]), challenge_level='standard'
-        )
-        assert [t['xp_value'] for t in tasks] == [100, 100, 100, 150, 50, 75]
+    def test_xp_is_never_rewritten_after_generation(self, service):
+        """The anchor used to be forced onto half the batch after the AI wrote
+        it, without touching the task text. A task's XP must fit the work it
+        asks for (prompts/xp_scale.py), so nothing may move it afterwards."""
+        assert not hasattr(service, '_enforce_xp_distribution')
 
     def test_level_config_shape(self):
         for level, cfg in CHALLENGE_LEVELS.items():

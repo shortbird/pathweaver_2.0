@@ -19,6 +19,7 @@ Extended (Sep 2026): Definition of Done, description fill-in, XP rubric.
 from typing import Dict, Any, List, Optional
 
 from config.constants import TASK_XP_SIZES
+from prompts.xp_scale import XP_SCALE
 from services.base_ai_service import BaseAIService
 from utils.logger import get_logger
 from utils.personalization_helpers import sanitize_success_criteria
@@ -145,12 +146,7 @@ If the description above is empty, write 1-2 short sentences saying what to do. 
 
 3. XP SIZE ("suggested_xp")
 Size the task by how much real work the Definition of Done asks for, not by how important the title sounds. Pick exactly one:
-- 25: a quick task, under 30 minutes
-- 50: a small task, about an hour
-- 75: a light task, one or two sittings
-- 100: a medium task, a few hours across a couple of sessions
-- 150: a large task, several sessions over a week or so
-- 200: a major multi-session project with a substantial finished product
+{XP_SCALE}
 If the checklist is thin, size it small, even when the title sounds big. Give one sentence of rationale ("xp_rationale").
 
 4. SUBJECT AND PILLAR

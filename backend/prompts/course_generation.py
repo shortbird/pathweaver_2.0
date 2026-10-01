@@ -17,6 +17,8 @@ Stages:
 3. Task Generation - Per lesson, generate 2-4 hands-on task suggestions
 """
 
+from prompts.xp_scale import TASK_XP_RULES
+
 # =============================================================================
 # STAGE 1: OUTLINE GENERATION
 # =============================================================================
@@ -430,10 +432,7 @@ Try to vary pillars across tasks in a lesson.
 XP VALUES
 =============================================================================
 
-Assign XP based on effort and complexity:
-- 50-100 XP: Quick tasks (15-30 minutes), simple application
-- 100-150 XP: Moderate tasks (30-60 minutes), requires thought and effort (most common)
-- 150-200 XP: Substantial tasks (1-2 hours), significant creation or challenge
+""" + TASK_XP_RULES + """
 
 =============================================================================
 TASK NAMING AND LANGUAGE (5th-6th GRADE READING LEVEL)
@@ -473,7 +472,7 @@ Return EXACTLY this JSON structure:
       "title": "Action-verb task title",
       "description": "Clear description of what to do and what the outcome looks like. Be specific enough that students know when they're done.",
       "pillar": "creativity",
-      "xp_value": 125
+      "xp_value": 100
     }},
     {{
       "title": "Another task title",
@@ -485,7 +484,7 @@ Return EXACTLY this JSON structure:
       "title": "Third task option",
       "description": "...",
       "pillar": "physical",
-      "xp_value": 175
+      "xp_value": 150
     }}
   ]
 }}

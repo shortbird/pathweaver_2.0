@@ -19,6 +19,8 @@ from prompts.components import (
 )
 
 from utils.logger import get_logger
+from utils.task_xp import snap_to_task_size
+from prompts.xp_scale import TASK_XP_RULES
 
 logger = get_logger(__name__)
 
@@ -93,11 +95,7 @@ TASK GENERATION RULES:
 - Use action-oriented task titles (Explore, Create, Master, Build, etc.)
 - Tasks should be things the learner can continue working on
 
-XP Guidelines:
-- Combined small discoveries: 25-50 XP
-- Medium project/skill development: 50-75 XP
-- Significant creation/accomplishment: 75-125 XP
-- Major milestone: 125-150 XP
+{TASK_XP_RULES}
 
 {PILLAR_DEFINITIONS}
 
@@ -113,7 +111,7 @@ Return JSON:
     {{
       "title": "Task title (action verb + outcome)",
       "description": "What this task encompasses and how to continue",
-      "xp_value": 100,
+      "xp_value": 50,
       "pillar": "one of: stem, wellness, communication, civics, art",
       "source_moment_ids": ["id1", "id2"]
     }}
@@ -137,6 +135,7 @@ Return JSON:
             for task in tasks:
                 if task.get('pillar') not in VALID_PILLARS:
                     task['pillar'] = 'stem'  # Default
+                task['xp_value'] = snap_to_task_size(task.get('xp_value'))
 
             primary = result.get('primary_pillar')
             if primary not in VALID_PILLARS:

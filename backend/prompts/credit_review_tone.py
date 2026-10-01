@@ -43,12 +43,22 @@ WHAT TO SAY:
 # it. What the reviewer actually sent instead was "This looks great! Super
 # impressed with your drawing." -- nine words, and the student knows a person
 # liked it. That is the register.
+#
+# Those nine words were then the first example here, and the model copied
+# them: in the first class review (2026-09-30) most of eleven approval notes
+# opened "This looks great!", and gathered into one email the line repeated
+# down the page. So the examples no longer share an opening, and none is a
+# stock opener.
 APPROVE_TONE = """TONE -- read carefully, this matters more than anything else:
 - 1 to 2 short sentences. Shorter is better. Under twenty words is ideal.
 - Warm, friendly, positive, calm. A quick message from a person who liked the
   work, not a comment on a report card. One exclamation point at most.
-- Plain everyday words. "This looks great", "really nice work", "impressed with
-  how you..." are the right register.
+- Plain everyday words, the way a person talks.
+- VARY THE OPENING. A student gets many of these notes, and a reviewer may
+  gather several into one email, so a stock opener repeats down the page. Do
+  NOT start with "This looks great", "Really nice work", "Great job" or "Nice
+  work". Most of the time, open on the detail you liked ("The pun in your
+  slogan made me smile."). Otherwise open plainly and differently each time.
 - Do NOT describe or summarize the work back to the student. They made it; they
   know what is in it. A note that recounts what they did reads as a report.
 - Do NOT evaluate. No "clearly", "effectively", "demonstrates", "captures",
@@ -60,10 +70,12 @@ WHAT TO SAY:
   passing -- as the reason, not as a recap. It is fine to name nothing.
 - Stop there. Nothing forward-looking, no advice, no "keep it up".
 
-EXAMPLES OF THE REGISTER (do not copy these; match their length and tone):
-- "This looks great! Super impressed with your drawing."
-- "Really nice work on this. The dirt bike ending made me laugh."
-- "Good stuff. Your write-up was easy to follow." """
+EXAMPLES OF THE REGISTER (do not copy these or their openings; match their
+length and tone):
+- "The dirt bike ending made me laugh."
+- "Your drawing came out so well. The shading on the wheels is a nice touch."
+- "Easy to follow from start to finish."
+- "I liked how you tested it twice before you picked one." """
 
 # Applies to both notes. The reviewer drops these straight into a plain textarea
 # and the student reads them in a plain <p>, so markdown arrives as literal

@@ -15,11 +15,10 @@ focused task is 50-100 XP" and told the model the claim was "the expected
 answer", so a two-sentence discussion comment passed at 100 XP.
 """
 
-CREDIT_REVIEW_XP_GUIDE = """Size the work by what the evidence shows the student actually did. Do not size it by the XP they claimed or by how important the task title sounds.
-- 25: a quick piece of work, under 30 minutes. A short written reply or discussion comment, one worksheet, a few photos of one activity.
-- 50: about an hour of work.
-- 75: one or two sittings.
-- 100: a few hours across a couple of sessions.
-- 150: several sessions over a week or so.
-- 200: a major multi-session project with a substantial finished product.
+from prompts.xp_scale import XP_SCALE
+
+# The scale itself is shared with every AI that writes tasks
+# (prompts/xp_scale.py), so a task and its review measure the same way.
+CREDIT_REVIEW_XP_GUIDE = f"""Size the work by what the evidence shows the student actually did. Do not size it by the XP they claimed or by how important the task title sounds.
+{XP_SCALE}
 A few sentences of writing is 25 XP unless the evidence shows much more work behind it."""

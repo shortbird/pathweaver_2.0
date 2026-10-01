@@ -10,6 +10,8 @@ Refactored (Jan 2026): Now uses shared prompt components and BaseAIService.
 
 from typing import List, Dict, Optional
 from utils.logger import get_logger
+from utils.task_xp import snap_to_task_size
+from prompts.xp_scale import TASK_XP_RULES
 
 # Import shared components
 from prompts.components import (
@@ -159,7 +161,7 @@ TASK TITLE EXAMPLES (simple words, 3-8 words):
 - "Look for Patterns in [topic] Around You"
 - "Try [skill] Outside"
 
-TASK DESCRIPTION EXAMPLES (1-2 sentences, simple words, no exclamation points):
+TASK DESCRIPTION EXAMPLES (1-2 sentences, simple words, no exclamation points; say what to make and how much):
 - "Look for how [concept] shows up in your favorite sport or hobby. Take photos or videos of what you find."
 - "Make something that connects [topic] to your life. See what ideas come to you as you work."
 - "Watch for [subject] in your daily life for a week. Write down what you notice."
@@ -177,8 +179,10 @@ For each task, provide:
 - title: Simple words (3-8 words)
 - description: 1-2 sentences using simple words
 - pillar: Must be one of: "stem", "wellness", "communication", "civics", "art"
-- xp_value: Integer between 50-200 (most should be 100-150, complex tasks can be 150-200)
+- xp_value: one size from the XP scale below, matched to the work the description asks for
 - diploma_subjects: (only when CLASS CONTEXT is given above) list of 1-3 school_subject keys, with the class subject first
+
+{TASK_XP_RULES}
 
 {JSON_OUTPUT_INSTRUCTIONS}
 
@@ -186,15 +190,15 @@ Example format:
 [
   {{
     "title": "Explore Geometry in Your Neighborhood",
-    "description": "Take a walk and notice geometric shapes in buildings, nature, and everyday objects. Capture photos and create a visual collection of the patterns you find.",
+    "description": "Take a walk and notice geometric shapes in buildings, nature, and everyday objects. Take 10 photos and label the shape in each one.",
     "pillar": "stem",
-    "xp_value": 100
+    "xp_value": 50
   }},
   {{
     "title": "Create a Wellness Ritual",
-    "description": "Design a daily practice that helps you feel centered and energized. Experiment with movement, breathing, or mindfulness to find what works for you.",
+    "description": "Design a daily practice that helps you feel centered and energized. Try it for a week, and write a few notes each day about how it went.",
     "pillar": "wellness",
-    "xp_value": 125
+    "xp_value": 150
   }}
 ]"""
 
@@ -224,15 +228,9 @@ def _validate_task(task: Dict) -> Optional[Dict]:
         logger.warning(f"Invalid pillar: {pillar}")
         return None
 
-    # Validate XP value
-    xp_value = task.get('xp_value', 100)
-    if not isinstance(xp_value, (int, float)):
-        xp_value = 100
-    xp_value = int(xp_value)
-    if xp_value < 50:
-        xp_value = 50
-    if xp_value > 200:
-        xp_value = 200
+    # Onto the shared task sizes (prompts/xp_scale.py). This clamped to 50-200
+    # and kept numbers like 125, so a 25 XP task could not exist here.
+    xp_value = snap_to_task_size(task.get('xp_value'))
 
     # Description is optional but should be string if present
     description = task.get('description', '')

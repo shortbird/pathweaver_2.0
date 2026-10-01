@@ -16,6 +16,7 @@ from utils.pillar_utils import normalize_pillar_name
 from utils.personalization_helpers import sanitize_success_criteria
 
 from utils.logger import get_logger
+from prompts.xp_scale import TASK_XP_RULES
 
 logger = get_logger(__name__)
 
@@ -23,8 +24,8 @@ logger = get_logger(__name__)
 from services.task_library_service import TaskLibraryService
 
 # Challenge levels (UI: Easier / Standard / Challenge). Each level defines the
-# XP anchor that _enforce_xp_distribution holds 50% of tasks to, the min/max
-# clamp applied to AI-returned XP, and the range quoted in the prompt.
+# XP anchor the prompt asks half the tasks to sit at, the min/max clamp applied
+# to AI-returned XP, and the range quoted in the prompt.
 #
 # Challenge is deliberately a FLAT 200, not a band. It used to anchor at 150
 # and clamp 50-200, which made a Challenge batch land mostly on 150 with
@@ -419,8 +420,10 @@ class PersonalizationService(BaseService):
             for i, task in enumerate(tasks_data):
                 logger.info(f"  Task {i}: '{task.get('title')}' - Validated pillar: '{task.get('pillar')}'")
 
-            # Ensure 50%+ tasks sit at the level's anchor XP
-            tasks_data = self._enforce_xp_distribution(tasks_data, challenge_level=challenge_level)
+            # No post-hoc XP rewrite. This used to move half the batch to the
+            # level's anchor XP without touching the task text, so a task could
+            # promise more XP than the work it asked for -- which the credit
+            # reviewer, sizing on the same scale, then trimmed (2026-09-30).
 
             # Store in cache
             cached_data = {'tasks': tasks_data}
@@ -1034,6 +1037,9 @@ Return as JSON with fields: title, description, success_criteria, pillar, xp_val
         else:
             xp_lines = (f"2. At least 50% of tasks should be worth exactly {level_cfg['anchor']} XP\n"
                         f"3. Other tasks can range from {level_cfg['range_text']} XP based on complexity")
+        # Whatever the level, the work has to fit the number: the credit
+        # reviewer sizes the evidence on this same scale.
+        xp_lines += "\n   Write each task so the work it asks for fits its XP:\n" + TASK_XP_RULES
 
         quest_title = quest['title']
         quest_description = quest.get('big_idea') or quest.get('description', '')
@@ -1393,33 +1399,6 @@ Example: If xp_value is 100 with primary and secondary subjects: {{"Science": 75
             validated.append(validated_task)
 
         return validated
-
-    def _enforce_xp_distribution(self, tasks: List[Dict], challenge_level: str = None) -> List[Dict]:
-        """Ensure at least 50% of tasks sit at the challenge level's anchor XP
-        (Easier: 75, Standard: 100, Challenge: 200). Challenge clamps every task
-        to its anchor in _validate_tasks, so this is a no-op at that level."""
-
-        anchor = _challenge_config(challenge_level)['anchor']
-
-        total_tasks = len(tasks)
-        tasks_at_anchor = sum(1 for task in tasks if task['xp_value'] == anchor)
-
-        required_at_anchor = total_tasks // 2
-
-        if tasks_at_anchor < required_at_anchor:
-            # Adjust some tasks to the anchor XP
-            tasks_to_adjust = required_at_anchor - tasks_at_anchor
-            adjusted = 0
-
-            for task in tasks:
-                if adjusted >= tasks_to_adjust:
-                    break
-
-                if task['xp_value'] != anchor:
-                    task['xp_value'] = anchor
-                    adjusted += 1
-
-        return tasks
 
 # Global service instance
 personalization_service = PersonalizationService()
