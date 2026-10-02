@@ -97,6 +97,10 @@ def _validate_class_fields(data):
             return 'additional_locations must be a list of room names'
         if any(not isinstance(r, str) for r in extra_rooms):
             return 'additional_locations must be a list of room names'
+    # A roster-only class (ticket 2704bbd4) is left out of the teacher pay
+    # exports. A flag, not pay data: no rate lives here, so ADMIN_ROLES is fine.
+    if 'exclude_from_pay' in data and not isinstance(data['exclude_from_pay'], bool):
+        return 'exclude_from_pay must be true or false'
     for k in ('capacity', 'price_cents', 'min_age', 'max_age'):
         v = data.get(k)
         if v is not None and (not isinstance(v, int) or v < 0):
@@ -195,6 +199,13 @@ def update_class(user_id, class_id):
                     .eq('class_id', class_id).in_('advisor_id', removed).execute()
             except Exception as e:  # noqa: BLE001
                 logger.warning(f'Could not deactivate class_advisors on {class_id}: {e}')
+    # The chats carry the class name, written once when they were made. A class
+    # copied and renamed kept its original's chat name (ticket 644d46d5).
+    if 'name' in data:
+        new_name = (updated or {}).get('name') or data.get('name')
+        if new_name and new_name != existing.get('name'):
+            from services.class_group_sync_service import rename_class_groups
+            rename_class_groups(class_id, existing.get('name'), new_name)
     new_instructor = data.get('primary_instructor_id')
     if new_instructor and new_instructor != existing.get('primary_instructor_id'):
         from services import sis_notifications
@@ -232,11 +243,10 @@ def archive_class(user_id, class_id):
     # active enrollments and close registration (a stale schedule change was
     # leaving students stranded in discontinued classes, showing as phantom
     # double-bookings). Re-sync the chat group to drop those students too.
-    dropped = (
-        supabase.table('class_enrollments')
-        .update({'status': 'withdrawn', 'status_changed_by': user_id})
-        .eq('class_id', class_id).eq('status', 'active').execute()
-    ).data or []
+    # Through the one door a seat ends by, so each student also leaves the
+    # class's quests (d8a2a8d4; services/class_enrollment_drops).
+    from services.class_enrollment_drops import withdraw_class_enrollments
+    dropped = withdraw_class_enrollments(supabase, actor_id=user_id, class_ids=[class_id])
     supabase.table('org_classes').update(
         {'registration_status': 'closed'}).eq('id', class_id).execute()
     # Retiring the section takes back the seat these students were promoted for,
@@ -595,6 +605,9 @@ def enroll_student(user_id, class_id):
             supabase.table('class_enrollments').update(
                 {'status': 'active', 'status_changed_by': user_id}).eq('id', existing[0]['id']).execute()
             sync_class_group(class_id, actor_id=user_id)
+            # A drop now takes the class's quests back (d8a2a8d4), so a student
+            # put back in the class must get them again, as a new one does.
+            _enroll_in_class_quests(supabase, class_id, student_id)
             roster_alerts.notify_teachers_of_new_student(class_id, student_id, actor_id=user_id)
             sis_waitlist_service.clear_entry_for_enrollment(org_id, class_id, student_id)
             _reprice_after_staff_change(org_id, student_id, user_id)
@@ -658,10 +671,15 @@ def unenroll_student(user_id, class_id, student_id):
     if not existing or existing[0].get('status') != 'active':
         return jsonify({'success': True, 'not_enrolled': True})
 
-    # status_changed_by names who dropped them in the class history
-    # (class_enrollment_events, written by a trigger on this update).
-    supabase.table('class_enrollments').update(
-        {'status': 'withdrawn', 'status_changed_by': user_id}).eq('id', existing[0]['id']).execute()
+    # The one door a seat ends through: status_changed_by names who dropped
+    # them in the class history (class_enrollment_events, a trigger on the
+    # write), and the class's quests leave with the class as far as the
+    # student's work allows (d8a2a8d4). The quest step is best-effort: the
+    # drop is what was asked for. See services/class_enrollment_drops.
+    from services.class_enrollment_drops import withdraw_class_enrollments
+    dropped = withdraw_class_enrollments(
+        supabase, actor_id=user_id, enrollment_ids=[existing[0]['id']], student_id=student_id)
+    quests_out = dropped[0]['quests'] if dropped else None
     from services.class_group_sync_service import sync_class_group
     sync_class_group(class_id, actor_id=user_id)
     from services import sis_waitlist_service
@@ -672,7 +690,7 @@ def unenroll_student(user_id, class_id, student_id):
     # next waitlisted student (self-gates on there being waiters + an open seat).
     sis_waitlist_service.alert_admins_seat_opened(org_id, class_id)
     billed = _reprice_after_staff_change(org_id, student_id, user_id)
-    return jsonify({'success': True, 'billing': billed})
+    return jsonify({'success': True, 'billing': billed, 'quests': quests_out})
 
 
 # ── Schedule settings (rooms + time blocks) ──────────────────────────────────

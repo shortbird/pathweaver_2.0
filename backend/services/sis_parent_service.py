@@ -1060,8 +1060,11 @@ def drop_class(user_id: str, org_id: str, student_user_id: str, class_id: str) -
         .eq('class_id', class_id).eq('student_id', student_user_id).execute()
     ).data or []
     if enr and enr[0].get('status') == 'active':
-        _admin().table('class_enrollments').update(
-            {'status': 'withdrawn', 'status_changed_by': user_id}).eq('id', enr[0]['id']).execute()
+        # The one door a seat ends through: the class's quests leave with it
+        # (d8a2a8d4; services/class_enrollment_drops).
+        from services.class_enrollment_drops import withdraw_class_enrollments
+        withdraw_class_enrollments(_admin(), actor_id=user_id, enrollment_ids=[enr[0]['id']],
+                                   student_id=student_user_id)
         from services.class_group_sync_service import sync_class_group
         sync_class_group(class_id, actor_id=user_id)
         from services import sis_waitlist_service

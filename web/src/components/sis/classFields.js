@@ -116,6 +116,8 @@ export const toDraft = (c = {}) => {
     max_age: c.max_age != null ? String(c.max_age) : '',
     requires_full_day: !!c.requires_full_day,
     internal_notes: c.internal_notes || '',
+    // A roster-only class: the teachers are not paid for it (2704bbd4).
+    exclude_from_pay: !!c.exclude_from_pay,
   }
 }
 
@@ -151,4 +153,5 @@ export const draftToPayload = (d) => ({
   max_age: numOrUndef(d.max_age),
   requires_full_day: !!d.requires_full_day,
   internal_notes: (d.internal_notes || '').trim() || null,
+  exclude_from_pay: !!d.exclude_from_pay,
 })

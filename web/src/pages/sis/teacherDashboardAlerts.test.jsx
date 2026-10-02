@@ -16,7 +16,7 @@ vi.mock('./useSisOrg', async (importOriginal) => ({
   useSisOrg: () => ({ orgId: 'org-1', setOrgId: vi.fn(), orgs: [], isSuperadmin: false, loading: false, activeOrg: null }),
 }))
 
-const { api, state } = vi.hoisted(() => {
+const { api, apiData, state } = vi.hoisted(() => {
   const state = {
     dashboard: { today: [], classes: [], profile: {}, recent_forms: [], pending_acks: [] },
     alerts: [],
@@ -28,6 +28,7 @@ const { api, state } = vi.hoisted(() => {
   }
   return {
     state,
+    apiData,
     api: {
       get: vi.fn((url) => Promise.resolve(apiData(url))),
       post: vi.fn(() => Promise.resolve({ data: { success: true } })),
@@ -122,5 +123,89 @@ describe('TeacherDashboard — Needs attention card', () => {
 
     expect(await screen.findByText('My classes')).toBeInTheDocument()
     expect(screen.queryByText(/Needs attention/)).not.toBeInTheDocument()
+  })
+})
+
+describe('TeacherDashboard — Needs attention search and bulk resolve', () => {
+  // Ticket 6e03f8c6 (iCreate, Marika viewing as a teacher): "On needs
+  // attention, can we have a search function, and a checkbox so teachers can
+  // resolve multiple things at a time?"
+
+  beforeEach(() => {
+    // The failing-endpoint test above swaps the get implementation, and
+    // clearAllMocks does not put it back.
+    api.get.mockImplementation((url) => Promise.resolve(apiData(url)))
+  })
+
+  it('filters the rows by student, class, or alert text', async () => {
+    render(<TeacherDashboard orgId="org-1" userName="Jess" />)
+    const search = await screen.findByRole('searchbox', { name: 'Search alerts' })
+
+    fireEvent.change(search, { target: { value: 'robotics' } })
+    expect(screen.getByText('Ada Stone')).toBeInTheDocument()
+    expect(screen.queryByText('Robin Fields')).not.toBeInTheDocument()
+
+    fireEvent.change(search, { target: { value: 'no quest activity' } })
+    expect(screen.getByText('Robin Fields')).toBeInTheDocument()
+    expect(screen.queryByText('Ada Stone')).not.toBeInTheDocument()
+
+    fireEvent.change(search, { target: { value: 'nobody' } })
+    expect(screen.getByText('No alerts match that search.')).toBeInTheDocument()
+    // The title still counts every open alert, not just the matches.
+    expect(screen.getByText('Needs attention (2)')).toBeInTheDocument()
+  })
+
+  it('resolves every checked row in one request and removes them', async () => {
+    api.post.mockResolvedValueOnce({ data: { success: true, resolved: 2, skipped: 0 } })
+    render(<TeacherDashboard orgId="org-1" userName="Jess" />)
+
+    const bulk = await screen.findByRole('button', { name: 'Resolve selected (0)' })
+    expect(bulk).toBeDisabled()
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Select alert for Robin Fields' }))
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Select alert for Ada Stone' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Resolve selected (2)' }))
+
+    await waitFor(() => {
+      expect(api.post).toHaveBeenCalledWith(
+        '/api/sis/engagement-alerts/resolve?scope=mine',
+        { organization_id: 'org-1', ids: ['a1', 'a2'], scope: 'mine' }
+      )
+    })
+    await waitFor(() => {
+      expect(screen.queryByText(/Needs attention/)).not.toBeInTheDocument()
+    })
+  })
+
+  it('select all takes only the rows the search shows', async () => {
+    api.post.mockResolvedValueOnce({ data: { success: true, resolved: 1, skipped: 0 } })
+    render(<TeacherDashboard orgId="org-1" userName="Jess" />)
+    const search = await screen.findByRole('searchbox', { name: 'Search alerts' })
+
+    fireEvent.change(search, { target: { value: 'pottery' } })
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Select all shown alerts' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Resolve selected (1)' }))
+
+    await waitFor(() => {
+      expect(api.post).toHaveBeenCalledWith(
+        '/api/sis/engagement-alerts/resolve?scope=mine',
+        { organization_id: 'org-1', ids: ['a1'], scope: 'mine' }
+      )
+    })
+    fireEvent.change(search, { target: { value: '' } })
+    await waitFor(() => expect(screen.queryByText('Robin Fields')).not.toBeInTheDocument())
+    expect(screen.getByText('Ada Stone')).toBeInTheDocument()
+    expect(screen.getByText('Needs attention (1)')).toBeInTheDocument()
+  })
+
+  it('reloads the list when the server skipped some of the selection', async () => {
+    api.post.mockResolvedValueOnce({ data: { success: true, resolved: 1, skipped: 1 } })
+    render(<TeacherDashboard orgId="org-1" userName="Jess" />)
+
+    fireEvent.click(await screen.findByRole('checkbox', { name: 'Select all shown alerts' }))
+    const alertFetches = () => api.get.mock.calls.filter(([u]) => u.includes('/engagement-alerts')).length
+    const before = alertFetches()
+    fireEvent.click(screen.getByRole('button', { name: 'Resolve selected (2)' }))
+
+    await waitFor(() => expect(alertFetches()).toBe(before + 1))
   })
 })

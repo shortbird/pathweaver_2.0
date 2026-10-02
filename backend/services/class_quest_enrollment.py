@@ -503,6 +503,99 @@ def withdraw_students_from_quest(admin, student_ids, quest_id, set_down_started=
     return out
 
 
+def withdraw_student_from_class_quests(admin, class_id, student_id):
+    """A student dropped from a class loses that class's quests, as far as
+    their work allows.
+
+    iCreate, 2026-10-01 (d8a2a8d4, Marika): "how does one get rid of quests that
+    shouldn't be there. AJ should not have any elementary classes/quests on his
+    since he is in high school". Joining a class enrolled the student in its
+    quests (enroll_student_in_class_quests); leaving it did nothing, so a drop
+    left every one of the class's quests on their overview.
+
+    Per quest, withdraw_students_from_quest decides: untouched enrollments are
+    deleted, ones with work are set down (off the active list, still in the
+    portfolio, completed tasks and the XP they earned untouched), finished ones
+    are left alone.
+
+    A quest is kept when it is also on another live class the student is still
+    in and they are in its audience there -- it is still their schoolwork, just
+    through the other class. Only quests this student was in the audience of
+    are considered: a quest the class kept to other students was never given to
+    them by this class, so any enrollment they have in it is their own.
+
+    Call this AFTER the class_enrollments row is withdrawn. Returns
+    {'quests': n, 'removed': n, 'set_down': n, 'kept': n, 'shared': n}.
+    """
+    out = {'quests': 0, 'removed': 0, 'set_down': 0, 'kept': 0, 'shared': 0}
+    if not class_id or not student_id:
+        return out
+    repo = ClassQuestAudienceRepository(admin)
+    # Released ones only: a quest scheduled for later never reached the
+    # student, so an enrollment they hold in it did not come from this class.
+    quest_ids = class_quest_ids(admin, class_id, published_only=True, student_id=student_id)
+    if not quest_ids:
+        return out
+    other_classes = repo.student_active_class_ids(student_id, exclude_class_id=class_id)
+    shared = {r['quest_id'] for r in repo.links_for_quests(other_classes, quest_ids)
+              if assigned_to(r, student_id)}
+    out['shared'] = len(shared)
+    for quest_id in quest_ids:
+        if quest_id in shared:
+            continue
+        out['quests'] += 1
+        taken = withdraw_students_from_quest(admin, [student_id], quest_id)
+        for k in ('removed', 'set_down', 'kept'):
+            out[k] += taken[k]
+    logger.info(f'Class {class_id} drop withdrew {student_id} from its quests: {out}')
+    return out
+
+
+def remove_quest_for_student(admin, student_id, quest_id):
+    """The office takes one quest off one student's account.
+
+    iCreate, 2026-10-01 (d8a2a8d4, Marika): "how does one get rid of quests
+    that shouldn't be there." The Learning Snapshot's Remove.
+
+    Same rule as a teacher taking a quest back (withdraw_students_from_quest):
+    untouched -> deleted; work behind it -> set down, so it leaves the active
+    list and stays in the portfolio with its completed tasks and their XP;
+    finished -> left alone. Nothing the student did is deleted.
+
+    One difference. When the quest is still on a live class the student is in
+    (and they are in its audience there), an untouched enrollment is set down
+    rather than deleted: the release cron re-enrolls any student with NO row in
+    a released class quest, so a deleted one would come back within the hour.
+    A set-down row is skipped by every enroll path. The class's own audience is
+    not changed -- that is the teacher's list, and rewriting a whole-class
+    quest as a named list would stop it reaching students who join later.
+
+    Returns None when the student has no enrollment in the quest; otherwise
+    {'removed', 'set_down', 'kept', 'still_on_classes': [class_id, ...]}.
+    """
+    repo = ClassQuestAudienceRepository(admin)
+    rows = repo.enrollments([student_id], quest_id)
+    if not rows:
+        return None
+    live = repo.student_active_class_ids(student_id)
+    on_classes = sorted({r['class_id'] for r in repo.links_for_quests(live, [quest_id])
+                         if assigned_to(r, student_id)})
+    if not on_classes:
+        out = withdraw_students_from_quest(admin, [student_id], quest_id)
+        return {**out, 'still_on_classes': []}
+    out = {'removed': 0, 'set_down': 0, 'kept': 0, 'still_on_classes': on_classes}
+    targets = []
+    for r in rows:
+        if r.get('completed_at') or r.get('is_active') is False:
+            out['kept'] += 1
+        else:
+            targets.append(r['id'])
+    repo.set_down(targets, _now())
+    out['set_down'] = len(targets)
+    logger.info(f'Removed quest {quest_id} from {student_id} (still on {on_classes}): {out}')
+    return out
+
+
 def reactivate_set_down(admin, student_ids, quest_id):
     """Pick a set-down enrollment back up for students re-added to a quest.
 

@@ -90,6 +90,18 @@ def clean_feature_flags(
                 'error': 'Tuition and registration fees are managed by an organization admin.',
                 'fields': blocked})
 
+    # The school inbox list (ticket 19047fd0) is the org admins' to set: it
+    # exists to keep some campus coordinators out, and a coordinator who could
+    # write it would put themselves back. Both doors onto this column (the
+    # settings PATCH and the admin console PUT) come through here. Among the
+    # callers who reach either door, sees_finance is False only for a campus
+    # coordinator.
+    if not is_superadmin and not sees_finance:
+        if _inbox_members(flags) != _inbox_members(stored):
+            raise FlagsRejected(403, {
+                'error': 'Who can open the school inbox is set by an organization admin.',
+                'fields': ['sis_settings.school_inbox_member_ids']})
+
     # The Stripe secret key is submitted through the same feature_flags blob
     # the settings UI round-trips, but it must never be STORED there:
     # organizations.feature_flags is anon-readable by row policy (RLS filters
@@ -142,6 +154,11 @@ def clean_feature_flags(
         })
 
     return cleaned, submitted_key
+
+
+def _inbox_members(flags: Optional[Dict[str, Any]]):
+    sis = (flags or {}).get('sis_settings') if isinstance(flags, dict) else None
+    return (sis or {}).get('school_inbox_member_ids') if isinstance(sis, dict) else None
 
 
 def merge_patch(stored: Dict[str, Any], patch: Dict[str, Any]) -> Dict[str, Any]:

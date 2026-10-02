@@ -52,6 +52,26 @@ describe('WeeklyXpGoalCard', () => {
     expect(container).toBeEmptyDOMElement()
   })
 
+  it('marks a staff or parent read as a probe so its 403 is not reported', async () => {
+    // Sentry ticket ade315ec (reporter: Sentry, OPTIO web): "API 403: GET
+    // /api/xp-goals/student/:id from /admin/organizations/:id/student/:id".
+    // Someone else's goal card treats a refusal as "hide the card", so the
+    // request carries expect403 and the api layer does not report it.
+    api.get.mockResolvedValue({ data: { goal: { enabled: false } } })
+    renderCard({ viewerIsStudent: false })
+    await waitFor(() => expect(api.get).toHaveBeenCalledWith(
+      '/api/xp-goals/student/s1', { expect403: true }))
+  })
+
+  it("still reports a 403 on the student's own goal", async () => {
+    // Ticket ade315ec: the opt-out stays on the request, not the endpoint. A
+    // student refused their own goal is a real bug.
+    api.get.mockResolvedValue({ data: { goal: goal() } })
+    renderCard({ viewerIsStudent: true })
+    await waitFor(() => expect(api.get).toHaveBeenCalledWith(
+      '/api/xp-goals/student/s1', { expect403: false }))
+  })
+
   it('shows progress toward the target', async () => {
     api.get.mockResolvedValue({ data: { goal: goal() } })
     renderCard({ viewerIsStudent: true })

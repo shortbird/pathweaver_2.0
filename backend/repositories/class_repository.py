@@ -99,7 +99,13 @@ class ClassRepository(BaseRepository):
         an archived class is hidden from families, so an enrollment left active
         in one reads as "busy at this time" to schedule-conflict checks while
         the family sees nothing to drop (phantom Expressions conflict,
-        iCreate 2026-08-24). Rows are kept (withdrawn), not deleted."""
+        iCreate 2026-08-24). Rows are kept (withdrawn), not deleted.
+
+        Callers end the seats first through
+        services/class_enrollment_drops.withdraw_class_enrollments, which also
+        takes the class's quests back (d8a2a8d4); the write below is the
+        backstop and normally finds nothing left to change. A repository may
+        not import a service, so it cannot do that step itself."""
         self.admin_client.table('class_enrollments')\
             .update({'status': 'withdrawn'})\
             .eq('class_id', class_id)\
@@ -257,15 +263,6 @@ class ClassRepository(BaseRepository):
             .upsert(data, on_conflict='class_id,student_id')\
             .execute()
         return response.data if response.data else []
-
-    def withdraw_student(self, class_id: str, student_id: str) -> bool:
-        """Withdraw a student from a class"""
-        response = self.admin_client.table('class_enrollments')\
-            .update({'status': 'withdrawn'})\
-            .eq('class_id', class_id)\
-            .eq('student_id', student_id)\
-            .execute()
-        return bool(response.data)
 
     def update_enrollment_status(
         self,

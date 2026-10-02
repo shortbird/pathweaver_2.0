@@ -132,6 +132,8 @@ def get_child_overview(user_id, student_id):
         # Batch fetch tasks and completions for active quests
         tasks_map = {}
         completions_map = {}
+        # Newest completion per quest, for the snapshot's "recent activity" sort.
+        last_done = {}
 
         if active_quest_ids:
             all_tasks_response = supabase.table('user_quest_tasks').select('id, quest_id').eq(
@@ -144,17 +146,25 @@ def get_child_overview(user_id, student_id):
                     tasks_map[qid] = []
                 tasks_map[qid].append(task['id'])
 
-            all_completions_response = supabase.table('quest_task_completions').select('task_id, quest_id, user_quest_task_id').eq(
+            all_completions_response = supabase.table('quest_task_completions').select('task_id, quest_id, user_quest_task_id, completed_at').eq(
                 'user_id', student_id
             ).in_('quest_id', active_quest_ids).execute()
 
             for comp in all_completions_response.data:
                 qid = comp['quest_id']
                 task_id = comp.get('user_quest_task_id') or comp.get('task_id')
+                done_at = comp.get('completed_at')
+                if done_at and done_at > (last_done.get(qid) or ''):
+                    last_done[qid] = done_at
                 if qid not in completions_map:
                     completions_map[qid] = []
                 if task_id:
                     completions_map[qid].append(task_id)
+
+        # Which class each quest came through; None = the student's own
+        # (iCreate, 2026-10-01, d8a2a8d4: group the snapshot by class).
+        from services.student_quest_sources import quest_source_classes
+        source_classes = quest_source_classes(supabase, student_id, active_quest_ids)
 
         active_quests = []
         for uq in active_quests_response.data:
@@ -175,6 +185,8 @@ def get_child_overview(user_id, student_id):
                 'title': quest['title'],
                 'image_url': quest.get('image_url') or quest.get('header_image_url'),
                 'started_at': uq['started_at'],
+                'source_class': source_classes.get(quest_id),
+                'last_activity_at': last_done.get(quest_id) or uq['started_at'],
                 'progress': {
                     'completed_tasks': completed_tasks,
                     'total_tasks': total_tasks,

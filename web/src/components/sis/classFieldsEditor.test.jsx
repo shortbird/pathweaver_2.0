@@ -164,6 +164,22 @@ describe('the draft round trip', () => {
   it('survives a class with nothing set on it', () => {
     expect(() => draftToPayload(toDraft({}))).not.toThrow()
   })
+
+  // Ticket 2704bbd4 (iCreate, Molly): "I also added some classes just so the
+  // teachers could have a roster, and I need to exclude them from being paid."
+  it('carries the roster-only flag both ways, and defaults it to paid', () => {
+    expect(toDraft(CLASS).exclude_from_pay).toBe(false)
+    expect(draftToPayload(toDraft(CLASS)).exclude_from_pay).toBe(false)
+    expect(draftToPayload(toDraft({ ...CLASS, exclude_from_pay: true })).exclude_from_pay).toBe(true)
+  })
+
+  it('offers a Roster only — not paid checkbox', () => {
+    const onChange = setup()
+    const box = screen.getByLabelText('Roster only — not paid')
+    expect(box).not.toBeChecked()
+    fireEvent.click(box)
+    expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ exclude_from_pay: true }))
+  })
 })
 
 /**

@@ -74,7 +74,12 @@ const WeeklyXpGoalCard = ({ studentId, viewerIsStudent = false, studentFirstName
   const load = useCallback(async () => {
     if (!studentId) return
     try {
-      const res = await api.get(`/api/xp-goals/student/${studentId}`)
+      // A viewer other than the student PROBES this endpoint: a 403 means "no
+      // relationship that reads goals" and the card hides itself, so it is an
+      // answer, not a regression (Sentry ticket ade315ec). The student's own
+      // read still reports -- a 403 on your own goal is a real bug.
+      const res = await api.get(`/api/xp-goals/student/${studentId}`,
+        { expect403: !viewerIsStudent })
       setGoal(res.data?.goal || null)
     } catch (err) {
       // A goal card is decoration on someone else's page. A 403 (no
@@ -85,7 +90,7 @@ const WeeklyXpGoalCard = ({ studentId, viewerIsStudent = false, studentFirstName
     } finally {
       setLoading(false)
     }
-  }, [studentId])
+  }, [studentId, viewerIsStudent])
 
   useEffect(() => { load() }, [load])
 

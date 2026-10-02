@@ -89,7 +89,7 @@ def preset_groups(org_id: str) -> List[Dict[str, Any]]:
 
     from services import school_inbox_service
     _add('front_office', 'Front office',
-         school_inbox_service.admin_recipient_ids(org_id),
+         school_inbox_service.office_staff_ids(org_id),
          'Admins and campus coordinators')
 
     classes = _active_classes(org_id)

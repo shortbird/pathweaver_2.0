@@ -40,6 +40,10 @@ const RecurringTuitionModal = ({ isOpen, onClose, orgId, onAdded }) => {
   const [description, setDescription] = useState('')
   const [dayOfMonth, setDayOfMonth] = useState(1)
   const [adding, setAdding] = useState(false)
+  // The server's refusal, shown in the form. Ticket bc9010f4 (Marika, iCreate):
+  // a student already on a monthly payment plan is refused with 409, and the
+  // office must read why before they try another way.
+  const [error, setError] = useState(null)
 
   const load = useCallback(() => {
     if (!orgId) return
@@ -58,8 +62,10 @@ const RecurringTuitionModal = ({ isOpen, onClose, orgId, onAdded }) => {
 
   useEffect(() => {
     if (isOpen) return
-    setStudentId(''); setMonthlyStr(''); setDescription(''); setDayOfMonth(1)
+    setStudentId(''); setMonthlyStr(''); setDescription(''); setDayOfMonth(1); setError(null)
   }, [isOpen])
+
+  useEffect(() => { setError(null) }, [studentId])
 
   // A student already on a schedule can't be given a second one, so they drop
   // out of the picker rather than failing at the save.
@@ -80,6 +86,7 @@ const RecurringTuitionModal = ({ isOpen, onClose, orgId, onAdded }) => {
   const add = async () => {
     if (!canAdd) return
     setAdding(true)
+    setError(null)
     try {
       await api.post(withOrg('/api/sis/tuition/recurring', orgId), {
         student_id: studentId,
@@ -95,7 +102,7 @@ const RecurringTuitionModal = ({ isOpen, onClose, orgId, onAdded }) => {
       load()
       onAdded?.()
     } catch (e) {
-      toast.error(e?.response?.data?.error || 'Could not add monthly tuition')
+      setError(e?.response?.data?.error || 'Could not add monthly tuition')
     } finally { setAdding(false) }
   }
 
@@ -160,6 +167,9 @@ const RecurringTuitionModal = ({ isOpen, onClose, orgId, onAdded }) => {
                 value={description} onChange={(e) => setDescription(e.target.value)} />
             </div>
           </div>
+          {error && (
+            <p role="alert" className="mt-3 text-sm text-red-700">{error}</p>
+          )}
           <div className="mt-3 flex justify-end">
             <Button onClick={add} disabled={!canAdd}>
               {adding ? 'Adding…' : 'Add monthly tuition'}

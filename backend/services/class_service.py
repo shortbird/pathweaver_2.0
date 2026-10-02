@@ -119,6 +119,12 @@ class ClassService(BaseService):
         """Archive a class"""
         self.validate_required(class_id=class_id, archived_by=archived_by)
 
+        # Seats first, through the one door a seat ends by, so the students
+        # also leave the class's quests (d8a2a8d4). archive_class's own
+        # withdraw then finds nothing left to change.
+        from services.class_enrollment_drops import withdraw_class_enrollments
+        withdraw_class_enrollments(self.class_repo.admin_client, actor_id=archived_by,
+                                   class_ids=[class_id])
         cls = self.class_repo.archive_class(class_id)
         logger.info(f"Class {class_id} archived by {archived_by}")
 
@@ -286,7 +292,13 @@ class ClassService(BaseService):
             withdrawn_by=withdrawn_by
         )
 
-        success = self.class_repo.withdraw_student(class_id, student_id)
+        # The one door a seat ends through: the class's quests leave with the
+        # student (d8a2a8d4). active_only=False keeps what this always did --
+        # withdraw the row whatever its status.
+        from services.class_enrollment_drops import withdraw_class_enrollments
+        success = bool(withdraw_class_enrollments(
+            self.class_repo.admin_client, actor_id=withdrawn_by, class_ids=[class_id],
+            student_id=student_id, active_only=False))
         if success:
             logger.info(f"Student {student_id} withdrawn from class {class_id} by {withdrawn_by}")
 

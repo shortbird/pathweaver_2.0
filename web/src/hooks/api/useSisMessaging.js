@@ -16,6 +16,7 @@ export const messagingKeys = {
   staff: (orgId) => ['sis-messaging', 'staff', orgId || null],
   sends: (orgId) => ['sis-messaging', 'sends', orgId || null],
   send: (orgId, id) => ['sis-messaging', 'send', orgId || null, id],
+  inboxAccess: (orgId) => ['sis-messaging', 'inboxAccess', orgId || null],
 }
 
 /** Everybody Compose can write to, with the class split and staff quick picks. */
@@ -70,3 +71,35 @@ export const useMakeThreadTask = (orgId) => useMutation({
     return (await api.post(withOrg(path, orgId), body)).data
   },
 })
+
+/**
+ * Who may open the school inbox (ticket 19047fd0): {inbox_access, can_manage,
+ * member_ids, everyone, office_ids}. Org admins choose the campus coordinators
+ * who open it; an empty list is every coordinator. The School tab hides when
+ * `inbox_access` is false; the server refuses the inbox either way.
+ */
+export const useSchoolInboxAccess = (orgId, { enabled = true } = {}) => useQuery({
+  queryKey: messagingKeys.inboxAccess(orgId),
+  queryFn: async () => {
+    const res = await api.get(withOrg('/api/school-inbox/access', orgId), { expect403: true })
+    return res?.data?.data ?? res?.data ?? {}
+  },
+  enabled,
+  staleTime: 60000,
+})
+
+/** Save the inbox list. `memberIds` [] means every coordinator. */
+export const useSetSchoolInboxMembers = (orgId) => {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (memberIds) => {
+      const res = await api.put(withOrg('/api/school-inbox/access', orgId), { member_ids: memberIds })
+      return res?.data?.data ?? res?.data ?? {}
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['sis-messaging', 'inboxAccess'] })
+      queryClient.invalidateQueries({ queryKey: ['sis', 'inboxUnread'] })
+      queryClient.invalidateQueries({ queryKey: ['sis', 'inboxTabCounts'] })
+    },
+  })
+}

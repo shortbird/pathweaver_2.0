@@ -57,11 +57,19 @@ def _repo(admin) -> QuestEditorRepository:
 
 
 def draft_info(quest: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-    """{context, target_id} for a draft, or None for a published quest."""
+    """{context, target_id, class_settings} for a draft, or None for a
+    published quest.
+
+    class_settings is what the publish form starts from on a class: a
+    teacher's copy of a class quest (services/class_quest_copy, 2026-10-02)
+    keeps the original's audience there, so publishing it reaches the same
+    students. None on every other draft."""
     if not authoring.is_draft(quest):
         return None
     marker = (quest.get('metadata') or {}).get('draft') or {}
-    return {'context': marker.get('context'), 'target_id': marker.get('target_id')}
+    settings = marker.get('class_settings')
+    return {'context': marker.get('context'), 'target_id': marker.get('target_id'),
+            'class_settings': settings if isinstance(settings, dict) else None}
 
 
 def serialize(quest: Dict[str, Any], tasks: List[Dict[str, Any]], *,

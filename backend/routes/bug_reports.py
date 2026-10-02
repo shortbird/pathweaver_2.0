@@ -84,6 +84,18 @@ def _lookup_user_identity(user_id: str):
     return None, None, None
 
 
+def _masquerade_admin_id():
+    """The real admin's id when this request is a masquerade, else None.
+    Never raises: a broken check files the report as before."""
+    try:
+        from utils.session_manager import session_manager
+        info = session_manager.get_masquerade_info()
+        return (info or {}).get('admin_id')
+    except Exception as e:  # noqa: BLE001
+        logger.debug(f"[BugReport] masquerade check failed: {e}")
+        return None
+
+
 def _derive_title(message: str) -> str:
     """The first line of the message, trimmed to fit the list view."""
     first = message.strip().split('\n', 1)[0].strip()
@@ -164,7 +176,24 @@ def create_bug_report(user_id):
     if not message:
         return jsonify({'error': 'A description of the problem is required'}), 400
 
-    email, effective_role, organization_id = _lookup_user_identity(user_id)
+    # During a masquerade user_id is the person being viewed as. The report is
+    # the admin's: Marika (iCreate) filed ticket 50082917 while viewing as
+    # Nicole Connole, and the row named Nicole as the reporter, so the reply
+    # would have gone to Nicole. Record the real admin and keep the target
+    # in extra.viewing_as for context.
+    viewing_as = None
+    reporter_id = user_id
+    admin_id = _masquerade_admin_id()
+    if admin_id and admin_id != user_id:
+        t_email, t_role, t_org = _lookup_user_identity(user_id)
+        viewing_as = {'user_id': user_id, 'email': t_email, 'role': t_role,
+                      'organization_id': t_org}
+        reporter_id = admin_id
+
+    email, effective_role, organization_id = _lookup_user_identity(reporter_id)
+    if viewing_as and not organization_id:
+        # A superadmin has no org; the report is about the target's school.
+        organization_id = viewing_as['organization_id']
 
     title = (context.get('title') or '').strip()[:TITLE_MAX] or _derive_title(message)
     extra = context.get('extra') if isinstance(context.get('extra'), dict) else {}
@@ -174,7 +203,7 @@ def create_bug_report(user_id):
     source = context.get('source') if context.get('source') in CLIENT_SOURCES else 'mobile'
 
     record = {
-        'user_id': user_id,
+        'user_id': reporter_id,
         'user_email': email,
         'user_role': effective_role,
         'organization_id': organization_id,
@@ -191,12 +220,15 @@ def create_bug_report(user_id):
         if field in context and context[field] is not None:
             record[field] = context[field]
     record['message'] = message  # normalized (stripped)
+    if viewing_as:
+        record['extra'] = {**(record.get('extra') if isinstance(record.get('extra'), dict) else {}),
+                           'viewing_as': viewing_as}
 
     # Screenshot is strictly best-effort: a problem reading/scanning/uploading it
     # must never fail the report itself. (Previously this ran outside the
     # try/except, so a bad screenshot 500'd the whole request and dropped the report.)
     try:
-        screenshot_path = _upload_screenshot(request.files.get('screenshot'), user_id)
+        screenshot_path = _upload_screenshot(request.files.get('screenshot'), reporter_id)
         if screenshot_path:
             record['screenshot_path'] = screenshot_path
             record['screenshot_bucket'] = SCREENSHOT_BUCKET
@@ -207,12 +239,12 @@ def create_bug_report(user_id):
         repo = BugReportRepository()  # admin client (custom-JWT app)
         created = repo.create(record)
     except Exception as e:
-        logger.error(f"[BugReport] create failed for user {user_id}: {e}", exc_info=True)
+        logger.error(f"[BugReport] create failed for user {reporter_id}: {e}", exc_info=True)
         return jsonify({'error': 'Failed to submit bug report'}), 500
 
-    logger.info(f"[BugReport] created {created.get('id')} from user {user_id} route={record.get('current_route')}")
+    logger.info(f"[BugReport] created {created.get('id')} from user {reporter_id} route={record.get('current_route')}")
 
-    _notify_admin_email(record, created, user_id)
+    _notify_admin_email(record, created, reporter_id)
     return jsonify({'success': True, 'report_id': created.get('id')}), 201
 
 

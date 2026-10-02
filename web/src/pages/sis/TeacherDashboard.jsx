@@ -56,6 +56,12 @@ const TeacherDashboard = ({ orgId, userName, preview = null }) => {
   const [loading, setLoading] = useState(true)
   const [alerts, setAlerts] = useState([])
   const [resolvingId, setResolvingId] = useState(null)
+  // Search + multi-select on Needs attention (ticket 6e03f8c6, iCreate: "can
+  // we have a search function, and a checkbox so teachers can resolve
+  // multiple things at a time?").
+  const [alertQuery, setAlertQuery] = useState('')
+  const [selectedAlerts, setSelectedAlerts] = useState(() => new Set())
+  const [bulkResolving, setBulkResolving] = useState(false)
 
   const load = useCallback(() => {
     if (!orgId) { setLoading(false); return }
@@ -123,11 +129,78 @@ const TeacherDashboard = ({ orgId, userName, preview = null }) => {
       // different sets again.
       await api.post(`/api/sis/engagement-alerts/${alertId}/resolve?scope=mine`, { organization_id: orgId })
       setAlerts((prev) => prev.filter((a) => a.id !== alertId))
+      setSelectedAlerts((prev) => {
+        if (!prev.has(alertId)) return prev
+        const next = new Set(prev)
+        next.delete(alertId)
+        return next
+      })
       toast.success('Alert resolved')
     } catch (err) {
       toast.error(err?.response?.data?.error || 'Could not resolve the alert')
     } finally {
       setResolvingId(null)
+    }
+  }
+
+  // Matches the words a teacher sees on the row: student, class, and what
+  // happened. Hidden rows stay selected but are never resolved -- only what is
+  // on screen goes in the bulk request.
+  const visibleAlerts = useMemo(() => {
+    const q = alertQuery.trim().toLowerCase()
+    if (!q) return alerts
+    return alerts.filter((a) =>
+      [a.student_name, a.class_name, alertMessage(a)]
+        .some((v) => (v || '').toLowerCase().includes(q)))
+  }, [alerts, alertQuery])
+  const selectedVisibleIds = visibleAlerts.filter((a) => selectedAlerts.has(a.id)).map((a) => a.id)
+  const allVisibleSelected = visibleAlerts.length > 0 && selectedVisibleIds.length === visibleAlerts.length
+
+  const toggleAlert = (alertId) => {
+    setSelectedAlerts((prev) => {
+      const next = new Set(prev)
+      if (next.has(alertId)) next.delete(alertId)
+      else next.add(alertId)
+      return next
+    })
+  }
+
+  const toggleAllVisible = () => {
+    setSelectedAlerts((prev) => {
+      const next = new Set(prev)
+      if (allVisibleSelected) visibleAlerts.forEach((a) => next.delete(a.id))
+      else visibleAlerts.forEach((a) => next.add(a.id))
+      return next
+    })
+  }
+
+  const resolveSelected = async () => {
+    const ids = selectedVisibleIds
+    if (!ids.length) return
+    setBulkResolving(true)
+    try {
+      // Same scope=mine as the single resolve, in the query string and the
+      // body: the server checks each id against this teacher's classes and
+      // skips (never writes) any that fall outside it.
+      const res = await api.post('/api/sis/engagement-alerts/resolve?scope=mine',
+        { organization_id: orgId, ids, scope: 'mine' })
+      const resolved = res?.data?.resolved ?? ids.length
+      const skipped = res?.data?.skipped ?? 0
+      const done = new Set(ids)
+      setSelectedAlerts((prev) => new Set([...prev].filter((id) => !done.has(id))))
+      if (skipped > 0) {
+        // The server does not say which ids it skipped, so reload the list
+        // rather than guess which rows are really gone.
+        load()
+        toast(`${resolved} resolved, ${skipped} could not be resolved`)
+      } else {
+        setAlerts((prev) => prev.filter((a) => !done.has(a.id)))
+        toast.success(`${resolved} alert${resolved === 1 ? '' : 's'} resolved`)
+      }
+    } catch (err) {
+      toast.error(err?.response?.data?.error || 'Could not resolve the selected alerts')
+    } finally {
+      setBulkResolving(false)
     }
   }
 
@@ -306,9 +379,47 @@ const TeacherDashboard = ({ orgId, userName, preview = null }) => {
       {/* Learning-app engagement alerts — secondary, below class management. */}
       {alerts.length > 0 && (
         <DashboardCard title={`Needs attention (${alerts.length})`}>
+          <div className="flex flex-wrap items-center gap-3 mb-2">
+            <input
+              type="search"
+              value={alertQuery}
+              onChange={(e) => setAlertQuery(e.target.value)}
+              placeholder="Search by student, class or alert"
+              aria-label="Search alerts"
+              className="flex-1 min-w-[12rem] rounded-lg border border-gray-200 px-3 py-1.5 text-sm focus:border-optio-purple focus:outline-none"
+            />
+            <label className="inline-flex items-center gap-2 text-sm text-neutral-600">
+              <input
+                type="checkbox"
+                checked={allVisibleSelected}
+                onChange={toggleAllVisible}
+                disabled={!visibleAlerts.length}
+                aria-label="Select all shown alerts"
+                className="h-4 w-4 rounded border-gray-300 text-optio-purple"
+              />
+              Select all
+            </label>
+            <button
+              onClick={resolveSelected}
+              disabled={!selectedVisibleIds.length || bulkResolving}
+              className="px-3 py-1.5 text-sm font-semibold text-white bg-gradient-primary rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50"
+            >
+              {`Resolve selected (${selectedVisibleIds.length})`}
+            </button>
+          </div>
+          {!visibleAlerts.length && (
+            <p className="text-sm text-neutral-500 py-2">No alerts match that search.</p>
+          )}
           <ul className="divide-y divide-gray-100">
-            {alerts.map((a) => (
+            {visibleAlerts.map((a) => (
               <li key={a.id} className="py-2.5 flex items-start gap-3">
+                <input
+                  type="checkbox"
+                  checked={selectedAlerts.has(a.id)}
+                  onChange={() => toggleAlert(a.id)}
+                  aria-label={`Select alert for ${a.student_name || 'student'}`}
+                  className="mt-1 h-4 w-4 rounded border-gray-300 text-optio-purple shrink-0"
+                />
                 <span className="mt-1.5 w-2 h-2 rounded-full bg-amber-500 shrink-0" aria-hidden="true" />
                 <div className="flex-1 min-w-0">
                   <p className="text-sm text-neutral-800">
@@ -324,7 +435,7 @@ const TeacherDashboard = ({ orgId, userName, preview = null }) => {
                 </div>
                 <button
                   onClick={() => resolveAlert(a.id)}
-                  disabled={resolvingId === a.id}
+                  disabled={resolvingId === a.id || bulkResolving}
                   className="shrink-0 px-3 py-1.5 text-sm font-medium text-optio-purple border border-optio-purple/30 rounded-lg hover:bg-optio-purple/5 transition-colors disabled:opacity-50"
                 >
                   Resolve

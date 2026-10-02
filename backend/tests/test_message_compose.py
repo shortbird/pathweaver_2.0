@@ -20,6 +20,11 @@ What these pin:
 
 from unittest.mock import Mock, patch
 
+
+# The front-office pick reads school_inbox_service.office_staff_ids, not
+# admin_recipient_ids, since ticket 19047fd0: the inbox list narrows who reads
+# the school inbox, not who is front office. The patches here moved with it.
+
 import pytest
 
 from services import message_compose_service as compose
@@ -112,7 +117,7 @@ def test_audience_is_one_entry_per_person_with_every_kind():
              TEACH: {'id': TEACH, 'first_name': 'Tam', 'last_name': 'T'}}), \
          patch('utils.class_membership.guardians_by_student',
                side_effect=lambda ids: {s: GUARDIANS[s] for s in ids}), \
-         patch('services.school_inbox_service.admin_recipient_ids', return_value=[KATE]):
+         patch('services.school_inbox_service.office_staff_ids', return_value=[KATE]):
         result = compose.audience(ORG)
 
     people = {p['id']: p for p in result['people']}

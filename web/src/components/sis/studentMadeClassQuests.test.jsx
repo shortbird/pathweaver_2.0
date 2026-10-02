@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/react'
 import ClassQuestsManager from './ClassQuestsManager'
 import { gridColumns } from './StudentProgressTab'
 import { withConfirm } from '../../tests/confirmTestUtils'
@@ -61,16 +61,27 @@ describe('the Quests tab', () => {
     render(withConfirm(<ClassQuestsManager classId="c1" />))
     expect(await screen.findByText(/Made by Tarien Bird/)).toBeInTheDocument()
     expect(screen.getByText(/Only Tarien Bird/)).toBeInTheDocument()
-    // The teacher's own quest keeps its picker; the student's has none.
-    expect(screen.getAllByTitle('Choose which students get this quest')).toHaveLength(1)
+    // The teacher's own quest keeps its picker; the student's has none. Since
+    // the 2026-10-02 row redesign the picker is the "Who gets it" field in the
+    // row's settings panel, so each row is opened in turn to look.
+    fireEvent.click(screen.getByRole('button', { name: /^Rock Cycle/, expanded: false }))
+    expect(screen.getByRole('group', { name: 'Who gets Rock Cycle' })).toBeInTheDocument()
+    expect(screen.getByLabelText('Tarien Bird')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: /^Minerals in Rocks/, expanded: false }))
+    const field = screen.getByRole('group', { name: 'Who gets Minerals in Rocks' })
+    expect(within(field).getByText('Only Tarien Bird')).toBeInTheDocument()
+    expect(within(field).queryByRole('checkbox')).toBeNull()
   })
 
   it('opens the student’s work instead of the quest editor', async () => {
     render(withConfirm(<ClassQuestsManager classId="c1" />))
-    fireEvent.click((await screen.findAllByRole('button', { name: 'Toggle tasks' }))[1])
-    fireEvent.click(screen.getByRole('button', { name: 'See Tarien’s work' }))
+    // On the collapsed row since the 2026-10-02 redesign: no chevron first.
+    fireEvent.click(await screen.findByRole('button', { name: 'See Tarien’s work' }))
     await waitFor(() => expect(api.get).toHaveBeenCalledWith('/api/sis/classes/c1/students/s1/progress'))
-    expect(screen.queryByRole('button', { name: /Open quest|Edit quest/ })).not.toBeInTheDocument()
+    // Scoped to the student's row: since the 2026-10-02 redesign the teacher's
+    // own quest shows its Edit quest on the collapsed row beside it.
+    const row = screen.getByText('Minerals in Rocks').closest('li')
+    expect(within(row).queryByRole('button', { name: /Open quest|Edit quest/ })).not.toBeInTheDocument()
   })
 })
 

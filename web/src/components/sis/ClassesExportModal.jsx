@@ -49,13 +49,21 @@ const startOf = (mts = []) => {
   return f ? t12(f.start_time) : ''
 }
 
+// Minutes from start_time to end_time; 0 when either is missing or the range
+// runs backwards.
+const minutesOf = (m) => {
+  if (!m?.start_time || !m?.end_time) return 0
+  const [sh, sm] = hhmm(m.start_time).split(':').map(Number)
+  const [eh, em] = hhmm(m.end_time).split(':').map(Number)
+  const mins = eh * 60 + em - (sh * 60 + sm)
+  return mins > 0 ? mins : 0
+}
+
 const lengthOf = (mts = []) => {
   const f = (mts || []).find((m) => m.start_time && m.end_time)
   if (!f) return ''
-  const [sh, sm] = hhmm(f.start_time).split(':').map(Number)
-  const [eh, em] = hhmm(f.end_time).split(':').map(Number)
-  const mins = eh * 60 + em - (sh * 60 + sm)
-  if (!(mins > 0)) return ''
+  const mins = minutesOf(f)
+  if (!mins) return ''
   const h = Math.floor(mins / 60)
   const r = mins % 60
   return h === 0 ? `${r} min` : r === 0 ? `${h} hr` : `${h} hr ${r} min`
@@ -64,7 +72,15 @@ const lengthOf = (mts = []) => {
 const agesOf = (c) => c.min_age != null && c.max_age != null ? `${c.min_age}-${c.max_age}`
   : c.min_age != null ? `${c.min_age}+` : c.max_age != null ? `up to ${c.max_age}` : ''
 
-const teacherOf = (c) => c.primary_instructor?.name || c.primary_instructor?.display_name || ''
+const personName = (p) => p?.name || p?.display_name || ''
+
+const teacherOf = (c) => personName(c.primary_instructor)
+
+// iCreate, 2704bbd4: "I need to know who is assisting in the class too, so
+// that I can know who to pay."
+const assistantNamesOf = (c) => (c.assistant_instructors || []).map(personName).filter(Boolean)
+
+const assistantsOf = (c) => assistantNamesOf(c).join('; ')
 
 // `on` marks the default set — the old fixed export, unchanged.
 export const LIST_COLUMNS = [
@@ -84,6 +100,12 @@ export const LIST_COLUMNS = [
   { id: 'waitlist', label: 'Waitlist', hint: 'Waitlisted student count', on: true, value: (c) => c.waitlist_count ?? 0 },
   { id: 'registration', label: 'Registration', hint: 'Status: Open, Closed, or Archived', on: false,
     value: (c) => c.status === 'archived' ? 'Archived' : c.registration_status === 'open' ? 'Open' : 'Closed' },
+  // Ticket 2704bbd4: Molly exports this list to work out who to pay, so both
+  // are on by default (Tanner, 2026-10-02), and reach a saved pref once too
+  // (see COLUMNS_ADDED_LATER).
+  { id: 'assistants', label: 'Assistants', hint: 'Assistant teachers, separated by ;', on: true, value: assistantsOf },
+  { id: 'paid', label: 'Paid', hint: 'No = roster-only class, teachers not paid', on: true,
+    value: (c) => (c.exclude_from_pay ? 'No' : 'Yes') },
 ]
 
 // What a class costs a family. A campus coordinator is an org admin minus the
@@ -107,12 +129,21 @@ export const buildListRows = (classes, colIds) => {
  * excluded: a schedule grid is what's actually running.
  */
 export const buildGridRows = (classes, axis, dayFilter = 'all') => {
-  const keyOf = axis === 'teacher'
-    ? (c) => teacherOf(c) || 'No teacher'
-    : (c) => c.location || 'No room'
+  // A class sits in its primary teacher's column and, marked "(assisting)",
+  // in each assistant's column too (2704bbd4) — so every teacher's column
+  // shows every class they are in the room for.
+  const keysOf = axis === 'teacher'
+    ? (c) => [teacherOf(c) || 'No teacher', ...assistantNamesOf(c)]
+    : (c) => [c.location || 'No room']
   const third = axis === 'teacher'
     ? { label: 'Room', value: (c) => c.location || '' }
-    : { label: 'Teacher', value: teacherOf }
+    : {
+        label: 'Teacher',
+        value: (c) => {
+          const a = assistantsOf(c)
+          return a ? `${teacherOf(c)} (assistants: ${a})` : teacherOf(c)
+        },
+      }
 
   const occs = []
   for (const c of classes) {
@@ -123,7 +154,7 @@ export const buildGridRows = (classes, axis, dayFilter = 'all') => {
       occs.push({ day: m.day_of_week, start: hhmm(m.start_time), c })
     }
   }
-  const cols = [...new Set(occs.map((o) => keyOf(o.c)))].sort((a, b) => a.localeCompare(b))
+  const cols = [...new Set(occs.flatMap((o) => keysOf(o.c)))].sort((a, b) => a.localeCompare(b))
   // School-week order: Monday first, Sunday last.
   const days = [...new Set(occs.map((o) => o.day))].sort((a, b) => ((a + 6) % 7) - ((b + 6) % 7))
 
@@ -133,14 +164,58 @@ export const buildGridRows = (classes, axis, dayFilter = 'all') => {
     const starts = [...new Set(occs.filter((o) => o.day === day).map((o) => o.start))].sort()
     for (const start of starts) {
       const here = occs.filter((o) => o.day === day && o.start === start)
-      const at = (col) => here.filter((o) => keyOf(o.c) === col).map((o) => o.c)
-      const cells = (fn) => cols.map((col) => at(col).map(fn).join('; '))
-      rows.push([`${t12(start)} - Class`, ...cells((c) => c.name || '')])
+      const at = (col) => here.filter((o) => keysOf(o.c).includes(col)).map((o) => o.c)
+      const cells = (fn) => cols.map((col) => at(col).map((c) => fn(c, col)).join('; '))
+      const assisting = (c, col) => axis === 'teacher' && col !== (teacherOf(c) || 'No teacher')
+      rows.push([`${t12(start)} - Class`,
+        ...cells((c, col) => `${c.name || ''}${assisting(c, col) ? ' (assisting)' : ''}`)])
       rows.push([`${t12(start)} - Ages`, ...cells(agesOf)])
       rows.push([`${t12(start)} - ${third.label}`, ...cells(third.value)])
     }
   }
   return rows
+}
+
+const hoursText = (mins) => String(Math.round((mins / 60) * 100) / 100)
+
+/**
+ * Weekly teaching hours, one row per staff member (iCreate, 2704bbd4: "I need
+ * to be able to download all the hours that teachers taught in the week!").
+ *
+ * Hours are the scheduled weekly meetings (day_of_week set; a one-off dated
+ * meeting is not part of a week), counted for the primary teacher and every
+ * assistant alike. Archived classes and roster-only classes (exclude_from_pay)
+ * are left out — those are the ones the school does not pay for. No pay rate
+ * is involved, so this is not money data.
+ */
+export const buildHoursRows = (classes, dayFilter = 'all', teacherFilter = 'all') => {
+  const staff = new Map()
+  const add = (person, c, mins, role) => {
+    const name = personName(person)
+    if (!name) return
+    const key = person.id || name
+    const s = staff.get(key) || { name, mins: 0, lead: [], assisting: [] }
+    s.mins += mins
+    if (!s[role].includes(c.name)) s[role].push(c.name || '')
+    staff.set(key, s)
+  }
+  for (const c of classes) {
+    if (c.status === 'archived' || c.exclude_from_pay) continue
+    const mins = (c.meetings || [])
+      .filter((m) => m.day_of_week != null)
+      .filter((m) => dayFilter === 'all' || Number(dayFilter) === m.day_of_week)
+      .reduce((sum, m) => sum + minutesOf(m), 0)
+    if (!mins) continue
+    if (c.primary_instructor) add(c.primary_instructor, c, mins, 'lead')
+    for (const a of c.assistant_instructors || []) add(a, c, mins, 'assisting')
+  }
+  const people = [...staff.values()]
+    .filter((s) => teacherFilter === 'all' || s.name === teacherFilter)
+    .sort((a, b) => a.name.localeCompare(b.name))
+  return [
+    ['Staff member', 'Hours per week', 'Classes taught', 'Classes assisting'],
+    ...people.map((s) => [s.name, hoursText(s.mins), s.lead.join('; '), s.assisting.join('; ')]),
+  ]
 }
 
 const downloadCsv = (rows, filename) => saveCsv(toCsv(null, rows), filename)
@@ -149,6 +224,8 @@ const FORMATS = [
   { key: 'list', label: 'Class list', hint: 'One row per class — pick the columns below' },
   { key: 'teacher', label: 'Schedule grid by teacher', hint: 'Days and times down the side, a column per teacher' },
   { key: 'room', label: 'Schedule grid by room', hint: 'Days and times down the side, a column per room' },
+  { key: 'hours', label: 'Weekly teaching hours',
+    hint: 'One row per teacher or assistant: scheduled hours a week. Skips roster-only classes' },
 ]
 
 const DAY_OPTIONS = [
@@ -165,13 +242,26 @@ const DAY_OPTIONS = [
 // `allowedIds` is what this caller may export — a coordinator's list has the
 // price columns taken out, and a pref saved before their role changed (or by an
 // admin on a shared browser) must not smuggle one back in.
+//
+// A saved pref holds the columns someone picked, so a column that later joins
+// the defaults would never reach them. `seen` records every column the pref has
+// been offered; a default-on column it has not seen is switched on once, and
+// after that their own choice stands. A pref older than `seen` has seen
+// everything except COLUMNS_ADDED_LATER.
+export const COLUMNS_ADDED_LATER = ['assistants', 'paid']
+const ALL_COL_IDS = LIST_COLUMNS.map((c) => c.id)
 const checkPrefs = (allowedIds) => (saved) => {
   const allow = (ids) => ids.filter((id) => allowedIds.includes(id))
+  const seen = Array.isArray(saved?.seen)
+    ? saved.seen
+    : ALL_COL_IDS.filter((id) => !COLUMNS_ADDED_LATER.includes(id))
+  const fresh = DEFAULT_COLS.filter((id) => !seen.includes(id))
   return {
     format: FORMATS.some((f) => f.key === saved?.format) ? saved.format : 'list',
     cols: Array.isArray(saved?.cols) && saved.cols.length
-      ? allow(saved.cols)
+      ? allow(ALL_COL_IDS.filter((id) => saved.cols.includes(id) || fresh.includes(id)))
       : allow(DEFAULT_COLS),
+    seen: ALL_COL_IDS,
     // Default ON, and `!== false` so the browsers that already hold a saved
     // pref object without this key get the new default rather than archived
     // classes back.
@@ -241,7 +331,9 @@ const ClassesExportModal = ({ classes = [], orgName, onClose, seesMoney = true }
     // one place a redacted column could still reach a file.
     const exportCols = cols.filter((id) => allowedIds.includes(id))
     if (format === 'list') downloadCsv(buildListRows(filteredClasses, exportCols), `${slug}-classes.csv`)
-    else downloadCsv(buildGridRows(filteredClasses, format, selectedDay), `${slug}-schedule-by-${format}.csv`)
+    else if (format === 'hours') {
+      downloadCsv(buildHoursRows(filteredClasses, selectedDay, selectedTeacher), `${slug}-weekly-teaching-hours.csv`)
+    } else downloadCsv(buildGridRows(filteredClasses, format, selectedDay), `${slug}-schedule-by-${format}.csv`)
     onClose()
   }
 

@@ -1147,7 +1147,8 @@ class GroupMessageService(BaseService):
         user_id: str,
         group_id: str,
         limit: int = 50,
-        offset: int = 0
+        offset: int = 0,
+        mark_read: bool = True
     ) -> List[Dict[str, Any]]:
         """
         Get one page of a group chat, oldest-to-newest within the page.
@@ -1160,6 +1161,10 @@ class GroupMessageService(BaseService):
             group_id: UUID of the group
             limit: Number of messages to return
             offset: Offset for pagination, from the newest message backwards
+            mark_read: Also move the reader's last_read_at and clear their bell
+                row for this chat. False during a masquerade: an admin viewing
+                as someone must not read their chats for them (ticket 50082917,
+                utils/auth/read_state.py).
 
         Returns:
             List of message records
@@ -1203,6 +1208,9 @@ class GroupMessageService(BaseService):
                 [m['sender'] for m in result if isinstance(m.get('sender'), dict)],
                 ['avatar_url'],
             )
+
+            if not mark_read:
+                return result
 
             # Update last_read_at for user
             supabase.table('group_members').update({

@@ -82,8 +82,11 @@ export const UnreadBadge = ({ count }) => (
  * re-fetched every avatar in it. Memo means a keystroke re-renders only the
  * rows whose props actually changed; `onSelect` must stay referentially stable
  * for that to hold, which is what the useCallback in the parent is for.
+ *
+ * `tag` is an optional short word beside the name. The school inbox uses it
+ * for "Their turn" on an open thread where the last word was ours (d57973f6).
  */
-const ThreadRow = React.memo(({ conversation, isSelected, onSelect }) => {
+const ThreadRow = React.memo(({ conversation, isSelected, onSelect, tag = null }) => {
   const isPinned = conversation.type === 'advisor'
   const isSupport = conversation.type === 'support' || conversation.relationshipTypes?.includes('support')
   const isSchool = conversation.type === 'school' || conversation.relationshipTypes?.includes('school') ||
@@ -144,6 +147,11 @@ const ThreadRow = React.memo(({ conversation, isSelected, onSelect }) => {
             <h3 className={`truncate ${isUnread ? 'font-bold text-gray-900' : 'font-semibold text-gray-800'}`}>
               {displayName}
             </h3>
+            {tag && (
+              <span className="flex-shrink-0 text-[11px] font-medium text-neutral-500 bg-gray-100 px-1.5 py-0.5 rounded-full">
+                {tag}
+              </span>
+            )}
             {orgName && (
               <span
                 title={orgName}

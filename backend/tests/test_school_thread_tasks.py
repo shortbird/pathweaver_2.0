@@ -130,9 +130,12 @@ class TestCreateTaskFromThread:
 @pytest.mark.unit
 class TestThreadAccess:
     def test_the_office_and_nobody_else(self):
-        with patch('services.sis_service.caller_is_admin', return_value=True):
+        # No inbox list (ticket 19047fd0): the whole office tier, as before.
+        with patch.object(inbox, 'inbox_member_ids', return_value=[]), \
+             patch('services.sis_service.caller_is_admin', return_value=True):
             assert inbox.thread_access(KATE, ORG, conversation_id='c') == 'office'
-        with patch('services.sis_service.caller_is_admin', return_value=False):
+        with patch.object(inbox, 'inbox_member_ids', return_value=[]), \
+             patch('services.sis_service.caller_is_admin', return_value=False):
             assert inbox.thread_access(TAM, ORG, conversation_id='c') is None
 
     def test_a_school_group_is_the_offices_too(self):
@@ -171,9 +174,13 @@ def _admin_client_for_role(role):
 
 @pytest.fixture
 def as_office():
+    # inbox_access is _resolve_inbox's gate since ticket 19047fd0 (the org's
+    # inbox list). These tests are about the thread routes, so the caller is
+    # on the inbox; the list itself is pinned in test_school_inbox_members.py.
     with patch('database.get_supabase_admin_client', return_value=_admin_client_for_role('org_admin')), \
          patch('services.sis_service.resolve_org_id', return_value=ORG_ID), \
-         patch.object(inbox, 'school_account', return_value=(ORG, INBOX)):
+         patch.object(inbox, 'school_account', return_value=(ORG, INBOX)), \
+         patch.object(inbox, 'inbox_access', return_value=True):
         yield
 
 

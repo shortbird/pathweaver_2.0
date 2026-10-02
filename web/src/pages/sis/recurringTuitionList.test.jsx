@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
+import { RecordDoorsContext, CLOSED_DOORS } from '../../components/sis/recordDoorsContext'
 
 vi.mock('react-hot-toast', () => ({
   toast: Object.assign(vi.fn(), { success: vi.fn(), error: vi.fn() }),
@@ -10,7 +11,7 @@ vi.mock('react-hot-toast', () => ({
 const { api } = vi.hoisted(() => ({ api: { get: vi.fn(), post: vi.fn() } }))
 vi.mock('../../services/api', () => ({ default: api }))
 
-import RecurringTuitionList, { groupByFamily } from './RecurringTuitionList'
+import RecurringTuitionList, { groupByFamily, MonthlyPaymentPlanList } from './RecurringTuitionList'
 
 const CONTACT = { name: 'Paige Hanna', email: 'paige@example.com' }
 
@@ -126,5 +127,58 @@ describe('groupByFamily', () => {
   it('keeps separate families separate', () => {
     const other = { ...HANNA[0], id: 'r3', household_id: 'hh2', household_name: 'Waite' }
     expect(groupByFamily([...HANNA, other])).toHaveLength(2)
+  })
+})
+
+// Ticket bc9010f4 (Marika, iCreate, 2026-10-02): families paying monthly by a
+// payment plan were missing from the Monthly tab. They are listed read-only.
+describe('MonthlyPaymentPlanList', () => {
+  const PLAN = {
+    plan_id: 'p1', invoice_id: 'inv7', household_id: 'hh3', household_name: 'Rose Family',
+    student_user_id: 's7', student_name: 'Robin Rose', monthly_cents: 15400,
+    next_due_date: '2026-10-27', remaining_count: 1, installment_count: 10,
+    auto_charge: false, has_card: false,
+  }
+  const showPlans = (plans) => render(
+    <MemoryRouter><MonthlyPaymentPlanList plans={plans} onChanged={vi.fn()} /></MemoryRouter>
+  )
+
+  it('renders nothing when no family is on a plan', () => {
+    const { container } = showPlans([])
+    expect(container).toBeEmptyDOMElement()
+  })
+
+  it('says when autopay is off, and counts one installment in the singular', () => {
+    showPlans([PLAN])
+    expect(screen.getByText('Autopay off')).toBeInTheDocument()
+    expect(screen.getByText('1 installment left')).toBeInTheDocument()
+    expect(screen.getByText('$154.00/month')).toBeInTheDocument()
+  })
+
+  it('offers no action that changes the plan: the one button opens the family', () => {
+    showPlans([PLAN])
+    const buttons = screen.getAllByRole('button')
+    expect(buttons.map((b) => b.getAttribute('aria-label'))).toEqual(['Open Rose Family billing'])
+  })
+
+  it('clicking anywhere on the row opens the family on its Billing tab', () => {
+    // Tanner, verifying bc9010f4 on 2026-10-02: "clicking the family row
+    // should open the billing tab, not just the name."
+    const openFamily = vi.fn()
+    render(
+      <MemoryRouter>
+        <RecordDoorsContext.Provider value={{ ...CLOSED_DOORS, openFamily }}>
+          <MonthlyPaymentPlanList plans={[PLAN]} onChanged={vi.fn()} />
+        </RecordDoorsContext.Provider>
+      </MemoryRouter>
+    )
+    fireEvent.click(screen.getByText('$154.00/month'))
+    expect(openFamily).toHaveBeenCalledWith('hh3', expect.objectContaining({ tab: 'billing' }))
+  })
+
+  it('a plan with no family is a plain row, not a button', () => {
+    showPlans([{ ...PLAN, household_id: null, household_name: null }])
+    expect(screen.queryByRole('button')).not.toBeInTheDocument()
+    expect(screen.getByText('No family')).toBeInTheDocument()
   })
 })

@@ -127,14 +127,17 @@ def adjust_completion_xp(user_id, completion_id):
 
 # ── Engagement alerts ────────────────────────────────────────────────────────
 
-def _alert_scope(target_user_id, org_id):
+def _alert_scope(target_user_id, org_id, scope=None):
     """Class ids the alerts should be limited to, or None for the whole org.
 
     ?scope=mine forces the caller's own taught classes even for an admin, so the
     teacher dashboard shows a teacher their own students. Anything else keeps
-    the ordinary role scope.
+    the ordinary role scope. ``scope`` overrides the query string (the bulk
+    resolve carries it in its JSON body).
     """
-    if (request.args.get('scope') or '').strip() == 'mine':
+    if scope is None:
+        scope = request.args.get('scope')
+    if (scope or '').strip() == 'mine':
         return sis_service.advisor_class_ids(target_user_id, org_id)
     return sis_service.class_scope(target_user_id, org_id)
 
@@ -181,3 +184,35 @@ def resolve_engagement_alert(user_id, alert_id):
     if not engagement.resolve_alert(org_id, alert_id, class_ids=scope):
         return jsonify({'success': False, 'error': 'Alert not found'}), 404
     return jsonify({'success': True})
+
+
+@bp.route('/engagement-alerts/resolve', methods=['POST'])
+@require_role(*STAFF_ROLES)
+def resolve_engagement_alerts(user_id):
+    """Resolve several alerts at once (ticket 6e03f8c6, iCreate: "a checkbox so
+    teachers can resolve multiple things at a time").
+
+    Body: {"ids": [...], "scope": "mine"?}. ``scope`` may also come as ?scope=,
+    like the single resolve. Each id passes the same _alert_scope check as
+    /engagement-alerts/<id>/resolve; an id outside it is skipped and nothing is
+    written for it. Answers {resolved, skipped}.
+
+    No rule collision with the single route: that one is
+    /engagement-alerts/<alert_id>/resolve, three segments, this is two.
+    """
+    org_id, err = sis_service.org_or_error(user_id)
+    if err:
+        return err
+    data = request.get_json(silent=True) or {}
+    ids = data.get('ids')
+    if not isinstance(ids, list) or not ids:
+        return jsonify({'success': False, 'error': 'ids must be a non-empty list'}), 400
+    if len(ids) > engagement.MAX_BULK_RESOLVE:
+        return jsonify({
+            'success': False,
+            'error': f'At most {engagement.MAX_BULK_RESOLVE} alerts at a time',
+        }), 400
+    from routes.sis.staff_portal import _read_target
+    scope = _alert_scope(_read_target(user_id, org_id), org_id, data.get('scope'))
+    counts = engagement.resolve_alerts(org_id, ids, class_ids=scope)
+    return jsonify({'success': True, **counts})

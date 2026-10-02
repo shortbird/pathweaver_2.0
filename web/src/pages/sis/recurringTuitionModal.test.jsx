@@ -102,6 +102,21 @@ describe('RecurringTuitionModal', () => {
     expect(body).not.toHaveProperty('months')
   })
 
+  // Ticket bc9010f4 (Marika, iCreate): a student already on a monthly payment
+  // plan is refused by the server, and the office must see why in the form.
+  it('shows the refusal for a student already on a monthly payment plan', async () => {
+    const msg = 'Robin Bowman already pays by a monthly payment plan. Adding monthly tuition would charge them twice.'
+    api.post.mockRejectedValueOnce({ response: { status: 409, data: { success: false, error: msg } } })
+    const onAdded = vi.fn()
+    open({ onAdded })
+    await screen.findByPlaceholderText('Search students…')
+    await pickStudent('Robin Bowman')
+    setAmount('500')
+    fireEvent.click(screen.getByRole('button', { name: /add monthly tuition/i }))
+    expect(await screen.findByRole('alert')).toHaveTextContent(msg)
+    expect(onAdded).not.toHaveBeenCalled()
+  })
+
   it('rejects a charge day February does not have', async () => {
     open()
     await screen.findByPlaceholderText('Search students…')

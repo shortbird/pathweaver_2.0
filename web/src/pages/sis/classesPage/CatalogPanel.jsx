@@ -323,6 +323,7 @@ export default function CatalogPanel({ section = 'classes', onCounts = null }) {
     ...(payload.show_assistants !== undefined ? { show_assistants: payload.show_assistants } : {}),
     ...(payload.is_visible_to_parents !== undefined ? { is_visible_to_parents: payload.is_visible_to_parents } : {}),
     ...(payload.internal_notes !== undefined ? { internal_notes: payload.internal_notes } : {}),
+    ...(payload.exclude_from_pay !== undefined ? { exclude_from_pay: payload.exclude_from_pay } : {}),
     ...(payload.registration_status ? { registration_status: payload.registration_status } : {}),
     ...(payload.requires_full_day !== undefined ? { requires_full_day: payload.requires_full_day } : {}),
     organization_id: orgId,
@@ -391,6 +392,7 @@ export default function CatalogPanel({ section = 'classes', onCounts = null }) {
         max_age: c.max_age ?? null,
         requires_full_day: c.requires_full_day ?? false,
         internal_notes: c.internal_notes ?? null,
+        exclude_from_pay: !!c.exclude_from_pay,
         registration_status: 'closed',
         organization_id: orgId,
       }

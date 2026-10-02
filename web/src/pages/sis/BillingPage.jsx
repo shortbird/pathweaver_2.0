@@ -47,7 +47,7 @@ const BillingPage = () => {
   const tab = TABS.some(([t]) => t === rawTab) ? rawTab : FALLBACK
   // Fetched once here: the Monthly tuition tab shows the list and the tab
   // itself wears the count.
-  const { schedules: recurring, load: loadRecurring } = useRecurringTuition(orgId)
+  const { schedules: recurring, paymentPlans, load: loadRecurring } = useRecurringTuition(orgId)
 
   const setTab = (next) => {
     const params = new URLSearchParams(searchParams)
@@ -70,7 +70,7 @@ const BillingPage = () => {
 
       {tab === 'invoice'
         ? <InvoicePanel />
-        : <LedgerPanel view={tab} recurring={recurring} loadRecurring={loadRecurring} />}
+        : <LedgerPanel view={tab} recurring={recurring} paymentPlans={paymentPlans} loadRecurring={loadRecurring} />}
     </div>
   )
 }

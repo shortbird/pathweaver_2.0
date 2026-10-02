@@ -148,8 +148,53 @@ describe('ComposeMessageModal', () => {
     fireEvent.click(await screen.findByLabelText('Select Kate Office'))
     fireEvent.click(screen.getByRole('button', { name: 'Students' }))
     expect(screen.queryByLabelText('Select Kate Office')).toBeNull()
-    const also = screen.getByText('Also picked:').parentElement
-    expect(within(also).getByText('Kate Office')).toBeInTheDocument()
+    // Was the "Also picked:" row, which listed only picks the filter hid.
+    // That row is now the To: row for every pick (ticket ebd3ad60), so a
+    // pick the filter hides still shows there.
+    const to = screen.getByRole('group', { name: 'To' })
+    expect(within(to).getByText('Kate Office')).toBeInTheDocument()
+  })
+
+  // Ticket ebd3ad60, Molly (iCreate, org_admin): "Once I select people to
+  // send to, I don't know who I selected." The chips used to show only the
+  // picks the current filter hid, so a pick still on screen was just a tick.
+  describe('To: row (ticket ebd3ad60, reported by Molly)', () => {
+    it('shows a person picked inside the current filter', async () => {
+      render(<ComposeMessageModal isOpen onClose={vi.fn()} />)
+      fireEvent.click(await screen.findByLabelText('Select Kate Office'))
+      // Kate is still in the list on screen, and still named in To:.
+      expect(screen.getByLabelText('Select Kate Office')).toBeInTheDocument()
+      const to = screen.getByRole('group', { name: 'To' })
+      expect(within(to).getByText('Kate Office')).toBeInTheDocument()
+    })
+
+    it('removes a person with the x on their chip', async () => {
+      render(<ComposeMessageModal isOpen onClose={vi.fn()} />)
+      fireEvent.click(await screen.findByLabelText('Select Kate Office'))
+      fireEvent.click(screen.getByLabelText('Select Mia Lark'))
+      fireEvent.click(within(screen.getByRole('group', { name: 'To' }))
+        .getByRole('button', { name: 'Remove Kate Office' }))
+      const to = screen.getByRole('group', { name: 'To' })
+      expect(within(to).queryByText('Kate Office')).toBeNull()
+      expect(within(to).getByText('Mia Lark')).toBeInTheDocument()
+      expect(screen.getByLabelText('Select Kate Office')).not.toBeChecked()
+    })
+
+    it('caps the chips at 12 with "and N more", which opens the rest', async () => {
+      const many = Array.from({ length: 15 }, (_, i) => ({
+        id: `s${i}`, name: `Student ${String(i).padStart(2, '0')}`, kinds: ['student'], staff_kinds: [], age: 9,
+      }))
+      api.get.mockResolvedValue({ data: { people: many, classes: [], presets: [], without_birthdate: 0 } })
+      render(<ComposeMessageModal isOpen onClose={vi.fn()} />)
+      await screen.findByLabelText('Select Student 00')
+      fireEvent.click(screen.getByRole('button', { name: 'Select all 15' }))
+      const to = () => screen.getByRole('group', { name: 'To' })
+      expect(within(to()).getAllByRole('button', { name: /^Remove / })).toHaveLength(12)
+      expect(within(to()).queryByText('Student 14')).toBeNull()
+      fireEvent.click(within(to()).getByRole('button', { name: 'and 3 more' }))
+      expect(within(to()).getAllByRole('button', { name: /^Remove / })).toHaveLength(15)
+      expect(within(to()).getByText('Student 14')).toBeInTheDocument()
+    })
   })
 
   it('offers one group thread only for two or more, and warns that families see each other', async () => {

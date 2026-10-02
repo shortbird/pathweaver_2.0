@@ -30,6 +30,8 @@ import usePersistedChoice from '../../hooks/usePersistedChoice'
 import { useGroups } from '../../hooks/api/useGroupMessages'
 import ComposeMessageModal from '../../components/sis/ComposeMessageModal'
 import MakeTaskModal from '../../components/sis/MakeTaskModal'
+import SchoolInboxMembersModal from '../../components/sis/SchoolInboxMembersModal'
+import { useSchoolInboxAccess } from '../../hooks/api/useSisMessaging'
 import SentMessagesPanel from '../../components/sis/SentMessagesPanel'
 import { formatMessageTime } from '../../components/communication/MessageParts'
 import { useAuth } from '../../contexts/AuthContext'
@@ -144,6 +146,16 @@ const SchoolInboxPage = () => {
   // real gate either way: /api/school-inbox/* is ADMIN_ROLES, /api/messages/*
   // answers only for the caller.
   const admin = isSisAdmin(user)
+  // Whether this admin is on the school inbox (ticket 19047fd0, Molly at
+  // iCreate): org admins choose which campus coordinators open it. Until the
+  // answer arrives an admin keeps the School tab, as before the list; the
+  // server refuses a coordinator who is not on it either way.
+  const accessQuery = useSchoolInboxAccess(isSuperadmin ? orgId : null, {
+    enabled: admin && !!user?.id && !(isSuperadmin && !orgId),
+  })
+  const schoolInbox = admin && accessQuery.data?.inbox_access !== false
+  const canManageInbox = admin && accessQuery.data?.can_manage === true
+  const [membersOpen, setMembersOpen] = useState(false)
   const [searchParams, setSearchParams] = useSearchParams()
   // Which threads to show. The office's inbox is a work queue: what it needs to
   // know first is who is still waiting on a reply, not what arrived most
@@ -166,10 +178,10 @@ const SchoolInboxPage = () => {
       // to a colleague as the school, into the inbox the whole office reads
       // (iCreate, 2026-09-25). A bare ?conversation= is a school thread (the
       // office's bell and the People-page Message panel link that way).
-      : admin && (rawTab === 'school' || (!rawTab && searchParams.get('conversation'))) ? 'school' : 'mine'
+      : schoolInbox && (rawTab === 'school' || (!rawTab && searchParams.get('conversation'))) ? 'school' : 'mine'
   const isMessages = tab === 'school' || tab === 'mine'
   // The school inbox is only ever read on the School tab, by the office.
-  const viewingSchool = admin && tab === 'school'
+  const viewingSchool = schoolInbox && tab === 'school'
   const schoolSide = viewingSchool
   const setTab = (t) => setSearchParams({ tab: t }, { replace: true })
   const [selected, setSelected] = useState(null)
@@ -360,7 +372,7 @@ const SchoolInboxPage = () => {
       // live rather than leave an empty thread open here.
       const row = sent?.message
       const sentAsSchool = !schoolSide && row?.sender_id && row.sender_id !== user?.id
-      if (sentAsSchool && admin && sent.conversation_id) {
+      if (sentAsSchool && schoolInbox && sent.conversation_id) {
         // useSendMessage has already said why.
         setSearchParams({ tab: 'school', conversation: sent.conversation_id }, { replace: true })
         return
@@ -374,21 +386,22 @@ const SchoolInboxPage = () => {
 
   const totalUnread = conversations.reduce((n, c) => n + (c.unread_count || 0), 0)
 
-  // Four piles, from two facts the row carries: who spoke last, and whether
-  // this side has marked the thread handled since.
+  // Two states, Open and Closed (ticket d57973f6, Molly at iCreate). There
+  // were three piles and an All: Needs a reply, Waiting on them, Handled. The
+  // office thinks of a thread as open or closed, so "Waiting on them" folded
+  // into Open, with a small "Their turn" tag on its rows, and Handled became
+  // Closed.
   //
-  // - A thread with no messages yet is in no pile but All. Six of iCreate's
-  //   "22 needing a reply" were empty threads somebody had opened and never
-  //   written in (7ee545c4).
-  // - Handled outranks who spoke last, until the other person writes again:
+  // - A thread with no messages yet is in neither state; a search still finds
+  //   it. Six of iCreate's "22 needing a reply" were empty threads somebody
+  //   had opened and never written in (7ee545c4).
+  // - Closed outranks who spoke last, until the other person writes again:
   //   `resolved_at` is compared to `last_message_at`, so a new message reopens
   //   the thread without anything having to clear the mark (5c858931).
   // - Who spoke last is `last_message_sender_id`, stored on send. A row
   //   without it (older payload) still counts as owed a reply — better to show
-  //   a thread than to hide one.
-  // - "Waiting on them" was labelled "Answered", and half of what sat there
-  //   was never answered by anyone: threads the school opened and the member
-  //   ignored. Both are the same fact — the last word was ours (4ae1c6d1).
+  //   a thread than to hide one. The tab badges count only those owed a reply,
+  //   as the sidebar does.
   //
   // `selfId` is the school for the front office, the teacher themself otherwise.
   const hasTraffic = (c) => Boolean(c.last_message_at)
@@ -397,17 +410,14 @@ const SchoolInboxPage = () => {
   const lastWordWasOurs = (c) => Boolean(c.last_message_sender_id) && c.last_message_sender_id === selfId
   const needsReply = (c) => hasTraffic(c) && !isResolved(c) && !lastWordWasOurs(c)
   const waitingOnThem = (c) => hasTraffic(c) && !isResolved(c) && lastWordWasOurs(c)
+  const isOpenThread = (c) => hasTraffic(c) && !isResolved(c)
   const openCount = conversations.filter(needsReply).length
+  const openThreads = conversations.filter(isOpenThread).length
   // A search looks through every thread, not just the pile on screen: the
   // thread somebody wants back is usually one that was handled long ago.
   const shownConversations = query
     ? conversations.filter((c) => matchesSearch(query, ...convoNames(c)))
-    : conversations.filter((c) => (
-      threadView === 'all' ? true
-        : threadView === 'open' ? needsReply(c)
-          : threadView === 'waiting' ? waitingOnThem(c)
-            : isResolved(c)
-    ))
+    : conversations.filter((c) => (threadView === 'closed' ? isResolved(c) : isOpenThread(c)))
   // Each tab's count, shown on every tab whichever is open (iCreate,
   // 2026-09-29, 1570c67a: "On messaging on the side bar it says I have 3
   // messages, but idk where those are." The sidebar summed both tabs; the tab
@@ -418,14 +428,14 @@ const SchoolInboxPage = () => {
   // (the same rule, live), so marking a thread handled moves it at once.
   const countsEnabled = !!user?.id && !(admin && isSuperadmin && !orgId)
   const { data: tabCounts } = useQuery({
-    queryKey: ['sis', 'inboxTabCounts', orgId, admin],
+    queryKey: ['sis', 'inboxTabCounts', orgId, schoolInbox],
     enabled: countsEnabled,
     refetchInterval: 60000,
     staleTime: 30000,
     queryFn: async () => {
       const [mine, school] = await Promise.all([
         api.get('/api/messages/unread-count?threads=1').catch(() => null),
-        admin
+        schoolInbox
           // expect403: see InboxUnreadBadge (OPTIO-WEB-24).
           ? api.get(withOrg('/api/school-inbox/unread-count', isSuperadmin ? orgId : null), { expect403: true })
             .catch(() => null)
@@ -453,10 +463,8 @@ const SchoolInboxPage = () => {
   }, [liveCount])
 
   const THREAD_VIEWS = [
-    ['open', `Needs a reply${openCount ? ` (${openCount})` : ''}`],
-    ['waiting', 'Waiting on them'],
-    ['resolved', 'Handled'],
-    ['all', 'All'],
+    ['open', `Open${openThreads ? ` (${openThreads})` : ''}`],
+    ['closed', 'Closed'],
   ]
 
   // Group threads, opened in this page's own pane.
@@ -587,8 +595,8 @@ const SchoolInboxPage = () => {
   // from the click, and the resolved mark lands on the list.
   const selectedRow = (selected?.id && conversations.find((c) => c.id === selected.id)) || selected
 
-  // "This one is done" without sending anything. The thread comes off Needs a
-  // reply for this side only; the member sees nothing.
+  // "This one is done" without sending anything. The thread closes for this
+  // side only; the member sees nothing.
   const setResolved = (convo, resolved) => {
     if (!convo?.id || resolveMutation.isPending) return
     resolveMutation.mutate({ conversationId: convo.id, resolved, source, userId: user?.id })
@@ -609,10 +617,10 @@ const SchoolInboxPage = () => {
           <h1 className="text-2xl font-bold text-neutral-900">Messaging</h1>
           <p className="text-sm text-neutral-500 mt-0.5">
             {viewingSchool ? (
-              <>The shared {orgName ? <span className="font-medium">{orgName}</span> : 'school'} inbox. Everyone in the
+              <>The shared {orgName ? <span className="font-medium">{orgName}</span> : 'school'} inbox. The front
                 office reads it, and replies go out as {orgName || 'the school'}.</>
             ) : tab === 'mine' ? (
-              admin
+              schoolInbox
                 ? <>Your own threads with staff, under your name. Parents and students are on the {orgName || 'school'} inbox tab.</>
                 : <>Your own threads. Everyone you write to sees your name.</>
             ) : (
@@ -621,12 +629,26 @@ const SchoolInboxPage = () => {
             {isMessages && totalUnread > 0 && ` ${totalUnread} unread.`}
           </p>
         </div>
+        {/* Org admins choose who opens the school inbox (19047fd0). */}
+        {viewingSchool && canManageInbox && (
+          <button type="button" onClick={() => setMembersOpen(true)}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-gray-300 text-sm text-neutral-700 hover:border-optio-purple hover:text-optio-purple">
+            Inbox access
+          </button>
+        )}
       </div>
+
+      <SchoolInboxMembersModal
+        isOpen={membersOpen}
+        orgId={isSuperadmin ? orgId : null}
+        memberIds={accessQuery.data?.member_ids || []}
+        onClose={() => setMembersOpen(false)}
+      />
 
       <GlassTabBar
         align="start" size="md" className="mb-4" aria-label="Messaging sections"
         tabs={[
-          ...(admin ? [{ id: 'school', label: `${orgName || 'School'} inbox`,
+          ...(schoolInbox ? [{ id: 'school', label: `${orgName || 'School'} inbox`,
             badge: schoolCount > 0 ? schoolCount : null }] : []),
           { id: 'mine', label: 'My messages', badge: mineCount > 0 ? mineCount : null },
           ...(admin ? [{ id: 'sent', label: 'Sent' }] : []),
@@ -732,12 +754,12 @@ const SchoolInboxPage = () => {
               <div className="flex flex-col items-center justify-center h-64 p-4 text-center">
                 <InboxIcon className="w-12 h-12 text-gray-300 mb-3" />
                 <p className="text-sm font-medium text-neutral-700 mb-1">
-                  {threadView === 'open' ? 'Everything has been answered' : 'Nothing here'}
+                  {threadView === 'open' ? 'No open threads' : 'No closed threads'}
                 </p>
                 <p className="text-xs text-neutral-500">
                   {threadView === 'open'
-                    ? (viewingSchool ? 'No thread is waiting on a reply from the school.' : 'No thread is waiting on a reply from you.')
-                    : 'Switch to All to see every thread.'}
+                    ? 'Every thread is closed. A new message opens its thread again.'
+                    : 'Close a thread when it needs nothing more. Search finds any thread.'}
                 </p>
               </div>
             ) : (
@@ -747,6 +769,7 @@ const SchoolInboxPage = () => {
                   conversation={convo}
                   isSelected={selected?.id === convo.id}
                   onSelect={selectThread}
+                  tag={waitingOnThem(convo) ? 'Their turn' : null}
                 />
               ))
             )}
@@ -813,18 +836,19 @@ const SchoolInboxPage = () => {
                 )}
                 {/* A thread answered somewhere else -- in person, from the
                     other inbox -- has no reply to send and would otherwise sit
-                    under Needs a reply forever (iCreate, 5c858931). */}
+                    under Open forever (iCreate, 5c858931). "Close" was "Mark
+                    handled" until d57973f6. */}
                 {selectedRow.id && hasTraffic(selectedRow) && (
                   isResolved(selectedRow) ? (
                     <button type="button" onClick={() => setResolved(selectedRow, false)} disabled={resolveMutation.isPending}
                       className="shrink-0 inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border border-gray-300 text-xs text-neutral-600 hover:bg-gray-50 disabled:opacity-50">
-                      <CheckCircleIcon className="w-4 h-4 text-green-600" /> Handled · Reopen
+                      <CheckCircleIcon className="w-4 h-4 text-green-600" /> Closed · Reopen
                     </button>
                   ) : (
                     <button type="button" onClick={() => setResolved(selectedRow, true)} disabled={resolveMutation.isPending}
-                      title="Take it off Needs a reply without sending anything"
+                      title="Close this thread without sending anything"
                       className="shrink-0 inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border border-gray-300 text-xs text-neutral-600 hover:border-optio-purple hover:text-optio-purple disabled:opacity-50">
-                      <CheckCircleIcon className="w-4 h-4" /> Mark handled
+                      <CheckCircleIcon className="w-4 h-4" /> Close
                     </button>
                   )
                 )}

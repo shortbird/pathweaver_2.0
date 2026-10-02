@@ -333,6 +333,9 @@ CLASS_REPORT_FIELDS: List[Dict[str, Any]] = [
     {'key': 'waitlist', 'label': 'Waitlist', 'hint': 'Waiting plus offered', 'default': False},
     {'key': 'registration', 'label': 'Registration', 'hint': 'Open, Closed, or Archived', 'default': False},
     {'key': 'internal_notes', 'label': 'Internal notes', 'hint': 'Staff-only notes on the class', 'default': False},
+    # Ticket 2704bbd4: classes kept only for a roster are not paid. A Yes/No
+    # flag with no rate in it, so coordinators see it too.
+    {'key': 'paid', 'label': 'Paid', 'hint': 'No = roster-only class, teachers not paid', 'default': False},
 ]
 
 CLASS_REPORT_KEYS = [f['key'] for f in CLASS_REPORT_FIELDS]
@@ -382,6 +385,7 @@ def build_class_rows(classes: List[Dict[str, Any]],
             'registration': ('Archived' if c.get('status') == 'archived'
                              else 'Open' if c.get('registration_status') == 'open' else 'Closed'),
             'internal_notes': c.get('internal_notes') or '',
+            'paid': 'No' if c.get('exclude_from_pay') else 'Yes',
         })
     rows.sort(key=lambda r: (r['name'] or '').lower())
     return rows

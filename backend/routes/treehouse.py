@@ -858,6 +858,10 @@ def delete_cohort(user_id, class_id):
     repo = ClassRepository()
     if not _verify_cohort_in_org(repo, class_id, ctx['org_id']):
         return jsonify({'success': False, 'error': 'Cohort not found'}), 404
+    # Seats first, through the one door a seat ends by, so the students also
+    # leave the cohort's quests (d8a2a8d4); archive_class then finds none left.
+    from services.class_enrollment_drops import withdraw_class_enrollments
+    withdraw_class_enrollments(repo.admin_client, actor_id=user_id, class_ids=[class_id])
     repo.archive_class(class_id)
     return jsonify({'success': True}), 200
 
@@ -957,7 +961,12 @@ def withdraw_cohort_student(user_id, class_id, student_id):
     repo = ClassRepository()
     if not _verify_cohort_in_org(repo, class_id, ctx['org_id']):
         return jsonify({'success': False, 'error': 'Cohort not found'}), 404
-    return jsonify({'success': repo.withdraw_student(class_id, student_id)}), 200
+    # The one door a seat ends through: the cohort's quests leave with the
+    # student (d8a2a8d4). Any status, as repo.withdraw_student always did.
+    from services.class_enrollment_drops import withdraw_class_enrollments
+    dropped = withdraw_class_enrollments(repo.admin_client, actor_id=user_id, class_ids=[class_id],
+                                         student_id=student_id, active_only=False)
+    return jsonify({'success': bool(dropped)}), 200
 
 
 # ── facilitator: phone capture → tag one or many students (G1) ───────────────

@@ -223,3 +223,158 @@ class TestSummary:
         result = self._summary(goal=None)
         assert result['week_start'] == '2026-08-10'
         assert result['week_end'] == '2026-08-16'
+
+
+# ---------------------------------------------------------------------------
+# Read access for the student's own school (Sentry ticket ade315ec)
+# ---------------------------------------------------------------------------
+
+def _raw(view):
+    """The view body without require_auth / require_relationship_to."""
+    import inspect
+    return inspect.unwrap(view)
+
+
+def _route_app():
+    from flask import Flask
+    # Build the real app first, before the blueprint is registered on a
+    # scratch app (see tests/test_class_messaging.py TestClassMessagingEndpoint):
+    # registering it here first breaks later app-fixture tests in the same run.
+    import app as _real_app  # noqa: F401
+    from routes.xp_goals import bp
+    app = Flask(__name__)
+    app.register_blueprint(bp)
+    return app
+
+
+class TestCanReadGoal:
+    """Sentry ticket ade315ec (reporter: Sentry alert, OPTIO web): "API 403:
+    GET /api/xp-goals/student/:id from /admin/organizations/:id/student/:id".
+    The portfolio rule admits only org admins and staff tied to the student, so
+    a campus coordinator (or an unassigned advisor) of the same school got 403."""
+
+    def _check(self, *, portfolio, roles, same_org):
+        with patch.object(goals, 'can_view_goal', return_value=portfolio), \
+             patch('database.get_supabase_admin_client', return_value=object()), \
+             patch('utils.auth.org_scope.caller_roles_and_org',
+                   return_value=(set(roles), 'org-1', False)), \
+             patch('utils.auth.org_scope.caller_can_access_user',
+                   return_value=same_org):
+            return goals.can_read_goal('caller', 's1')
+
+    def test_same_org_coordinator_reads(self):
+        assert self._check(portfolio=False, roles={'campus_coordinator'}, same_org=True) is True
+
+    def test_same_org_unassigned_advisor_reads(self):
+        assert self._check(portfolio=False, roles={'advisor'}, same_org=True) is True
+
+    def test_staff_of_another_org_is_refused(self):
+        assert self._check(portfolio=False, roles={'org_admin'}, same_org=False) is False
+
+    def test_a_classmate_is_refused(self):
+        """Same org but a student: _org_staff wants a staff role, so a peer
+        does not read another student's private target."""
+        assert self._check(portfolio=False, roles={'student'}, same_org=True) is False
+
+    def test_portfolio_rule_still_admits_on_its_own(self):
+        assert self._check(portfolio=True, roles=set(), same_org=False) is True
+
+
+class TestGoalReadRoutes:
+    """Sentry ticket ade315ec: the per-org flag answers before any finer access
+    check, and same-org staff read the goal. Setting is unchanged."""
+
+    def _get(self, view, path, *, enabled, portfolio, org_staff, summary=None, history=None):
+        from utils.auth import relationships as rel
+        app = _route_app()
+        staff = patch.dict(rel.RELATIONSHIPS, {'org_staff': lambda c, t: org_staff})
+        with app.test_request_context(path), staff, \
+             patch.object(goals, 'enabled_for_student', return_value=enabled), \
+             patch.object(goals, 'can_view_goal', return_value=portfolio), \
+             patch.object(goals, 'summary', return_value=summary or {'enabled': True}), \
+             patch.object(goals, 'goal_history', return_value=history or []):
+            resp, status = _raw(view)('coord-1', student_id='s1')
+            return status, resp.get_json()
+
+    def test_flag_off_org_answers_disabled_to_a_coordinator(self):
+        """Old code ran can_view_goal first and 403'd here."""
+        from routes.xp_goals import get_student_goal
+        status, body = self._get(get_student_goal, '/api/xp-goals/student/s1',
+                                 enabled=False, portfolio=False, org_staff=True)
+        assert status == 200
+        assert body == {'success': True, 'goal': {'enabled': False}}
+
+    def test_flag_on_org_coordinator_reads_the_goal(self):
+        from routes.xp_goals import get_student_goal
+        status, body = self._get(get_student_goal, '/api/xp-goals/student/s1',
+                                 enabled=True, portfolio=False, org_staff=True,
+                                 summary={'enabled': True, 'target_xp': 300})
+        assert status == 200
+        assert body['goal']['target_xp'] == 300
+
+    def test_flag_on_caller_with_no_read_right_is_refused(self):
+        from routes.xp_goals import get_student_goal
+        status, _ = self._get(get_student_goal, '/api/xp-goals/student/s1',
+                              enabled=True, portfolio=False, org_staff=False)
+        assert status == 403
+
+    def test_history_flag_off_answers_disabled_to_a_coordinator(self):
+        from routes.xp_goals import get_student_goal_history
+        status, body = self._get(get_student_goal_history, '/api/xp-goals/student/s1/history',
+                                 enabled=False, portfolio=False, org_staff=True)
+        assert status == 200
+        assert body == {'success': True, 'enabled': False, 'history': []}
+
+    def test_history_flag_on_coordinator_reads(self):
+        from routes.xp_goals import get_student_goal_history
+        status, body = self._get(get_student_goal_history, '/api/xp-goals/student/s1/history',
+                                 enabled=True, portfolio=False, org_staff=True,
+                                 history=[{'target_xp': 200}])
+        assert status == 200
+        assert body['history'] == [{'target_xp': 200}]
+
+    def test_history_flag_on_outsider_is_refused(self):
+        from routes.xp_goals import get_student_goal_history
+        status, _ = self._get(get_student_goal_history, '/api/xp-goals/student/s1/history',
+                              enabled=True, portfolio=False, org_staff=False)
+        assert status == 403
+
+    def test_staff_of_another_org_stopped_at_the_gate(self):
+        """Through the real decorators: no relationship, no read, flag on or off."""
+        from routes.xp_goals import get_student_goal
+        from utils.auth import relationships as rel
+        from utils.auth.decorators import AuthorizationError
+        app = _route_app()
+        with app.test_request_context('/api/xp-goals/student/s1'), \
+             patch('utils.auth.decorators.session_manager.get_effective_user_id',
+                   return_value='other-org-admin'), \
+             patch.object(rel, 'authorizing_user_id', return_value='other-org-admin'), \
+             patch.object(rel, 'relationship_between', return_value=None), \
+             patch.object(goals, 'enabled_for_student', return_value=False) as flag:
+            with pytest.raises(AuthorizationError):
+                get_student_goal(student_id='s1')
+            flag.assert_not_called()
+
+    def test_coordinator_still_cannot_set_a_goal(self):
+        """Reading widened; setting did not. A campus coordinator who is not
+        the student's advisor or teacher is not an org admin, so setter_role
+        stays None and PUT 403s."""
+        coordinator = {'id': 'coord-1', 'organization_id': 'org-1',
+                       'role': 'org_managed', 'org_role': 'campus_coordinator'}
+        with patch.object(goals, '_user_row', return_value=coordinator), \
+             patch.object(goals, '_student_row', return_value={'id': 's1', 'organization_id': 'org-1'}), \
+             patch('utils.platform_staff.is_optio_platform_user', return_value=False), \
+             patch('utils.portfolio_access.is_parent_of', return_value=False), \
+             patch('utils.portfolio_access.is_advisor_of', return_value=False), \
+             patch('utils.portfolio_access.teaches_student', return_value=False):
+            assert goals.setter_role('coord-1', 's1') is None
+
+        from routes.xp_goals import set_student_goal
+        app = _route_app()
+        with app.test_request_context('/api/xp-goals/student/s1', method='PUT',
+                                      json={'target_xp': 300}), \
+             patch.object(goals, 'setter_role', return_value=None), \
+             patch.object(goals, 'set_goal') as write:
+            resp, status = _raw(set_student_goal)('coord-1', student_id='s1')
+        assert status == 403
+        write.assert_not_called()

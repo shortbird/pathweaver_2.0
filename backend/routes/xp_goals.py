@@ -16,7 +16,8 @@ Two independent gates, both server-side:
     Writes to a disabled org DO 403 -- a stale tab must not create rows a school
     never opted into.
   * The caller must have the relationship. Reading needs what reading the
-    student's portfolio needs; setting is narrower, and excludes observers.
+    student's portfolio needs, or staff of the student's own school
+    (goals.can_read_goal); setting is narrower, and excludes observers.
 
 See services/xp_goal_service.py for the week math and why progress is derived
 rather than stored.
@@ -66,7 +67,13 @@ def _parse_week_start(raw):
 def get_student_goal(user_id, student_id):
     """The student's target and this week's progress, plus whether the caller
     may change it."""
-    if not goals.can_view_goal(user_id, student_id):
+    # The flag answer comes first. "This school does not use goals" is the
+    # same for every caller the relationship gate admitted, and answering it
+    # before the finer read check keeps a flag-off org from 403ing staff on
+    # every student page load (Sentry ticket ade315ec).
+    if not goals.enabled_for_student(student_id):
+        return jsonify({'success': True, 'goal': {'enabled': False}}), 200
+    if not goals.can_read_goal(user_id, student_id):
         return jsonify({'success': False, 'error': 'Not authorized to view this student'}), 403
 
     week_start, error = _parse_week_start(request.args.get('week_start'))
@@ -87,10 +94,10 @@ def get_student_goal_history(user_id, student_id):
     teacher or parent who wants to see whether a met goal was met at the number
     it was originally set at.
     """
-    if not goals.can_view_goal(user_id, student_id):
-        return jsonify({'success': False, 'error': 'Not authorized to view this student'}), 403
     if not goals.enabled_for_student(student_id):
         return jsonify({'success': True, 'enabled': False, 'history': []}), 200
+    if not goals.can_read_goal(user_id, student_id):
+        return jsonify({'success': False, 'error': 'Not authorized to view this student'}), 403
 
     return jsonify({
         'success': True,

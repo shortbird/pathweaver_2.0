@@ -159,6 +159,115 @@ def list_for_org(org_id: str) -> Dict[str, Any]:
     return {'schedules': rows, 'active_monthly_cents': monthly_total}
 
 
+# ── Monthly payment plans (the other "pays monthly") ────────────────────────
+#
+# Ticket bc9010f4 (iCreate, Marika, 2026-10-02): "It is saying there is no
+# student on a monthly rate, yet I know there are at least a couple who are. Do
+# we have to add them manually to the monthly tuition tab?" No — and adding them
+# would charge them twice. iCreate's monthly families pay by an autopay
+# PAYMENT PLAN: one term invoice (sis_invoices) split into monthly installments
+# (sis_payment_plans + sis_installments), charged by the installment sweep in
+# sis_billing_service. That is a different mechanism from the schedules above,
+# and the Monthly tab only ever listed the schedules, so a school billing
+# monthly through plans read "nobody is on a monthly rate".
+#
+# These plans are listed read-only beside the schedules, and create() refuses a
+# schedule for a student a plan already bills.
+
+PENDING_INSTALLMENT_STATUSES = ('scheduled', 'due', 'late')
+
+
+def _plans():
+    from repositories.sis_billing_repository import SisPaymentPlanRepository
+    return SisPaymentPlanRepository(client=_admin())
+
+
+def list_monthly_payment_plans(org_id: str) -> List[Dict[str, Any]]:
+    """One row per active monthly payment plan in the org, for the
+    Monthly tab's read-only "On a monthly payment plan" section (ticket
+    bc9010f4, Marika at iCreate).
+
+    Each row: plan_id, invoice_id, household_id/household_name,
+    student_user_id/student_name, monthly_cents (the next unpaid installment,
+    else the last one), next_due_date, remaining_count, installment_count,
+    auto_charge and has_card. No card details: whether a card is on the plan is
+    all this screen needs, and the family's Billing tab carries the rest.
+    """
+    plans = _plans().active_monthly_for_org(org_id)
+    if not plans:
+        return []
+    plan_ids = [p['id'] for p in plans]
+    installments_by_plan: Dict[str, List[Dict[str, Any]]] = {}
+    from repositories.sis_billing_repository import SisInstallmentRepository
+    for inst in SisInstallmentRepository(client=_admin()).for_plan_ids(plan_ids):
+        installments_by_plan.setdefault(inst['payment_plan_id'], []).append(inst)
+
+    invoices = [p.get('sis_invoices') or {} for p in plans]
+    student_ids = list({i['student_user_id'] for i in invoices if i.get('student_user_id')})
+    hh_ids = list({i['household_id'] for i in invoices if i.get('household_id')})
+    from repositories.user_repository import UserRepository
+    from repositories.household_repository import HouseholdRepository
+    users = UserRepository(client=_admin()).find_by_ids(
+        student_ids, 'id, first_name, last_name, display_name, preferred_name') if student_ids else {}
+    households = HouseholdRepository(client=_admin()).names_by_id(hh_ids)
+
+    out: List[Dict[str, Any]] = []
+    for p in plans:
+        inv = p.get('sis_invoices') or {}
+        insts = sorted(installments_by_plan.get(p['id'], []),
+                       key=lambda i: str(i.get('due_date') or ''))
+        pending = [i for i in insts if i.get('status') in PENDING_INSTALLMENT_STATUSES]
+        basis = pending[0] if pending else (insts[-1] if insts else None)
+        sid, hh = inv.get('student_user_id'), inv.get('household_id')
+        out.append({
+            'plan_id': p['id'],
+            'invoice_id': p.get('invoice_id'),
+            'household_id': hh,
+            'household_name': (households.get(hh) or {}).get('name') if hh else None,
+            'student_user_id': sid,
+            'student_name': person_name.full_name(users[sid], 'Unknown') if sid in users else None,
+            'monthly_cents': int((basis or {}).get('amount_cents') or 0),
+            'next_due_date': pending[0].get('due_date') if pending else None,
+            'remaining_count': len(pending),
+            'installment_count': p.get('installment_count'),
+            'auto_charge': bool(p.get('auto_charge')),
+            'has_card': bool(p.get('saved_payment_method_id')),
+        })
+    out.sort(key=lambda r: ((r['household_name'] or '').lower(),
+                            (r['student_name'] or '').lower()))
+    return out
+
+
+def student_monthly_plan(org_id: str, student_id: str,
+                         household_id: Optional[str]) -> Optional[Dict[str, Any]]:
+    """The active monthly payment plan that already bills this student, or None.
+
+    A plan attaches to a student through its invoice: sis_invoices
+    .student_user_id when the invoice is the student's own (every iCreate plan
+    on 2026-10-02), or only sis_invoices.household_id when the invoice is the
+    whole family's. A family-wide plan bills every child in it, so it blocks a
+    schedule for any of them. Both reads are bounded by one student or one
+    household, so a plain read is safe here.
+    """
+    by_student = _plans().active_monthly_for_student(org_id, student_id)
+    if by_student:
+        return by_student[0]
+    if not household_id:
+        return None
+    by_household = _plans().active_monthly_for_household(org_id, household_id)
+    for p in by_household:
+        if not (p.get('sis_invoices') or {}).get('student_user_id'):
+            return p
+    return None
+
+
+def _student_name(student_id: str) -> str:
+    from repositories.user_repository import UserRepository
+    row = UserRepository(client=_admin()).find_by_ids(
+        [student_id], 'id, first_name, last_name, display_name, preferred_name').get(student_id)
+    return person_name.full_name(row, 'This student') if row else 'This student'
+
+
 def get(org_id: str, schedule_id: str) -> Optional[Dict[str, Any]]:
     rows = (_admin().table('sis_recurring_tuition').select('*')
             .eq('id', schedule_id).eq('organization_id', org_id).limit(1).execute()).data
@@ -185,6 +294,12 @@ def create(org_id: str, student_id: str, monthly_cents: int, actor_id: str,
     household_id = _student_household_id(org_id, student_id)
     if not household_id:
         return {'error': 'This student is not in a family yet, so there is nobody to bill'}
+    # Ticket bc9010f4 (Marika, iCreate): a student whose monthly payment plan
+    # already charges them would be charged twice. Refused before any write.
+    if student_monthly_plan(org_id, student_id, household_id):
+        return {'error': f'{_student_name(student_id)} already pays by a monthly payment '
+                         'plan. Adding monthly tuition would charge them twice.',
+                'conflict': True}
     existing = (_admin().table('sis_recurring_tuition').select('id, status')
                 .eq('student_user_id', student_id).neq('status', 'canceled')
                 .limit(1).execute()).data

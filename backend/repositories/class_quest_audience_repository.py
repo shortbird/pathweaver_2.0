@@ -83,6 +83,47 @@ class ClassQuestAudienceRepository:
                         .in_('id', chunk).execute()).data or [])
         return out
 
+    def student_active_class_ids(self, student_id: str,
+                                 exclude_class_id: Optional[str] = None) -> List[str]:
+        """The student's other live classes: an active enrollment in a class
+        that is itself active. Bounded by one student."""
+        rows = (self.client.table('class_enrollments').select('class_id')
+                .eq('student_id', student_id).eq('status', 'active')
+                .execute()).data or []
+        ids = sorted({r['class_id'] for r in rows
+                      if r.get('class_id') and r['class_id'] != exclude_class_id})
+        if not ids:
+            return []
+        live = (self.client.table('org_classes').select('id')
+                .in_('id', ids).eq('status', 'active').execute()).data or []
+        return sorted({c['id'] for c in live})
+
+    def links_for_quests(self, class_ids: List[str],
+                         quest_ids: List[str]) -> List[Dict[str, Any]]:
+        """class_quests rows of these classes for these quests (any release
+        date). Bounded by one student's classes and one class's quests."""
+        if not class_ids or not quest_ids:
+            return []
+        out: List[Dict[str, Any]] = []
+        for chunk in _chunks(quest_ids):
+            out.extend((self.client.table('class_quests')
+                        .select('class_id, quest_id, student_ids')
+                        .in_('class_id', class_ids).in_('quest_id', chunk)
+                        .execute()).data or [])
+        return out
+
+    def student_class_enrollments(self, student_id: str) -> List[Dict[str, Any]]:
+        """Every class_enrollments row of one student, any status."""
+        return (self.client.table('class_enrollments').select('class_id, status')
+                .eq('student_id', student_id).execute()).data or []
+
+    def class_names(self, class_ids: List[str]) -> Dict[str, Optional[str]]:
+        if not class_ids:
+            return {}
+        rows = (self.client.table('org_classes').select('id, name')
+                .in_('id', list(class_ids)).execute()).data or []
+        return {r['id']: r.get('name') for r in rows}
+
     def class_label(self, class_id: str) -> Optional[Dict[str, Any]]:
         """{name, organization_id} for the class a guardian's notice names."""
         rows = (self.client.table('org_classes').select('name, organization_id')

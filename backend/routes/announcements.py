@@ -17,6 +17,7 @@ import uuid
 from flask import Blueprint, request, jsonify
 
 from utils.auth.decorators import require_role
+from utils.auth.read_state import masquerade_read_only
 from utils.roles import get_effective_role
 from utils.sis_roles import ADMIN_ROLES, STAFF_ROLES
 from utils.validation.sanitizers import pgrst_pattern
@@ -221,6 +222,11 @@ def mark_announcements_read(user_id):
         if not ids:
             return jsonify({'success': False,
                             'error': 'No valid announcement ids'}), 400
+
+        # Viewing as someone must not read their announcements for them
+        # (ticket 50082917). Same answer shape, nothing written.
+        if masquerade_read_only():
+            return jsonify({'success': True, 'marked': 0})
 
         # admin client justified: announcement_reads is deny-all RLS (backend
         # only); the caller writes only rows keyed to their own user_id, and

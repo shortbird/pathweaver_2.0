@@ -362,6 +362,13 @@ class TestClassMessagingEndpoint:
 
     def _call(self, viewer, rows=None, scope=None):
         from flask import Flask
+
+        # Build the real app first. Its SIS registration adds a before_request
+        # to this blueprint, and Flask refuses that once the blueprint has been
+        # registered anywhere; registering it on the scratch app below first
+        # broke every later test in the same run that used the app fixture
+        # (47 setup errors when this file ran ahead of test_sis_catalog_routes).
+        import app as _real_app  # noqa: F401
         from routes.sis import staff_portal
 
         admin = _FakeAdmin(rows or _rows())

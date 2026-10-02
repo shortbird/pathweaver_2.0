@@ -64,6 +64,9 @@ beforeEach(() => {
   api.patch.mockResolvedValue({ data: { success: true } })
 })
 
+// Since the 2026-10-02 row redesign the audience summary ("Everyone (2)") is
+// part of the row's toggle, and pressing it opens the settings panel where
+// the checklist is the "Who gets it" field. The flow below is unchanged.
 describe('who a class quest is for', () => {
   it('reads as everyone until the teacher narrows it', async () => {
     mockServer({ quests: [quest()] })
@@ -155,9 +158,12 @@ describe('release dates', () => {
     const day = [soon.getFullYear(), soon.getMonth() + 1, soon.getDate()]
     const value = day.map((n) => String(n).padStart(2, '0')).join('-')
 
-    fireEvent.click(await screen.findByRole('button', { name: /Set release date/ }))
-    fireEvent.change(screen.getByLabelText('Release date for Rock Cycle'), { target: { value } })
-    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    // Since the 2026-10-02 row redesign the release date is a field in the
+    // row's settings panel: open the row, not a "Set release date" button.
+    fireEvent.click(await screen.findByRole('button', { name: /^Rock Cycle/, expanded: false }))
+    const field = screen.getByRole('group', { name: 'Release date' })
+    fireEvent.change(within(field).getByLabelText('Release date for Rock Cycle'), { target: { value } })
+    fireEvent.click(within(field).getByRole('button', { name: 'Save' }))
 
     await waitFor(() => expect(api.patch).toHaveBeenCalledTimes(1))
     const [url, body] = api.patch.mock.calls[0]
@@ -172,7 +178,8 @@ describe('release dates', () => {
     render(withConfirm(<ClassQuestsManager classId="c1" scheduledEnabled />))
 
     expect(await screen.findByText(/^Releases /)).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: /Change release date/ }))
+    // Open the row's panel (2026-10-02 redesign) instead of "Change release date".
+    fireEvent.click(screen.getByRole('button', { name: /^Rock Cycle/, expanded: false }))
     fireEvent.click(screen.getByRole('button', { name: 'Release now' }))
     await waitFor(() => expect(api.patch).toHaveBeenCalledWith(
       '/api/sis/classes/c1/quests/q1', { publish_at: null }))
@@ -181,7 +188,10 @@ describe('release dates', () => {
   it('stay out of the way for a school without the feature', async () => {
     mockServer({ quests: [quest()] })
     render(withConfirm(<ClassQuestsManager classId="c1" />))
-    await screen.findByText('Rock Cycle')
-    expect(screen.queryByRole('button', { name: /release date/i })).not.toBeInTheDocument()
+    // Opened, so the check covers the settings panel where the field now lives
+    // (2026-10-02 redesign), not just the collapsed row.
+    fireEvent.click(await screen.findByRole('button', { name: /^Rock Cycle/, expanded: false }))
+    expect(screen.queryByRole('group', { name: 'Release date' })).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('Release date for Rock Cycle')).not.toBeInTheDocument()
   })
 })

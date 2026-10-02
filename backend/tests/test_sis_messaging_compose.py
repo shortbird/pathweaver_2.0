@@ -11,6 +11,11 @@ who sends it, because those are the ways this goes quietly wrong.
 
 from unittest.mock import Mock, patch
 
+
+# The front-office pick reads school_inbox_service.office_staff_ids, not
+# admin_recipient_ids, since ticket 19047fd0: the inbox list narrows who reads
+# the school inbox, not who is front office. The patches here moved with it.
+
 import pytest
 
 from services import sis_messaging_service as messaging
@@ -64,7 +69,7 @@ def org():
             patch('utils.class_membership.class_teacher_ids', side_effect=_teachers), \
             patch.object(messaging, '_classes_meeting_on',
                          side_effect=lambda o, c, d: set(MEETINGS.get(d, []))), \
-            patch('services.school_inbox_service.admin_recipient_ids',
+            patch('services.school_inbox_service.office_staff_ids',
                   return_value=[ADMIN, COORDINATOR]):
         yield
 

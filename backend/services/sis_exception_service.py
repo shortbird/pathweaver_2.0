@@ -223,19 +223,6 @@ def resolve(org_id: str, request_id: str, action: str, *, resolved_by: str,
         conflicts = _same_time_conflicts(req['student_user_id'], req['class_id'])
         if conflicts and not drop_conflicting:
             return {'conflicts': conflicts}
-        if conflicts:
-            _admin().table('class_enrollments').update(
-                {'status': 'withdrawn', 'status_changed_by': resolved_by}) \
-                .eq('student_id', req['student_user_id']) \
-                .in_('class_id', [c['class_id'] for c in conflicts]) \
-                .eq('status', 'active').execute()
-            from services.class_group_sync_service import sync_class_group
-            from services import sis_waitlist_service as _wl
-            for c in conflicts:
-                sync_class_group(c['class_id'], actor_id=resolved_by)
-                # They just lost the seat they were promoted for in that course.
-                _wl.restore_entry_for_withdrawal(
-                    org_id, c['class_id'], req['student_user_id'])
         # Enroll immediately — same behavior as staff direct enrollment
         # (capacity-unrestricted; approving IS the override).
         _admin().table('class_enrollments').upsert({
@@ -247,6 +234,22 @@ def resolve(org_id: str, request_id: str, action: str, *, resolved_by: str,
         from services.class_group_sync_service import sync_class_group
         sync_class_group(req['class_id'], actor_id=resolved_by)
         _enroll_in_class_quests(_admin(), req['class_id'], req['student_user_id'])
+        if conflicts:
+            # Dropped AFTER the new seat, through the one door a seat ends by:
+            # the dropped classes' quests leave with them (d8a2a8d4), and a
+            # quest the new class also carries counts as still theirs only once
+            # they are in the new class -- dropped first, worked on, it would
+            # be set down and the enroll above would skip it.
+            from services.class_enrollment_drops import withdraw_class_enrollments
+            withdraw_class_enrollments(
+                _admin(), actor_id=resolved_by, student_id=req['student_user_id'],
+                class_ids=[c['class_id'] for c in conflicts])
+            from services import sis_waitlist_service as _wl
+            for c in conflicts:
+                sync_class_group(c['class_id'], actor_id=resolved_by)
+                # They just lost the seat they were promoted for in that course.
+                _wl.restore_entry_for_withdrawal(
+                    org_id, c['class_id'], req['student_user_id'])
         # A now-enrolled student shouldn't linger on this or sibling class waitlists.
         from services import sis_waitlist_service
         sis_waitlist_service.clear_entry_for_enrollment(

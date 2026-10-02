@@ -8,8 +8,9 @@ layer down, so counting unread group mail does not add another direct
 `.table()` call above repositories/ (backend/docs/REPOSITORY_PATTERN.md, and
 the layer guard in tests/unit/test_direct_db_calls_do_not_grow.py).
 
-Nothing here writes. Group mutation stays in the service until it is migrated
-deliberately.
+Nothing here writes except the rename of a class's chats
+(rename_generated_chat), which the class-rename path needs. Other group
+mutation stays in the service until it is migrated deliberately.
 """
 
 from typing import Any, Dict, List, Optional
@@ -84,3 +85,13 @@ class GroupRepository(BaseRepository):
                 .select('id, name, created_by, organization_id, is_active, audience')
                 .eq('id', group_id).limit(1).execute()).data or []
         return rows[0] if rows else None
+
+    def chats_for_class(self, class_id: str) -> List[Dict[str, Any]]:
+        """The class's parent and student chats (bounded by one class)."""
+        return (self.client.table(self.table_name)
+                .select('id, name, description, audience')
+                .eq('source_class_id', class_id).execute()).data or []
+
+    def rename_generated_chat(self, group_id: str, fields: Dict[str, Any]) -> None:
+        """Write a new name/description on one class chat."""
+        self.client.table(self.table_name).update(fields).eq('id', group_id).execute()

@@ -251,7 +251,13 @@ def office_inbox_id(user_id: str) -> Optional[str]:
     try:
         if not sis_service.caller_is_admin(user_id):
             return None
-        return (member_org(user_id) or {}).get('inbox_user_id')
+        org = member_org(user_id) or {}
+        # A coordinator the org's inbox list leaves out does not read the
+        # School tab, so the school is somebody they can write to (19047fd0).
+        members = inbox_member_ids(org['id']) if org.get('id') else []
+        if members and user_id not in members and not can_manage_inbox_members(user_id):
+            return None
+        return org.get('inbox_user_id')
     except Exception as e:  # noqa: BLE001
         logger.warning(f"school inbox: office lookup failed for {str(user_id)[:8]}: {e}")
         return None
@@ -435,18 +441,114 @@ def can_message_school(user_id: str, target_id: str) -> bool:
     return sis_service.member_org_id(other) == org['id']
 
 
-def admin_recipients(org_id: str) -> List[Dict[str, Any]]:
-    """Staff who share the inbox — the ADMIN tier (org_admin + campus
-    coordinator) — as full staff records (id, name, email, is_placeholder).
-    These are who get notified when a member writes in."""
+# ── Who is on the inbox ──────────────────────────────────────────────────────
+#
+# Ticket 19047fd0, Molly (iCreate, org_admin): org admins choose who can open
+# the school inbox. The list lives in organizations.feature_flags, under
+# sis_settings.school_inbox_member_ids: a list of user ids.
+#
+#   - empty or absent: every office staff member (org admins and campus
+#     coordinators), which is how every school worked before the list;
+#   - not empty: the org admins (always) plus the people on it.
+#
+# A superadmin always has access. Everything that says who the office is
+# follows the one answer: the route gate (inbox_access), the bell
+# (admin_recipients), the task assignees (thread_task_service) and the
+# school groups (school_group_access).
+
+INBOX_MEMBERS_KEY = 'school_inbox_member_ids'
+
+
+def members_from_flags(feature_flags: Any) -> List[str]:
+    """The configured member ids from a feature_flags blob ([] = everyone)."""
+    sis = (feature_flags or {}).get('sis_settings') if isinstance(feature_flags, dict) else None
+    ids = (sis or {}).get(INBOX_MEMBERS_KEY) if isinstance(sis, dict) else None
+    if not isinstance(ids, list):
+        return []
+    return [str(i) for i in ids if i]
+
+
+def inbox_member_ids(org_id: Optional[str]) -> List[str]:
+    """The org's configured inbox list, or [] for "all office staff".
+
+    A failed read answers [] -- the behaviour every school had before the list
+    existed -- so a lookup problem never locks the whole office out of the
+    families' mail."""
+    if not org_id:
+        return []
+    try:
+        from repositories.organization_repository import OrganizationRepository
+        org = OrganizationRepository(client=_admin()).find_by_id(org_id) or {}
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f"school inbox: member list lookup failed for org {org_id}: {e}")
+        return []
+    return members_from_flags(org.get('feature_flags') if isinstance(org, dict) else None)
+
+
+def _on_the_list(staff_row: Dict[str, Any], member_ids: set) -> bool:
+    roles = set(staff_row.get('roles') or [])
+    if 'org_admin' in roles:
+        return True
+    return 'campus_coordinator' in roles and (not member_ids or staff_row['id'] in member_ids)
+
+
+def inbox_access(user_id: str, org_id: str) -> bool:
+    """Whether `user_id` may open org `org_id`'s school inbox at all.
+
+    The office tier first (sis_service.caller_is_admin: superadmin, org admin,
+    campus coordinator). Then the list: empty lets every one of them in; a
+    list lets in the people on it, and the org admins and a superadmin
+    whether or not they are on it. Which org the caller may act on is
+    sis_service.resolve_org_id's job, before this is asked."""
+    if not user_id:
+        return False
+    from services import sis_service
+    if not sis_service.caller_is_admin(user_id):
+        return False
+    members = inbox_member_ids(org_id)
+    if not members or user_id in members:
+        return True
+    return can_manage_inbox_members(user_id)
+
+
+def can_manage_inbox_members(user_id: str) -> bool:
+    """Org admins (and a superadmin) pick the list; a coordinator may not."""
+    from services import sis_service
+    ctx = sis_service.get_user_org_context(user_id) or {}
+    if ctx.get('role') == 'superadmin':
+        return True
+    return 'org_admin' in set(sis_service._user_org_roles(ctx))
+
+
+def office_staff_ids(org_id: str) -> List[str]:
+    """Every org admin and campus coordinator, whatever the inbox list says.
+
+    For the messaging "Front office" quick pick and the office label in the
+    compose list: those name the job, not who reads the school inbox, so a
+    coordinator the inbox list leaves out is still front office there."""
     from services import sis_service
     try:
         staff = sis_service.list_org_staff(org_id)
     except Exception as e:  # noqa: BLE001
         logger.warning(f"school inbox: staff lookup failed for org {org_id}: {e}")
         return []
-    return [s for s in staff
+    return [s['id'] for s in staff
             if {'org_admin', 'campus_coordinator'} & set(s.get('roles') or [])]
+
+
+def admin_recipients(org_id: str) -> List[Dict[str, Any]]:
+    """Staff who share the inbox -- org admins, plus the campus coordinators
+    the org's inbox list lets in (all of them when the list is empty) -- as
+    full staff records (id, name, email, is_placeholder). These are who get
+    notified when a member writes in, and who a thread task may go to."""
+    from services import sis_service
+    try:
+        staff = sis_service.list_org_staff(org_id)
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f"school inbox: staff lookup failed for org {org_id}: {e}")
+        return []
+    members = set(inbox_member_ids(org_id))
+    return [s for s in staff if _on_the_list(s, members)]
 
 
 def admin_recipient_ids(org_id: str) -> List[str]:
@@ -716,9 +818,9 @@ def thread_access(user_id: str, org: Dict[str, Any], *,
                   conversation_id: Optional[str] = None,
                   group_id: Optional[str] = None) -> Optional[str]:
     """How `user_id` may open this school thread: 'office' or None. The office
-    is the org's admin tier (and a superadmin)."""
-    from services import sis_service
-    return 'office' if sis_service.caller_is_admin(user_id) else None
+    is whoever inbox_access lets in: the org's admins, the coordinators on the
+    org's inbox list (all of them when it is empty), and a superadmin."""
+    return 'office' if inbox_access(user_id, str((org or {}).get('id') or '')) else None
 
 
 def conversation_with_member(inbox_user_id: str, member_id: str) -> Optional[Dict[str, Any]]:

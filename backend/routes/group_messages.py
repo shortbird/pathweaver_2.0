@@ -12,6 +12,7 @@ from utils.logger import get_logger
 logger = get_logger(__name__)
 
 from utils.auth.decorators import require_auth
+from utils.auth.read_state import masquerade_read_only
 from services.group_message_service import GroupMessageService
 from middleware.error_handler import ValidationError
 from utils.validation.validators import validate_required_fields, validate_string_length
@@ -324,7 +325,9 @@ def get_messages(user_id: str, group_id: str):
             user_id=user_id,
             group_id=group_id,
             limit=limit,
-            offset=offset
+            offset=offset,
+            # Viewing as someone must not read their chats for them (50082917).
+            mark_read=not masquerade_read_only(),
         )
 
         return success_response({
@@ -407,6 +410,10 @@ def mark_as_read(user_id: str, group_id: str):
     Mark all messages in a group as read
     """
     try:
+        # A masquerade answers success and writes nothing: the read state is
+        # the target's, not the admin's (ticket 50082917).
+        if masquerade_read_only():
+            return success_response({'success': True, 'group_id': group_id})
         success = group_service.mark_as_read(user_id, group_id)
 
         return success_response({

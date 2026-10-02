@@ -13,9 +13,21 @@ Locks in the rules that make the feature safe:
 
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from services import school_inbox_service
 from routes import direct_messages as dm_routes
 from routes.direct_messages import _append_school_contact, _deliver_forward
+
+
+@pytest.fixture(autouse=True)
+def _no_inbox_list():
+    """No school here has an inbox list (ticket 19047fd0), so the office is
+    every org admin and coordinator, as it was before the list existed. The
+    list itself is pinned in tests/test_school_inbox_members.py. Without this
+    the list lookup would reach a real database."""
+    with patch('services.school_inbox_service.inbox_member_ids', return_value=[]):
+        yield
 
 
 ORG = {'id': 'org-1', 'name': 'iCreate', 'slug': 'icreate',

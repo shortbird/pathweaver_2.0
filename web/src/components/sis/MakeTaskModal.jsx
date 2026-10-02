@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react'
 import { toast } from 'react-hot-toast'
 import { Modal } from '../ui'
 import SearchSelect from '../ui/SearchSelect'
-import { useStaffRecipients, useMakeThreadTask } from '../../hooks/api/useSisMessaging'
+import { useStaffRecipients, useMakeThreadTask, useSchoolInboxAccess } from '../../hooks/api/useSisMessaging'
 import { INPUT_CLASS as field } from '../ui/Input'
 
 /**
@@ -19,10 +19,17 @@ import { INPUT_CLASS as field } from '../ui/Input'
  * nobody was ever given one.
  */
 
-/** The people who read the school inbox: admins and campus coordinators. */
+/**
+ * The people who read the school inbox. Since ticket 19047fd0 an org admin
+ * chooses which campus coordinators those are, so the server's `office_ids`
+ * (GET /api/school-inbox/access) is the answer when it has arrived. Until
+ * then, admins and campus coordinators; the server refuses anyone else.
+ */
 const OFFICE_ROLES = ['org_admin', 'campus_coordinator']
-export const officeStaff = (people) => (people || [])
-  .filter((p) => (p.roles || []).some((r) => OFFICE_ROLES.includes(r)))
+export const officeStaff = (people, officeIds = null) => (people || [])
+  .filter((p) => (Array.isArray(officeIds)
+    ? officeIds.includes(p.id)
+    : (p.roles || []).some((r) => OFFICE_ROLES.includes(r))))
 
 export const PRIORITIES = [
   { value: 'low', label: 'Low' },
@@ -39,7 +46,9 @@ export default function MakeTaskModal({ isOpen, ...props }) {
 function MakeTaskDialog({ onClose, orgId, conversationId = null, groupId = null,
   message = null, threadLabel = '', onCreated }) {
   const staffQuery = useStaffRecipients(orgId)
-  const staff = staffQuery.isError ? [] : (staffQuery.data ? officeStaff(staffQuery.data) : null)
+  const accessQuery = useSchoolInboxAccess(orgId)
+  const officeIds = accessQuery.data?.office_ids || null
+  const staff = staffQuery.isError ? [] : (staffQuery.data ? officeStaff(staffQuery.data, officeIds) : null)
   const makeTask = useMakeThreadTask(orgId)
   const [assignee, setAssignee] = useState('')
   const [action, setAction] = useState('reply')

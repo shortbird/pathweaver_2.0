@@ -157,6 +157,7 @@ function ComposeDialog({ orgId, orgName = '', asSchool = false, asTeacher = fals
   const [body, setBody] = useState('')
   const [push, setPush] = useState(true)
   const [email, setEmail] = useState(false)
+  const [showAllTo, setShowAllTo] = useState(false)
   const busy = sendMutation.isPending
 
   useEffect(() => {
@@ -235,8 +236,15 @@ function ComposeDialog({ orgId, orgName = '', asSchool = false, asTeacher = fals
     }
   }
 
-  const elsewhere = [...chosen].filter((id) => !shown.some((p) => p.id === id))
-  const ELSEWHERE_SHOWN = 12
+  // Every chosen person, as a To: line above the list (ticket ebd3ad60, Molly
+  // at iCreate: "Once I select people to send to, I don't know who I
+  // selected"). It used to list only the picks the current filter hid, so a
+  // pick still on screen was a tick somewhere in a scrolling list and the
+  // footer said only "2 staff, 1 parent". Capped so a whole-school send does
+  // not push the list off the dialog; "and N more" opens the rest.
+  const toIds = [...chosen]
+  const TO_SHOWN = 12
+  const toVisible = showAllTo ? toIds : toIds.slice(0, TO_SHOWN)
   const partButton = (label, ids) => (
     <button type="button" onClick={() => addAll(ids)} disabled={!ids?.length}
       className="px-2.5 py-1 rounded-full border border-gray-300 text-xs text-neutral-700 hover:border-optio-purple hover:text-optio-purple disabled:opacity-40 disabled:hover:border-gray-300 disabled:hover:text-neutral-700">
@@ -365,6 +373,30 @@ function ComposeDialog({ orgId, orgName = '', asSchool = false, asTeacher = fals
               </div>
             )}
 
+            {toIds.length > 0 && (
+              <div className="flex flex-wrap items-center gap-1.5 text-xs" role="group" aria-live="polite" aria-label="To">
+                <span className="text-neutral-500 font-medium">To:</span>
+                {toVisible.map((id) => {
+                  const label = byId.get(id)?.name || 'Someone'
+                  return (
+                    <span key={id} className="inline-flex items-center gap-1 rounded-full bg-optio-purple/10 px-2 py-0.5 text-optio-purple">
+                      {label}
+                      <button type="button" onClick={() => toggle(id)} aria-label={`Remove ${label}`}
+                        className="font-bold hover:text-optio-pink">×</button>
+                    </span>
+                  )
+                })}
+                {toIds.length > TO_SHOWN && (
+                  <button type="button" onClick={() => setShowAllTo((v) => !v)}
+                    className="text-optio-purple hover:underline">
+                    {showAllTo ? 'Show fewer' : `and ${toIds.length - TO_SHOWN} more`}
+                  </button>
+                )}
+                <button type="button" onClick={() => setChosen(new Set())}
+                  className="text-neutral-500 hover:underline ml-1">Clear all</button>
+              </div>
+            )}
+
             <PeoplePicker people={shown} selected={chosen} onToggle={toggle}
               getLabel={(p) => p.name || 'Unnamed'}
               getSearchText={(p) => `${p.name || ''} ${(p.children || []).join(' ')} ${(p.role_labels || []).join(' ')}`}
@@ -377,29 +409,6 @@ function ComposeDialog({ orgId, orgName = '', asSchool = false, asTeacher = fals
               )}
               placeholder="Search by name, child or role" searchLabel="Search people"
               emptyLabel="Nobody matches these filters." />
-
-            {elsewhere.length > 0 && (
-              <div className="flex flex-wrap items-center gap-1.5 text-xs" aria-live="polite">
-                <span className="text-neutral-500">Also picked:</span>
-                {elsewhere.slice(0, ELSEWHERE_SHOWN).map((id) => {
-                  const label = byId.get(id)?.name || 'Someone'
-                  return (
-                    <span key={id} className="inline-flex items-center gap-1 rounded-full bg-optio-purple/10 px-2 py-0.5 text-optio-purple">
-                      {label}
-                      <button type="button" onClick={() => toggle(id)} aria-label={`Remove ${label}`}
-                        className="font-bold hover:text-optio-pink">×</button>
-                    </span>
-                  )
-                })}
-                {elsewhere.length > ELSEWHERE_SHOWN && (
-                  <span className="text-neutral-500">and {elsewhere.length - ELSEWHERE_SHOWN} more</span>
-                )}
-              </div>
-            )}
-            {chosen.size > 0 && (
-              <button type="button" onClick={() => setChosen(new Set())}
-                className="text-xs text-neutral-500 hover:underline">Clear all</button>
-            )}
           </section>
 
           {chosen.size > 1 && (

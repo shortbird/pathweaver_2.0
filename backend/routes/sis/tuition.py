@@ -147,11 +147,18 @@ def preview_tuition_invoice(user_id, student_id):
 @bp.route('/tuition/recurring', methods=['GET'])
 @require_role(*FINANCE_ROLES)
 def list_recurring_tuition(user_id):
-    """Every live monthly schedule in the org, with names and card status."""
+    """Every live monthly schedule in the org, with names and card status.
+
+    `payment_plans` (ticket bc9010f4, Marika at iCreate): the families who pay
+    monthly by an autopay payment plan instead, listed read-only so the tab
+    stops saying nobody is on a monthly rate. A separate key, so `schedules`
+    and `active_monthly_cents` mean exactly what they meant before.
+    """
     org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
-    return jsonify({'success': True, **recurring.list_for_org(org_id)})
+    return jsonify({'success': True, **recurring.list_for_org(org_id),
+                    'payment_plans': recurring.list_monthly_payment_plans(org_id)})
 
 
 @bp.route('/tuition/recurring', methods=['POST'])
@@ -174,7 +181,9 @@ def create_recurring_tuition(user_id):
         org_id, student_id, monthly_cents=data.get('monthly_cents'), actor_id=user_id,
         description=data.get('description'), day_of_month=data.get('day_of_month', 1))
     if result.get('error'):
-        code = 404 if result['error'] == 'Student not found' else 400
+        # 409: the student already pays by a monthly payment plan (bc9010f4).
+        code = (404 if result['error'] == 'Student not found'
+                else 409 if result.get('conflict') else 400)
         return jsonify({'success': False, 'error': result['error']}), code
     return jsonify({'success': True, **result}), 201
 

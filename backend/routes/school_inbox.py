@@ -11,6 +11,11 @@ Access: ADMIN_ROLES (org_admin, campus_coordinator, superadmin) — the same tie
 that runs the rest of the front office. A superadmin picks the org with
 ?organization_id=; everyone else is locked to their own org.
 
+Every route is ADMIN_ROLES, and inside that tier the org's inbox list decides
+(ticket 19047fd0): org admins choose which campus coordinators open the inbox;
+an empty list is every coordinator. _resolve_inbox is the one gate, and the
+group routes ask school_group_access, which reads the same list.
+
 Every route is ADMIN_ROLES. For a week a teacher could be handed one thread
 with a task and answer it as the school (d93b24d2); nobody ever was, and the
 grant was removed on 2026-10-01 (school_inbox_service.thread_access).
@@ -22,10 +27,11 @@ from services import school_inbox_service, sis_service
 from services.direct_message_service import DirectMessageService
 from services.group_message_service import GroupMessageService
 from utils.auth.decorators import require_role
+from utils.auth.read_state import masquerade_read_only
 from utils.auth.relationships import require_relationship_to
 from utils.api_response import success_response, error_response
 from utils.logger import get_logger
-from utils.sis_roles import ADMIN_ROLES
+from utils.sis_roles import ADMIN_ROLES, INBOX_MANAGER_ROLES
 from utils.validation.validators import validate_string_length
 from middleware.error_handler import ValidationError
 
@@ -37,11 +43,18 @@ message_service = DirectMessageService()
 
 
 def _resolve_inbox(user_id):
-    """(org, inbox_user_id) for the caller, or (None, error_response)."""
+    """(org, inbox_user_id) for the caller, or (None, error_response).
+
+    The one gate on the shared inbox: a coordinator the org's inbox list
+    leaves out is refused here, before anything is read or written
+    (ticket 19047fd0)."""
     org_id = sis_service.resolve_org_id(user_id, request.args.get('organization_id'))
     if not org_id:
         return None, error_response('No organization context', status_code=400,
                                     error_code='validation_error')
+    if not school_inbox_service.inbox_access(user_id, org_id):
+        return None, error_response("You are not on this school's inbox", status_code=403,
+                                    error_code='forbidden')
     org, inbox_user_id = school_inbox_service.school_account(org_id)
     if not org or not org.get('is_active'):
         return None, error_response('Organization not found', status_code=404,
@@ -50,6 +63,87 @@ def _resolve_inbox(user_id):
         return None, error_response('School inbox is unavailable', status_code=500,
                                     error_code='internal_error')
     return {'org': org, 'inbox_user_id': inbox_user_id}, None
+
+
+@bp.route('/access', methods=['GET'])
+@require_role(*ADMIN_ROLES)
+def get_inbox_access(user_id: str):
+    """Whether the caller may open the school inbox, and who is on it.
+
+    `inbox_access` is what the console reads to show or hide the School tab.
+    `office_ids` is everyone the inbox reaches today (org admins plus the
+    coordinators let in); `member_ids` is the configured list, [] when every
+    coordinator is in (`everyone`). `can_manage` is true for the org admins
+    who may change the list (ticket 19047fd0)."""
+    try:
+        org_id = sis_service.resolve_org_id(user_id, request.args.get('organization_id'))
+        if not org_id:
+            return error_response('No organization context', status_code=400,
+                                  error_code='validation_error')
+        members = school_inbox_service.inbox_member_ids(org_id)
+        return success_response({
+            'organization_id': org_id,
+            'inbox_access': school_inbox_service.inbox_access(user_id, org_id),
+            'can_manage': school_inbox_service.can_manage_inbox_members(user_id),
+            'member_ids': members,
+            'everyone': not members,
+            'office_ids': school_inbox_service.admin_recipient_ids(org_id),
+        })
+    except Exception as e:
+        logger.error(f"Error loading school inbox access: {str(e)}")
+        return error_response('Failed to load inbox access', status_code=500,
+                              error_code='internal_error')
+
+
+@bp.route('/access', methods=['PUT'])
+@require_role(*INBOX_MANAGER_ROLES)
+def set_inbox_access(user_id: str):
+    """Org admins choose which campus coordinators open the school inbox.
+
+    Body: {member_ids: [user_id, ...]}. An empty list means every coordinator
+    (the default). Each id must be an org admin or campus coordinator of this
+    school; org admins are in whether or not they are listed."""
+    try:
+        org_id = sis_service.resolve_org_id(user_id, request.args.get('organization_id'))
+        if not org_id:
+            return error_response('No organization context', status_code=400,
+                                  error_code='validation_error')
+        data = request.get_json(silent=True) or {}
+        raw = data.get('member_ids')
+        if not isinstance(raw, list):
+            return error_response('member_ids must be a list', status_code=400,
+                                  error_code='validation_error')
+        wanted = list(dict.fromkeys(str(i) for i in raw if i))
+        office = {s['id'] for s in sis_service.list_org_staff(org_id)
+                  if {'org_admin', 'campus_coordinator'} & set(s.get('roles') or [])}
+        outside = [i for i in wanted if i not in office]
+        if outside:
+            return error_response('Only org admins and campus coordinators of this school '
+                                  'can be on the inbox', status_code=400,
+                                  error_code='validation_error')
+        from services.org_settings_service import FlagsRejected, patch_feature_flags
+        ctx = sis_service.get_user_org_context(user_id)
+        try:
+            patch_feature_flags(
+                org_id,
+                {'sis_settings': {school_inbox_service.INBOX_MEMBERS_KEY: wanted or None}},
+                caller_id=user_id,
+                sees_finance=sis_service.caller_sees_pay(user_id),
+                is_superadmin=ctx.get('role') == 'superadmin',
+            )
+        except FlagsRejected as rejected:
+            return error_response(rejected.body.get('error', 'Not saved'),
+                                  status_code=rejected.status, error_code='forbidden')
+        return success_response({
+            'organization_id': org_id,
+            'member_ids': wanted,
+            'everyone': not wanted,
+            'office_ids': school_inbox_service.admin_recipient_ids(org_id),
+        })
+    except Exception as e:
+        logger.error(f"Error saving school inbox access: {str(e)}")
+        return error_response('Failed to save inbox access', status_code=500,
+                              error_code='internal_error')
 
 
 @bp.route('/conversations', methods=['GET'])
@@ -101,7 +195,10 @@ def get_thread(user_id: str, conversation_id: str):
             offset=int(request.args.get('offset', 0)),
         )
         school_inbox_service.attach_sent_by_names(messages)
-        if request.args.get('mark_read', '1') != '0':
+        # A masquerade reads without marking: the read state (and the
+        # "opened by" mark) belongs to the staff member being viewed as
+        # (ticket 50082917).
+        if request.args.get('mark_read', '1') != '0' and not masquerade_read_only():
             school_inbox_service.mark_conversation_read(
                 conversation_id, ctx['inbox_user_id'])
             school_inbox_service.record_thread_read(
@@ -172,9 +269,10 @@ def send_as_school(user_id: str, target_user_id: str):
 @bp.route('/conversations/<conversation_id>/resolve', methods=['POST'])
 @require_role(*ADMIN_ROLES)
 def resolve_thread(user_id: str, conversation_id: str):
-    """Mark a member thread handled AS the school, or take it back
-    ({"resolved": false}). Shared like read state: one colleague resolving it
-    moves it out of "Needs a reply" for the whole office (5c858931)."""
+    """Close a member thread AS the school, or reopen it ({"resolved": false}).
+    Shared like read state: one colleague closing it closes it for the whole
+    office (5c858931). The console calls the two states Open and Closed
+    (d57973f6); the column is still resolved_at."""
     try:
         ctx, err = _resolve_inbox(user_id)
         if err:
@@ -296,18 +394,22 @@ def get_school_group_messages(user_id: str, group_id: str):
             return err
         limit = min(int(request.args.get('limit', 50)), 100)
         offset = int(request.args.get('offset', 0))
+        # A masquerade reads without marking anything (ticket 50082917).
+        read_only = masquerade_read_only()
         messages = _groups().get_messages(access['inbox_user_id'], group_id,
-                                          limit=limit, offset=offset)
-        school_inbox_service.record_thread_read(access['org']['id'], user_id,
-                                                group_id=group_id)
-        # The office's bell holds one row per chat now, and a new message only
-        # rings when that row has been read. Reading the group here has to
-        # read the row, or it absorbs every later message in silence.
-        try:
-            from services.notification_service import NotificationService
-            NotificationService().mark_group_message_notifications_read(user_id, group_id)
-        except Exception as read_err:  # noqa: BLE001
-            logger.warning(f"School group bell sync failed: {read_err}")
+                                          limit=limit, offset=offset,
+                                          mark_read=not read_only)
+        if not read_only:
+            school_inbox_service.record_thread_read(access['org']['id'], user_id,
+                                                    group_id=group_id)
+            # The office's bell holds one row per chat now, and a new message
+            # only rings when that row has been read. Reading the group here
+            # has to read the row, or it absorbs every later message in silence.
+            try:
+                from services.notification_service import NotificationService
+                NotificationService().mark_group_message_notifications_read(user_id, group_id)
+            except Exception as read_err:  # noqa: BLE001
+                logger.warning(f"School group bell sync failed: {read_err}")
         return success_response({
             'messages': messages,
             'group_id': group_id,

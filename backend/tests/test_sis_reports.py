@@ -333,6 +333,21 @@ class TestClassReportRows:
             [{'id': 'c3', 'name': 'Old', 'status': 'archived', 'registration_status': 'open'}], {}, {})[0]
         assert row['registration'] == 'Archived'
 
+    # Ticket 2704bbd4 (iCreate, Molly): "I also added some classes just so the
+    # teachers could have a roster, and I need to exclude them from being paid."
+    def test_paid_column_says_no_only_for_a_roster_only_class(self):
+        rows = reports.build_class_rows(
+            [{'id': 'c4', 'name': 'Roster', 'exclude_from_pay': True},
+             {'id': 'c5', 'name': 'Taught', 'exclude_from_pay': False},
+             # A class read before the column existed: paid by default.
+             {'id': 'c6', 'name': 'Unset'}], {}, {})
+        by_name = {r['name']: r['paid'] for r in rows}
+        assert by_name == {'Roster': 'No', 'Taught': 'Yes', 'Unset': 'Yes'}
+
+    def test_paid_is_not_a_money_column(self):
+        """No rate in it, so a campus coordinator keeps it."""
+        assert 'paid' not in reports.CLASS_REPORT_MONEY_KEYS
+
 
 @pytest.mark.unit
 class TestClassReportRoute:

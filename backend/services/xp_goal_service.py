@@ -166,6 +166,28 @@ def can_view_goal(caller_id: str, student_id: str) -> bool:
     return can_view_portfolio(caller_id, student_id, allow_peers=False)
 
 
+def can_read_goal(caller_id: str, student_id: str) -> bool:
+    """Who may READ the goal card: ``can_view_goal`` plus the student's school.
+
+    ``can_view_goal`` is the portfolio rule, and that rule only admits staff
+    with a tie to the student (assigned advisor, class teacher) or an org
+    admin. A campus coordinator -- or an advisor not assigned to this student
+    -- opening the student page from /admin/organizations got a 403 on every
+    load (Sentry ticket ade315ec), even though the route's own relationship
+    gate had already let them in as ``org_staff``. Same-org office staff read
+    the goal; only ``setter_role`` decides who may change it, and that is
+    unchanged. Peers stay out: ``_org_staff`` requires a staff role.
+    """
+    if can_view_goal(caller_id, student_id):
+        return True
+    from utils.auth.relationships import RELATIONSHIPS
+    try:
+        return bool(RELATIONSHIPS['org_staff'](caller_id, student_id))
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f'[xp_goals] org staff check failed for {caller_id}: {e}')
+        return False
+
+
 def setter_role(caller_id: str, student_id: str) -> Optional[str]:
     """The capacity `caller_id` may set this student's goal in, or None.
 

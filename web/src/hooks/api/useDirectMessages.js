@@ -202,7 +202,7 @@ export const useSetConversationResolved = () => {
             c.id === conversationId ? { ...c, resolved_at: at } : c)
         }
       })
-      toast.success(resolved ? 'Marked as handled' : 'Back in Needs a reply')
+      toast.success(resolved ? 'Thread closed' : 'Thread reopened')
     },
     onError: (error) => {
       toast.error(error.response?.data?.error || 'Could not update the thread')

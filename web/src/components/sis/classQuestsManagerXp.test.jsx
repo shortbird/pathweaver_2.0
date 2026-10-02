@@ -53,6 +53,13 @@ const mockQuests = (quests) => api.get.mockImplementation((url) => (
 
 const xpBox = () => screen.getByLabelText('XP to finish Reading Appreciation')
 
+// Since the 2026-10-02 row redesign the box is a field in the row's settings
+// panel; the tests open the row before looking for it. The row's meta line
+// still shows the saved number without opening it.
+const openRow = async () => {
+  fireEvent.click(await screen.findByRole('button', { name: /^Reading Appreciation/, expanded: false }))
+}
+
 beforeEach(() => {
   vi.clearAllMocks()
   api.patch.mockResolvedValue({ data: { success: true } })
@@ -63,7 +70,8 @@ describe('ClassQuestsManager XP to finish', () => {
     mockQuests([quest()])
     render(withConfirm(<ClassQuestsManager classId="c1" />))
 
-    fireEvent.blur(await screen.findByLabelText('XP to finish Reading Appreciation'),
+    await openRow()
+    fireEvent.blur(xpBox(),
       { target: { value: '50' } })
 
     await waitFor(() => expect(api.patch).toHaveBeenCalledTimes(1))
@@ -77,6 +85,7 @@ describe('ClassQuestsManager XP to finish', () => {
     render(withConfirm(<ClassQuestsManager classId="c1" />))
 
     expect(await screen.findByText(/300 XP to finish/)).toBeInTheDocument()
+    await openRow()
     expect(xpBox()).toHaveValue(300)
   })
 
@@ -84,7 +93,8 @@ describe('ClassQuestsManager XP to finish', () => {
     mockQuests([quest({ xp_threshold: 100 })])
     render(withConfirm(<ClassQuestsManager classId="c1" />))
 
-    fireEvent.blur(await screen.findByLabelText('XP to finish Reading Appreciation'),
+    await openRow()
+    fireEvent.blur(xpBox(),
       { target: { value: '' } })
 
     await waitFor(() => expect(api.patch).toHaveBeenCalledTimes(1))
@@ -95,7 +105,8 @@ describe('ClassQuestsManager XP to finish', () => {
     mockQuests([quest({ xp_threshold: 100 })])
     render(withConfirm(<ClassQuestsManager classId="c1" />))
 
-    fireEvent.blur(await screen.findByLabelText('XP to finish Reading Appreciation'),
+    await openRow()
+    fireEvent.blur(xpBox(),
       { target: { value: '100' } })
 
     await new Promise((r) => setTimeout(r, 0))
@@ -108,7 +119,7 @@ describe('ClassQuestsManager XP to finish', () => {
     mockQuests([quest({ editable_tasks: false })])
     render(withConfirm(<ClassQuestsManager classId="c1" />))
 
-    await screen.findByText('Reading Appreciation')
+    await openRow()
     expect(screen.queryByLabelText('XP to finish Reading Appreciation')).not.toBeInTheDocument()
   })
 })
@@ -128,7 +139,8 @@ describe('ClassQuestsManager XP to finish, locked by the office', () => {
     mockQuests([quest({ xp_threshold: 300, teachers_may_change_xp: false })])
     render(withConfirm(<ClassQuestsManager classId="c1" />))
 
-    expect(await screen.findByText('Set by your school office')).toBeInTheDocument()
+    await openRow()
+    expect(screen.getByText('Set by your school office')).toBeInTheDocument()
     expect(xpBox()).toBeDisabled()
     expect(xpBox()).toHaveValue(300)
     fireEvent.blur(xpBox(), { target: { value: '50' } })
@@ -140,7 +152,8 @@ describe('ClassQuestsManager XP to finish, locked by the office', () => {
     mockQuests([quest({ xp_threshold: 300, teachers_may_change_xp: false })])
     render(withConfirm(<ClassQuestsManager classId="c1" canSaveToCurriculum />))
 
-    fireEvent.blur(await screen.findByLabelText('XP to finish Reading Appreciation'),
+    await openRow()
+    fireEvent.blur(xpBox(),
       { target: { value: '50' } })
     await waitFor(() => expect(api.patch).toHaveBeenCalledTimes(1))
     expect(screen.queryByText('Set by your school office')).not.toBeInTheDocument()
@@ -150,7 +163,8 @@ describe('ClassQuestsManager XP to finish, locked by the office', () => {
     mockQuests([quest({ teachers_may_change_xp: true })])
     render(withConfirm(<ClassQuestsManager classId="c1" />))
 
-    expect(await screen.findByLabelText('XP to finish Reading Appreciation')).not.toBeDisabled()
+    await openRow()
+    expect(xpBox()).not.toBeDisabled()
     expect(screen.queryByText('Set by your school office')).not.toBeInTheDocument()
   })
 })

@@ -1,9 +1,17 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import PropTypes from 'prop-types';
 import { Link, useNavigate } from 'react-router-dom';
+import { toast } from 'react-hot-toast';
+import api from '../../services/api';
 import { useQuestEngagement, useStudentQuestEngagement } from '../../hooks/api/useQuests';
 import { useFamilyScope } from '../../contexts/FamilyScopeContext';
 import { useAuth } from '../../contexts/AuthContext';
+import { useConfirm } from '../../contexts/ConfirmContext';
+import { SORTS, groupQuests, questIdOf, questTitle } from './snapshotQuestGroups';
+
+// The school office: who may take a quest off a student's snapshot. Matches the
+// backend's ADMIN_ROLES on DELETE /api/advisor/student-overview/:id/quests/:id.
+const OFFICE_ROLES = ['org_admin', 'campus_coordinator', 'superadmin'];
 
 // Simple engagement heatmap cell
 const HeatmapCell = ({ intensity, date, activities, size = 'normal' }) => {
@@ -93,7 +101,8 @@ const MiniHeatMap = ({ days }) => {
 const ActiveQuestCard = ({
   quest,
   studentId,
-  viewerMode = 'student'
+  viewerMode = 'student',
+  onRemove = null
 }) => {
   const questData = quest.quests || quest;
   const questId = questData.id || quest.quest_id;
@@ -180,6 +189,18 @@ const ActiveQuestCard = ({
     return (
       <div className="block p-4 bg-white border border-gray-200 rounded-xl">
         {cardContent}
+        {onRemove && (
+          <div className="mt-2 flex justify-end">
+            <button
+              type="button"
+              onClick={() => onRemove(quest)}
+              className="text-xs font-medium text-red-600 hover:text-red-700 hover:underline"
+              aria-label={`Remove ${questData.title}`}
+            >
+              Remove
+            </button>
+          </div>
+        )}
       </div>
     );
   }
@@ -328,96 +349,132 @@ const LearningSnapshot = ({
   viewerMode = 'student'
 }) => {
   const { calendar = [], rhythm, summary } = engagementData;
-  const { user } = useAuth();
+  const { user, effectiveRoles = [] } = useAuth();
+  const confirm = useConfirm();
   // StudentOverviewPage passes the student's own id as studentId, so studentId
   // alone doesn't mean "viewing someone else" — compare against the viewer.
   const viewingOwnData = !studentId || user?.id === studentId;
 
+  // Grouped by the class each quest came through, sorted inside each group
+  // (iCreate, 2026-10-01, d8a2a8d4: "categorized and sortable").
+  const [sortBy, setSortBy] = useState('recent');
+  // Quests the office took off while this page was open. The list comes from
+  // the parent's fetch, so the snapshot hides them itself until the next load.
+  const [removed, setRemoved] = useState(() => new Set());
+  const shown = useMemo(
+    () => activeQuests.filter((q) => !removed.has(questIdOf(q))),
+    [activeQuests, removed]
+  );
+  const groups = useMemo(() => groupQuests(shown, sortBy), [shown, sortBy]);
+
+  // The office's Remove: only on a student's overview, never on your own.
+  const canRemove = viewerMode === 'advisor' && !viewingOwnData
+    && OFFICE_ROLES.some((r) => (effectiveRoles || []).includes(r));
+
+  const removeQuest = async (quest) => {
+    const questId = questIdOf(quest);
+    const title = questTitle(quest) || 'this quest';
+    const who = studentName || 'this student';
+    if (!(await confirm(
+      `Remove "${title}" from ${who}'s account?\n\n`
+      + 'If they have not started it, it is removed. If they have done any of it, it moves off '
+      + 'their active list and stays in their portfolio. Completed tasks and the XP they earned are kept.'
+    ))) return;
+    try {
+      const { data } = await api.delete(`/api/advisor/student-overview/${studentId}/quests/${questId}`);
+      setRemoved((prev) => new Set(prev).add(questId));
+      const still = (data?.still_on_classes || []).map((c) => c.name).filter(Boolean);
+      toast.success(still.length
+        ? `Removed. It is still on ${still.join(', ')}; take it off there for them on the class's Quests tab.`
+        : 'Removed');
+    } catch (err) {
+      toast.error(err?.response?.data?.error || 'Could not remove the quest');
+    }
+  };
+
+  const emptyState = (
+    <div className="text-center py-8 bg-gray-50 rounded-xl">
+      <svg className="w-12 h-12 mx-auto text-gray-300 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+      </svg>
+      <p className="text-gray-500 mb-3">No active quests</p>
+      {/* /quests is a student surface; parents/advisors viewing a child
+          get a descriptive line instead of a link they can't follow. */}
+      {viewingOwnData ? (
+        <Link
+          to="/quests"
+          className="btn-primary"
+        >
+          Discover Quests
+        </Link>
+      ) : (
+        <p className="text-sm text-gray-400">
+          Quests will appear here once {studentName || 'this student'} starts working on one.
+        </p>
+      )}
+    </div>
+  );
+
   const content = (
     <div className="space-y-6">
-      {/* Headers row - desktop only, matches grid below */}
-      <div className="hidden md:grid md:grid-cols-2 gap-4">
-        <h3 className="text-sm font-semibold text-gray-600 uppercase tracking-wider hidden md:block">
-          Active Quests
-        </h3>
-        <div className="flex items-center gap-4">
-          <h3 className="text-sm font-semibold text-gray-600 uppercase tracking-wider hidden md:block">
+      {/* Calendar */}
+      <div>
+        <div className="flex items-center gap-4 mb-4">
+          <h3 className="text-sm font-semibold text-gray-600 uppercase tracking-wider">
             Activity Calendar
           </h3>
           {summary && (
-            <span className="text-xs text-gray-500 hidden md:inline">
+            <span className="text-xs text-gray-500">
               {summary.active_days_last_month || 0} active days this month
             </span>
           )}
         </div>
+        <EngagementCalendar calendarData={calendar} />
       </div>
 
-      {/* Content: Stacked on mobile, 2-column on md+ */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {/* First 2 quests */}
-        <div className="space-y-3 order-2 md:order-1">
-          <h3 className="text-sm font-semibold text-gray-600 uppercase tracking-wider md:hidden">
+      {/* Active quests, by class */}
+      <div className="space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h3 className="text-sm font-semibold text-gray-600 uppercase tracking-wider">
             Active Quests
           </h3>
-          {activeQuests.length > 0 ? (
-            activeQuests.slice(0, 2).map((quest, idx) => (
-              <ActiveQuestCard
-                key={quest.quests?.id || idx}
-                quest={quest}
-                studentId={studentId}
-                viewerMode={viewerMode}
-              />
-            ))
-          ) : (
-            <div className="text-center py-8 bg-gray-50 rounded-xl">
-              <svg className="w-12 h-12 mx-auto text-gray-300 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-              </svg>
-              <p className="text-gray-500 mb-3">No active quests</p>
-              {/* /quests is a student surface; parents/advisors viewing a child
-                  get a descriptive line instead of a link they can't follow. */}
-              {viewingOwnData ? (
-                <Link
-                  to="/quests"
-                  className="btn-primary"
-                >
-                  Discover Quests
-                </Link>
-              ) : (
-                <p className="text-sm text-gray-400">
-                  Quests will appear here once {studentName || 'this student'} starts working on one.
-                </p>
-              )}
-            </div>
+          {shown.length > 1 && (
+            <label className="flex items-center gap-2 text-xs text-gray-500">
+              Sort by
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value)}
+                className="text-sm border border-gray-300 rounded-lg px-2 py-1 bg-white text-gray-700"
+              >
+                {SORTS.map((o) => (
+                  <option key={o.value} value={o.value}>{o.label}</option>
+                ))}
+              </select>
+            </label>
           )}
         </div>
-
-        {/* Calendar */}
-        <div className="self-start order-1 md:order-2">
-          <h3 className="text-sm font-semibold text-gray-600 uppercase tracking-wider md:hidden mb-4">
-            Activity Calendar
-            {summary && (
-              <span className="text-xs text-gray-500 ml-2">
-                {summary.active_days_last_month || 0} active days this month
+        {shown.length === 0 ? emptyState : groups.map((g) => (
+          <section key={g.key} aria-label={g.label}>
+            <h4 className="text-sm font-semibold text-gray-800 mb-2">
+              {g.label}
+              <span className="ml-2 text-xs font-normal text-gray-500">
+                {g.quests.length} quest{g.quests.length === 1 ? '' : 's'}
+                {g.former ? ' · no longer in this class' : ''}
               </span>
-            )}
-          </h3>
-          <EngagementCalendar calendarData={calendar} />
-        </div>
-
-        {/* Remaining quests */}
-        {activeQuests.length > 2 && (
-          <div className="col-span-1 md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-3 order-3 md:order-3">
-            {activeQuests.slice(2).map((quest, idx) => (
-              <ActiveQuestCard
-                key={quest.quests?.id || `extra-${idx}`}
-                quest={quest}
-                studentId={studentId}
-                viewerMode={viewerMode}
-              />
-            ))}
-          </div>
-        )}
+            </h4>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {g.quests.map((quest, idx) => (
+                <ActiveQuestCard
+                  key={questIdOf(quest) || `${g.key}-${idx}`}
+                  quest={quest}
+                  studentId={studentId}
+                  viewerMode={viewerMode}
+                  onRemove={canRemove ? removeQuest : null}
+                />
+              ))}
+            </div>
+          </section>
+        ))}
       </div>
 
       {/* Recent Completions */}

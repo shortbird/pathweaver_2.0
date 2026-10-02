@@ -11,7 +11,7 @@ import { render, screen, fireEvent } from '@testing-library/react'
  * (class / ages / room-or-teacher).
  */
 
-import ClassesExportModal, { LIST_COLUMNS, buildListRows, buildGridRows } from './ClassesExportModal'
+import ClassesExportModal, { LIST_COLUMNS, buildListRows, buildGridRows, buildHoursRows } from './ClassesExportModal'
 
 const CLASSES = [
   { id: 'c1', name: 'Pottery', description: 'Clay', enrolled_count: 2, capacity: 10,
@@ -30,8 +30,9 @@ const CLASSES = [
     meetings: [{ day_of_week: 2, start_time: '09:30:00', end_time: '10:25:00' }] },
 ]
 
-// The old fixed export — the default column set must match it exactly.
-const LEGACY_HEADER = 'Class name,Teacher,Days,Time,Ages,Description,Supply fee,Tuition,Classroom,Enrolled,Capacity,Waitlist'
+// The old fixed export, plus the two columns ticket 2704bbd4 (Molly) put on by
+// default on 2026-10-02: who assists, and whether the class is paid.
+const LEGACY_HEADER = 'Class name,Teacher,Days,Time,Ages,Description,Supply fee,Tuition,Classroom,Enrolled,Capacity,Waitlist,Assistants,Paid'
 
 let downloaded = ''
 let filenames = []
@@ -82,15 +83,15 @@ afterEach(() => {
 const openAndExport = () => fireEvent.click(screen.getByRole('button', { name: 'Export' }))
 
 describe('ClassesExportModal — class list', () => {
-  it('default export matches the old fixed CSV exactly', () => {
+  it('default export is the old fixed CSV plus Assistants and Paid', () => {
     render(<ClassesExportModal classes={CLASSES} orgName="iCreate Co" onClose={vi.fn()} />)
     openAndExport()
     // CRLF since M17: every SIS export is written by utils/csv.js, the way
     // the People and roster exports always were (RFC 4180, and Excel's own).
     const lines = downloaded.replace('﻿', '').split(/\r?\n/)
     expect(lines[0]).toBe(LEGACY_HEADER)
-    expect(lines[1]).toBe('Pottery,Jane Doe,Tue,9:30am-10:25am,8-12,Clay,$15,$120.00,Art Studio,2,10,3')
-    expect(lines[2]).toBe('Guitar Jam,Jay,Tue Thu,9:30am-10:25am,10+,,,,Music Studio,0,,0')
+    expect(lines[1]).toBe('Pottery,Jane Doe,Tue,9:30am-10:25am,8-12,Clay,$15,$120.00,Art Studio,2,10,3,,Yes')
+    expect(lines[2]).toBe('Guitar Jam,Jay,Tue Thu,9:30am-10:25am,10+,,,,Music Studio,0,,0,,Yes')
     expect(filenames).toEqual(['icreate-co-classes.csv'])
   })
 
@@ -107,8 +108,10 @@ describe('ClassesExportModal — class list', () => {
     expect(header).toContain('Registration')
     expect(downloaded).not.toContain('Clay')
     expect(downloaded).toContain('Pottery,Jane Doe')   // column order is stable
-    expect(downloaded.split(/\r?\n/)[1]).toMatch(/Closed$/)  // Pottery is closed
-    expect(downloaded.split(/\r?\n/)[3]).toMatch(/Archived$/) // archived says so
+    // Registration is no longer the last column (Assistants and Paid follow it
+    // since 2026-10-02), so match the cell, not the end of the line.
+    expect(downloaded.split(/\r?\n/)[1]).toMatch(/,Closed,/)  // Pottery is closed
+    expect(downloaded.split(/\r?\n/)[3]).toMatch(/,Archived,/) // archived says so
   })
 
   it('remembers the chosen columns for the next export', () => {
@@ -260,5 +263,111 @@ describe('grid builder edge cases', () => {
     const cls = [{ id: 'y', name: 'Sometime Club', meetings: [] }]
     expect(buildListRows(cls, ['name'])[1]).toEqual(['Sometime Club'])
     expect(buildGridRows(cls, 'teacher')).toEqual([['']])
+  })
+})
+
+/**
+ * Ticket 2704bbd4 (iCreate, Molly, /classes): "On export csv, I need to know
+ * who is assisting in the class too, so that I can know who to pay. ... I also
+ * added some classes just so the teachers could have a roster, and I need to
+ * exclude them from being paid. Or I need to be able to download all the hours
+ * that teachers taught in the week!"
+ */
+describe('2704bbd4 — assistants, roster-only classes, weekly teaching hours', () => {
+  const STAFF = [
+    { id: 'a', name: 'Art', status: 'active', primary_instructor: { id: 'u1', name: 'Jane Doe' },
+      assistant_instructors: [{ id: 'u2', name: 'Bob Aide' }, { id: 'u3', name: 'Cy Help' }],
+      meetings: [
+        { day_of_week: 1, start_time: '09:00:00', end_time: '10:30:00' },
+        { day_of_week: 3, start_time: '09:00:00', end_time: '10:30:00' },
+        // A one-off dated meeting is not part of the week.
+        { day_of_week: null, specific_date: '2026-10-10', start_time: '09:00:00', end_time: '12:00:00' },
+      ] },
+    // No assistants at all.
+    { id: 'b', name: 'Band', primary_instructor: { id: 'u2', name: 'Bob Aide' },
+      meetings: [{ day_of_week: 2, start_time: '13:00:00', end_time: '13:45:00' }] },
+    // Roster only: the teachers are not paid for it.
+    { id: 'r', name: 'Roster Room', exclude_from_pay: true, primary_instructor: { id: 'u1', name: 'Jane Doe' },
+      assistant_instructors: [{ id: 'u4', name: 'Dee Never' }],
+      meetings: [{ day_of_week: 1, start_time: '12:00:00', end_time: '15:00:00' }] },
+    { id: 'z', name: 'Gone', status: 'archived', primary_instructor: { id: 'u1', name: 'Jane Doe' },
+      meetings: [{ day_of_week: 4, start_time: '12:00:00', end_time: '15:00:00' }] },
+  ]
+
+  it('the Assistants column lists them, and is blank for a class with none', () => {
+    const rows = buildListRows(STAFF, ['name', 'assistants'])
+    expect(rows[0]).toEqual(['Class name', 'Assistants'])
+    expect(rows[1]).toEqual(['Art', 'Bob Aide; Cy Help'])
+    expect(rows[2]).toEqual(['Band', ''])
+  })
+
+  it('the Paid column says No only for a roster-only class', () => {
+    const rows = buildListRows(STAFF, ['name', 'paid'])
+    expect(rows.slice(1, 4)).toEqual([['Art', 'Yes'], ['Band', 'Yes'], ['Roster Room', 'No']])
+  })
+
+  it('both new columns are on by default (Tanner, 2026-10-02)', () => {
+    // Was "off by default" when first built; Molly exports this list to work
+    // out pay, so she should not have to find and tick them.
+    expect(LIST_COLUMNS.find((c) => c.id === 'assistants').on).toBe(true)
+    expect(LIST_COLUMNS.find((c) => c.id === 'paid').on).toBe(true)
+  })
+
+  it('a pref saved before these columns existed gets them switched on once', () => {
+    localStorage.setItem('sis_classes_export', JSON.stringify({ format: 'list', cols: ['name', 'teacher'] }))
+    const { unmount } = render(<ClassesExportModal classes={CLASSES} orgName="Org" onClose={vi.fn()} />)
+    expect(screen.getByLabelText('Assistants')).toBeChecked()
+    expect(screen.getByLabelText('Paid')).toBeChecked()
+    expect(screen.getByLabelText('Description')).not.toBeChecked() // their own choice stands
+    // Turning one off afterwards sticks: it is not switched back on.
+    fireEvent.click(screen.getByLabelText('Paid'))
+    unmount()
+    render(<ClassesExportModal classes={CLASSES} orgName="Org" onClose={vi.fn()} />)
+    expect(screen.getByLabelText('Paid')).not.toBeChecked()
+    expect(screen.getByLabelText('Assistants')).toBeChecked()
+  })
+
+  it('the teacher grid puts a class in each assistant column, marked assisting', () => {
+    const rows = buildGridRows([STAFF[0]], 'teacher')
+    expect(rows[0]).toEqual(['', 'Bob Aide', 'Cy Help', 'Jane Doe'])
+    expect(rows[2]).toEqual(['9:00am - Class', 'Art (assisting)', 'Art (assisting)', 'Art'])
+  })
+
+  it('the room grid names the assistants beside the teacher', () => {
+    const rows = buildGridRows([STAFF[0], STAFF[1]], 'room')
+    const teacherRows = rows.filter((r) => r[0].endsWith('- Teacher'))
+    expect(teacherRows[0]).toEqual(['9:00am - Teacher', 'Jane Doe (assistants: Bob Aide; Cy Help)'])
+    expect(teacherRows.some((r) => r[1] === 'Bob Aide')).toBe(true) // Band has no assistants
+  })
+
+  it('weekly hours: one row per staff member, assistants counted, roster-only and archived skipped', () => {
+    expect(buildHoursRows(STAFF)).toEqual([
+      ['Staff member', 'Hours per week', 'Classes taught', 'Classes assisting'],
+      // Art 3 hr (2 x 1.5) as assistant + Band 0.75 hr as lead.
+      ['Bob Aide', '3.75', 'Band', 'Art'],
+      ['Cy Help', '3', '', 'Art'],
+      // Roster Room (3 hr) and the archived Gone (3 hr) do not count.
+      ['Jane Doe', '3', 'Art', ''],
+    ])
+  })
+
+  it('weekly hours respect the day and teacher filters', () => {
+    expect(buildHoursRows(STAFF, '2')).toEqual([
+      ['Staff member', 'Hours per week', 'Classes taught', 'Classes assisting'],
+      ['Bob Aide', '0.75', 'Band', ''],
+    ])
+    expect(buildHoursRows(STAFF, 'all', 'Cy Help').slice(1)).toEqual([['Cy Help', '3', '', 'Art']])
+  })
+
+  it('exports the weekly hours file from the modal', () => {
+    render(<ClassesExportModal classes={STAFF} orgName="iCreate" onClose={vi.fn()} />)
+    fireEvent.click(screen.getByLabelText(/Weekly teaching hours/))
+    openAndExport()
+    const lines = downloaded.replace('\ufeff', '').split(/\r?\n/)
+    expect(lines[0]).toBe('Staff member,Hours per week,Classes taught,Classes assisting')
+    expect(lines[1]).toBe('Bob Aide,3.75,Band,Art')
+    expect(downloaded).not.toContain('Dee Never')
+    expect(downloaded).not.toContain('Roster Room')
+    expect(filenames).toEqual(['icreate-weekly-teaching-hours.csv'])
   })
 })

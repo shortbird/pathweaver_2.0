@@ -14,9 +14,11 @@ vi.mock('react-hot-toast', () => ({
   default: { success: vi.fn(), error: vi.fn() },
 }))
 
-const { api, docState } = vi.hoisted(() => {
+const { api, docState, recurringState } = vi.hoisted(() => {
   // The autopay summary the invoice document carries for inv1 in a test, if any.
   const docState = { autopay: null }
+  // A test's own /tuition/recurring response, if any (ticket bc9010f4).
+  const recurringState = { body: null }
   const apiData = (url) => {
     if (url.includes('/api/sis/billing/ledger')) {
       return { data: { ledger: [{
@@ -88,6 +90,7 @@ const { api, docState } = vi.hoisted(() => {
       } } }
     }
     if (url.includes('/api/sis/tuition/recurring')) {
+      if (recurringState.body) return { data: recurringState.body }
       return { data: { schedules: [{
         id: 'r1', student_user_id: 's1', student_name: 'Banks Hanna',
         household_id: 'hh2', household_name: 'Hanna', monthly_cents: 100000,
@@ -118,6 +121,7 @@ const { api, docState } = vi.hoisted(() => {
       patch: vi.fn(() => Promise.resolve({ data: { success: true, invoice: { id: 'inv1' } } })),
     },
     docState,
+    recurringState,
   }
 })
 vi.mock('../../services/api', () => ({ default: api }))
@@ -128,6 +132,7 @@ beforeEach(() => {
   authState = { user: { id: 'u1', role: 'org_admin' } }
   orgState = { organization: { id: 'org-1', name: 'Org' } }
   docState.autopay = null
+  recurringState.body = null
   vi.clearAllMocks()
 })
 
@@ -611,6 +616,51 @@ describe('charge detail', () => {
       expect(screen.getAllByText(/\$1,000\.00\/month/).length).toBeGreaterThan(0)
       expect(screen.getByText(/setup link not sent yet/)).toBeInTheDocument()
       expect(screen.getByText(/a month across this school/)).toBeInTheDocument()
+    })
+
+    // Ticket bc9010f4, Marika at iCreate (2026-10-02): "It is saying there is
+    // no student on a monthly rate, yet I know there are at least a couple who
+    // are." iCreate bills monthly through payment plans, which the tab did not
+    // list, and the empty text said nobody paid monthly.
+    describe('families on a monthly payment plan', () => {
+      const PLAN = {
+        plan_id: 'p1', invoice_id: 'inv7', household_id: 'hh3', household_name: 'Rose Family',
+        student_user_id: 's7', student_name: 'Robin Rose', monthly_cents: 15400,
+        next_due_date: '2026-10-27', remaining_count: 8, installment_count: 10,
+        auto_charge: true, has_card: true,
+      }
+
+      it('lists them read-only, and does not say nobody pays monthly', async () => {
+        recurringState.body = { schedules: [], active_monthly_cents: 0, payment_plans: [PLAN] }
+        render(<BillingPage />)
+        fireEvent.click(await screen.findByRole('tab', { name: /Monthly tuition/ }))
+        const section = await screen.findByRole('region', { name: 'On a monthly payment plan' })
+        expect(within(section).getByRole('button', { name: 'Open Rose Family billing' })).toBeInTheDocument()
+        expect(within(section).getByText('Robin Rose')).toBeInTheDocument()
+        expect(within(section).getByText('$154.00/month')).toBeInTheDocument()
+        expect(within(section).getByText('8 installments left')).toBeInTheDocument()
+        expect(within(section).getByText('Autopay on')).toBeInTheDocument()
+        // Read-only: nothing here pauses, ends, or emails.
+        expect(within(section).queryByRole('button', { name: /pause|end|setup link/i })).not.toBeInTheDocument()
+        expect(screen.getByText(/No student is on monthly tuition here\. Families paying by a monthly payment plan are listed below/))
+          .toBeInTheDocument()
+        expect(screen.queryByText(/No student is on a monthly rate yet/)).not.toBeInTheDocument()
+      })
+
+      it('keeps the plain empty text when there are no plans either', async () => {
+        recurringState.body = { schedules: [], active_monthly_cents: 0, payment_plans: [] }
+        render(<BillingPage />)
+        fireEvent.click(await screen.findByRole('tab', { name: /Monthly tuition/ }))
+        expect(await screen.findByText(/No student is on a monthly rate yet/)).toBeInTheDocument()
+        expect(screen.queryByRole('region', { name: 'On a monthly payment plan' })).not.toBeInTheDocument()
+      })
+
+      it('copes with a server that does not send the key', async () => {
+        recurringState.body = { schedules: [], active_monthly_cents: 0 }
+        render(<BillingPage />)
+        fireEvent.click(await screen.findByRole('tab', { name: /Monthly tuition/ }))
+        expect(await screen.findByText(/No student is on a monthly rate yet/)).toBeInTheDocument()
+      })
     })
   })
 })

@@ -55,6 +55,13 @@ FINANCE_ROLES = ('org_admin', 'superadmin')
 # enforced per call inside the service (sis_service.caller_can_grant_privileged_role).
 ROLE_GRANT_ROLES = ('org_admin', 'superadmin')
 
+# Who decides which staff open the school inbox (ticket 19047fd0, Molly at
+# iCreate). Deliberately excludes campus coordinators: the list exists to keep
+# some coordinators out, and a coordinator who can edit it can put themselves
+# back. Same membership as FINANCE_ROLES, different reason, so it has its own
+# name (school_inbox_service.inbox_access).
+INBOX_MANAGER_ROLES = ('org_admin', 'superadmin')
+
 # Everyone with a seat in the school: the family-facing reads (the community
 # feed, the board as families see it). A parent has no organization_id of
 # their own, so the route resolves the org through membership; the tuple only

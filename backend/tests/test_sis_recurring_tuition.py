@@ -388,8 +388,12 @@ class TestRecurringRoutes:
         assert resp.status_code == 403
 
     def test_lists_schedules(self, client, auth_headers, mock_verify_token):
+        # The route also lists monthly payment plans (ticket bc9010f4); covered
+        # in test_sis_recurring_tuition_payment_plans.py.
         with staff(), patch('services.sis_recurring_tuition_service.list_for_org',
-                            return_value={'schedules': [], 'active_monthly_cents': 0}):
+                            return_value={'schedules': [], 'active_monthly_cents': 0}), \
+             patch('services.sis_recurring_tuition_service.list_monthly_payment_plans',
+                   return_value=[]):
             resp = client.get(self.URL, headers=auth_headers)
         assert resp.status_code == 200
         assert json.loads(resp.data)['active_monthly_cents'] == 0

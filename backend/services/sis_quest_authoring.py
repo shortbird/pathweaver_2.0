@@ -458,7 +458,8 @@ def copy_title(existing_titles, title):
     return candidate[:MAX_TITLE_LEN]
 
 
-def duplicate_org_quest(admin, *, org_id, user_id, source_quest_id, title=None):
+def duplicate_org_quest(admin, *, org_id, user_id, source_quest_id, title=None,
+                        draft_marker=None):
     """Copy a quest and its preset tasks into a new quest owned by `org_id`.
 
     Returns {'quest_id', 'title', 'task_count'}. Raises QuestAuthoringError.
@@ -466,6 +467,12 @@ def duplicate_org_quest(admin, *, org_id, user_id, source_quest_id, title=None):
     The caller decides what the copy is attached to (a curriculum, a class),
     exactly as with create_org_quest -- this writes the quest and its tasks and
     nothing else.
+
+    draft_marker (a dict, the same shape create_org_quest(draft=True) writes:
+    context, target_id, started_by, plus anything the publish step should
+    pre-fill) writes the copy as a DRAFT: inactive, in its screen's Drafts list,
+    reaching no student until somebody presses Publish. A teacher's class copy
+    starts this way (owner, 2026-10-02; services/class_quest_copy).
     """
     rows = (admin.table('quests').select('*')
             .eq('id', source_quest_id).limit(1).execute()).data
@@ -494,11 +501,13 @@ def duplicate_org_quest(admin, *, org_id, user_id, source_quest_id, title=None):
         # Forced, never inherited -- see the note above.
         'organization_id': org_id,
         'is_public': False,
-        'is_active': True,
+        'is_active': not draft_marker,
         'created_by': user_id,
         'created_at': now_iso(),
         'updated_at': now_iso(),
     })
+    if draft_marker:
+        payload['metadata'] = {**(payload.get('metadata') or {}), 'draft': dict(draft_marker)}
     quest_row = admin.table('quests').insert(payload).execute().data
     if not quest_row:
         raise QuestAuthoringError('Could not duplicate the quest.', 500)

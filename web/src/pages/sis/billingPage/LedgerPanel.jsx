@@ -3,7 +3,7 @@ import { toast } from 'react-hot-toast'
 import api from '../../../services/api'
 import Button from '../../../components/ui/Button'
 import { useSisOrg, withOrg } from '../useSisOrg'
-import RecurringTuitionList from '../RecurringTuitionList'
+import RecurringTuitionList, { MonthlyPaymentPlanList } from '../RecurringTuitionList'
 import RecurringTuitionModal from '../RecurringTuitionModal'
 import AddChargeModal from './AddChargeModal'
 import EditPaymentModal from './EditPaymentModal'
@@ -125,7 +125,7 @@ const SORT_DEFAULTS = { charges: 'default', outstanding: 'family', detail: 'defa
 const checkSortPrefs = (raw) => Object.fromEntries(Object.entries(raw || {})
   .filter(([k, v]) => k in SORT_DEFAULTS && (v === 'default' || v === 'family')))
 
-const LedgerPanel = ({ view, recurring, loadRecurring }) => {
+const LedgerPanel = ({ view, recurring, paymentPlans, loadRecurring }) => {
   const { orgId } = useSisOrg()
   const { openFamily } = useRecordDoors()
   // Schools that bill a monthly rate have no priced schedule to seed the
@@ -325,7 +325,11 @@ const LedgerPanel = ({ view, recurring, loadRecurring }) => {
             orgId={orgId}
             schedules={recurring}
             onChanged={loadRecurring}
-            emptyHint="No student is on a monthly rate yet. Add one to get started."
+            emptyHint={paymentPlans?.length
+              // Ticket bc9010f4 (Marika, iCreate): "no student on a monthly
+              // rate" was false for a school billing monthly through plans.
+              ? 'No student is on monthly tuition here. Families paying by a monthly payment plan are listed below and are billed by their plan.'
+              : 'No student is on a monthly rate yet. Add one to get started.'}
           />
           {!!recurring?.length && (
             <p className="mt-4 text-sm text-neutral-500">
@@ -337,6 +341,7 @@ const LedgerPanel = ({ view, recurring, loadRecurring }) => {
               a month across this school.
             </p>
           )}
+          <MonthlyPaymentPlanList plans={paymentPlans} onChanged={loadRecurring} />
         </div>
       )}
 

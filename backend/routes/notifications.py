@@ -7,6 +7,7 @@ Handles user notification retrieval, marking as read, and real-time updates.
 from flask import Blueprint, request, jsonify
 from database import get_supabase_admin_client
 from utils.auth.decorators import require_auth
+from utils.auth.read_state import masquerade_read_only
 from utils.auth.org_scope import caller_can_access_user
 from utils.roles import get_effective_role
 from middleware.error_handler import ValidationError
@@ -160,6 +161,14 @@ def mark_as_read(user_id: str, notification_id: str):
         404: Notification not found
     """
     try:
+        # A masquerade answers success and writes nothing: the bell is the
+        # target's, not the admin's (ticket 50082917).
+        if masquerade_read_only():
+            return jsonify({
+                'success': True,
+                'message': 'Notification marked as read'
+            }), 200
+
         # admin client justified: notifications scoped to user_id from @require_auth; reads/writes notifications + notification_preferences for self
         supabase = get_supabase_admin_client()
         service = NotificationService(supabase)
@@ -186,6 +195,13 @@ def mark_all_as_read(user_id: str):
         200: All notifications marked as read
     """
     try:
+        # A masquerade answers success and writes nothing (ticket 50082917).
+        if masquerade_read_only():
+            return jsonify({
+                'success': True,
+                'message': 'Marked 0 notifications as read'
+            }), 200
+
         # admin client justified: notifications scoped to user_id from @require_auth; reads/writes notifications + notification_preferences for self
         supabase = get_supabase_admin_client()
         service = NotificationService(supabase)

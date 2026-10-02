@@ -27,6 +27,17 @@ from services import school_inbox_service
 from services import sis_messaging_service as messaging
 from services.group_message_service import GroupMessageService
 
+
+@pytest.fixture(autouse=True)
+def _no_inbox_list():
+    """No school here has an inbox list (ticket 19047fd0), so the office is
+    every org admin and coordinator, as it was before the list existed. The
+    list itself is pinned in tests/test_school_inbox_members.py. Without this
+    the list lookup would reach a real database."""
+    with patch('services.school_inbox_service.inbox_member_ids', return_value=[]):
+        yield
+
+
 ORG_ID = 'org-1'
 ORG = {'id': ORG_ID, 'name': 'iCreate', 'is_active': True, 'inbox_user_id': 'inbox-1'}
 INBOX = 'inbox-1'

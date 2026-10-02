@@ -80,16 +80,94 @@ export const groupByFamily = (schedules) => {
  *  second copy of the request. */
 export const useRecurringTuition = (orgId, enabled = true) => {
   const [schedules, setSchedules] = useState(null)
+  // Families paying monthly by an autopay payment plan instead (ticket
+  // bc9010f4). Read-only here; the same response carries them.
+  const [paymentPlans, setPaymentPlans] = useState(null)
 
   const load = useCallback(() => {
     if (!orgId || !enabled) return
     api.get(withOrg('/api/sis/tuition/recurring', orgId))
-      .then((r) => setSchedules(r.data?.schedules || []))
-      .catch(() => { setSchedules([]); toast.error('Could not load monthly tuition') })
+      .then((r) => {
+        setSchedules(r.data?.schedules || [])
+        setPaymentPlans(r.data?.payment_plans || [])
+      })
+      .catch(() => {
+        setSchedules([]); setPaymentPlans([])
+        toast.error('Could not load monthly tuition')
+      })
   }, [orgId, enabled])
 
   useEffect(() => { load() }, [load])
-  return { schedules, load, setSchedules }
+  return { schedules, paymentPlans, load, setSchedules }
+}
+
+const shortDate = (iso) => {
+  if (!iso) return null
+  const d = new Date(`${String(iso).slice(0, 10)}T00:00:00`)
+  return Number.isNaN(d.getTime()) ? null : d.toLocaleDateString()
+}
+
+/**
+ * Families who pay monthly by an autopay PAYMENT PLAN — one term invoice split
+ * into monthly installments — rather than by monthly tuition.
+ *
+ * Ticket bc9010f4 (Marika, iCreate, 2026-10-02): "It is saying there is no
+ * student on a monthly rate, yet I know there are at least a couple who are.
+ * Do we have to add them manually to the monthly tuition tab?" The tab only
+ * listed monthly tuition, and iCreate bills monthly through plans. Adding a
+ * plan family as monthly tuition would charge them twice, so this list is
+ * read-only: the plan is managed on the family's Billing tab, where it lives.
+ */
+export const MonthlyPaymentPlanList = ({ plans, onChanged }) => {
+  const { openFamily } = useRecordDoors()
+  if (!plans?.length) return null
+  return (
+    <section aria-label="On a monthly payment plan" className="mt-8">
+      <h2 className="text-sm font-semibold text-neutral-800">On a monthly payment plan</h2>
+      <p className="mt-1 mb-3 text-sm text-neutral-500 max-w-2xl">
+        These families pay a term bill in monthly installments. Their plan bills them, so do
+        not add them as monthly tuition above. Open a family to change the plan.
+      </p>
+      <div className="rounded-lg border border-gray-200 bg-white divide-y divide-gray-100">
+        {plans.map((p) => {
+          const next = shortDate(p.next_due_date)
+          // The whole row opens the family's Billing tab, not only the name
+          // (Tanner, 2026-10-02, verifying ticket bc9010f4).
+          const Row = p.household_id ? 'button' : 'div'
+          const rowProps = p.household_id
+            ? { type: 'button',
+                'aria-label': `Open ${p.household_name || 'family'} billing`,
+                onClick: () => openFamily(p.household_id, { tab: 'billing', onSaved: onChanged }) }
+            : {}
+          return (
+            <Row key={p.plan_id} {...rowProps}
+              className={`w-full text-left flex items-center justify-between gap-3 px-3 py-2${
+                p.household_id ? ' hover:bg-neutral-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-optio-purple' : ''}`}>
+              <span className="min-w-0 flex items-center gap-2 flex-wrap">
+                <span className="text-sm font-medium text-neutral-800">
+                  {p.household_name || (p.household_id ? 'Family' : 'No family')}
+                </span>
+                {p.student_name && (
+                  <span className="text-sm text-neutral-600">{p.student_name}</span>
+                )}
+                <span className="text-xs text-neutral-500">{money(p.monthly_cents)}/month</span>
+                {next && <span className="text-xs text-neutral-500">next {next}</span>}
+                {p.remaining_count > 0 && (
+                  <span className="text-xs text-neutral-500">
+                    {p.remaining_count} {p.remaining_count === 1 ? 'installment' : 'installments'} left
+                  </span>
+                )}
+              </span>
+              <span className={`shrink-0 text-xs px-1.5 py-0.5 rounded ${p.auto_charge
+                ? 'bg-green-100 text-green-800' : 'bg-neutral-100 text-neutral-700'}`}>
+                {p.auto_charge ? 'Autopay on' : 'Autopay off'}
+              </span>
+            </Row>
+          )
+        })}
+      </div>
+    </section>
+  )
 }
 
 const RecurringTuitionList = ({ orgId, schedules, onChanged, emptyHint }) => {

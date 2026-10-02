@@ -14,6 +14,10 @@ the class's quests:
     from a class quest's audience, and take the quest back out of a removed
     student's account as far as their work allows (Gryffin, 2026-09-10).
 
+It also holds the teacher's own copy of a class quest (iCreate, 2026-10-01),
+here rather than in class_quests.py only because that file is at the
+route-file line cap.
+
 All DB access uses the service-role admin client; authorization is enforced in
 Python above every read/write.
 """
@@ -36,6 +40,7 @@ from services.class_quest_enrollment import (
 from repositories.class_quest_audience_repository import ClassQuestAudienceRepository
 from services import student_class_quests
 from routes.sis.class_quests import (
+    _assignment_fields,
     _authorize,
     _bad_uuid,
     _is_done,
@@ -656,3 +661,46 @@ def remove_quest_student(user_id, class_id, quest_id, student_id):
     wanted = [sid for sid in current if sid != student_id]
     return _audience_response(set_class_quest_audience(
         admin, class_row['id'], quest_id, wanted, roster_ids=roster))
+
+
+# ── A teacher's own copy of a quest on the class ──────────────────────────────
+
+@bp.route('/classes/<class_id>/quests/<quest_id>/duplicate', methods=['POST'])
+@require_auth
+def copy_class_quest(user_id, class_id, quest_id):
+    """Copy a quest on this class into one the caller wrote, as a DRAFT for
+    this class. The original stays on the class untouched.
+
+    iCreate, 2026-10-01: Marika (167ba6df) wanted teachers to edit an office
+    quest "and save it as their own"; Karin (60ffe195) wanted to "copy a current
+    quest, so I can repeat the assignment for the next week". Since P6 a
+    teacher edits only what they wrote, so the copy is the way to both.
+
+    The copy reaches no student until the teacher publishes it (owner,
+    2026-10-02): it is the quest editor's class draft, published through
+    POST .../quests/<copy>/publish like one started with "Create new".
+
+    Body (optional): {publish_at?, due_date?, student_ids?} -- the same class
+    fields as an assign, checked before anything is written, and kept on the
+    draft as the publish form's starting values. Without student_ids the copy
+    keeps the original's audience on this class.
+
+    The class's moderator gate (the office, the primary teacher, an assistant
+    or co-teacher); the quest must be on this class, and be the school's own or
+    the public Optio library. See services/class_quest_copy.
+    """
+    class_row, admin, err = _authorize(user_id, class_id)
+    if err:
+        return err
+    if _bad_uuid(quest_id):
+        return jsonify({'success': False, 'error': 'Invalid quest id'}), 400
+    row, err = _assignment_fields(admin, class_row, request.get_json(silent=True) or {})
+    if err:
+        return err
+    from services.class_quest_copy import copy_class_quest as _copy
+    from services.sis_quest_authoring import QuestAuthoringError
+    try:
+        out = _copy(admin, class_row=class_row, quest_id=quest_id, user_id=user_id, row=row)
+    except QuestAuthoringError as e:
+        return jsonify({'success': False, 'error': e.message}), e.status
+    return jsonify({'success': True, **out}), 201

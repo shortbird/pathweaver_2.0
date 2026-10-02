@@ -234,13 +234,11 @@ def _release_class_seats(org_id: str, target_id: str,
                          actor_id: Optional[str] = None) -> int:
     """Withdraw the student's active class seats and free anything they hold on a
     waitlist, so class counts don't keep counting someone who is gone."""
-    rows = (
-        _admin().table('class_enrollments').select('id, class_id')
-        .eq('student_id', target_id).eq('status', 'active').execute()
-    ).data or []
-    for r in rows:
-        _admin().table('class_enrollments').update(
-            {'status': 'withdrawn', 'status_changed_by': actor_id}).eq('id', r['id']).execute()
+    # The one door a seat ends through, so the classes' quests leave with the
+    # student too (d8a2a8d4; services/class_enrollment_drops). Covers every
+    # person removal: archive, delete, a family withdrawn, standing withdrawn.
+    from services.class_enrollment_drops import withdraw_class_enrollments
+    rows = withdraw_class_enrollments(_admin(), actor_id=actor_id, student_id=target_id)
     try:
         from services.class_group_sync_service import sync_class_group
         for r in rows:

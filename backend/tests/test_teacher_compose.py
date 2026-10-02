@@ -12,6 +12,11 @@ start a message. Theirs is the office's Compose, narrowed:
 
 from unittest.mock import Mock, patch
 
+
+# The front-office pick reads school_inbox_service.office_staff_ids, not
+# admin_recipient_ids, since ticket 19047fd0: the inbox list narrows who reads
+# the school inbox, not who is front office. The patches here moved with it.
+
 import pytest
 
 from services import message_compose_service as compose
@@ -62,7 +67,7 @@ def school():
                       side_effect=lambda students: {g for s in students for g in GUARDIANS[s['student_id']]}), \
          patch('utils.class_membership.guardians_by_student',
                side_effect=lambda ids: {s: GUARDIANS[s] for s in ids}), \
-         patch('services.school_inbox_service.admin_recipient_ids', return_value=[KATE]), \
+         patch('services.school_inbox_service.office_staff_ids', return_value=[KATE]), \
          patch('services.sis_service.advisor_class_ids',
                side_effect=lambda uid, org: ['c1'] if uid == TEACH else ['c2']):
         yield repo

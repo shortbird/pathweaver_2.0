@@ -31,6 +31,14 @@ class HouseholdRepository(BaseRepository):
         ))
         return sorted(rows, key=lambda h: (h.get('name') or '').lower())
 
+    def names_by_id(self, household_ids: List[str]) -> Dict[str, Dict[str, Any]]:
+        """{id: {id, name}} for the given households, paged."""
+        if not household_ids:
+            return {}
+        rows = fetch_all_rows(lambda: (
+            self.client.table(self.table_name).select('id, name').in_('id', household_ids)))
+        return {h['id']: h for h in rows}
+
     def create(self, organization_id: str, fields: Dict[str, Any]) -> Dict[str, Any]:
         payload = {'organization_id': organization_id, **fields}
         resp = self.client.table(self.table_name).insert(payload).execute()

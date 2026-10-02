@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { render, screen, fireEvent } from '@testing-library/react'
 
 /**
  * A teacher opens a quest from the class page in the one quest editor.
@@ -69,8 +69,9 @@ describe('ClassQuestsManager quest details', () => {
     editorProps.length = 0
     mock([quest({ can_edit: true, due_date: '2026-10-01T23:59:59Z' })])
     render(withConfirm(<ClassQuestsManager classId="c1" orgId="org-1" scheduledEnabled />))
-    fireEvent.click(await screen.findByLabelText('Toggle tasks'))
-    fireEvent.click(screen.getByRole('button', { name: 'Edit quest' }))
+    // No chevron first since the 2026-10-02 row redesign: Edit quest is on
+    // the collapsed row.
+    fireEvent.click(await screen.findByRole('button', { name: 'Edit quest' }))
     expect(await screen.findByText('quest editor open')).toBeInTheDocument()
     const props = editorProps.at(-1)
     expect(props.context).toBe('class')
@@ -83,9 +84,12 @@ describe('ClassQuestsManager quest details', () => {
   it('opens somebody else\'s quest read-only, as Open quest', async () => {
     mock([quest({ can_edit: false })])
     render(withConfirm(<ClassQuestsManager classId="c1" />))
-    fireEvent.click(await screen.findByLabelText('Toggle tasks'))
+    // On the collapsed row since the 2026-10-02 redesign; Delete lives in the
+    // row's ⋯ menu, so the menu is opened before checking it is absent.
+    expect(await screen.findByRole('button', { name: 'Open quest' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Edit quest' })).toBeNull()
-    expect(screen.getByRole('button', { name: 'Open quest' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'More for Week 4 THINK' }))
+    expect(screen.getByRole('menuitem', { name: 'Unassign' })).toBeInTheDocument()
     // Deleting is the furthest an edit goes: not theirs either.
     expect(screen.queryByRole('button', { name: /Delete Week 4 THINK/ })).toBeNull()
   })

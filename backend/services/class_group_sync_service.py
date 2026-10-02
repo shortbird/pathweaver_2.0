@@ -93,6 +93,64 @@ def sync_class_groups(class_id: str, actor_id: Optional[str] = None) -> Dict[str
         return out
 
 
+def _auto_names(name: str) -> Dict[str, Tuple[str, ...]]:
+    """Every group name this service has ever generated for a class called
+    `name`, by audience. The first entry is the current one."""
+    return {
+        'family': (f'{name} Parent Chat', f'{name} Class Chat'),
+        'student': (f'{name} Student Chat',),
+    }
+
+
+def _auto_descriptions(name: str) -> Dict[str, str]:
+    return {
+        'family': f'Group chat for {name} families and teachers',
+        'student': f'Group chat for {name} students and teachers',
+    }
+
+
+def rename_class_groups(class_id: str, old_name: Optional[str],
+                        new_name: Optional[str]) -> int:
+    """Follow a class rename into its chats. Returns how many groups changed.
+
+    The group name is written once, when _sync_one creates the group, so a
+    renamed class kept showing its old chat name (iCreate, ticket 644d46d5:
+    "Math Minds: Glow" showed "Math Minds: Beam Parent Chat" — the class had
+    been copied from Beam and renamed). Only a name this service generated
+    from the OLD class name is replaced; a name the school typed by hand is
+    theirs and stays. The description follows the same rule.
+
+    Never raises — a stale chat name must not fail the class save."""
+    old = (old_name or 'Class')
+    new = (new_name or 'Class')
+    if old == new:
+        return 0
+    renamed = 0
+    try:
+        from repositories.group_repository import GroupRepository
+        groups = GroupRepository(client=_admin())
+        rows = groups.chats_for_class(class_id)
+        old_names, new_names = _auto_names(old), _auto_names(new)
+        old_desc, new_desc = _auto_descriptions(old), _auto_descriptions(new)
+        for g in rows:
+            audience = g.get('audience')
+            if audience not in old_names:
+                continue
+            patch: Dict[str, Any] = {}
+            if g.get('name') in old_names[audience]:
+                patch['name'] = new_names[audience][0]
+            if g.get('description') == old_desc[audience]:
+                patch['description'] = new_desc[audience]
+            if not patch:
+                continue
+            groups.rename_generated_chat(g['id'], patch)
+            if 'name' in patch:
+                renamed += 1
+    except Exception as e:  # noqa: BLE001 — messaging must not break the class save
+        logger.warning(f'Could not rename the chats of class {class_id}: {e}')
+    return renamed
+
+
 def sync_class_group(class_id: str, actor_id: Optional[str] = None) -> Optional[str]:
     """Back-compat wrapper for the enrollment write paths: syncs BOTH groups,
     returns the family (parent chat) group id or None."""

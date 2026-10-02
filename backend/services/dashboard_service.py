@@ -13,6 +13,7 @@ import logging
 
 from database import get_supabase_admin_client
 from utils.class_assignments import student_class_assignments
+from services.student_quest_sources import quest_source_classes
 from utils.quest_status import is_enrollment_complete
 from utils.validation.sanitizers import pgrst_timestamp
 
@@ -373,12 +374,27 @@ class DashboardService:
             assignments = student_class_assignments(self.client, user_id)
         except Exception as e:  # noqa: BLE001 — a due date must not cost the page
             logger.warning(f"Could not attach class assignments for {user_id}: {e}")
+            for enrollment in quests:
+                enrollment['source_class'] = None
             return quests
 
         for enrollment in quests:
             assignment = assignments.get(enrollment.get('quest_id'))
             if assignment:
                 enrollment['class_assignment'] = assignment
+
+        # Which class each quest came through, including a class the student
+        # has left; None = their own. The overview's Learning Snapshot groups
+        # by it (iCreate, 2026-10-01, d8a2a8d4: "super chaotic").
+        try:
+            sources = quest_source_classes(
+                self.client, user_id, [e.get('quest_id') for e in quests],
+                assignments=assignments)
+        except Exception as e:  # noqa: BLE001 — a label must not cost the page
+            logger.warning(f"Could not attach source classes for {user_id}: {e}")
+            sources = {}
+        for enrollment in quests:
+            enrollment['source_class'] = sources.get(enrollment.get('quest_id'))
         return quests
 
     def _filter_stale_quests(self, quests: List[Dict]) -> List[Dict]:
@@ -454,14 +470,17 @@ class DashboardService:
 
         # Batch fetch completions
         completed_task_ids = set()
+        completed_at_by_task = {}
         if all_task_ids:
             completions = self.client.table('quest_task_completions')\
-                .select('user_quest_task_id')\
+                .select('user_quest_task_id, completed_at')\
                 .eq('user_id', user_id)\
                 .in_('user_quest_task_id', all_task_ids)\
                 .execute()
 
             completed_task_ids = {t['user_quest_task_id'] for t in (completions.data or [])}
+            completed_at_by_task = {t['user_quest_task_id']: t.get('completed_at')
+                                    for t in (completions.data or [])}
 
         # Process each quest
         for enrollment in quests:
@@ -493,6 +512,12 @@ class DashboardService:
                     completed_count += 1
 
             enrollment['completed_tasks'] = completed_count
+            # The newest task completion, else when they last picked it up or
+            # started it: the snapshot's "recent activity" sort (d8a2a8d4).
+            done = [completed_at_by_task.get(t['id']) for t in tasks]
+            enrollment['last_activity_at'] = max(
+                [d for d in done if d] or [enrollment.get('last_picked_up_at')
+                                            or enrollment.get('started_at')])
             quest_info['quest_tasks'] = tasks
 
         # Both the primary and the fallback active-quest paths land here, so

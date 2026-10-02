@@ -1,8 +1,8 @@
 import React, { useCallback, useEffect, useState } from 'react'
 import { toast } from 'react-hot-toast'
 import {
-  PlusIcon, TrashIcon, AcademicCapIcon, ChevronDownIcon, ChevronRightIcon,
-  CalendarDaysIcon, ClockIcon, UsersIcon,
+  PlusIcon, AcademicCapIcon, ChevronDownIcon, ChevronRightIcon,
+  ClockIcon, UsersIcon, EllipsisHorizontalIcon,
 } from '@heroicons/react/24/outline'
 import api from '../../services/api'
 import QuestEditor from './QuestEditor'
@@ -10,7 +10,8 @@ import { StudentWorkPanel } from './StudentProgressTab'
 import QuestDraftsList from './questEditor/QuestDraftsList'
 import { useConfirm } from '../../contexts/ConfirmContext'
 import { useRefreshAfterQuestEdit } from '../../hooks/api/useQuestEditor'
-import { INPUT_CLASS } from '../ui/Input'
+import { INPUT_CLASS, INLINE_INPUT_CLASS } from '../ui/Input'
+import PopMenu from './ui/PopMenu'
 
 /**
  * ClassQuestsManager — the teacher's Quests tab for one SIS class.
@@ -36,6 +37,17 @@ import { INPUT_CLASS } from '../ui/Input'
 const inputCls = INPUT_CLASS
 const firstName = (name) => (name || '').split(' ')[0] || 'the student'
 
+// One labelled setting in a quest row's panel, its helper text under it.
+function QuestField({ label, hint, groupLabel, className = '', children }) {
+  return (
+    <div role="group" aria-label={groupLabel || label} className={className}>
+      <p className="block text-sm font-medium text-gray-700">{label}</p>
+      <div className="mt-1.5">{children}</div>
+      {hint && <p className="mt-1.5 text-xs text-gray-500">{hint}</p>}
+    </div>
+  )
+}
+
 // The three tiers assignable-quests returns, in the order it returns them.
 const SCOPE_HEADING = {
   curriculum: 'On this class’s curriculum',
@@ -51,6 +63,8 @@ export default function ClassQuestsManager({ classId, orgId = null, scheduledEna
   const [students, setStudents] = useState([])
   const [loading, setLoading] = useState(true)
   const [expanded, setExpanded] = useState(null)
+  // Which row's ⋯ menu (Unassign, Delete) is open.
+  const [menuFor, setMenuFor] = useState(null)
 
   // Assign panel state
   const [mode, setMode] = useState(null) // null | 'existing'
@@ -195,8 +209,16 @@ export default function ClassQuestsManager({ classId, orgId = null, scheduledEna
   // due on different days for two sections. The column and the student-facing
   // badges existed already; nothing could write it from here (Gryffin,
   // 2026-08-27: "How do we add due dates to any tasks that we assign?").
-  const [dueEditing, setDueEditing] = useState(null)
-  const [dueValue, setDueValue] = useState('')
+  //
+  // The row's settings panel shows every field at once, so a typed-but-unsaved
+  // date is a draft held per quest; with no draft the field shows what is saved.
+  const [dueDrafts, setDueDrafts] = useState({})
+  const [releaseDrafts, setReleaseDrafts] = useState({})
+  const dropDraft = (setter, questId) => setter((prev) => {
+    const next = { ...prev }
+    delete next[questId]
+    return next
+  })
 
   // A date input hands back 'YYYY-MM-DD'. new Date('YYYY-MM-DD') is UTC
   // midnight, and toLocaleDateString() renders that as the day BEFORE anywhere
@@ -221,7 +243,7 @@ export default function ClassQuestsManager({ classId, orgId = null, scheduledEna
     try {
       await api.patch(`/api/sis/classes/${classId}/quests/${questId}`, { due_date: iso })
       setQuests((prev) => prev.map((q) => (q.quest_id === questId ? { ...q, due_date: iso } : q)))
-      setDueEditing(null)
+      dropDraft(setDueDrafts, questId)
       toast.success(value ? 'Due date set' : 'Due date cleared')
     } catch (err) {
       toast.error(err?.response?.data?.error || 'Could not save the due date')
@@ -232,8 +254,6 @@ export default function ClassQuestsManager({ classId, orgId = null, scheduledEna
   // enrollment with it: a date in the future takes the quest back out of the
   // accounts of students who have not touched it; clearing (or a past date)
   // hands it to everyone it is for today.
-  const [releaseEditing, setReleaseEditing] = useState(null)
-  const [releaseValue, setReleaseValue] = useState('')
   const isFuture = (iso) => Boolean(iso) && new Date(iso).getTime() > Date.now()
 
   const saveRelease = async (questId, value) => {
@@ -241,7 +261,7 @@ export default function ClassQuestsManager({ classId, orgId = null, scheduledEna
     try {
       const { data } = await api.patch(`/api/sis/classes/${classId}/quests/${questId}`, { publish_at: iso })
       setQuests((prev) => prev.map((q) => (q.quest_id === questId ? { ...q, publish_at: iso } : q)))
-      setReleaseEditing(null)
+      dropDraft(setReleaseDrafts, questId)
       if (isFuture(iso)) {
         const hidden = data?.students_hidden || 0
         toast.success(`Students will see it on ${new Date(iso).toLocaleDateString()}.`
@@ -258,23 +278,27 @@ export default function ClassQuestsManager({ classId, orgId = null, scheduledEna
   // a list = those students only. Saved as a whole list; the backend enrolls
   // the newly added and takes the quest back from the newly removed, keeping
   // any work they had already done.
-  const [audienceEditing, setAudienceEditing] = useState(null)
-  const [audienceDraft, setAudienceDraft] = useState([])
+  // The checklist sits open in the row's panel; an unsaved change is a draft
+  // per quest, and Cancel drops it back to what is saved.
+  const [audienceDrafts, setAudienceDrafts] = useState({})
   const [savingAudience, setSavingAudience] = useState(false)
   const rosterIds = students.map((s) => s.student_id)
 
-  const openAudience = (q) => {
-    setAudienceDraft(q.student_ids === null || q.student_ids === undefined ? rosterIds : q.student_ids)
-    setAudienceEditing(q.quest_id)
+  const savedAudience = (q) => (q.student_ids === null || q.student_ids === undefined ? rosterIds : q.student_ids)
+  const audienceFor = (q) => audienceDrafts[q.quest_id] ?? savedAudience(q)
+  const setAudienceDraft = (q, ids) => setAudienceDrafts((prev) => ({ ...prev, [q.quest_id]: ids }))
+  const toggleStudent = (q, id) => {
+    const cur = audienceFor(q)
+    setAudienceDraft(q, cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id])
   }
-  const toggleStudent = (id) => setAudienceDraft((prev) => (
-    prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]))
   const audienceLabel = (q) => {
+    if (q.made_by) return `Only ${q.made_by_name}`
     if (q.student_ids === null || q.student_ids === undefined) return `Everyone (${students.length})`
     return `${q.student_ids.length} of ${students.length} students`
   }
 
   const saveAudience = async (q) => {
+    const audienceDraft = audienceFor(q)
     const everyone = rosterIds.every((id) => audienceDraft.includes(id))
     setSavingAudience(true)
     try {
@@ -282,7 +306,7 @@ export default function ClassQuestsManager({ classId, orgId = null, scheduledEna
         { student_ids: everyone ? null : audienceDraft })
       setQuests((prev) => prev.map((x) => (
         x.quest_id === q.quest_id ? { ...x, student_ids: data?.student_ids ?? null } : x)))
-      setAudienceEditing(null)
+      dropDraft(setAudienceDrafts, q.quest_id)
       toast.success(data?.summary || 'Saved who this quest is for')
     } catch (err) {
       toast.error(err?.response?.data?.error || 'Could not save who this quest is for')
@@ -338,6 +362,33 @@ export default function ClassQuestsManager({ classId, orgId = null, scheduledEna
     }
   }
 
+  // A copy the teacher wrote, so they may change it. iCreate, 2026-10-01:
+  // teachers wanted to edit an office quest "and save it as their own"
+  // (167ba6df), and to "copy a current quest, so I can repeat the assignment
+  // for the next week" (60ffe195). The copy starts as a draft for this class
+  // (owner, 2026-10-02): no student gets it until the teacher presses
+  // "Publish to class" in the editor, which opens on it straight away, since
+  // changing it is why it was made. It waits in this class's Drafts until then.
+  const [copying, setCopying] = useState(null)
+  const copyQuest = async (q) => {
+    if (!(await confirm(
+      `Make your own copy of "${q.title}"?\n\n`
+      + 'The copy is yours to change. It starts as a draft: students get it only when you publish it. '
+      + 'The original stays on the class as it is.'
+    ))) return
+    setCopying(q.quest_id)
+    try {
+      const { data } = await api.post(`/api/sis/classes/${classId}/quests/${q.quest_id}/duplicate`, {})
+      refreshDrafts()
+      toast.success(`Copied as a draft: "${data?.title}"`)
+      setEditing({ questId: data?.quest_id })
+    } catch (err) {
+      toast.error(err?.response?.data?.error || 'Could not copy the quest')
+    } finally {
+      setCopying(null)
+    }
+  }
+
   // Same delete, reached from the assign picker — for a quest that isn't on any
   // class (a teacher's abandoned draft from last year, iCreate 2026-07-30).
   const destroyUnassigned = async (q) => {
@@ -380,6 +431,8 @@ export default function ClassQuestsManager({ classId, orgId = null, scheduledEna
         <QuestEditor key={editing.questId || 'new'} context="class" orgId={orgId} classId={classId}
           questId={editing.questId || null}
           classLink={editing.link || null} students={students} scheduledEnabled={scheduledEnabled}
+          onMakeCopy={editing.link && !editing.link.can_edit && !editing.link.made_by
+            ? () => { const src = editing.link; setEditing(null); copyQuest(src) } : null}
           onDone={() => { refreshDrafts(); load() }}
           onClose={() => setEditing(null)} />
       )}
@@ -515,7 +568,10 @@ export default function ClassQuestsManager({ classId, orgId = null, scheduledEna
         </div>
       )}
 
-      {/* Assigned quests */}
+      {/* Assigned quests. Each row: what the quest is and the actions on it, up
+          front; this class's settings for it (who, release, due, XP) in the
+          panel the row opens. The owner, 2026-10-02: the header had crammed
+          every editor inline and hidden Open quest behind the chevron. */}
       {loading ? (
         <p className="text-neutral-500">Loading…</p>
       ) : quests.length === 0 ? (
@@ -527,247 +583,250 @@ export default function ClassQuestsManager({ classId, orgId = null, scheduledEna
         <ul className="space-y-2">
           {quests.map((q) => {
             const open = expanded === q.quest_id
+            const scheduled = scheduledEnabled && isFuture(q.publish_at)
+            const dueDraft = dueDrafts[q.quest_id] ?? isoToDateInput(q.due_date)
+            const releaseDraft = releaseDrafts[q.quest_id] ?? isoToDateInput(scheduled ? q.publish_at : null)
+            const audienceDraft = audienceFor(q)
+            const audienceDirty = q.quest_id in audienceDrafts
+            const meta = [
+              <span key="tasks">
+                {q.template_task_count
+                  ? `${q.template_task_count} preset task${q.template_task_count === 1 ? '' : 's'}`
+                  : 'No preset tasks'}
+              </span>,
+              q.made_by ? <span key="by">Made by {q.made_by_name}</span>
+                : !q.editable_tasks ? <span key="by">Optio library</span> : null,
+              <span key="who" className="inline-flex items-center gap-1"
+                title={q.made_by ? "A student's own quest stays with the student who made it" : undefined}>
+                <UsersIcon className="w-3.5 h-3.5" /> {audienceLabel(q)}
+              </span>,
+              scheduled ? (
+                <span key="rel" title="Students cannot see this quest yet"
+                  className="font-medium px-1.5 py-0.5 rounded bg-sky-100 text-sky-700 whitespace-nowrap">
+                  Releases {new Date(q.publish_at).toLocaleDateString()}
+                </span>
+              ) : null,
+              q.due_date ? (
+                <span key="due" className="font-medium px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 whitespace-nowrap">
+                  Due {new Date(q.due_date).toLocaleDateString()}
+                </span>
+              ) : null,
+              q.xp_threshold ? <span key="xp">{q.xp_threshold} XP to finish</span> : null,
+            ].filter(Boolean)
             return (
-              <li key={q.quest_id} className="bg-white rounded-xl border border-gray-200">
-                <div className="flex items-center gap-3 p-4">
-                  <button onClick={() => setExpanded(open ? null : q.quest_id)}
-                    className="shrink-0 text-neutral-400 hover:text-neutral-700" aria-label="Toggle tasks">
-                    {open ? <ChevronDownIcon className="w-5 h-5" /> : <ChevronRightIcon className="w-5 h-5" />}
+              <li key={q.quest_id} className="bg-white rounded-xl border border-gray-200 shadow-sm">
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-2 p-4">
+                  <button type="button" onClick={() => setExpanded(open ? null : q.quest_id)}
+                    aria-expanded={open}
+                    title={open ? 'Hide this class’s settings' : 'Who gets it, dates and XP for this class'}
+                    className="flex-1 min-w-[12rem] flex items-start gap-2 text-left rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-optio-purple">
+                    {open
+                      ? <ChevronDownIcon className="w-5 h-5 mt-0.5 shrink-0 text-gray-400" />
+                      : <ChevronRightIcon className="w-5 h-5 mt-0.5 shrink-0 text-gray-400" />}
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-sm font-semibold text-gray-900 truncate">{q.title}</span>
+                      <span className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs text-gray-500">
+                        {meta.map((m, i) => (
+                          <React.Fragment key={m.key}>
+                            {i > 0 && <span aria-hidden="true">·</span>}
+                            {m}
+                          </React.Fragment>
+                        ))}
+                      </span>
+                    </span>
                   </button>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-neutral-900 truncate">{q.title}</p>
-                    <p className="text-xs text-neutral-400">
-                      {q.template_task_count
-                        ? `${q.template_task_count} preset task${q.template_task_count === 1 ? '' : 's'}`
-                        : 'No preset tasks'}
-                      {q.made_by ? ` · Made by ${q.made_by_name}` : (!q.editable_tasks ? ' · Optio library' : '')}
-                      {q.xp_threshold ? ` · ${q.xp_threshold} XP to finish` : ''}
-                    </p>
-                    {/* Deliberately here and not in the task rows: this is the
-                        whole quest's target, and a box sitting among the tasks
-                        is the one teachers kept typing into by mistake. A
-                        library quest belongs to every school, so its target is
-                        not ours to set. */}
+                  <div className="flex flex-wrap items-center gap-2 ml-auto">
                     {q.made_by ? (
-                      <span className="mt-1 inline-flex items-center gap-1 text-xs text-neutral-500 px-1.5 py-0.5"
-                        title="A student's own quest stays with the student who made it">
-                        <UsersIcon className="w-3.5 h-3.5" /> Only {q.made_by_name}
-                      </span>
-                    ) : (
-                    <button type="button" onClick={() => (audienceEditing === q.quest_id ? setAudienceEditing(null) : openAudience(q))}
-                      aria-expanded={audienceEditing === q.quest_id}
-                      title="Choose which students get this quest"
-                      className={`mt-1 inline-flex items-center gap-1 text-xs rounded px-1.5 py-0.5 hover:bg-optio-purple/10 ${
-                        q.student_ids === null || q.student_ids === undefined
-                          ? 'text-neutral-500' : 'text-optio-purple font-medium bg-optio-purple/5'}`}>
-                      <UsersIcon className="w-3.5 h-3.5" /> {audienceLabel(q)}
-                    </button>
-                    )}
-                    {/* The office can lock the finish line from the library
-                        (quests.teachers_may_change_xp). Molly, iCreate,
-                        3d926fc3: "click on 'teachers may change' if we want
-                        teachers to change it." canSaveToCurriculum is the
-                        office signal (TeacherClassPage passes useSisOrg().isAdmin);
-                        the backend refuses a teacher's write either way. */}
-                    {q.editable_tasks && (q.teachers_may_change_xp === false && !canSaveToCurriculum ? (
-                      <label className="flex items-center gap-2 text-xs text-neutral-500 mt-1.5">
-                        XP to finish
-                        <input type="number" value={q.xp_threshold || ''} readOnly disabled
-                          placeholder="Any"
-                          aria-label={`XP to finish ${q.title}`}
-                          className="w-24 rounded-lg border border-gray-200 bg-neutral-50 px-2 py-1 text-xs text-neutral-500" />
-                        <span className="text-neutral-400">Set by your school office</span>
-                      </label>
-                    ) : (
-                      <label className="flex items-center gap-2 text-xs text-neutral-500 mt-1.5">
-                        XP to finish
-                        <input type="number" min={0} step={25} defaultValue={q.xp_threshold || ''}
-                          onBlur={(e) => saveXp(q, e.target.value)}
-                          placeholder="Any"
-                          aria-label={`XP to finish ${q.title}`}
-                          title="Leave blank and any amount of work finishes the quest"
-                          className="w-24 rounded-lg border border-gray-300 px-2 py-1 text-xs" />
-                      </label>
-                    ))}
-                  </div>
-                  <div className="shrink-0 flex items-center gap-2">
-                    {scheduledEnabled && isFuture(q.publish_at) && releaseEditing !== q.quest_id && (
-                      <span className="text-xs font-medium px-2 py-0.5 rounded bg-sky-100 text-sky-700 whitespace-nowrap"
-                        title="Students cannot see this quest yet">
-                        Releases {new Date(q.publish_at).toLocaleDateString()}
-                      </span>
-                    )}
-                    {scheduledEnabled && (releaseEditing === q.quest_id ? (
-                      <div className="flex items-center gap-1.5">
-                        <input type="date" value={releaseValue} autoFocus
-                          onChange={(e) => setReleaseValue(e.target.value)}
-                          aria-label={`Release date for ${q.title}`}
-                          title="Students see the quest from this day. Until then only you and other staff do."
-                          className="rounded-lg border border-gray-300 px-2 py-1 text-sm" />
-                        <button onClick={() => saveRelease(q.quest_id, releaseValue)} disabled={!releaseValue}
-                          className="px-2 py-1 rounded-lg bg-gradient-primary text-white text-xs disabled:opacity-40">
-                          Save
-                        </button>
-                        {isFuture(q.publish_at) && (
-                          <button onClick={() => saveRelease(q.quest_id, '')}
-                            className="px-2 py-1 rounded-lg border border-gray-300 text-xs text-neutral-600">
-                            Release now
-                          </button>
-                        )}
-                        <button onClick={() => setReleaseEditing(null)}
-                          className="px-2 py-1 text-xs text-neutral-500 hover:text-neutral-700">
-                          Cancel
-                        </button>
-                      </div>
-                    ) : (
-                      <button
-                        onClick={() => {
-                          setReleaseValue(isoToDateInput(isFuture(q.publish_at) ? q.publish_at : null))
-                          setReleaseEditing(q.quest_id)
-                        }}
-                        className="px-2 py-1 flex items-center gap-1 text-xs text-neutral-500 hover:text-sky-700 hover:bg-sky-50 rounded-lg whitespace-nowrap">
-                        <ClockIcon className="w-4 h-4" />
-                        {isFuture(q.publish_at) ? 'Change release date' : 'Set release date'}
+                      <button type="button" className="btn-quiet px-3 py-1.5"
+                        onClick={() => setWorkFor({ student_id: q.made_by, name: q.made_by_name })}>
+                        See {firstName(q.made_by_name)}’s work
                       </button>
-                    ))}
-                    {q.due_date && dueEditing !== q.quest_id && (
-                      <span className="text-xs font-medium px-2 py-0.5 rounded bg-amber-100 text-amber-700 whitespace-nowrap">
-                        Due {new Date(q.due_date).toLocaleDateString()}
-                      </span>
-                    )}
-                    {dueEditing === q.quest_id ? (
-                      <div className="flex items-center gap-1.5">
-                        <input type="date" value={dueValue} autoFocus
-                          onChange={(e) => setDueValue(e.target.value)}
-                          // "What happens after the due date? Does it lock?"
-                          // (625d1958, 2026-09-01). It does not, on purpose —
-                          // the answer belongs next to the field, not in a
-                          // support reply a year from now.
-                          title="Nothing locks after this date. It marks the quest overdue on your progress view and in reminders; students can still finish it."
-                          className="rounded-lg border border-gray-300 px-2 py-1 text-sm" />
-                        <button onClick={() => saveDue(q.quest_id, dueValue)}
-                          className="px-2 py-1 rounded-lg bg-gradient-primary text-white text-xs">
-                          Save
-                        </button>
-                        {q.due_date && (
-                          <button onClick={() => saveDue(q.quest_id, '')}
-                            className="px-2 py-1 rounded-lg border border-gray-300 text-xs text-neutral-600">
-                            Clear
-                          </button>
-                        )}
-                        <button onClick={() => setDueEditing(null)}
-                          className="px-2 py-1 text-xs text-neutral-500 hover:text-neutral-700">
-                          Cancel
-                        </button>
-                        <span className="text-xs text-neutral-400">
-                          Marks it overdue — doesn’t lock it.
-                        </span>
-                      </div>
                     ) : (
-                      <button
-                        onClick={() => {
-                          setDueValue(isoToDateInput(q.due_date))
-                          setDueEditing(q.quest_id)
-                        }}
-                        className="px-2 py-1 flex items-center gap-1 text-xs text-neutral-500 hover:text-amber-700 hover:bg-amber-50 rounded-lg whitespace-nowrap">
-                        <CalendarDaysIcon className="w-4 h-4" />
-                        {q.due_date ? 'Change due date' : 'Set due date'}
-                      </button>
+                      <>
+                        <button type="button" className="btn-quiet px-3 py-1.5"
+                          onClick={() => setEditing({ questId: q.quest_id, link: q })}>
+                          {q.can_edit ? 'Edit quest' : 'Open quest'}
+                        </button>
+                        <button type="button" className="btn-ghost px-3 py-1.5" onClick={() => copyQuest(q)}
+                          disabled={copying === q.quest_id}>
+                          {copying === q.quest_id ? 'Copying…' : q.can_edit ? 'Make a copy' : 'Make my own copy'}
+                        </button>
+                      </>
                     )}
-                    <button onClick={() => unassign(q)}
-                      title="Take it off this class — the quest stays in your library"
-                      className="px-3 py-1.5 rounded-lg border border-gray-300 text-neutral-600 text-sm font-medium hover:bg-gray-50">
-                      Unassign
-                    </button>
-                    {/* Only a quest the caller may change can be deleted: the
-                        office's, or one this teacher wrote. Library quests are
-                        shared with other schools. */}
-                    {q.can_edit && (
-                      <button onClick={() => destroy(q)}
-                        title="Delete it from your school's library for good"
-                        className="p-1.5 text-gray-400 hover:text-red-500"
-                        aria-label={`Delete ${q.title}`}>
-                        <TrashIcon className="w-4 h-4" />
+                    <PopMenu open={menuFor === q.quest_id} onClose={() => setMenuFor(null)} width="w-60"
+                      trigger={(
+                        <button type="button" aria-label={`More for ${q.title}`} aria-haspopup="menu"
+                          aria-expanded={menuFor === q.quest_id}
+                          onClick={() => setMenuFor(menuFor === q.quest_id ? null : q.quest_id)}
+                          className="p-1.5 rounded-lg text-gray-500 hover:text-optio-purple hover:bg-optio-purple/5">
+                          <EllipsisHorizontalIcon className="w-5 h-5" />
+                        </button>
+                      )}>
+                      {/* Two different things, kept apart: unassign takes the
+                          quest off this class; delete removes it entirely. */}
+                      <button type="button" role="menuitem"
+                        onClick={() => { setMenuFor(null); unassign(q) }}
+                        title="Take it off this class — the quest stays in your library"
+                        className="block w-full text-left px-4 py-2 text-sm text-neutral-700 hover:bg-neutral-50">
+                        Unassign
                       </button>
-                    )}
+                      {/* Only a quest the caller may change can be deleted: the
+                          office's, or one this teacher wrote. Library quests are
+                          shared with other schools. */}
+                      {q.can_edit && (
+                        <button type="button" role="menuitem"
+                          onClick={() => { setMenuFor(null); destroy(q) }}
+                          title="Delete it from your school's library for good"
+                          aria-label={`Delete ${q.title}`}
+                          className="block w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-neutral-50">
+                          Delete
+                        </button>
+                      )}
+                    </PopMenu>
                   </div>
                 </div>
-                {audienceEditing === q.quest_id && (
-                  <div className="border-t border-gray-100 px-4 py-3 bg-gray-50/70" role="group"
-                    aria-label={`Who gets ${q.title}`}>
-                    <p className="text-xs text-neutral-600 mb-2">
-                      Who gets this quest? Uncheck a student to take it off their list.
-                      Anything they have already done stays in their account.
-                    </p>
-                    {students.length === 0 ? (
-                      <p className="text-xs text-neutral-400">No students are enrolled in this class yet.</p>
-                    ) : (
-                      <div className="flex flex-wrap gap-x-4 gap-y-1.5">
-                        {students.map((s) => (
-                          <label key={s.student_id} className="inline-flex items-center gap-1.5 text-sm text-neutral-800">
-                            <input type="checkbox" checked={audienceDraft.includes(s.student_id)}
-                              onChange={() => toggleStudent(s.student_id)}
-                              className="rounded border-gray-300 text-optio-purple focus:ring-optio-purple" />
-                            {s.name}
-                          </label>
-                        ))}
-                      </div>
-                    )}
-                    <div className="mt-3 flex flex-wrap items-center gap-2">
-                      <button type="button" onClick={() => setAudienceDraft(rosterIds)}
-                        className="text-xs text-optio-purple hover:underline">Everyone</button>
-                      <button type="button" onClick={() => setAudienceDraft([])}
-                        className="text-xs text-neutral-500 hover:underline">Nobody</button>
-                      <button type="button" onClick={() => saveAudience(q)}
-                        disabled={savingAudience || audienceDraft.length === 0}
-                        title={audienceDraft.length === 0 ? 'Pick at least one student, or unassign the quest instead' : undefined}
-                        className="ml-2 px-3 py-1 rounded-lg bg-gradient-primary text-white text-xs font-semibold disabled:opacity-40">
-                        {savingAudience ? 'Saving…' : 'Save'}
-                      </button>
-                      <button type="button" onClick={() => setAudienceEditing(null)}
-                        className="px-2 py-1 text-xs text-neutral-500 hover:text-neutral-700">Cancel</button>
-                      <span className="text-xs text-neutral-400">
-                        New students automatically get quests assigned to everyone. A quest kept to
-                        specific students stays with them until you add someone here.
-                      </span>
-                    </div>
-                  </div>
-                )}
                 {open && (
-                  <div className="border-t border-gray-100 px-4 pb-4">
+                  <div className="border-t border-gray-100 p-4">
+                    <p className="text-sm font-semibold uppercase tracking-wider text-optio-purple">This class</p>
+                    <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-5">
+                      {scheduledEnabled && (
+                        <QuestField label="Release date"
+                          hint="Students see the quest from this day. Until then only you and other staff do.">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <input type="date" value={releaseDraft}
+                              onChange={(e) => setReleaseDrafts((prev) => ({ ...prev, [q.quest_id]: e.target.value }))}
+                              aria-label={`Release date for ${q.title}`}
+                              className={INLINE_INPUT_CLASS} />
+                            <button type="button" onClick={() => saveRelease(q.quest_id, releaseDraft)}
+                              disabled={!releaseDraft || !(q.quest_id in releaseDrafts)}
+                              className="btn-quiet px-3 py-1.5">
+                              Save
+                            </button>
+                            {scheduled && (
+                              <button type="button" onClick={() => saveRelease(q.quest_id, '')}
+                                className="btn-ghost px-3 py-1.5">
+                                Release now
+                              </button>
+                            )}
+                          </div>
+                        </QuestField>
+                      )}
+
+                      <QuestField label="Due date" hint="Marks it overdue — doesn’t lock it.">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <input type="date" value={dueDraft}
+                            onChange={(e) => setDueDrafts((prev) => ({ ...prev, [q.quest_id]: e.target.value }))}
+                            aria-label={`Due date for ${q.title}`}
+                            // "What happens after the due date? Does it lock?"
+                            // (625d1958, 2026-09-01). It does not, on purpose —
+                            // the answer belongs next to the field, not in a
+                            // support reply a year from now.
+                            title="Nothing locks after this date. It marks the quest overdue on your progress view and in reminders; students can still finish it."
+                            className={INLINE_INPUT_CLASS} />
+                          <button type="button" onClick={() => saveDue(q.quest_id, dueDraft)}
+                            disabled={!(q.quest_id in dueDrafts)}
+                            className="btn-quiet px-3 py-1.5">
+                            Save
+                          </button>
+                          {q.due_date && (
+                            <button type="button" onClick={() => saveDue(q.quest_id, '')}
+                              className="btn-ghost px-3 py-1.5">
+                              Clear
+                            </button>
+                          )}
+                        </div>
+                      </QuestField>
+
+                      {/* Deliberately here and not in the task rows: this is the
+                          whole quest's target, and a box sitting among the tasks
+                          is the one teachers kept typing into by mistake. A
+                          library quest belongs to every school, so its target is
+                          not ours to set. */}
+                      {/* The office can lock the finish line from the library
+                          (quests.teachers_may_change_xp). Molly, iCreate,
+                          3d926fc3: "click on 'teachers may change' if we want
+                          teachers to change it." canSaveToCurriculum is the
+                          office signal (TeacherClassPage passes useSisOrg().isAdmin);
+                          the backend refuses a teacher's write either way. */}
+                      {q.editable_tasks && (q.teachers_may_change_xp === false && !canSaveToCurriculum ? (
+                        <QuestField label="XP to finish" hint="Set by your school office">
+                          <input type="number" value={q.xp_threshold || ''} readOnly disabled
+                            placeholder="Any"
+                            aria-label={`XP to finish ${q.title}`}
+                            className={`w-28 ${INLINE_INPUT_CLASS} bg-neutral-50 text-gray-500`} />
+                        </QuestField>
+                      ) : (
+                        <QuestField label="XP to finish"
+                          hint="Leave blank and any amount of work finishes the quest. Saves when you leave the box.">
+                          <input type="number" min={0} step={25} defaultValue={q.xp_threshold || ''}
+                            onBlur={(e) => saveXp(q, e.target.value)}
+                            placeholder="Any"
+                            aria-label={`XP to finish ${q.title}`}
+                            title="Leave blank and any amount of work finishes the quest"
+                            className={`w-28 ${INLINE_INPUT_CLASS}`} />
+                        </QuestField>
+                      ))}
+
+                      {/* Full width, after the dates: the release and due dates
+                          sit side by side in the first row (Tanner, 2026-10-02). */}
+                      <QuestField label="Who gets it" groupLabel={`Who gets ${q.title}`} className="md:col-span-2"
+                        hint={q.made_by
+                          ? 'A student’s own quest stays with the student who made it.'
+                          : 'Uncheck a student to take it off their list. Anything they have already done stays in their account. '
+                            + 'New students automatically get quests assigned to everyone. A quest kept to specific students '
+                            + 'stays with them until you add someone here.'}>
+                        {q.made_by ? (
+                          <p className="text-sm text-gray-700">Only {q.made_by_name}</p>
+                        ) : students.length === 0 ? (
+                          <p className="text-xs text-gray-400">No students are enrolled in this class yet.</p>
+                        ) : (
+                          <>
+                            <div className="flex flex-wrap gap-x-4 gap-y-1.5">
+                              {students.map((s) => (
+                                <label key={s.student_id} className="inline-flex items-center gap-1.5 text-sm text-gray-800">
+                                  <input type="checkbox" checked={audienceDraft.includes(s.student_id)}
+                                    onChange={() => toggleStudent(q, s.student_id)}
+                                    className="rounded border-gray-300 text-optio-purple focus:ring-optio-purple" />
+                                  {s.name}
+                                </label>
+                              ))}
+                            </div>
+                            <div className="mt-2 flex flex-wrap items-center gap-3">
+                              <button type="button" onClick={() => setAudienceDraft(q, rosterIds)}
+                                className="text-xs font-medium text-optio-purple hover:underline">Everyone</button>
+                              <button type="button" onClick={() => setAudienceDraft(q, [])}
+                                className="text-xs font-medium text-gray-500 hover:underline">Nobody</button>
+                              <button type="button" onClick={() => saveAudience(q)}
+                                disabled={savingAudience || !audienceDirty || audienceDraft.length === 0}
+                                title={audienceDraft.length === 0 ? 'Pick at least one student, or unassign the quest instead' : undefined}
+                                className="btn-quiet px-3 py-1">
+                                {savingAudience ? 'Saving…' : 'Save'}
+                              </button>
+                              {audienceDirty && (
+                                <button type="button" onClick={() => dropDraft(setAudienceDrafts, q.quest_id)}
+                                  className="text-xs text-gray-500 hover:text-gray-700">Cancel</button>
+                              )}
+                            </div>
+                          </>
+                        )}
+                      </QuestField>
+                    </div>
+
                     {/* Pictures, handouts and videos for the quest as a whole,
                         which students see at the top of the quest. Each task
                         has its own below. "Is there a way to upload images into
                         quests for the kids to look over?" (Gryffin, 2026-09-14,
                         ac9bde84) -- there was, one task at a time. */}
                     {q.description && (
-                      <p className="mt-3 text-sm text-neutral-600 whitespace-pre-line">{q.description}</p>
+                      <p className="mt-5 text-sm text-gray-600 whitespace-pre-line">{q.description}</p>
                     )}
-                    {q.made_by ? (
-                      <div className="mt-3 flex items-center gap-3">
-                        <button type="button"
-                          onClick={() => setWorkFor({ student_id: q.made_by, name: q.made_by_name })}
-                          className="px-3 py-1.5 rounded-lg bg-optio-purple text-white text-sm font-medium">
-                          See {firstName(q.made_by_name)}’s work
-                        </button>
-                        <span className="text-xs text-neutral-500">
-                          {q.made_by_name} made this quest for your class. It is private to them and you.
-                        </span>
-                      </div>
-                    ) : (
-                    <div className="mt-3 flex items-center gap-3">
-                      <button type="button"
-                        onClick={() => setEditing({ questId: q.quest_id, link: q })}
-                        className="px-3 py-1.5 rounded-lg bg-optio-purple text-white text-sm font-medium">
-                        {q.can_edit ? 'Edit quest' : 'Open quest'}
-                      </button>
-                      <span className="text-xs text-neutral-500">
-                        {q.can_edit
+                    <p className="mt-3 text-xs text-gray-500">
+                      {q.made_by
+                        ? `${q.made_by_name} made this quest for your class. It is private to them and you.`
+                        : q.can_edit
                           ? 'Title, picture, tasks, files and links, and this class’s dates.'
-                          : 'Its tasks are read-only to you. Its dates and who it is for on this class are yours.'}
-                      </span>
-                    </div>
-                    )}
+                          : 'Its tasks are read-only to you. Its dates and who it is for on this class are yours. Make your own copy to change it.'}
+                    </p>
                   </div>
                 )}
               </li>

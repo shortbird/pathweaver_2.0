@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/react'
 
 vi.mock('react-hot-toast', () => ({
   toast: { success: vi.fn(), error: vi.fn() },
@@ -40,13 +40,21 @@ beforeEach(() => {
   vi.clearAllMocks()
 })
 
+// Since the 2026-10-02 row redesign Unassign and Delete live in the row's ⋯
+// menu, so each test opens it first. The actions and their confirms are as
+// they were.
+const openMenu = async (title) => {
+  fireEvent.click(await screen.findByRole('button', { name: `More for ${title}` }))
+}
+
 describe('ClassQuestsManager unassign vs delete', () => {
   it('unassign takes the quest off the class but keeps it in the library', async () => {
     mockQuests([OWN_QUEST])
     api.delete.mockResolvedValue({ data: { success: true } })
     render(withConfirm(<ClassQuestsManager classId="c1" />))
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Unassign' }))
+    await openMenu('Bridge Building')
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Unassign' }))
     // The confirm must say the quest survives, or the two actions read alike.
     expect(await confirmText()).toMatch(/stays in your school's library/)
     await answerConfirm()
@@ -59,7 +67,8 @@ describe('ClassQuestsManager unassign vs delete', () => {
     api.delete.mockResolvedValue({ data: { success: true } })
     render(withConfirm(<ClassQuestsManager classId="c1" />))
 
-    fireEvent.click(await screen.findByRole('button', { name: /Delete Bridge Building/i }))
+    await openMenu('Bridge Building')
+    fireEvent.click(screen.getByRole('menuitem', { name: /Delete Bridge Building/i }))
     expect(await confirmText()).toMatch(/can't be undone/i)
     await answerConfirm()
 
@@ -71,15 +80,17 @@ describe('ClassQuestsManager unassign vs delete', () => {
     mockQuests([LIBRARY_QUEST])
     render(<ClassQuestsManager classId="c1" />)
 
-    expect(await screen.findByRole('button', { name: 'Unassign' })).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: /Delete Optio Poetry/i })).not.toBeInTheDocument()
+    await openMenu('Optio Poetry')
+    expect(screen.getByRole('menuitem', { name: 'Unassign' })).toBeInTheDocument()
+    expect(screen.queryByRole('menuitem', { name: /Delete Optio Poetry/i })).not.toBeInTheDocument()
   })
 
   it('cancelling the confirm leaves the quest alone', async () => {
     mockQuests([OWN_QUEST])
     render(withConfirm(<ClassQuestsManager classId="c1" />))
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Unassign' }))
+    await openMenu('Bridge Building')
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Unassign' }))
     await answerConfirm(false)
 
     expect(api.delete).not.toHaveBeenCalled()
@@ -93,7 +104,8 @@ describe('ClassQuestsManager unassign vs delete', () => {
     })
     render(withConfirm(<ClassQuestsManager classId="c1" />))
 
-    fireEvent.click(await screen.findByRole('button', { name: /Delete Bridge Building/i }))
+    await openMenu('Bridge Building')
+    fireEvent.click(screen.getByRole('menuitem', { name: /Delete Bridge Building/i }))
     await answerConfirm()
 
     await waitFor(() =>
@@ -134,5 +146,104 @@ describe('ClassQuestsManager unassign vs delete', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Assign a quest' }))
     expect(await screen.findByRole('button', { name: 'Assign' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Delete' })).not.toBeInTheDocument()
+  })
+})
+
+/**
+ * The row layout, owner-approved 2026-10-02 ("actions up, settings in panel").
+ * The owner called the old row "poor UX": the header crammed both date chips
+ * and their editors, Unassign, a trash can, the audience chip and the XP box,
+ * while Open quest and Make my own copy hid behind the chevron.
+ */
+describe('ClassQuestsManager row layout', () => {
+  const STUDENTS = [
+    { student_id: 's1', name: 'Ada Lovelace' },
+    { student_id: 's2', name: 'Ben Okri' },
+    { student_id: 's3', name: 'Cy Twombly' },
+  ]
+  const mockWithStudents = (quests) => api.get.mockImplementation((url) => {
+    if (url.includes('curriculum-quests')) return Promise.resolve({ data: { curricula: [] } })
+    if (url.includes('/quests') && !url.includes('assignable')) {
+      return Promise.resolve({ data: { quests, students: STUDENTS } })
+    }
+    return Promise.resolve({ data: { quests: [] } })
+  })
+
+  it('shows Open quest and Make my own copy on the collapsed row', async () => {
+    mockWithStudents([{ ...LIBRARY_QUEST, can_edit: false }])
+    render(withConfirm(<ClassQuestsManager classId="c1" />))
+    expect(await screen.findByRole('button', { name: 'Open quest' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Make my own copy' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /^Optio Poetry/ })).toHaveAttribute('aria-expanded', 'false')
+    // The settings stay in the panel until the row is opened.
+    expect(screen.queryByRole('group', { name: 'Due date' })).toBeNull()
+  })
+
+  it('keeps Unassign and, only on a quest the teacher may change, Delete in the ⋯ menu', async () => {
+    mockWithStudents([OWN_QUEST, { ...LIBRARY_QUEST, can_edit: false }])
+    render(withConfirm(<ClassQuestsManager classId="c1" />))
+    // Neither is on the row itself.
+    await screen.findByText('Bridge Building')
+    expect(screen.queryByRole('button', { name: 'Unassign' })).toBeNull()
+    expect(screen.queryByRole('menuitem')).toBeNull()
+
+    fireEvent.click(screen.getByRole('button', { name: 'More for Bridge Building' }))
+    let menu = screen.getByRole('menu')
+    expect(within(menu).getByRole('menuitem', { name: 'Unassign' })).toBeInTheDocument()
+    expect(within(menu).getByRole('menuitem', { name: 'Delete Bridge Building' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Close menu' }))
+
+    fireEvent.click(screen.getByRole('button', { name: 'More for Optio Poetry' }))
+    menu = screen.getByRole('menu')
+    expect(within(menu).getByRole('menuitem', { name: 'Unassign' })).toBeInTheDocument()
+    expect(within(menu).queryByRole('menuitem', { name: /Delete/ })).toBeNull()
+  })
+
+  it('opens to the four labelled settings for this class', async () => {
+    mockWithStudents([{ ...OWN_QUEST, description: 'Build a bridge from straws.' }])
+    render(withConfirm(<ClassQuestsManager classId="c1" scheduledEnabled />))
+    const toggle = await screen.findByRole('button', { name: /^Bridge Building/ })
+    fireEvent.click(toggle)
+    expect(toggle).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.getByText('This class')).toBeInTheDocument()
+    const who = screen.getByRole('group', { name: 'Who gets Bridge Building' })
+    expect(within(who).getByText('Who gets it')).toBeInTheDocument()
+    expect(within(who).getByLabelText('Ada Lovelace')).toBeChecked()
+    expect(within(screen.getByRole('group', { name: 'Release date' }))
+      .getByLabelText('Release date for Bridge Building')).toBeInTheDocument()
+    expect(within(screen.getByRole('group', { name: 'Due date' }))
+      .getByText('Marks it overdue — doesn’t lock it.')).toBeInTheDocument()
+    expect(within(screen.getByRole('group', { name: 'XP to finish' }))
+      .getByLabelText('XP to finish Bridge Building')).toBeInTheDocument()
+    expect(screen.getByText('Build a bridge from straws.')).toBeInTheDocument()
+    expect(screen.getByText(/Title, picture, tasks, files and links/)).toBeInTheDocument()
+  })
+
+  it('leaves out the release date field for a school without the feature', async () => {
+    mockWithStudents([OWN_QUEST])
+    render(withConfirm(<ClassQuestsManager classId="c1" />))
+    fireEvent.click(await screen.findByRole('button', { name: /^Bridge Building/ }))
+    expect(screen.getByRole('group', { name: 'Due date' })).toBeInTheDocument()
+    expect(screen.queryByRole('group', { name: 'Release date' })).toBeNull()
+  })
+
+  it('sums the quest up in one meta line: tasks, audience, due pill, XP', async () => {
+    const due = new Date(2026, 9, 9, 23, 59, 59).toISOString()
+    mockWithStudents([{ ...OWN_QUEST, student_ids: ['s1', 's2'], due_date: due, xp_threshold: 150 }])
+    render(withConfirm(<ClassQuestsManager classId="c1" />))
+    expect(await screen.findByText('2 preset tasks')).toBeInTheDocument()
+    expect(screen.getByText(/2 of 3 students/)).toBeInTheDocument()
+    const pill = screen.getByText(`Due ${new Date(due).toLocaleDateString()}`)
+    expect(pill.className).toMatch(/bg-amber-100/)
+    expect(screen.getByText('150 XP to finish')).toBeInTheDocument()
+    // All of it inside the row's toggle, so it reads with the title.
+    expect(screen.getByRole('button', { name: /^Bridge Building/ })).toContainElement(pill)
+  })
+
+  it('names the library and the default audience', async () => {
+    mockWithStudents([LIBRARY_QUEST])
+    render(withConfirm(<ClassQuestsManager classId="c1" />))
+    expect(await screen.findByText('Optio library')).toBeInTheDocument()
+    expect(screen.getByText(/Everyone \(3\)/)).toBeInTheDocument()
   })
 })

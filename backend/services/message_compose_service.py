@@ -277,7 +277,7 @@ def audience(org_id: str, teacher_id: Optional[str] = None) -> Dict[str, Any]:
     classes_by_id = {c['id']: c for c in classes}
     presets = staff_presets(staff, list(classes_by_id.values()),
                             repo.class_meeting_days(org_id, class_ids),
-                            school_inbox_service.admin_recipient_ids(org_id))
+                            school_inbox_service.office_staff_ids(org_id))
     if teacher_id:
         presets = [p for p in presets if p['key'] in TEACHER_PRESETS]
     ordered = sorted(people.values(), key=lambda p: (p['name'] or '').lower())

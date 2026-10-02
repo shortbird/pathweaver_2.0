@@ -468,8 +468,10 @@ describe('ClassesPage', () => {
       // The chooser is open — pick nothing, keep the defaults, export.
       fireEvent.click(await screen.findByRole('button', { name: 'Export' }))
       const [header, row] = downloaded.replace('﻿', '').split(/\r?\n/)
-      expect(header).toBe('Class name,Teacher,Days,Time,Ages,Description,Supply fee,Tuition,Classroom,Enrolled,Capacity,Waitlist')
-      expect(row).toBe('Pottery,Jane Doe,,,8-12,Clay,$15,$120.00,,2,10,3')
+      // Assistants and Paid joined the default columns on 2026-10-02 (ticket
+      // 2704bbd4, Molly: "I need to know who is assisting in the class too").
+      expect(header).toBe('Class name,Teacher,Days,Time,Ages,Description,Supply fee,Tuition,Classroom,Enrolled,Capacity,Waitlist,Assistants,Paid')
+      expect(row).toBe('Pottery,Jane Doe,,,8-12,Clay,$15,$120.00,,2,10,3,,Yes')
     } finally {
       URL.createObjectURL = originalCreate
       global.Blob = OriginalBlob

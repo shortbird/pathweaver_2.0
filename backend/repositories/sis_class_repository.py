@@ -38,6 +38,10 @@ SIS_CLASS_FIELDS = (
     # Staff-only scratchpad. sis_catalog_service strips it from every
     # non-staff audience — keep it in STAFF_ONLY_FIELDS there or it leaks.
     'internal_notes',
+    # A class kept only so a teacher has a roster, not one the school pays for
+    # (iCreate, ticket 2704bbd4). The weekly teaching hours export skips it.
+    # Staff-only like internal_notes: families have no use for it.
+    'exclude_from_pay',
 )
 
 
@@ -112,6 +116,43 @@ class SisClassRepository(BaseRepository):
             .execute()
         )
         return resp.data[0] if resp.data else None
+
+    def withdraw_enrollments(self, *, actor_id: Optional[str] = None,
+                             enrollment_ids: Optional[List[str]] = None,
+                             class_ids: Optional[List[str]] = None,
+                             student_id: Optional[str] = None,
+                             active_only: bool = True) -> List[Dict[str, Any]]:
+        """End class seats: status -> 'withdrawn'. Returns the rows it changed.
+
+        The write behind services/class_enrollment_drops.withdraw_class_enrollments,
+        which is the one door every drop goes through (it also takes the
+        class's quests back). Call that, not this.
+
+        Every filter given narrows the write; with none, or an EMPTY list for
+        one, nothing is written -- an unfiltered update here would withdraw
+        the whole school. 'withdrawn', never 'dropped': the class_enrollments
+        CHECK allows active|completed|withdrawn. status_changed_by names who
+        did it in the class history (class_enrollment_events trigger).
+        """
+        if enrollment_ids is not None and not enrollment_ids:
+            return []
+        if class_ids is not None and not class_ids:
+            return []
+        if not (enrollment_ids or class_ids or student_id):
+            return []
+        payload: Dict[str, Any] = {'status': 'withdrawn'}
+        if actor_id:
+            payload['status_changed_by'] = actor_id
+        query = self.client.table('class_enrollments').update(payload)
+        if enrollment_ids:
+            query = query.in_('id', list(enrollment_ids))
+        if class_ids:
+            query = query.in_('class_id', list(class_ids))
+        if student_id:
+            query = query.eq('student_id', student_id)
+        if active_only:
+            query = query.eq('status', 'active')
+        return query.execute().data or []
 
     def active_enrollment_count(self, class_id: str) -> int:
         resp = (

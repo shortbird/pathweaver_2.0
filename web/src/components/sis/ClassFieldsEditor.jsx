@@ -543,11 +543,23 @@ export default function ClassFieldsEditor({
       </Band>
 
       <Band title="Internal notes">
-        <Field label="Staff only — families never see these" className="sm:col-span-2 lg:col-span-4">
+        <Field label="Staff only — families never see these" className="sm:col-span-2 lg:col-span-3">
           <textarea className={`${cell} resize-y min-h-[56px]`} value={d.internal_notes}
             aria-label="Internal notes"
             placeholder="Room setup, supplies, reminders for the office…"
             onChange={(e) => set({ internal_notes: e.target.value })} />
+        </Field>
+
+        {/* iCreate, 2704bbd4: some classes exist only so a teacher has a
+            roster. The weekly teaching hours export leaves these out. */}
+        <Field label="Teacher pay">
+          <label className="inline-flex items-center gap-2 cursor-pointer h-[38px]">
+            <input type="checkbox" checked={!!d.exclude_from_pay}
+              aria-label="Roster only — not paid"
+              onChange={(e) => set({ exclude_from_pay: e.target.checked })}
+              className="h-4 w-4 rounded border-gray-300 text-optio-purple focus:ring-optio-purple" />
+            <span className="text-xs text-neutral-500 leading-tight">Roster only — not paid</span>
+          </label>
         </Field>
       </Band>
     </div>

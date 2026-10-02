@@ -127,6 +127,21 @@ describe('a teacher on the office\'s quest (owner, 2026-09-23)', () => {
     expect(screen.getByText(/Only the person who made this quest, or your school office/)).toBeInTheDocument()
   })
 
+  // iCreate, 2026-10-01 (167ba6df, Marika): teachers wanted to edit it "and
+  // save it as their own". The class page passes onMakeCopy; the editor offers it.
+  it('offers "Make my own copy" when the caller passes one', async () => {
+    const onMakeCopy = vi.fn()
+    await open({ classLink: { due_date: null, publish_at: null, student_ids: null }, onMakeCopy })
+    fireEvent.click(await screen.findByRole('button', { name: 'Make my own copy' }))
+    expect(onMakeCopy).toHaveBeenCalledTimes(1)
+  })
+
+  it('offers no copy without one', async () => {
+    await open({ classLink: { due_date: null, publish_at: null, student_ids: null } })
+    await screen.findByText('Sketch')
+    expect(screen.queryByRole('button', { name: 'Make my own copy' })).toBeNull()
+  })
+
   it('still sets the class\'s own dates, through the class route', async () => {
     await open({ classLink: { due_date: null, publish_at: null, student_ids: null } })
     fireEvent.change(await screen.findByLabelText('Due date'), { target: { value: '2026-10-02' } })
@@ -175,6 +190,24 @@ describe('publishing a draft on a class', () => {
       { due_date: expect.stringMatching(/^2026-10-0[23]T/), student_ids: ['s1'] }))
     expect(api.put).toHaveBeenCalledWith('/api/sis/quest-editor/q-new',
       expect.objectContaining({ title: 'Rock cycle' }))
+  })
+
+  // Owner, 2026-10-02 (iCreate 167ba6df, 60ffe195): a teacher's "Make my own
+  // copy" is a draft for the class, and it remembers who the original was for
+  // there, so Publish to class reaches those students and nobody else.
+  it('a copy\'s draft starts the class section from the original\'s audience', async () => {
+    current = { ...QUEST, id: 'q-copy', title: 'Vocab (copy)', is_active: false, is_draft: true,
+      draft: { context: 'class', target_id: 'c1', class_settings: { student_ids: ['s2'] } } }
+    render(<QuestEditor context="class" classId="c1" questId="q-copy"
+      students={[{ student_id: 's1', name: 'Ava' }, { student_id: 's2', name: 'Ben' }]}
+      onClose={vi.fn()} onDone={vi.fn()} />)
+    expect(await screen.findByText(/This is a draft. Nobody else sees it until you publish it/)).toBeInTheDocument()
+    const who = screen.getByRole('group', { name: 'Who gets this quest' })
+    expect(within(who).getByLabelText('Ben')).toBeChecked()
+    expect(within(who).getByLabelText('Ava')).not.toBeChecked()
+    fireEvent.click(screen.getByRole('button', { name: 'Publish to class' }))
+    await waitFor(() => expect(api.post).toHaveBeenCalledWith(
+      '/api/sis/classes/c1/quests/q-copy/publish', { student_ids: ['s2'] }))
   })
 })
 

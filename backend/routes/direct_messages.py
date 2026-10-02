@@ -16,6 +16,7 @@ from utils.logger import get_logger
 logger = get_logger(__name__)
 
 from utils.auth.decorators import require_auth
+from utils.auth.read_state import masquerade_read_only
 from utils.auth.relationships import require_relationship_to
 from utils import class_membership
 from utils.db_fetch import fetch_all_rows
@@ -410,6 +411,10 @@ def mark_message_as_read(user_id: str, message_id: str):
     Only the recipient can mark their messages as read
     """
     try:
+        # A masquerade answers success and writes nothing: the read state is
+        # the target's, not the admin's (ticket 50082917).
+        if masquerade_read_only():
+            return success_response({'success': True, 'message_id': message_id})
         success = message_service.mark_as_read(message_id, user_id)
 
         return success_response({
@@ -440,6 +445,15 @@ def mark_conversation_read(user_id: str, conversation_id: str):
     DirectMessageService.mark_conversation_read.
     """
     try:
+        # Marika (iCreate) viewed as Nicole Connole, opened a message, and
+        # Nicole's unread badge went away (ticket 50082917). A masquerade
+        # answers success and writes nothing.
+        if masquerade_read_only():
+            return success_response({
+                'success': True,
+                'conversation_id': conversation_id,
+                'marked_read': 0,
+            })
         count = message_service.mark_conversation_read(conversation_id, user_id)
         return success_response({
             'success': True,
@@ -463,10 +477,10 @@ def mark_conversation_read(user_id: str, conversation_id: str):
 @bp.route('/conversations/<conversation_id>/resolve', methods=['POST'])
 @require_auth
 def resolve_conversation(user_id: str, conversation_id: str):
-    """Mark a thread handled for the caller, or take the mark back
-    ({"resolved": false}). Nothing is sent and the other side sees nothing;
-    this only moves the thread out of the caller's "Needs a reply" until the
-    other person writes again."""
+    """Close a thread for the caller, or reopen it ({"resolved": false}).
+    Nothing is sent and the other side sees nothing; this only moves the
+    thread from the caller's Open list to Closed (d57973f6) until the other
+    person writes again."""
     try:
         data = request.get_json(silent=True) or {}
         resolved = data.get('resolved', True)

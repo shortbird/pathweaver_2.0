@@ -77,6 +77,9 @@ export default function QuestEditor({
   // The caller knows; the warning that an edit reaches them is only worth
   // showing when it does.
   inUse = true,
+  // Read-only on a class: "Make my own copy" (iCreate, 2026-10-01, 167ba6df).
+  // The caller copies the quest onto the class and opens the copy.
+  onMakeCopy = null,
   onClose, onDone,
 }) {
   const confirm = useConfirm()
@@ -149,6 +152,12 @@ export default function QuestEditor({
         }
         const q = await questEditorApi.load(orgId, id)
         fill(q, { fresh: fresh || (q.is_draft && !q.title) })
+        // A teacher's copy of a class quest is a draft that remembers the
+        // original's audience (and any dates asked for) on this class (owner,
+        // 2026-10-02), so Publish to class reaches the same students.
+        if (context === 'class' && !classLink && q.draft?.class_settings) {
+          setClassSettings(classSettingsFrom(q.draft.class_settings))
+        }
         if (context === 'training' && tid) {
           const cat = await questEditorApi.loadTraining(orgId, tid)
           setTraining(trainingSettingsFrom(cat, audience))
@@ -434,6 +443,12 @@ export default function QuestEditor({
                 ? 'This quest comes from the Optio library and is shared with other schools. Duplicate it to make a copy you can change.'
                 : 'Only the person who made this quest, or your school office, can change it.'
                   + (context === 'class' ? ' You can set its dates and who it is for on your class below.' : '')}
+              {onMakeCopy && (
+                <button type="button" onClick={onMakeCopy}
+                  className="ml-2 px-2 py-0.5 rounded-md border border-amber-300 bg-white text-amber-900 font-semibold hover:bg-amber-100">
+                  Make my own copy
+                </button>
+              )}
             </p>
           )}
           {editable && !isDraft && inUse && (

@@ -422,17 +422,44 @@ def resolve_alert(org_id: str, alert_id: str,
                   class_ids: Optional[List[str]] = None) -> bool:
     """Mark an alert resolved. class_ids (advisor scope) restricts which classes'
     alerts the caller may resolve; None = unrestricted (admin). Returns False when
-    the alert isn't visible to the caller."""
+    the alert isn't visible to the caller.
+
+    One rule, one place: this is the bulk resolve with one id, so the single
+    Resolve button and "Resolve selected" can never disagree about scope.
+    """
+    return resolve_alerts(org_id, [alert_id], class_ids=class_ids)['resolved'] == 1
+
+
+#: Most alert ids one bulk resolve accepts. The card lists open alerts for one
+#: teacher's classes; a few dozen is a busy week. The cap keeps the one read
+#: below far under PostgREST's 1,000-row truncation.
+MAX_BULK_RESOLVE = 200
+
+
+def resolve_alerts(org_id: str, alert_ids: List[str],
+                   class_ids: Optional[List[str]] = None) -> Dict[str, int]:
+    """Resolve several alerts at once with the same rule as ``resolve_alert``.
+
+    Ticket 6e03f8c6 (iCreate, Marika): resolve several Needs attention rows at
+    a time. An id that is in another org, outside ``class_ids``, or unknown is
+    SKIPPED, never written -- the update names only the ids that passed. One
+    read and one update, whatever the count. Returns {'resolved', 'skipped'}.
+    """
+    ids = list(dict.fromkeys(i for i in alert_ids if isinstance(i, str) and i))
+    if not ids:
+        return {'resolved': 0, 'skipped': 0}
     admin = _admin()
     rows = (
         admin.table('sis_engagement_alerts').select('id, organization_id, class_id')
-        .eq('id', alert_id).limit(1).execute()
-    ).data
-    if not rows or rows[0].get('organization_id') != org_id:
-        return False
-    if class_ids is not None and rows[0].get('class_id') not in class_ids:
-        return False
-    admin.table('sis_engagement_alerts').update(
-        {'resolved_at': _now().isoformat()}
-    ).eq('id', alert_id).execute()
-    return True
+        .in_('id', ids).execute()
+    ).data or []
+    allowed = [
+        r['id'] for r in rows
+        if r.get('organization_id') == org_id
+        and (class_ids is None or r.get('class_id') in class_ids)
+    ]
+    if allowed:
+        admin.table('sis_engagement_alerts').update(
+            {'resolved_at': _now().isoformat()}
+        ).in_('id', allowed).execute()
+    return {'resolved': len(allowed), 'skipped': len(ids) - len(allowed)}

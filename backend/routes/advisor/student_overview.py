@@ -8,7 +8,7 @@ from datetime import date, timedelta
 from collections import defaultdict
 from datetime import datetime
 from database import get_supabase_admin_client
-from utils.auth.decorators import require_auth, validate_uuid_param
+from utils.auth.decorators import require_auth, require_role, validate_uuid_param
 from utils.auth.relationships import require_relationship_to
 from middleware.error_handler import AuthorizationError, NotFoundError
 from utils.pillar_utils import get_pillar_name
@@ -209,6 +209,8 @@ def get_student_overview(user_id, student_id):
 
         tasks_map = {}
         completions_map = {}
+        # Newest completion per quest, for the snapshot's "recent activity" sort.
+        last_done = {}
 
         if active_quest_ids:
             all_tasks_response = supabase.table('user_quest_tasks').select('id, quest_id').eq(
@@ -221,17 +223,25 @@ def get_student_overview(user_id, student_id):
                     tasks_map[qid] = []
                 tasks_map[qid].append(task['id'])
 
-            all_completions_response = supabase.table('quest_task_completions').select('task_id, quest_id, user_quest_task_id').eq(
+            all_completions_response = supabase.table('quest_task_completions').select('task_id, quest_id, user_quest_task_id, completed_at').eq(
                 'user_id', student_id
             ).in_('quest_id', active_quest_ids).execute()
 
             for comp in all_completions_response.data:
                 qid = comp['quest_id']
                 task_id = comp.get('user_quest_task_id') or comp.get('task_id')
+                done_at = comp.get('completed_at')
+                if done_at and done_at > (last_done.get(qid) or ''):
+                    last_done[qid] = done_at
                 if qid not in completions_map:
                     completions_map[qid] = []
                 if task_id:
                     completions_map[qid].append(task_id)
+
+        # Which class each quest came through; None = the student's own
+        # (iCreate, 2026-10-01, d8a2a8d4: group the snapshot by class).
+        from services.student_quest_sources import quest_source_classes
+        source_classes = quest_source_classes(supabase, student_id, active_quest_ids)
 
         active_quests = []
         for uq in active_quests_response.data:
@@ -245,6 +255,8 @@ def get_student_overview(user_id, student_id):
                 'title': quest['title'],
                 'image_url': quest.get('image_url') or quest.get('header_image_url'),
                 'started_at': uq['started_at'],
+                'source_class': source_classes.get(quest_id),
+                'last_activity_at': last_done.get(quest_id) or uq['started_at'],
                 'progress': {
                     'completed_tasks': completed_tasks,
                     'total_tasks': total_tasks,
@@ -638,3 +650,41 @@ def get_student_overview(user_id, student_id):
         import traceback
         traceback.print_exc()
         return jsonify({'error': 'Failed to get student overview'}), 500
+
+
+@bp.route('/student-overview/<student_id>/quests/<quest_id>', methods=['DELETE'])
+@require_role(*ADMIN_ROLES)
+@validate_uuid_param('student_id', 'quest_id')
+@require_relationship_to('student_id', allow=('org_staff',))
+def remove_student_quest(user_id, student_id, quest_id):
+    """The office takes a quest off a student's Learning Snapshot.
+
+    iCreate, 2026-10-01 (d8a2a8d4, Marika): "how does one get rid of quests
+    that shouldn't be there. AJ should not have any elementary classes/quests
+    on his since he is in high school".
+
+    The school office only (ADMIN_ROLES), and only for a student of their own
+    school (org_staff; a superadmin passes as platform staff). Teachers take
+    a quest back from a student on their class's Quests tab instead.
+
+    Nothing the student did is deleted: see
+    class_quest_enrollment.remove_quest_for_student for what happens to an
+    untouched, a worked and a finished enrollment.
+    """
+    from services.class_quest_enrollment import remove_quest_for_student
+    from utils.class_assignments import student_class_names
+    # admin client justified: the office withdraws another user's enrollment; gated above by ADMIN_ROLES + the org_staff relationship to this student
+    admin = get_supabase_admin_client()
+    out = remove_quest_for_student(admin, student_id, quest_id)
+    if out is None:
+        return jsonify({'success': False,
+                        'error': 'That quest is not in this student’s account.'}), 404
+    names = student_class_names(admin, out['still_on_classes'])
+    return jsonify({
+        'success': True,
+        'removed': out['removed'],
+        'set_down': out['set_down'],
+        'kept': out['kept'],
+        # Classes the quest is still on for this student. Empty when none.
+        'still_on_classes': [{'id': c, 'name': names.get(c)} for c in out['still_on_classes']],
+    }), 200
