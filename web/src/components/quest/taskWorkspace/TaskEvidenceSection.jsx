@@ -1,7 +1,7 @@
 // The student's own work on this task: the evidence blocks, the add/complete
 // controls, and -- once complete -- diploma credit, portfolio curation and any
 // feedback a teacher has left.
-import { CheckCircleIcon, ExclamationCircleIcon, PlusIcon, AcademicCapIcon, BookmarkIcon } from '@heroicons/react/24/outline';
+import { CheckCircleIcon, ExclamationCircleIcon, PlusIcon, AcademicCapIcon, BookmarkIcon, PencilSquareIcon } from '@heroicons/react/24/outline';
 import { BookmarkIcon as BookmarkSolidIcon } from '@heroicons/react/24/solid';
 import EvidenceDisplay from '../../evidence/EvidenceDisplay';
 import CreditFeedbackThread from '../../credit/CreditFeedbackThread';
@@ -26,7 +26,45 @@ export const TaskReviewChip = ({ review }) => {
   )
 }
 
-const TaskEvidenceSection = ({ canRequestCredit, creditStatus, error, evidenceBlocks, handleDeleteEvidence, handleDeleteItem, handleEditEvidence, handleMarkComplete, handleReorder, handleRequestCredit, handleTogglePortfolio, isClassQuest, isCompleting, isLoading, isRequestingCredit, isSaving, isTaskCompleted, isTogglingPortfolio, portfolioPick, setIsModalOpen, task }) => (
+// A moment attached to the quest, shown as a task ("moment-<uuid>"). Its
+// evidence belongs to the moment, so it is read here and changed in the moment
+// editor; the task controls (Add, Done, credit, portfolio) would write to a
+// task that does not exist. Pressing Add on one sent the virtual id to the
+// upload routes, which 500'd (Sentry tickets 9f3206de and three more,
+// 2026-10-02). Mobile does the same (QuestDetailView, "Edit moment").
+export const MomentEvidence = ({ evidenceBlocks, onEditMoment }) => (
+  <>
+    <div className="sticky top-0 z-10 bg-white border-b border-gray-200 px-3 sm:px-6 py-2 sm:py-3 shadow-sm">
+      <div className="flex items-center justify-between gap-2">
+        <h3 className="text-xs sm:text-sm font-semibold text-gray-700 uppercase tracking-wide whitespace-nowrap">
+          Moment Evidence
+        </h3>
+        {onEditMoment && (
+          <button
+            onClick={onEditMoment}
+            className="flex items-center justify-center gap-1.5 px-3 py-1.5 text-sm font-medium text-optio-purple hover:bg-optio-purple/10 border border-optio-purple/30 rounded-lg transition-colors min-h-[36px] touch-manipulation"
+          >
+            <PencilSquareIcon className="w-4 h-4" />
+            Edit moment
+          </button>
+        )}
+      </div>
+    </div>
+    <div className="p-6">
+      <EvidenceDisplay
+        blocks={evidenceBlocks}
+        emptyMessage={onEditMoment
+          ? "This moment has no evidence yet. Press 'Edit moment' to add some."
+          : 'This moment has no evidence yet.'}
+      />
+    </div>
+  </>
+);
+
+const TaskEvidenceSection = ({ canRequestCredit, creditStatus, error, evidenceBlocks, handleDeleteEvidence, handleDeleteItem, handleEditEvidence, handleMarkComplete, handleReorder, handleRequestCredit, handleTogglePortfolio, isClassQuest, isCompleting, isLoading, isRequestingCredit, isSaving, isTaskCompleted, isTogglingPortfolio, onEditMoment, portfolioPick, setIsModalOpen, task }) => (
+  task.is_moment ? (
+    <MomentEvidence evidenceBlocks={evidenceBlocks} onEditMoment={onEditMoment} />
+  ) : (
   <>
     <div className="sticky top-0 z-10 bg-white border-b border-gray-200 px-3 sm:px-6 py-2 sm:py-3 shadow-sm">
       <div className="flex items-center justify-between gap-2">
@@ -198,6 +236,7 @@ const TaskEvidenceSection = ({ canRequestCredit, creditStatus, error, evidenceBl
       )}
     </div>
   </>
+  )
 );
 
 export default TaskEvidenceSection;

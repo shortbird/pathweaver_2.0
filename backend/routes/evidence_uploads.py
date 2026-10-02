@@ -22,6 +22,7 @@ tests resolve routes BY THAT NAME. Creating a second blueprint here would have
 renamed every one of these endpoints silently.
 """
 
+from functools import wraps
 from typing import Any, cast
 
 from flask import request, jsonify
@@ -36,12 +37,38 @@ from utils.retry_handler import with_connection_retry
 logger = get_logger(__name__)
 
 
+MOMENT_TASK_REFUSAL = (
+    'This is a learning moment, not a task. Open the moment to change its evidence.'
+)
+
+
+def refuse_moment_task(f):
+    """Answer 400 for a virtual moment-task id before any query runs.
+
+    The quest page shows a moment attached to the quest as a task with id
+    "moment-<uuid>" (routes/quest/detail.py). There is no task row or evidence
+    document behind it, and handed to the uuid columns these routes query,
+    Postgres refused it with 22P02 and the route answered 500: a student
+    pressing Add on a moment hit it four times in one afternoon (Sentry,
+    tickets 9f3206de / 8350643f / 2fe50e77 / 890f62fc, 2026-10-02). The
+    moment's own evidence goes through /api/learning-events/<id>; the GET
+    route keeps its empty-document answer for the same id.
+    """
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if str(kwargs.get('task_id', '')).startswith('moment-'):
+            return jsonify({'success': False, 'error': MOMENT_TASK_REFUSAL}), 400
+        return f(*args, **kwargs)
+    return decorated
+
+
 def register_routes(bp):
     """Attach the upload routes to the evidence_documents blueprint."""
     @bp.route('/documents/<task_id>/upload', methods=['POST'])
     @rate_limit(limit=60, per=3600, per_user=True)  # 60 uploads/hour per user
     @require_auth
     @student_scope()
+    @refuse_moment_task
     def upload_task_file(user_id: str, task_id: str):
         """
         Upload a file for a task (before block is created).
@@ -110,6 +137,7 @@ def register_routes(bp):
     @rate_limit(limit=60, per=3600, per_user=True)  # 60 uploads/hour per user
     @require_auth
     @student_scope()
+    @refuse_moment_task
     def init_task_signed_upload(user_id: str, task_id: str):
         """
         Begin a signed upload for a task's evidence file. Returns a pre-signed URL
@@ -170,6 +198,7 @@ def register_routes(bp):
     @bp.route('/documents/<task_id>/upload-finalize', methods=['POST'])
     @require_auth
     @student_scope()
+    @refuse_moment_task
     def finalize_task_signed_upload(user_id: str, task_id: str):
         """
         Finalize a signed upload: verify the file landed in storage, run video

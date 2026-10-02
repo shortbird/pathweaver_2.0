@@ -45,6 +45,7 @@ UPLOAD_FOLDER = Config.EVIDENCE_UPLOAD_FOLDER
 # several tests resolve routes by name, and a second blueprint would have
 # renamed them all.
 from routes import evidence_uploads  # noqa: E402
+from routes.evidence_uploads import refuse_moment_task  # noqa: E402
 
 evidence_uploads.register_routes(bp)
 
@@ -133,6 +134,7 @@ def get_evidence_document(user_id: str, task_id: str):
 @bp.route('/documents/<task_id>', methods=['POST', 'PUT'])
 @require_auth
 @student_scope()
+@refuse_moment_task
 def save_evidence_document(user_id: str, task_id: str):
     """
     Create or update an evidence document with content blocks.
@@ -1222,6 +1224,7 @@ def delete_evidence_block(user_id: str, block_id: str):
 @bp.route('/documents/<task_id>/complete', methods=['POST'])
 @require_auth
 @student_scope()
+@refuse_moment_task
 def complete_task_with_evidence(user_id: str, task_id: str):
     """
     Mark a task as complete using the multi-format evidence document.

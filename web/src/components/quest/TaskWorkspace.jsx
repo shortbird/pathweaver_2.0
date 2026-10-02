@@ -11,6 +11,7 @@ import AddEvidenceModal from '../evidence/AddEvidenceModal';
 import TaskStepsModal from './TaskStepsModal';
 import StudentTaskEditModal from './StudentTaskEditModal';
 import CreditPrecheckModal from '../credit/CreditPrecheckModal';
+import LearningEventModal from '../learning-events/LearningEventModal';
 import { useAIAccess } from '../../contexts/AIAccessContext';
 import { useAuth } from '../../contexts/AuthContext';
 import useHidePillars from '../../hooks/useHidePillars';
@@ -29,6 +30,10 @@ import TaskEvidenceSection from './taskWorkspace/TaskEvidenceSection';
  * that the picture was held. */
 const isSafetyRefusal = (err) =>
   String(err?.response?.data?.error_code || '').startsWith('SAFETY_');
+
+/** A moment's evidence blocks, shaped like a task's for EvidenceDisplay. */
+const momentBlocks = (blocks) =>
+  (blocks || []).map((block) => ({ ...block, type: block.type || block.block_type || 'text' }));
 
 const TaskWorkspace = ({
   task,
@@ -87,6 +92,8 @@ const TaskWorkspace = ({
   // Portfolio curation: the viewer's completion row for this task (own work only).
   const [portfolioPick, setPortfolioPick] = useState(null); // { completionId, inPortfolio }
   const [isTogglingPortfolio, setIsTogglingPortfolio] = useState(false);
+  // The moment open in the moment editor, fetched whole (see handleEditMoment).
+  const [editMomentEvent, setEditMomentEvent] = useState(null);
 
   // Drag sensors for task reordering
   const sensors = useSensors(
@@ -101,7 +108,8 @@ const TaskWorkspace = ({
     setPortfolioPick(null);
     if (task?.id) {
       loadEvidence();
-      if (task.is_completed) {
+      // A moment has no task completion, so no credit or portfolio row.
+      if (task.is_completed && !task.is_moment) {
         loadCreditStatus();
         loadPortfolioPick();
       }
@@ -112,6 +120,17 @@ const TaskWorkspace = ({
 
   const loadEvidence = async () => {
     if (!task?.id) return;
+
+    // A moment attached to the quest arrives as a virtual task ("moment-<uuid>")
+    // with its evidence inline. There is no evidence document behind that id,
+    // so the GET always came back empty and the page said "No evidence yet"
+    // over a moment that had photos -- and pressing Add sent the id to the
+    // upload and save routes, which 500'd (Sentry, 2026-10-02). Mobile has
+    // always read the inline blocks (QuestDetailView).
+    if (task.is_moment) {
+      setEvidenceBlocks(momentBlocks(task.evidence_blocks));
+      return;
+    }
 
     setIsLoading(true);
     try {
@@ -156,6 +175,42 @@ const TaskWorkspace = ({
       setEvidenceBlocks([]);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  // The moment editor needs the whole moment (pillars, date, topics); the
+  // virtual task carries only part of it, and saving a partial copy would
+  // wipe the rest. Same fetch as mobile's handleEditMoment.
+  const handleEditMoment = async () => {
+    const eventId = String(task?.id || '').replace(/^moment-/, '');
+    if (!eventId) return;
+    try {
+      const response = await api.get(`/api/learning-events/${eventId}`);
+      if (response.data?.event) setEditMomentEvent(response.data.event);
+    } catch {
+      toast.error('This moment could not be opened for editing.');
+    }
+  };
+
+  // After a save, read the moment back so the page shows what was stored.
+  const handleMomentSaved = async () => {
+    const eventId = editMomentEvent?.id;
+    const taskId = task?.id;
+    if (!eventId || !taskId) return;
+    try {
+      const response = await api.get(`/api/learning-events/${eventId}`);
+      const saved = response.data?.event;
+      if (!saved) return;
+      const blocks = saved.evidence_blocks || [];
+      setEvidenceBlocks(momentBlocks(blocks));
+      onTaskUpdate?.({
+        id: taskId,
+        title: saved.title || task.title,
+        description: saved.description || '',
+        evidence_blocks: blocks,
+      });
+    } catch {
+      // The save itself succeeded; the page catches up on the next load.
     }
   };
 
@@ -750,6 +805,9 @@ const TaskWorkspace = ({
                 handleMarkComplete={handleMarkComplete}
                 handleRequestCredit={handleRequestCredit}
                 handleTogglePortfolio={handleTogglePortfolio}
+                // A parent sees the child's moment but does not edit it here,
+                // as on mobile.
+                onEditMoment={isDelegated ? undefined : handleEditMoment}
               />
             </div>
           ) : (
@@ -771,6 +829,15 @@ const TaskWorkspace = ({
         editingBlock={editingBlock}
         existingEvidence={evidenceBlocks}
       />
+
+      {editMomentEvent && (
+        <LearningEventModal
+          isOpen
+          editEvent={editMomentEvent}
+          onClose={() => setEditMomentEvent(null)}
+          onSuccess={handleMomentSaved}
+        />
+      )}
 
       <CreditPrecheckModal
         isOpen={isPrecheckOpen}
