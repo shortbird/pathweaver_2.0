@@ -1020,26 +1020,24 @@ export function QuestDetailView({ questId: id, studentId = null, autoOpenTaskWiz
     }
   };
 
+  // A student's "Leave Quest" ends the quest; it never deletes it. Until
+  // 2026-10-02 it called the enrollment DELETE, which removes the tasks and
+  // reverses the XP, under a dialog promising "Your completed tasks will be
+  // preserved". Only a parent's explicit "Remove quest" deletes.
   const handleLeaveQuest = async () => {
+    if (!studentId) {
+      await handleEndQuest();
+      return;
+    }
     try {
       // The enrollment-delete route takes ?student_id= for parent delegation
       // and reverses the child's XP for the quest.
       await api.delete(`/api/quests/${quest.id}/enrollment`, {
-        params: studentId ? { student_id: studentId } : undefined,
+        params: { student_id: studentId },
       });
       router.back();
     } catch {
-      if (studentId) {
-        showAlert('Could not remove', 'That quest could not be removed. Try again.');
-        return;
-      }
-      // Fallback: try the older endpoint
-      try {
-        await api.post(`/api/quests/${quest.id}/end`, {});
-        router.back();
-      } catch {
-        // Error
-      }
+      showAlert('Could not remove', 'That quest could not be removed. Try again.');
     }
   };
 
@@ -1172,6 +1170,15 @@ export function QuestDetailView({ questId: id, studentId = null, autoOpenTaskWiz
                       ? `${childName || 'They'} earned ${earnedXP} XP across ${tasks.length} tasks.`
                       : `You earned ${earnedXP} XP across ${tasks.length} tasks. Great work!`}
                   </UIText>
+                  {/* Every task done does not end the quest; this does. Before
+                      2026-10-02 this card had no button, so a finished quest
+                      stayed active forever unless the student deleted it
+                      (London Grover: four of them). */}
+                  {!quest.completed_enrollment && (
+                    <Button testID="finish-quest-btn" className="mt-2" onPress={handleEndQuest}>
+                      <ButtonText>{quest.quest_type === 'class' ? 'Finish class' : 'Finish quest'}</ButtonText>
+                    </Button>
+                  )}
                 </VStack>
               </Card>
             )}
@@ -1292,7 +1299,7 @@ export function QuestDetailView({ questId: id, studentId = null, autoOpenTaskWiz
                 />
 
                 {/* A parent in family scope: end the child's run, work kept.
-                    The student's own exit below deletes the enrollment. */}
+                    The parent's "Remove quest" below is the one that deletes. */}
                 {studentId && !allComplete && (
                   <>
                     <Divider className="mt-4" />
@@ -1327,9 +1334,9 @@ export function QuestDetailView({ questId: id, studentId = null, autoOpenTaskWiz
                       title: studentId ? 'Remove quest?' : (isClass ? 'End Class?' : 'Leave Quest?'),
                       message: studentId
                         ? `This takes the quest off ${childName || 'their'} account. Their progress and XP for it are removed, and this cannot be undone.`
-                        : 'Your completed tasks will be preserved. You can re-enroll later.',
+                        : 'Your finished work and XP are kept, and you can reopen it later.',
                       confirmText: studentId ? 'Remove' : (isClass ? 'End Class' : 'Leave'),
-                      destructive: true,
+                      destructive: !!studentId,
                     });
                     if (ok) handleLeaveQuest();
                   }}

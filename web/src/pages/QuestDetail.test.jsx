@@ -476,6 +476,29 @@ describe('QuestDetail', () => {
       expect(questDetailData.reopenQuestMutation.mutate).toHaveBeenCalledWith('quest-123', expect.any(Object))
     })
 
+    // London Grover, 2026-10-02: every task done, enrollment still active, and
+    // no button to end it once the celebration had been closed. The page must
+    // key on the enrollment having ended, not on progress -- so this sets the
+    // progress-derived flag the old hook produced and expects the button anyway.
+    it('offers Finish quest when every task is done but the quest is still active', async () => {
+      const quest = enrolledQuest()
+      quest.quest_tasks = quest.quest_tasks.map(t => ({ ...t, is_completed: true }))
+      quest.progress = { percentage: 100, completed_tasks: 3, total_tasks: 3 }
+      questDetailData.quest = quest
+      questDetailData.isQuestCompleted = true
+      questDetailData.totalTasks = 3
+      questDetailData.completedTasks = 3
+
+      renderQuestDetail()
+      fireEvent.click(screen.getByText('Finish quest'))
+      await waitFor(() => expect(screen.getByText('Confirm')).toBeInTheDocument())
+      fireEvent.click(screen.getByText('Confirm'))
+
+      await waitFor(() => {
+        expect(questDetailData.endQuestMutation.mutate).toHaveBeenCalledWith('quest-123', expect.any(Object))
+      })
+    })
+
     it('does not offer reopen while the quest is still active', () => {
       questDetailData.quest = enrolledQuest()
       questDetailData.totalTasks = 3

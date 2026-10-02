@@ -716,8 +716,10 @@ const QuestDetail = () => {
           )
         )}
 
-        {/* End quest/class - bottom action */}
-        {quest.user_enrollment && !isQuestCompleted && !quest?.lms_platform &&
+        {/* End quest/class - bottom action. Keyed on the enrollment having
+            ended, never on progress: with every task done this is the only
+            way to finish once the celebration has been closed. */}
+        {quest.user_enrollment && !quest.completed_enrollment && !quest?.lms_platform &&
           !sessionStorage.getItem('courseTaskReturnInfo') && (
           <div className="mt-6 flex justify-center">
             <button
@@ -729,7 +731,9 @@ const QuestDetail = () => {
               <span>
                 {endQuestMutation?.isPending
                   ? 'Ending...'
-                  : quest.quest_type === 'class' ? 'End class' : 'End quest'}
+                  : quest.quest_type === 'class'
+                    ? 'End class'
+                    : (totalTasks > 0 && completedTasks >= totalTasks ? 'Finish quest' : 'End quest')}
               </span>
             </button>
           </div>

@@ -256,10 +256,19 @@ def get_quest_detail(user_id: str, quest_id: str):
                 .eq('quest_id', quest_id)\
                 .execute()
 
-            completed_task_ids = {t['user_quest_task_id'] for t in task_completions.data} if task_completions.data else set()
+            # Only completions of THIS enrollment's tasks count. The read above
+            # is per quest, so after a re-enrollment it also returns the earlier
+            # run's completions, and progress counted those against this run's
+            # tasks -- over 100%, or 100% with tasks still open (2026-10-02).
+            current_task_ids = {t['id'] for t in (user_tasks.data or [])}
+            current_completions = [
+                t for t in (task_completions.data or [])
+                if t.get('user_quest_task_id') in current_task_ids
+            ]
+            completed_task_ids = {t['user_quest_task_id'] for t in current_completions}
 
             # Create a mapping of task_id to completion data for easy lookup
-            completion_data_map = {t['user_quest_task_id']: t for t in task_completions.data} if task_completions.data else {}
+            completion_data_map = {t['user_quest_task_id']: t for t in current_completions}
 
             # Mark tasks as completed and map field names for frontend compatibility
             quest_tasks = user_tasks.data or []

@@ -170,7 +170,12 @@ export const useQuestDetailData = (questId) => {
   // Progress calculations
   const totalTasks = quest?.quest_tasks?.length || 0;
   const progressPercentage = quest?.progress?.percentage || (totalTasks > 0 ? (completedTasks / totalTasks) * 100 : 0);
-  const isQuestCompleted = quest?.completed_enrollment || (quest?.progress && quest.progress.percentage === 100);
+  // Ended, not "every task done". Those are different states: a quest at 100%
+  // is still active until the student ends it, and treating 100% as ended hid
+  // the End button with nothing in its place once the one-time celebration
+  // was closed. London Grover, 2026-10-02: four finished quests stuck on the
+  // dashboard; 134 such enrollments across 59 students at the time.
+  const isQuestCompleted = !!quest?.completed_enrollment;
 
   return {
     // Quest data
