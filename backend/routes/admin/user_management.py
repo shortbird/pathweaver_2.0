@@ -1383,3 +1383,8 @@ def get_user_connections(admin_user_id: str, user_id: str):
 from routes.admin.user_login_info import register as _register_login_info  # noqa: E402
 
 _register_login_info(bp)
+
+# ── Create an account by email ───────────────────────────────────────────────
+from routes.admin.user_account_invite import register as _register_account_invite  # noqa: E402
+
+_register_account_invite(bp)

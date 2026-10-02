@@ -9,7 +9,7 @@
  * /offer/<slug> (a partner's class link) shipped missing from it.
  */
 export function isPublicPath(currentPath: string): boolean {
-  const authPaths = ['/login', '/register', '/email-verification', '/forgot-password', '/reset-password', '/staff/welcome', '/student/welcome', '/', '/terms', '/privacy', '/academy-agreement', '/academy-handbook', '/services', '/catalog', '/how-it-works', '/poe', '/auth/callback']
+  const authPaths = ['/login', '/register', '/email-verification', '/forgot-password', '/reset-password', '/staff/welcome', '/student/welcome', '/auth/welcome', '/', '/terms', '/privacy', '/academy-agreement', '/academy-handbook', '/services', '/catalog', '/how-it-works', '/poe', '/auth/callback']
   const isPublicDiploma = currentPath.startsWith('/public/diploma/') || currentPath.startsWith('/portfolio/')
   const isConsultationPage = currentPath === '/consultation'
   const isDemoPage = currentPath === '/demo'

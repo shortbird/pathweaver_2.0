@@ -9,6 +9,7 @@ import { PageLoader } from '../ui/Spinner'
 // Lazy load large modals to reduce initial bundle size
 const UserDetailsModal = lazy(() => import('./UserDetailsModal'))
 const BulkEmailModal = lazy(() => import('./BulkEmailModal'))
+const CreateAccountModal = lazy(() => import('./CreateAccountModal'))
 // import { useAdminSubscriptionTiers } from '../../hooks/useSubscriptionTiers' // REMOVED - Phase 3 refactoring (January 2025)
 
 const AdminUsers = () => {
@@ -46,6 +47,7 @@ const AdminUsers = () => {
   const [selectedUsers, setSelectedUsers] = useState(new Set())
   const [showUserModal, setShowUserModal] = useState(false)
   const [showBulkEmailModal, setShowBulkEmailModal] = useState(false)
+  const [showCreateModal, setShowCreateModal] = useState(false)
   const [editingUser, setEditingUser] = useState(null)
   const [currentPage, setCurrentPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
@@ -271,6 +273,12 @@ const AdminUsers = () => {
               Cards
             </button>
           </div>
+          <button
+            onClick={() => setShowCreateModal(true)}
+            className="btn-primary"
+          >
+            Create Account
+          </button>
           <button
             onClick={() => setShowBulkEmailModal(true)}
             disabled={selectedUsers.size === 0}
@@ -630,6 +638,20 @@ const AdminUsers = () => {
             onSave={() => {
               setShowUserModal(false)
               setEditingUser(null)
+              fetchUsers()
+            }}
+          />
+        </Suspense>
+      )}
+
+      {/* Create Account Modal */}
+      {showCreateModal && (
+        <Suspense fallback={<div />}>
+          <CreateAccountModal
+            organizations={organizations}
+            onClose={() => setShowCreateModal(false)}
+            onCreated={() => {
+              setShowCreateModal(false)
               fetchUsers()
             }}
           />

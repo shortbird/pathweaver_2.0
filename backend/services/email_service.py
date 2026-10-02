@@ -1552,6 +1552,33 @@ class EmailService(BaseService):
             }
         )
 
+    def send_account_invite_email(
+        self,
+        user_email: str,
+        user_name: str,
+        invite_link: str,
+        org_name: str = '',
+        expiry_days: int = 14
+    ) -> bool:
+        """A superadmin created this account from /admin/users.
+
+        The link lands on /auth/welcome, where the person continues with
+        Google, Apple, or a password. No password is in this email.
+        """
+        return self.send_templated_email(
+            to_email=user_email,
+            subject="Your Optio account is ready",
+            template_name='account_invite',
+            context={
+                'user_name': user_name,
+                'first_name': user_name,
+                'user_email': user_email,
+                'invite_link': invite_link,
+                'org_name': org_name,
+                'expiry_days': expiry_days,
+            }
+        )
+
     def send_login_info_email(
         self,
         user_email: str,

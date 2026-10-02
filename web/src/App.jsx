@@ -48,6 +48,7 @@ import UpdateAvailableBanner from './components/UpdateAvailableBanner'
 const ForgotPasswordPage = lazy(() => import('./pages/ForgotPasswordPage'))
 const ResetPasswordPage = lazy(() => import('./pages/ResetPasswordPage'))
 const StaffWelcomePage = lazy(() => import('./pages/StaffWelcomePage'))
+const AccountWelcomePage = lazy(() => import('./pages/AccountWelcomePage'))
 const CourseWelcomePage = lazy(() => import('./pages/CourseWelcomePage'))
 const OfferPage = lazy(() => import('./pages/OfferPage'))
 const SisLaunchPage = lazy(() => import('./pages/SisLaunchPage'))
@@ -582,6 +583,7 @@ function App() {
                 <Route path="forgot-password" element={<ForgotPasswordPage />} />
                 <Route path="reset-password" element={<ResetPasswordPage />} />
                 <Route path="staff/welcome" element={<StaffWelcomePage />} />
+                <Route path="auth/welcome" element={<AccountWelcomePage />} />
                 <Route path="student/welcome" element={<CourseWelcomePage />} />
                 {/* A credit-class partner's buyer link (routes/partner_offerings.py). */}
                 <Route path="offer/:slug" element={<OfferPage />} />

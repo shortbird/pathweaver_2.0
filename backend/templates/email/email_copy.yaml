@@ -472,6 +472,22 @@ emails:
   # set-your-password link that also confirms an unconfirmed address. The
   # app-store and School Admin bullets are switched on per role by
   # services/login_info_service.py.
+  # A superadmin created the account from /admin/users. The link opens
+  # /auth/welcome, which offers Google, Apple, or a password.
+  account_invite:
+    subject: "Your Optio account is ready"
+    title: "Welcome to Optio"
+    salutation: "Hi {{ user_name }},"
+    paragraphs:
+      - "An Optio account has been created for you{% if org_name %} with {{ org_name }}{% endif %}. Your sign-in email is <strong>{{ user_email }}</strong>."
+      - "Click the button below to finish setting it up. You can sign in with Google, with Apple, or by choosing a password."
+    cta:
+      text: "Finish Setting Up"
+      url: "{{ invite_link }}"
+    link_fallback: "If the button doesn't work, copy and paste this link into your browser:"
+    closing_paragraph: "This link expires in {{ expiry_days }} days. After that, use \"Forgot password\" on the login page with this email address. If you have any trouble, write to support@optioeducation.com."
+    signature: "support"
+
   login_info:
     subject: "Your Optio login information"
     title: "How to sign in to Optio"
