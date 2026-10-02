@@ -8,5 +8,10 @@
     "package": "image-size",
     "reason": "Same package, same release, same reasoning as GHSA-w3rx-r6r6-pgpr — JXL/HEIF parsers instead of ICNS. Both clear together when image-size publishes a fix.",
     "recheck_after": "2026-10-08"
+  },
+  "GHSA-86w9-cpqp-85rv": {
+    "package": "node-forge",
+    "reason": "No fixed release exists: the advisory covers <=1.4.0 and 1.4.0 is the newest version published (checked 2026-10-02, the day it blocked release 2bc8511a). Reaches us only through Expo build tooling -- @expo/cli and expo-updates' CLI (generateCodeSigningAsync/configureCodeSigningAsync via @expo/code-signing-certificates). Nothing in src/ or app/ imports it, so it is not in the app bundle and verifies no signature a user can supply. Remove this entry when node-forge ships a fixed release.",
+    "recheck_after": "2026-10-09"
   }
 }
