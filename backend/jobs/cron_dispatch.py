@@ -277,7 +277,7 @@ def main():
     if now.hour == 10 and now.minute < 10:
         _run("data-retention-sweep", f"{base}/api/users/internal/retention-sweep", cron_secret, failures, base=base)
 
-    # Once/day: program-specific daily jobs (e.g. OEA compliance sweep), declared
+    # Once/day: program-specific daily jobs (none registered today), declared
     # in the program registry so core cron carries no program-specific endpoints.
     # Each no-ops cheaply off-window; alerts/dedupe are enforced server-side.
     for job in daily_cron_jobs():

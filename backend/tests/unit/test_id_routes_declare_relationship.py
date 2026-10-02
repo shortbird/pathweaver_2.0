@@ -326,20 +326,6 @@ _reviewed(
 )
 
 # --- everything else ---------------------------------------------------------
-# MIGRATED 2026-09-03: the six routes/oea.py routes that name a student.
-# NOT one allow set -- the module has TWO gates and they mean different things:
-#   _verify_manages_student  -> ('self', 'parent') on the reads that pass
-#                               allow_self=True so an OEA student can see their
-#                               own diploma, and ('parent',) on the write, which
-#                               never passes it. That split is the module's own
-#                               and is preserved exactly.
-#   _verify_admin_for_student -> ('org_staff',) on set_credit_caps, and only
-#                               there. Its docstring is explicit that PARENTS
-#                               MUST NOT raise their own student's credit
-#                               limits, so declaring 'parent' on that route
-#                               would invert the rule it exists for.
-# Not collapsed: both helpers additionally resolve the student's ORG, which no
-# relationship answers.
 # WILL NOT MIGRATE, and this is the clearest example of why the vocabulary has
 # limits. `can_message_user` is DIRECTIONAL and role-shaped in ways a
 # relationship is not: it grants "anyone may message a superadmin", "anyone may

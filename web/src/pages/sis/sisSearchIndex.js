@@ -106,7 +106,6 @@ export const SUB_ENTRIES = [
   { under: '/settings', path: '/tasks', ...settingsCard('incident-reports', 'Incident reports', ['incident', 'injury report', 'accident', 'who gets incident reports']) },
   { under: '/settings', path: '/classes', ...settingsCard('parent-digest', 'Parent emails', ['weekly digest', 'parent digest', 'email parents', 'due dates']) },
   { under: '/settings', ...settingsCard('kiosk', 'Kiosk devices', ['kiosk', 'classroom device', 'ipad', 'tablet login']) },
-  { under: '/settings', ...settingsCard('help-video', 'Getting-started video', ['help video', 'welcome video', 'tutorial']) },
   { under: '/settings', ...settingsCard('step-printing', 'Printing', ['print', 'step printing', 'worksheets']) },
   { under: '/settings', ...settingsCard('friends', 'Friends', ['friends', 'collaborate', 'friend codes', 'share a quest']) },
 ]

@@ -64,7 +64,9 @@ def test_only_utils_timestamps_defines_now():
 #: column is read back correctly today, so this is latent, not broken. What must
 #: not happen is the number going UP, because 3.12 deprecated the call and every
 #: new one is another place that will need changing when it is removed.
-UTCNOW_BASELINE = 415
+#: 2026-10-02: 415 -> 410, measured on HEAD plus the Hearthwood/OEA removal
+#: (repositories/oea_repository.py held one; four had already gone on HEAD).
+UTCNOW_BASELINE = 410
 
 
 def _utcnow_calls():

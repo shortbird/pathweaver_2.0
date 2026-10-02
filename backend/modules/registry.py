@@ -101,8 +101,10 @@ def _defs() -> Tuple[ModuleDef, ...]:
         ModuleDef('messaging', 'Messaging & Announcements', 'community',
                   ('Announcements', 'Messaging'),
                   default='core', surfaces=('learning', 'mobile')),
-        # legacy oea_enabled: the diploma-program flag on the hearthwood orgs,
-        # single reader oea_compliance_sweep_service (P0 trace, 2026-08-22).
+        # legacy oea_enabled: the diploma-program flag the hearthwood orgs
+        # carried (P0 trace, 2026-08-22). Its one reader, the OEA compliance
+        # sweep, was removed with the program on 2026-10-02 and no org carries
+        # the flag now; it stays only as this module's legacy gate.
         ModuleDef('credits', 'Credits', 'credentials',
                   ('Credit Tracking', 'Transfer Credits', 'Credit Review'),
                   default='off', surfaces=('learning', 'family'),

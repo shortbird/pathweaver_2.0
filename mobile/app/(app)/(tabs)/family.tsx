@@ -50,39 +50,10 @@ import { FamilyCover } from '@/src/components/family/FamilyCover';
 import { FamilyQuestsSection } from '@/src/components/family/FamilyQuestsSection';
 import { FamilySettingsSheet } from '@/src/components/family/FamilySettingsSheet';
 
-// ── Hearthwood Academy entry (only for OEA-program parents) ──
-// Persistent way into the Hearthwood Academy diploma flow (choose pathways / track
-// credits). The post-signup redirect only fires once and is skipped when email
-// verification is on, so this is the reliable entry point for OEA parents.
-
-function OpenEdAcademyEntry() {
-  const c = useThemeColors();
-  return (
-    <Pressable
-      onPress={() => router.push('/(app)/oea/welcome' as any)}
-      accessibilityLabel="Hearthwood Academy"
-    >
-      <Card variant="outline" size="md">
-        <HStack className="items-center gap-3">
-          <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: c.surfaceMuted, alignItems: 'center', justifyContent: 'center' }}>
-            <Ionicons name="school-outline" size={18} color={c.brand} />
-          </View>
-          <VStack className="flex-1 min-w-0">
-            <UIText size="sm" className="font-poppins-semibold" numberOfLines={1}>Hearthwood Academy</UIText>
-            <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400" numberOfLines={1}>Choose diploma pathways and track credits</UIText>
-          </VStack>
-          <Ionicons name="chevron-forward" size={18} color={c.iconMuted} />
-        </HStack>
-      </Card>
-    </Pressable>
-  );
-}
-
 // ── Main Page ──
 
 export default function ParentDashboardPage() {
   const user = useAuthStore((s) => s.user);
-  const isOEAParent = user?.program_key === 'opened-academy';
   const { isLargeScreen, isWide } = useBreakpoint();
   const scrollRef = useRef<ScrollView>(null);
   // Tap the active Family tab to scroll back to the top.
@@ -189,11 +160,6 @@ export default function ParentDashboardPage() {
               Refresh
             </UIText>
           </Pressable>
-          {isOEAParent && (
-            <View className="mt-6 w-full max-w-sm">
-              <OpenEdAcademyEntry />
-            </View>
-          )}
         </View>
       </SafeAreaView>
     );
@@ -233,9 +199,6 @@ export default function ParentDashboardPage() {
               <Ionicons name="settings-outline" size={18} color={tc.icon} />
             </Pressable>
           </HStack>
-
-          {/* Hearthwood Academy entry (OEA-program parents only) */}
-          {isOEAParent && <OpenEdAcademyEntry />}
 
           {/* FERPA visibility approvals banner */}
           {ferpaCount > 0 && (

@@ -568,54 +568,6 @@ export const authAPI = {
     api.post(`/api/auth/login/org/${slug}`, { username, password }),
 };
 
-// OEA Diploma Plan (legacy internal name — the diploma program now run by Hearthwood Academy).
-export const oeaAPI = {
-  // The three fixed diploma pathway definitions for the selection UX.
-  pathways: () => api.get('/api/oea/pathways'),
-  // All enrollments managed by the acting parent.
-  enrollments: () => api.get('/api/oea/enrollments'),
-  // One student's current enrollment (or null).
-  studentEnrollment: (studentId: string) =>
-    api.get(`/api/oea/enrollments/${studentId}`),
-  // Select or change a student's diploma pathway.
-  selectPathway: (studentId: string, pathwayKey: string) =>
-    api.post('/api/oea/enrollments', { student_id: studentId, pathway_key: pathwayKey }),
-  // Credits + computed pathway progress + GPA for a student.
-  credits: (studentId: string) =>
-    api.get(`/api/oea/students/${studentId}/credits`),
-  // Add a course credit to a pathway requirement slot.
-  addCredit: (studentId: string, body: Record<string, unknown>) =>
-    api.post(`/api/oea/students/${studentId}/credits`, body),
-  // Update a credit (rename / mark complete / grade / honors weighting).
-  updateCredit: (creditId: string, body: Record<string, unknown>) =>
-    api.patch(`/api/oea/credits/${creditId}`, body),
-  deleteCredit: (creditId: string) =>
-    api.delete(`/api/oea/credits/${creditId}`),
-  // Evidence attached to a credit (text / link / file blocks).
-  creditEvidence: (creditId: string) =>
-    api.get(`/api/oea/credits/${creditId}/evidence`),
-  addCreditEvidence: (creditId: string, body: Record<string, unknown>) =>
-    api.post(`/api/oea/credits/${creditId}/evidence`, body),
-  deleteCreditEvidence: (evidenceId: string) =>
-    api.delete(`/api/oea/evidence/${evidenceId}`),
-  // Upload a file and get back its stored URL (shared evidence upload endpoint).
-  uploadEvidenceFile: (formData: FormData) =>
-    api.post('/api/uploads/evidence', formData),
-  // Ensure a credit has a linked student quest (creates one if missing); returns quest_id.
-  ensureCreditQuest: (creditId: string) =>
-    api.post(`/api/oea/credits/${creditId}/quest`, {}),
-  // Course quests left on the dashboard by a credit deleted before the delete
-  // cleaned up after itself. Empty for anyone who never hit that.
-  unlinkedCourseQuests: (studentId: string) =>
-    api.get(`/api/oea/students/${studentId}/course-quests/unlinked`),
-  // Remove one of those leftovers.
-  removeCourseQuest: (studentId: string, questId: string) =>
-    api.delete(`/api/oea/students/${studentId}/course-quests/${questId}`),
-  // Record that the parent opened the getting-started video. External link, so
-  // this is a click and not playback — fire and forget.
-  markHelpVideoOpened: () => api.post('/api/oea/help-video/opened', {}),
-};
-
 export const questAPI = {
   list: () => api.get('/api/quests'),
   get: (id: string) => api.get(`/api/quests/${id}`),

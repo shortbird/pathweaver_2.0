@@ -19,7 +19,6 @@ vi.mock('../contexts/AuthContext', () => ({
 vi.mock('../contexts/FamilyScopeContext', () => ({ useFamilyScope: () => scope }))
 vi.mock('../hooks/useStudentScope', () => ({ useStudentScope: () => studentScope }))
 vi.mock('../services/api', () => ({ default: { get: vi.fn(), put: vi.fn() } }))
-vi.mock('../programs/registry', () => ({ fetchProgramDiploma: vi.fn().mockResolvedValue(null) }))
 vi.mock('react-helmet-async', () => ({ Helmet: () => null }))
 vi.mock('../components/overview/StudentOverviewSections', () => ({ default: ({ afterJournal }) => <div>{afterJournal}</div> }))
 vi.mock('../components/overview/WeeklyXpGoalCard', () => ({ default: () => null }))

@@ -23,7 +23,7 @@ import RosterImportPage, { parseRoster } from './RosterImportPage'
 
 const ORGS = [
   { id: 'org-other', name: 'Arete Academy', slug: 'arete' },
-  { id: 'org-hearthwood', name: 'Hearthwood Academy', slug: 'hearthwood' },
+  { id: 'org-school', name: 'Willow Creek Academy', slug: 'willow-creek' },
 ]
 
 // Pasted straight out of the school's sheet: tab-separated, with a User ID
@@ -50,7 +50,7 @@ const student = (row, first, email, extra = {}) => ({
 const PREVIEW = {
   success: true,
   can_import: true,
-  organization: { id: 'org-hearthwood', name: 'Hearthwood Academy' },
+  organization: { id: 'org-school', name: 'Willow Creek Academy' },
   students: [student(2, 'Noah', '27nhennessy@dsdmail.net'),
              student(3, 'Ava', '29ahennessy@dsdmail.net')],
   parents: [{
@@ -68,7 +68,7 @@ const PREVIEW = {
 
 const COMMIT = {
   success: true,
-  organization: { id: 'org-hearthwood', name: 'Hearthwood Academy' },
+  organization: { id: 'org-school', name: 'Willow Creek Academy' },
   counts: { created: 3, existing: 0, failed: 0, invited: 3, linked: 2 },
   results: [
     { row: 2, kind: 'parent', email: 'mhennessy@opened.co', name: 'Megan Hennessy', status: 'created', invited: true },
@@ -107,9 +107,11 @@ const pasteRoster = (text = PASTED) =>
     clipboardData: { getData: () => text },
   })
 
-const renderPage = async () => {
+const renderPage = async ({ pick = true } = {}) => {
   render(<RosterImportPage />)
-  await screen.findByRole('option', { name: 'Hearthwood Academy' })
+  await screen.findByRole('option', { name: 'Willow Creek Academy' })
+  // No organization is preselected; choose the school the way a superadmin does.
+  if (pick) fireEvent.change(screen.getByLabelText('Organization'), { target: { value: 'org-school' } })
 }
 
 const previewIt = async () => {
@@ -160,9 +162,10 @@ describe('parseRoster', () => {
 })
 
 describe('RosterImportPage', () => {
-  it('defaults to Hearthwood, the school that sends rosters', async () => {
-    await renderPage()
-    expect(screen.getByLabelText('Organization')).toHaveValue('org-hearthwood')
+  it('starts with no organization chosen, so an import never lands in a school by default', async () => {
+    await renderPage({ pick: false })
+    expect(screen.getByLabelText('Organization')).toHaveValue('')
+    expect(screen.getByRole('button', { name: 'Preview import' })).toBeDisabled()
   })
 
   it('fills the whole grid from one paste', async () => {
@@ -193,20 +196,20 @@ describe('RosterImportPage', () => {
     await previewIt()
 
     expect(api.post).toHaveBeenCalledWith('/api/admin/roster-import/preview', {
-      csv: SENT, organization_id: 'org-hearthwood',
+      csv: SENT, organization_id: 'org-school',
     })
     // Megan is one parent account for two students, not two.
     expect(screen.getByText('New parents').previousSibling).toHaveTextContent('1')
     expect(screen.getByText('Parent links').previousSibling).toHaveTextContent('2')
 
-    fireEvent.click(screen.getByRole('button', { name: 'Create 3 accounts in Hearthwood Academy' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Create 3 accounts in Willow Creek Academy' }))
     await waitFor(() => expect(api.post).toHaveBeenCalledWith(
       '/api/admin/roster-import/commit',
-      { csv: SENT, organization_id: 'org-hearthwood', send_emails: true },
+      { csv: SENT, organization_id: 'org-school', send_emails: true },
     ))
     // The completion names the org, because that is where the accounts are
     // findable and the selector is easy to skip past.
-    expect(await screen.findByText(/Import complete .* Hearthwood Academy/)).toBeInTheDocument()
+    expect(await screen.findByText(/Import complete .* Willow Creek Academy/)).toBeInTheDocument()
     expect(screen.getByText('Emails sent').previousSibling).toHaveTextContent('3')
   })
 
@@ -423,7 +426,7 @@ describe('RosterImportPage', () => {
     await previewIt()
 
     expect(api.post).toHaveBeenCalledWith('/api/admin/roster-import/preview', {
-      csv: SENT, organization_id: 'org-hearthwood',
+      csv: SENT, organization_id: 'org-school',
     })
   })
 

@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { View, Image, KeyboardAvoidingView, Platform, ScrollView, Pressable } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { router, useLocalSearchParams } from 'expo-router';
+import { router } from 'expo-router';
 import { useAuthStore, User } from '@/src/stores/authStore';
 import { Ionicons } from '@expo/vector-icons';
 import {
@@ -52,14 +52,6 @@ async function openLegal(url: string, webPath: string) {
   if (!opened) toast.error("Couldn't open the page. You can find it at optioeducation.com.");
 }
 
-// Partner keys. A parent arriving from a Hearthwood Academy enrollment link lands
-// here as /signup?partner=opened-academy (or /register?partner=...): we brand the
-// page for Hearthwood and tag the new account so it joins the diploma plan.
-// ('opened-academy' is the legacy internal key from the original OpenEd Academy
-// launch — the program now belongs to Hearthwood Academy; don't change the key,
-// it's the stored users.program_key value.)
-const OEA_PARTNER_KEY = 'opened-academy';
-
 function getRedirectForRole(user: User): string {
   const role = user.org_role && user.role === 'org_managed' ? user.org_role : user.role;
   switch (role) {
@@ -87,10 +79,6 @@ export default function RegisterScreen() {
   const { register, googleLogin, appleLoginWeb, appleLoginNative, isLoading, error, clearError } = useAuthStore();
   const isWeb = Platform.OS === 'web';
   const isIos = Platform.OS === 'ios';
-
-  // Partner key from the marketplace tile (?partner=opened-academy).
-  const { partner } = useLocalSearchParams<{ partner?: string }>();
-  const isOEA = partner === OEA_PARTNER_KEY;
 
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
@@ -157,18 +145,14 @@ export default function RegisterScreen() {
         acceptedLegalTerms: true,
         // In-app signup is always a student account. Parents create their
         // family account on the web (optioeducation.com), where the parent
-        // path and the child-profile setup live; the one exception is the
-        // Hearthwood partner link, which is a parent enrollment by definition.
-        account_type: isOEA ? 'parent' : 'student',
-        ...(isOEA ? { program_key: OEA_PARTNER_KEY } : {}),
+        // path and the child-profile setup live. (The Hearthwood partner link,
+        // ?partner=opened-academy, made a parent here until the program was
+        // retired on 2026-10-02; a stale link now gets the ordinary form.)
+        account_type: 'student',
       });
       const state = useAuthStore.getState();
       if (state.isAuthenticated) {
-        // OEA parents go straight into diploma pathway onboarding (PRD 4.1 -> 4.2);
-        // everyone else follows the standard role-based redirect.
-        const destination = isOEA
-          ? '/(app)/oea/welcome'
-          : state.user ? getRedirectForRole(state.user) : '/(app)/(tabs)/dashboard';
+        const destination = state.user ? getRedirectForRole(state.user) : '/(app)/(tabs)/dashboard';
         router.replace(destination as any);
       } else if (Platform.OS === 'web') {
         // Web confirms via the email link.
@@ -248,25 +232,11 @@ export default function RegisterScreen() {
               <Image source={{ uri: LOGO_URI }} className="w-44 h-16" resizeMode="contain" />
             </View>
 
-            {isOEA && (
-              <View className="bg-optio-purple/10 border border-optio-purple/30 p-4 rounded-xl">
-                <UIText size="sm" className="font-poppins-semibold text-optio-purple">
-                  Hearthwood Academy
-                </UIText>
-                <UIText size="xs" className="text-typo-500 dark:text-dark-typo-500 mt-1">
-                  Create your parent account to enroll your family. After signup you'll
-                  choose a diploma pathway and start tracking credits toward a Hearthwood Academy diploma.
-                </UIText>
-              </View>
-            )}
-
             <Card variant="elevated" size="lg">
               <VStack space="md">
-                <Heading size="lg">{isOEA ? 'Create Parent Account' : 'Create Account'}</Heading>
+                <Heading size="lg">Create Account</Heading>
                 <UIText size="sm" className="text-typo-500 dark:text-dark-typo-500">
-                  {isOEA
-                    ? 'Enroll your family in Hearthwood Academy'
-                    : 'Start your learning journey today'}
+                  Start your learning journey today
                 </UIText>
 
                 {error && (

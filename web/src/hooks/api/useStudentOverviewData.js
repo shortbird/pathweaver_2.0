@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import api from '../../services/api';
 import logger from '../../utils/logger';
-import { fetchProgramDiploma } from '../../programs/registry';
 
 /**
  * Unified hook to fetch consolidated student overview data.
@@ -26,16 +25,8 @@ export function useStudentOverviewData(studentId, endpoint) {
     setError(null);
 
     try {
-      // Fetch the overview and the student's OEA diploma progress together. OEA
-      // is supplementary (and 403s for non-managing viewers), so it never blocks
-      // the main fetch.
-      const [overviewRes, oeaRes] = await Promise.allSettled([
-        api.get(`${endpoint}/${studentId}`),
-        fetchProgramDiploma(studentId)
-      ]);
-      if (overviewRes.status !== 'fulfilled') throw overviewRes.reason;
-      const apiData = overviewRes.value.data;
-      const oea = oeaRes.status === 'fulfilled' ? (oeaRes.value || null) : null;
+      const overviewRes = await api.get(`${endpoint}/${studentId}`);
+      const apiData = overviewRes.data;
 
       const transformed = {
         // For HeroSection
@@ -78,7 +69,6 @@ export function useStudentOverviewData(studentId, endpoint) {
         // For SkillsGrowth
         subjectXp: apiData.subject_xp || {},
         pendingSubjectXp: apiData.pending_subject_xp || {},
-        oea,
 
 
         // For PortfolioSection

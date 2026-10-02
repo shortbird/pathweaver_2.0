@@ -109,9 +109,9 @@ declare module 'axios' {
   export interface AxiosRequestConfig {
     /**
      * "A 403 on this request is an answer, not a failure." Set by probes that
-     * ask a question the backend may legitimately refuse -- the OEA diploma
-     * widget asks whether a student has an OEA enrollment and falls back to
-     * Optio credits when told no. Without it, every such probe is a Sentry
+     * ask a question the backend may legitimately refuse -- the credit-review
+     * thread and the SIS admin lists treat a refusal as "nothing for you
+     * here". Without it, every such probe is a Sentry
      * report. Lives on the request config, not on the endpoint: the same URL
      * read by the person it belongs to still deserves a report when it 403s.
      */

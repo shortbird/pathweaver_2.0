@@ -8,15 +8,14 @@
  *
  * Part of the "core is the base, programs are extensions" architecture (see
  * docs/ARCHITECTURE_CORE_AND_PROGRAMS.md). It carries the sidebar program-tab
- * config, the diploma widget/data hooks, and the program page routes; program
+ * config, the quest-view hook, and the program page routes; program
  * pages live co-located under src/programs/<program>/.
  */
 import React, { lazy } from 'react'
 import { Route } from 'react-router-dom'
-import { renderOeaDiploma, fetchOeaDiploma } from './oea/DiplomaWidget'
 import { useTreehouseQuestView } from './treehouse/questView'
 
-// Diploma/academy cap — shared by the diploma-style programs (Hearthwood, Gryffin).
+// Diploma/academy cap (Gryffin).
 const capIcon = (
   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 14l9-5-9-5-9 5 9 5z" />
@@ -40,24 +39,6 @@ const treehouseIcon = (
  * leave it false so the tab is hidden from org admins.
  */
 export const PROGRAMS = {
-  hearthwood: {
-    slug: 'hearthwood',
-    name: 'Hearthwood Academy',
-    navPath: '/hearthwood',
-    navIcon: capIcon,
-    navVisibleToOrgAdmin: false,
-    // Org admins manage the parent getting-started video from Organization ->
-    // Settings (stored in feature_flags.oea_settings.help_video_url).
-    helpVideoConfigurable: true,
-  },
-  'hearthwood-test': {
-    slug: 'hearthwood-test',
-    name: 'Hearthwood Academy',
-    navPath: '/hearthwood',
-    navIcon: capIcon,
-    navVisibleToOrgAdmin: false,
-    helpVideoConfigurable: true,
-  },
   treehouse: {
     slug: 'treehouse',
     name: 'The Treehouse',
@@ -97,29 +78,6 @@ export function getProgramNavItem({ slug, effectiveRole, orgLogoUrl }) {
 }
 
 
-// ── Diploma widget hook ──────────────────────────────────────────────────────
-// Programs that own a student's diploma (e.g. OEA) plug a renderer in here. Each
-// takes the overview diploma context and returns a rendered panel, or null if it
-// does not apply. Core (SkillsGrowth) renders the first non-null, else its own
-// Optio-credits default — so core carries no program-specific diploma rendering.
-const DIPLOMA_WIDGETS = [renderOeaDiploma]
-
-/** The program diploma panel for this context, or null (core renders its default). */
-export function renderDiplomaWidget(context) {
-  for (const widget of DIPLOMA_WIDGETS) {
-    const el = widget(context)
-    if (el) return el
-  }
-  return null
-}
-
-// The program that owns a student's diploma supplies its data here (symmetric
-// with the render hook above), so core overview hooks don't import a program API.
-export function fetchProgramDiploma(studentId) {
-  return fetchOeaDiploma(studentId)
-}
-
-
 // ── Quest-view widget hook ───────────────────────────────────────────────────
 // Programs contribute quest-page UI + behavior for core QuestDetail. Hooks
 // compose, so each program's quest-view hook is called unconditionally (one
@@ -135,11 +93,6 @@ export function useProgramQuestView(quest) {
 //   'app'        — inside the protected app Layout
 //   'public'     — public / marketing pages (Layout, no auth)
 //   'standalone' — top-level, no app Layout (e.g. the Treehouse kiosk)
-const OpenEdAcademyPage = lazy(() => import('./oea/OpenEdAcademyPage'))
-const OEASelectPathwayPage = lazy(() => import('./oea/OEASelectPathwayPage'))
-const OEACreditsPage = lazy(() => import('./oea/OEACreditsPage'))
-const OEATranscriptPage = lazy(() => import('./oea/OEATranscriptPage'))
-const OEAProgressReportPage = lazy(() => import('./oea/OEAProgressReportPage'))
 const TreehousePage = lazy(() => import('./treehouse/TreehousePage'))
 const TreehouseBrowsePage = lazy(() => import('./treehouse/TreehouseBrowsePage'))
 const TreehouseShowcasePage = lazy(() => import('./treehouse/TreehouseShowcasePage'))
@@ -151,11 +104,6 @@ const PoeShowcasePage = lazy(() => import('./poe/PoeShowcasePage'))
 
 const PROGRAM_ROUTES = {
   app: [
-    { path: 'hearthwood', element: <OpenEdAcademyPage /> },
-    { path: 'hearthwood/student/:studentId/pathway', element: <OEASelectPathwayPage /> },
-    { path: 'hearthwood/student/:studentId/credits', element: <OEACreditsPage /> },
-    { path: 'hearthwood/student/:studentId/transcript', element: <OEATranscriptPage /> },
-    { path: 'hearthwood/student/:studentId/progress-report', element: <OEAProgressReportPage /> },
     { path: 'treehouse', element: <TreehousePage /> },
     { path: 'treehouse/browse', element: <TreehouseBrowsePage /> },
     { path: 'treehouse/showcase', element: <TreehouseShowcasePage /> },

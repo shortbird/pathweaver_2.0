@@ -48,7 +48,6 @@ to the database**.
 | `auto_migrate_routes.py` | WRITES (dry-run) | `--dry-run` | Automated Route Migration Script - Repository Pattern Adoption |
 | `backfill_conversation_metadata.py` | **WRITES** | — | Backfill script to update missing conversation metadata. |
 | `backfill_course_tasks.py` | **WRITES** | — | Backfill script for existing course enrollments. |
-| `backfill_hearthwood_algebra_quest.py` | read-only | — | One-off: backfill a course quest (with the org logo as header image) for |
 | `backfill_icreate_existing_accounts.py` | **WRITES** | — | Backfill: normalize students who "already had an Optio account" into full |
 | `backfill_onboarding_memberships.py` | **WRITES** | — | Re-run the onboarding sequences the sweep killed before they ever sent |
 | `backfill_subject_classifications.py` | WRITES (dry-run) | `--dry-run` | Script to backfill subject XP distributions for all existing tasks. |

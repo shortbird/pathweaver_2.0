@@ -3,8 +3,8 @@ import PropTypes from 'prop-types';
 import { formatCredits } from '../../utils/creditRequirements';
 
 // Subject progress row with full name. Shared core primitive used by the Optio
-// credits panel (SkillsGrowth) and by program diploma widgets (e.g. Hearthwood
-// Academy) so programs render credit rows without re-implementing them.
+// credits panel (SkillsGrowth), so anything that shows credit rows renders
+// them without re-implementing them.
 //
 // Three student-facing states:
 //   - Complete (green + check): the requirement is met. Reads as DONE at a

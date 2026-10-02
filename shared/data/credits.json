@@ -20,11 +20,7 @@
     "comment explains why the two lists differ. This is the transcript's",
     "vocabulary; that one is the picker's.",
     "",
-    "Order follows subjects.json, which is transcript order.",
-    "",
-    "NOT here, because it is not the standard diploma: backend/utils/oea_pathways.py",
-    "defines alternative graduation pathways with their own per-subject credit",
-    "counts. Those are a different product, not a second copy of this one."
+    "Order follows subjects.json, which is transcript order."
   ],
   "xpPerCredit": 2000,
   "totalCreditsRequired": 24,

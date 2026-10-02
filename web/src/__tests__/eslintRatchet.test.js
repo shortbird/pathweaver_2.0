@@ -66,9 +66,12 @@ const WEB_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../
  * their vi.mock calls in three files it touched.
  * Warnings 1831 on 2026-09-30: the ticket sweep switched ClassFieldsEditor to
  * named React hook imports.
+ * 2026-10-02: errors 180 -> 148, warnings 1831 -> 1819, measured on HEAD plus
+ * the Hearthwood/OEA removal (src/programs/oea and HelpVideoCard deleted: -1
+ * error, -12 warnings). The other 31 errors had already gone on HEAD.
  */
-const ERROR_BASELINE = 180
-const WARNING_BASELINE = 1831
+const ERROR_BASELINE = 148
+const WARNING_BASELINE = 1819
 
 /**
  * Slack, so ordinary churn does not force an edit to this file on every commit,

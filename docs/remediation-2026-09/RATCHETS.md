@@ -40,7 +40,7 @@ Four rules, learned the hard way:
 | Ceiling | Where | Protects |
 |---|---|---|
 | Direct `.table()` calls per layer: routes, services, utils, jobs, middleware, modules — plus routes+services as a combined total. repositories/ has no ceiling (removed 2026-09-24): it is where the calls belong, and its number rose with every feature built the right way | `backend/tests/unit/test_direct_db_calls_do_not_grow.py` | CI-02, layering. The combined total is asserted separately so moving a call down a layer cannot pass as a fix. This file's baselines change most often; read them there, not here |
-| 415 `datetime.utcnow()` calls | `backend/tests/unit/test_one_definition_of_now.py` | QB-02. Naive-vs-aware comparison raises `TypeError`; three of 35 `_now` copies were naive |
+| 410 `datetime.utcnow()` calls | `backend/tests/unit/test_one_definition_of_now.py` | QB-02. Naive-vs-aware comparison raises `TypeError`; three of 35 `_now` copies were naive |
 | 10 cross-layer import violations | `backend/tests/unit/test_import_layers.py` | Layering: repositories importing routes, and similar |
 | 22 direct storage uploads outside the service | `backend/tests/unit/test_storage_upload_goes_through_service.py` | Uploads that skip validation and virus scanning |
 | 4 `get_user_client` + 12 `supabase` client constructions in new route files | `backend/tests/unit/test_new_routes_use_repositories.py` | The repository pattern, for new code only |
@@ -49,10 +49,10 @@ Four rules, learned the hard way:
 | 6 writes to `users.is_org_admin` | `backend/tests/unit/test_role_rules_are_enforced.py` | The flag is derived by a trigger; a hand-written value is silently reverted |
 | 165 off-palette hex literals | `web/src/__tests__/brandPalette.test.js` | QF-07. Reads the sanctioned palette out of `tailwind.config.js`, so it cannot drift from the design system |
 | 786 hand-rolled fetch call sites | `web/src/__tests__/dataFetchingParadigm.test.js` | QF-03. Counts **call sites**, not files, so a pure component split does not move it |
-| 180 eslint errors / 1,848 warnings | `web/src/__tests__/eslintRatchet.test.js` | CI-03. 273k lines written without a linter; the point is that the number stops growing |
+| 148 eslint errors / 1,819 warnings | `web/src/__tests__/eslintRatchet.test.js` | CI-03. 273k lines written without a linter; the point is that the number stops growing |
 | 5 `console.*` calls | `web/src/__tests__/lintRules.test.js` | CI-03. `console.warn`/`error` stay legitimate; `.log` became `logger.debug` |
 | 105 clickable non-interactive elements | `web/src/components/ui/__tests__/a11y.test.jsx` | QF-08. The file says out loud that axe catches maybe a third of real problems |
-| 580 explicit `any` | `mobile/src/__tests__/typeWidening.test.ts` | QF-09 |
+| 562 explicit `any` | `mobile/src/__tests__/typeWidening.test.ts` | QF-09 |
 | 1,400 lines per route file | `backend/tests/unit/test_route_file_sizes.py` | QB-04. **`EXEMPTIONS` is empty** |
 | 1,000 lines per web component | `web/src/__tests__/componentSize.test.js` | QF-02. **`EXEMPT` is empty**, and a fourth test fails when a file drops under the cap and its exemption lingers |
 | 20 known-dead client API paths | `backend/tests/test_client_api_paths_exist.py` | Every `/api/...` the web and mobile clients call is a real route. The dead list may only shrink |

@@ -256,7 +256,10 @@ BASELINES = {
     # 2026-10-01: 2206 -> 2203. Reply-by-email removed (5 sends, no reply
     # ever): direct_messages.email_message_to_me went, and the three reads
     # that authorized it went with it. Measured on HEAD plus that change alone.
-    'routes': 2203,
+    # 2026-10-02: 2203 -> 2176, measured on HEAD plus that change alone. The
+    # Hearthwood/OEA program was retired: routes/oea.py (20 calls) deleted with
+    # it. The other 7 had already fallen on HEAD without the ceiling following.
+    'routes': 2176,
     # 2026-09-09: 1828 -> 1830. The deletion sweep's reactivation guard, in
     # account_deletion_service: one read for dependents added after the request,
     # one write to rescind it. The sweep is a cron entrypoint that already owns
@@ -341,7 +344,11 @@ BASELINES = {
     # 2026-10-01: 1807 -> 1802. services/message_email_relay_service.py was
     # deleted with reply-by-email; its five calls read and wrote
     # message_email_relays. Measured on HEAD plus that change alone.
-    'services': 1802,
+    # 2026-10-02: 1802 -> 1786, measured on HEAD plus that change alone.
+    # services/oea_compliance_service.py (4) and oea_compliance_sweep_service.py
+    # (7) deleted with the Hearthwood/OEA program; the other 5 had already
+    # fallen on HEAD without the ceiling following.
+    'services': 1786,
     # 2026-09-09: 135 -> 136. class_membership.children_in_classes, the inverse
     # of parents_of_students: which of a guardian's children sit in each of a
     # set of classes. It answers "whose class chat is this?" for the messaging
@@ -378,7 +385,9 @@ BASELINES = {
     # 2026-09-24: 145 -> 146. portfolio_access.students_observed_by, the list
     # form of is_observer_of beside it, so an observer who follows a student's
     # quest link opens it (services/quest_visibility_service.py).
-    'utils': 146,
+    # 2026-10-02: 146 -> 145. utils/oea_rules.py's settings read went with the
+    # Hearthwood/OEA program.
+    'utils': 145,
     'jobs': 7,
     'middleware': 2,
     'modules': 1,
@@ -424,7 +433,7 @@ def test_direct_db_calls_do_not_grow(layer):
 
 #: routes/ + services/ combined. A call may move DOWN a layer; the total may not
 #: grow. Keep this equal to BASELINES['routes'] + BASELINES['services'].
-UPPER_TOTAL_BASELINE = 2203 + 1802
+UPPER_TOTAL_BASELINE = 2176 + 1786
 
 
 def test_the_upper_layers_do_not_grow_in_total():

@@ -89,10 +89,10 @@ class TestSuperadminRenamesTheSlug:
 
     def test_a_program_org_cannot_be_renamed_out_from_under_the_registry(
             self, client, auth_headers, mock_verify_token):
-        """programs/registry.py binds Hearthwood by slug; renaming here would turn
+        """programs/registry.py binds Treehouse by slug; renaming here would turn
         the program's tab and rules off with nothing to say why."""
-        repo = _repo(slug='hearthwood')
-        resp = _put(client, auth_headers, SUPERADMIN_ROW, repo, {'slug': 'hearthwood-academy'})
+        repo = _repo(slug='treehouse')
+        resp = _put(client, auth_headers, SUPERADMIN_ROW, repo, {'slug': 'the-treehouse'})
         assert resp.status_code == 400
         assert 'registry' in resp.get_json()['error']
         repo.update_organization.assert_not_called()

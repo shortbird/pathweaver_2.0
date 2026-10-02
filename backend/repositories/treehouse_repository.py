@@ -1,8 +1,8 @@
 """
-Data access for The Treehouse program (program-specific tab, OEA-style).
+Data access for The Treehouse program (program-specific tab).
 
-All methods take a Supabase client (the routes pass the admin client, mirroring
-routes/oea.py — Optio uses custom JWT auth, not auth.uid(), and these tables have
+All methods take a Supabase client (the routes pass the admin client -- Optio
+uses custom JWT auth, not auth.uid(), and these tables have
 RLS enabled with no public policies). Org gating is the caller's responsibility;
 this layer just reads/writes the treehouse_* tables.
 """

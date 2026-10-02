@@ -23,8 +23,12 @@ import path from 'path'
 // babel preset, which does not support import.meta without a polyfill.
 const ROOT = path.resolve(__dirname, '../..')
 
-/** Measured 2026-09-03. Lower this as `any` is removed. */
-const BASELINE = 580
+/**
+ * Measured 2026-09-03. Lower this as `any` is removed.
+ * 2026-10-02: 580 -> 562. The Hearthwood/OEA screens (app/(app)/oea) and the
+ * Family tab's entry into them were deleted (-10); 8 had already gone.
+ */
+const BASELINE = 562
 
 /** How far below the baseline the real count may drift before this nags. */
 const SLACK = 60

@@ -23,10 +23,6 @@ vi.mock('../services/api', () => ({
   default: { get: vi.fn(), put: vi.fn() },
 }))
 
-vi.mock('../programs/registry', () => ({
-  fetchProgramDiploma: vi.fn().mockResolvedValue(null),
-}))
-
 vi.mock('react-helmet-async', () => ({
   Helmet: () => null,
 }))

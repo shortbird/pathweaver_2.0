@@ -158,7 +158,7 @@ def test_hand_written_student_id_reads_are_the_reviewed_ones():
         # Parent- and staff-facing modules name the student on purpose; the
         # guard is about the STUDENT's own routes being reachable for a child.
         if rel.startswith(('routes/parent/', 'routes/sis/', 'routes/admin/', 'routes/observer/',
-                           'routes/advisor', 'routes/oea', 'routes/family_quests.py',
+                           'routes/advisor', 'routes/family_quests.py',
                            'routes/helper_evidence.py', 'routes/dependents', 'routes/classes/',
                            'routes/registration', 'routes/credits.py', 'routes/portfolio.py',
                            'routes/bounties', 'routes/direct_messages.py', 'routes/organizations',

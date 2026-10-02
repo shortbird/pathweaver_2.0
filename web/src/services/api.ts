@@ -1,5 +1,5 @@
 import axios from 'axios'
-import type { AxiosError, AxiosRequestConfig } from 'axios'
+import type { AxiosError } from 'axios'
 import { shouldUseAuthHeaders } from '../utils/browserDetection'
 import logger from '../utils/logger'
 import { isPublicPath } from '../utils/publicPaths'
@@ -894,73 +894,6 @@ export const transferCreditsAPI = {
 
   // Delete ALL transfer credits for a student
   deleteAll: (userId: string) => api.delete(`/api/admin/transfer-credits/${userId}`),
-}
-
-// Hearthwood Academy (OEA) diploma program. Backs the /hearthwood tab.
-// Reads (pathways, enrollments, credits) work for the managing parent and,
-// for self-targeting routes, the student viewing their own diploma. Writes
-// are parent-only (enforced server-side in backend/routes/oea.py).
-export const oeaAPI = {
-  // The three fixed diploma pathway definitions for the selection UX.
-  pathways: () => api.get('/api/oea/pathways'),
-
-  // All enrollments managed by the acting parent.
-  enrollments: () => api.get('/api/oea/enrollments'),
-
-  // One student's current enrollment (or null). Self-readable.
-  studentEnrollment: (studentId: string) => api.get(`/api/oea/enrollments/${studentId}`),
-
-  // Select or change a student's diploma pathway (parent only).
-  selectPathway: (studentId: string, pathwayKey: string) =>
-    api.post('/api/oea/enrollments', { student_id: studentId, pathway_key: pathwayKey }),
-
-  // Credits + computed pathway progress + GPA for a student. Self-readable.
-  // `config` carries per-call axios options — the diploma probe passes
-  // expect403 so its expected refusal is not reported as a failure.
-  credits: (studentId: string, config: AxiosRequestConfig) => api.get(`/api/oea/students/${studentId}/credits`, config),
-
-  // Add a course credit to a pathway requirement slot (parent only).
-  addCredit: (studentId: string, body: JsonBody) => api.post(`/api/oea/students/${studentId}/credits`, body),
-
-  // Update a credit: rename / mark complete / grade / honors weighting (parent only).
-  updateCredit: (creditId: string, body: JsonBody) => api.patch(`/api/oea/credits/${creditId}`, body),
-
-  // Delete a credit (parent only).
-  deleteCredit: (creditId: string) => api.delete(`/api/oea/credits/${creditId}`),
-
-  // Ensure a credit has a linked student quest (creates one if missing); returns quest_id.
-  ensureCreditQuest: (creditId: string) => api.post(`/api/oea/credits/${creditId}/quest`, {}),
-
-  // Course quests left on the dashboard by a credit deleted before the delete
-  // cleaned up after itself (parent only). Empty for anyone who never hit it.
-  unlinkedCourseQuests: (studentId: string) =>
-    api.get(`/api/oea/students/${studentId}/course-quests/unlinked`),
-
-  // Remove one of those leftovers (parent only).
-  removeCourseQuest: (studentId: string, questId: string) =>
-    api.delete(`/api/oea/students/${studentId}/course-quests/${questId}`),
-
-  // Raise/clear a student's transfer + non-direct credit caps (Hearthwood admin only).
-  setCaps: (studentId: string, body: JsonBody) => api.patch(`/api/oea/enrollments/${studentId}/caps`, body),
-
-  // Grade periods for a course (quarter/semester/annual grades + summaries).
-  creditPeriods: (creditId: string) => api.get(`/api/oea/credits/${creditId}/periods`),
-  saveCreditPeriod: (creditId: string, body: JsonBody) => api.put(`/api/oea/credits/${creditId}/periods`, body),
-
-  // OEA-branded transcript data (credits, grades, GPA, notations).
-  transcript: (studentId: string) => api.get(`/api/oea/students/${studentId}/transcript`),
-
-  // Quarterly progress report (report card) for a term (1-4).
-  progressReport: (studentId: string, term: JsonBody) =>
-    api.get(`/api/oea/students/${studentId}/progress-report`, { params: { term } }),
-
-  // Record that the parent opened the getting-started video. The video is an
-  // external link, so this is a click, not playback — fire and forget, never
-  // block or fail the navigation on it.
-  markHelpVideoOpened: () => api.post('/api/oea/help-video/opened', {}),
-
-  // Per-parent open status for the org's video (org admin / coordinator).
-  helpVideoViews: () => api.get('/api/oea/help-video/views'),
 }
 
 // ── The Treehouse program API ────────────────────────────────────────────────

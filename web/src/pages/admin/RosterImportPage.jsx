@@ -167,9 +167,10 @@ export default function RosterImportPage() {
     api.get('/api/admin/organizations')
       .then(({ data }) => {
         const orgs = data?.organizations || []
+        // No default school: the import creates accounts and emails every
+        // family, so the superadmin picks the organization on purpose. (It
+        // used to preselect Hearthwood, retired on 2026-10-02.)
         setOrganizations(orgs)
-        const hearthwood = orgs.find(o => o.slug === 'hearthwood')
-        if (hearthwood) setOrgId(hearthwood.id)
       })
       .catch(() => setError('Could not load the organization list'))
   }, [])

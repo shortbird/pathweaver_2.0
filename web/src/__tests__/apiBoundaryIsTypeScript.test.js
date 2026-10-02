@@ -49,7 +49,7 @@ describe('the API boundary', () => {
     // 2026-09-15.)
     const source = fs.readFileSync(path.join(SERVICES, 'api.ts'), 'utf8')
     for (const name of ['tokenStore', 'csrfTokenStore',
-                        'getAuthHeaders', 'oeaAPI']) {
+                        'getAuthHeaders', 'treehouseAPI']) {
       expect(source, `api.ts no longer exports ${name}`).toContain(`export const ${name}`)
     }
     expect(source).toContain('export default api')

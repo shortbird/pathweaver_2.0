@@ -87,6 +87,15 @@ Marketing-owned moves (301):
 | `/for-students` | `/academy` |
 | `/for-families` | `/academy` |
 | `/for-schools` | `/schools` |
+| `/hearthwood` | `/academy` |
+| `/hearthwood/*` | `/academy` |
+
+`/hearthwood` was an app-forwarded program route until the Hearthwood Academy
+program was retired on 2026-10-02 (its families moved into Optio Academy, and
+the app no longer serves `/hearthwood`). Old enrollment links and bookmarks go
+to the Optio Academy page instead of an app 404. The live rules were repointed
+on 2026-10-02 with a full-list `PUT .../routes` (Render has no per-rule edit);
+the list before the change is kept in `tmp/hearthwood-2026-10-02/`.
 
 App-owned paths forwarded to the app subdomain (301, `/*` splat preserves the
 rest of the path; Render passes query strings through):
@@ -140,7 +149,6 @@ rest of the path; Render passes query strings through):
 | `/mobile` | `https://app.optioeducation.com/mobile` |
 | `/treehouse-kiosk` | `https://app.optioeducation.com/treehouse-kiosk` |
 | `/treehouse` + `/treehouse/*` | `https://app.optioeducation.com/treehouse...` |
-| `/hearthwood` + `/hearthwood/*` | `https://app.optioeducation.com/hearthwood...` |
 | `/gryffin` + `/gryffin/*` | `https://app.optioeducation.com/gryffin...` |
 | `/poe` + `/poe/*` | `https://app.optioeducation.com/poe...` |
 

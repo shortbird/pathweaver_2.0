@@ -125,12 +125,19 @@ describe('Sidebar — school-specific program tab (org-gated)', () => {
     orgState = { organization: null }
   })
 
-  it('shows the Hearthwood Academy tab for members of the hearthwood org', () => {
+  it('shows the Gryffin Learning Center tab for members of the gryffin org', () => {
+    authState.user = { id: 'u1', role: 'org_managed', org_role: 'student', organization_id: 'org-gryffin', email: 's@example.com' }
+    orgState = { organization: { id: 'org-gryffin', slug: 'gryffin', name: 'Gryffin Learning Center' } }
+    renderSidebar()
+    const link = screen.getByRole('link', { name: /gryffin learning center/i })
+    expect(link).toHaveAttribute('href', '/gryffin')
+  })
+
+  it('shows no program tab for the retired hearthwood slug', () => {
     authState.user = { id: 'u1', role: 'org_managed', org_role: 'student', organization_id: 'org-hearthwood', email: 's@example.com' }
     orgState = { organization: { id: 'org-hearthwood', slug: 'hearthwood', name: 'Hearthwood Academy' } }
     renderSidebar()
-    const link = screen.getByRole('link', { name: /hearthwood academy/i })
-    expect(link).toHaveAttribute('href', '/hearthwood')
+    expect(screen.queryByRole('link', { name: /hearthwood academy/i })).not.toBeInTheDocument()
   })
 
   it('does NOT show the tab for users in a different org', () => {

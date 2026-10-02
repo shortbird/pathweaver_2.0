@@ -19,8 +19,10 @@ from programs.registry import (
 @pytest.mark.unit
 class TestProgramRegistry:
 
-    def test_valid_program_key_accepts_registered_tag(self):
-        assert is_valid_program_key('opened-academy') is True
+    def test_retired_hearthwood_program_key_is_refused(self):
+        # The Hearthwood diploma program was retired on 2026-10-02; a stale
+        # ?partner=opened-academy signup must not tag a new account into it.
+        assert is_valid_program_key('opened-academy') is False
 
     def test_valid_program_key_rejects_unknown_and_none(self):
         assert is_valid_program_key('bogus') is False
@@ -28,23 +30,22 @@ class TestProgramRegistry:
         assert is_valid_program_key('') is False
 
     def test_program_for_org_slug_resolves_member_orgs(self):
-        assert program_for_org_slug('hearthwood').name == 'Hearthwood Academy'
-        # A second org slug maps to the same program (test org).
-        assert program_for_org_slug('hearthwood-test').key == 'opened-academy'
         assert program_for_org_slug('treehouse').key == 'treehouse'
+        assert program_for_org_slug('treehouse').name == 'The Treehouse'
         assert program_for_org_slug('gryffin').key == 'gryffin'
 
     def test_program_for_org_slug_none_for_unknown_or_empty(self):
         assert program_for_org_slug('not-a-program') is None
         assert program_for_org_slug(None) is None
+        # Retired 2026-10-02 with the Hearthwood orgs.
+        assert program_for_org_slug('hearthwood') is None
+        assert program_for_org_slug('hearthwood-test') is None
 
-    def test_daily_cron_jobs_flattens_oea_sweep(self):
-        jobs = daily_cron_jobs()
-        by_name = {j.name: j for j in jobs}
-        assert 'oea-compliance-sweep' in by_name
-        sweep = by_name['oea-compliance-sweep']
-        assert sweep.path == '/api/oea/internal/compliance-sweep'
-        assert sweep.utc_hour == 13
+    def test_daily_cron_jobs_no_longer_dispatch_the_oea_sweep(self):
+        # The OEA compliance sweep and its endpoint were removed with the
+        # Hearthwood program; the cron must not call a route that 404s.
+        assert 'oea-compliance-sweep' not in {j.name for j in daily_cron_jobs()}
+        assert all('/api/oea/' not in j.path for j in daily_cron_jobs())
 
     def test_every_program_has_stable_key_and_name(self):
         assert PROGRAMS

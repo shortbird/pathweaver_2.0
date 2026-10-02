@@ -6,7 +6,6 @@ import CalendarCategoriesCard from '../components/sis/CalendarCategoriesCard'
 import QuickLinksCard from '../components/sis/QuickLinksCard'
 import KioskDevicesCard from '../components/sis/KioskDevicesCard'
 import SchoolLoginLinkCard from '../components/organization/SchoolLoginLinkCard'
-import HelpVideoCard from './cards/HelpVideoCard'
 import ParentDigestCard from './cards/ParentDigestCard'
 import PillarsCard from './cards/PillarsCard'
 import StepPrintingCard from './cards/StepPrintingCard'
@@ -55,7 +54,6 @@ export const SETTINGS_CARDS = [
   // Both surfaces: the kiosk block has no SIS parent, so an LMS-only school
   // provisions its classroom devices from the web app's Organization tab.
   { key: 'kiosk', module: 'kiosk', surfaces: ['console', 'learning'], Component: KioskDevicesCard },
-  { key: 'help-video', surfaces: ['console', 'learning'], Component: HelpVideoCard },
   { key: 'pillars', surfaces: ['learning'], Component: PillarsCard },
   { key: 'step-printing', surfaces: ['console', 'learning'], Component: StepPrintingCard },
   // The school's Friends default for students with no parent linked. Both

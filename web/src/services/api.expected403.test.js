@@ -11,7 +11,8 @@
  * for every student outside Hearthwood the answer arrives as a 403 the caller
  * already falls back from. Those were landing in Sentry as errors, one per
  * (viewer, student) pair (OPTIO-WEB-R), burying the real 403s they exist to
- * surface.
+ * surface. The OEA probe went with the program on 2026-10-02; the opt-out
+ * stays because other probes (credit threads, admin lists) rely on it.
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 
@@ -28,7 +29,7 @@ vi.mock('./sentry', () => ({
 }))
 
 import axios from 'axios'
-import api, { oeaAPI } from './api'
+import api from './api'
 import { captureException } from './sentry'
 
 const reject = (config, status, data) => {
@@ -77,19 +78,19 @@ describe('expect403 opt-out', () => {
       .toBe('API 500: GET /api/probe-500 from /')
   })
 
-  it('sends the opt-out on the diploma probe and not on a direct credits read',
+  it('sends the opt-out on a probe and not on a direct read of the same endpoint',
     async () => {
       const seen = []
       api.defaults.adapter = vi.fn(async (config) => {
         seen.push(config)
-        reject(config, 403, { error: 'You do not manage this student' })
+        reject(config, 403, { error: 'Not your thread' })
       })
 
       const probed = '9a2f4eea-c8c9-440e-8221-bc646369359b'
       const read = 'b4c15895-1701-48fa-b1d7-6b3ff5b059ce'
-      await expect(oeaAPI.credits(probed, { expect403: true }))
+      await expect(api.get(`/api/credit/${probed}/messages`, { expect403: true }))
         .rejects.toMatchObject({ response: { status: 403 } })
-      await expect(oeaAPI.credits(read))
+      await expect(api.get(`/api/credit/${read}/messages`))
         .rejects.toMatchObject({ response: { status: 403 } })
 
       expect(seen[0].expect403).toBe(true)
@@ -97,6 +98,6 @@ describe('expect403 opt-out', () => {
       // Only the un-excused read is reported.
       expect(captureException).toHaveBeenCalledTimes(1)
       expect(captureException.mock.calls[0][0].message)
-        .toBe('API 403: GET /api/oea/students/:id/credits from /')
+        .toBe('API 403: GET /api/credit/:id/messages from /')
     })
 })

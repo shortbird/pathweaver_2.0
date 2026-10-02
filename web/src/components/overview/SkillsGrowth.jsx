@@ -3,7 +3,6 @@ import PropTypes from 'prop-types';
 import SkillsRadarChart from '../diploma/SkillsRadarChart';
 import useHidePillars from '../../hooks/useHidePillars';
 import SubjectProgressRow from '../diploma/SubjectProgressRow';
-import { renderDiplomaWidget } from '../../programs/registry';
 import {
   getAllCreditProgress,
   getCreditStanding,
@@ -17,7 +16,6 @@ const SkillsGrowth = ({
   xpByPillar = {},
   subjectXp = {},
   pendingSubjectXp = {},
-  oea = null,
   totalXp = 0,
   hideHeader = false,
   showDiplomaCredits = true
@@ -40,11 +38,6 @@ const SkillsGrowth = ({
     acc[p.subject] = p.creditsEarned;
     return acc;
   }, {});
-
-  // A program that owns the student's diploma (e.g. Hearthwood Academy) renders its
-  // own panel via the registry; core carries no program-specific diploma UI and
-  // falls back to Optio's XP-based credits below.
-  const programDiploma = showDiplomaCredits ? renderDiplomaWidget({ oea }) : null;
 
   // The left column IS the pillars: a radar chart of the five, plus the total
   // XP that feeds it. A school that has switched them off gets the diploma at
@@ -96,9 +89,8 @@ const SkillsGrowth = ({
         </div>
         )}
 
-        {/* Diploma section (users 13+). A program may own the student's diploma
-            and render its own panel; otherwise show Optio's XP-based credits. */}
-        {showDiplomaCredits && (programDiploma || (
+        {/* Diploma section (users 13+): Optio's XP-based credits. */}
+        {showDiplomaCredits && (
           <div className="p-6">
             <h3 className="font-bold text-gray-800 text-sm uppercase tracking-wider mb-4">Diploma Credits</h3>
 
@@ -214,7 +206,7 @@ const SkillsGrowth = ({
               )}
             </div>
           </div>
-        ))}
+        )}
       </div>
   );
 
@@ -243,7 +235,6 @@ SkillsGrowth.propTypes = {
   xpByPillar: PropTypes.object,
   subjectXp: PropTypes.object,
   pendingSubjectXp: PropTypes.object,
-  oea: PropTypes.object,
   totalXp: PropTypes.number,
   hideHeader: PropTypes.bool,
   showDiplomaCredits: PropTypes.bool

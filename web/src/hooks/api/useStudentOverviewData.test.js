@@ -3,11 +3,9 @@ import { renderHook, waitFor } from '@testing-library/react'
 import { useStudentOverviewData } from './useStudentOverviewData'
 
 const apiGet = vi.fn()
-const oeaCredits = vi.fn()
 
 vi.mock('../../services/api', () => ({
-  default: { get: (...a) => apiGet(...a) },
-  oeaAPI: { credits: (...a) => oeaCredits(...a) }
+  default: { get: (...a) => apiGet(...a) }
 }))
 
 const overview = {
@@ -27,24 +25,22 @@ describe('useStudentOverviewData', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     apiGet.mockResolvedValue(overview)
-    oeaCredits.mockResolvedValue({ data: { enrollment: { id: 'e1' }, progress: null, is_oea_student: true } })
   })
 
-  it('fetches the overview and attaches OEA progress', async () => {
+  it('fetches the overview', async () => {
     const { result } = renderHook(() => useStudentOverviewData('stu-1', '/api/parent/child-overview'))
     await waitFor(() => expect(result.current.data).toBeTruthy())
     expect(apiGet).toHaveBeenCalledWith('/api/parent/child-overview/stu-1')
     expect(result.current.data.totalXp).toBe(1200)
     expect(result.current.data.subjectXp).toEqual({ math: 6000 })
-    expect(result.current.data.oea.is_oea_student).toBe(true)
+    expect(result.current.data.user.first_name).toBe('Sam')
   })
 
-  it('still loads the overview when the OEA fetch is forbidden', async () => {
-    oeaCredits.mockRejectedValue({ response: { status: 403 } })
+  it('reports an error when the overview fetch fails', async () => {
+    apiGet.mockRejectedValue({ response: { status: 500 } })
     const { result } = renderHook(() => useStudentOverviewData('stu-1', '/api/parent/child-overview'))
-    await waitFor(() => expect(result.current.data).toBeTruthy())
-    expect(result.current.data.oea).toBeNull()
-    expect(result.current.data.user.first_name).toBe('Sam')
+    await waitFor(() => expect(result.current.isLoading).toBe(false))
+    expect(result.current.error).toBeTruthy()
   })
 
   it('does nothing without a studentId', async () => {

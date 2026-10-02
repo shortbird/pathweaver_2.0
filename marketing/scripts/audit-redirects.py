@@ -16,7 +16,7 @@ Two things this exists to get right, both of which have shipped dead links:
 
 1. Program routes are not in App.jsx. They live in programs/registry.jsx and are
    spliced in at render time, so grepping App.jsx alone misses /treehouse,
-   /treehouse-kiosk, /hearthwood, /gryffin and /poe.
+   /treehouse-kiosk, /gryffin and /poe.
 2. Render's route pagination walks backwards one item per page, so ?limit=100
    plus a naive cursor loop reads a fraction of the 131 rules and reports
    phantom gaps. We page until the deduped id set stops growing.
@@ -40,9 +40,11 @@ SOURCES = [
 
 # Segments the marketing site serves itself (marketing/src/pages/*.astro) or
 # redirects to one of its own pages. These must never forward to the app.
+# "hearthwood" goes to /academy: the Hearthwood program was retired on
+# 2026-10-02 and the app no longer serves it.
 MARKETING_OWNED = {"academy", "philosophy", "schools", "blog", "stories", "l",
                    "how-it-works", "classes", "for-students", "for-families",
-                   "for-schools"}
+                   "for-schools", "hearthwood"}
 
 
 def app_routes():

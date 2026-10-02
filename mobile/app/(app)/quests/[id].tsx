@@ -3,7 +3,7 @@
  * family scope, the CHILD's copy of it.
  *
  * The screen itself lives in QuestDetailView. A parent reaches it from the
- * Family tab, the family quests section, the OEA credits page and old
+ * Family tab, the family quests section and old
  * `/parent/quest/<sid>/<qid>` links alike: every one of them points the
  * family scope (stores/familyStore) at the child and lands here. The second
  * route that used to carry the child in its path went on 2026-09-15.

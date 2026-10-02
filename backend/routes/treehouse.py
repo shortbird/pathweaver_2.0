@@ -1,8 +1,8 @@
 """
 The Treehouse program API (program-specific tab, gated by org slug 'treehouse').
 
-Mirrors the OEA pattern (routes/oea.py): a self-contained blueprint that uses the
-admin client for cross-user reads/writes and enforces program membership itself.
+A self-contained blueprint (the pattern the retired OEA program's routes/oea.py
+set) that uses the admin client for cross-user reads/writes and enforces program membership itself.
 Superadmin always has access (Critical Rule #7).
 
 Surfaces:

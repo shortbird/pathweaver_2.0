@@ -221,6 +221,11 @@ separate, tracked migration — not done in this pass.
   The OEA data fetch moved behind the registry's `fetchProgramDiploma` too, so core
   overview hooks no longer import `oeaAPI`. Core now carries zero OEA rendering or
   API coupling; the only OEA mentions left in core are illustrative code comments.
+  **Retired 2026-10-02:** the OEA/Hearthwood program itself is gone. Its families
+  moved into Optio Academy, so `programs/oea/`, `routes/oea.py`, the `oea_*`
+  utils/services, the compliance-sweep cron job and the diploma-widget hook
+  (`renderDiplomaWidget` / `fetchProgramDiploma`) were deleted. The `oea_*`
+  tables remain as the historical record.
   (`SubjectProgressRow` extracted to a shared `components/diploma/` primitive.)
 - **Phase 4 — Program modules + router inversion** ✅ *done* — program pages
   co-located under `src/programs/<program>/` (oea, treehouse, gryffin, poe); the

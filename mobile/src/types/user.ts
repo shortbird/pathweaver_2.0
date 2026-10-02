@@ -36,8 +36,9 @@ export interface User {
   date_of_birth_locked_at?: string | null;
   is_dependent: boolean;
   managed_by_parent_id: string | null;
-  // Partner program tag (e.g. 'opened-academy' for the OEA Diploma Plan). Null
-  // for users not in a partner program.
+  // Partner program tag. Null for users not in a partner program. A few legacy
+  // rows still carry 'opened-academy' from the Hearthwood diploma program,
+  // retired 2026-10-02; nothing reads it now.
   program_key: string | null;
   // Remembered AI task generation challenge level ('easier'|'standard'|'challenge').
   // Null means Standard.

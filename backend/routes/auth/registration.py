@@ -172,7 +172,7 @@ def register():
             raise ValidationError("Date of birth is required. Please provide it as YYYY-MM-DD.")
         parent_email = data.get('parent_email')  # Optional adult contact (COPPA consent email)
         org_slug = data.get('org_slug')  # Optional organization slug for signup
-        program_key = data.get('program_key')  # Optional: partner program tag (e.g. OEA Diploma Plan)
+        program_key = data.get('program_key')  # Optional: partner program tag (allowlisted in programs/registry.py)
 
         # Mask email in logs
         logger.debug(f"[REGISTRATION] Processing registration for email: {mask_email(email)}")
@@ -383,15 +383,16 @@ def register():
                 # Role is set directly (observer from invitation, or default 'student')
                 logger.info("[REGISTRATION] Creating platform user (no organization)")
 
-            # Partner program tag (e.g. 'opened-academy' for the Hearthwood Academy diploma plan).
-            # OEA families are platform users carrying this lightweight flag, not
-            # org-managed users. Only accept allowlisted program keys.
+            # Partner program tag. Partner families are platform users carrying
+            # this lightweight flag, not org-managed users. Only accept
+            # allowlisted program keys; none is registered since the Hearthwood
+            # diploma program ('opened-academy') was retired on 2026-10-02.
             if program_key:
                 from programs.registry import is_valid_program_key
                 if is_valid_program_key(program_key):
                     user_data['program_key'] = program_key
-                    # OEA enrollers are parents managing student dependents (PRD
-                    # section 3). Promote the default 'student' role to 'parent'
+                    # Partner-program enrollers are parents managing student
+                    # dependents. Promote the default 'student' role to 'parent'
                     # unless a more specific role was already set (observer
                     # invitation / promo / org-managed).
                     if not org_slug and user_data.get('role', 'student') == 'student':

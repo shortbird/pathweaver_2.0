@@ -45,7 +45,7 @@ from utils.registration_config import (
 #: superadmin's (the Blocks panel writes it); everything else the settings
 #: screens own is here.
 PATCHABLE_TOP_KEYS = frozenset({
-    'sis_settings', 'registration', 'oea_settings',
+    'sis_settings', 'registration',
     'hide_pillars', 'step_printing', 'hide_public_bounties', 'lock_xp_editing',
     'xp_goals', 'sis_enabled', 'community_enabled',
 })

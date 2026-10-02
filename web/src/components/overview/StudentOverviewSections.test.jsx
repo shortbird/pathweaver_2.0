@@ -19,8 +19,7 @@ const baseData = {
   totalXp: 1000,
   pillarsData: [],
   questOrbs: [{ id: 'o1' }],
-  achievements: [{ id: 'a1' }],
-  oea: null
+  achievements: [{ id: 'a1' }]
 }
 
 describe('StudentOverviewSections', () => {
@@ -30,14 +29,8 @@ describe('StudentOverviewSections', () => {
     expect(screen.getByTestId('skills')).toBeInTheDocument()
   })
 
-  it('shows Skills & Growth for an OEA student even with no XP when hiding empties', () => {
-    const data = { ...baseData, totalXp: 0, xpByPillar: {}, oea: { is_oea_student: true } }
-    render(<StudentOverviewSections data={data} studentId="s1" hideEmptySections />)
-    expect(screen.getByText('Skills & Growth')).toBeInTheDocument()
-  })
-
-  it('hides Skills & Growth for a non-OEA student with no XP when hiding empties', () => {
-    const data = { ...baseData, totalXp: 0, xpByPillar: {}, questOrbs: [], achievements: [], activeQuests: [], oea: null }
+  it('hides Skills & Growth for a student with no XP when hiding empties', () => {
+    const data = { ...baseData, totalXp: 0, xpByPillar: {}, questOrbs: [], achievements: [], activeQuests: [] }
     render(<StudentOverviewSections data={data} studentId="s1" hideEmptySections />)
     expect(screen.queryByText('Skills & Growth')).not.toBeInTheDocument()
   })

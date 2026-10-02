@@ -75,9 +75,7 @@ const StudentOverviewSections = ({
 }) => {
   // Determine which sections have data (for hideEmptySections mode)
   const hasSnapshotData = !hideEmptySections || (data.activeQuests?.length > 0) || (data.recentCompletions?.length > 0);
-  // Show Skills & Growth when there's XP, or when the student is an OEA student
-  // (their diploma pathway progress is the meaningful content even at 0 XP).
-  const hasSkillsData = !hideEmptySections || data.totalXp > 0 || Object.values(data.xpByPillar || {}).some(v => v > 0) || !!data.oea?.is_oea_student;
+  const hasSkillsData = !hideEmptySections || data.totalXp > 0 || Object.values(data.xpByPillar || {}).some(v => v > 0);
   const hasPortfolioData = !hideEmptySections || data.achievements?.length > 0;
 
   return (
@@ -140,7 +138,6 @@ const StudentOverviewSections = ({
             xpByPillar={data.xpByPillar}
             subjectXp={data.subjectXp}
             pendingSubjectXp={data.pendingSubjectXp}
-            oea={data.oea}
             totalXp={data.totalXp}
             hideHeader
             showDiplomaCredits={showDiplomaCredits}

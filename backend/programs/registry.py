@@ -8,8 +8,8 @@ not a core edit. Mirrors the frontend registry
 (web/src/programs/registry.jsx). See docs/ARCHITECTURE_CORE_AND_PROGRAMS.md.
 
 Note: this declares each program's identity + hooks; a program's own routes,
-services, and rules still live in its module (routes/oea.py, routes/treehouse.py,
-utils/oea_*, etc.). The registry is the seam that keeps core from naming them.
+services, and rules still live in its module (routes/treehouse.py,
+utils/treehouse.py, etc.). The registry is the seam that keeps core from naming them.
 """
 from dataclasses import dataclass
 from typing import List, Optional, Tuple
@@ -19,7 +19,7 @@ from typing import List, Optional, Tuple
 class DailyCronJob:
     """A once-a-day job a program needs run (dispatched by jobs/cron_dispatch.py)."""
     name: str        # log label
-    path: str        # backend endpoint path, e.g. '/api/oea/internal/compliance-sweep'
+    path: str        # backend endpoint path, e.g. '/api/<program>/internal/<job>'
     utc_hour: int    # fire in the first cron run of this UTC hour
 
 
@@ -29,24 +29,18 @@ class Program:
     key: str                        # stable internal id
     name: str                       # display name
     org_slugs: Tuple[str, ...] = ()  # member-org slugs that run this program in-app
-    program_keys: Tuple[str, ...] = ()  # valid platform-user program_key tags (e.g. OEA families)
+    program_keys: Tuple[str, ...] = ()  # valid platform-user program_key tags (none registered today)
     daily_jobs: Tuple[DailyCronJob, ...] = ()  # program-specific daily cron jobs
 
 
 # Registered programs. Adding a program = add an entry here (and its own module).
 PROGRAMS: List[Program] = [
-    # Diploma-plan program now run by Hearthwood Academy. The 'opened-academy'
-    # key/program_key is the legacy internal id from the original OpenEd Academy
-    # launch — kept because it's the stored users.program_key value.
-    Program(
-        key='opened-academy',
-        name='Hearthwood Academy',
-        org_slugs=('hearthwood', 'hearthwood-test'),
-        program_keys=('opened-academy',),
-        daily_jobs=(
-            DailyCronJob('oea-compliance-sweep', '/api/oea/internal/compliance-sweep', 13),
-        ),
-    ),
+    # The Hearthwood Academy diploma program ('opened-academy') was retired on
+    # 2026-10-02: its families moved into Optio Academy
+    # (scripts/migrate_hearthwood_to_optio_academy.py) and both Hearthwood orgs
+    # were deleted. Its oea_* tables stay as the historical record; with the
+    # entry gone, registration no longer accepts the 'opened-academy'
+    # program_key and the cron no longer dispatches its compliance sweep.
     Program(key='treehouse', name='The Treehouse', org_slugs=('treehouse',)),
     Program(key='gryffin', name='Gryffin Learning Center', org_slugs=('gryffin',)),
     Program(key='poe', name='Pipe Organ Encounter'),
@@ -58,8 +52,9 @@ _VALID_PROGRAM_KEYS = {pk for p in PROGRAMS for pk in p.program_keys}
 def is_valid_program_key(program_key: Optional[str]) -> bool:
     """True if program_key is an allowlisted platform-user program tag.
 
-    Platform users (e.g. OEA families) carry a lightweight program_key rather
-    than being org-managed; registration only accepts allowlisted values.
+    Platform users in a partner program carry a lightweight program_key rather
+    than being org-managed; registration only accepts allowlisted values. No
+    program registers one today, so every program_key is refused.
     """
     return program_key in _VALID_PROGRAM_KEYS
 
