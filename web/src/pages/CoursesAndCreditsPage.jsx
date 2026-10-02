@@ -11,6 +11,7 @@ import { Modal } from '../components/ui/Modal'
 import SubjectCard from '../components/coursesAndCredits/SubjectCard'
 import AddCourseModal from '../components/coursesAndCredits/AddCourseModal'
 import CheckInModal from '../components/coursesAndCredits/CheckInModal'
+import MoveCreditModal from '../components/coursesAndCredits/MoveCreditModal'
 import { XP_PER_CREDIT_LINE, creditsToXp, xpLabel } from '../components/coursesAndCredits/xpLabels'
 import CreditProgressBar from '../components/coursesAndCredits/CreditProgressBar'
 import SubjectOverview from '../components/coursesAndCredits/SubjectOverview'
@@ -79,6 +80,7 @@ const CoursesAndCreditsPage = () => {
   const [loadError, setLoadError] = useState(false)
   const [addingTo, setAddingTo] = useState(null)
   const [checkInTarget, setCheckInTarget] = useState(null)
+  const [moveTarget, setMoveTarget] = useState(null)
   const [showWays, setShowWays] = useState(false)
 
   useEffect(() => {
@@ -221,6 +223,10 @@ const CoursesAndCreditsPage = () => {
                 pendingXp={subject.pending_xp || 0}
                 onAddCourse={setAddingTo}
                 onOpenCheckIn={(course, checkIn) => setCheckInTarget({ course, checkIn })}
+                onMoveCredit={setMoveTarget}
+                moveRequests={plan.move_requests || []}
+                studentId={studentId}
+                onMoveChanged={load}
               />
             ))}
           </div>
@@ -279,6 +285,15 @@ const CoursesAndCreditsPage = () => {
         onCreated={load}
         subject={addingTo}
         courseLengths={plan?.course_lengths || []}
+        studentId={studentId}
+      />
+      <MoveCreditModal
+        key={moveTarget ? `${moveTarget.questId}-${moveTarget.from.key}` : 'none'}
+        isOpen={!!moveTarget}
+        onClose={() => setMoveTarget(null)}
+        onRequested={load}
+        target={moveTarget}
+        subjects={(plan?.subjects || []).map((s) => ({ key: s.key, name: s.name }))}
         studentId={studentId}
       />
       <CheckInModal

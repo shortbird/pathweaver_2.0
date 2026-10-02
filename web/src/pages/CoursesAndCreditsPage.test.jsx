@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import CoursesAndCreditsPage from './CoursesAndCreditsPage'
 
 // A parent, scoped to Ada unless a test clears it.
@@ -95,10 +96,14 @@ const PLAN = {
 }
 
 function renderPage() {
+  // The move-credit menu and modal read through hooks/api (react-query).
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return render(
-    <MemoryRouter>
-      <CoursesAndCreditsPage />
-    </MemoryRouter>
+    <QueryClientProvider client={queryClient}>
+      <MemoryRouter>
+        <CoursesAndCreditsPage />
+      </MemoryRouter>
+    </QueryClientProvider>
   )
 }
 
@@ -328,5 +333,94 @@ describe('CoursesAndCreditsPage required subjects overview', () => {
 
     await user.click(within(overview).getByRole('button', { name: /^Math/ }))
     expect(card.scrollIntoView).toHaveBeenCalled()
+  })
+})
+
+// Kristine Waechtler, 2026-10-02: Archery earned Electives credit and belongs
+// in PE. The family asks from the quest row; Optio decides.
+describe('CoursesAndCreditsPage moving credit to another subject', () => {
+  const archery = {
+    quest_id: 'q-archery',
+    title: 'Archery',
+    xp: 250,
+    also_counted_toward: [],
+    tasks: [{ id: 't-a', title: 'Shoot 100 arrows', xp: 250 }],
+  }
+  const planWith = (moveRequests = []) => ({
+    ...PLAN,
+    subjects: PLAN.subjects.map((s) => {
+      if (s.key === 'electives') return { ...s, name: 'Electives', quests: [archery] }
+      if (s.key === 'pe') return { ...s, name: 'PE' }
+      return s
+    }),
+    move_requests: moveRequests,
+  })
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    scope = { studentId: 'kid-1', studentName: 'Ada' }
+    schoolOrg = null
+  })
+
+  it('asks Optio to move a quest from its row menu', async () => {
+    const user = userEvent.setup()
+    apiGet.mockResolvedValue({ data: { data: planWith() } })
+    apiPost.mockResolvedValue({ data: { data: { id: 'req-1' } } })
+    renderPage()
+
+    const electives = await screen.findByRole('region', { name: /electives/i })
+    await user.click(within(electives).getByRole('button', { name: 'More options for Archery' }))
+    await user.click(screen.getByRole('menuitem', { name: 'Move credit to another subject' }))
+
+    const dialog = await screen.findByRole('dialog')
+    const picker = within(dialog).getByLabelText('Move to')
+    // The subject it is in now is not offered.
+    expect(within(picker).queryByRole('option', { name: 'Electives' })).not.toBeInTheDocument()
+    await user.selectOptions(picker, 'pe')
+    expect(within(dialog).getByTestId('move-credit-summary')).toHaveTextContent('250 XP from Electives to PE')
+    await user.type(within(dialog).getByLabelText('Why (optional)'), 'Archery is a sport')
+    await user.click(within(dialog).getByRole('button', { name: 'Send to Optio' }))
+
+    await waitFor(() => expect(apiPost).toHaveBeenCalledWith('/api/courses-and-credits/move-requests', {
+      quest_id: 'q-archery',
+      from_subject: 'electives',
+      to_subject: 'pe',
+      reason: 'Archery is a sport',
+      student_id: 'kid-1',
+    }))
+    // The plan reloads, which is what brings back "Move requested".
+    await waitFor(() => expect(apiGet).toHaveBeenCalledTimes(2))
+  })
+
+  it('shows a waiting move as "Move requested" with Cancel instead of the menu', async () => {
+    const user = userEvent.setup()
+    apiGet.mockResolvedValue({ data: { data: planWith([{
+      id: 'req-1', quest_id: 'q-archery', from_subject: 'electives', to_subject: 'pe',
+      to_subject_name: 'PE', xp: 250, status: 'pending',
+    }]) } })
+    apiPost.mockResolvedValue({ data: { data: { id: 'req-1', status: 'cancelled' } } })
+    renderPage()
+
+    const electives = await screen.findByRole('region', { name: /electives/i })
+    expect(within(electives).getByText('Move requested')).toBeInTheDocument()
+    expect(within(electives).queryByRole('button', { name: 'More options for Archery' })).not.toBeInTheDocument()
+
+    await user.click(within(electives).getByRole('button', { name: 'Cancel' }))
+    await waitFor(() => expect(apiPost).toHaveBeenCalledWith(
+      '/api/courses-and-credits/move-requests/req-1/cancel', { student_id: 'kid-1' }))
+  })
+
+  it('offers the same move on an own-curriculum course', async () => {
+    const user = userEvent.setup()
+    apiGet.mockResolvedValue({ data: { data: planWith() } })
+    renderPage()
+
+    const math = await screen.findByRole('region', { name: /math/i })
+    await user.click(within(math).getByRole('button', { name: 'More options for Saxon Math 8/7' }))
+    await user.click(screen.getByRole('menuitem', { name: 'Move credit to another subject' }))
+    const dialog = await screen.findByRole('dialog')
+    await user.selectOptions(within(dialog).getByLabelText('Move to'), 'pe')
+    expect(within(dialog).getByTestId('move-credit-summary'))
+      .toHaveTextContent('This course and its credit from Math to PE')
   })
 })

@@ -1,11 +1,12 @@
 import React from 'react'
-import { array, func, number, object, shape, string } from 'prop-types'
+import { array, arrayOf, func, node, number, object, shape, string } from 'prop-types'
 import { Link } from 'react-router-dom'
 import { CheckCircleIcon } from '@heroicons/react/24/solid'
 import { PlusIcon } from '@heroicons/react/24/outline'
 import { formatCredits } from '../../utils/creditRequirements'
 import QuestCreditRow from './QuestCreditRow'
 import CreditProgressBar from './CreditProgressBar'
+import CreditMoveMenu from './CreditMoveMenu'
 import { creditsToXp, xpLabel, xpWithCredits } from './xpLabels'
 
 const STATUS_PILL = {
@@ -71,7 +72,7 @@ const rememberReturn = (questId) => () => {
   }
 }
 
-const CourseRow = ({ course, onOpenCheckIn }) => {
+const CourseRow = ({ course, onOpenCheckIn, moveMenu }) => {
   if (course.kind === 'own') {
     return (
       <li className="border border-gray-100 bg-gray-50/60 rounded-lg p-4">
@@ -88,7 +89,10 @@ const CourseRow = ({ course, onOpenCheckIn }) => {
               Own curriculum, {course.length_label?.toLowerCase()}, {creditLabel(course.credits)}
             </p>
           </div>
-          <StatusPill status={course.status} />
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <StatusPill status={course.status} />
+            {moveMenu}
+          </div>
         </div>
         <div className="mt-3 flex flex-wrap items-center gap-2">
           {course.check_ins.map((c) => (
@@ -164,14 +168,25 @@ const CourseRow = ({ course, onOpenCheckIn }) => {
 CourseRow.propTypes = {
   course: object.isRequired,
   onOpenCheckIn: func.isRequired,
+  moveMenu: node,
 }
 
 /**
  * One diploma subject: how much of it is done, the courses in it, and the
  * button that adds another. `standing` is this subject's entry from
  * getCreditStanding, so the numbers agree with every other credit view.
+ *
+ * `onMoveCredit(target)` opens the move-to-another-subject request for a
+ * quest row or an own-curriculum course; `moveRequests` are the ones already
+ * waiting on Optio, which replace that row's menu with "Move requested".
  */
-const SubjectCard = ({ subject, standing, pendingXp, onAddCourse, onOpenCheckIn }) => {
+const SubjectCard = ({
+  subject, standing, pendingXp, onAddCourse, onOpenCheckIn,
+  onMoveCredit, moveRequests = [], studentId, onMoveChanged,
+}) => {
+  const from = { key: subject.key, name: subject.name }
+  const pendingMoveFor = (questId) => moveRequests.find(
+    (r) => r.quest_id === questId && r.from_subject === subject.key)
   const required = standing?.creditsRequired ?? 0
   const counted = standing?.creditsCounted ?? 0
   const done = !!standing?.isComplete
@@ -217,7 +232,20 @@ const SubjectCard = ({ subject, standing, pendingXp, onAddCourse, onOpenCheckIn 
       {subject.courses.length > 0 && (
         <ul className="mt-4 space-y-2">
           {subject.courses.map((course, i) => (
-            <CourseRow key={course.quest_id || `${course.title}-${i}`} course={course} onOpenCheckIn={onOpenCheckIn} />
+            <CourseRow
+              key={course.quest_id || `${course.title}-${i}`}
+              course={course}
+              onOpenCheckIn={onOpenCheckIn}
+              moveMenu={course.kind === 'own' && onMoveCredit ? (
+                <CreditMoveMenu
+                  title={course.title}
+                  pendingRequest={pendingMoveFor(course.quest_id)}
+                  studentId={studentId}
+                  onMove={() => onMoveCredit({ kind: 'course', questId: course.quest_id, title: course.title, from })}
+                  onChanged={onMoveChanged}
+                />
+              ) : null}
+            />
           ))}
         </ul>
       )}
@@ -227,7 +255,17 @@ const SubjectCard = ({ subject, standing, pendingXp, onAddCourse, onOpenCheckIn 
       {subject.quests?.length > 0 && (
         <ul className={`${subject.courses.length > 0 ? 'mt-2' : 'mt-4'} space-y-2`} aria-label={`Quests that earned ${subject.name} credit`}>
           {subject.quests.map((quest) => (
-            <QuestCreditRow key={quest.quest_id} quest={quest} onOpenQuest={rememberReturn(quest.quest_id)} />
+            <QuestCreditRow
+              key={quest.quest_id}
+              quest={quest}
+              onOpenQuest={rememberReturn(quest.quest_id)}
+              onMoveCredit={onMoveCredit
+                ? () => onMoveCredit({ kind: 'quest', questId: quest.quest_id, title: quest.title, xp: quest.xp, from })
+                : undefined}
+              pendingMove={pendingMoveFor(quest.quest_id)}
+              studentId={studentId}
+              onChanged={onMoveChanged}
+            />
           ))}
         </ul>
       )}
@@ -259,6 +297,10 @@ SubjectCard.propTypes = {
   pendingXp: number,
   onAddCourse: func.isRequired,
   onOpenCheckIn: func.isRequired,
+  onMoveCredit: func,
+  moveRequests: arrayOf(shape({ id: string, quest_id: string, from_subject: string })),
+  studentId: string,
+  onMoveChanged: func,
 }
 
 export default SubjectCard

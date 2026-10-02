@@ -2,6 +2,7 @@ import React, { useState } from 'react'
 import { array, arrayOf, func, number, shape, string } from 'prop-types'
 import { Link } from 'react-router-dom'
 import { ChevronDownIcon, ChevronRightIcon, MapIcon } from '@heroicons/react/24/outline'
+import CreditMoveMenu from './CreditMoveMenu'
 
 /**
  * A quest that earned approved credit in this subject (Courses and Credits).
@@ -15,8 +16,11 @@ import { ChevronDownIcon, ChevronRightIcon, MapIcon } from '@heroicons/react/24/
  *
  * Amounts are XP, not credits: one task is often a hundredth of a credit,
  * which rounds to nothing, and XP is what the student sees on each task.
+ *
+ * The menu asks Optio to move this subject's share to another subject
+ * (2026-10-02). It shows only where the page passes `onMoveCredit`.
  */
-const QuestCreditRow = ({ quest, onOpenQuest }) => {
+const QuestCreditRow = ({ quest, onOpenQuest, onMoveCredit, pendingMove, studentId, onChanged }) => {
   const [open, setOpen] = useState(false)
   const taskCount = quest.tasks.length
   const Chevron = open ? ChevronDownIcon : ChevronRightIcon
@@ -35,7 +39,18 @@ const QuestCreditRow = ({ quest, onOpenQuest }) => {
           </Link>
           <p className="text-xs text-gray-500 mt-0.5">Quest</p>
         </div>
-        <span className="text-xs font-semibold text-gray-700 flex-shrink-0">{quest.xp} XP here</span>
+        <div className="flex items-center gap-2 flex-shrink-0">
+          <span className="text-xs font-semibold text-gray-700">{quest.xp} XP here</span>
+          {onMoveCredit && (
+            <CreditMoveMenu
+              title={quest.title}
+              pendingRequest={pendingMove}
+              studentId={studentId}
+              onMove={onMoveCredit}
+              onChanged={onChanged}
+            />
+          )}
+        </div>
       </div>
 
       {quest.also_counted_toward.length > 0 && (
@@ -86,6 +101,10 @@ QuestCreditRow.propTypes = {
     tasks: array.isRequired,
   }).isRequired,
   onOpenQuest: func,
+  onMoveCredit: func,
+  pendingMove: shape({ id: string.isRequired, to_subject_name: string }),
+  studentId: string,
+  onChanged: func,
 }
 
 export default QuestCreditRow

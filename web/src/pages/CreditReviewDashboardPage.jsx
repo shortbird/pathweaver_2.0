@@ -9,6 +9,8 @@ import BulkActionBar from '../components/credit-dashboard/BulkActionBar'
 import MergeModal from '../components/credit-dashboard/MergeModal'
 import ShortcutHelp from '../components/credit-dashboard/ShortcutHelp'
 import ClassReviewsSection from '../components/credit-dashboard/ClassReviewsSection'
+import SubjectMovesSection from '../components/credit-dashboard/SubjectMovesSection'
+import { useSubjectMoveQueue } from '../hooks/api/useSubjectCreditMoves'
 import GraderView from '../components/credit-dashboard/grader/GraderView'
 import useKeyboardShortcuts from '../hooks/useKeyboardShortcuts'
 import useAiReviewPolling from '../hooks/useAiReviewPolling'
@@ -121,8 +123,11 @@ const CreditReviewDashboardPage = ({ orgId = null }) => {
   const [showMergeModal, setShowMergeModal] = useState(false)
   const [showShortcuts, setShowShortcuts] = useState(false)
 
-  // 'tasks' = per-task credit queue (default); 'classes' = full class submissions
+  // 'tasks' = per-task credit queue (default); 'classes' = full class
+  // submissions; 'moves' = families asking to move a quest's credit to
+  // another subject (2026-10-02), superadmin like classes.
   const [mainTab, setMainTab] = useState('tasks')
+  const { data: pendingMoves = [] } = useSubjectMoveQueue('pending', { enabled: canReviewClasses })
   const [classPendingCount, setClassPendingCount] = useState(0)
   const [classRefreshKey, setClassRefreshKey] = useState(0)
 
@@ -445,6 +450,7 @@ const CreditReviewDashboardPage = ({ orgId = null }) => {
               tabs={[
                 { id: 'tasks', label: 'Tasks' },
                 { id: 'classes', label: 'Classes', badge: classPendingCount > 0 ? classPendingCount : null },
+                { id: 'moves', label: 'Subject moves', badge: pendingMoves.length > 0 ? pendingMoves.length : null },
               ]}
               active={mainTab}
               onSelect={setMainTab}
@@ -496,6 +502,13 @@ const CreditReviewDashboardPage = ({ orgId = null }) => {
       {mainTab === 'classes' && (
         <div className="relative flex-1 overflow-y-auto p-3 md:p-6 bg-neutral-50">
           <ClassReviewsSection onReviewed={() => setClassRefreshKey(k => k + 1)} />
+        </div>
+      )}
+
+      {/* Families asking to move a quest's credit to another subject. */}
+      {mainTab === 'moves' && (
+        <div className="relative flex-1 overflow-y-auto p-3 md:p-6 bg-neutral-50">
+          <SubjectMovesSection />
         </div>
       )}
 
