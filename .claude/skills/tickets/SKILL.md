@@ -177,6 +177,32 @@ answer rather than send a mail that ignores the question.
 
    Then run the affected suites again and say in the report which tests you
    added and which you changed.
+
+   **Audit the tests against the final diff before the local check.** Do this
+   yourself, once the code stops moving, even when subagents wrote the fix
+   and reported their tests. A builder's report lists what it tested, not
+   what it missed. List every changed file (`git diff --stat`, plus untracked
+   files) and, for each change that alters behaviour, name the test that
+   would fail if the change were reverted. A change with no such test is a
+   gap: add the test, or say in the report why none is possible. The gaps
+   that slipped through the 2026-10-05 sweep, so look for them first:
+
+   - **A prop the fix starts passing.** The child that receives the new prop
+     had a test; the parent that passes it did not, which is exactly the
+     line that was missing in the bug (a card that never handed `studentId`
+     to its modal). Test at the parent, and show the test fails on the old
+     code (`git show HEAD:<path>` tells you what the old code passed).
+   - **A new column the UI reads from an existing read.** If a `select('*')`
+     happens to carry it today, nothing stops a later refactor from naming
+     the columns and dropping it, and then an editor starts from 0 and the
+     next save wipes the real value. Pin that the read carries the field,
+     including the default.
+   - **The same fix on a second surface.** If web and mobile, or the office
+     page and the teacher page, both changed, each needs its own test, or a
+     sentence saying why one surface cannot reach the bug.
+
+   Then run the affected suites again. Tests found by the audit after the
+   commit go in their own commit; the ticket keeps the fix commit's SHA.
 4. **Stop for the user's local check (CLAUDE.md rule 1).** Tell them what to
    click at http://localhost:3000 (or the port your worktree's servers use).
    Nothing is committed until they confirm.
@@ -230,7 +256,7 @@ the same `fix_commit` and the same two sentences, and they are mailed too.
 ### 6. Finish the sweep
 
 Report to the user, as a table: ticket id, title, what you did in one line,
-the tests you added or changed, how to verify locally, and status. List
+the tests you added or changed (including any the step 3 audit found), how to verify locally, and status. List
 any reporter question still waiting on the user's answer. Then say which will email their reporters
 once the deploy is live and which already did (the cron ran). If any ticket
 is `fixed` with a commit that is not yet on `main` (your worktree branch),
