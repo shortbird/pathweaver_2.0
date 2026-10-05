@@ -76,10 +76,49 @@ function FeedImage({ uri, onPress }: { uri: string; onPress: () => void }) {
 
 /** Swipeable image carousel (Instagram-style) for moments with multiple photos.
  *  Replaces the old 2-up collage grid. Each page shows the whole image at its
- *  natural ratio; tap opens the full-screen viewer. Page dots track position. */
+ *  natural ratio; tap opens the full-screen viewer.
+ *
+ *  Position indicator (ticket dceb708c, "Dots go across whole screen with many
+ *  images"): one dot per image had no cap, so a 30-photo moment drew a row of
+ *  dots wider than the card. Dots for 2-5 images, a "3/12" counter above
+ *  that, nothing for one. */
+export const CAROUSEL_MAX_DOTS = 5;
+
+export function CarouselPosition({ count, index }: { count: number; index: number }) {
+  if (count <= 1) return null;
+  if (count > CAROUSEL_MAX_DOTS) {
+    return (
+      <HStack className="items-center justify-center mt-2">
+        <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400" testID="carousel-counter">
+          {`${index + 1}/${count}`}
+        </UIText>
+      </HStack>
+    );
+  }
+  return (
+    <HStack className="items-center justify-center gap-1.5 mt-2" testID="carousel-dots">
+      {Array.from({ length: count }, (_, i) => (
+        <View
+          key={`dot-${i}`}
+          testID="carousel-dot"
+          style={{ width: 6, height: 6, borderRadius: 3 }}
+          className={i === index ? 'bg-optio-purple' : 'bg-surface-300 dark:bg-dark-surface-300'}
+        />
+      ))}
+    </HStack>
+  );
+}
+
 function ImageCarousel({ uris, onPress }: { uris: string[]; onPress: (uri: string) => void }) {
   const [width, setWidth] = useState(0);
   const [index, setIndex] = useState(0);
+  // Track the page while the finger is still moving, not only once momentum
+  // ends; the functional setState skips the render when the page is the same.
+  const onScroll = (e: { nativeEvent: { contentOffset: { x: number } } }) => {
+    if (width <= 0) return;
+    const next = Math.max(0, Math.min(uris.length - 1, Math.round(e.nativeEvent.contentOffset.x / width)));
+    setIndex((prev) => (prev === next ? prev : next));
+  };
   return (
     <View onLayout={(e) => {
       const next = e.nativeEvent.layout.width;
@@ -90,7 +129,9 @@ function ImageCarousel({ uris, onPress }: { uris: string[]; onPress: (uri: strin
           horizontal
           pagingEnabled
           showsHorizontalScrollIndicator={false}
-          onMomentumScrollEnd={(e) => setIndex(Math.round(e.nativeEvent.contentOffset.x / width))}
+          onScroll={onScroll}
+          scrollEventThrottle={32}
+          onMomentumScrollEnd={onScroll}
         >
           {uris.map((uri) => (
             // Keyed by URL, not index: the ratio cache is seeded in a lazy
@@ -102,16 +143,7 @@ function ImageCarousel({ uris, onPress }: { uris: string[]; onPress: (uri: strin
           ))}
         </ScrollView>
       )}
-      {/* Page dots */}
-      <HStack className="items-center justify-center gap-1.5 mt-2">
-        {uris.map((_, i) => (
-          <View
-            key={`dot-${i}`}
-            style={{ width: 6, height: 6, borderRadius: 3 }}
-            className={i === index ? 'bg-optio-purple' : 'bg-surface-300 dark:bg-dark-surface-300'}
-          />
-        ))}
-      </HStack>
+      <CarouselPosition count={uris.length} index={index} />
     </View>
   );
 }
@@ -1033,6 +1065,21 @@ function FeedCardImpl({ item, showStudent = true, onPress, viewerCanModerate = f
   );
 }
 
+/** Value equality for a feed item's `reactions` ({ by_key, mine }). */
+export function sameReactions(a: FeedItem['reactions'], b: FeedItem['reactions']): boolean {
+  if (a === b) return true;
+  if (!a || !b) return false;
+  if (a.mine !== b.mine) return false;
+  const ak = a.by_key || {};
+  const bk = b.by_key || {};
+  const keys = new Set([...Object.keys(ak), ...Object.keys(bk)]);
+  for (const k of keys) {
+    // A missing key and a zero count draw the same chip row.
+    if ((ak[k as keyof typeof ak] || 0) !== (bk[k as keyof typeof bk] || 0)) return false;
+  }
+  return true;
+}
+
 // P4: memoize so stable feed items don't re-render when siblings change.
 // Re-render only on identity or on the fields this card actually reads.
 export const FeedCard = memo(FeedCardImpl, (prev, next) => {
@@ -1051,7 +1098,11 @@ export const FeedCard = memo(FeedCardImpl, (prev, next) => {
   const a = prev.item;
   const b = next.item;
   if (a.viewer_relationship !== b.viewer_relationship) return false;
-  if (a.reactions !== b.reactions) return false;
+  // By value, not by reference (ticket 2c34704a, "Reopening the app after it
+  // had been running in background for a while made the feed very choppy"):
+  // a refetch hands every item a fresh `reactions` object, and the reference
+  // check re-rendered every card at once even when nothing had changed.
+  if (!sameReactions(a.reactions, b.reactions)) return false;
   // Multi-kid grouped posts: the `students` list can change (e.g. a sibling kid
   // added/removed) while every scalar field stays equal. Compare it explicitly,
   // or the card's avatars/names go stale (it showed combined then reverted to

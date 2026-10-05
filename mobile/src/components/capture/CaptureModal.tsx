@@ -16,6 +16,7 @@ import {
 } from '../ui';
 import { pillarKeys, getPillar } from '@/src/config/pillars';
 import { useThemeColors } from '@/src/hooks/useThemeColors';
+import { extractApiError } from '@/src/services/apiError';
 
 // File size limits (must match backend constants)
 // Mirrors SIGNED_EVIDENCE_SIZE_LIMITS in backend/config/constants.py, because
@@ -228,7 +229,7 @@ export function CaptureModal({ visible, onClose, onCaptured }: CaptureModalProps
       onClose();
       onCaptured?.();
     } catch (err: any) {
-      const msg = err.response?.data?.error?.message || err.response?.data?.error || 'Failed to save';
+      const msg = extractApiError(err, 'Failed to save').message;
       alert(msg);
     } finally {
       setSaving(false);

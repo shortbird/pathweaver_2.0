@@ -27,6 +27,7 @@ import type { LearningEvent, UnifiedTopic, EvidenceBlock } from '@/src/hooks/use
 import {
   updateLearningEvent, assignMomentToTopic, createTopic,
 } from '@/src/hooks/useJournal';
+import { extractApiError } from '@/src/services/apiError';
 
 interface EditMomentModalProps {
   visible: boolean;
@@ -221,7 +222,7 @@ export function EditMomentModal({ visible, event, topics, onClose, onSaved, chil
       onSaved();
       onClose();
     } catch (err: any) {
-      const msg = err.response?.data?.error || 'Failed to save changes.';
+      const msg = extractApiError(err, 'Failed to save changes.').message;
       showAlert('Error', msg);
     } finally {
       setSaving(false);
@@ -296,7 +297,7 @@ export function EditMomentModal({ visible, event, topics, onClose, onSaved, chil
       setShowCreateTopic(false);
       setShowTopicPicker(false);
     } catch (err: any) {
-      showAlert('Error', err?.response?.data?.error || 'Failed to create topic');
+      showAlert('Error', extractApiError(err, 'Failed to create topic').message);
     } finally {
       setCreatingTopic(false);
     }

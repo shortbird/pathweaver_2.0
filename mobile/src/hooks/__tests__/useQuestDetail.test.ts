@@ -72,6 +72,31 @@ describe('useQuestDetail', () => {
     expect(result.current.quest).toBeNull();
   });
 
+  it('Sentry 6cbb6c10 "Objects are not valid as a React child (found: object with keys {code, message, request_id, timestamp})": setError gets the message string from the prod error envelope', async () => {
+    (api.get as jest.Mock).mockRejectedValueOnce({
+      response: {
+        status: 404,
+        data: {
+          error: {
+            message: 'Quest not found',
+            code: 'NOT_FOUND',
+            timestamp: '2026-10-05T12:00:00Z',
+            request_id: 'req-1',
+          },
+        },
+      },
+    });
+
+    const { result } = renderHook(() => useQuestDetail('bad-id'));
+
+    await waitFor(() => {
+      expect(result.current.loading).toBe(false);
+    });
+
+    expect(result.current.error).toBe('Quest not found');
+    expect(typeof result.current.error).toBe('string');
+  });
+
   it('returns early when questId is null', async () => {
     const { result } = renderHook(() => useQuestDetail(null));
 

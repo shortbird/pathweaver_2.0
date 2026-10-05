@@ -168,7 +168,7 @@ export function useQuestDetail(questId: string | null, options?: UseQuestDetailO
       setQuest(data.quest || data);
       setError(null);
     } catch (err: any) {
-      setError(err.response?.data?.error || 'Failed to load quest');
+      setError(extractApiError(err, 'Failed to load quest').message);
     } finally {
       setLoading(false);
     }

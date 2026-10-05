@@ -31,6 +31,7 @@ import { useThemeColors } from '@/src/hooks/useThemeColors';
 import { showAlert } from '@/src/utils/alerts';
 import { createFamilyQuest } from '@/src/hooks/useFamilyQuests';
 import type { Child } from '@/src/types/family';
+import { extractApiError } from '@/src/services/apiError';
 
 interface CreateQuestSheetProps {
   visible: boolean;
@@ -133,9 +134,7 @@ export function CreateQuestSheet({ visible, onClose, onCreated, forChild, family
         router.push(`/(app)/quests/${questId}?new=1` as any);
       }
     } catch (err: any) {
-      const msg = err.response?.data?.error?.message
-        || err.response?.data?.error
-        || 'Could not create that quest. Try a different title.';
+      const msg = extractApiError(err, 'Could not create that quest. Try a different title.').message;
       showAlert('Error', typeof msg === 'string' ? msg : 'Could not create quest.');
     } finally {
       setSaving(false);

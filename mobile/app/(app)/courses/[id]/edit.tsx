@@ -17,6 +17,7 @@ import { useThemeColors } from '@/src/hooks/useThemeColors';
 import {
   VStack, HStack, Heading, UIText, Card, Button, ButtonText, Divider,
 } from '@/src/components/ui';
+import { extractApiError } from '@/src/services/apiError';
 
 const STATUS_OPTIONS = ['draft', 'published', 'archived'] as const;
 const VISIBILITY_OPTIONS = ['public', 'private', 'organization'] as const;
@@ -106,7 +107,7 @@ export default function CourseEditScreen() {
       });
       setSaveMessage('Course updated successfully.');
     } catch (err: any) {
-      setSaveMessage(err.response?.data?.error || 'Failed to save course.');
+      setSaveMessage(extractApiError(err, 'Failed to save course.').message);
     } finally {
       setSaving(false);
     }

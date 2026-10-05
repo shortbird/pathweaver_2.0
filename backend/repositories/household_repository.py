@@ -131,3 +131,48 @@ class HouseholdRepository(BaseRepository):
             .execute()
         ).data or []
         return owned[0]['id'] if owned else None
+
+    # ── volunteer hours ─────────────────────────────────────────────────────
+    # iCreate 01082b30: "Could we make a way for parents to be able to see how
+    # many volunteer hours they have completed? ... keep it private so not
+    # everyone sees everyone elses." One number per family, kept by staff.
+    # These reads name their columns so the number can only leave through the
+    # guardian-only read below; the family directory never selects it.
+
+    def guardian_household_ids(self, user_id: str, organization_id: str) -> List[str]:
+        """The households at one school where this user is a guardian."""
+        from config.constants import GUARDIAN_RELATIONSHIPS
+        rows = (
+            self.client.table('household_members')
+            .select('household_id, relationship, households!inner(organization_id)')
+            .eq('user_id', user_id)
+            .execute()
+        ).data or []
+        return [r['household_id'] for r in rows
+                if r.get('relationship') in GUARDIAN_RELATIONSHIPS
+                and (r.get('households') or {}).get('organization_id') == organization_id]
+
+    def volunteer_hours_for(self, household_ids: List[str],
+                            organization_id: str) -> List[Dict[str, Any]]:
+        if not household_ids:
+            return []
+        return (
+            self.client.table(self.table_name)
+            .select('id, name, volunteer_hours, volunteer_hours_updated_at')
+            .in_('id', household_ids)
+            .eq('organization_id', organization_id)
+            .execute()
+        ).data or []
+
+    def org_records_volunteer_hours(self, organization_id: str) -> bool:
+        """Has staff entered hours for ANY family at this school? Answers yes
+        or no only -- never whose, never how many."""
+        rows = (
+            self.client.table(self.table_name)
+            .select('id')
+            .eq('organization_id', organization_id)
+            .gt('volunteer_hours', 0)
+            .limit(1)
+            .execute()
+        ).data or []
+        return bool(rows)

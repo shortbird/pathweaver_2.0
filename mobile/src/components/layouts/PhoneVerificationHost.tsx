@@ -43,6 +43,7 @@ import { holdLifted } from '@/src/stores/holdStore';
 import { useAuthStore } from '@/src/stores/authStore';
 import { useActingAsStore } from '@/src/stores/actingAsStore';
 import { UIText, toast } from '@/src/components/ui';
+import { extractApiError } from '@/src/services/apiError';
 
 /** Matches the server's own resend cooldown, so the button and the API agree. */
 const RESEND_SECONDS = 60;
@@ -131,7 +132,7 @@ export function PhoneVerificationHost() {
       // 429 carries how long the server wants us to wait; honour it rather
       // than letting them hammer a button that cannot succeed.
       if (data?.retry_after) setCooldown(data.retry_after);
-      toast.error(data?.error || 'Could not send the code');
+      toast.error(extractApiError(err, 'Could not send the code').message);
     } finally {
       setBusy(false);
     }
@@ -155,7 +156,7 @@ export function PhoneVerificationHost() {
       setCode('');
       setDevCode(null);
     } catch (err: any) {
-      toast.error(err?.response?.data?.error || 'Could not verify the code');
+      toast.error(extractApiError(err, 'Could not verify the code').message);
     } finally {
       setBusy(false);
     }

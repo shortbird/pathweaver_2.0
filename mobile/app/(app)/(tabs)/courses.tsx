@@ -16,6 +16,7 @@ import {
   Skeleton, Input, InputField, InputSlot, InputIcon, Badge, BadgeText,
   toast,
 } from '@/src/components/ui';
+import { extractApiError } from '@/src/services/apiError';
 
 const statusBadgeConfig: Record<string, { action: string; label: string }> = {
   draft: { action: 'muted', label: 'Draft' },
@@ -153,7 +154,7 @@ export default function CoursesScreen() {
                       toast.error('Could not create course');
                     }
                   } catch (err: any) {
-                    toast.error(err?.response?.data?.error || 'Could not create course');
+                    toast.error(extractApiError(err, 'Could not create course').message);
                   }
                 }}
               >

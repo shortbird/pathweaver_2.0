@@ -25,6 +25,7 @@ import { formatCents as money } from '../../utils/money'
 import FamilyBillingPanel from './familyDetail/FamilyBillingPanel'
 import AddChildForm from './familyDetail/AddChildForm'
 import AddParentForm from './familyDetail/AddParentForm'
+import VolunteerHoursRow from './familyDetail/VolunteerHoursRow'
 import { INPUT_CLASS } from '../../components/ui/Input'
 
 const FUNDING_OPTIONS = [
@@ -449,6 +450,7 @@ const DetailsPanel = ({ household, orgId, onSaved }) => {
   return (
     <div className="space-y-3">
       <RegistrationAccessSection household={household} orgId={orgId} onSaved={onSaved} />
+      <VolunteerHoursRow household={household} orgId={orgId} onSaved={onSaved} />
       <label className="text-xs text-neutral-500 block">Address line 1
         <input value={f.address_line1} onChange={(e) => set('address_line1', e.target.value)} className={field} />
       </label>

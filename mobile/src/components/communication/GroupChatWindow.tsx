@@ -351,7 +351,7 @@ export function GroupChatWindow({ group, onBack, onDeleted, onRead, onMuteChange
       setMessages((prev) => patchMessageDeleted(prev, msg.id, isSuperadmin));
       if (pinnedId === msg.id) setPinnedId(null);
     } catch (e: any) {
-      toast.error(e?.response?.data?.error || 'Failed to delete the message');
+      toast.error(extractApiError(e, 'Failed to delete the message').message);
     }
   };
 
@@ -361,7 +361,7 @@ export function GroupChatWindow({ group, onBack, onDeleted, onRead, onMuteChange
       await pinGroupMessage(group.id, nextId);
       setPinnedId(nextId);
     } catch (e: any) {
-      toast.error(e?.response?.data?.error || 'Failed to update the pin');
+      toast.error(extractApiError(e, 'Failed to update the pin').message);
     }
   };
 
@@ -370,7 +370,7 @@ export function GroupChatWindow({ group, onBack, onDeleted, onRead, onMuteChange
       await pinGroupMessage(group.id, null);
       setPinnedId(null);
     } catch (e: any) {
-      toast.error(e?.response?.data?.error || 'Failed to unpin');
+      toast.error(extractApiError(e, 'Failed to unpin').message);
     }
   };
 
@@ -382,7 +382,7 @@ export function GroupChatWindow({ group, onBack, onDeleted, onRead, onMuteChange
       await setGroupAnnouncementOnly(group.id, value);
     } catch (e: any) {
       setAnnouncementOnly(prev);
-      toast.error(e?.response?.data?.error || 'Failed to update the setting');
+      toast.error(extractApiError(e, 'Failed to update the setting').message);
     } finally {
       setSavingSettings(false);
     }
@@ -403,7 +403,7 @@ export function GroupChatWindow({ group, onBack, onDeleted, onRead, onMuteChange
       onMuteChanged?.(saved);
     } catch (e: any) {
       setMutePress({ groupId, muted: !next });
-      toast.error(e?.response?.data?.error || 'Failed to update alerts for this chat');
+      toast.error(extractApiError(e, 'Failed to update alerts for this chat').message);
     } finally {
       setSavingMute(false);
     }
@@ -433,7 +433,7 @@ export function GroupChatWindow({ group, onBack, onDeleted, onRead, onMuteChange
         setEditing(null);
         setInput('');
       } catch (e: any) {
-        toast.error(e?.response?.data?.error || 'Failed to edit the message');
+        toast.error(extractApiError(e, 'Failed to edit the message').message);
       } finally {
         setSending(false);
       }
@@ -490,11 +490,11 @@ export function GroupChatWindow({ group, onBack, onDeleted, onRead, onMuteChange
       // 403: announcement-only groups reject non-admin posts.
       if (e?.response?.status === 403) {
         setAnnouncementOnly(true);
-        toast.error(e?.response?.data?.error || 'Only teachers can post in this group');
+        toast.error(extractApiError(e, 'Only teachers can post in this group').message);
       } else {
         // 400 is the safety screen's hold ("That was held by our safety
         // check..."): the child must read it, or the message just vanishes.
-        toast.error(e?.response?.data?.error || 'Could not send the message');
+        toast.error(extractApiError(e, 'Could not send the message').message);
       }
     } finally {
       setSending(false);
@@ -521,7 +521,7 @@ export function GroupChatWindow({ group, onBack, onDeleted, onRead, onMuteChange
       onDeleted?.();
       onBack?.();
     } catch (e: any) {
-      toast.error(e?.response?.data?.error || 'Failed to delete group');
+      toast.error(extractApiError(e, 'Failed to delete group').message);
     } finally {
       setDeleting(false);
     }

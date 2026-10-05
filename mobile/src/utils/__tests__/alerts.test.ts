@@ -15,6 +15,13 @@ describe('alerts', () => {
       expect(spy).toHaveBeenCalledWith('Error', 'Something failed');
     });
 
+    it('Sentry 6cbb6c10 "Objects are not valid as a React child": showAlert turns the error envelope object into its message', () => {
+      const spy = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+      const envelope = { code: 'X', message: 'Topic name taken', request_id: 'r', timestamp: 't' };
+      showAlert('Error', envelope as unknown as string);
+      expect(spy).toHaveBeenCalledWith('Error', 'Topic name taken');
+    });
+
     it('confirmAlert resolves true on confirm, false on cancel', async () => {
       const spy = jest.spyOn(Alert, 'alert').mockImplementation((_t, _m, buttons) => {
         buttons?.find((b) => b.style !== 'cancel')?.onPress?.();

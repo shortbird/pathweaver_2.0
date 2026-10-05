@@ -667,6 +667,7 @@ const LearningEventCard = ({ event, onUpdate, showTrackAssign = true, onTrackAss
         moment={localEvent}
         quest={selectedQuest}
         onSuccess={handleAddToQuestSuccess}
+        studentId={studentId}
       />
     </>
   );

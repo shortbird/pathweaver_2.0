@@ -104,8 +104,8 @@ def import_address() -> Optional[str]:
 
 def is_import_address(*values: Optional[str]) -> bool:
     """True when any recipient field names the import address. A notes+ token
-    that is not ours is still claimed, so the rejection is logged here as a
-    wrong import token and not by the webhook as mail for nobody."""
+    that is not ours is still claimed, so it never falls through to the reply
+    relay and gets logged there as a broken reply."""
     return any(v and _ADDRESS_RE.search(v) for v in values)
 
 

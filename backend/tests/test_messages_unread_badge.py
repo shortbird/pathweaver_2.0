@@ -206,3 +206,80 @@ class TestUnreadCountEndpoint:
         """A family whose whole conversation happens in class chats used to see
         no badge at all, however much mail was waiting."""
         assert self._get(direct=0, group=4)['data']['unread_count'] == 4
+
+
+@pytest.mark.unit
+class TestGroupThreadsWithUnread:
+    """iCreate, ticket 16d13eb4: "my messages says I have 1 unread, but I have
+    no idea where that message might be." The console's number is threads
+    waiting on you: 1:1 threads in the Open view plus group THREADS with
+    unread -- each a row on the page (an Open thread or a group section's
+    unread pill). Groups count once each, however many messages wait."""
+
+    def test_counts_groups_not_messages(self):
+        service, _ = _service(_rows(
+            [_member('g1', READ_AT), _member('g2', READ_AT), _member('g3', READ_AT)],
+            [{'id': 'g1', 'is_active': True, 'last_message_at': '2026-09-08T18:00:00Z'},
+             {'id': 'g2', 'is_active': True, 'last_message_at': '2026-09-08T19:30:00Z'},
+             {'id': 'g3', 'is_active': True, 'last_message_at': '2026-09-08T09:00:00Z'}],
+            [_msg('m1', 'g1', 'teacher', '2026-09-08T18:00:00Z'),
+             _msg('m2', 'g2', 'teacher', '2026-09-08T19:00:00Z'),
+             _msg('m3', 'g2', 'other-parent', '2026-09-08T19:30:00Z')],
+        ))
+        assert service.count_groups_with_unread(PARENT) == 2
+
+    def test_a_group_with_only_your_own_new_message_does_not_count(self):
+        service, _ = _service(_rows(
+            [_member('g1', READ_AT)],
+            [{'id': 'g1', 'is_active': True, 'last_message_at': '2026-09-08T19:00:00Z'}],
+            [_msg('m1', 'g1', PARENT, '2026-09-08T19:00:00Z')],
+        ))
+        assert service.count_groups_with_unread(PARENT) == 0
+
+    def test_owned_by_counts_only_the_groups_the_school_tab_lists(self):
+        # get_school_groups lists the groups the inbox account created; a group
+        # it was only added to is not on the School tab, so it is not counted.
+        service, _ = _service(_rows(
+            [_member('g1'), _member('g2')],
+            [{'id': 'g1', 'is_active': True, 'created_by': PARENT,
+              'last_message_at': '2026-09-08T18:00:00Z'},
+             {'id': 'g2', 'is_active': True, 'created_by': 'someone-else',
+              'last_message_at': '2026-09-08T18:00:00Z'}],
+            [_msg('m1', 'g1', 'teacher', '2026-09-08T18:00:00Z'),
+             _msg('m2', 'g2', 'teacher', '2026-09-08T18:00:00Z')],
+        ))
+        assert service.count_groups_with_unread(PARENT, owned_by=PARENT) == 1
+        assert service.count_groups_with_unread(PARENT) == 2
+
+    def test_a_failure_is_zero(self):
+        service, admin = _service(_rows([], [], []))
+        admin.table = lambda name: (_ for _ in ()).throw(RuntimeError('down'))
+        assert service.count_groups_with_unread(PARENT) == 0
+
+
+@pytest.mark.unit
+class TestThreadsWaitingEndpoint:
+    """iCreate, ticket 16d13eb4 (see above): ?threads=1 is the console's
+    number, and it includes group threads with unread so a group explains
+    the badge."""
+
+    def test_threads_is_open_one_to_one_threads_plus_unread_groups(self):
+        from flask import Flask
+        from unittest.mock import patch
+        from routes import direct_messages as route
+        from services.group_message_service import GroupMessageService
+        from utils.auth import decorators as auth_decorators
+
+        app = Flask(__name__)
+        app.config['TESTING'] = True
+        app.register_blueprint(route.bp)
+        with patch.object(auth_decorators.session_manager, 'get_effective_user_id',
+                          return_value=PARENT), \
+             patch.object(route.message_service, 'get_unread_count', return_value=0), \
+             patch.object(route.message_service, 'count_threads_needing_reply', return_value=0), \
+             patch.object(GroupMessageService, 'get_unread_total', return_value=1), \
+             patch.object(GroupMessageService, 'count_groups_with_unread', return_value=1):
+            body = app.test_client().get('/api/messages/unread-count?threads=1').get_json()
+        assert body['data']['needs_reply_threads'] == 1
+        assert body['data']['direct_threads'] == 0
+        assert body['data']['group_threads'] == 1

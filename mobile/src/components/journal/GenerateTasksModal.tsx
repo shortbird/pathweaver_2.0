@@ -11,6 +11,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { VStack, HStack, UIText, Heading, Button, ButtonText, PillarBadge } from '../ui';
 import { useThemeColors } from '@/src/hooks/useThemeColors';
+import { extractApiError } from '@/src/services/apiError';
 
 interface Props {
   visible: boolean;
@@ -64,7 +65,7 @@ export function GenerateTasksModal({ visible, questTitle, onClose, onGenerate, o
       setAcceptedCount(0);
       setStep('review');
     } catch (err: any) {
-      const msg = err.response?.data?.error || err.message || 'Failed to generate tasks';
+      const msg = extractApiError(err, 'Failed to generate tasks').message;
       setError(msg.includes('429') || msg.includes('quota')
         ? 'AI is busy. Please wait a moment and try again.' : msg);
     } finally {
@@ -79,7 +80,7 @@ export function GenerateTasksModal({ visible, questTitle, onClose, onGenerate, o
       setAcceptedCount((c) => c + 1);
       advance();
     } catch (err: any) {
-      setError(err.response?.data?.error || 'Failed to add task');
+      setError(extractApiError(err, 'Failed to add task').message);
     } finally {
       setAccepting(false);
     }

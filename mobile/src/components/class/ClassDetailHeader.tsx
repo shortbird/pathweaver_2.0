@@ -13,6 +13,7 @@ import {
   Card, HStack, VStack, UIText, Heading, Button, ButtonText, Skeleton,
 } from '../ui';
 import { getSubject } from './SUBJECTS';
+import { extractApiError } from '@/src/services/apiError';
 
 interface ClassDetailHeaderProps {
   questId: string;
@@ -65,7 +66,7 @@ export function ClassDetailHeader({ questId, transcriptSubject, refreshKey, stud
       showAlert('Submitted for review', 'Optio will review your class and award credit if everything looks good. You can keep working in the meantime.');
       await fetchProgress();
     } catch (err: any) {
-      const msg = err?.response?.data?.error?.message || 'Could not submit class.';
+      const msg = extractApiError(err, 'Could not submit class.').message;
       showAlert('Submit failed', msg);
     } finally {
       setSubmitting(false);

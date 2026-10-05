@@ -151,6 +151,39 @@ def list_resources(user_id):
     return jsonify(payload)
 
 
+@bp.route('/resources/order', methods=['PUT'])
+@require_role(*ADMIN_ROLES)
+def set_resource_order(user_id):
+    """Save the admin's order of the document library.
+
+    Body: {"ids": ["<resource id>", ...]} in the order the Documents tab shows
+    them. Each row gets its index in that list as sort_order, which
+    list_resources, the families' Resources page and the teacher dashboard all
+    sort by before title. iCreate 07b646fa: "It'd be nice if I could rearrange
+    the resources to put them in a certain order (like move them up or down.)"
+    and 48531900: "I just realized the docs are alphabetical! I would still
+    like to sort if possible."
+
+    Same tier as editing a resource (ADMIN_ROLES). Ids that are not this org's
+    library documents -- another school's, or a training link, which the
+    Training page orders -- are skipped, not written.
+    """
+    from utils.validation import validate_uuid
+    from repositories.org_resource_repository import OrgResourceRepository
+
+    org_id, err = sis_service.org_or_error(user_id)
+    if err:
+        return err
+    ids = (request.get_json(silent=True) or {}).get('ids')
+    if not isinstance(ids, list) or not ids or len(ids) > 500:
+        return jsonify({'success': False, 'error': 'ids must be a list of resource ids'}), 400
+    if len(set(ids)) != len(ids) or not all(validate_uuid(i)[0] for i in ids):
+        return jsonify({'success': False, 'error': 'Invalid resource id'}), 400
+    # admin client justified: org_resources sort_order write gated by @require_role(ADMIN_ROLES); the repository pins every write to the resolved org and to non-training rows
+    written = OrgResourceRepository(client=get_supabase_admin_client()).set_sort_order(org_id, ids)
+    return jsonify({'success': True, 'ordered': written})
+
+
 @bp.route('/resources/reconcile-paperwork', methods=['POST'])
 @require_role(*ADMIN_ROLES)
 def reconcile_paperwork_resources(user_id):

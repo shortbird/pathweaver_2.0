@@ -16,6 +16,7 @@ import api from '@/src/services/api';
 import { useAuthStore } from '@/src/stores/authStore';
 import { useIsObserver } from '@/src/hooks/useStartSomething';
 import { useRefetchOnForeground } from './useRefetchOnForeground';
+import { extractApiError, apiErrorBodyMessage } from '@/src/services/apiError';
 
 // ── Types (server shapes, family-safe projections) ──
 
@@ -505,11 +506,11 @@ export function useSchoolArchive(options?: { organizationId?: string }) {
         setTotal(data.total || 0);
         if (data.organization_name) setOrgName(data.organization_name);
       } else {
-        setError(data?.error || 'Could not load messages');
+        setError(apiErrorBodyMessage(data, 'Could not load messages'));
       }
     } catch (e: any) {
       if (requestId !== requestRef.current) return;
-      setError(e?.response?.data?.error || 'Could not load messages');
+      setError(extractApiError(e, 'Could not load messages').message);
     } finally {
       if (requestId === requestRef.current) {
         setLoading(false);

@@ -25,9 +25,14 @@ const PILLAR_CONFIG = {
  * an optional diploma credit. When the quest is a class, the diploma credit is
  * locked to that class's subject.
  *
+ * `studentId` is set when a parent works on their child's journal. It is sent
+ * as `student_id` so the backend's student_scope resolves to the child, who
+ * owns the moment. Without it the server looked the moment up under the
+ * parent's id and failed (Sentry a3dc3fed).
+ *
  * (File name kept as PromoteToTaskModal for import stability.)
  */
-const AddToQuestModal = ({ isOpen, onClose, moment, quest, onSuccess }) => {
+const AddToQuestModal = ({ isOpen, onClose, moment, quest, onSuccess, studentId = null }) => {
   const canEditXp = useCanEditXp();
   const hidePillars = useHidePillars();
   const isClass = quest?.quest_type === 'class';
@@ -61,7 +66,8 @@ const AddToQuestModal = ({ isOpen, onClose, moment, quest, onSuccess }) => {
         xp_value: xpValue,
         // A class quest forces its own subject server-side; only send a
         // diploma_subject for non-class quests (optional).
-        diploma_subject: isClass ? undefined : (diplomaSubject || null)
+        diploma_subject: isClass ? undefined : (diplomaSubject || null),
+        ...(studentId ? { student_id: studentId } : {}),
       });
 
       if (response.data.success) {

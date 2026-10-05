@@ -32,6 +32,7 @@ import {
   VStack, HStack, Heading, UIText, Card, Button, ButtonText,
   Input, InputField,
 } from '@/src/components/ui';
+import { extractApiError } from '@/src/services/apiError';
 
 const MAX_XP = 200;
 const MIN_XP = 25;
@@ -243,7 +244,7 @@ export default function CreateBountyPage() {
       router.replace('/(app)/(tabs)/bounties');
     } catch (err: any) {
       haptic.error();
-      const msg = err.response?.data?.message || err.response?.data?.error || `Failed to ${isEditMode ? 'update' : 'create'} bounty`;
+      const msg = extractApiError(err, `Failed to ${isEditMode ? 'update' : 'create'} bounty`).message;
       setFormError(msg);
     } finally {
       setSaving(false);

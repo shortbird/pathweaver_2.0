@@ -19,6 +19,7 @@ import {
   VStack, HStack, UIText, Heading, Button, ButtonText, BottomSheet,
 } from '../ui';
 import { SUBJECTS, type SubjectMeta } from './SUBJECTS';
+import { extractApiError } from '@/src/services/apiError';
 
 interface CreateClassSheetProps {
   visible: boolean;
@@ -80,9 +81,7 @@ export function CreateClassSheet({ visible, onClose, onCreated }: CreateClassShe
       onCreated?.(questId);
       router.push(`/(app)/quests/${questId}`);
     } catch (err: any) {
-      const msg = err.response?.data?.error?.message
-        || err.response?.data?.error
-        || 'Could not create class.';
+      const msg = extractApiError(err, 'Could not create class.').message;
       showAlert('Error', typeof msg === 'string' ? msg : 'Could not create class.');
     } finally {
       setSubmitting(false);

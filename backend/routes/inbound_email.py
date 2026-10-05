@@ -1,19 +1,25 @@
 """
-Inbound email: Google Meet notes forwarded onto CRM files.
+Inbound email: replies to "Email this to me", and Google Meet notes.
 
   POST /api/email/inbound?key=<INBOUND_EMAIL_WEBHOOK_SECRET>
 
 SendGrid Inbound Parse POSTs a multipart/form-data body here for every message
-delivered to INBOUND_EMAIL_DOMAIN. One address under that domain is read: the
-Meet notes import address, whose mail goes onto the CRM file of the people in
-the meeting. See services/meet_notes_import_service.py for the checks that gate
-it (URL secret here, then the import token, DKIM and the sender).
+delivered to INBOUND_EMAIL_DOMAIN. Two kinds of address under that domain are
+read:
 
-This webhook was built for reply-by-email on "Send to Gmail" (2026-09-08): a
-superadmin mailed a message to their own inbox, and a reply to the reply+<token>
-address was posted back into the Optio thread. That was removed on 2026-10-01
-after 5 sends and no reply. The message_email_relays table still holds those
-rows, and a reply to one of the old copies now lands here and is ignored.
+  notes+<token>@  the Meet notes import address, whose mail goes onto the CRM
+                  file of the people in the meeting. See
+                  services/meet_notes_import_service.py for its checks (import
+                  token, DKIM, sender).
+  reply+<token>@  a relay address on a copy a superadmin mailed to their own
+                  inbox ("Email this to me"). The reply is posted back into the
+                  Optio thread; see services/message_email_relay_service.py for
+                  the three checks that gate it (URL secret here, unguessable
+                  relay token, envelope sender must match the relay owner).
+
+The notes address is checked first, so a notes+ token never reaches the relay.
+Reply-by-email was removed on 2026-10-01 and restored on 2026-10-05 (ticket
+fc21a562); relays minted before the removal still work until they expire.
 
 Setup, once, in this order — the middle step is the one that breaks things if
 it runs early:
@@ -27,8 +33,9 @@ it runs early:
      Leave "POST the raw, full MIME message" OFF; this handler reads the
      parsed fields.
   3. Only then set INBOUND_EMAIL_DOMAIN and INBOUND_EMAIL_WEBHOOK_SECRET on the
-     backend. Setting them first hands out an import address that bounces
-     everything forwarded to it.
+     backend. Setting them first makes every emailed copy advertise a Reply-To
+     that bounces, and hands out an import address that bounces everything
+     forwarded to it.
 
 This endpoint answers 200 to everything it can parse, including rejections.
 A 4xx to Inbound Parse makes SendGrid retry and eventually bounce back at
@@ -54,7 +61,8 @@ def _authorized() -> bool:
 
     Unset secret means the endpoint is closed, not open: an inbound handler
     that accepts anything while half-configured would let anyone who guessed
-    the path post mail at it. The import address is derived from this same
+    the path post mail at it, or inject messages once a relay token leaked
+    into a forwarded email. The import address is derived from this same
     secret, so nothing can be addressed to it until the secret exists.
     """
     expected = Config.INBOUND_EMAIL_WEBHOOK_SECRET
@@ -72,9 +80,9 @@ def inbound_email():
 
     form = request.form
     # `envelope` is JSON: {"to": ["notes+tok@..."], "from": "..."}. It carries
-    # the SMTP recipient, which survives a forward that rewrites the To header;
-    # the `to` field carries the header recipient. Either can hold the import
-    # address, so both are searched.
+    # the SMTP recipient, which survives a forward or a Gmail reply that
+    # rewrites the To header; the `to` field carries the header recipient.
+    # Either can hold the import or relay address, so both are searched.
     envelope_to = form.get('envelope') or ''
 
     # Google Meet notes forwarded by the owner's Gmail filter go onto CRM
@@ -99,8 +107,37 @@ def inbound_email():
             return jsonify({'status': 'error'}), 200
         return jsonify({'status': result.get('status')}), 200
 
-    # Mail for any other address under the domain, which includes a reply to
-    # an old "Send to Gmail" copy. Nothing reads it. Still a 200, for the
-    # reason in the module docstring.
-    logger.info('Inbound email ignored: no handler for this recipient')
-    return jsonify({'status': 'ignored'}), 200
+    # Everything else is a reply to an "Email this to me" copy, or mail for an
+    # address nothing reads; the relay service tells the two apart.
+    from services import message_email_relay_service as relay_service
+
+    # SendGrid sends this as a decimal string, but a malformed post must not
+    # become a 500 — the count is only used to add a note to the thread.
+    try:
+        attachment_count = int(form.get('attachments') or 0)
+    except (TypeError, ValueError):
+        attachment_count = 0
+
+    try:
+        status, detail = relay_service.handle_inbound(
+            to_header=form.get('to'),
+            envelope_to=envelope_to,
+            from_header=form.get('from'),
+            text=form.get('text') or form.get('html'),
+            dkim=form.get('dkim'),
+            attachment_count=attachment_count,
+        )
+    except ValueError as e:
+        # send_message refused (blocked, no permission). Real, and the sender
+        # needs to know, but retrying will not help.
+        logger.warning(f"Inbound email reply refused: {e}")
+        return jsonify({'status': 'refused'}), 200
+    except Exception as e:  # noqa: BLE001
+        # 200 on purpose: see the module docstring. The message is lost, which
+        # the log records; a retry storm aimed at a member's mailbox is worse.
+        logger.error(f"Inbound email handling failed: {e}")
+        return jsonify({'status': 'error'}), 200
+
+    if status != 'delivered':
+        logger.info(f"Inbound email not delivered ({status}): {detail}")
+    return jsonify({'status': status}), 200

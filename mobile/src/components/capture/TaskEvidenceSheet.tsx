@@ -27,6 +27,7 @@ import {
   VStack, HStack, UIText, Heading, Button, ButtonText, BottomSheet,
 } from '../ui';
 import { VoiceRecorder, AudioClipPreview, type RecordedClip } from './VoiceRecorder';
+import { extractApiError } from '@/src/services/apiError';
 
 const MAX_IMAGE_SIZE = 10 * 1024 * 1024;
 const MAX_VIDEO_SIZE = 500 * 1024 * 1024;
@@ -488,7 +489,7 @@ export function TaskEvidenceSheet({
       onSaved?.();
     } catch (err: any) {
       haptic.error();
-      const msg = err.response?.data?.error?.message || err.response?.data?.error || 'Failed to save evidence';
+      const msg = extractApiError(err, 'Failed to save evidence').message;
       showAlert('Error', typeof msg === 'string' ? msg : 'Failed to save evidence');
     } finally {
       setSaving(false);

@@ -272,14 +272,10 @@ def get_conversations(user_id: str):
     Includes advisor, friends, and conversation metadata
     """
     try:
-        conversations = message_service.get_user_conversations(user_id)
         # The front office reads its thread with the school on the School tab,
         # as the school; here it would be the same thread from the other end.
-        from services import school_inbox_service
-        own_office = school_inbox_service.office_inbox_id(user_id)
-        if own_office:
-            conversations = [c for c in conversations
-                             if (c.get('other_user') or {}).get('id') != own_office]
+        # The service drops it, so the badge counts the same list (16d13eb4).
+        conversations = message_service.get_listed_conversations(user_id)
         _label_member_orgs(user_id, [c.get('other_user') for c in conversations])
 
         return success_response({
@@ -521,13 +517,25 @@ def get_unread_count(user_id: str):
         # (?threads=1) -- what its inbox page lists -- rather than message
         # counts. Opt-in: it walks the conversation list, and the messenger's
         # badge polls this route every minute without needing it.
-        threads = None
+        #
+        # One rule, the same on the page (SchoolInboxPage waitingCount), the
+        # tab badges, the sidebar (InboxUnreadBadge) and here: threads waiting
+        # on you = 1:1 threads in the Open view + group threads with unread
+        # messages. Each one is a row you can see -- an Open thread, or a
+        # group section's unread pill -- so the number always points
+        # somewhere (iCreate, ticket 16d13eb4: "my messages says I have 1
+        # unread, but I have no idea where that message might be").
+        threads = direct_threads = group_threads = None
         if request.args.get('threads') in ('1', 'true'):
-            threads = message_service.count_threads_needing_reply(user_id)
+            direct_threads = message_service.count_threads_needing_reply(user_id)
+            group_threads = GroupMessageService().count_groups_with_unread(user_id)
+            threads = direct_threads + group_threads
 
         return success_response({
             'unread_count': direct_unread + group_unread,
             'needs_reply_threads': threads,
+            'direct_threads': direct_threads,
+            'group_threads': group_threads,
             # Broken out so a wrong badge can be attributed to a surface
             # without re-deriving both halves by hand.
             'direct_unread': direct_unread,
@@ -725,6 +733,91 @@ def forward_to_school(user_id: str, message_id: str):
     except Exception as e:
         logger.error(f"Error forwarding message to school: {str(e)}")
         return error_response('Failed to forward message', status_code=500,
+                              error_code='internal_error')
+
+
+@bp.route('/<message_id>/email-to-me', methods=['POST'])
+@require_auth
+def email_message_to_me(user_id: str, message_id: str):
+    """
+    Superadmin-only: mail a copy of this message to your own inbox.
+
+    The Optio Support inbox is not where this work gets triaged; Gmail is. A
+    message that needs an answer tomorrow is lost the moment it scrolls off the
+    thread, so this puts it somewhere that nags.
+
+    When reply-by-email is configured the copy carries a Reply-To that lands
+    back in this same Optio thread (services/message_email_relay_service.py).
+    When it isn't, the copy still goes out and says replies are off — a
+    half-working promise is worse than none.
+
+    Removed 2026-10-01 (five uses, no replies) and restored 2026-10-05 on
+    ticket fc21a562: "Email this to me disappeared. I want it back."
+    """
+    try:
+        from database import get_supabase_admin_client
+        from utils.roles import get_effective_role
+        from services import message_email_relay_service as relay_service
+        from services import school_inbox_service
+        from repositories.message_email_relay_repository import MessageEmailRelayRepository
+
+        # admin client justified: superadmin-only action that reads both sides
+        # of a conversation; role verified immediately below.
+        repo = MessageEmailRelayRepository(client=get_supabase_admin_client())
+        caller = repo.get_caller(user_id)
+        if not caller or get_effective_role(caller) != 'superadmin':
+            return error_response('Superadmin access required', status_code=403,
+                                  error_code='forbidden')
+
+        msg = repo.get_message(message_id)
+        if not msg:
+            return error_response('Message not found', status_code=404,
+                                  error_code='not_found')
+
+        # Only messages in a thread the caller is actually part of. Superadmin
+        # can read a lot, but "email it to my personal inbox" is a bigger step
+        # than reading, and it should not reach threads between two other
+        # people.
+        if user_id not in (msg.get('sender_id'), msg.get('recipient_id')):
+            return error_response('You are not part of this conversation',
+                                  status_code=403, error_code='forbidden')
+        if msg.get('is_deleted'):
+            return error_response('This message was deleted', status_code=400,
+                                  error_code='validation_error')
+
+        other_id = (msg['recipient_id'] if msg['sender_id'] == user_id
+                    else msg['sender_id'])
+        other = repo.get_person(other_id)
+        if not other:
+            return error_response('The other person in this thread no longer exists',
+                                  status_code=404, error_code='not_found')
+
+        # Whose words are being mailed. Not always the other party — the caller
+        # can email a message they wrote themselves — but the reply address is
+        # always keyed to the other party, or a reply would loop back here.
+        author = other if msg['sender_id'] == other_id else caller
+        org = school_inbox_service.member_org(other_id)
+
+        result = relay_service.email_message_to_owner(
+            owner=caller,
+            message=msg,
+            author=author,
+            other_party=other,
+            org_name=(org or {}).get('name'),
+        )
+        if not result['sent']:
+            return error_response('Could not send the email', status_code=502,
+                                  error_code='internal_error')
+        return success_response({
+            'emailed_to': result['to'],
+            'replies_enabled': bool(result['reply_address']),
+        })
+
+    except ValueError as e:
+        return error_response(str(e), status_code=400, error_code='validation_error')
+    except Exception as e:
+        logger.error(f"Error emailing message {message_id}: {str(e)}")
+        return error_response('Failed to email this message', status_code=500,
                               error_code='internal_error')
 
 

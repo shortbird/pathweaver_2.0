@@ -34,6 +34,7 @@ import { InlineQuestTaskPicker } from './InlineQuestTaskPicker';
 import { InlineTopicPicker } from './InlineTopicPicker';
 import { assignMomentToTopic, type UnifiedTopic } from '@/src/hooks/useJournal';
 import { VoiceRecorder, AudioClipPreview } from './VoiceRecorder';
+import { extractApiError } from '@/src/services/apiError';
 
 // File size limits (must match backend constants).
 // Signed-upload path: videos go direct-to-Supabase and can be up to 500MB.
@@ -438,7 +439,7 @@ export function CaptureSheet({ visible, onClose, onCaptured, studentIds, pickStu
     } catch (err: any) {
       // Moment creation failed — keep the sheet open so the user can retry.
       haptic.error();
-      const msg = err.response?.data?.error?.message || err.response?.data?.error || 'Failed to save';
+      const msg = extractApiError(err, 'Failed to save').message;
       toast.error(msg, { title: 'Could not save moment' });
     } finally {
       setSaving(false);

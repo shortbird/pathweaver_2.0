@@ -73,7 +73,8 @@ def _build_supabase(*, junction_quest_ids, enrollment_found=True, evidence_block
         for qid in junction_quest_ids
     ]
 
-    learning_events_chain = _chain(SimpleNamespace(data=moment_row))
+    # A list: the service reads with limit(1), not .single() (Sentry a3dc3fed).
+    learning_events_chain = _chain(SimpleNamespace(data=[moment_row]))
     junction_chain = _chain(SimpleNamespace(data=junction_data))
     enrollment_chain = _chain(SimpleNamespace(
         data=[{'id': ENROLLMENT_ID}] if enrollment_found else []

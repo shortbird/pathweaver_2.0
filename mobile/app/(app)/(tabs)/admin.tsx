@@ -22,6 +22,7 @@ import {
   Badge, BadgeText, Divider, Skeleton, Input, InputField, InputSlot, InputIcon,
   Avatar, AvatarFallbackText, AvatarImage, IconButton, toast,
 } from '@/src/components/ui';
+import { extractApiError } from '@/src/services/apiError';
 
 type AdminTab = 'users' | 'quests' | 'orgs' | 'emails' | 'bulk' | 'docs';
 
@@ -245,7 +246,7 @@ function UserDetailPanel({ user, onClose, onMasquerade, onDelete, onResetPasswor
       setInitialForm({ ...form });
       toast.success('Profile updated');
     } catch (e: any) {
-      toast.error(e?.response?.data?.error || 'Failed to update profile');
+      toast.error(extractApiError(e, 'Failed to update profile').message);
     } finally {
       setSavingProfile(false);
     }
@@ -390,7 +391,7 @@ function UserDetailPanel({ user, onClose, onMasquerade, onDelete, onResetPasswor
                   await onResetPassword();
                   toast.success("Password reset to “changeme!”");
                 } catch (e: any) {
-                  toast.error(e?.response?.data?.error || 'Failed to reset password');
+                  toast.error(extractApiError(e, 'Failed to reset password').message);
                 } finally {
                   setResettingPassword(false);
                 }

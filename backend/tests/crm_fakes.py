@@ -56,6 +56,8 @@ EMBEDS = {
     ('crm_funnel_memberships', 'crm_leads'): 'lead_id',
     ('crm_sends', 'crm_funnel_steps'): 'step_id',
     ('crm_leads', 'crm_funnel_memberships'): None,  # reverse: children list
+    # SIS: a membership row's household (households!inner(...)).
+    ('household_members', 'households'): 'household_id',
 }
 
 UNIQUE_CONSTRAINTS = {
@@ -152,11 +154,18 @@ class FakeQuery:
         self.filters.append(('gte', col, val))
         return self
 
+    def gt(self, col, val):
+        self.filters.append(('gt', col, val))
+        return self
+
     def or_(self, expr):
         self.filters.append(('or', None, expr))
         return self
 
     def order(self, col, desc=False):
+        # Repeated .order() calls are one multi-column ORDER BY, first call
+        # the primary key, as PostgREST builds it.
+        self.orders = getattr(self, 'orders', []) + [(col, desc)]
         self.order_col = col
         self.order_desc = desc
         return self
@@ -195,6 +204,15 @@ class FakeQuery:
                 return False
             if kind == 'gte' and not (str(row.get(col) or '') >= str(val)):
                 return False
+            if kind == 'gt':
+                have = row.get(col)
+                if have is None:
+                    return False
+                if isinstance(have, (int, float)) and isinstance(val, (int, float)):
+                    if not have > val:
+                        return False
+                elif not str(have) > str(val):
+                    return False
             if kind == 'or':
                 # crude: match any ilike clause inside the or() expression
                 clauses = [c.split('.ilike.') for c in val.split(',') if '.ilike.' in c]
@@ -210,7 +228,8 @@ class FakeQuery:
 
     def _attach_embeds(self, row):
         out = dict(row)
-        for match in re.finditer(r'(\w+)\s*\(', self.select_str):
+        # `rel!inner(...)` / `rel!fk_hint(...)` name the relation before the bang.
+        for match in re.finditer(r'(\w+)(?:!\w+)?\s*\(', self.select_str):
             rel = match.group(1)
             fk = EMBEDS.get((self.table_name, rel), 'missing')
             if fk == 'missing':
@@ -287,9 +306,18 @@ class FakeQuery:
 
         # select
         matched = [r for r in rows if self._matches(r)]
-        if self.order_col:
-            matched.sort(key=lambda r: str(r.get(self.order_col) or ''),
-                         reverse=self.order_desc)
+        # Stable sorts from the last key to the first give the multi-column
+        # order. Values compare as strings, as before; numbers are padded so
+        # 10 sorts after 2.
+        def _key(col):
+            def k(r):
+                v = r.get(col)
+                if isinstance(v, (int, float)) and not isinstance(v, bool):
+                    return f'{v:020.6f}'
+                return str(v or '')
+            return k
+        for col, desc in reversed(getattr(self, 'orders', [])):
+            matched.sort(key=_key(col), reverse=desc)
         count = len(matched) if self.want_count else None
         if self.range_:
             matched = matched[self.range_[0]:self.range_[1] + 1]

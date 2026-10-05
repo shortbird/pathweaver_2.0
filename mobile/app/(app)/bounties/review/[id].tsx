@@ -19,6 +19,7 @@ import {
   VStack, HStack, Heading, UIText, Card, Button, ButtonText,
   PillarBadge, Divider, Avatar, AvatarFallbackText,
 } from '@/src/components/ui';
+import { extractApiError } from '@/src/services/apiError';
 
 const CLAIM_STATUS: Record<string, { label: string; bg: string; text: string }> = {
   claimed: { label: 'In Progress', bg: '#DBEAFE', text: '#1D4ED8' },
@@ -174,7 +175,7 @@ function ClaimReviewCard({
       );
       onReviewed();
     } catch (err: any) {
-      const msg = err.response?.data?.message || err.response?.data?.error || 'Review failed';
+      const msg = extractApiError(err, 'Review failed').message;
       showAlert('Error', msg);
     } finally {
       setSubmitting(false);

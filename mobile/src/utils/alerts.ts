@@ -7,9 +7,13 @@
  * Alert.alert directly in app code.
  */
 import { Alert, Platform } from 'react-native';
+import { toDisplayMessage } from '../services/apiError';
 
 /** Fire-and-forget notice (errors, success messages). */
 export function showAlert(title: string, message?: string): void {
+  // A non-string message (the backend error envelope object) would render as
+  // "[object Object]" or crash; coerce it. See Sentry 6cbb6c10.
+  if (message != null && typeof message !== 'string') message = toDisplayMessage(message);
   if (Platform.OS === 'web') {
     window.alert(message ? `${title}\n\n${message}` : title);
     return;

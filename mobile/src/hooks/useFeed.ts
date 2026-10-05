@@ -213,6 +213,82 @@ export function dedupeMerge(prev: FeedItem[], incoming: FeedItem[]): FeedItem[] 
   return result;
 }
 
+/** Structural equality for plain JSON values (what the feed API returns). */
+function sameJson(a: unknown, b: unknown): boolean {
+  if (a === b) return true;
+  if (typeof a !== 'object' || typeof b !== 'object' || a === null || b === null) return false;
+  if (Array.isArray(a) !== Array.isArray(b)) return false;
+  if (Array.isArray(a)) {
+    const bb = b as unknown[];
+    if (a.length !== bb.length) return false;
+    for (let i = 0; i < a.length; i++) if (!sameJson(a[i], bb[i])) return false;
+    return true;
+  }
+  const ao = a as Record<string, unknown>;
+  const bo = b as Record<string, unknown>;
+  const ak = Object.keys(ao);
+  if (ak.length !== Object.keys(bo).length) return false;
+  for (const k of ak) {
+    if (!Object.prototype.hasOwnProperty.call(bo, k)) return false;
+    if (!sameJson(ao[k], bo[k])) return false;
+  }
+  return true;
+}
+
+/** Fold a refetched FIRST page into the list already on screen.
+ *
+ *  Ticket 2c34704a (/feed): "Reopening the app after it had been running in
+ *  background for a while made the feed very choppy." The foreground refetch
+ *  replaced the list with `dedupeMerge([], page)` -- a brand-new object for
+ *  every item -- so every mounted FeedCard failed its memo and re-rendered at
+ *  once, and the list shrank back to one page under the reader's thumb.
+ *
+ *  Now:
+ *  - an item that is structurally unchanged keeps its previous object, so its
+ *    card's memo holds; a changed item takes the fresh object;
+ *  - when the fresh page overlaps what we hold (the usual case: the same posts
+ *    plus a few new ones at the top), the older pages already loaded stay
+ *    below it, and `keptTail` tells the caller to keep its pagination cursor;
+ *  - with no overlap (a long absence, everything new) the fresh page replaces
+ *    the list, as before.
+ *  Returns `prev` itself when nothing changed, which makes setState a no-op. */
+export function reconcileRefetch(
+  prev: FeedItem[],
+  freshPage: FeedItem[],
+): { items: FeedItem[]; keptTail: boolean } {
+  const fresh = dedupeMerge([], freshPage);
+  if (prev.length === 0) return { items: fresh, keptTail: false };
+
+  const prevIndex = new Map<string, number>();
+  for (let i = 0; i < prev.length; i++) prevIndex.set(computeFeedKey(prev[i]), i);
+
+  const head: FeedItem[] = [];
+  const freshKeys = new Set<string>();
+  let lastOverlap = -1;
+  for (const it of fresh) {
+    const key = computeFeedKey(it);
+    freshKeys.add(key);
+    const idx = prevIndex.get(key);
+    if (idx !== undefined) {
+      lastOverlap = Math.max(lastOverlap, idx);
+      const old = prev[idx];
+      head.push(sameJson(old, it) ? old : it);
+    } else {
+      head.push(it);
+    }
+  }
+
+  if (lastOverlap === -1) return { items: fresh, keptTail: false };
+
+  const tail = prev.slice(lastOverlap + 1).filter((it) => !freshKeys.has(computeFeedKey(it)));
+  const next = tail.length ? head.concat(tail) : head;
+  const keptTail = tail.length > 0;
+  if (next.length === prev.length && next.every((it, i) => it === prev[i])) {
+    return { items: prev, keptTail };
+  }
+  return { items: next, keptTail };
+}
+
 export function useFeed(options: UseFeedOptions = {}) {
   // Selectors, not the whole store: `useAuthStore()` re-renders the feed screen
   // (and with it every mounted card) on any auth write.
@@ -224,11 +300,17 @@ export function useFeed(options: UseFeedOptions = {}) {
   const [hasMore, setHasMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const cursorRef = useRef<string | null>(null);
+  // Mirror of `items` for the refetch merge, which must read the current list
+  // synchronously (see reconcileRefetch).
+  const itemsRef = useRef<FeedItem[]>(items);
+  itemsRef.current = items;
   // P5: dedupe recordViews — each feed item's view should only be recorded once
   // per session. Without this, pagination + polling send the same ids repeatedly.
   const recordedViewsRef = useRef<Set<string>>(new Set());
 
-  const fetchFeed = useCallback(async (cursor?: string) => {
+  // 'replace' (first load, or the options changed) starts the list over;
+  // 'refresh' folds page 1 into what is already on screen.
+  const fetchFeed = useCallback(async (cursor?: string, mode: 'replace' | 'refresh' = 'replace') => {
     if (!isAuthenticated) return;
 
     const isLoadMore = !!cursor;
@@ -261,16 +343,30 @@ export function useFeed(options: UseFeedOptions = {}) {
       const nextCursor = data.next_cursor || null;
       const more = data.has_more || false;
 
+      let keptTail = false;
       if (isLoadMore) {
         // Derive from `prev` inside the updater so this stays correct after an
         // optimistic setHighlighted/removeByLearningEventId changed the list.
         setItems((prev) => dedupeMerge(prev, newItems));
-      } else {
+      } else if (mode === 'replace') {
         setItems(dedupeMerge([], newItems));
+      } else {
+        // A refetch (foreground return, pull-to-refresh, upload finished)
+        // keeps unchanged cards' identity and the older pages already loaded;
+        // see reconcileRefetch. Read the list from the ref, not inside an
+        // updater, because the cursor decision below depends on the result.
+        const reconciled = reconcileRefetch(itemsRef.current, newItems);
+        keptTail = reconciled.keptTail;
+        itemsRef.current = reconciled.items;
+        setItems(reconciled.items);
       }
 
-      cursorRef.current = nextCursor;
-      setHasMore(more);
+      // When the older pages stayed, the cursor that continues past them is
+      // the one we already hold -- page 1's cursor would refetch page 2.
+      if (!keptTail) {
+        cursorRef.current = nextCursor;
+        setHasMore(more);
+      }
       setError(null);
 
       // Record views for loaded items, skipping ids we've already sent.
@@ -309,9 +405,11 @@ export function useFeed(options: UseFeedOptions = {}) {
     }
   }, [loadingMore, hasMore, fetchFeed]);
 
+  // Keeps the cursor: when the refresh leaves the older pages in place, the
+  // held cursor is still the one that continues past them. fetchFeed replaces
+  // it when the list starts over.
   const refetch = useCallback(() => {
-    cursorRef.current = null;
-    fetchFeed();
+    fetchFeed(undefined, 'refresh');
   }, [fetchFeed]);
 
   // Optimistically drop a learning-moment item (matched by its learning_event_id)

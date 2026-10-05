@@ -175,6 +175,24 @@ const ChatWindow = ({ conversation, onBack }) => {
     }
   }
 
+  // Superadmin: push a message into the inbox where this work actually gets
+  // triaged. No confirm — it only mails the viewer's own address, and the
+  // whole point is that it takes one tap while reading the thread. Removed
+  // 2026-10-01, restored on ticket fc21a562.
+  const handleEmailToSelf = async (message) => {
+    try {
+      const r = await api.post(`/api/messages/${message.id}/email-to-me`, {})
+      const to = r.data?.data?.emailed_to
+      toast.success(
+        r.data?.data?.replies_enabled
+          ? `Emailed to ${to} — reply to that email to answer here`
+          : `Emailed to ${to}`
+      )
+    } catch (error) {
+      toast.error(error?.response?.data?.error || 'Could not email this message')
+    }
+  }
+
   if (!conversation) {
     return (
       <div className="flex-1 flex flex-col items-center justify-center bg-gray-50 p-6 text-center">
@@ -278,6 +296,7 @@ const ChatWindow = ({ conversation, onBack }) => {
           threadKey={conversation.id}
           canReport
           onForward={canForwardToSchool ? handleForwardToSchool : undefined}
+          onEmailToSelf={user?.role === 'superadmin' ? handleEmailToSelf : undefined}
         />
       )}
 

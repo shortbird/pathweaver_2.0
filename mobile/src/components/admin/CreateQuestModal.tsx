@@ -19,6 +19,7 @@ import { useThemeColors } from '@/src/hooks/useThemeColors';
 import {
   VStack, HStack, UIText, Heading, Button, ButtonText, Card, Divider,
 } from '../ui';
+import { extractApiError } from '@/src/services/apiError';
 
 // ── Types ──
 
@@ -259,7 +260,7 @@ export function CreateQuestModal({ visible, onClose, onCreated }: Props) {
       handleClose();
       onCreated?.();
     } catch (err: any) {
-      showAlert('Error', err.response?.data?.error || 'Failed to create quest');
+      showAlert('Error', extractApiError(err, 'Failed to create quest').message);
     } finally {
       setSaving(false);
     }

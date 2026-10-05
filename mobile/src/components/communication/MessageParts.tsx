@@ -24,6 +24,7 @@ import { useThemeColors } from '@/src/hooks/useThemeColors';
 import { uploadMessageAttachment, type MessageAttachment } from '@/src/services/api';
 import { MediaModal } from '@/src/components/feed/MediaModal';
 import type { MessageReaction, MessageSentFrom, ReplyPreview } from '@/src/hooks/useMessages';
+import { extractApiError } from '@/src/services/apiError';
 
 /** The only reactions the backend accepts (ALLOWED_REACTIONS). */
 export const REACTION_EMOJI = ['👍', '❤️', '😂', '🎉', '😮', '😢'];
@@ -438,7 +439,7 @@ export function usePendingAttachments() {
         setPending((prev) => prev.map((p) => (p.key === key ? { ...p, uploading: false, attachment } : p)));
       } catch (e: any) {
         setPending((prev) => prev.filter((p) => p.key !== key));
-        toast.error(e?.response?.data?.error || 'Failed to upload the attachment');
+        toast.error(extractApiError(e, 'Failed to upload the attachment').message);
       }
     }
   }, []);

@@ -155,7 +155,14 @@ api.interceptors.request.use((config: InternalAxiosRequestConfig) => {
   }
 
   // Stamp start time so the diagnostics interceptor can measure duration.
-  (config as InternalAxiosRequestConfig & { _startTime?: number })._startTime = Date.now();
+  // Keep the FIRST stamp: the transient retry below re-issues the same config
+  // through `api(cfg)`, which runs this interceptor again. Overwriting the
+  // stamp hid that the original attempt sat suspended in the background, so
+  // leftForegroundDuring() said "foreground" and a phone-asleep timeout was
+  // filed as a per-endpoint exception (Sentry 8873a580 / 495c9e3f / e7ae674f,
+  // "timeout of 15000ms exceeded", one iOS user across three endpoints).
+  const stamped = config as InternalAxiosRequestConfig & { _startTime?: number };
+  if (!stamped._startTime) stamped._startTime = Date.now();
 
   return config;
 });
@@ -302,8 +309,17 @@ export function fingerprintPath(url?: string): string {
  *   except the few listed in EXPECTED_API_OUTCOMES, which are the product
  *   answering a person rather than the contract breaking.
  */
+// A retried request's final failure passes this handler twice: once inside
+// the inner `api(cfg)` chain, then again in the outer chain the retry
+// interceptor returned it to. Same error object both times, so remember it.
+const reportedErrors = new WeakSet<object>();
+
 export function reportApiError(error: AxiosError, status: number | null) {
   if (axios.isCancel(error)) return;
+  if (error && typeof error === 'object') {
+    if (reportedErrors.has(error)) return;
+    reportedErrors.add(error);
+  }
   if (status !== null && SILENCED_API_STATUSES.has(status)) return;
   const cfg = error.config;
   // No config means this isn't a failed request at all — it's a rejection that
@@ -806,6 +822,10 @@ export const messageAPI = {
   // Superadmin only: hand a support-thread message off to the sender's school inbox.
   forwardToSchool: (messageId: string) =>
     api.post(`/api/messages/${messageId}/forward-to-school`, {}),
+  // Superadmin only: mail a copy of a message to your own inbox, so it waits
+  // there until it is answered. Restored on ticket fc21a562.
+  emailToMe: (messageId: string) =>
+    api.post(`/api/messages/${messageId}/email-to-me`, {}),
   unreadCount: () => api.get('/api/messages/unread-count'),
   contacts: () => api.get('/api/messages/contacts'),
   canMessage: (targetUserId: string) =>

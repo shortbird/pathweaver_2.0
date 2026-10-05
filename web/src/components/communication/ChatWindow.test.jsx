@@ -2,11 +2,14 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import ChatWindow from './ChatWindow'
 import useMessagingRealtime from '../../hooks/api/useMessagingRealtime'
+import api from '../../services/api'
+import { toast } from 'react-hot-toast'
 
 let messagesState = { data: { messages: [] }, isLoading: false, error: null, refetch: vi.fn() }
 const sendMutate = vi.fn().mockResolvedValue({})
 
-vi.mock('../../contexts/AuthContext', () => ({ useAuth: () => ({ user: { id: 'u1' } }) }))
+let authUser = { id: 'u1' }
+vi.mock('../../contexts/AuthContext', () => ({ useAuth: () => ({ user: authUser }) }))
 vi.mock('../../hooks/api/useDirectMessages', () => ({
   useConversationMessages: () => messagesState,
   useSendMessage: () => ({ mutateAsync: sendMutate, isPending: false }),
@@ -20,7 +23,10 @@ vi.mock('../../hooks/api/useMessagingRealtime', () => ({
   useMessagingRealtime: vi.fn()
 }))
 vi.mock('../../services/api', () => ({ default: { post: vi.fn() } }))
-vi.mock('react-hot-toast', () => ({ default: { error: vi.fn(), success: vi.fn() } }))
+vi.mock('react-hot-toast', () => {
+  const toast = { error: vi.fn(), success: vi.fn() }
+  return { default: toast, toast }
+})
 
 const advisor = { id: 'c1', type: 'advisor', other_user: { id: 'a1', first_name: 'Ada', last_name: 'Lovelace' } }
 const support = { id: 'sup', type: 'support', other_user: { id: 'sup', display_name: 'Optio Support' } }
@@ -36,6 +42,7 @@ const parentThread = {
 describe('ChatWindow', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    authUser = { id: 'u1' }
     sendMutate.mockResolvedValue({})
     messagesState = { data: { messages: [] }, isLoading: false, error: null, refetch: vi.fn() }
   })
@@ -105,5 +112,31 @@ describe('ChatWindow', () => {
     expect(screen.getByText("Couldn't load messages")).toBeInTheDocument()
     fireEvent.click(screen.getByText('Retry'))
     expect(refetch).toHaveBeenCalled()
+  })
+  // Ticket fc21a562 (Tanner, superadmin): "Email this to me disappeared. I want
+  // it back." Restored for superadmins only, as it was before 2026-10-01.
+  describe('Email this to me', () => {
+    const received = {
+      id: 'm1', sender_id: 'a1', recipient_id: 'u1', message_content: 'Help with credit',
+      created_at: '2026-10-05T15:00:00Z'
+    }
+
+    it('shows the action to a superadmin and mails the message on click', async () => {
+      authUser = { id: 'u1', role: 'superadmin' }
+      messagesState = { data: { messages: [received] }, isLoading: false, error: null, refetch: vi.fn() }
+      api.post.mockResolvedValue({ data: { data: { emailed_to: 't@x.com', replies_enabled: true } } })
+      render(<ChatWindow conversation={advisor} />)
+      fireEvent.click(screen.getByLabelText('Email this message to me'))
+      await waitFor(() => expect(api.post).toHaveBeenCalledWith('/api/messages/m1/email-to-me', {}))
+      await waitFor(() => expect(toast.success).toHaveBeenCalledWith(
+        'Emailed to t@x.com — reply to that email to answer here'))
+    })
+
+    it('hides the action from everyone else', () => {
+      authUser = { id: 'u1', role: 'advisor' }
+      messagesState = { data: { messages: [received] }, isLoading: false, error: null, refetch: vi.fn() }
+      render(<ChatWindow conversation={advisor} />)
+      expect(screen.queryByLabelText('Email this message to me')).not.toBeInTheDocument()
+    })
   })
 })

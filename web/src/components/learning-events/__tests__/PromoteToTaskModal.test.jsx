@@ -91,4 +91,37 @@ describe('AddToQuestModal', () => {
     await waitFor(() => expect(api.post).toHaveBeenCalled())
     expect(api.post.mock.calls[0][1].diploma_subject).toBe('science')
   })
+
+  // Sentry a3dc3fed: "Cannot coerce the result to a single JSON object
+  // (PGRST116, 0 rows)". A parent's "Add to quest" on the child's journal
+  // posted no student_id, so the server looked for the moment under the
+  // parent's id.
+  it('posts student_id when a parent adds a child moment (Sentry a3dc3fed)', async () => {
+    render(
+      <AddToQuestModal
+        isOpen
+        onClose={() => {}}
+        moment={moment}
+        quest={{ id: 'quest-1', name: 'My Quest', quest_type: 'optio' }}
+        studentId="child-1"
+      />
+    )
+    fireEvent.click(screen.getByRole('button', { name: /add to quest/i }))
+    await waitFor(() => expect(api.post).toHaveBeenCalled())
+    expect(api.post.mock.calls[0][1].student_id).toBe('child-1')
+  })
+
+  it('sends no student_id for a student working on their own moment', async () => {
+    render(
+      <AddToQuestModal
+        isOpen
+        onClose={() => {}}
+        moment={moment}
+        quest={{ id: 'quest-1', name: 'My Quest', quest_type: 'optio' }}
+      />
+    )
+    fireEvent.click(screen.getByRole('button', { name: /add to quest/i }))
+    await waitFor(() => expect(api.post).toHaveBeenCalled())
+    expect(api.post.mock.calls[0][1]).not.toHaveProperty('student_id')
+  })
 })

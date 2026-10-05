@@ -507,8 +507,8 @@ class DirectMessageService(BaseService):
         sent_from: the surface the message came from. Left None by every
         client-facing caller, which is the point: it is read off the request
         (utils/client_platform.py) so no route has to remember to pass it.
-        'email' is on rows written by the reply-by-email relay, which was
-        removed on 2026-10-01; nothing passes it now.
+        The email relay passes 'email' because its request is the mail
+        provider's webhook, not a user's client.
 
         Returns:
             Created message record (enriched with reply preview)
@@ -914,24 +914,47 @@ class DirectMessageService(BaseService):
         ).eq('id', convo['id']).execute()
         return value
 
-    def count_threads_needing_reply(self, user_id: str) -> int:
-        """Threads where the other side spoke last and this account has not
-        marked the thread resolved since.
+    def get_listed_conversations(self, user_id: str) -> List[Dict[str, Any]]:
+        """The threads GET /api/messages/conversations lists for `user_id`.
 
-        This is the number the school console's inbox shows on its Needs-reply
-        tab, and the sidebar badge has to say the same thing. It used to say
-        unread MESSAGES -- five from one chatty parent counted five, class
-        chats the page cannot even show counted too -- which read as "9+"
-        beside a page listing three threads (iCreate, 2026-09-15, 4b364a4c:
-        "Why does it say I have 9+ messages when I only have 3 unanswered?").
+        get_user_conversations minus the front office's own thread with its
+        school inbox account: the office reads that thread on the School tab,
+        as the school, so My messages hides it (iCreate, 2026-09-25). Anything
+        that counts "what the page lists" has to start here, not from
+        get_user_conversations -- the badge counted that hidden thread and
+        said "1 unread" over a list with nothing in it (iCreate, ticket
+        16d13eb4: "my messages says I have 1 unread, but I have no idea where
+        that message might be").
+        """
+        conversations = self.get_user_conversations(user_id)
+        from services import school_inbox_service
+        own_office = school_inbox_service.office_inbox_id(user_id)
+        if own_office:
+            conversations = [c for c in conversations
+                             if (c.get('other_user') or {}).get('id') != own_office]
+        return conversations
+
+    def count_threads_needing_reply(self, user_id: str) -> int:
+        """1:1 threads where the other side spoke last and this account has
+        not marked the thread closed since -- the console inbox's Open view.
+
+        The sidebar badge and the inbox tab badges say this number plus the
+        group threads with unread messages
+        (GroupMessageService.count_groups_with_unread); see the routes'
+        unread-count. It used to say unread MESSAGES -- five from one chatty
+        parent counted five -- which read as "9+" beside a page listing three
+        threads (iCreate, 2026-09-15, 4b364a4c: "Why does it say I have 9+
+        messages when I only have 3 unanswered?").
 
         Same rule as SchoolInboxPage.needsReply; change both or neither. Runs
-        over get_user_conversations so it sees exactly the threads the page
-        lists, and shares that list's row ceiling.
+        over get_listed_conversations, so it counts only threads the page
+        actually lists (the office's own-account thread is hidden there and
+        is not counted here, ticket 16d13eb4), and shares that list's row
+        ceiling.
         """
         try:
             count = 0
-            for c in self.get_user_conversations(user_id):
+            for c in self.get_listed_conversations(user_id):
                 last_at = c.get('last_message_at')
                 if not last_at:
                     continue

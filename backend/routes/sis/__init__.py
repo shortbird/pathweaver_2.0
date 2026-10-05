@@ -491,6 +491,23 @@ def update_household(user_id, household_id):
         if plan not in (None,) + sis_payment_profile.PLAN_VALUES:
             return jsonify({'success': False, 'error': 'invalid payment_plan_preference'}), 400
         fields['payment_plan_preference'] = plan
+    # iCreate 01082b30: one volunteer-hours number per family, kept by staff and
+    # read back only by that family's guardians (/api/sis/parent/volunteer-hours).
+    if 'volunteer_hours' in data:
+        from datetime import datetime, timezone
+        hours = data.get('volunteer_hours')
+        if hours is None or hours == '':
+            hours = 0
+        if isinstance(hours, bool):
+            return jsonify({'success': False, 'error': 'volunteer_hours must be a number'}), 400
+        try:
+            hours = round(float(hours), 2)
+        except (TypeError, ValueError):
+            return jsonify({'success': False, 'error': 'volunteer_hours must be a number'}), 400
+        if not (0 <= hours <= 9999):
+            return jsonify({'success': False, 'error': 'volunteer_hours must be between 0 and 9999'}), 400
+        fields['volunteer_hours'] = hours
+        fields['volunteer_hours_updated_at'] = datetime.now(timezone.utc).isoformat()
     return jsonify({'success': True, 'household': repo.update(household_id, fields)})
 
 

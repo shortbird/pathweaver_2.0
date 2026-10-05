@@ -5,6 +5,7 @@
  */
 import api from '../services/api';
 import { showAlert, confirmAlert } from './alerts';
+import { extractApiError } from '@/src/services/apiError';
 
 export async function requestAccountDeletion(opts: {
   /** Toggled true while the request is in flight. */
@@ -28,7 +29,7 @@ export async function requestAccountDeletion(opts: {
     showAlert('Scheduled', 'Account deletion scheduled. You have 30 days to cancel.');
     opts.onScheduled?.();
   } catch (err: any) {
-    showAlert('Error', err.response?.data?.error || 'Failed to request account deletion');
+    showAlert('Error', extractApiError(err, 'Failed to request account deletion').message);
   } finally {
     opts.onRequestingChange?.(false);
   }
@@ -40,6 +41,6 @@ export async function cancelAccountDeletion(onCancelled?: () => void): Promise<v
     showAlert('Cancelled', 'Account deletion has been cancelled.');
     onCancelled?.();
   } catch (err: any) {
-    showAlert('Error', err.response?.data?.error || 'Failed to cancel deletion');
+    showAlert('Error', extractApiError(err, 'Failed to cancel deletion').message);
   }
 }

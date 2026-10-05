@@ -16,6 +16,7 @@ import {
 import { useThemeColors } from '@/src/hooks/useThemeColors';
 import { showAlert } from '@/src/utils/alerts';
 import { useAddKidStore } from '@/src/stores/familyStore';
+import { extractApiError } from '@/src/services/apiError';
 
 interface AddKidSheetProps {
   visible: boolean;
@@ -69,10 +70,7 @@ export function AddKidSheet({ visible, onClose, onCreated }: AddKidSheetProps) {
       onCreated?.();
       showAlert('Added', `${name.trim()}'s profile was created.`);
     } catch (err: any) {
-      const msg = err.response?.data?.error?.message
-        || err.response?.data?.error
-        || err.response?.data?.message
-        || 'Could not add the kid. Please try again.';
+      const msg = extractApiError(err, 'Could not add the kid. Please try again.').message;
       // The backend refused because this child ALREADY has an account
       // (routes/dependents.py::_existing_child_match). That refusal is right,
       // but it used to be a dead end: the only reason a parent is on this form

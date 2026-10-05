@@ -146,7 +146,8 @@ CSRF_EXEMPT_ENDPOINTS = frozenset({
     # or a superadmin session.
     'parent_digest.unsubscribe_perform',
     'parent_digest.digest_sweep',
-    # SendGrid Inbound Parse callback (Google Meet notes onto CRM files).
+    # SendGrid Inbound Parse callback (reply-by-email into Optio messages, and
+    # Google Meet notes onto CRM files).
     # Server-to-server, no session, and gated by a shared secret in the URL
     # that is compared in constant time. Listed here rather than relying on
     # "no auth cookie" alone, so the exemption is deliberate and visible.

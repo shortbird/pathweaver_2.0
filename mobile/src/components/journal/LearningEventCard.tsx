@@ -22,6 +22,7 @@ import { useThemeColors } from '@/src/hooks/useThemeColors';
 import { showAlert, confirmAlert } from '@/src/utils/alerts';
 import { useMediaUploadStore } from '@/src/stores/mediaUploadStore';
 import { displayImageUrl } from '@/src/services/imageUrl';
+import { extractApiError } from '@/src/services/apiError';
 
 const evidenceIcons: Record<string, keyof typeof Ionicons.glyphMap> = {
   text: 'document-text-outline',
@@ -266,7 +267,7 @@ function LearningEventCardImpl({ event, onPress, onDeleted, onEdit, topics, onAs
     } catch (err: any) {
       // Surface the server's actual reason (the API interceptor also reports it
       // to Sentry) instead of a generic message.
-      const msg = err?.response?.data?.error || err?.message || 'Failed to delete moment.';
+      const msg = extractApiError(err, 'Failed to delete moment.').message;
       showAlert('Error', msg);
     } finally {
       setDeleting(false);

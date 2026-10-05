@@ -16,6 +16,7 @@ import {
 } from '@/src/components/ui';
 import { useThemeColors } from '@/src/hooks/useThemeColors';
 import { showAlert } from '@/src/utils/alerts';
+import { extractApiError } from '@/src/services/apiError';
 
 export default function AcceptInvitationScreen() {
   const c = useThemeColors();
@@ -49,7 +50,7 @@ export default function AcceptInvitationScreen() {
       setSuccess(true);
       setStudentName(data.student?.display_name || 'the student');
     } catch (err: any) {
-      const msg = err.response?.data?.error || 'Failed to accept invitation. The code may be invalid or expired.';
+      const msg = extractApiError(err, 'Failed to accept invitation. The code may be invalid or expired.').message;
       showAlert('Error', msg);
     } finally {
       setAccepting(false);

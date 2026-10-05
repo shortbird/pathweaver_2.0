@@ -6,6 +6,7 @@ import { useEffect, useState, useCallback } from 'react';
 import api from '../services/api';
 import { useAuthStore } from '../stores/authStore';
 import { useRefetchOnForeground } from './useRefetchOnForeground';
+import { extractApiError } from '@/src/services/apiError';
 
 export interface EngagementDay {
   date: string;
@@ -96,7 +97,7 @@ export function useDashboard(studentId?: string | null) {
       }
       setError(null);
     } catch (err: any) {
-      setError(err.response?.data?.error?.message || 'Failed to load dashboard');
+      setError(extractApiError(err, 'Failed to load dashboard').message);
     } finally {
       setLoading(false);
     }

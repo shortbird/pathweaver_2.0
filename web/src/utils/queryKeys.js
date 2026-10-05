@@ -63,6 +63,9 @@ export const queryKeys = {
     // How this family is listed in one school's directory
     // (hooks/api/useDirectoryListing; Family Settings, Directory tab).
     directoryListing: (orgId) => [...queryKeys.family.all, 'directoryListing', orgId],
+    // This family's own volunteer hours at one school, guardian-only
+    // (hooks/api/useFamilyVolunteerHours; iCreate 01082b30).
+    volunteerHours: (orgId) => [...queryKeys.family.all, 'volunteerHours', orgId],
     // The family's quests with who is on each (hooks/api/useFamilyQuests).
     quests: () => [...queryKeys.family.all, 'quests'],
     // The parent's family photo (hooks/api/useFamilyCover).

@@ -16,6 +16,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { VStack, HStack, UIText, Heading, Button, ButtonText, PillarBadge } from '../ui';
 import { useThemeColors } from '@/src/hooks/useThemeColors';
 import api, { bountyAPI } from '@/src/services/api';
+import { extractApiError } from '@/src/services/apiError';
 
 export interface BountyIdea {
   title: string;
@@ -95,7 +96,7 @@ export function GenerateBountyModal({ visible, kids, childNoun, onClose, onUse }
       setReviewIndex(0);
       setStep('review');
     } catch (err: any) {
-      const msg = err.response?.data?.error || err.message || 'Could not build bounty ideas';
+      const msg = extractApiError(err, 'Could not build bounty ideas').message;
       setError(msg.includes('429') || msg.includes('quota')
         ? 'AI is busy. Please wait a moment and try again.' : msg);
     } finally {

@@ -18,6 +18,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import api, { uploadTaskDocument, type PickedFile } from '@/src/services/api';
 import { useRefetchOnForeground } from './useRefetchOnForeground';
+import { apiErrorBodyMessage } from '@/src/services/apiError';
 
 export type TaskStatus = 'todo' | 'in_progress' | 'waiting_on_admin' | 'done' | 'expired';
 export type StepStatus = 'pending' | 'complete' | 'approved' | 'rejected';
@@ -101,15 +102,16 @@ export const TASK_STATUS_LABEL: Record<TaskStatus, string> = {
  *  the person can act on ("sign with your full name"), so it is shown as is. */
 export function taskErrorText(e: unknown, fallback: string): string {
   const err = e as { response?: { data?: { error?: unknown } }; message?: unknown };
-  const server = err?.response?.data?.error;
-  if (typeof server === 'string' && server) return server;
-  return fallback;
+  // The prod envelope is { error: { message, code, ... } }; reading only the
+  // string form dropped the server's rule text there (Sentry 6cbb6c10).
+  if (!err?.response?.data) return fallback;
+  return apiErrorBodyMessage(err.response.data, fallback);
 }
 
 /** Throws the server's error when a 2xx body still says success:false. */
 function ensureOk(data: any, fallback: string) {
   if (data && data.success === false) {
-    const err = new Error(data.error || fallback) as Error & { response?: { data?: unknown } };
+    const err = new Error(apiErrorBodyMessage(data, fallback)) as Error & { response?: { data?: unknown } };
     err.response = { data };
     throw err;
   }
@@ -146,7 +148,7 @@ export function useMyTasks({ organizationId, audience, enabled = true }: {
         setSignatureStatement(data.signature_statement || null);
         setError(null);
       } else {
-        setError(data?.error || 'Could not load your tasks');
+        setError(apiErrorBodyMessage(data, 'Could not load your tasks'));
       }
     } catch (e) {
       if (requestId !== requestRef.current) return;

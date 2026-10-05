@@ -17,6 +17,7 @@ import { toast ,
 } from '@/src/components/ui';
 import { useThemeColors } from '@/src/hooks/useThemeColors';
 import type { AdminUser } from '@/src/hooks/useAdmin';
+import { extractApiError } from '@/src/services/apiError';
 
 type AddType = 'advisor' | 'parent' | 'student' | 'observer';
 
@@ -205,7 +206,7 @@ export function UserConnectionsTab({ user }: { user: AdminUser }) {
       toast.success('Connection removed');
       loadConnections();
     } catch (e: any) {
-      toast.error(e?.response?.data?.error || 'Failed to remove connection');
+      toast.error(extractApiError(e, 'Failed to remove connection').message);
     }
   };
 
@@ -272,7 +273,7 @@ export function UserConnectionsTab({ user }: { user: AdminUser }) {
       setShowAddForm(false);
       loadConnections();
     } catch (e: any) {
-      toast.error(e?.response?.data?.error || 'Failed to add connection');
+      toast.error(extractApiError(e, 'Failed to add connection').message);
     } finally {
       setAddLoading(false);
     }

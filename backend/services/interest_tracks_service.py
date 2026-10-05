@@ -1776,11 +1776,15 @@ class InterestTracksService(BaseService):
             # admin client justified: service layer — called from multiple routes; access control is enforced by each calling route's decorators (@require_auth/@require_admin/etc.)
             supabase = get_supabase_admin_client()
 
+            # `limit(1)` rather than `.single()`: a moment that is not this
+            # user's (a parent posting without the child's student_id, Sentry
+            # a3dc3fed) is 0 rows, and `.single()` raised PGRST116 into a 500
+            # instead of the 404 below.
             moment_response = supabase.table('learning_events') \
                 .select('*, learning_event_evidence_blocks(*)') \
                 .eq('id', moment_id) \
                 .eq('user_id', user_id) \
-                .single() \
+                .limit(1) \
                 .execute()
 
             if not moment_response.data:
@@ -1789,7 +1793,7 @@ class InterestTracksService(BaseService):
                     'error': 'Moment not found'
                 }
 
-            moment = moment_response.data
+            moment = moment_response.data[0]
 
             # Resolve the target quest. The "Add to quest" flow passes quest_id
             # explicitly; fall back to a sole existing assignment for callers
@@ -1847,14 +1851,15 @@ class InterestTracksService(BaseService):
             # Resolve the diploma credit. A class quest forces its own subject
             # (100% of the task's XP), matching how all class tasks behave; a
             # regular quest uses the student's optional pick (may be None).
-            quest_row = supabase.table('quests') \
+            quest_rows = supabase.table('quests') \
                 .select('quest_type, transcript_subject') \
                 .eq('id', resolved_quest_id) \
-                .single() \
+                .limit(1) \
                 .execute()
-            is_class = bool(quest_row.data and quest_row.data.get('quest_type') == 'class')
+            quest_row = (quest_rows.data or [None])[0]
+            is_class = bool(quest_row and quest_row.get('quest_type') == 'class')
             if is_class:
-                resolved_subject = quest_row.data.get('transcript_subject')
+                resolved_subject = quest_row.get('transcript_subject')
             else:
                 resolved_subject = diploma_subject or None
 
@@ -1938,8 +1943,9 @@ class InterestTracksService(BaseService):
             }
 
         except Exception as e:
+            # Log the detail; never hand a raw database error to the client.
             logger.error(f"Error converting moment to task: {str(e)}")
             return {
                 'success': False,
-                'error': str(e)
+                'error': 'Could not add this moment to the quest'
             }

@@ -8,6 +8,7 @@ import { GlassTabBar } from '../../components/ui'
 import SchoolLetterhead from '../../components/school/SchoolLetterhead'
 import { familyNavItemsFor } from './schoolCards'
 import { isFamilyFirstHubOrg } from '../../config/optioAcademy'
+import useFamilyVolunteerHours from '../../hooks/api/useFamilyVolunteerHours'
 
 /**
  * The school, as one page. The letterhead, then a glass tab rail — Feed,
@@ -52,6 +53,12 @@ export default function SchoolShell() {
   const { pathname } = useLocation()
   const navigate = useNavigate()
 
+  // This family's own volunteer hours (iCreate 01082b30), asked only by a
+  // guardian. Hooks run before the early return below.
+  const volunteer = useFamilyVolunteerHours(schoolOrg?.organization_id, {
+    enabled: Boolean(schoolOrg?.is_guardian),
+  })
+
   if (effectiveRole === 'superadmin' && !school) return <Outlet />
 
   const items = familyNavItemsFor(schoolOrg, { homepage: Boolean(school?.homepage) })
@@ -77,6 +84,7 @@ export default function SchoolShell() {
         logoUrl={schoolOrg?.logo_url}
         logoSubtitle={schoolOrg?.logo_subtitle}
       />
+      {volunteer.shown && <VolunteerHoursLine hours={volunteer.hours} updatedAt={volunteer.updatedAt} />}
       {tabs.length > 1 && (
         <div className="mt-6 flex flex-col items-center gap-3">
           <GlassTabBar
@@ -99,6 +107,29 @@ export default function SchoolShell() {
       )}
       <div className="mt-6">
         <Outlet />
+      </div>
+    </div>
+  )
+}
+
+/**
+ * "Volunteer hours: 12.5" under the letterhead, on every school tab, for this
+ * family alone. iCreate 01082b30: "Could we make a way for parents to be able
+ * to see how many volunteer hours they have completed? ... keep it private so
+ * not everyone sees everyone elses." The school keeps the number; the family
+ * only reads it here.
+ */
+export function VolunteerHoursLine({ hours, updatedAt }) {
+  const value = Number(hours || 0)
+  const shown = Number.isInteger(value) ? String(value) : value.toFixed(2).replace(/0$/, '')
+  const updated = updatedAt ? new Date(updatedAt).toLocaleDateString() : null
+  return (
+    <div className="mt-4 flex justify-center">
+      <div className="inline-flex items-baseline gap-2 rounded-full border border-optio-purple/20 bg-optio-purple/5 px-4 py-1.5"
+        data-testid="family-volunteer-hours">
+        <span className="text-sm text-neutral-600">Volunteer hours</span>
+        <span className="text-sm font-semibold text-optio-purple">{shown}</span>
+        {updated && <span className="text-xs text-neutral-400">as of {updated}</span>}
       </div>
     </div>
   )

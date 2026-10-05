@@ -22,10 +22,15 @@ import { withOrg } from '../../pages/sis/useSisOrg'
  */
 const REFETCH_MS = 60000
 
-// Threads waiting for a reply -- what the inbox page counts -- not unread
+// Threads waiting on you -- what the inbox page counts -- not unread
 // messages. Messages made it "9+" against a page of three threads (iCreate,
-// 2026-09-15, 4b364a4c): one chatty parent counted five, and class chats the
-// page cannot show counted too.
+// 2026-09-15, 4b364a4c): one chatty parent counted five.
+//
+// The one rule (SchoolInboxPage waitingCount, and the server's
+// needs_reply_threads): 1:1 threads in the Open view + group threads with
+// unread messages. Groups count since ticket 16d13eb4 ("my messages says I
+// have 1 unread, but I have no idea where that message might be"): every unit
+// is a row the page lists, an Open thread or a group section's unread pill.
 const threadsFrom = (res) => {
   const data = res?.data?.data ?? res?.data ?? {}
   return Number(data.needs_reply_threads ?? 0) || 0
@@ -61,7 +66,7 @@ const InboxUnreadBadge = ({ orgId = null, isSuperadmin = false, admin = undefine
   if (!count) return null
   return (
     <span
-      aria-label={`${count} thread${count === 1 ? '' : 's'} waiting for a reply`}
+      aria-label={`${count} thread${count === 1 ? '' : 's'} waiting on you`}
       className="ml-auto min-w-[20px] rounded-full bg-optio-pink px-1.5 py-0.5 text-center text-[11px] font-semibold leading-tight text-white"
     >
       {count > 9 ? '9+' : count}

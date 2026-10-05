@@ -336,7 +336,7 @@ export function TaskCreationWizard({
       setTaskVariants({});
       setStep('ai-review');
     } catch (err: any) {
-      const msg = err.response?.data?.error || err.message || 'Failed to generate tasks';
+      const msg = extractApiError(err, 'Failed to generate tasks').message;
       setError(msg.includes('429') || msg.includes('quota')
         ? 'AI is busy. Please wait 30 seconds and try again.' : msg);
     } finally {
@@ -355,7 +355,7 @@ export function TaskCreationWizard({
         handleClose();
       }
     } catch (err: any) {
-      setError(err.response?.data?.error || 'Failed to add task');
+      setError(extractApiError(err, 'Failed to add task').message);
     } finally {
       setReviewLoading(false);
     }
@@ -401,7 +401,7 @@ export function TaskCreationWizard({
         }));
       }
     } catch (err: any) {
-      const msg = err.response?.data?.error || 'Failed to adjust task';
+      const msg = extractApiError(err, 'Failed to adjust task').message;
       setError(msg.includes('429') || msg.includes('rate limit')
         ? 'AI is busy. Please wait 30 seconds and try again.' : msg);
     } finally {

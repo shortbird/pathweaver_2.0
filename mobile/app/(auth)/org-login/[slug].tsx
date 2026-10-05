@@ -18,6 +18,7 @@ import {
 } from '@/src/components/ui';
 import { useThemeColors } from '@/src/hooks/useThemeColors';
 import { effectiveRoleOf } from '@/src/utils/effectiveRole';
+import { extractApiError } from '@/src/services/apiError';
 
 function getRedirectForRole(user: User): string {
   switch (effectiveRoleOf(user)) {
@@ -99,7 +100,7 @@ export default function OrgLoginScreen() {
       await loginWithUsername(slug, username, password);
       // Redirect handled by the useEffect above
     } catch (err: any) {
-      const msg = err.response?.data?.error?.message || err.response?.data?.error || 'Login failed. Please check your username and password.';
+      const msg = extractApiError(err, 'Login failed. Please check your username and password.').message;
       setLoginError(typeof msg === 'string' ? msg : 'Login failed');
     } finally {
       setSubmitting(false);

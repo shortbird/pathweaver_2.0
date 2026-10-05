@@ -927,6 +927,22 @@ def org_events_feed(user_id):
     return jsonify({'success': True, 'feed_url': url})
 
 
+# ── Volunteer hours (guardian-only) ───────────────────────────────────────────
+# iCreate 01082b30: parents see their OWN family's hours; nobody else's.
+# Part of the family record, so it rides the sis core module.
+@bp.route('/volunteer-hours', methods=['GET'])
+@require_auth
+@require_module('sis')
+def family_volunteer_hours(user_id):
+    org_id = sis_service.requested_org_id()
+    if not org_id:
+        return jsonify({'success': False, 'error': 'organization_id is required'}), 400
+    result = parent.family_volunteer_hours(user_id, org_id)
+    if result is None:
+        return jsonify({'success': False, 'error': 'No family found for your account'}), 404
+    return jsonify({'success': True, **result})
+
+
 # ── Family directory (opt-in) ─────────────────────────────────────────────────
 # Guardians and staff only since 2026-09-22 (82485501); students get 403 on the
 # list and on the listing settings (sis_parent_service.is_guardian_or_staff).

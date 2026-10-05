@@ -115,12 +115,17 @@ const convoNames = (c) => [
 const CLASS_CHAT_TAG = { family: 'Parents', student: 'Students' }
 const isClassChat = (g) => Boolean(g.source_class_id && CLASS_CHAT_TAG[g.audience])
 
-// Which of the list's two group sections are open. People first: an admin
-// reads individual messages all day and class chats rarely, and the groups
-// used to sit above them (iCreate, ticket efa9bbed, 2026-10-01: "I would like
-// individual messages to appear at the top ... Group threads and Class chats
-// could be drop down buttons"). Closed until opened, and remembered on this
-// browser; a closed section still shows its unread count.
+// Which of the list's two group sections are open. Closed until opened, and
+// remembered on this browser; a closed section still shows its unread count
+// (iCreate, ticket efa9bbed, 2026-10-01: "Group threads and Class chats could
+// be drop down buttons").
+//
+// The sections sit ABOVE the 1:1 threads. efa9bbed put them below, people
+// first, and then a coordinator who was a member of groups could not find
+// them: under a long list of threads the two collapsed headers were off the
+// bottom of the pane, and only a search turned them up (iCreate, tickets
+// c8e2946d + af47046f). Two one-line collapsed headers on top cost the 1:1
+// list almost nothing and cannot be lost (owner decision, 2026-10-05).
 const SECTIONS_KEY = 'sis_inbox_open_sections'
 const validSections = (v) => (v && typeof v === 'object' && !Array.isArray(v) ? v : null)
 
@@ -157,11 +162,12 @@ const SchoolInboxPage = () => {
   const canManageInbox = admin && accessQuery.data?.can_manage === true
   const [membersOpen, setMembersOpen] = useState(false)
   const [searchParams, setSearchParams] = useSearchParams()
-  // Which threads to show. The office's inbox is a work queue: what it needs to
-  // know first is who is still waiting on a reply, not what arrived most
-  // recently. "A spot for messages to go once they are completed, so that only
-  // new messages that haven't been replied to show" (2ca63bde) and "I don't
-  // have an outbox really" (7fb34ed4) are the two halves of this one control.
+  // Which threads to show: 'open', 'waiting' or 'closed' (see inView). The
+  // office's inbox is a work queue: what it needs to know first is who is
+  // still waiting on a reply, not what arrived most recently. "A spot for
+  // messages to go once they are completed, so that only new messages that
+  // haven't been replied to show" (2ca63bde) and "I don't have an outbox
+  // really" (7fb34ed4) are the two halves of this one control.
   const [threadView, setThreadView] = useState('open')
   // Three tabs, from ?tab=. Which SOURCE the Messages half reads used to be
   // decided by the caller's role: an admin got the school inbox and nothing
@@ -384,24 +390,26 @@ const SchoolInboxPage = () => {
     }
   }
 
-  const totalUnread = conversations.reduce((n, c) => n + (c.unread_count || 0), 0)
-
-  // Two states, Open and Closed (ticket d57973f6, Molly at iCreate). There
-  // were three piles and an All: Needs a reply, Waiting on them, Handled. The
-  // office thinks of a thread as open or closed, so "Waiting on them" folded
-  // into Open, with a small "Their turn" tag on its rows, and Handled became
-  // Closed.
+  // Three views: Open, Waiting and Closed (owner decision 2026-10-05, tickets
+  // 250c9c7a + 7402cb26, Molly at iCreate). d57973f6 had folded "Waiting on
+  // them" into Open with a tag; the office then could not tell, from the
+  // list, which open threads it still owed an answer.
   //
-  // - A thread with no messages yet is in neither state; a search still finds
-  //   it. Six of iCreate's "22 needing a reply" were empty threads somebody
-  //   had opened and never written in (7ee545c4).
-  // - Closed outranks who spoke last, until the other person writes again:
-  //   `resolved_at` is compared to `last_message_at`, so a new message reopens
-  //   the thread without anything having to clear the mark (5c858931).
+  // - Open: the other side spoke last and the thread is not closed -- ours to
+  //   answer.
+  // - Waiting: we spoke last and the thread is not closed -- their turn.
+  // - Closed: marked closed (Close) since the last message.
+  //
+  // - Closed is per side, `resolved_at` against `last_message_at`, so any new
+  //   message clears it with nothing having to unset the mark (5c858931): a
+  //   reply from them lands the thread back in Open, and our own reply to a
+  //   closed thread lands it in Waiting.
+  // - A thread with no messages yet is in no view; a search still finds it.
+  //   Six of iCreate's "22 needing a reply" were empty threads somebody had
+  //   opened and never written in (7ee545c4).
   // - Who spoke last is `last_message_sender_id`, stored on send. A row
-  //   without it (older payload) still counts as owed a reply — better to show
-  //   a thread than to hide one. The tab badges count only those owed a reply,
-  //   as the sidebar does.
+  //   without it (older payload) counts as Open -- better to show a thread as
+  //   owed than to hide one.
   //
   // `selfId` is the school for the front office, the teacher themself otherwise.
   const hasTraffic = (c) => Boolean(c.last_message_at)
@@ -410,60 +418,26 @@ const SchoolInboxPage = () => {
   const lastWordWasOurs = (c) => Boolean(c.last_message_sender_id) && c.last_message_sender_id === selfId
   const needsReply = (c) => hasTraffic(c) && !isResolved(c) && !lastWordWasOurs(c)
   const waitingOnThem = (c) => hasTraffic(c) && !isResolved(c) && lastWordWasOurs(c)
-  const isOpenThread = (c) => hasTraffic(c) && !isResolved(c)
-  const openCount = conversations.filter(needsReply).length
-  const openThreads = conversations.filter(isOpenThread).length
-  // A search looks through every thread, not just the pile on screen: the
-  // thread somebody wants back is usually one that was handled long ago.
+  const inView = {
+    open: needsReply,
+    waiting: waitingOnThem,
+    closed: (c) => hasTraffic(c) && isResolved(c),
+  }
+  const viewCounts = {
+    open: conversations.filter(inView.open).length,
+    waiting: conversations.filter(inView.waiting).length,
+    closed: conversations.filter(inView.closed).length,
+  }
+  const openCount = viewCounts.open
+  // A search looks through every thread, not just the view on screen: the
+  // thread somebody wants back is usually one that was closed long ago.
   const shownConversations = query
     ? conversations.filter((c) => matchesSearch(query, ...convoNames(c)))
-    : conversations.filter((c) => (threadView === 'closed' ? isResolved(c) : isOpenThread(c)))
-  // Each tab's count, shown on every tab whichever is open (iCreate,
-  // 2026-09-29, 1570c67a: "On messaging on the side bar it says I have 3
-  // messages, but idk where those are." The sidebar summed both tabs; the tab
-  // bar showed only the open tab's number, and that one counted unread
-  // MESSAGES, not threads). Now both tabs read the sidebar's two halves --
-  // threads needing a reply, groups not counted -- so the tab numbers add up
-  // to the sidebar's. The open tab uses its own loaded list once it has one
-  // (the same rule, live), so marking a thread handled moves it at once.
-  const countsEnabled = !!user?.id && !(admin && isSuperadmin && !orgId)
-  const { data: tabCounts } = useQuery({
-    queryKey: ['sis', 'inboxTabCounts', orgId, schoolInbox],
-    enabled: countsEnabled,
-    refetchInterval: 60000,
-    staleTime: 30000,
-    queryFn: async () => {
-      const [mine, school] = await Promise.all([
-        api.get('/api/messages/unread-count?threads=1').catch(() => null),
-        schoolInbox
-          // expect403: see InboxUnreadBadge (OPTIO-WEB-24).
-          ? api.get(withOrg('/api/school-inbox/unread-count', isSuperadmin ? orgId : null), { expect403: true })
-            .catch(() => null)
-          : Promise.resolve(null),
-      ])
-      return { mine: needsReplyFrom(mine), school: needsReplyFrom(school) }
-    },
-  })
-  const listReady = listEnabled && !listLoading
-  const mineCount = tab === 'mine' && listReady ? openCount : tabCounts?.mine
-  const schoolCount = viewingSchool && listReady ? openCount : tabCounts?.school
-  // When the open tab's live count moves (a reply, a thread marked handled),
-  // the sidebar badge and the other tab's figure are re-read, so all three
-  // numbers keep agreeing.
-  const liveCountRef = useRef(null)
-  const liveCount = listReady && (tab === 'mine' || viewingSchool) ? `${tab}:${openCount}` : null
-  useEffect(() => {
-    if (!liveCount) return
-    const prev = liveCountRef.current
-    liveCountRef.current = liveCount
-    if (prev && prev.split(':')[0] === liveCount.split(':')[0] && prev !== liveCount) {
-      queryClient.invalidateQueries({ queryKey: ['sis', 'inboxUnread'] })
-      queryClient.invalidateQueries({ queryKey: ['sis', 'inboxTabCounts'] })
-    }
-  }, [liveCount])
+    : conversations.filter(inView[threadView] || inView.open)
 
   const THREAD_VIEWS = [
-    ['open', `Open${openThreads ? ` (${openThreads})` : ''}`],
+    ['open', 'Open'],
+    ['waiting', 'Waiting'],
     ['closed', 'Closed'],
   ]
 
@@ -509,6 +483,64 @@ const SchoolInboxPage = () => {
   const shownGroups = schoolSide ? searchedGroups : searchedGroups.filter((g) => !isClassChat(g))
   const shownClassChats = schoolSide ? [] : searchedGroups.filter(isClassChat)
   const groupsLoaded = groupsFetched
+
+  // One number for "waiting on you", everywhere it is shown: the subtitle,
+  // both tab badges, the sidebar badge (InboxUnreadBadge) and the server
+  // (/api/messages/unread-count?threads=1, /api/school-inbox/unread-count).
+  //
+  //   waiting = 1:1 threads in the Open view + group threads with unread
+  //
+  // Each unit is a row this page lists: an Open thread, or a group (or class
+  // chat) whose section shows an unread pill even when collapsed. It used to
+  // be 1:1 threads only on the badges and unread MESSAGES on the subtitle,
+  // and the server counted the office's own thread with the school that the
+  // list hides -- "my messages says I have 1 unread, but I have no idea where
+  // that message might be" (iCreate, ticket 16d13eb4). Change this rule on
+  // the server too (count_threads_needing_reply, count_groups_with_unread).
+  const groupsWaiting = allGroups.filter((g) => (g.unread_count || 0) > 0).length
+  const waitingCount = openCount + groupsWaiting
+
+  // Each tab's count, shown on every tab whichever is open (iCreate,
+  // 2026-09-29, 1570c67a: "On messaging on the side bar it says I have 3
+  // messages, but idk where those are."). Both tabs read the sidebar's two
+  // halves, so the tab numbers add up to the sidebar's. The open tab uses its
+  // own loaded lists once it has them (the same rule, live), so closing a
+  // thread or reading a group moves it at once.
+  const countsEnabled = !!user?.id && !(admin && isSuperadmin && !orgId)
+  const { data: tabCounts } = useQuery({
+    queryKey: ['sis', 'inboxTabCounts', orgId, schoolInbox],
+    enabled: countsEnabled,
+    refetchInterval: 60000,
+    staleTime: 30000,
+    queryFn: async () => {
+      const [mine, school] = await Promise.all([
+        api.get('/api/messages/unread-count?threads=1').catch(() => null),
+        schoolInbox
+          // expect403: see InboxUnreadBadge (OPTIO-WEB-24).
+          ? api.get(withOrg('/api/school-inbox/unread-count', isSuperadmin ? orgId : null), { expect403: true })
+            .catch(() => null)
+          : Promise.resolve(null),
+      ])
+      return { mine: needsReplyFrom(mine), school: needsReplyFrom(school) }
+    },
+  })
+  const listReady = listEnabled && !listLoading && groupsLoaded
+  const mineCount = tab === 'mine' && listReady ? waitingCount : tabCounts?.mine
+  const schoolCount = viewingSchool && listReady ? waitingCount : tabCounts?.school
+  // When the open tab's live count moves (a reply, a thread closed, a group
+  // read), the sidebar badge and the other tab's figure are re-read, so all
+  // the numbers keep agreeing.
+  const liveCountRef = useRef(null)
+  const liveCount = listReady && (tab === 'mine' || viewingSchool) ? `${tab}:${waitingCount}` : null
+  useEffect(() => {
+    if (!liveCount) return
+    const prev = liveCountRef.current
+    liveCountRef.current = liveCount
+    if (prev && prev.split(':')[0] === liveCount.split(':')[0] && prev !== liveCount) {
+      queryClient.invalidateQueries({ queryKey: ['sis', 'inboxUnread'] })
+      queryClient.invalidateQueries({ queryKey: ['sis', 'inboxTabCounts'] })
+    }
+  }, [liveCount])
 
   // ?group=<id> opens that group, the same consume-once rule as ?conversation=
   // (the bell's link for a reply in a school group, 11f6ad24).
@@ -626,7 +658,8 @@ const SchoolInboxPage = () => {
             ) : (
               <>Messages sent with Compose, and who has read them.</>
             )}
-            {isMessages && totalUnread > 0 && ` ${totalUnread} unread.`}
+            {/* The tab badge's number, not unread messages (16d13eb4). */}
+            {isMessages && listReady && waitingCount > 0 && ` ${waitingCount} waiting on you.`}
           </p>
         </div>
         {/* Org admins choose who opens the school inbox (19047fd0). */}
@@ -721,13 +754,15 @@ const SchoolInboxPage = () => {
                 className={`px-2 py-1 rounded-lg text-xs ${threadView === value
                   ? 'bg-optio-purple/10 text-optio-purple font-semibold'
                   : 'text-neutral-500 hover:bg-gray-100'}`}>
-                {label}
+                {label}{viewCounts[value] ? ` (${viewCounts[value]})` : ''}
               </button>
             ))}
           </div>
           <div className="flex-1 overflow-y-auto">
-            {/* People first, then the two group sections as drop-downs
-                (ticket efa9bbed; see SECTIONS_KEY). */}
+            {/* The two group sections first, as drop-downs, then people
+                (c8e2946d + af47046f; see SECTIONS_KEY). */}
+            {renderGroupSection('groups', 'Group threads', shownGroups)}
+            {renderGroupSection('classChats', 'Class chats', shownClassChats)}
             {loading ? (
               <div className="flex items-center justify-center h-40">
                 <Spinner />
@@ -741,6 +776,9 @@ const SchoolInboxPage = () => {
                 </div>
               )
             ) : conversations.length === 0 ? (
+              // Groups listed above are messages too; "No messages yet" under
+              // them would be false.
+              shownGroups.length + shownClassChats.length > 0 ? null : (
               <div className="flex flex-col items-center justify-center h-64 p-4 text-center">
                 <InboxIcon className="w-12 h-12 text-gray-300 mb-3" />
                 <p className="text-sm font-medium text-neutral-700 mb-1">No messages yet</p>
@@ -750,16 +788,20 @@ const SchoolInboxPage = () => {
                     : 'When someone messages you, the thread shows up here.'}
                 </p>
               </div>
+              )
             ) : shownConversations.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-64 p-4 text-center">
                 <InboxIcon className="w-12 h-12 text-gray-300 mb-3" />
                 <p className="text-sm font-medium text-neutral-700 mb-1">
-                  {threadView === 'open' ? 'No open threads' : 'No closed threads'}
+                  {threadView === 'open' ? 'No open threads'
+                    : threadView === 'waiting' ? 'No threads waiting on a reply' : 'No closed threads'}
                 </p>
                 <p className="text-xs text-neutral-500">
                   {threadView === 'open'
-                    ? 'Every thread is closed. A new message opens its thread again.'
-                    : 'Close a thread when it needs nothing more. Search finds any thread.'}
+                    ? 'Nothing is waiting on you. A new message lands its thread here.'
+                    : threadView === 'waiting'
+                      ? 'Threads where you spoke last wait here until they answer.'
+                      : 'Close a thread when it needs nothing more. Search finds any thread.'}
                 </p>
               </div>
             ) : (
@@ -769,12 +811,12 @@ const SchoolInboxPage = () => {
                   conversation={convo}
                   isSelected={selected?.id === convo.id}
                   onSelect={selectThread}
-                  tag={waitingOnThem(convo) ? 'Their turn' : null}
+                  // From who spoke last alone, in every view: a closed thread
+                  // whose last word was ours still says so (ticket 1d5c425a).
+                  tag={hasTraffic(convo) && lastWordWasOurs(convo) ? 'Their turn' : null}
                 />
               ))
             )}
-            {renderGroupSection('groups', 'Group threads', shownGroups)}
-            {renderGroupSection('classChats', 'Class chats', shownClassChats)}
           </div>
         </div>
 

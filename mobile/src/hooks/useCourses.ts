@@ -6,6 +6,7 @@ import { useEffect, useState, useCallback, useRef } from 'react';
 import api from '../services/api';
 import { useAuthStore } from '../stores/authStore';
 import { useRefetchOnForeground } from './useRefetchOnForeground';
+import { extractApiError } from '@/src/services/apiError';
 
 export interface Course {
   id: string;
@@ -147,7 +148,7 @@ export function useCourseDetail(courseId: string | null) {
       }
       setError(null);
     } catch (err: any) {
-      setError(err.response?.data?.error || 'Failed to load course');
+      setError(extractApiError(err, 'Failed to load course').message);
     } finally {
       setLoading(false);
     }
@@ -208,7 +209,7 @@ export function useLessons(questId: string | null) {
       const { data } = await api.get(`/api/quests/${questId}/curriculum/lessons`);
       setLessons(data.lessons || []);
     } catch (err: any) {
-      setError(err.response?.data?.error || 'Failed to load lessons');
+      setError(extractApiError(err, 'Failed to load lessons').message);
     } finally {
       setLoading(false);
     }

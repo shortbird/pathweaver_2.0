@@ -1636,6 +1636,39 @@ def family_directory(user_id: str, org_id: str) -> Optional[List[Dict[str, Any]]
     return out
 
 
+# ── Volunteer hours (guardian-only) ───────────────────────────────────────────
+def family_volunteer_hours(user_id: str, org_id: str) -> Optional[Dict[str, Any]]:
+    """This guardian's own family's volunteer hours, or None if they guard no
+    family at this school.
+
+    iCreate 01082b30: "Could we make a way for parents to be able to see how
+    many volunteer hours they have completed? We can keep it updated, but ...
+    keep it private so not everyone sees everyone elses." Staff keep one number
+    per family (households.volunteer_hours, PATCH /api/sis/households/<id>);
+    only that family's guardians read it, here. family_directory names its
+    columns and never selects it.
+
+    `shown` tells the page whether to draw the line at all: true when this
+    family has hours, or when the school has entered hours for any family (so
+    a family at 0 in a school that tracks hours sees its 0). A school that
+    never uses the field shows nothing, and the yes/no is all that leaks about
+    other families.
+    """
+    from repositories.household_repository import HouseholdRepository
+    repo = HouseholdRepository(client=_admin())
+    households = repo.volunteer_hours_for(repo.guardian_household_ids(user_id, org_id), org_id)
+    if not households:
+        return None
+    # A guardian of two households at one school (rare: a blended family)
+    # sees their total; the families are both theirs.
+    hours = round(sum(float(h.get('volunteer_hours') or 0) for h in households), 2)
+    stamps = [h['volunteer_hours_updated_at'] for h in households if h.get('volunteer_hours_updated_at')]
+    shown = hours > 0 or repo.org_records_volunteer_hours(org_id)
+    return {'volunteer_hours': hours,
+            'updated_at': max(stamps) if stamps else None,
+            'shown': bool(shown)}
+
+
 # ── Planned absences (guardian-scoped) ────────────────────────────────────────
 def list_absences(user_id: str, org_id: str, student_user_id: str) -> Dict[str, Any]:
     """Upcoming planned absences for a child + the classes the parent can pick from."""

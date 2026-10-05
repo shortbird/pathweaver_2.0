@@ -22,6 +22,7 @@ import {
   previewEvolvedQuest, evolveTrackToQuest,
   type EvolvePreview, type EvolvePreviewTask,
 } from '@/src/hooks/useJournal';
+import { extractApiError } from '@/src/services/apiError';
 
 interface Props {
   visible: boolean;
@@ -83,7 +84,7 @@ export function EvolveTopicModal({ visible, trackId, trackName, momentCount, onC
       }
     } catch (err: any) {
       if (seq !== requestSeq.current) return;
-      setError(err.response?.data?.error || 'Failed to generate quest preview');
+      setError(extractApiError(err, 'Failed to generate quest preview').message);
     } finally {
       if (seq === requestSeq.current) setLoadingPreview(false);
     }
@@ -127,7 +128,7 @@ export function EvolveTopicModal({ visible, trackId, trackName, momentCount, onC
         setError(result.error || 'Failed to evolve topic');
       }
     } catch (err: any) {
-      setError(err.response?.data?.error || 'Failed to evolve topic into quest');
+      setError(extractApiError(err, 'Failed to evolve topic into quest').message);
     } finally {
       setSubmitting(false);
     }

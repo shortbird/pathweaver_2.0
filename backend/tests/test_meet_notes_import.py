@@ -221,9 +221,13 @@ class TestMatching:
 @pytest.mark.unit
 class TestRoute:
     def test_the_webhook_hands_the_import_address_to_the_notes_import(self, app, config):
+        """The reply relay came back beside this import (ticket fc21a562,
+        "Email this to me disappeared. I want it back."). The import address
+        must still never reach it."""
         client = app.test_client()
         with patch('routes.inbound_email.Config.INBOUND_EMAIL_WEBHOOK_SECRET', 'secret'), \
-             patch.object(svc, 'handle_inbound', return_value={'status': 'attached'}) as handled:
+             patch.object(svc, 'handle_inbound', return_value={'status': 'attached'}) as handled, \
+             patch('services.message_email_relay_service.handle_inbound') as relay:
             resp = client.post('/api/email/inbound?key=secret', data={
                 'to': svc.import_address(), 'from': 'gemini-notes@google.com',
                 'subject': 'Notes', 'text': TEXT, 'html': HTML,
@@ -231,3 +235,4 @@ class TestRoute:
         assert resp.status_code == 200
         assert resp.get_json() == {'status': 'attached'}
         handled.assert_called_once()
+        relay.assert_not_called()

@@ -366,15 +366,17 @@ class Config:
     # copy messages carrying attachments or flagged as student records.
     SUPPORT_COPY_EMAILS_ENABLED = os.getenv('SUPPORT_COPY_EMAILS', 'false').lower() == 'true'
 
-    # Inbound mail (Google Meet notes onto CRM files). A dedicated subdomain
-    # whose MX points at the inbound-parse host, so it can never collide with
-    # real mail on optioeducation.com. One address under it is read:
-    # notes+<token>@<domain> (services/meet_notes_import_service.py).
+    # Inbound mail: reply-by-email on "Email this to me", and Google Meet notes
+    # onto CRM files. A dedicated subdomain whose MX points at the inbound-parse
+    # host, so it can never collide with real mail on optioeducation.com. Two
+    # addresses under it are read: reply+<token>@<domain>
+    # (services/message_email_relay_service.py) and notes+<token>@<domain>
+    # (services/meet_notes_import_service.py).
     #
-    # UNSET IS A SUPPORTED STATE and the default: there is then no import
-    # address and no notes are imported. Set this only once the MX record and
-    # the provider's inbound route both exist, or mail forwarded to the import
-    # address bounces.
+    # UNSET IS A SUPPORTED STATE and the default: "Email this to me" still
+    # sends, the copy just arrives without a Reply-To and says so, and no notes
+    # are imported. Set this only once the MX record and the provider's inbound
+    # route both exist, or replies and forwarded notes bounce.
     INBOUND_EMAIL_DOMAIN = os.getenv('INBOUND_EMAIL_DOMAIN', '').strip().lower()
     # Shared secret in the inbound webhook URL (?key=). The provider posts
     # unauthenticated otherwise, and anyone who learns the URL could inject

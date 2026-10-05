@@ -12,6 +12,7 @@ import {
 } from '@/src/components/ui';
 import { useContacts, createGroup, type Contact } from '@/src/hooks/useMessages';
 import { useThemeColors } from '@/src/hooks/useThemeColors';
+import { extractApiError } from '@/src/services/apiError';
 
 interface Props {
   visible: boolean;
@@ -67,7 +68,7 @@ export function CreateGroupModal({ visible, onClose, onCreated }: Props) {
       reset();
       onClose();
     } catch (err: any) {
-      setError(err.response?.data?.error || 'Failed to create group');
+      setError(extractApiError(err, 'Failed to create group').message);
     } finally {
       setCreating(false);
     }

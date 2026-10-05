@@ -29,6 +29,7 @@ import {
 } from '@/src/components/ui';
 import { useThemeColors } from '@/src/hooks/useThemeColors';
 import type { useSchoolAbsences } from '@/src/hooks/useSchool';
+import { extractApiError } from '@/src/services/apiError';
 
 export type AbsencesApi = ReturnType<typeof useSchoolAbsences>;
 
@@ -186,7 +187,7 @@ export function AbsenceReportSheet({ absences: a, visible, onClose }: {
       setReason('');
       if (reportedFor.length) onClose();
     } catch (e: any) {
-      toast.error(e?.response?.data?.error || 'Could not report absence');
+      toast.error(extractApiError(e, 'Could not report absence').message);
     } finally {
       setBusy(false);
     }

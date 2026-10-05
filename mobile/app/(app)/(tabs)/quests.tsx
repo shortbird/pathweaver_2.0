@@ -23,6 +23,7 @@ import {
   VStack, HStack, Heading, UIText, Card, Button, ButtonText,
   Skeleton, Input, InputField, InputSlot, InputIcon,
 } from '@/src/components/ui';
+import { extractApiError } from '@/src/services/apiError';
 
 const pillarColors: Record<string, string> = {
   stem: 'bg-pillar-stem/15', art: 'bg-pillar-art/15', communication: 'bg-pillar-communication/15',
@@ -142,7 +143,7 @@ export default function QuestsScreen() {
       await api.post(`/api/family/quests/${questId}/enroll-children`, { child_ids: [forChildId] });
       router.push(`/(app)/quests/${questId}` as any);
     } catch (e: any) {
-      showAlert('Could not add quest', e?.response?.data?.error || 'Failed to add this quest. Try again.');
+      showAlert('Could not add quest', extractApiError(e, 'Failed to add this quest. Try again.').message);
     } finally {
       setAddingId(null);
     }

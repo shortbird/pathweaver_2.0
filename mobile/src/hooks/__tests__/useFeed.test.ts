@@ -3,7 +3,7 @@
  */
 
 import { renderHook, waitFor } from '@testing-library/react-native';
-import { useFeed, recordViews, getViewers, postComment, dedupeMerge, computeFeedKey } from '../useFeed';
+import { useFeed, recordViews, getViewers, postComment, dedupeMerge, computeFeedKey, reconcileRefetch, type FeedItem } from '../useFeed';
 import api from '@/src/services/api';
 import {
   setAuthAsStudent, setAuthAsParent, setAuthAsObserver, clearAuthState,
@@ -238,6 +238,92 @@ describe('dedupeMerge — identity preservation', () => {
     expect(before.students).toHaveLength(1);
     // ...and the untouched neighbour keeps its identity.
     expect(next[0]).toBe(prev[0]);
+  });
+});
+
+describe('reconcileRefetch — ticket 2c34704a', () => {
+  // "Reopening the app after it had been running in background for a while
+  // made the feed very choppy." The foreground refetch rebuilt every item, so
+  // every mounted card re-rendered. Unchanged items must keep their identity.
+  const mk = (id: string, extra: Partial<FeedItem> = {}): FeedItem =>
+    ({
+      type: 'task_completed',
+      id,
+      timestamp: '2026-10-01T00:00:00Z',
+      student: { id: 's1', display_name: 'S', avatar_url: null },
+      views_count: 1,
+      comments_count: 0,
+      is_confidential: false,
+      reactions: { by_key: { proud: 1 }, mine: null },
+      ...extra,
+    }) as FeedItem;
+  // A fresh JSON copy, as the network would hand back.
+  const wire = (it: FeedItem) => JSON.parse(JSON.stringify(it)) as FeedItem;
+
+  it('"made the feed very choppy": unchanged items keep their object identity, changed ones are replaced', () => {
+    const prev = dedupeMerge([], [mk('a'), mk('b'), mk('c')]);
+    const fresh = [wire(prev[0]), { ...wire(prev[1]), comments_count: 4 }, wire(prev[2])];
+    const { items } = reconcileRefetch(prev, fresh);
+    expect(items[0]).toBe(prev[0]);
+    expect(items[1]).not.toBe(prev[1]);
+    expect(items[1].comments_count).toBe(4);
+    expect(items[2]).toBe(prev[2]);
+  });
+
+  it('returns the previous array itself when nothing changed', () => {
+    const prev = dedupeMerge([], [mk('a'), mk('b')]);
+    const { items } = reconcileRefetch(prev, prev.map(wire));
+    expect(items).toBe(prev);
+  });
+
+  it('puts new items on top and keeps the older pages already loaded below', () => {
+    const prev = dedupeMerge([], [mk('a'), mk('b'), mk('c'), mk('d')]);
+    const { items, keptTail } = reconcileRefetch(prev, [mk('new'), wire(prev[0]), wire(prev[1])]);
+    expect(items.map((i) => i.id)).toEqual(['new', 'a', 'b', 'c', 'd']);
+    expect(items[1]).toBe(prev[0]);
+    expect(items[3]).toBe(prev[2]);
+    expect(keptTail).toBe(true);
+  });
+
+  it('replaces the list when the fresh page shares nothing with it', () => {
+    const prev = dedupeMerge([], [mk('a'), mk('b')]);
+    const { items, keptTail } = reconcileRefetch(prev, [mk('x'), mk('y')]);
+    expect(items.map((i) => i.id)).toEqual(['x', 'y']);
+    expect(keptTail).toBe(false);
+  });
+});
+
+describe('useFeed refetch — ticket 2c34704a', () => {
+  it('"Reopening the app after it had been running in background for a while made the feed very choppy": a foreground refetch keeps unchanged items and the loaded pages', async () => {
+    setAuthAsStudent();
+    const a = createMockFeedItem({ id: 'tc_a' });
+    const b = createMockFeedItem({ id: 'tc_b' });
+    const c = createMockFeedItem({ id: 'tc_c' });
+    (api.post as jest.Mock).mockResolvedValue({ data: { success: true } });
+    (api.get as jest.Mock).mockResolvedValueOnce({
+      data: { items: [a, b], has_more: true, next_cursor: 'cursor-page-2' },
+    });
+
+    const { result } = renderHook(() => useFeed());
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    (api.get as jest.Mock).mockResolvedValueOnce({
+      data: { items: [c], has_more: false, next_cursor: null },
+    });
+    result.current.loadMore();
+    await waitFor(() => expect(result.current.items).toHaveLength(3));
+    const before = result.current.items;
+
+    // Same page 1 again, as fresh JSON objects from the network.
+    (api.get as jest.Mock).mockResolvedValueOnce({
+      data: { items: JSON.parse(JSON.stringify([a, b])), has_more: true, next_cursor: 'cursor-page-2' },
+    });
+    result.current.refetch();
+    await waitFor(() => expect((api.get as jest.Mock).mock.calls.length).toBe(3));
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    expect(result.current.items).toHaveLength(3);
+    result.current.items.forEach((it, i) => expect(it).toBe(before[i]));
   });
 });
 

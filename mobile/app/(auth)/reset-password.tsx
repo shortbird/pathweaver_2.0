@@ -7,6 +7,7 @@ import {
   VStack, Heading, UIText, Button, ButtonText,
   Card, Input, InputField, InputSlot, InputIcon,
 } from '@/src/components/ui';
+import { extractApiError } from '@/src/services/apiError';
 
 const LOGO_URI =
   'https://auth.optioeducation.com/storage/v1/object/public/site-assets/logos/logo_95c9e6ea25f847a2a8e538d96ee9a827.png';
@@ -62,7 +63,7 @@ export default function ResetPasswordScreen() {
       await authAPI.resetPassword(token, password);
       setSuccess(true);
     } catch (err: any) {
-      setError(err.response?.data?.error || 'Failed to reset password. The link may have expired.');
+      setError(extractApiError(err, 'Failed to reset password. The link may have expired.').message);
     } finally {
       setIsLoading(false);
     }

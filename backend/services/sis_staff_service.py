@@ -370,7 +370,11 @@ def staff_resources_for(user_id: str, org_id: str,
         .select('id, title, url, category, audience, visible_to_roles, visible_to_user_ids')
         .eq('organization_id', org_id).eq('is_training', False)
         .in_('audience', ['staff', 'all'])
-        .order('title').execute()
+        # The admin's arranged order first (PUT /api/sis/resources/order),
+        # then title for rows never arranged -- the same order the Documents
+        # tab shows (iCreate 07b646fa: "rearrange the resources ... move them
+        # up or down").
+        .order('sort_order').order('title').execute()
     ).data or [])
     out = [{'id': r['id'], 'title': r['title'], 'url': r.get('url'),
             'category': r.get('category')} for r in rows[:limit]]

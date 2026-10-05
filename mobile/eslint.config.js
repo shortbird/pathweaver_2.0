@@ -33,6 +33,25 @@ module.exports = defineConfig([
     },
   },
   {
+    // Sentry 6cbb6c10: prod sends { error: { message, code, timestamp,
+    // request_id } }, so `err.response?.data?.error || '...'` handed an object
+    // to toast.error / setError and crashed the render ("Objects are not
+    // valid as a React child"). Read server errors through apiError.ts.
+    files: ['app/**/*.{ts,tsx}', 'src/**/*.{ts,tsx}'],
+    ignores: ['src/services/apiError.ts', '**/__tests__/**', '**/*.test.{ts,tsx}'],
+    rules: {
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector:
+            "MemberExpression[property.name='error'][object.type='MemberExpression'][object.property.name='data'][object.object.type='MemberExpression'][object.object.property.name='response']",
+          message:
+            "The server error may be an object. Use extractApiError(err, 'fallback').message (or apiErrorBodyMessage(body, fallback)) from src/services/apiError.ts.",
+        },
+      ],
+    },
+  },
+  {
     ignores: ['dist/*', 'coverage/*', 'e2e/**', '.expo/*'],
   },
 ]);

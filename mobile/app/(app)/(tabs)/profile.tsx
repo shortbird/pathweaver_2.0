@@ -32,6 +32,7 @@ import { ProfileActivityFeed } from '@/src/components/feed/ProfileActivityFeed';
 import { SubjectCreditsGrid } from '@/src/components/portfolio/SubjectCreditsGrid';
 import { DiplomaCreditTracker } from '@/src/components/diploma/DiplomaCreditTracker';
 import { tracksDiplomaCredits } from '@/src/utils/age';
+import { extractApiError } from '@/src/services/apiError';
 
 // Native-only system date picker (iOS spinner / Android dialog), used by the
 // date-of-birth field in the edit sheet. Guarded so the web bundle -- which
@@ -268,7 +269,7 @@ export default function ProfileScreen() {
       // Update authStore user
       useAuthStore.getState().loadUser();
     } catch (err: any) {
-      showAlert('Error', err.response?.data?.error || 'Failed to update profile');
+      showAlert('Error', extractApiError(err, 'Failed to update profile').message);
     } finally {
       setSaving(false);
     }

@@ -38,6 +38,7 @@ import { useIsParent } from '@/src/hooks/useStartSomething';
 import { nameFor } from '@/src/components/family/ChildSwitcher';
 import { useThemeColors } from '@/src/hooks/useThemeColors';
 import { showAlert, confirmAlert } from '@/src/utils/alerts';
+import { extractApiError } from '@/src/services/apiError';
 
 const DESKTOP_BREAKPOINT = 768;
 
@@ -142,7 +143,7 @@ export default function JournalScreen({ studentId: studentIdProp, headerTitle }:
       setNewTopicVisible(false);
       refetchTopics();
     } catch (err: any) {
-      showAlert('Error', err.response?.data?.error || 'Failed to create topic');
+      showAlert('Error', extractApiError(err, 'Failed to create topic').message);
     } finally {
       setCreatingTopic(false);
     }
@@ -228,7 +229,7 @@ export default function JournalScreen({ studentId: studentIdProp, headerTitle }:
       refetchTopics();
       refetchUnassigned();
     } catch (err: any) {
-      showAlert('Error', err.response?.data?.error || 'Failed to delete topic');
+      showAlert('Error', extractApiError(err, 'Failed to delete topic').message);
     }
   };
 
@@ -285,7 +286,7 @@ export default function JournalScreen({ studentId: studentIdProp, headerTitle }:
       refetchTopics();
       refetchTrack();
     } catch (err: any) {
-      showAlert('Error', err.response?.data?.error || 'Failed to rename topic');
+      showAlert('Error', extractApiError(err, 'Failed to rename topic').message);
     }
   };
 

@@ -10,6 +10,8 @@ import ModalOverlay from '../../../components/ui/ModalOverlay'
 import SearchSelect from '../../../components/ui/SearchSelect'
 import DocumentPreview, { isPreviewableDocument } from '../../../components/evidence/preview/DocumentPreview'
 import { INPUT_CLASS } from '../../../components/ui/Input'
+import { ChevronUpIcon, ChevronDownIcon } from '@heroicons/react/24/outline'
+import useResourceOrder from '../../../hooks/useResourceOrder'
 
 const field = INPUT_CLASS
 /**
@@ -83,7 +85,12 @@ const DocumentsPanel = () => {
     } catch (e) { toast.error(e?.response?.data?.error || 'Could not record the acknowledgment') }
   }
 
-  const grouped = resources.reduce((acc, r) => {
+  // In the order the admin arranged (hooks/useResourceOrder). iCreate
+  // 07b646fa / 48531900: the library read as alphabetical with no way to
+  // move a document up or down.
+  const { ordered, move } = useResourceOrder({ resources, orgId, reload: load })
+
+  const grouped = ordered.reduce((acc, r) => {
     const key = r.category || 'General'
     ;(acc[key] = acc[key] || []).push(r)
     return acc
@@ -189,9 +196,25 @@ const DocumentsPanel = () => {
         <div key={category} className="mb-6">
           <h2 className="text-xs font-semibold uppercase tracking-wide text-neutral-400 mb-2">{category}</h2>
           <div className="bg-white rounded-xl border border-gray-200 divide-y divide-gray-100">
-            {items.map((r) => (
+            {items.map((r, index) => (
               <div key={r.id} className="flex items-center justify-between gap-3 px-4 py-3">
-                <div className="min-w-0">
+                {/* The admin's order. Arrows rather than drag, as on the
+                    Training tab: the list is short and a keyboard can do it. */}
+                {admin && (
+                  <div className="flex flex-col justify-center -ml-2 shrink-0">
+                    <button type="button" onClick={() => move(r, -1)} disabled={index === 0}
+                      aria-label={`Move ${r.title} up`}
+                      className="p-0.5 text-gray-400 hover:text-optio-purple disabled:opacity-30 disabled:hover:text-gray-400">
+                      <ChevronUpIcon className="w-4 h-4" />
+                    </button>
+                    <button type="button" onClick={() => move(r, 1)} disabled={index === items.length - 1}
+                      aria-label={`Move ${r.title} down`}
+                      className="p-0.5 text-gray-400 hover:text-optio-purple disabled:opacity-30 disabled:hover:text-gray-400">
+                      <ChevronDownIcon className="w-4 h-4" />
+                    </button>
+                  </div>
+                )}
+                <div className="min-w-0 flex-1">
                   <span className="flex items-center gap-2 flex-wrap">
                     {isPreviewableDocument(r.url, r.title) ? (
                       <button type="button" onClick={() => setReading(r)}

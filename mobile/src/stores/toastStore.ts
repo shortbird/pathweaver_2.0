@@ -21,6 +21,7 @@
  */
 
 import { create } from 'zustand';
+import { toDisplayMessage } from '../services/apiError';
 
 export type ToastType = 'success' | 'error' | 'info';
 
@@ -79,8 +80,10 @@ export const useToastStore = create<ToastState>((set) => ({
     const entry: Toast = {
       id,
       type,
-      message: opts.message,
-      title: opts.title,
+      // Safety net (Sentry 6cbb6c10): a caller that passes the backend error
+      // envelope object instead of a string must not crash <ToastHost />.
+      message: toDisplayMessage(opts.message),
+      title: opts.title == null ? undefined : toDisplayMessage(opts.title),
       duration: opts.duration ?? DEFAULT_DURATION[type],
       action: opts.action,
     };

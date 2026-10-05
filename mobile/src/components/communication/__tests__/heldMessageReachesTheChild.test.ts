@@ -26,7 +26,10 @@ function sendCatchBlock(file: string, sendCall: string): string {
 describe('a held message reaches the child', () => {
   it('the direct message window shows the server sentence on a failed send', () => {
     const block = sendCatchBlock('ChatWindow.tsx', 'await sendDirectMessage(');
-    expect(block).toContain('toast.error(e?.response?.data?.error');
+    // Was pinned to `toast.error(e?.response?.data?.error`. That read handed
+    // the toast the prod error envelope OBJECT and crashed the render (Sentry
+    // 6cbb6c10); extractApiError still puts the server sentence on screen.
+    expect(block).toContain('toast.error(extractApiError(e,');
   });
 
   it('the group chat window shows the server sentence on every failed send, not only a 403', () => {

@@ -724,6 +724,44 @@ class GroupMessageService(BaseService):
             logger.warning(f"Could not count unread group messages for {user_id}: {e}")
             return 0
 
+    def count_groups_with_unread(self, user_id: str,
+                                 owned_by: Optional[str] = None) -> int:
+        """Group THREADS (not messages) holding something unread for this member.
+
+        The console inbox's half of its badge for groups: "N waiting on you"
+        is 1:1 threads in the Open view plus group threads with unread, so a
+        number on the badge always points at a row on the page -- an Open
+        thread, or a group section's unread pill (iCreate, ticket 16d13eb4:
+        "my messages says I have 1 unread, but I have no idea where that
+        message might be").
+
+        Counts the same groups the page lists: every group the member belongs
+        to (get_user_groups), or with `owned_by` only those that account
+        created (get_school_groups, the School tab). Same unread rule as
+        get_user_groups. Best-effort: a failure is 0, not a 500 on the badge.
+        """
+        try:
+            from repositories.group_repository import GroupRepository
+            repo = GroupRepository(client=self._get_client())
+            memberships = repo.memberships_for_user(user_id)
+            if not memberships:
+                return 0
+            last_read_by_group = {m['group_id']: m.get('last_read_at') for m in memberships}
+            count = 0
+            for group in repo.active_groups(list(last_read_by_group)):
+                if owned_by and group.get('created_by') != owned_by:
+                    continue
+                last_read_at = last_read_by_group.get(group['id'])
+                last_message_at = group.get('last_message_at')
+                if last_read_at and (not last_message_at or last_message_at <= last_read_at):
+                    continue
+                if repo.count_unread_messages(group['id'], user_id, since=last_read_at) > 0:
+                    count += 1
+            return count
+        except Exception as e:  # noqa: BLE001
+            logger.warning(f"Could not count unread group threads for {user_id}: {e}")
+            return 0
+
     def get_user_groups(self, user_id: str) -> List[Dict[str, Any]]:
         """
         Get all groups for a user

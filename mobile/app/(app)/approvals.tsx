@@ -16,6 +16,7 @@ import {
 } from '@/src/components/ui';
 import { useThemeColors } from '@/src/hooks/useThemeColors';
 import { showAlert } from '@/src/utils/alerts';
+import { extractApiError } from '@/src/services/apiError';
 
 function formatDate(dateString?: string): string {
   if (!dateString) return '';
@@ -41,7 +42,7 @@ function ApprovalCard({ request, onApprove, onDeny }: {
     try {
       await onApprove();
     } catch (err: any) {
-      showAlert('Error', err.response?.data?.error || 'Failed to approve');
+      showAlert('Error', extractApiError(err, 'Failed to approve').message);
     } finally {
       setResponding(false);
     }
@@ -54,7 +55,7 @@ function ApprovalCard({ request, onApprove, onDeny }: {
       setDenyOpen(false);
       setDenyReason('');
     } catch (err: any) {
-      showAlert('Error', err.response?.data?.error || 'Failed to deny');
+      showAlert('Error', extractApiError(err, 'Failed to deny').message);
     } finally {
       setResponding(false);
     }

@@ -17,6 +17,7 @@ import {
   Card, Input, InputField, InputSlot,
 } from '@/src/components/ui';
 import { useThemeColors } from '@/src/hooks/useThemeColors';
+import { extractApiError, apiErrorBodyMessage } from '@/src/services/apiError';
 
 interface Invitation {
   email: string;
@@ -77,10 +78,10 @@ export default function AcceptInvitationScreen() {
             setLastName(parts.slice(1).join(' ') || '');
           }
         } else {
-          setError(data.error || 'Invalid invitation');
+          setError(apiErrorBodyMessage(data, 'Invalid invitation'));
         }
       } catch (err: any) {
-        setError(err.response?.data?.error || 'This invitation is invalid or has expired.');
+        setError(extractApiError(err, 'This invitation is invalid or has expired.').message);
       } finally {
         setLoading(false);
       }
@@ -134,10 +135,10 @@ export default function AcceptInvitationScreen() {
       if (data.success) {
         setSuccess(true);
       } else {
-        setError(data.error || 'Failed to accept invitation');
+        setError(apiErrorBodyMessage(data, 'Failed to accept invitation'));
       }
     } catch (err: any) {
-      setError(err.response?.data?.error || 'Failed to create account. Please try again.');
+      setError(extractApiError(err, 'Failed to create account. Please try again.').message);
     } finally {
       setSubmitting(false);
     }
@@ -162,10 +163,10 @@ export default function AcceptInvitationScreen() {
           setSuccess(true);
         }
       } else {
-        setError(data.error || 'Failed to join organization');
+        setError(apiErrorBodyMessage(data, 'Failed to join organization'));
       }
     } catch (err: any) {
-      setError(err.response?.data?.error || 'Failed to join. Please try again.');
+      setError(extractApiError(err, 'Failed to join. Please try again.').message);
     } finally {
       setSubmitting(false);
     }

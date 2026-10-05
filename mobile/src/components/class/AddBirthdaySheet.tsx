@@ -19,6 +19,7 @@ import { useThemeColors } from '@/src/hooks/useThemeColors';
 import {
   VStack, HStack, UIText, Heading, Button, ButtonText, BottomSheet,
 } from '../ui';
+import { extractApiError } from '@/src/services/apiError';
 
 const DateTimePicker = Platform.OS === 'web'
   ? null
@@ -73,9 +74,7 @@ export function AddBirthdaySheet({ visible, onClose, onSaved }: AddBirthdaySheet
       pendingSavedRef.current = true;
       handleClose();
     } catch (err: any) {
-      const msg = err.response?.data?.error?.message
-        || err.response?.data?.error
-        || 'Could not save your birthday.';
+      const msg = extractApiError(err, 'Could not save your birthday.').message;
       showAlert('Could not save', typeof msg === 'string' ? msg : 'Could not save your birthday.');
     } finally {
       setSaving(false);

@@ -27,6 +27,7 @@ import {
 } from '../ui';
 import { useThemeColors } from '@/src/hooks/useThemeColors';
 import { showAlert, confirmAlert } from '@/src/utils/alerts';
+import { extractApiError } from '@/src/services/apiError';
 
 interface InviteObserverSheetProps {
   visible: boolean;
@@ -157,7 +158,7 @@ export function InviteObserverSheet({ visible, onClose }: InviteObserverSheetPro
       setExpiresAt(data?.expires_at || null);
       setActiveInviteId(data?.invitation_id || null);
     } catch (err: any) {
-      const msg = err.response?.data?.error || 'Failed to create invitation link';
+      const msg = extractApiError(err, 'Failed to create invitation link').message;
       showAlert('Error', msg);
     } finally {
       setLoading(false);
@@ -243,7 +244,7 @@ export function InviteObserverSheet({ visible, onClose }: InviteObserverSheetPro
       setEmailInput('');
     } catch (err: any) {
       haptic.error();
-      const msg = err?.response?.data?.error || 'We couldn’t send that invitation. Double-check the email and try again.';
+      const msg = extractApiError(err, 'We couldn’t send that invitation. Double-check the email and try again.').message;
       showAlert('Could not send invitation', msg);
     } finally {
       setEmailSending(false);
@@ -271,7 +272,7 @@ export function InviteObserverSheet({ visible, onClose }: InviteObserverSheetPro
           ? { ...obs, children: obs.children.map((c) => c.student_id === kid.student_id ? { ...c, enabled: !nextEnabled } : c) }
           : obs
       ));
-      const msg = err?.response?.data?.error || 'Failed to update access';
+      const msg = extractApiError(err, 'Failed to update access').message;
       showAlert('Error', msg);
     }
   };
@@ -299,7 +300,7 @@ export function InviteObserverSheet({ visible, onClose }: InviteObserverSheetPro
       await refreshObservers();
     } catch (err: any) {
       haptic.error();
-      showAlert('Error', err?.response?.data?.error || 'Could not make this person a parent');
+      showAlert('Error', extractApiError(err, 'Could not make this person a parent').message);
     }
   };
 

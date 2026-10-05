@@ -23,6 +23,7 @@ import {
   PillarBadge,
 } from '@/src/components/ui';
 import { effectiveRoleOf } from '@/src/utils/effectiveRole';
+import { extractApiError } from '@/src/services/apiError';
 
 const STATUS_CONFIG: Record<string, { bg: string; text: string; label: string }> = {
   claimed: { bg: '#DBEAFE', text: '#1D4ED8', label: 'In Progress' },
@@ -186,7 +187,7 @@ export default function BountyDetailPage() {
       await refetchClaims();
       await refetch();
     } catch (err: any) {
-      const msg = err.response?.data?.message || err.response?.data?.error || 'Failed to claim bounty';
+      const msg = extractApiError(err, 'Failed to claim bounty').message;
       showAlert('Error', msg);
     } finally {
       setClaiming(false);
@@ -202,7 +203,7 @@ export default function BountyDetailPage() {
       await refetch();
       showAlert('Submitted', 'Your bounty has been turned in for review.');
     } catch (err: any) {
-      const msg = err.response?.data?.message || err.response?.data?.error || 'Failed to turn in bounty';
+      const msg = extractApiError(err, 'Failed to turn in bounty').message;
       showAlert('Error', msg);
     } finally {
       setTurningIn(false);
@@ -225,7 +226,7 @@ export default function BountyDetailPage() {
       await refetchClaims();
       await refetch();
     } catch (err: any) {
-      const msg = err.response?.data?.message || err.response?.data?.error || 'Failed to drop bounty';
+      const msg = extractApiError(err, 'Failed to drop bounty').message;
       showAlert('Error', msg);
     } finally {
       setDropping(false);
@@ -242,7 +243,7 @@ export default function BountyDetailPage() {
       await toggleDeliverable(id, myClaim.id, deliverableId, true);
       await refetchClaims();
     } catch (err: any) {
-      showAlert('Error', err.response?.data?.error || 'Failed to update this step');
+      showAlert('Error', extractApiError(err, 'Failed to update this step').message);
     }
   };
 
@@ -252,7 +253,7 @@ export default function BountyDetailPage() {
       await toggleDeliverable(id, myClaim.id, deliverableId, false);
       await refetchClaims();
     } catch (err: any) {
-      showAlert('Error', err.response?.data?.error || 'Failed to update deliverable');
+      showAlert('Error', extractApiError(err, 'Failed to update deliverable').message);
     }
   };
 
@@ -270,7 +271,7 @@ export default function BountyDetailPage() {
       await refetchClaims();
       await refetch();
     } catch (err: any) {
-      const msg = err.response?.data?.error || 'Failed to delete evidence';
+      const msg = extractApiError(err, 'Failed to delete evidence').message;
       showAlert('Error', msg);
     }
   };

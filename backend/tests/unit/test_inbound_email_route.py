@@ -12,8 +12,9 @@ Two properties this endpoint must hold, both of them counter-intuitive:
 
 from unittest.mock import patch
 
-# A reply to one of the old "Send to Gmail" copies. Reply-by-email was removed
-# on 2026-10-01, so this is now mail for an address nothing reads.
+# A reply to an "Email this to me" copy: a relay address. Reply-by-email was
+# removed on 2026-10-01 and restored on 2026-10-05 on ticket fc21a562 ("Email
+# this to me disappeared. I want it back.").
 FORM = {
     'envelope': '{"to":["reply+abcdefghijklmnopqrstuvwxyz012345@reply.optioeducation.com"]}',
     'from': 'Tanner Bowman <tannerbowman@gmail.com>',
@@ -22,7 +23,7 @@ FORM = {
     'attachments': '0',
 }
 
-# The one address that is read: the Meet notes import address. Any 24 hex
+# The other address that is read: the Meet notes import address. Any 24 hex
 # characters route there; whether the token is the right one is the import
 # service's check, and it is patched out below.
 NOTES_FORM = {
@@ -86,14 +87,76 @@ def test_handler_crash_still_answers_200(client):
     assert resp.get_json()['status'] == 'error'
 
 
-def test_mail_for_any_other_address_is_ignored_with_a_200(client):
-    # Includes a reply to an old "Send to Gmail" copy: nothing posts it into a
-    # thread any more, and it must not bounce back at the person who wrote it.
+def test_a_relay_reply_is_handed_to_the_relay_service(client):
+    """Ticket fc21a562: a reply from Gmail posts back into the Optio thread."""
     with patch('app_config.Config.INBOUND_EMAIL_WEBHOOK_SECRET', 'right'), \
-         patch('services.meet_notes_import_service.handle_inbound') as handle, \
-         patch('services.direct_message_service.DirectMessageService.send_message') as send:
+         patch('services.message_email_relay_service.handle_inbound',
+               return_value=('delivered', 'msg-1')) as relay, \
+         patch('services.meet_notes_import_service.handle_inbound') as notes:
+        resp = client.post('/api/email/inbound?key=right', data=FORM)
+    assert resp.status_code == 200
+    assert resp.get_json()['status'] == 'delivered'
+    kwargs = relay.call_args[1]
+    assert kwargs['envelope_to'] == FORM['envelope']
+    assert kwargs['from_header'] == FORM['from']
+    assert kwargs['text'] == 'On it.'
+    assert kwargs['dkim'] == FORM['dkim']
+    assert kwargs['attachment_count'] == 0
+    notes.assert_not_called()
+
+
+def test_the_import_address_never_reaches_the_relay(client):
+    """Ticket fc21a562 restored the relay beside the Meet notes import. The
+    notes address must still go to the import, and only there."""
+    with patch('app_config.Config.INBOUND_EMAIL_WEBHOOK_SECRET', 'right'), \
+         patch('services.meet_notes_import_service.handle_inbound',
+               return_value={'status': 'attached'}) as notes, \
+         patch('services.message_email_relay_service.handle_inbound') as relay:
+        resp = client.post('/api/email/inbound?key=right', data=NOTES_FORM)
+    assert resp.status_code == 200
+    assert resp.get_json()['status'] == 'attached'
+    notes.assert_called_once()
+    relay.assert_not_called()
+
+
+def test_a_rejected_relay_reply_still_answers_200(client):
+    with patch('app_config.Config.INBOUND_EMAIL_WEBHOOK_SECRET', 'right'), \
+         patch('services.message_email_relay_service.handle_inbound',
+               return_value=('ignored', 'sender is not the relay owner')):
         resp = client.post('/api/email/inbound?key=right', data=FORM)
     assert resp.status_code == 200
     assert resp.get_json()['status'] == 'ignored'
-    handle.assert_not_called()
+
+
+def test_a_relay_crash_or_refusal_still_answers_200(client):
+    for err, status in ((RuntimeError('boom'), 'error'), (ValueError('blocked'), 'refused')):
+        with patch('app_config.Config.INBOUND_EMAIL_WEBHOOK_SECRET', 'right'), \
+             patch('services.message_email_relay_service.handle_inbound', side_effect=err):
+            resp = client.post('/api/email/inbound?key=right', data=FORM)
+        assert resp.status_code == 200
+        assert resp.get_json()['status'] == status
+
+
+def test_malformed_attachment_count_does_not_500(client):
+    with patch('app_config.Config.INBOUND_EMAIL_WEBHOOK_SECRET', 'right'), \
+         patch('services.message_email_relay_service.handle_inbound',
+               return_value=('delivered', 'msg-1')) as relay:
+        resp = client.post('/api/email/inbound?key=right',
+                           data={**FORM, 'attachments': 'not-a-number'})
+    assert resp.status_code == 200
+    assert relay.call_args[1]['attachment_count'] == 0
+
+
+def test_mail_for_any_other_address_is_ignored_with_a_200(client):
+    # No relay token and no import token: nothing posts it into a thread, and
+    # it must not bounce back at the person who wrote it. The real relay
+    # service runs here, so this also proves it refuses mail with no token.
+    with patch('app_config.Config.INBOUND_EMAIL_WEBHOOK_SECRET', 'right'), \
+         patch('services.meet_notes_import_service.handle_inbound') as notes, \
+         patch('services.direct_message_service.DirectMessageService.send_message') as send:
+        resp = client.post('/api/email/inbound?key=right', data={
+            **FORM, 'envelope': '{"to":["hello@reply.optioeducation.com"]}'})
+    assert resp.status_code == 200
+    assert resp.get_json()['status'] == 'ignored'
+    notes.assert_not_called()
     send.assert_not_called()

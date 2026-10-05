@@ -84,6 +84,42 @@ export function extractApiError(err: unknown, fallback: string = SAFE_FALLBACK):
   return { message: fallback, isNetworkError: false, isAuthError: false };
 }
 
+/**
+ * Message from a response BODY (not a thrown error) — for call sites that
+ * read `res.data` on a 2xx with `success: false`, or a fetch() JSON body.
+ * Same rules as extractApiError: `error` may be a string or the prod
+ * envelope `{ message, code, timestamp, request_id }`.
+ */
+export function apiErrorBodyMessage(body: unknown, fallback: string = SAFE_FALLBACK): string {
+  if (!body || typeof body !== 'object') return fallback;
+  const b = body as ApiErrorBody;
+  const raw = b.error;
+  if (typeof raw === 'string') return sanitizeMessage(raw, fallback);
+  if (raw && typeof raw === 'object' && typeof raw.message === 'string') {
+    return sanitizeMessage(raw.message, fallback);
+  }
+  if (typeof b.message === 'string') return sanitizeMessage(b.message, fallback);
+  return fallback;
+}
+
+/**
+ * Coerce anything a caller might hand a toast/alert into a renderable string.
+ * Sentry 6cbb6c10: an Android crash "Objects are not valid as a React child
+ * (found: object with keys {code, message, request_id, timestamp})" came from
+ * `toast.error(err.response?.data?.error || '...')` receiving the prod error
+ * envelope object. This is the safety net under every toast and alert.
+ */
+export function toDisplayMessage(value: unknown, fallback: string = SAFE_FALLBACK): string {
+  if (typeof value === 'string') return value;
+  if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+  if (!value || typeof value !== 'object') return fallback;
+  if (value instanceof Error) return sanitizeMessage(value.message, fallback);
+  const v = value as { message?: unknown; error?: unknown };
+  if (typeof v.message === 'string') return sanitizeMessage(v.message, fallback);
+  if (v.error !== undefined) return apiErrorBodyMessage(value, fallback);
+  return fallback;
+}
+
 // Reject messages that look like stack traces, SQL, or internal paths — only
 // let "human" messages through to the UI. Everything else collapses to fallback.
 function sanitizeMessage(raw: string, fallback: string): string {

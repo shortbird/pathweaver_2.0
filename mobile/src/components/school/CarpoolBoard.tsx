@@ -26,6 +26,7 @@ import { confirmAlert } from '@/src/utils/alerts';
 import type { CarpoolPost } from '@/src/hooks/useSchool';
 import { SchoolSection } from './SchoolSection';
 import { fmtDate } from './format';
+import { extractApiError } from '@/src/services/apiError';
 
 const TYPE_BADGE: Record<string, { label: string; badge: string; text: string }> = {
   offer: { label: 'Offering seats', badge: 'bg-optio-purple/10', text: 'text-optio-purple' },
@@ -64,7 +65,7 @@ export default function CarpoolBoard({ posts, canPost, canModerate, onPost, onRe
       setForm(EMPTY_FORM);
       setComposerOpen(false);
     } catch (err: any) {
-      toast.error(err?.response?.data?.error || 'Could not post');
+      toast.error(extractApiError(err, 'Could not post').message);
     } finally {
       setSaving(false);
     }
@@ -83,7 +84,7 @@ export default function CarpoolBoard({ posts, canPost, canModerate, onPost, onRe
       await onRemove(id);
       toast.success('Post removed');
     } catch (err: any) {
-      toast.error(err?.response?.data?.error || 'Could not remove the post');
+      toast.error(extractApiError(err, 'Could not remove the post').message);
     }
   };
 

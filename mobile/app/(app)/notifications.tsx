@@ -17,6 +17,7 @@ import {
 import { useThemeColors } from '@/src/hooks/useThemeColors';
 import { showAlert } from '@/src/utils/alerts';
 import { effectiveRoleOf } from '@/src/utils/effectiveRole';
+import { extractApiError } from '@/src/services/apiError';
 
 const DESKTOP_BREAKPOINT = 768;
 
@@ -245,7 +246,7 @@ export default function NotificationsScreen() {
       setShowBroadcast(false);
       refetch();
     } catch (err: any) {
-      showAlert('Error', err.response?.data?.error || 'Failed to send notification');
+      showAlert('Error', extractApiError(err, 'Failed to send notification').message);
     } finally {
       setBroadcasting(false);
     }

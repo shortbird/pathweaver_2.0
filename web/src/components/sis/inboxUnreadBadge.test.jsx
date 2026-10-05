@@ -115,10 +115,25 @@ describe('InboxUnreadBadge', () => {
     await waitFor(() => expect(api.get).not.toHaveBeenCalled())
   })
 
+  // Was "1 thread waiting for a reply". Since ticket 16d13eb4 a group thread
+  // with unread messages counts too, and a group is not owed a "reply".
   it('names the count for a screen reader', async () => {
     answers({ mine: 1 })
     withClient(<InboxUnreadBadge orgId="org-1" />)
-    expect(await screen.findByLabelText('1 thread waiting for a reply')).toBeInTheDocument()
+    expect(await screen.findByLabelText('1 thread waiting on you')).toBeInTheDocument()
+  })
+
+  it('counts a group with unread through the server\'s one number, once', async () => {
+    // Ticket 16d13eb4 (iCreate): "my messages says I have 1 unread, but I
+    // have no idea where that message might be." The number is 1:1 threads
+    // in Open + group threads with unread; the server already adds the group
+    // into needs_reply_threads, so the badge must not add it again.
+    api.get.mockImplementation((url) => Promise.resolve(url.includes('/api/messages/unread-count')
+      ? { data: { data: { needs_reply_threads: 1, direct_threads: 0, group_threads: 1,
+        group_unread: 7, unread_count: 7 } } }
+      : { data: { data: { needs_reply_threads: 0 } } }))
+    withClient(<InboxUnreadBadge orgId="org-1" />)
+    expect(await screen.findByLabelText('1 thread waiting on you')).toBeInTheDocument()
   })
 
   it('asks for threads, and ignores the message count that used to inflate it', async () => {

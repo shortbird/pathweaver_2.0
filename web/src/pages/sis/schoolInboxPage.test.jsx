@@ -124,6 +124,11 @@ const convo = (n, name) => ({
   last_message_preview: `hello ${n}`,
 })
 
+// One of the three thread views (Open / Waiting / Closed), whatever count its
+// label carries. Not "Closed · Reopen", the thread's own button.
+const viewButton = (name) => within(screen.getByRole('group', { name: 'Filter threads' }))
+  .getByRole('button', { name: new RegExp(`^${name}( \\(\\d+\\))?$`) })
+
 beforeEach(() => {
   // jsdom has no scrollIntoView; the thread view calls it after messages load.
   window.HTMLElement.prototype.scrollIntoView = vi.fn()
@@ -437,30 +442,37 @@ describe('SchoolInboxPage — combined inbox', () => {
     expect(api.get).toHaveBeenCalledWith('/api/school-inbox/conversations/c2')
   })
 
-  // Ticket d57973f6, Molly (iCreate): the states are Open and Closed. This
-  // test pinned three piles and an All (Needs a reply / Waiting on them /
-  // Handled); "Waiting on them" is now inside Open with a "Their turn" tag,
-  // and All went because search already reaches every thread.
-  it('lists open threads, ours to answer and theirs, and skips empty ones', async () => {
+  // Tickets 250c9c7a + 7402cb26, Molly (iCreate, org_admin): three views,
+  // Open (ours to answer), Waiting (their turn) and Closed. This test pinned
+  // Open and Closed only (d57973f6), with "Waiting on them" folded into Open
+  // under a "Their turn" tag; the office could not tell from the list which
+  // open threads it still owed, so the owner split Waiting back out
+  // (2026-10-05).
+  it('sorts threads into Open, Waiting and Closed, and skips empty ones', async () => {
     // iCreate saw "Needs a reply (22)" over a queue of 7: six empty threads
-    // counted too (7ee545c4). Empty threads are still in no state.
+    // counted too (7ee545c4). Empty threads are still in no view.
     state.schoolConvos = [
       { ...convo(1, 'Owed'), last_message_sender_id: 'u1' },
       { ...convo(2, 'Answered'), last_message_sender_id: 'inbox-1' },
       { ...convo(3, 'Empty'), last_message_at: null, last_message_preview: '' },
+      { ...convo(4, 'Done'), last_message_sender_id: 'u4', resolved_at: '2026-08-31T00:00:00Z' },
     ]
     render(<SchoolInboxPage />, { route: '/inbox?tab=school' })
     expect(await screen.findByText('Owed Family')).toBeInTheDocument()
-    expect(screen.getByText('Open (2)')).toBeInTheDocument()
-    expect(screen.getByText('Answered Family')).toBeInTheDocument()
+    expect(viewButton('Open')).toHaveTextContent('Open (1)')
+    expect(viewButton('Waiting')).toHaveTextContent('Waiting (1)')
+    expect(viewButton('Closed')).toHaveTextContent('Closed (1)')
+    expect(screen.queryByText('Answered Family')).not.toBeInTheDocument()
     expect(screen.queryByText('Empty Family')).not.toBeInTheDocument()
-    // The school spoke last: it is their turn, said on the row, not a state.
-    expect(screen.getAllByText('Their turn')).toHaveLength(1)
-    // The old piles are gone.
-    expect(screen.queryByRole('button', { name: 'Waiting on them' })).toBeNull()
-    expect(screen.queryByRole('button', { name: 'All' })).toBeNull()
+    expect(screen.queryByText('Done Family')).not.toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Closed' }))
+    fireEvent.click(viewButton('Waiting'))
+    expect(screen.getByText('Answered Family')).toBeInTheDocument()
+    expect(screen.queryByText('Owed Family')).not.toBeInTheDocument()
+    expect(screen.getAllByText('Their turn')).toHaveLength(1)
+
+    fireEvent.click(viewButton('Closed'))
+    expect(screen.getByText('Done Family')).toBeInTheDocument()
     expect(screen.queryByText('Owed Family')).not.toBeInTheDocument()
     expect(screen.queryByText('Answered Family')).not.toBeInTheDocument()
   })
@@ -483,21 +495,24 @@ describe('SchoolInboxPage — combined inbox', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Close' }))
     await waitFor(() => expect(api.post).toHaveBeenCalledWith(
       '/api/school-inbox/conversations/c1/resolve', { resolved: true }))
-    expect(await screen.findByRole('button', { name: 'Open' })).toBeInTheDocument()
-    expect(screen.getByText('Closed · Reopen')).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Closed' }))
+    expect(await screen.findByText('Closed · Reopen')).toBeInTheDocument()
+    expect(viewButton('Open')).toHaveTextContent(/^Open$/)
+    fireEvent.click(viewButton('Closed'))
     // Listed under Closed (and still open in the thread pane).
     expect(screen.getAllByText('Tiffany Family').length).toBe(2)
   })
 
   it('a closed thread the member wrote in again is open once more', async () => {
+    // 250c9c7a / 7402cb26 (Molly): "a new message from them moves a thread
+    // back to Open" -- resolved_at is older than their last message.
     state.schoolConvos = [{
       ...convo(1, 'Back'), last_message_sender_id: 'u1',
       resolved_at: '2026-08-29T12:00:00Z', last_message_at: '2026-08-30T12:00:00Z',
     }]
     render(<SchoolInboxPage />, { route: '/inbox?tab=school' })
     expect(await screen.findByText('Back Family')).toBeInTheDocument()
-    expect(screen.getByText('Open (1)')).toBeInTheDocument()
+    expect(viewButton('Open')).toHaveTextContent('Open (1)')
+    expect(viewButton('Closed')).toHaveTextContent(/^Closed$/)
   })
 
   it('resolves through the personal endpoint on the Mine tab', async () => {
@@ -521,7 +536,10 @@ describe('SchoolInboxPage — combined inbox', () => {
         created_at: '2026-08-08T12:00:00Z', read_at: '2026-08-08T13:00:00Z' },
     ]
     render(<SchoolInboxPage />, { route: '/inbox?tab=school' })
-    // Our message was last: under Open since d57973f6 (it needed All before).
+    // Our message was last: under Waiting since 250c9c7a (Open under
+    // d57973f6, All before that).
+    await screen.findByRole('button', { name: /^Waiting/ })
+    fireEvent.click(viewButton('Waiting'))
     fireEvent.click(await screen.findByText('Tyler Family'))
     // With the time it happened (9b46c748).
     expect(await screen.findByText(/· Seen /)).toBeInTheDocument()
@@ -933,7 +951,13 @@ describe('thread search', () => {
 // appear at the top. I can ignore the class chats for the most part as I don't
 // have to be checking those often. Group threads and Class chats could be drop
 // down buttons."
-describe('SchoolInboxPage — people first, groups in drop-downs', () => {
+//
+// The drop-downs stayed; the order did not. With the groups below a long list
+// of 1:1 threads, a coordinator who was a member of groups never saw them
+// without searching (iCreate, tickets c8e2946d + af47046f). The owner moved
+// both collapsed sections ABOVE the 1:1 list (2026-10-05); the two tests that
+// pinned "people first" now pin groups first, and say so.
+describe('SchoolInboxPage — groups in drop-downs, above the people', () => {
   const room = (over = {}) => ({
     id: 'g1', name: 'Elementary teachers', audience: 'staff', member_count: 10,
     unread_count: 0, last_message_at: '2026-09-22T10:00:00Z', ...over,
@@ -943,18 +967,33 @@ describe('SchoolInboxPage — people first, groups in drop-downs', () => {
 
   beforeEach(() => { window.localStorage.removeItem('sis_inbox_open_sections') })
 
-  it('lists individual threads above both group sections', async () => {
-    authUser = { id: 'me-1', role: 'advisor' }
-    state.myConvos = [convo(1, 'Greta')]
-    state.groups = [room(), classChat()]
+  // c8e2946d + af47046f (iCreate): a campus coordinator in groups could not
+  // find them under the 1:1 list. Pinned the other way round until
+  // 2026-10-05 ("lists individual threads above both group sections").
+  it('lists both group sections above the individual threads', async () => {
+    authUser = { id: 'me-1', role: 'org_managed', org_role: 'campus_coordinator' }
+    state.myConvos = Array.from({ length: 12 }, (_, i) => ({ ...convo(i + 1, `P${i + 1}`), last_message_sender_id: `u${i + 1}` }))
+    state.groups = [room({ unread_count: 2 }), classChat()]
     render(<SchoolInboxPage />, { route: '/inbox?tab=mine' })
-    // Greta's thread is open, so no All to click (removed in d57973f6).
-    const person = await screen.findByText('Greta Family')
+    const person = await screen.findByText('P1 Family')
     const groups = await screen.findByRole('button', { name: /Group threads/ })
     const chats = screen.getByRole('button', { name: /Class chats/ })
     const after = (a, b) => Boolean(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING)
-    expect(after(person, groups)).toBe(true)
     expect(after(groups, chats)).toBe(true)
+    expect(after(chats, person)).toBe(true)
+    // Collapsed, and its unread still shows without a search.
+    expect(groups).toHaveAttribute('aria-expanded', 'false')
+    expect(within(groups).getByLabelText('2 unread in Group threads')).toBeInTheDocument()
+  })
+
+  it('shows the group sections even when the view has no 1:1 threads', async () => {
+    // c8e2946d + af47046f: the groups must not depend on the 1:1 list.
+    authUser = { id: 'me-1', role: 'org_managed', org_role: 'campus_coordinator' }
+    state.myConvos = []
+    state.groups = [room()]
+    render(<SchoolInboxPage />, { route: '/inbox?tab=mine' })
+    expect(await screen.findByRole('button', { name: /Group threads/ })).toBeInTheDocument()
+    expect(screen.queryByText('No messages yet')).toBeNull()
   })
 
   it('keeps both sections closed until opened, with their count and unread showing', async () => {
@@ -1007,14 +1046,15 @@ describe('SchoolInboxPage — people first, groups in drop-downs', () => {
     expect(screen.getByRole('button', { name: /Group threads/ })).toHaveAttribute('aria-expanded', 'false')
   })
 
-  it('the school tab puts families above the school group threads too', async () => {
+  // Pinned families-first until 2026-10-05 (c8e2946d + af47046f): the
+  // School tab follows the same order as My messages.
+  it('the school tab puts the school group threads above families too', async () => {
     state.schoolConvos = [convo(1, 'Greta')]
     state.schoolGroups = [room({ id: 'sg1', name: 'Tuesday cover' })]
     render(<SchoolInboxPage />, { route: '/inbox?tab=school' })
-    // Greta's thread is open, so no All to click (removed in d57973f6).
     const person = await screen.findByText('Greta Family')
     const groups = await screen.findByRole('button', { name: /Group threads/ })
-    expect(Boolean(person.compareDocumentPosition(groups) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true)
+    expect(Boolean(groups.compareDocumentPosition(person) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true)
     expect(screen.queryByText('Tuesday cover')).toBeNull()
   })
 })
@@ -1081,5 +1121,139 @@ describe('SchoolInboxPage — who can open the school inbox (19047fd0, Molly)', 
     fireEvent.change(box, { target: { value: 'Kim' } })
     await waitFor(() => expect(screen.queryByText(/^Tam T/, { selector: 'button, button *' })).toBeNull())
     expect(screen.queryByText(/^Kim Off/)).toBeNull()
+  })
+})
+
+// Tickets 250c9c7a + 7402cb26 (Molly, iCreate org_admin) and 1d5c425a: three
+// views -- Open (waiting on us), Waiting (their turn), Closed -- on both the
+// School tab and My messages, and the "Their turn" tag from the last sender
+// alone.
+describe('SchoolInboxPage — Open, Waiting, Closed (250c9c7a + 7402cb26)', () => {
+  const at = (h) => `2026-10-0${h < 24 ? 1 : 2}T${String(h % 24).padStart(2, '0')}:00:00Z`
+
+  it.each([
+    // [who spoke last, closed after the last message?, view]
+    ['them', false, 'Open'],
+    ['us', false, 'Waiting'],
+    ['them', true, 'Closed'],
+    ['us', true, 'Closed'],
+  ])('a thread where %s spoke last (closed: %s) is in %s, on both tabs', async (who, closed, view) => {
+    for (const tab of ['school', 'mine']) {
+      const self = tab === 'school' ? 'inbox-1' : 'me-1'
+      const row = {
+        ...convo(1, 'Kim'),
+        last_message_sender_id: who === 'us' ? self : 'u1',
+        last_message_at: at(10),
+        resolved_at: closed ? at(11) : null,
+      }
+      state.schoolConvos = tab === 'school' ? [row] : []
+      state.myConvos = tab === 'mine' ? [row] : []
+      const { unmount } = render(<SchoolInboxPage />, { route: `/inbox?tab=${tab}` })
+      await waitFor(() => expect(viewButton(view)).toHaveTextContent(`${view} (1)`))
+      for (const other of ['Open', 'Waiting', 'Closed'].filter((v) => v !== view)) {
+        expect(viewButton(other)).toHaveTextContent(new RegExp(`^${other}$`))
+      }
+      fireEvent.click(viewButton(view))
+      expect(screen.getByText('Kim Family')).toBeInTheDocument()
+      unmount()
+    }
+  })
+
+  it('a reply from them moves a Waiting thread back to Open', async () => {
+    state.schoolConvos = [{ ...convo(1, 'Kim'), last_message_sender_id: 'inbox-1' }]
+    const { unmount } = render(<SchoolInboxPage />, { route: '/inbox?tab=school' })
+    await waitFor(() => expect(viewButton('Waiting')).toHaveTextContent('Waiting (1)'))
+    unmount()
+    // They wrote back: last_message_sender_id and last_message_at move.
+    state.schoolConvos = [{ ...convo(1, 'Kim'), last_message_sender_id: 'u1',
+      last_message_at: '2026-08-31T12:00:00Z' }]
+    render(<SchoolInboxPage />, { route: '/inbox?tab=school' })
+    expect(await screen.findByText('Kim Family')).toBeInTheDocument()
+    expect(viewButton('Open')).toHaveTextContent('Open (1)')
+  })
+
+  it('our own reply to a closed thread moves it to Waiting', async () => {
+    // Molly: replying to a closed thread is not closing it again; it is now
+    // their turn.
+    state.schoolConvos = [{ ...convo(1, 'Kim'), last_message_sender_id: 'u1',
+      last_message_at: '2026-08-30T12:00:00Z', resolved_at: '2026-08-30T13:00:00Z' }]
+    state.schoolMessages = [
+      { id: 'm1', sender_id: 'u1', message_content: 'Thanks!', created_at: '2026-08-30T12:00:00Z' },
+    ]
+    api.post.mockImplementation((url) => {
+      if (url.endsWith('/send')) {
+        // The server records the reply; the list's refetch reads it back.
+        state.schoolConvos = [{ ...state.schoolConvos[0], last_message_sender_id: 'inbox-1',
+          last_message_at: '2026-08-31T09:00:00Z' }]
+        return Promise.resolve({ data: { data: { message: { id: 'm2', sender_id: 'inbox-1' },
+          conversation_id: 'c1' } } })
+      }
+      return Promise.resolve({ data: { success: true } })
+    })
+    render(<SchoolInboxPage />, { route: '/inbox?tab=school' })
+    await waitFor(() => expect(viewButton('Closed')).toHaveTextContent('Closed (1)'))
+    fireEvent.click(viewButton('Closed'))
+    fireEvent.click(await screen.findByText('Kim Family'))
+    await screen.findByText('Thanks!')
+    fireEvent.change(screen.getByPlaceholderText(/Reply as/), { target: { value: 'Any time' } })
+    fireEvent.keyDown(screen.getByPlaceholderText(/Reply as/), { key: 'Enter' })
+    await waitFor(() => expect(viewButton('Waiting')).toHaveTextContent('Waiting (1)'))
+    expect(viewButton('Closed')).toHaveTextContent(/^Closed$/)
+  })
+
+  it('keeps the Their turn tag in Closed when our message was last (1d5c425a)', async () => {
+    // 1d5c425a: the tag was gated on "not closed", so a closed thread lost
+    // the one hint of who owed the next word.
+    state.schoolConvos = [
+      { ...convo(1, 'Ours'), last_message_sender_id: 'inbox-1', resolved_at: '2026-08-31T00:00:00Z' },
+      { ...convo(2, 'Theirs'), last_message_sender_id: 'u2', resolved_at: '2026-08-31T00:00:00Z' },
+    ]
+    render(<SchoolInboxPage />, { route: '/inbox?tab=school' })
+    await waitFor(() => expect(viewButton('Closed')).toHaveTextContent('Closed (2)'))
+    fireEvent.click(viewButton('Closed'))
+    const ours = (await screen.findByText('Ours Family')).closest('button')
+    const theirs = screen.getByText('Theirs Family').closest('button')
+    expect(within(ours).getByText('Their turn')).toBeInTheDocument()
+    expect(within(theirs).queryByText('Their turn')).toBeNull()
+  })
+})
+
+// Ticket 16d13eb4 (iCreate): "my messages says I have 1 unread, but I have no
+// idea where that message might be." One rule for every number -- 1:1 threads
+// in Open + group threads with unread -- so each one points at a row.
+describe('SchoolInboxPage — the numbers agree (16d13eb4)', () => {
+  const tabNamed = (re) => screen.getAllByRole('tab').find((t) => re.test(t.textContent))
+
+  it('counts a group with unread on the tab and the subtitle, and its pill says where', async () => {
+    window.localStorage.removeItem('sis_inbox_open_sections')
+    authUser = { id: 'me-1', role: 'org_managed', org_role: 'campus_coordinator' }
+    state.myConvos = [{ ...convo(1, 'Waiting'), last_message_sender_id: 'me-1' }]
+    state.groups = [{ id: 'g1', name: 'Office team', audience: 'staff', member_count: 4,
+      unread_count: 3, last_message_at: '2026-09-22T10:00:00Z' }]
+    state.mineNeedsReply = 1 // the server's same number
+    render(<SchoolInboxPage />, { route: '/inbox?tab=mine' })
+    expect(await screen.findByLabelText('3 unread in Group threads')).toBeInTheDocument()
+    await waitFor(() => expect(tabNamed(/My messages/).textContent).toMatch(/My messages1$/))
+    expect(screen.getByText(/1 waiting on you\./)).toBeInTheDocument()
+    // Not the 3 unread messages: threads, as the sidebar counts.
+    expect(screen.queryByText(/3 waiting on you/)).toBeNull()
+  })
+
+  it('counts an Open thread once however many unread messages, on tab and subtitle alike', async () => {
+    state.schoolConvos = [{ ...convo(1, 'Greta'), unread_count: 5, last_message_sender_id: 'u1' }]
+    state.schoolGroups = [{ id: 'sg1', name: 'Cover', audience: 'staff', member_count: 3,
+      unread_count: 2, last_message_at: '2026-09-22T10:00:00Z' }]
+    render(<SchoolInboxPage />, { route: '/inbox?tab=school' })
+    await screen.findByText('Greta Family')
+    await waitFor(() => expect(tabNamed(/inbox/).textContent).toMatch(/inbox2$/))
+    expect(screen.getByText(/2 waiting on you\./)).toBeInTheDocument()
+  })
+
+  it('says nothing is waiting when the only thread is our turn done', async () => {
+    authUser = { id: 'me-1', role: 'advisor' }
+    state.myConvos = [{ ...convo(1, 'Pat'), unread_count: 0, last_message_sender_id: 'me-1' }]
+    render(<SchoolInboxPage />, { route: '/inbox?tab=mine' })
+    await waitFor(() => expect(viewButton('Waiting')).toHaveTextContent('Waiting (1)'))
+    expect(screen.queryByText(/\d+ waiting on you/)).toBeNull()
   })
 })

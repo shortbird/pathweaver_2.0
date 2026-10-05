@@ -29,6 +29,7 @@ import {
   editDirectMessage,
   deleteDirectMessage,
   forwardMessageToSchool,
+  emailMessageToMe,
   type Contact,
   type Message,
 } from '@/src/hooks/useMessages';
@@ -215,7 +216,7 @@ export function ChatWindow({ contact, conversationId, onBack, onRead }: Props) {
       await deleteDirectMessage(msg.id);
       setMessages((prev) => patchMessageDeleted(prev, msg.id, isSuperadmin));
     } catch (e: any) {
-      toast.error(e?.response?.data?.error || 'Failed to delete the message');
+      toast.error(extractApiError(e, 'Failed to delete the message').message);
     }
   };
 
@@ -238,7 +239,24 @@ export function ChatWindow({ contact, conversationId, onBack, onRead }: Props) {
           : `Forwarded to ${res?.organization?.name || 'the school'}`
       );
     } catch (e: any) {
-      toast.error(e?.response?.data?.error || 'Could not forward this message');
+      toast.error(extractApiError(e, 'Could not forward this message').message);
+    }
+  };
+
+  // Superadmin: push a message into the inbox where this work actually gets
+  // triaged. No confirm — it only mails the viewer's own address, and the
+  // point is that it takes one tap while reading the thread on a phone.
+  // Removed 2026-10-01, restored on ticket fc21a562.
+  const handleEmailToSelf = async (msg: Message) => {
+    try {
+      const res = await emailMessageToMe(msg.id);
+      toast.success(
+        res?.replies_enabled
+          ? `Emailed to ${res.emailed_to} — reply to that email to answer here`
+          : `Emailed to ${res?.emailed_to || 'your inbox'}`
+      );
+    } catch (e) {
+      toast.error(extractApiError(e, 'Could not email this message').message);
     }
   };
 
@@ -256,7 +274,7 @@ export function ChatWindow({ contact, conversationId, onBack, onRead }: Props) {
         setEditing(null);
         setInput('');
       } catch (e: any) {
-        toast.error(e?.response?.data?.error || 'Failed to edit the message');
+        toast.error(extractApiError(e, 'Failed to edit the message').message);
       } finally {
         setSending(false);
       }
@@ -313,7 +331,7 @@ export function ChatWindow({ contact, conversationId, onBack, onRead }: Props) {
       // A 400 is the safety screen's hold on a friend message ("That was
       // held by our safety check..."): the child must read it, or the
       // message just vanishes. Web has always shown this; mobile did not.
-      toast.error(e?.response?.data?.error || 'Could not send the message');
+      toast.error(extractApiError(e, 'Could not send the message').message);
     } finally {
       setSending(false);
     }
@@ -603,6 +621,7 @@ export function ChatWindow({ contact, conversationId, onBack, onRead }: Props) {
       onEdit={() => actionsFor && startEdit(actionsFor)}
       onDelete={() => actionsFor && handleDelete(actionsFor)}
       onForward={isSuperadmin ? () => actionsFor && handleForwardToSchool(actionsFor) : undefined}
+      onEmailToSelf={isSuperadmin ? () => actionsFor && handleEmailToSelf(actionsFor) : undefined}
       onReport={() => actionsFor && setReportingMsg(actionsFor)}
     />
   );

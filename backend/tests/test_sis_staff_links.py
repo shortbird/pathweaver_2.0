@@ -51,9 +51,12 @@ class _Query:
     def execute(self):
         rows = [r for r in self._rows
                 if all(f(r) for f in self._filters if callable(f))]
-        for f in self._filters:
-            if isinstance(f, tuple) and f[0] == 'order':
-                rows = sorted(rows, key=lambda r: (r.get(f[1]) is None, r.get(f[1])))
+        # Several .order() calls are ONE multi-column ORDER BY, the first the
+        # primary key -- as PostgREST does. Sorting once per call would let the
+        # last call win, and the staff library orders by sort_order, then title.
+        cols = [f[1] for f in self._filters if isinstance(f, tuple) and f[0] == 'order']
+        if cols:
+            rows = sorted(rows, key=lambda r: tuple((r.get(c) is None, r.get(c)) for c in cols))
         return type('R', (), {'data': rows})()
 
 
@@ -158,3 +161,19 @@ class TestStaffResources:
         # sees eight of the twelve staff/all rows rather than a bitten-into five.
         assert len(titles) == 8
         assert 'Drop off / Pick Up Route' not in titles
+
+    def test_the_admins_arranged_order_comes_before_the_title(self):
+        """iCreate 07b646fa: "It'd be nice if I could rearrange the resources to
+        put them in a certain order (like move them up or down.)" and 48531900:
+        "I just realized the docs are alphabetical! I would still like to sort
+        if possible." The teacher dashboard's staff links follow sort_order,
+        then title, like the Documents tab."""
+        rows = [_resource('Alpha'), _resource('Bravo'), _resource('Charlie')]
+        rows[0]['sort_order'], rows[1]['sort_order'], rows[2]['sort_order'] = 2, 1, 0
+        fake = _FakeAdmin(rows)
+        with patch.object(staff, '_admin', return_value=fake), \
+             patch('services.sis_service.caller_is_admin', return_value=True), \
+             patch('services.sis_service.caller_org_roles', return_value=['org_admin']), \
+             patch('services.sis_staff_service.sign_in_place', lambda *a, **k: None):
+            titles = [r['title'] for r in staff.staff_resources_for('t', 'org-1')]
+        assert titles == ['Charlie', 'Bravo', 'Alpha']

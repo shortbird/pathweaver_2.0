@@ -306,6 +306,7 @@ const QuestMomentsDetail = ({ questId, refreshKey = 0, onMomentConverted, studen
           transcript_subject: quest?.transcript_subject
         }}
         onSuccess={handlePromoteSuccess}
+        studentId={studentId}
       />
     </div>
   );
