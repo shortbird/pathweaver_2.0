@@ -25,6 +25,14 @@
     ],
     "requires_any": []
   },
+  "bloomy": {
+    "default": "off",
+    "gate": "flags",
+    "legacy": null,
+    "parent": "sis",
+    "requires": [],
+    "requires_any": []
+  },
   "bounties": {
     "default": "on",
     "gate": "flags",

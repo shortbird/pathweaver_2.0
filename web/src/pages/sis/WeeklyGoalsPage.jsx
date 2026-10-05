@@ -57,6 +57,18 @@ const goalCounts = (week) => {
   return { set: set.length, done: set.filter((g) => g.completed === true).length }
 }
 
+/** "Bloomy this week" for the check-in. Shown only: the coach decides
+ * whether the goal was met, because a goal is free text the server cannot
+ * score (owner, 2026-10-05). */
+export const bloomyLine = (bloomy) => {
+  if (!bloomy) return null
+  const m = bloomy.mastered || {}
+  const parts = [`Math ${m.math || 0} skills`, `Reading ${m.reading || 0} skills`,
+    `${bloomy.days} day${bloomy.days === 1 ? '' : 's'} active`]
+  if (bloomy.hours != null) parts.push(`${bloomy.hours} hours`)
+  return `Bloomy this week: ${parts.join(' · ')}`
+}
+
 const blankGoals = (subjects, week) => subjects.map((subject) => {
   const g = (week?.goals || []).find((x) => x.subject === subject) || {}
   return { subject, goal: g.goal || '', completed: g.completed ?? null }
@@ -117,6 +129,10 @@ const WeekEditor = ({ student, subjects, weekStart, orgId, yearGoalsEditable, on
           </div>
           <StatusPill domain="week" status={weekStatus(student.week)} />
         </div>
+
+        {bloomyLine(student.bloomy) && (
+          <div className="rounded-lg bg-blue-50 text-blue-900 text-sm px-3 py-2 mb-3">{bloomyLine(student.bloomy)}</div>
+        )}
 
         <div className="flex flex-wrap items-center gap-3 mb-3">
           {empty && lastWeekGoals.length > 0 && (

@@ -56,8 +56,13 @@ CALENDAR_FEED_TOKEN = 'calendar_feed_token'
 # ones). Handed out to any member of the school via /api/sis/parent/events/feed.
 CALENDAR_FEED_TOKEN_FAMILY = 'calendar_feed_token_family'
 
+# The school's Bloomy Data API key (bloomylearning.com): read-only student
+# progress for one school, pulled nightly into quest tasks (services/
+# bloomy_sync_service). Bloomy shows it once and expires it after 365 days.
+BLOOMY_API_KEY = 'bloomy_api_key'
+
 KNOWN_SECRETS = frozenset({STRIPE_SECRET_KEY, CALENDAR_FEED_TOKEN,
-                           CALENDAR_FEED_TOKEN_FAMILY})
+                           CALENDAR_FEED_TOKEN_FAMILY, BLOOMY_API_KEY})
 
 
 # admin client justified: organization_secrets is deny-all under RLS by
@@ -256,12 +261,14 @@ def strip_secrets_from_feature_flags(feature_flags: Optional[dict]) -> dict:
             reg.pop(STRIPE_SECRET_KEY, None)
             cleaned[reg_key] = reg
 
+    # The Bloomy key never lived in this blob; it is stripped from sis_settings
+    # anyway, because that is where a stale settings tab would carry it.
+    sis_secrets = (CALENDAR_FEED_TOKEN, CALENDAR_FEED_TOKEN_FAMILY, BLOOMY_API_KEY)
     sis = cleaned.get('sis_settings')
-    if isinstance(sis, dict) and (CALENDAR_FEED_TOKEN in sis
-                                  or CALENDAR_FEED_TOKEN_FAMILY in sis):
+    if isinstance(sis, dict) and any(name in sis for name in sis_secrets):
         sis = dict(sis)
-        sis.pop(CALENDAR_FEED_TOKEN, None)
-        sis.pop(CALENDAR_FEED_TOKEN_FAMILY, None)
+        for name in sis_secrets:
+            sis.pop(name, None)
         cleaned['sis_settings'] = sis
 
     return cleaned

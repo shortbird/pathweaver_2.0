@@ -138,6 +138,14 @@ def _run_task_occurrences():
     return task_schedules.run_due()
 
 
+def _run_bloomy_sync():
+    """Bloomy: turn each linked student's mastered skills into quest tasks,
+    for every school with the block on and a key. Idempotent per
+    (student, subject, day)."""
+    from services import bloomy_sync_service
+    return bloomy_sync_service.run_due()
+
+
 #: name -> the sweep. The path is /api/sis/internal/<name>; the dispatcher's
 #: schedule (jobs/cron_dispatch.py) names the same eight.
 CRON_SWEEPS = {
@@ -150,6 +158,7 @@ CRON_SWEEPS = {
     'publish-class-quests': _run_publish_class_quests,
     'waitlist-offer-sweep': _run_waitlist_offer_sweep,
     'task-occurrences': _run_task_occurrences,
+    'bloomy-sync': _run_bloomy_sync,
 }
 
 

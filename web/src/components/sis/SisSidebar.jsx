@@ -94,6 +94,8 @@ export const NAV_SECTIONS = [
       { name: 'Weekly Goals', path: '/weekly-goals', d: ICONS.check, keywords: ['planner', 'freedom', 'check-in', 'complaints'] },
       // The school's bounties: chores, jobs and their rewards; opt-in.
       { name: 'Bounties', path: '/bounties', d: ICONS.clipboard, keywords: ['chores', 'school jobs', 'rewards', 'perks', 'points'] },
+      // Bloomy Math and Reading coming in as quest tasks; opt-in, needs the school's key.
+      { name: 'Bloomy', path: '/bloomy', adminOnly: true, d: ICONS.books, keywords: ['bloomy', 'math', 'reading', 'integration', 'sync'] },
     ],
   },
   {

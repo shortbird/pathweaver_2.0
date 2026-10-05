@@ -270,6 +270,13 @@ def main():
     if now.hour == 8 and now.minute < 10:
         _run("stories-nightly", f"{base}/api/admin/stories/internal/nightly", cron_secret, failures, base=base)
 
+    # Once/day: Bloomy sync (09:00 UTC, 1-2am Pacific, after Bloomy's day
+    # ends at Pacific midnight). Turns linked students' mastered Bloomy skills
+    # into quest tasks for the seven finished days the API still serves.
+    # Idempotent per (student, subject, day), so a retry writes nothing twice.
+    if now.hour == 9 and now.minute < 10:
+        _run("sis-bloomy-sync", f"{base}/api/sis/internal/bloomy-sync", cron_secret, failures, base=base)
+
     # Once/day: data retention sweep (10:00 UTC). AI tutor conversation history
     # only. DISABLED by default (Config.TUTOR_RETENTION_ENABLED) — with it off
     # the endpoint reports how many conversations would be purged and deletes

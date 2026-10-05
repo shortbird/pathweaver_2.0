@@ -235,6 +235,7 @@ export function sisEquivalentPath(pathname, search = '') {
 export const SIS_SURFACE_PATHS = [
   '/attendance',
   '/billing',
+  '/bloomy',
   '/calendar',
   '/classes',
   '/clp',

@@ -1015,6 +1015,29 @@
       "measured": "2026-10-01",
       "lowered_by": "new concept (Apogee Cache Valley, 2026-10-01)",
       "use_instead": "WeeklyGoalService (board, save, history, mine) and freedom_for; the one writer is PUT /api/sis/weekly-goals/students/<student_id>/weeks/<week_start>."
+    },
+    {
+      "id": "external_learning_sync",
+      "means": "Work a student did on an outside learning platform coming into Optio as quest tasks (Bloomy for Apogee Cache Valley, 2026-10-05): which platform student is which Optio student (lms_integrations), the days already read (external_learning_days), and the one task per student, subject and day a sync writes. Not the LTI/Canvas grade passback, which sends Optio's grades out.",
+      "owner": {
+        "backend": [
+          "services/bloomy_sync_service.py",
+          "services/bloomy_client.py",
+          "repositories/external_learning_repository.py",
+          "routes/sis/bloomy.py"
+        ],
+        "web": ["pages/sis/BloomyPage.jsx"]
+      },
+      "forbid": {
+        "backend": {
+          "pattern": "external_learning_days['\"]",
+          "dirs": ["routes", "services", "utils", "jobs"]
+        }
+      },
+      "baseline": { "backend": 0 },
+      "measured": "2026-10-05",
+      "lowered_by": "new concept (Apogee Cache Valley Bloomy, 2026-10-05)",
+      "use_instead": "ExternalLearningRepository for links and day rows; bloomy_sync_service.sync_org for a school, run_due for the nightly sweep, week_summaries for the check-in. A second platform adds its client and reuses the repository and the day table (platform column)."
     }
   ]
 }

@@ -133,6 +133,17 @@ class WeeklyGoalService:
             }
         return out
 
+    def _bloomy_weeks(self, org_id: str, student_ids: List[str],
+                      week_start: str) -> Dict[str, Dict[str, Any]]:
+        """student_id -> the week's Bloomy numbers, beside the goals. Shown
+        only: a coach decides whether the goal was met (owner, 2026-10-05),
+        because a goal is free text the system cannot score."""
+        from modules.enabled import module_enabled
+        if not student_ids or not module_enabled(org_id, 'bloomy'):
+            return {}
+        from services.bloomy_sync_service import week_summaries
+        return week_summaries(org_id, student_ids, week_start)
+
     def board(self, org_id: str, week_start: Any = None) -> Dict[str, Any]:
         """Every current student with their row for the week, the week before
         (to copy goals forward and show the freedom they carry in) and their
@@ -152,6 +163,7 @@ class WeeklyGoalService:
         this_week = {r['student_user_id']: r for r in rows if r['week_start'] == week.isoformat()}
         last_week = {r['student_user_id']: r for r in rows if r['week_start'] == prev.isoformat()}
         year_goals = self._year_goals(org_id, ids)
+        bloomy = self._bloomy_weeks(org_id, ids, week.isoformat())
 
         out = [{
             'student_id': s['student_id'],
@@ -160,6 +172,7 @@ class WeeklyGoalService:
             'week': _row_out(this_week.get(s['student_id'])),
             'last_week': _row_out(last_week.get(s['student_id'])),
             'year_goals': year_goals.get(s['student_id'], {}),
+            'bloomy': bloomy.get(s['student_id']),
         } for s in students]
         out.sort(key=lambda s: (s.get('name') or '').lower())
         return {'week_start': week.isoformat(), 'subjects': subjects, 'students': out}

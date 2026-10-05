@@ -53,6 +53,7 @@ export const SIS_MODULE_BY_PATH = {
   '/goals': 'goals',
   '/weekly-goals': 'weekly_goals',
   '/bounties': 'bounty_management',
+  '/bloomy': 'bloomy',
 }
 
 /**

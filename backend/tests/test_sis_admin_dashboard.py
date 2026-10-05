@@ -284,7 +284,7 @@ class TestTheRestOfThePayload:
         # Weekly goals and bounty management (2026-10-01) are opt-in too, so
         # they are reported off here.
         assert data['settings'] == {
-            'hidden_modules': ['billing', 'bounty_management', 'clp', 'community', 'weekly_goals'],
+            'hidden_modules': ['billing', 'bloomy', 'bounty_management', 'clp', 'community', 'weekly_goals'],
             'prior_learning_enabled': True,
             'post_registration_flow': 'goals',
         }

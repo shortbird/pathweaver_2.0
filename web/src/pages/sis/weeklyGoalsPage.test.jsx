@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render as rtlRender, screen, fireEvent, waitFor } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
-import WeeklyGoalsPage, { mondayOf, weekStatus } from './WeeklyGoalsPage'
+import WeeklyGoalsPage, { bloomyLine, mondayOf, weekStatus } from './WeeklyGoalsPage'
 
 const render = (ui) => rtlRender(<MemoryRouter>{ui}</MemoryRouter>)
 
@@ -29,7 +29,8 @@ const { api, board } = vi.hoisted(() => {
         week: { goals: [{ subject: 'Reading', goal: 'Ch 4', completed: true },
           { subject: 'Math', goal: 'Lesson 9', completed: false }],
         checked_in_at: '2026-10-01T10:00:00Z', valid_complaints: 0, complaints: 0, freedom: 'not_earned' },
-        last_week: null },
+        last_week: null,
+        bloomy: { mastered: { math: 5, reading: 1 }, days: 3, hours: 2.5 } },
     ],
   } })
   return {
@@ -65,7 +66,27 @@ describe('mondayOf / weekStatus', () => {
   })
 })
 
+describe('bloomyLine', () => {
+  it('says nothing for a student Bloomy has nothing on', () => {
+    expect(bloomyLine(null)).toBeNull()
+  })
+
+  it('leaves hours out until two snapshots allow them', () => {
+    expect(bloomyLine({ mastered: { math: 2 }, days: 1, hours: null }))
+      .toBe('Bloomy this week: Math 2 skills · Reading 0 skills · 1 day active')
+  })
+})
+
 describe('WeeklyGoalsPage', () => {
+  it('shows the Bloomy week beside the goals and leaves the ticking to the coach', async () => {
+    render(<WeeklyGoalsPage />)
+    fireEvent.click(await screen.findByText('Ben Kid'))
+    expect(screen.getByText('Bloomy this week: Math 5 skills · Reading 1 skills · 3 days active · 2.5 hours'))
+      .toBeInTheDocument()
+    expect(screen.getByLabelText('Math done')).not.toBeChecked()
+  })
+
+
   it('lists each student with where their week stands', async () => {
     render(<WeeklyGoalsPage />)
     expect(await screen.findByText('Ada Kid')).toBeInTheDocument()

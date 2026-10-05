@@ -191,6 +191,12 @@ def _defs() -> Tuple[ModuleDef, ...]:
         ModuleDef('bounty_management', 'Bounty Management', 'learning', (),
                   default='off', parent='sis', requires=('bounties',),
                   surfaces=('console',)),
+        # Bloomy (bloomylearning.com) Math and Reading pulled in nightly as
+        # quest tasks, plus the link screen (Apogee Cache Valley, 2026-10-05).
+        # Opt-in: it needs the school's own Bloomy key.
+        ModuleDef('bloomy', 'Bloomy', 'learning', (),
+                  default='off', parent='sis', min_tier='admin',
+                  surfaces=('console',)),
         # New key: /submissions had no module key at all before this registry.
         ModuleDef('submissions', 'Submissions Inbox', 'operations',
                   ('Submissions Inbox',),
