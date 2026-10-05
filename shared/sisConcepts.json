@@ -1038,6 +1038,26 @@
       "measured": "2026-10-05",
       "lowered_by": "new concept (Apogee Cache Valley Bloomy, 2026-10-05)",
       "use_instead": "ExternalLearningRepository for links and day rows; bloomy_sync_service.sync_org for a school, run_due for the nightly sweep, week_summaries for the check-in. A second platform adds its client and reuses the repository and the day table (platform column)."
+    },
+    {
+      "id": "org_create",
+      "means": "Creating an organizations row: the superadmin Create Organization button and the school setup link a new school's operator fills (2026-10-05). Both start from one default row, so a default for new schools is added once.",
+      "owner": {
+        "backend": [
+          "services/organization_service.py",
+          "services/school_onboarding_service.py"
+        ]
+      },
+      "forbid": {
+        "backend": {
+          "pattern": "table\\(['\"]organizations['\"]\\)\\.insert",
+          "dirs": ["routes", "services", "utils", "jobs"]
+        }
+      },
+      "baseline": { "backend": 0 },
+      "measured": "2026-10-05",
+      "lowered_by": "new concept (school setup links, 2026-10-05)",
+      "use_instead": "organization_service.new_org_row(name, slug, policy, **columns) inserted through OrganizationRepository.create_organization. The school setup link (school_onboarding_service.submit) is the self-serve path."
     }
   ]
 }

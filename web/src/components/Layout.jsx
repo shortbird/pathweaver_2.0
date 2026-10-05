@@ -6,6 +6,7 @@ import TopNavbar from './navigation/TopNavbar'
 import { isFocusMode, setFocusMode, getFocusConfig, FOCUS_EVENT } from '../utils/focusMode'
 import { useKioskIdleTimeout } from '../hooks/useKioskIdleTimeout'
 import PendingOfferRedirect from './partner/PendingOfferRedirect'
+import PendingSchoolSetupRedirect from './schoolSetup/PendingSchoolSetupRedirect'
 
 const SIDEBAR_PINNED_KEY = 'optio-sidebar-pinned'
 
@@ -152,6 +153,8 @@ const Layout = () => {
     <div className="min-h-screen bg-neutral-50">
       {/* Back to a class link opened before signing up (pages/OfferPage.jsx). */}
       <PendingOfferRedirect />
+      {/* Back to a school setup link opened before signing up (pages/SchoolSetupPage.jsx). */}
+      <PendingSchoolSetupRedirect />
       {/* Skip Navigation Link - Accessibility (WCAG 2.1) */}
       <a
         href="#main-content"

@@ -212,6 +212,10 @@ export const queryKeys = {
   partnerOfferings: (orgId) => ['partner-offerings', orgId || ''],
   // The public /offer/:slug page.
   offer: (slug) => ['offer', slug || ''],
+  // A new school's setup link (routes/school_onboarding.py): the public page,
+  // and the superadmin list of links.
+  schoolSetup: (token) => ['school-setup', token || ''],
+  schoolSetupLinks: () => ['school-setup-links'],
 
   // Utility functions
   invalidateUser: (queryClient, userId) => {

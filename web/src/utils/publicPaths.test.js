@@ -11,6 +11,7 @@ import { isPublicPath } from './publicPaths'
 describe('isPublicPath', () => {
   it.each([
     '/offer/latticework',
+    '/start-school/abc123',
     '/student/welcome',
     '/staff/welcome',
     '/enroll/abc123',

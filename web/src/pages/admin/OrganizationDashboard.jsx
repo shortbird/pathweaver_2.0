@@ -2,12 +2,14 @@ import React, { useState, useEffect, useCallback } from 'react';
 import api from '../../services/api';
 import { PageLoader } from '../../components/ui/Spinner';
 import OrgBlocksPanel from './OrgBlocksPanel';
+import SchoolSetupLinksModal from '../../components/admin/SchoolSetupLinksModal';
 
 export default function OrganizationDashboard() {
   const [organizations, setOrganizations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showArchived, setShowArchived] = useState(false);
+  const [showSetupLinks, setShowSetupLinks] = useState(false);
 
   const fetchOrganizations = useCallback(async () => {
     try {
@@ -45,6 +47,12 @@ export default function OrganizationDashboard() {
             Show archived
           </label>
           <button
+            onClick={() => setShowSetupLinks(true)}
+            className="btn-quiet border border-gray-300"
+          >
+            School setup links
+          </button>
+          <button
             onClick={() => setShowCreateModal(true)}
             className="btn-primary"
           >
@@ -58,6 +66,15 @@ export default function OrganizationDashboard() {
           <OrganizationCard key={org.id} organization={org} onUpdate={fetchOrganizations} />
         ))}
       </div>
+
+      {showSetupLinks && (
+        <SchoolSetupLinksModal
+          onClose={() => {
+            setShowSetupLinks(false);
+            fetchOrganizations();
+          }}
+        />
+      )}
 
       {showCreateModal && (
         <CreateOrganizationModal

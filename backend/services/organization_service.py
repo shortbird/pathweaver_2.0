@@ -6,6 +6,30 @@ from utils.logger import get_logger
 logger = get_logger(__name__)
 
 
+def new_org_row(name: str, slug: str, policy: str, **fields: Any) -> Dict[str, Any]:
+    """The organizations row every new school starts from. The superadmin
+    Create Organization button and the school setup link
+    (services/school_onboarding_service.py) both insert this, so a default
+    added here reaches both. `fields` sets columns the caller already knows
+    (branding, timezone, AI switches)."""
+    row = {
+        'name': name,
+        'slug': slug,
+        'quest_visibility_policy': policy,
+        'branding_config': {},
+        'is_active': True,
+        # School-friendly defaults: teachers get due dates and scheduled
+        # publishing out of the box instead of meeting a disabled-feature
+        # error. Superadmin can still turn these off per org.
+        'feature_flags': {
+            'due_dates': True,
+            'scheduled_publish': True
+        }
+    }
+    row.update(fields)
+    return row
+
+
 class OrganizationService(BaseService):
     """Business logic for organization management"""
 
@@ -57,22 +81,7 @@ class OrganizationService(BaseService):
         if existing:
             raise ValueError(f"Organization with slug '{slug}' already exists")
 
-        data = {
-            'name': name,
-            'slug': slug,
-            'quest_visibility_policy': policy,
-            'branding_config': {},
-            'is_active': True,
-            # School-friendly defaults: teachers get due dates and scheduled
-            # publishing out of the box instead of meeting a disabled-feature
-            # error. Superadmin can still turn these off per org.
-            'feature_flags': {
-                'due_dates': True,
-                'scheduled_publish': True
-            }
-        }
-
-        org = self.org_repo.create_organization(data)
+        org = self.org_repo.create_organization(new_org_row(name, slug, policy))
 
         # Log organization creation
         logger.info(f"Organization created: {name} (slug: {slug}, policy: {policy}) by user {created_by}")

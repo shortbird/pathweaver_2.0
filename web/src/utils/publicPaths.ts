@@ -54,10 +54,13 @@ export function isPublicPath(currentPath: string): boolean {
   const isPoePage = currentPath === '/poe' || currentPath.startsWith('/poe/')
   // A credit-class partner's buyer link (pages/OfferPage.jsx).
   const isOfferPage = currentPath.startsWith('/offer/')
+  // A new school's setup link (pages/SchoolSetupPage.jsx), opened before the
+  // operator has an account.
+  const isSchoolSetupPage = currentPath.startsWith('/start-school/')
 
   return authPaths.includes(currentPath) || isPublicDiploma || isConsultationPage || isDemoPage
   || isQuestsPage || isJoinPage || isPublicCoursePage || isObserverAcceptPage || isPublicReportPage
   || isSharedPage || isInvitationPage || isDocsPage || isPublicTranscript || isPromoPage
   || isMarketingPage || isLtiPage || isKiosk || isOrgLoginPage || isRegistrationFunnel || isPoePage
-  || isOfferPage
+  || isOfferPage || isSchoolSetupPage
 }

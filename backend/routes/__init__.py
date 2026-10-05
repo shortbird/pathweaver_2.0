@@ -211,6 +211,11 @@ def register_all(app):
     from routes import partner_offerings
     app.register_blueprint(partner_offerings.partner_bp, url_prefix='/api/admin/organizations')
     app.register_blueprint(partner_offerings.buyer_bp)
+    # School setup links: the form a new school's operator fills to create
+    # their org (routes/school_onboarding.py).
+    from routes import school_onboarding
+    app.register_blueprint(school_onboarding.public_bp)
+    app.register_blueprint(school_onboarding.admin_bp)
     # Membership + username-login student accounts (QB-04 split).
     from routes.admin import organization_users
     app.register_blueprint(organization_users.bp, url_prefix='/api/admin/organizations')

@@ -51,6 +51,7 @@ const StaffWelcomePage = lazy(() => import('./pages/StaffWelcomePage'))
 const AccountWelcomePage = lazy(() => import('./pages/AccountWelcomePage'))
 const CourseWelcomePage = lazy(() => import('./pages/CourseWelcomePage'))
 const OfferPage = lazy(() => import('./pages/OfferPage'))
+const SchoolSetupPage = lazy(() => import('./pages/SchoolSetupPage'))
 const SisLaunchPage = lazy(() => import('./pages/SisLaunchPage'))
 const AuthCallback = lazy(() => import('./pages/AuthCallback'))
 const AcceptInvitationPage = lazy(() => import('./pages/AcceptInvitationPage'))
@@ -909,6 +910,10 @@ function App() {
             {/* Phone verification hold. Standalone and NOT behind PrivateRoute,
                 for the same reason as required-documents directly above. */}
             <Route path="verify-phone" element={<PhoneVerificationPage />} />
+            {/* A new school's setup link (routes/school_onboarding.py). Standalone:
+                the operator has no school yet, and the app sidebar only confused
+                them. Not behind PrivateRoute; the page signs them in itself. */}
+            <Route path="start-school/:token" element={<SchoolSetupPage />} />
             <Route path="enroll/resume" element={<RegisterFunnelPage />} />
             <Route path="enroll/:code" element={<RegisterFunnelPage />} />
             <Route path="register/icreate/resume" element={<RegisterFunnelPage />} />
