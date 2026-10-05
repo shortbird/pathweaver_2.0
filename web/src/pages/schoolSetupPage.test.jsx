@@ -1,11 +1,15 @@
 import React from 'react'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import api from '../services/api'
 import SchoolSetupPage from './SchoolSetupPage'
+
+// Text fields are filled with fireEvent.change, not userEvent.type: this page
+// renders a long form, and typing it key by key timed the test out under CI
+// coverage (release 37370947002, 2026-10-05).
 
 /**
  * /start-school/:token, the link Optio sends a new school's operator.
@@ -86,7 +90,7 @@ describe('SchoolSetupPage', () => {
 
     await userEvent.click(screen.getByRole('button', { name: 'Text me a code' }))
     expect(api.post).toHaveBeenCalledWith('/api/phone-verification/send-code', { phone: '+18015550123' })
-    await userEvent.type(await screen.findByLabelText(/Enter the code/), '123456')
+    fireEvent.change(await screen.findByLabelText(/Enter the code/), { target: { value: '123456' } })
     await userEvent.click(screen.getByRole('button', { name: 'Verify' }))
     expect(api.post).toHaveBeenCalledWith('/api/phone-verification/verify', { code: '123456' })
     expect(await screen.findByText('Verified')).toBeInTheDocument()
@@ -99,11 +103,11 @@ describe('SchoolSetupPage', () => {
     mount()
 
     expect(await screen.findByLabelText(/School name/)).toHaveValue('Juniper Ridge')
-    await userEvent.type(screen.getByLabelText(/Your role at the school/), 'Founder')
-    await userEvent.type(screen.getByLabelText(/^City/), 'Provo')
-    await userEvent.type(screen.getByLabelText(/State or region/), 'UT')
-    await userEvent.type(screen.getByLabelText('Students in grade 4'), '6')
-    await userEvent.type(screen.getByLabelText('Students in K'), '5')
+    fireEvent.change(screen.getByLabelText(/Your role at the school/), { target: { value: 'Founder' } })
+    fireEvent.change(screen.getByLabelText(/^City/), { target: { value: 'Provo' } })
+    fireEvent.change(screen.getByLabelText(/State or region/), { target: { value: 'UT' } })
+    fireEvent.change(screen.getByLabelText('Students in grade 4'), { target: { value: '6' } })
+    fireEvent.change(screen.getByLabelText('Students in K'), { target: { value: '5' } })
     expect(screen.getByText('11')).toBeInTheDocument()   // the running total
     await userEvent.click(screen.getByLabelText(/Tuition billing and autopay/))
     await userEvent.click(screen.getByRole('button', { name: 'Create my school' }))
