@@ -211,3 +211,23 @@ def test_the_route_answers_404_for_a_non_guardian():
     body, status = resp if isinstance(resp, tuple) else (resp, 200)
     assert status == 404
     assert 'volunteer_hours' not in body.get_json()
+
+
+# --------------------------------------------------------------------------
+# The staff Families list carries the number the editor starts from
+# --------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_staff_family_list_carries_each_familys_hours():
+    """iCreate 01082b30: the Volunteer hours field on the family record starts
+    from the household row the Families page loaded (GET /api/sis/households
+    -> HouseholdRepository.list_for_org). If that read ever names its columns
+    and drops this one, the editor shows 0 for every family and the next save
+    wipes the real number. Pin that the list carries it, including the 0
+    default."""
+    from repositories.household_repository import HouseholdRepository
+    rows = HouseholdRepository(client=_db(smith_hours=12.5, jones_hours=0)).list_for_org(ORG)
+    by_id = {r['id']: r for r in rows}
+    assert by_id[HH_SMITH]['volunteer_hours'] == 12.5
+    assert by_id[HH_JONES]['volunteer_hours'] == 0
+    assert 'volunteer_hours_updated_at' in by_id[HH_SMITH]

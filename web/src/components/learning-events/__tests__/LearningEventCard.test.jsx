@@ -36,8 +36,10 @@ vi.mock('../LearningEventDetailModal', () => ({
 
 // The merged "Add to quest" modal (file kept as PromoteToTaskModal).
 vi.mock('../PromoteToTaskModal', () => ({
-  default: ({ isOpen, quest }) =>
-    isOpen ? <div data-testid="add-quest-modal" data-quest-id={quest?.id || ''} /> : null,
+  default: ({ isOpen, quest, studentId }) =>
+    isOpen ? (
+      <div data-testid="add-quest-modal" data-quest-id={quest?.id || ''} data-student-id={studentId || ''} />
+    ) : null,
 }))
 
 const baseEvent = {
@@ -95,6 +97,44 @@ describe('LearningEventCard', () => {
 
     const modal = await screen.findByTestId('add-quest-modal')
     expect(modal.dataset.questId).toBe('quest-9')
+  })
+
+  // Sentry a3dc3fed: "Error converting moment to task: Cannot coerce the
+  // result to a single JSON object". A parent on the child's journal picked
+  // one of the child's quests, but the modal posted without student_id, so the
+  // server looked for the moment under the parent's own id and found nothing.
+  // The card is what hands the child's id to the modal; pin it here.
+  it('hands the child id to the Add-to-quest modal on a parent view (a3dc3fed)', async () => {
+    api.get.mockResolvedValue({
+      data: {
+        success: true,
+        topics: [{ type: 'quest', id: 'quest-9', name: 'Robotics', quest_type: 'optio' }],
+        course_topics: [],
+      },
+    })
+    renderCard({ ...baseEvent, topics: [] }, { studentId: 'child-1' })
+    fireEvent.click(screen.getByRole('button', { name: /add to quest/i }))
+    fireEvent.click(await screen.findByRole('button', { name: /robotics/i }))
+
+    const modal = await screen.findByTestId('add-quest-modal')
+    expect(modal.dataset.studentId).toBe('child-1')
+    expect(api.get).toHaveBeenCalledWith('/api/parent/children/child-1/topics')
+  })
+
+  it('passes no child id when the student opens Add to quest on their own journal (a3dc3fed)', async () => {
+    api.get.mockResolvedValue({
+      data: {
+        success: true,
+        topics: [{ type: 'quest', id: 'quest-9', name: 'Robotics', quest_type: 'optio' }],
+        course_topics: [],
+      },
+    })
+    renderCard({ ...baseEvent, topics: [] })
+    fireEvent.click(screen.getByRole('button', { name: /add to quest/i }))
+    fireEvent.click(await screen.findByRole('button', { name: /robotics/i }))
+
+    const modal = await screen.findByTestId('add-quest-modal')
+    expect(modal.dataset.studentId).toBe('')
   })
 
   it('unassigns a quest chip back to unassigned', async () => {
