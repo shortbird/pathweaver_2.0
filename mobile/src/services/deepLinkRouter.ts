@@ -101,6 +101,7 @@ const LEARNING_ONLY_PREFIXES = [
 const SIS_ONLY_PREFIXES = [
   '/attendance',
   '/billing',
+  '/bloomy',
   '/calendar',
   '/classes',
   '/clp',
@@ -375,6 +376,7 @@ function labelForPrefix(prefix: string): string {
     case '/messaging': return 'School messaging';
     case '/attendance': return 'Attendance';
     case '/billing': return 'Billing';
+    case '/bloomy': return 'Bloomy';
     case '/tuition': return 'Tuition approvals';
     case '/classes': return 'Classes';
     case '/my-classes': return 'Your classes';
