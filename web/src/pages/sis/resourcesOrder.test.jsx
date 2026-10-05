@@ -1,7 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { render, renderHook, act, screen, fireEvent, waitFor } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import DocumentsPanel from './libraryPage/DocumentsPanel'
+import useResourceOrder from '../../hooks/useResourceOrder'
 
 /**
  * The admin arranges the document library.
@@ -100,5 +101,28 @@ describe('arranging the document library (iCreate 07b646fa, 48531900)', () => {
     await screen.findByText('Alpha form')
     expect(screen.queryByRole('button', { name: /^Move / })).not.toBeInTheDocument()
     expect(api.put).not.toHaveBeenCalled()
+  })
+})
+
+describe('useResourceOrder keeps a move until the library really reloads', () => {
+  // The release of 2026-10-05 failed in CI on 'moves a document down...':
+  // the override was cleared by an effect on `resources`, and React flushed
+  // the effect from the first load AFTER the admin's click, so the move
+  // vanished and the list read alphabetical again. The override now belongs
+  // to the array it was made from.
+  it('keeps the move across re-renders with the same list, and drops it for a new one', async () => {
+    const { result, rerender } = renderHook(
+      ({ resources }) => useResourceOrder({ resources, orgId: 'org-1', reload: vi.fn() }),
+      { initialProps: { resources: RESOURCES } },
+    )
+    await act(async () => { result.current.move(RESOURCES[0], 1) })
+    expect(result.current.ordered.map((r) => r.id)).toEqual(['b', 'a', 'c', 'h'])
+
+    rerender({ resources: RESOURCES })
+    expect(result.current.ordered.map((r) => r.id)).toEqual(['b', 'a', 'c', 'h'])
+
+    const reloaded = [RESOURCES[1], RESOURCES[0], RESOURCES[2], RESOURCES[3]]
+    rerender({ resources: reloaded })
+    expect(result.current.ordered).toBe(reloaded)
   })
 })

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { toast } from 'react-hot-toast'
 
 import api from '../services/api'
@@ -20,12 +20,18 @@ import { withOrg } from '../pages/sis/useSisOrg'
  *
  * Optimistic, like useTrainingOrder: the row moves at once through an
  * override that is dropped when the page reloads (`resources` changes).
+ * The override remembers the list it was made from and is ignored once
+ * `resources` is a different array. It used to be cleared by an effect on
+ * `resources`, and that effect could flush AFTER the admin's first click
+ * (React defers passive effects), wiping the move just made: the release
+ * of 2026-10-05 failed on exactly that in CI.
  *
  * Returns { ordered, move }.
  */
 export default function useResourceOrder({ resources, orgId, reload }) {
-  const [orderOverride, setOrderOverride] = useState(null) // [id, ...] while a move saves
-  useEffect(() => { setOrderOverride(null) }, [resources])
+  // { base: the resources array it was made from, ids: [id, ...] }
+  const [override, setOverride] = useState(null)
+  const orderOverride = override && override.base === resources ? override.ids : null
 
   const ordered = useMemo(() => {
     if (!orderOverride) return resources
@@ -37,12 +43,12 @@ export default function useResourceOrder({ resources, orgId, reload }) {
 
   const saveOrder = async (next) => {
     const ids = next.map((r) => r.id)
-    setOrderOverride(ids)
+    setOverride({ base: resources, ids })
     try {
       await api.put(withOrg('/api/sis/resources/order', orgId), { ids })
     } catch (err) {
       toast.error(err?.response?.data?.error || 'Could not save the order')
-      setOrderOverride(null)
+      setOverride(null)
       reload?.()
     }
   }
