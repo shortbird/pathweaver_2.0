@@ -38,7 +38,6 @@ const RecurringTuitionModal = ({ isOpen, onClose, orgId, onAdded }) => {
   const [studentId, setStudentId] = useState('')
   const [monthlyStr, setMonthlyStr] = useState('')
   const [description, setDescription] = useState('')
-  const [dayOfMonth, setDayOfMonth] = useState(1)
   const [adding, setAdding] = useState(false)
   // The server's refusal, shown in the form. Ticket bc9010f4 (Marika, iCreate):
   // a student already on a monthly payment plan is refused with 409, and the
@@ -62,7 +61,7 @@ const RecurringTuitionModal = ({ isOpen, onClose, orgId, onAdded }) => {
 
   useEffect(() => {
     if (isOpen) return
-    setStudentId(''); setMonthlyStr(''); setDescription(''); setDayOfMonth(1); setError(null)
+    setStudentId(''); setMonthlyStr(''); setDescription(''); setError(null)
   }, [isOpen])
 
   useEffect(() => { setError(null) }, [studentId])
@@ -92,7 +91,6 @@ const RecurringTuitionModal = ({ isOpen, onClose, orgId, onAdded }) => {
         student_id: studentId,
         monthly_cents: monthlyCents,
         description: description.trim() || undefined,
-        day_of_month: Number(dayOfMonth) || 1,
       })
       // Adding a schedule emails nobody — billing starts when the family saves a
       // card. "Added" on its own reads as done, and the office walks away from a
@@ -154,11 +152,11 @@ const RecurringTuitionModal = ({ isOpen, onClose, orgId, onAdded }) => {
               </div>
             </div>
             <div>
-              <label className={label}>Charge on day</label>
-              <input type="number" min={1} max={28} className={field} value={dayOfMonth}
-                onChange={(e) => setDayOfMonth(e.target.value)} />
-              <p className="mt-1 text-xs text-neutral-400">
-                1–28, so the date exists every month.
+              <label className={label}>Charged on</label>
+              {/* The billing day is the day the family saves a payment method
+                  (owner, 2026-10-05), so there is nothing to pick here. */}
+              <p className="text-sm text-neutral-600 py-2">
+                The day the family sets up payment, then that date every month.
               </p>
             </div>
             <div className="sm:col-span-2">

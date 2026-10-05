@@ -66,7 +66,10 @@ class TestHouseholdBillingSummary:
     def test_the_card_on_file_shows_display_fields_only(self):
         saved = {'card_brand': 'visa', 'card_last4': '4242', 'card_exp_month': 4, 'card_exp_year': 2030,
                  'stripe_payment_method_id': 'pm_secret', 'stripe_customer_id': 'cus_secret'}
-        out = _summary(saved=saved)
-        assert out['card'] == {'brand': 'visa', 'last4': '4242', 'exp_month': 4, 'exp_year': 2030}
+        # type and card_fee (bank-first autopay, 2026-10-05) are display fields too.
+        with patch('services.sis_billing_service.autopay_bank_free', return_value=False):
+            out = _summary(saved=saved)
+        assert out['card'] == {'type': 'card', 'brand': 'visa', 'last4': '4242',
+                               'exp_month': 4, 'exp_year': 2030, 'card_fee': False}
         assert out['funding_source'] == 'ufa'
         assert _summary()['card'] is None

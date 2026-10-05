@@ -21,7 +21,8 @@ from datetime import datetime, timezone, timedelta, date
 from typing import Dict, List, Any, Optional
 
 from app_config import Config
-from repositories.sis_billing_repository import (SisInstallmentRepository,
+from repositories.sis_billing_repository import (SisBillingAuditRepository,
+                                                 SisInstallmentRepository,
                                                  SisInvoiceLineItemRepository,
                                                  SisPaymentPlanRepository,
                                                  SisPaymentRecordRepository)
@@ -69,17 +70,59 @@ from utils.money import format_cents
 _DEFAULT_PROCESSING_FEE = {'percent': 2.9, 'flat_cents': 30}
 
 
-def _processing_fee_config(org_id: str) -> Dict[str, Any]:
+def _processing_fee_settings(org_id: str) -> Dict[str, Any]:
+    """branding_config.processing_fee as stored, or {}."""
     try:
         row = (_admin().table('organizations').select('branding_config')
                .eq('id', org_id).limit(1).execute()).data
         cfg = ((row[0].get('branding_config') if row else None) or {}).get('processing_fee')
-        if isinstance(cfg, dict):
+        return cfg if isinstance(cfg, dict) else {}
+    except Exception as _exc:  # noqa: BLE001
+        logger.debug("org branding lookup failed: %s", _exc, exc_info=True)
+    return {}
+
+
+def _processing_fee_config(org_id: str) -> Dict[str, Any]:
+    try:
+        cfg = _processing_fee_settings(org_id)
+        if cfg:
             return {'percent': float(cfg.get('percent', _DEFAULT_PROCESSING_FEE['percent'])),
                     'flat_cents': int(cfg.get('flat_cents', _DEFAULT_PROCESSING_FEE['flat_cents']))}
     except Exception as _exc:  # noqa: BLE001
         logger.debug("org branding lookup failed: %s", _exc, exc_info=True)
     return dict(_DEFAULT_PROCESSING_FEE)
+
+
+# ── Bank-first autopay ───────────────────────────────────────────────────────
+# Optio Academy, 2026-10-05: monthly tuition set up from now on offers a US bank
+# account (ACH) with no fee, or a card with the processing fee added to every
+# charge. Turned on per school in branding_config.processing_fee.autopay_bank_free;
+# a school without it keeps card-only setup with no fee, as before.
+#
+# A saved method that predates the switch (card_fee_exempt) keeps its old
+# terms. Saving any new method clears the exemption: a family that replaces its
+# card chooses again between bank and card-with-fee.
+BANK_METHOD = 'us_bank_account'
+
+
+def autopay_bank_free(org_id: str) -> bool:
+    return bool(_processing_fee_settings(org_id).get('autopay_bank_free'))
+
+
+def card_fee_terms(org_id: str) -> str:
+    """The card fee in words, for the parent who is choosing: "2.9% + $0.30"."""
+    cfg = _processing_fee_config(org_id)
+    pct = f"{cfg['percent']:g}%"
+    return f"{pct} + {format_cents(cfg['flat_cents'])}" if cfg['flat_cents'] else pct
+
+
+def charges_card_fee(org_id: str, saved_pm: Dict[str, Any]) -> bool:
+    """True when an autopay charge on this saved method carries the card fee."""
+    if (saved_pm.get('method_type') or 'card') == BANK_METHOD:
+        return False
+    if saved_pm.get('card_fee_exempt'):
+        return False
+    return autopay_bank_free(org_id)
 
 
 def compute_processing_fee(org_id: str, base_cents: int) -> int:
@@ -1679,8 +1722,7 @@ def household_billing_summary(org_id: str, household_id: str) -> Dict[str, Any]:
                     if reg.get('stripe_subscription_id') else None)
 
     saved = household_saved_card(org_id, household_id)
-    card = ({'brand': saved.get('card_brand'), 'last4': saved.get('card_last4'),
-             'exp_month': saved.get('card_exp_month'), 'exp_year': saved.get('card_exp_year')}
+    card = ({**_card_public(saved), 'card_fee': charges_card_fee(org_id, saved)}
             if saved else None)
 
     return {
@@ -2589,15 +2631,20 @@ def _saved_payment_method(plan: Dict[str, Any]) -> Optional[Dict[str, Any]]:
 
 def _upsert_saved_pm(org_id: str, guardian_user_id: str, household_id: Optional[str],
                      customer_id: str, pm_id: str, brand: Optional[str], last4: Optional[str],
-                     exp_month: Optional[int], exp_year: Optional[int]) -> Dict[str, Any]:
+                     exp_month: Optional[int], exp_year: Optional[int],
+                     method_type: str = 'card') -> Dict[str, Any]:
     """Store the Stripe Customer + PaymentMethod ids (and non-sensitive card
     display fields) for a guardian on this school's account. One card per
-    guardian per org (re-saving replaces it)."""
+    guardian per org (re-saving replaces it).
+
+    For a bank account, brand is the bank's name and last4 the account's last
+    four. Every save clears card_fee_exempt (see autopay_bank_free)."""
     return (_admin().table('sis_saved_payment_methods').upsert({
         'organization_id': org_id, 'guardian_user_id': guardian_user_id,
         'household_id': household_id, 'stripe_customer_id': customer_id,
         'stripe_payment_method_id': pm_id, 'card_brand': brand, 'card_last4': last4,
-        'card_exp_month': exp_month, 'card_exp_year': exp_year, 'updated_at': _now(),
+        'card_exp_month': exp_month, 'card_exp_year': exp_year,
+        'method_type': method_type, 'card_fee_exempt': False, 'updated_at': _now(),
     }, on_conflict='organization_id,guardian_user_id').execute()).data[0]
 
 
@@ -2832,7 +2879,8 @@ def confirm_autopay_for_pay_link(invoice_id: str, installment_count: int = 10,
 
 
 def _card_public(saved: Dict[str, Any]) -> Dict[str, Any]:
-    return {'brand': saved.get('card_brand'), 'last4': saved.get('card_last4'),
+    return {'type': saved.get('method_type') or 'card',
+            'brand': saved.get('card_brand'), 'last4': saved.get('card_last4'),
             'exp_month': saved.get('card_exp_month'), 'exp_year': saved.get('card_exp_year')}
 
 
@@ -3445,10 +3493,27 @@ def start_card_setup_for_household(org_id: str, household_id: str,
                 api_key=secret, email=guardian.get('email') or None,
                 metadata={'guardian_user_id': guardian['user_id'],
                           'organization_id': org_id}).id
+        session_kwargs: Dict[str, Any] = {}
+        if autopay_bank_free(org_id):
+            # Bank first. Instant verification only: micro-deposits leave the
+            # account unusable for days after the family has "finished", and the
+            # first month is charged on return. A bank Stripe cannot verify
+            # instantly can still pay by card.
+            session_kwargs = {
+                'payment_method_types': [BANK_METHOD, 'card'],
+                'payment_method_options': {BANK_METHOD: {
+                    'verification_method': 'instant',
+                    'financial_connections': {'permissions': ['payment_method']},
+                }},
+                'custom_text': {'submit': {'message': (
+                    f'Bank account: no fee. Card: a {card_fee_terms(org_id)} processing '
+                    f'fee is added to each monthly payment.')}},
+            }
         session = start_checkout(
             secret, kind='recurring_card_setup', org_id=org_id, ref_id=household_id,
             mode='setup', customer=customer_id, currency='usd',
             metadata={'household_id': household_id, 'guardian_user_id': guardian['user_id']},
+            **session_kwargs,
             success_url=f'{return_url}{sep}session_id={{CHECKOUT_SESSION_ID}}',
             cancel_url=f'{return_url}{sep}setup=canceled')
     except Exception as e:  # noqa: BLE001
@@ -3485,18 +3550,29 @@ def save_card_from_setup_session(org_id: str, household_id: str,
     customer_id = sess.get('customer')
     if not pm_id or not customer_id:
         return {'ready': False}
+    if si.get('status') != 'succeeded':
+        # A bank account still waiting on verification cannot be charged yet.
+        return {'ready': False}
     brand = last4 = None
     exp_month = exp_year = None
     try:
         import stripe
         pm = stripe.PaymentMethod.retrieve(pm_id, api_key=secret)
-        card = (pm.get('card') or {}) if isinstance(pm, dict) else {}
-        brand, last4 = card.get('brand'), card.get('last4')
+    except Exception as e:  # noqa: BLE001
+        # Not best-effort any more: the type decides whether the card fee is
+        # charged, so a method we could not read is not saved under a guess.
+        logger.warning(f'[SIS billing] payment method lookup failed for {pm_id}: {e}')
+        return {'ready': False}
+    if pm.get('type') == BANK_METHOD:
+        bank = pm.get(BANK_METHOD) or {}
+        method_type, brand, last4 = BANK_METHOD, bank.get('bank_name'), bank.get('last4')
+    else:
+        card = pm.get('card') or {}
+        method_type, brand, last4 = 'card', card.get('brand'), card.get('last4')
         exp_month, exp_year = card.get('exp_month'), card.get('exp_year')
-    except Exception as e:  # noqa: BLE001 — display fields are best-effort
-        logger.debug(f'[SIS billing] card detail lookup failed for {pm_id}: {e}')
     saved = _upsert_saved_pm(org_id, meta.get('guardian_user_id'), household_id,
-                             customer_id, pm_id, brand, last4, exp_month, exp_year)
+                             customer_id, pm_id, brand, last4, exp_month, exp_year,
+                             method_type=method_type)
     return {'ready': True, 'saved': saved, 'saved_card': _card_public(saved)}
 
 
@@ -3515,6 +3591,18 @@ def charge_invoice_off_session(org_id: str, invoice: Dict[str, Any],
     amount = amount_due_cents(invoice)
     if amount <= 0:
         return {'status': 'failed', 'error': 'Nothing due on this invoice'}
+    is_bank = (saved_pm.get('method_type') or 'card') == BANK_METHOD
+    fee = _fee_to_add(org_id, invoice, amount) if charges_card_fee(org_id, saved_pm) else 0
+    if fee:
+        invoice = _apply_processing_fee(org_id, invoice['id'], fee) or invoice
+        amount = amount_due_cents(invoice)
+
+    def _failed(error: str) -> Dict[str, Any]:
+        if fee:
+            # The family may pay this invoice by check or bank instead; a card
+            # fee for a card charge that never happened is not theirs to owe.
+            _apply_processing_fee(org_id, invoice['id'], 0)
+        return {'status': 'failed', 'error': error}
     try:
         import stripe
         # Same description and idempotency rules as _charge_installment. The
@@ -3524,6 +3612,7 @@ def charge_invoice_off_session(org_id: str, invoice: Dict[str, Any],
             api_key=secret, amount=amount, currency='usd',
             customer=saved_pm['stripe_customer_id'],
             payment_method=saved_pm['stripe_payment_method_id'],
+            payment_method_types=[BANK_METHOD if is_bank else 'card'],
             off_session=True, confirm=True,
             description=_stripe_description(invoice, 'monthly tuition'),
             metadata={'kind': 'recurring_tuition', 'invoice_id': invoice['id'],
@@ -3531,12 +3620,70 @@ def charge_invoice_off_session(org_id: str, invoice: Dict[str, Any],
             idempotency_key=f"recurring-{invoice['id']}")
     except Exception as e:  # noqa: BLE001 — card declines raise here
         logger.warning(f"[SIS billing] recurring charge failed for invoice {invoice['id'][:8]}: {e}")
-        return {'status': 'failed', 'error': str(e)[:400]}
+        return _failed(str(e)[:400])
+    if is_bank and intent.get('status') == 'processing':
+        # ACH takes about four business days. Nothing is recorded until it
+        # clears: settle_bank_payments records it then, or flags the failure.
+        return {'status': 'processing', 'payment_intent': intent.get('id'), 'amount_cents': amount}
     if intent.get('status') != 'succeeded':
-        return {'status': 'failed', 'error': f"status={intent.get('status')}"}
-    record_payment(org_id, invoice['id'], amount_cents=amount, method='card',
-                   external_ref=intent.get('id'), installment_id=None,
+        return _failed(f"status={intent.get('status')}")
+    _record_autopay_payment(org_id, invoice['id'], saved_pm, intent.get('id'), amount)
+    return {'status': 'charged', 'payment_intent': intent.get('id'), 'amount_cents': amount}
+
+
+def _record_autopay_payment(org_id: str, invoice_id: str, saved_pm: Dict[str, Any],
+                            intent_id: Optional[str], amount: int) -> None:
+    is_bank = (saved_pm.get('method_type') or 'card') == BANK_METHOD
+    record_payment(org_id, invoice_id, amount_cents=amount, method='ach' if is_bank else 'card',
+                   external_ref=intent_id, installment_id=None,
                    recorded_by=saved_pm.get('guardian_user_id'),
                    note='Monthly tuition (auto-charge)',
-                   card={'brand': saved_pm.get('card_brand'), 'last4': saved_pm.get('card_last4')})
-    return {'status': 'charged', 'payment_intent': intent.get('id'), 'amount_cents': amount}
+                   card=None if is_bank else {'brand': saved_pm.get('card_brand'),
+                                              'last4': saved_pm.get('card_last4')})
+
+
+def settle_bank_payments(org_id: str, days: int = 21) -> Dict[str, int]:
+    """Record the monthly-tuition bank payments that cleared, and flag the ones
+    that failed. There are no webhooks: the platform verifies by reading.
+
+    Reads this school's recurring-tuition PaymentIntents from the last `days`
+    days. A succeeded bank intent with no payment record is recorded now. A bank
+    intent that failed after it was processing leaves its invoice unpaid and the
+    family is emailed the invoice, once (a bank_payment_failed audit row is the
+    "once"), the same as a declined card on this path. The office sees it on
+    the outstanding report.
+    """
+    secret = _org_stripe_secret(org_id)
+    if not secret:
+        return {'cleared': 0, 'failed': 0}
+    import stripe
+    since = int((datetime.now(timezone.utc) - timedelta(days=days)).timestamp())
+    cleared = failed = 0
+    for pi in stripe.PaymentIntent.list(api_key=secret, created={'gte': since},
+                                        limit=100).auto_paging_iter():
+        md = pi.get('metadata') or {}
+        if md.get('kind') != 'recurring_tuition' or BANK_METHOD not in (pi.get('payment_method_types') or []):
+            continue
+        invoice_id, status = md.get('invoice_id'), pi.get('status')
+        if not invoice_id or status in ('processing', 'requires_confirmation', 'requires_action'):
+            continue
+        if status == 'succeeded':
+            if SisPaymentRecordRepository(client=_admin()).by_external_ref(invoice_id, pi['id']):
+                continue
+            saved = {'method_type': BANK_METHOD, 'guardian_user_id': None}
+            _record_autopay_payment(org_id, invoice_id, saved, pi['id'], int(pi.get('amount') or 0))
+            cleared += 1
+            continue
+        # requires_payment_method / canceled: the bank returned it.
+        if SisBillingAuditRepository(client=_admin()).has_action(
+                org_id, invoice_id, 'bank_payment_failed'):
+            continue
+        err = (pi.get('last_payment_error') or {}).get('message') or status
+        _audit(org_id, invoice_id, None, 'bank_payment_failed',
+               {'payment_intent': pi['id'], 'error': str(err)[:300]})
+        try:
+            email_invoice_to_family(org_id, invoice_id)
+        except Exception as e:  # noqa: BLE001
+            logger.warning(f'[SIS billing] failed-bank invoice email skipped for {invoice_id[:8]}: {e}')
+        failed += 1
+    return {'cleared': cleared, 'failed': failed}

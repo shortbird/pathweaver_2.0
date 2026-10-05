@@ -214,6 +214,10 @@ def return_from_card_setup(token):
     if result.get('error'):
         # The card IS saved; there was just nothing scheduled to start.
         return redirect(_result_url(autopay='card_saved'))
-    if not result.get('charged'):
+    # A second setup in the same cycle swaps the card; the month is already paid.
+    if not result.get('charged') and result.get('reason') != 'already_paid':
         return redirect(_result_url(autopay='card_saved_unpaid'))
+    if result.get('pending'):
+        # A bank payment started; ACH takes days, so "paid" would be untrue.
+        return redirect(_result_url(autopay='bank_active'))
     return redirect(_result_url(autopay='active'))

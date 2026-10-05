@@ -7,7 +7,9 @@ import PAYMENT_METHODS from './PAYMENT_METHODS'
 
 // Card is labelled here but is not in PAYMENT_METHODS: that list is what the
 // office can record by hand, and only Stripe records a card payment.
-const METHOD_LABEL = { ...Object.fromEntries(PAYMENT_METHODS), card: 'Card' }
+// Same for ach: the monthly-tuition autopay records it when a bank payment
+// clears, and the office never picks it by hand.
+const METHOD_LABEL = { ...Object.fromEntries(PAYMENT_METHODS), card: 'Card', ach: 'Bank transfer' }
 
 // A negative payment record is a refund — label it as one wherever payments list.
 

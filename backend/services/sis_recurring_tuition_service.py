@@ -85,6 +85,22 @@ def next_month_from(d: date, day_of_month: int) -> date:
     return date(year, month, day)
 
 
+def cycle_day(today: date, billed_rows: List[Dict[str, Any]]) -> int:
+    """PURE. The billing day for a schedule that starts today.
+
+    Monthly tuition bills on the date the family set it up, not on the 1st
+    (owner, 2026-10-05): a family that saves its payment method on the 6th is
+    billed on the 6th of every month. Days 29-31 bill on the 28th, a day every
+    month has. A family that already has a billed schedule keeps that one's day,
+    so a second child joins the same monthly invoice instead of starting a
+    second one. Schedules started on the 1st before the change keep the 1st.
+    """
+    for r in billed_rows:
+        if r.get('day_of_month'):
+            return int(r['day_of_month'])
+    return max(MIN_DAY_OF_MONTH, min(today.day, MAX_DAY_OF_MONTH))
+
+
 def first_charge_date(today: date, day_of_month: int) -> date:
     """PURE. When the NEXT monthly charge falls, given the card was just saved.
 
@@ -96,6 +112,17 @@ def first_charge_date(today: date, day_of_month: int) -> date:
     if today.day < day:
         return date(today.year, today.month, day)
     return next_month_from(today, day)
+
+
+def paid_this_cycle(row: Dict[str, Any], today: date) -> bool:
+    """PURE. True when the schedule was charged and its next charge is still ahead.
+
+    Dates arrive from the database as ISO strings.
+    """
+    last, nxt = row.get('last_charged_on'), row.get('next_charge_on')
+    if not last or not nxt:
+        return False
+    return date.fromisoformat(str(nxt)[:10]) > today
 
 
 # ── Reads ────────────────────────────────────────────────────────────────────
@@ -133,7 +160,9 @@ def _hydrate(rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         oid, hh = r['organization_id'], r['household_id']
         if hh not in cards:
             saved = billing.household_saved_card(oid, hh)
-            cards[hh] = ({'brand': saved.get('card_brand'), 'last4': saved.get('card_last4')}
+            cards[hh] = ({'type': saved.get('method_type') or 'card',
+                          'brand': saved.get('card_brand'), 'last4': saved.get('card_last4'),
+                          'card_fee': billing.charges_card_fee(oid, saved)}
                          if saved else None)
         if hh not in contacts:
             g = billing_contact(hh)
@@ -268,6 +297,13 @@ def _student_name(student_id: str) -> str:
     return person_name.full_name(row, 'This student') if row else 'This student'
 
 
+def _active_household_rows(org_id: str, household_id: str) -> List[Dict[str, Any]]:
+    """A family's active schedules. One per child, so a plain read is safe."""
+    return (_admin().table('sis_recurring_tuition').select('*')
+            .eq('household_id', household_id).eq('organization_id', org_id)
+            .eq('status', 'active').execute()).data or []
+
+
 def get(org_id: str, schedule_id: str) -> Optional[Dict[str, Any]]:
     rows = (_admin().table('sis_recurring_tuition').select('*')
             .eq('id', schedule_id).eq('organization_id', org_id).limit(1).execute()).data
@@ -305,6 +341,14 @@ def create(org_id: str, student_id: str, monthly_cents: int, actor_id: str,
                 .limit(1).execute()).data
     if existing:
         return {'error': 'This student already has a monthly tuition schedule'}
+    # The billing day is set when billing starts (cycle_day): at card setup,
+    # or now when the family already has a card. `day_of_month` from the
+    # caller is only a placeholder until then.
+    has_card = bool(billing.household_saved_card(org_id, household_id))
+    if has_card:
+        siblings = [r for r in _active_household_rows(org_id, household_id)
+                    if r.get('next_charge_on')]
+        day_of_month = cycle_day(date.today(), siblings)
     row = (_admin().table('sis_recurring_tuition').insert({
         'organization_id': org_id, 'household_id': household_id,
         'student_user_id': student_id, 'monthly_cents': int(monthly_cents),
@@ -314,7 +358,7 @@ def create(org_id: str, student_id: str, monthly_cents: int, actor_id: str,
     }).execute()).data[0]
     # A household that already has a card on file needs no second setup link, so
     # the schedule can start billing at the next billing day.
-    if billing.household_saved_card(org_id, household_id):
+    if has_card:
         nxt = first_charge_date(date.today(), int(day_of_month))
         _admin().table('sis_recurring_tuition').update(
             {'next_charge_on': nxt.isoformat(), 'updated_at': _now_iso()}
@@ -401,17 +445,30 @@ def activate_household(org_id: str, household_id: str) -> Dict[str, Any]:
     The first charge happens now because saving the card IS the family agreeing
     to it — the same decision the invoice autopay flow makes, and the same one
     every subscription checkout makes.
+
+    Only rows that have not been paid for this cycle are billed. On 2026-09-06
+    the Waite family finished card setup twice, two minutes apart (once with
+    Link, once with their Amex), and each return billed the full first month:
+    INV-2026-1F3348 and INV-2026-2FEB6C, $500 apiece for one $500 month. A
+    second setup is a family swapping the card, and the card is saved either
+    way; the month is already billed. That holds after a declined first charge
+    too: its invoice stands unpaid and was emailed with a pay link, and a second
+    invoice for the same month would bill the family twice.
     """
-    rows = (_admin().table('sis_recurring_tuition').select('*')
-            .eq('household_id', household_id).eq('organization_id', org_id)
-            .eq('status', 'active').execute()).data or []
+    rows = _active_household_rows(org_id, household_id)
     if not rows:
         return {'error': 'No monthly tuition is set up for this family'}
     today = date.today()
+    billed = [r for r in rows if paid_this_cycle(r, today)]
+    rows = [r for r in rows if not paid_this_cycle(r, today)]
+    if not rows:
+        return {'activated': 0, 'charged': False, 'reason': 'already_paid'}
+    day = cycle_day(today, billed)
     charge = bill_household(org_id, household_id, rows, today)
     for r in rows:
         _admin().table('sis_recurring_tuition').update({
-            'next_charge_on': first_charge_date(today, r['day_of_month']).isoformat(),
+            'day_of_month': day,
+            'next_charge_on': first_charge_date(today, day).isoformat(),
             'last_charged_on': today.isoformat() if charge.get('invoice') else None,
             'updated_at': _now_iso(),
         }).eq('id', r['id']).execute()
@@ -451,6 +508,12 @@ def bill_household(org_id: str, household_id: str, rows: List[Dict[str, Any]],
         _email_invoice(org_id, invoice['id'])
         return {'invoice': invoice, 'charged': False, 'reason': 'no_card'}
     charge = billing.charge_invoice_off_session(org_id, invoice, saved)
+    if charge.get('status') == 'processing':
+        # A bank payment: started, clears in about four business days. It
+        # counts as this month's charge (settle_bank_payments records it when
+        # it clears, or emails the invoice if the bank returns it).
+        return {'invoice': invoice, 'charged': True, 'pending': True,
+                'method': 'bank', 'amount_cents': charge.get('amount_cents')}
     if charge.get('status') != 'charged':
         logger.warning(f'[recurring tuition] charge declined for household '
                        f'{household_id[:8]}: {charge.get("error")}')
@@ -476,8 +539,11 @@ def charge_due(org_id: Optional[str] = None,
     charge. next_charge_on advances whether the charge succeeded or not — a
     declined card is handed to staff with an unpaid invoice, never retried
     tomorrow.
+
+    Bank payments started on earlier runs are settled first (settle_banks).
     """
     on = date.fromisoformat(today) if today else date.today()
+    settled = settle_banks(org_id)
     q = (_admin().table('sis_recurring_tuition').select('*')
          .eq('status', 'active').lte('next_charge_on', on.isoformat()))
     if org_id:
@@ -506,7 +572,25 @@ def charge_due(org_id: Optional[str] = None,
             if ok:
                 patch['last_charged_on'] = on.isoformat()
             _admin().table('sis_recurring_tuition').update(patch).eq('id', r['id']).execute()
-    return {'households': len(by_household), 'charged': charged, 'failed': failed}
+    return {'households': len(by_household), 'charged': charged, 'failed': failed,
+            'bank_cleared': settled['cleared'], 'bank_failed': settled['failed']}
+
+
+def settle_banks(org_id: Optional[str] = None) -> Dict[str, int]:
+    """Settle bank (ACH) tuition payments for every school that has a bank
+    account on file. One school's Stripe error must not stop the monthly
+    charges."""
+    from repositories.sis_billing_repository import SisSavedPaymentMethodRepository
+    out = {'cleared': 0, 'failed': 0}
+    for oid in SisSavedPaymentMethodRepository(client=_admin()).org_ids_with_method(
+            billing.BANK_METHOD, org_id):
+        try:
+            got = billing.settle_bank_payments(oid)
+            out['cleared'] += got['cleared']
+            out['failed'] += got['failed']
+        except Exception as e:  # noqa: BLE001
+            logger.error(f'[recurring tuition] bank settle failed for org {oid[:8]}: {e}')
+    return out
 
 
 def household_org_id(household_id: str) -> Optional[str]:
@@ -518,7 +602,7 @@ def household_org_id(household_id: str) -> Optional[str]:
 
 
 def setup_email_bodies(org_name: str, students: List[Dict[str, Any]],
-                       link: str) -> Dict[str, str]:
+                       link: str, card_fee_terms: Optional[str] = None) -> Dict[str, str]:
     """PURE. The card-setup email a family receives: {subject, text, html}.
 
     Separate from the send so the exact message can be rendered without one —
@@ -526,7 +610,13 @@ def setup_email_bodies(org_name: str, students: List[Dict[str, Any]],
     without mailing a real parent to find out.
 
     `students` are hydrated schedule rows: student_name and monthly_cents.
+    `card_fee_terms` ("2.9% + $0.30") is set when the school offers a bank
+    account free and charges cards the fee (billing.autopay_bank_free); the
+    family reads the choice here, before Stripe's page asks them to make it.
     """
+    choice = (f"You can pay from a bank account with no fee, or by card with a "
+              f"{card_fee_terms} processing fee added to each payment."
+              if card_fee_terms else '')
     total = sum(r['monthly_cents'] for r in students)
     breakdown = '\n'.join(
         f"  {r['student_name']}: {format_cents(r['monthly_cents'])}" for r in students)
@@ -539,8 +629,10 @@ def setup_email_bodies(org_name: str, students: List[Dict[str, Any]],
             f"Hello,\n\n{org_name} has set up monthly tuition for your family:\n\n"
             f"{breakdown}\n\n"
             f"Total: {format_cents(total)} per month.\n\n"
-            f"Save a card here and the first payment is taken right away; after that "
-            f"it is charged automatically each month until the school stops it:\n{link}\n\n"
+            f"Save a {'payment method' if card_fee_terms else 'card'} here and the first payment is "
+            f"taken right away; after that it is charged automatically each month until the "
+            f"school stops it:\n{link}\n\n"
+            + (f"{choice}\n\n" if choice else '') +
             f"Thank you,\n{org_name}"),
         'html': (
             f"<p>Hello,</p><p>{org_name} has set up monthly tuition for your family:</p>"
@@ -549,6 +641,7 @@ def setup_email_bodies(org_name: str, students: List[Dict[str, Any]],
             f'<p><a href="{link}"><strong>Set up your monthly payment</strong></a> — the first '
             f"payment is taken right away, then it is charged automatically each month until "
             f"the school stops it.</p>"
+            + (f"<p>{choice}</p>" if choice else '') +
             f"<p>Thank you,<br/>{org_name}</p>"),
     }
 
@@ -562,9 +655,7 @@ def send_setup_link(org_id: str, household_id: str) -> Dict[str, Any]:
     if not guardian:
         return {'error': 'Nobody on this family can be emailed. Add a parent to '
                          'the family in People, then send the link.'}
-    rows = (_admin().table('sis_recurring_tuition').select('*')
-            .eq('household_id', household_id).eq('organization_id', org_id)
-            .eq('status', 'active').execute()).data or []
+    rows = _active_household_rows(org_id, household_id)
     if not rows:
         return {'error': 'No monthly tuition is set up for this family'}
     hydrated = _hydrate([dict(r) for r in rows])
@@ -572,7 +663,9 @@ def send_setup_link(org_id: str, household_id: str) -> Dict[str, Any]:
     org = (_admin().table('organizations').select('name')
            .eq('id', org_id).limit(1).execute()).data
     org_name = (org[0]['name'] if org else None) or 'Your school'
-    bodies = setup_email_bodies(org_name, hydrated, setup_url(household_id))
+    bodies = setup_email_bodies(
+        org_name, hydrated, setup_url(household_id),
+        card_fee_terms=billing.card_fee_terms(org_id) if billing.autopay_bank_free(org_id) else None)
     subject, text, html = bodies['subject'], bodies['text'], bodies['html']
 
     # ONE email, to the parent who will hold the card. Two parents receiving two

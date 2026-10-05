@@ -537,8 +537,9 @@ const FamilyBillingPage = () => {
         // Open-ended monthly tuition: the card saved, but say plainly whether
         // the first payment went through. "Your card is saved" on its own reads
         // as done, and the family would not know they still owe this month.
-        card_saved: ['success', 'Your card is saved for monthly tuition.'],
-        card_saved_unpaid: ['info', 'Your card is saved, but the first payment did not go through. The school will be in touch.'],
+        card_saved: ['success', 'Your payment method is saved for monthly tuition.'],
+        bank_active: ['success', 'Monthly payments are set up. Your first bank payment has started and takes a few business days to clear.'],
+        card_saved_unpaid: ['info', 'Your payment method is saved, but the first payment did not go through. The school will be in touch.'],
       },
     }
     const [kind, message] = notices[payment ? 'payment' : 'autopay']?.[payment || autopay] || []

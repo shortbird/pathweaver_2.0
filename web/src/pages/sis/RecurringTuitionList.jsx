@@ -231,7 +231,10 @@ const RecurringTuitionList = ({ orgId, schedules, onChanged, emptyHint }) => {
                 </div>
                 <div className="mt-0.5 text-xs text-neutral-500 flex items-center gap-2 flex-wrap">
                   {fam.card
-                    ? <span>card {fam.card.brand} ····{fam.card.last4}</span>
+                    ? <span>
+                        {fam.card.type === 'us_bank_account' ? 'bank' : 'card'} {fam.card.brand} ····{fam.card.last4}
+                        {fam.card.card_fee && ' · card fee added'}
+                      </span>
                     : <span className={state.tone}>{state.label}</span>}
                   {!fam.card && !!fam.contact && (
                     <><span>·</span><span>goes to {fam.contact.name}</span></>

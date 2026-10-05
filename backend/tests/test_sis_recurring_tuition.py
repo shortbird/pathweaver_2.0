@@ -87,6 +87,19 @@ class TestSchedulingDates:
 
 
 @pytest.mark.unit
+class TestCycleDay:
+    def test_is_the_setup_day(self):
+        assert recurring.cycle_day(date(2026, 10, 17), []) == 17
+
+    @pytest.mark.parametrize('day', [29, 30, 31])
+    def test_late_month_setups_bill_on_the_28th(self, day):
+        assert recurring.cycle_day(date(2026, 10, day), []) == 28
+
+    def test_keeps_a_billed_sibling_s_day(self):
+        assert recurring.cycle_day(date(2026, 10, 17), [{'day_of_month': 1}]) == 1
+
+
+@pytest.mark.unit
 class TestLineDescription:
     def test_names_the_child_the_amount_is_for(self):
         assert recurring.line_description('Robin Bowman', None) == 'Robin Bowman — Monthly tuition'
@@ -185,6 +198,7 @@ class TestChargeDue:
         table.execute.return_value = Mock(data=[])
         with patch.object(recurring, '_admin', return_value=admin), \
              patch.object(recurring, 'fetch_all_rows', return_value=self.ROWS), \
+             patch.object(recurring, 'settle_banks', return_value={'cleared': 0, 'failed': 0}), \
              patch.object(recurring, 'bill_household', side_effect=results) as bill:
             yield bill, table
 
@@ -192,7 +206,8 @@ class TestChargeDue:
         with self._sweep([{'charged': True}, {'charged': True}]) as (bill, _):
             out = recurring.charge_due(today='2026-09-01')
         assert bill.call_count == 2          # two households, three students
-        assert out == {'households': 2, 'charged': 2, 'failed': 0}
+        assert out == {'households': 2, 'charged': 2, 'failed': 0,
+                       'bank_cleared': 0, 'bank_failed': 0}
 
     def test_counts_a_declined_household_as_failed(self):
         with self._sweep([{'charged': True}, {'charged': False}]) as (_, _t):
@@ -219,6 +234,82 @@ class TestChargeDue:
             recurring.charge_due(today='2026-09-01')
         patches = [c.args[0] for c in table.update.call_args_list]
         assert all(p['last_charged_on'] == '2026-09-01' for p in patches)
+
+
+@pytest.mark.unit
+class TestActivateHousehold:
+    """Card setup bills the first month once per cycle, however many times the
+    family finishes setup (the Waite double charge, 2026-09-06)."""
+
+    @contextmanager
+    def _activate(self, rows):
+        admin = Mock()
+        table = Mock()
+        admin.table.return_value = table
+        for chained in ('select', 'eq', 'update'):
+            getattr(table, chained).return_value = table
+        table.execute.return_value = Mock(data=rows)
+        with patch.object(recurring, '_admin', return_value=admin), \
+             patch.object(recurring, 'date') as fake_date, \
+             patch.object(recurring, 'bill_household',
+                          return_value={'invoice': {'id': 'inv'}, 'charged': True}) as bill:
+            fake_date.today.return_value = date(2026, 9, 6)
+            fake_date.side_effect = date
+            fake_date.fromisoformat = date.fromisoformat
+            yield bill, table
+
+    FRESH = {'id': 'r1', 'household_id': 'hh1', 'student_user_id': 's1',
+             'monthly_cents': 50000, 'day_of_month': 1,
+             'next_charge_on': None, 'last_charged_on': None}
+    PAID = {**FRESH, 'id': 'r2', 'student_user_id': 's2',
+            'next_charge_on': '2026-10-01', 'last_charged_on': '2026-09-06'}
+
+    def test_first_setup_bills_the_month(self):
+        with self._activate([self.FRESH]) as (bill, _):
+            out = recurring.activate_household('org-1', 'hh1')
+        assert bill.call_count == 1
+        assert out['charged'] is True
+
+    def test_billing_follows_the_setup_date_not_the_1st(self):
+        # Set up on Sep 6: billed now, then on the 6th of every month.
+        with self._activate([self.FRESH]) as (_, table):
+            recurring.activate_household('org-1', 'hh1')
+        patch_ = table.update.call_args.args[0]
+        assert patch_['day_of_month'] == 6
+        assert patch_['next_charge_on'] == '2026-10-06'
+
+    def test_a_second_child_joins_the_family_s_existing_day(self):
+        with self._activate([self.PAID, self.FRESH]) as (_, table):
+            recurring.activate_household('org-1', 'hh1')
+        patch_ = table.update.call_args.args[0]
+        assert patch_['day_of_month'] == 1          # PAID's day, one invoice a month
+        assert patch_['next_charge_on'] == '2026-10-01'
+
+    def test_a_second_setup_in_the_same_cycle_does_not_charge_again(self):
+        with self._activate([self.PAID]) as (bill, table):
+            out = recurring.activate_household('org-1', 'hh1')
+        bill.assert_not_called()
+        table.update.assert_not_called()
+        assert out == {'activated': 0, 'charged': False, 'reason': 'already_paid'}
+
+    def test_only_the_unpaid_child_is_billed(self):
+        with self._activate([self.PAID, self.FRESH]) as (bill, _):
+            recurring.activate_household('org-1', 'hh1')
+        billed = bill.call_args.args[2]
+        assert [r['id'] for r in billed] == ['r1']
+
+    def test_a_declined_first_charge_is_not_invoiced_twice(self):
+        # Its invoice stands unpaid with a pay link; activation still set
+        # last_charged_on, so a second setup must not add a second invoice.
+        declined = {**self.FRESH, 'next_charge_on': '2026-10-01', 'last_charged_on': '2026-09-06'}
+        with self._activate([declined]) as (bill, _):
+            recurring.activate_household('org-1', 'hh1')
+        bill.assert_not_called()
+
+    def test_a_row_never_billed_is_billed(self):
+        with self._activate([{**self.FRESH, 'next_charge_on': '2026-10-01'}]) as (bill, _):
+            recurring.activate_household('org-1', 'hh1')
+        assert bill.call_count == 1
 
 
 # ── Sending the card-setup link ──────────────────────────────────────────────
@@ -348,6 +439,16 @@ class TestSetupRoutes:
                    return_value={'ready': True}), \
              patch('services.sis_recurring_tuition_service.activate_household',
                    return_value={'activated': 2, 'charged': True}):
+            resp = client.get(f'/api/sis/pay/setup/{self._token()}/return?session_id=cs_1')
+        assert 'autopay=active' in resp.headers['Location']
+
+    def test_a_card_swap_after_paying_reports_active(self, client):
+        with patch('services.sis_recurring_tuition_service.household_org_id',
+                   return_value='org-1'), \
+             patch('services.sis_billing_service.save_card_from_setup_session',
+                   return_value={'ready': True}), \
+             patch('services.sis_recurring_tuition_service.activate_household',
+                   return_value={'activated': 0, 'charged': False, 'reason': 'already_paid'}):
             resp = client.get(f'/api/sis/pay/setup/{self._token()}/return?session_id=cs_1')
         assert 'autopay=active' in resp.headers['Location']
 

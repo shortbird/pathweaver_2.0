@@ -93,3 +93,30 @@ class SisInstallmentRepository(BaseRepository):
 
     def set_amount(self, installment_id: str, amount_cents: int, now: str) -> Dict[str, Any]:
         return self.update(installment_id, {'amount_cents': amount_cents, 'updated_at': now})
+
+
+class SisSavedPaymentMethodRepository(BaseRepository):
+    table_name = 'sis_saved_payment_methods'
+
+    def org_ids_with_method(self, method_type: str,
+                            org_id: Optional[str] = None) -> List[str]:
+        """The orgs with at least one saved method of this type (a bank
+        account, for the bank-payment settle). Grows with families, so every
+        row is read."""
+        def q():
+            query = (self.client.table(self.table_name).select('organization_id')
+                     .eq('method_type', method_type))
+            return query.eq('organization_id', org_id) if org_id else query
+        return sorted({r['organization_id'] for r in fetch_all_rows(q)})
+
+
+class SisBillingAuditRepository(BaseRepository):
+    table_name = 'sis_billing_audit'
+
+    def has_action(self, org_id: str, invoice_id: str, action: str) -> bool:
+        """True when this invoice already has an audit row for `action` (the
+        "once" for a notice the settle must not repeat)."""
+        rows = (self.client.table(self.table_name).select('id')
+                .eq('organization_id', org_id).eq('invoice_id', invoice_id)
+                .eq('action', action).limit(1).execute()).data
+        return bool(rows)

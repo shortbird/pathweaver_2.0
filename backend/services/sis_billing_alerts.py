@@ -63,6 +63,11 @@ def _card_label(card: Optional[Dict[str, Any]]) -> str:
         return 'Card on file'
     brand = (card.get('card_brand') or card.get('brand') or '').strip()
     last4 = (card.get('card_last4') or card.get('last4') or '').strip()
+    if (card.get('method_type') or card.get('type')) == 'us_bank_account':
+        # brand is the bank's name here: "Chase bank account ending 6789".
+        if not last4:
+            return 'Bank account on file'
+        return f'{brand.title()} bank account ending {last4}' if brand else f'Bank account ending {last4}'
     if brand and last4:
         return f'{brand.title()} ending {last4}'
     return f'Card ending {last4}' if last4 else 'Card on file'
@@ -213,8 +218,13 @@ def notify_recurring_card_saved(org_id: str, household_id: str,
             # have to add the schedule or this family never gets billed.
             facts.append(('First charge',
                           'Not billed — no monthly tuition is set up for this family yet'))
+        elif activation.get('charged') and activation.get('pending'):
+            facts.append(('First charge', f"{format_cents(activation.get('amount_cents'))} bank "
+                                          f"payment started — clears in about 4 business days"))
         elif activation.get('charged'):
             facts.append(('First charge', f"{format_cents(activation.get('amount_cents'))} paid"))
+        elif activation.get('reason') == 'already_paid':
+            facts.append(('First charge', 'Already paid this month — card updated, not charged again'))
         elif activation.get('reason') == 'declined':
             facts.append(('First charge', 'Declined — the invoice is unpaid and needs following up'))
         else:

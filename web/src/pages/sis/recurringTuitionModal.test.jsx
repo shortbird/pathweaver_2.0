@@ -98,7 +98,9 @@ describe('RecurringTuitionModal', () => {
     await waitFor(() => expect(api.post).toHaveBeenCalled())
     const [url, body] = api.post.mock.calls[0]
     expect(url).toContain('/api/sis/tuition/recurring')
-    expect(body).toMatchObject({ student_id: 's1', monthly_cents: 50000, day_of_month: 1 })
+    expect(body).toMatchObject({ student_id: 's1', monthly_cents: 50000 })
+    // The billing day comes from the family's setup date, not the form.
+    expect(body).not.toHaveProperty('day_of_month')
     expect(body).not.toHaveProperty('months')
   })
 
@@ -117,11 +119,13 @@ describe('RecurringTuitionModal', () => {
     expect(onAdded).not.toHaveBeenCalled()
   })
 
-  it('rejects a charge day February does not have', async () => {
+  // The office no longer picks a charge day (owner, 2026-10-05): the family's
+  // setup date is the billing day, and the backend caps it at the 28th.
+  it('says the charge day comes from the family setup', async () => {
     open()
     await screen.findByPlaceholderText('Search students…')
-    const day = screen.getByDisplayValue('1')
-    expect(day).toHaveAttribute('max', '28')
+    expect(screen.queryByRole('spinbutton')).toBeNull()
+    expect(screen.getByText(/day the family sets up payment/)).toBeInTheDocument()
   })
 
   // A student already scheduled must not be offered again — the add form's own
