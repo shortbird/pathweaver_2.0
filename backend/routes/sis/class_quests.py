@@ -324,7 +324,7 @@ def list_class_quests(user_id, class_id):
             .select('id, quest_id, sequence_order, publish_at, due_date, student_ids, '
                     'quests(id, title, description, quest_type, is_active, '
                     'organization_id, xp_threshold, allow_custom_tasks, '
-                    'teachers_may_change_xp, created_by)')
+                    'teachers_may_change_xp, created_by, metadata)')
             .eq('class_id', class_row['id']).order('sequence_order').execute()).data or []
     quest_ids = [r['quest_id'] for r in rows]
     counts = _template_task_count(admin, quest_ids)
@@ -339,11 +339,19 @@ def list_class_quests(user_id, class_id):
         {'quest_id': r['quest_id'], 'organization_id': (r.get('quests') or {}).get('organization_id'),
          'created_by': (r.get('quests') or {}).get('created_by')} for r in rows])
     names = {s['student_id']: s['name'] for s in roster}
+    # The curriculum heading each quest sits under, and the original a
+    # teacher's copy can replace (1a630837, 987218e0).
+    from services.class_curriculum_assign import curriculum_by_quest
+    from services.class_quest_replace import replaceable_originals
+    groups = curriculum_by_quest(admin, class_row['id'])
+    originals = replaceable_originals(rows)
     out = []
     for r in rows:
         q = r.get('quests') or {}
         out.append({
             'quest_id': r['quest_id'],
+            **(groups.get(r['quest_id']) or {'curriculum_id': None, 'curriculum_title': None}),
+            'replaces_quest_id': originals.get(r['quest_id']),
             'title': q.get('title'),
             # A student wrote this for the class (services/student_class_quests):
             # the teacher is shown their work, not an editor or an audience.
@@ -681,10 +689,13 @@ def class_curriculum_quests(user_id, class_id):
 @bp.route('/classes/<class_id>/quests/from-curriculum', methods=['POST'])
 @require_auth
 def copy_quests_from_curriculum(user_id, class_id):
-    """Seed this class from a linked curriculum's saved quest set.
+    """Seed this class from a linked curriculum's saved quest set, for the
+    whole class or, with {"student_ids": [...]}, for chosen students (iCreate,
+    1a630837: give "Applied Physics" to the students taking it).
 
-    Additive and idempotent: quests already on the class are left exactly as they
-    are, dates and all. Running it twice does nothing the second time.
+    Additive and idempotent: dates on quests already on the class never change,
+    and nobody loses a quest. How the audience merges with a quest already on
+    the class is in services/class_curriculum_assign.
     """
     class_row, admin, err = _authorize(user_id, class_id)
     if err:
@@ -698,32 +709,17 @@ def copy_quests_from_curriculum(user_id, class_id):
     if curriculum_id not in {c['id'] for c in _linked_curricula(admin, class_id)}:
         return jsonify({'success': False,
                         'error': 'That curriculum is not attached to this class.'}), 404
-
-    saved = (admin.table('sis_curriculum_quests').select('quest_id, sequence_order')
-             .eq('curriculum_id', curriculum_id).order('sequence_order').execute()).data or []
-    wanted = _assignable(admin, [r['quest_id'] for r in saved],
-                         class_row['organization_id'])
-    existing = (admin.table('class_quests').select('quest_id, sequence_order')
-                .eq('class_id', class_row['id']).execute()).data or []
-    have = {r['quest_id'] for r in existing}
-    next_order = max([r.get('sequence_order') or 0 for r in existing], default=-1) + 1
-
-    rows = []
-    for qid in wanted:
-        if qid in have:
-            continue
-        rows.append({'class_id': class_row['id'], 'quest_id': qid,
-                     'added_by': user_id, 'sequence_order': next_order})
-        next_order += 1
-    if rows:
-        admin.table('class_quests').upsert(
-            rows, on_conflict='class_id,quest_id').execute()
-    enrolled = enroll_safe(enroll_class_in_quests, admin, class_row['id'],
-                           [r['quest_id'] for r in rows])
-    return jsonify({'success': True, 'added': len(rows),
-                    'skipped_already_present': len(wanted) - len(rows),
-                    'skipped_unavailable': len(saved) - len(wanted),
-                    'students_enrolled': enrolled['enrolled']})
+    roster = active_student_ids(admin, class_row['id'])
+    student_ids, err = _student_ids_or_error(data, roster)
+    if err:
+        return err
+    if student_ids is not None and not student_ids:
+        return jsonify({'success': False,
+                        'error': 'Pick at least one student on this class.'}), 400
+    from services.class_curriculum_assign import assign_curriculum
+    out = assign_curriculum(admin, class_row=class_row, curriculum_id=curriculum_id,
+                            user_id=user_id, student_ids=student_ids, roster=roster)
+    return jsonify({'success': True, **out})
 
 
 @bp.route('/classes/<class_id>/quests/to-curriculum', methods=['POST'])
@@ -903,14 +899,28 @@ def publish_class_quest(user_id, class_id, quest_id):
     row, err = _assignment_fields(admin, class_row, data)
     if err:
         return err
+    # A teacher's copy may take its original's place on this class
+    # (987218e0): services/class_quest_replace, after the attach step.
+    from services import class_quest_replace as swap
+    original = swap.copied_from(quest)
+    if data.get('replace_original') and not (
+            original and ClassQuestAudienceRepository(admin).link(class_row['id'], original)):
+        return jsonify({'success': False, 'error': 'The original is no longer on this class.'}), 404
     try:
         publish_draft(admin, quest)
     except QuestAuthoringError as e:
         return jsonify({'success': False, 'error': e.message}), e.status
+    swap.record_copied_from(admin, quest_id, original)
     enrolled = _put_on_class(admin, class_row, quest_id, user_id, row)
+    try:
+        replaced = swap.replace_original(admin, class_row=class_row, copy_quest=quest) \
+            if data.get('replace_original') else None
+    except swap.ReplaceError as e:  # the copy is published; only the swap failed
+        return jsonify({'success': False, 'error': e.message}), e.status
     return jsonify({'success': True, 'quest_id': quest_id,
                     'students_enrolled': enrolled['enrolled'],
-                    'publish_at': row.get('publish_at')})
+                    'publish_at': row.get('publish_at'), 'replaced': replaced,
+                    'summary': swap.summary(replaced) if replaced else None})
 
 
 # ── Preset (template) tasks on an assigned, org-owned quest ────────────────────

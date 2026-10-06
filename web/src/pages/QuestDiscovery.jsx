@@ -255,7 +255,12 @@ const QuestDiscovery = () => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3">
           {/* Row 1: title + search + count + actions */}
           <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-            <h1 className="text-2xl font-bold text-gray-900 whitespace-nowrap">Quests</h1>
+            {/* "Are these free or do students pay?" (ticket 718e5b4f): nothing
+                on the page said, and a parent would not start one to find out. */}
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900 whitespace-nowrap">Quests</h1>
+              <p className="text-sm text-gray-500">Every quest here is free to start.</p>
+            </div>
 
             <div className="relative flex-1 min-w-[180px] max-w-xl">
               <MagnifyingGlassIcon className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />

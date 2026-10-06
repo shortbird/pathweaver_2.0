@@ -243,8 +243,11 @@ class TestWhoMayCopy:
     def test_the_editor_payload_hands_the_publish_form_its_audience(self):
         out, _, db, _ = _call(TEACHER)
         new = next(q for q in db['quests'] if q['id'] == out['quest_id'])
+        # copied_from added 2026-10-06 (987218e0): the editor offers to
+        # replace the original on the class when it publishes the copy.
         assert draft_info(new) == {'context': 'class', 'target_id': CLASS,
-                                   'class_settings': {'student_ids': [S1]}}
+                                   'class_settings': {'student_ids': [S1]},
+                                   'copied_from': QUEST}
 
     def test_the_copy_is_editable_by_the_teacher_who_made_it(self):
         """Marika (167ba6df): "save it as their own Teacher created ones"."""

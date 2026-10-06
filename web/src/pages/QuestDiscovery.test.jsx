@@ -117,6 +117,12 @@ describe('QuestDiscovery', () => {
       expect(screen.getByRole('heading', { name: 'Quests', level: 1 })).toBeInTheDocument()
     })
 
+    // Ticket 718e5b4f: "are these free or do students pay?"
+    it('says every quest is free to start (ticket 718e5b4f)', () => {
+      renderQuestDiscovery()
+      expect(screen.getByText('Every quest here is free to start.')).toBeInTheDocument()
+    })
+
     it('renders search input', () => {
       renderQuestDiscovery()
       expect(screen.getByPlaceholderText('Search quests...')).toBeInTheDocument()

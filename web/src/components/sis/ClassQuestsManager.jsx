@@ -12,6 +12,9 @@ import { useConfirm } from '../../contexts/ConfirmContext'
 import { useRefreshAfterQuestEdit } from '../../hooks/api/useQuestEditor'
 import { INPUT_CLASS, INLINE_INPUT_CLASS } from '../ui/Input'
 import PopMenu from './ui/PopMenu'
+import CurriculumCard from './classQuests/CurriculumCard'
+import { groupByCurriculum } from './classQuests/groupByCurriculum'
+import { REPLACE_COPY } from './classQuests/replaceOriginal'
 
 /**
  * ClassQuestsManager — the teacher's Quests tab for one SIS class.
@@ -131,16 +134,21 @@ export default function ClassQuestsManager({ classId, orgId = null, scheduledEna
     return () => clearTimeout(t)
   }, [mode, search, loadAvailable])
 
-  // Seed this section from a curriculum's saved set. Additive — quests already
-  // here keep their dates.
-  const copyFromCurriculum = async (c) => {
+  // Seed this section from a curriculum's saved set, for everyone or for the
+  // students picked on the card (studentIds null = everyone; 1a630837).
+  // Additive — quests already here keep their dates and their students.
+  const copyFromCurriculum = async (c, studentIds = null) => {
     setSyncing(c.curriculum_id)
     try {
-      const { data } = await api.post(`/api/sis/classes/${classId}/quests/from-curriculum`,
-        { curriculum_id: c.curriculum_id })
+      const body = { curriculum_id: c.curriculum_id }
+      if (Array.isArray(studentIds)) body.student_ids = studentIds
+      const { data } = await api.post(`/api/sis/classes/${classId}/quests/from-curriculum`, body)
       const n = data?.added || 0
-      toast.success(n ? `Added ${n} quest${n === 1 ? '' : 's'} from ${c.title}`
-        : 'Everything from that curriculum is already on this class')
+      const w = data?.widened || 0
+      toast.success(n || w
+        ? [n ? `Added ${n} quest${n === 1 ? '' : 's'} from ${c.title}` : '',
+          w ? `gave ${w} more to the students you picked` : ''].filter(Boolean).join('; ')
+        : 'Everything from that curriculum is already on this class for them')
       if (data?.skipped_unavailable) {
         toast(`${data.skipped_unavailable} saved quest${data.skipped_unavailable === 1 ? ' is' : 's are'} no longer available`)
       }
@@ -374,7 +382,7 @@ export default function ClassQuestsManager({ classId, orgId = null, scheduledEna
     if (!(await confirm(
       `Make your own copy of "${q.title}"?\n\n`
       + 'The copy is yours to change. It starts as a draft: students get it only when you publish it. '
-      + 'The original stays on the class as it is.'
+      + 'The original stays on the class as it is. When you publish the copy, you can have it replace the original on this class.'
     ))) return
     setCopying(q.quest_id)
     try {
@@ -386,6 +394,21 @@ export default function ClassQuestsManager({ classId, orgId = null, scheduledEna
       toast.error(err?.response?.data?.error || 'Could not copy the quest')
     } finally {
       setCopying(null)
+    }
+  }
+
+  // The teacher's copy takes its original's place on THIS class (987218e0).
+  // The copy had gone on the class beside the original, so students got both.
+  const replaceOriginal = async (q) => {
+    const original = quests.find((x) => x.quest_id === q.replaces_quest_id)
+    if (!(await confirm(
+      `Replace "${original?.title || 'the original'}" with "${q.title}" on this class?\n\n${REPLACE_COPY}`))) return
+    try {
+      const { data } = await api.post(`/api/sis/classes/${classId}/quests/${q.quest_id}/replace-original`, {})
+      toast.success(data?.summary || 'Replaced the original on this class')
+      await load()
+    } catch (err) {
+      toast.error(err?.response?.data?.error || 'Could not replace the original')
     }
   }
 
@@ -431,6 +454,7 @@ export default function ClassQuestsManager({ classId, orgId = null, scheduledEna
         <QuestEditor key={editing.questId || 'new'} context="class" orgId={orgId} classId={classId}
           questId={editing.questId || null}
           classLink={editing.link || null} students={students} scheduledEnabled={scheduledEnabled}
+          classQuests={quests}
           onMakeCopy={editing.link && !editing.link.can_edit && !editing.link.made_by
             ? () => { const src = editing.link; setEditing(null); copyQuest(src) } : null}
           onDone={() => { refreshDrafts(); load() }}
@@ -446,38 +470,9 @@ export default function ClassQuestsManager({ classId, orgId = null, scheduledEna
           attached — the point is to make the reusable set obvious where the
           teacher is already working, not to add a permanent empty panel. */}
       {curricula.map((c) => (
-        <div key={c.curriculum_id}
-          className="rounded-xl border border-optio-purple/20 bg-optio-purple/5 p-4 flex flex-wrap items-center gap-x-3 gap-y-2">
-          <AcademicCapIcon className="w-5 h-5 text-optio-purple shrink-0" />
-          <div className="min-w-0 flex-1">
-            <p className="text-sm font-medium text-neutral-900 truncate">{c.title}</p>
-            <p className="text-xs text-neutral-500">
-              {c.quests.length === 0
-                ? 'No quests saved to this curriculum yet — save this class\u2019s list to reuse it next year.'
-                : c.missing_count > 0
-                  ? `${c.missing_count} of ${c.quests.length} saved quest${c.quests.length === 1 ? '' : 's'} not on this class yet`
-                  : `All ${c.quests.length} saved quest${c.quests.length === 1 ? '' : 's'} are on this class`}
-            </p>
-          </div>
-          {c.missing_count > 0 && (
-            <button type="button" disabled={syncing === c.curriculum_id}
-              onClick={() => copyFromCurriculum(c)}
-              className="shrink-0 px-3 py-1.5 rounded-lg bg-white border border-optio-purple/40 text-sm font-medium text-optio-purple hover:bg-optio-purple/10 disabled:opacity-50">
-              {syncing === c.curriculum_id ? 'Adding\u2026' : `Add ${c.missing_count} to this class`}
-            </button>
-          )}
-          {/* Office only: it replaces the curriculum's saved set for every
-              class that uses it. iCreate, 93af5014: "I don't think we want
-              the 'Save this class's quests to the curriculum.'" */}
-          {canSaveToCurriculum && quests.length > 0 && (
-            <button type="button" disabled={syncing === c.curriculum_id}
-              onClick={() => saveToCurriculum(c)}
-              title="Replaces the curriculum's saved set with this class's quests"
-              className="shrink-0 text-sm font-medium text-optio-purple hover:underline disabled:opacity-50">
-              {syncing === c.curriculum_id ? '\u2026' : 'Save this class\u2019s quests to the curriculum'}
-            </button>
-          )}
-        </div>
+        <CurriculumCard key={c.curriculum_id} curriculum={c} students={students}
+          busy={syncing === c.curriculum_id} onAdd={copyFromCurriculum}
+          canSave={canSaveToCurriculum && quests.length > 0} onSave={saveToCurriculum} />
       ))}
 
       {/* Assign panel */}
@@ -581,7 +576,7 @@ export default function ClassQuestsManager({ classId, orgId = null, scheduledEna
         </div>
       ) : (
         <ul className="space-y-2">
-          {quests.map((q) => {
+          {groupByCurriculum(quests, curricula).map(({ quest: q, heading }) => {
             const open = expanded === q.quest_id
             const scheduled = scheduledEnabled && isFuture(q.publish_at)
             const dueDraft = dueDrafts[q.quest_id] ?? isoToDateInput(q.due_date)
@@ -614,7 +609,12 @@ export default function ClassQuestsManager({ classId, orgId = null, scheduledEna
               q.xp_threshold ? <span key="xp">{q.xp_threshold} XP to finish</span> : null,
             ].filter(Boolean)
             return (
-              <li key={q.quest_id} className="bg-white rounded-xl border border-gray-200 shadow-sm">
+              <React.Fragment key={q.quest_id}>
+              {/* Grouped under the curriculum each quest came from (1a630837). */}
+              {heading && (
+                <li className="pt-2 text-xs font-semibold uppercase tracking-wide text-neutral-500">{heading}</li>
+              )}
+              <li className="bg-white rounded-xl border border-gray-200 shadow-sm">
                 <div className="flex flex-wrap items-center gap-x-3 gap-y-2 p-4">
                   <button type="button" onClick={() => setExpanded(open ? null : q.quest_id)}
                     aria-expanded={open}
@@ -670,6 +670,14 @@ export default function ClassQuestsManager({ classId, orgId = null, scheduledEna
                         className="block w-full text-left px-4 py-2 text-sm text-neutral-700 hover:bg-neutral-50">
                         Unassign
                       </button>
+                      {q.replaces_quest_id && (
+                        <button type="button" role="menuitem"
+                          onClick={() => { setMenuFor(null); replaceOriginal(q) }}
+                          title={REPLACE_COPY}
+                          className="block w-full text-left px-4 py-2 text-sm text-neutral-700 hover:bg-neutral-50">
+                          Replace the original on this class
+                        </button>
+                      )}
                       {/* Only a quest the caller may change can be deleted: the
                           office's, or one this teacher wrote. Library quests are
                           shared with other schools. */}
@@ -830,6 +838,7 @@ export default function ClassQuestsManager({ classId, orgId = null, scheduledEna
                   </div>
                 )}
               </li>
+              </React.Fragment>
             )
           })}
         </ul>

@@ -15,6 +15,7 @@ import WeeklyXpGoalCard from '../components/overview/WeeklyXpGoalCard'
 import { PageLoader } from '../components/ui/Spinner'
 import CreateQuestModal from '../components/CreateQuestModal'
 import useHidePillars from '../hooks/useHidePillars'
+import { groupQuests } from '../components/overview/snapshotQuestGroups'
 import {
   RocketLaunchIcon,
   CheckCircleIcon,
@@ -217,43 +218,70 @@ const ActiveQuests = memo(({ activeQuests, enrolledCourses, completedQuestsCount
     )
   }
 
+  // Grouped by the class each quest came through (ticket a4c5d2e2), the same
+  // groups the Learning Snapshot draws (snapshotQuestGroups.groupQuests). A
+  // student with no class quests sees the flat grid as before: one heading
+  // reading "Personal" over everything says nothing.
+  const groups = groupQuests(allQuests, 'recent')
+  const headed = groups.some((g) => !g.personal)
+  const grid = 'grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6'
+
+  const renderQuest = (quest) => {
+    const questData = quest.quests || quest;
+    const completedTasks = quest.tasks_completed || quest.completed_tasks || 0;
+    const totalTasks = questData.task_count || questData.total_tasks || 1;
+
+    const transformedQuest = {
+      id: quest.quest_id || quest.id,
+      title: questData.title,
+      description: questData.description || questData.big_idea,
+      image_url: questData.image_url,
+      header_image_url: questData.header_image_url,
+      metadata: questData.metadata,
+      user_enrollment: true,
+      completed_enrollment: quest.status === 'completed' || (!quest.is_active && quest.completed_at),
+      progress: {
+        completed_tasks: completedTasks,
+        total_tasks: totalTasks,
+        percentage: totalTasks > 0
+          ? Math.round((completedTasks / totalTasks) * 100)
+          : 0
+      },
+      quest_tasks: questData.quest_tasks || [],
+      // Set by a class, and when it is due. Null for a quest the student
+      // picked themselves. Lives on the enrollment, not the quest: the same
+      // quest is schoolwork for one student and a free choice for another.
+      class_assignment: quest.class_assignment || null
+    };
+    return <QuestCardSimple key={transformedQuest.id} quest={transformedQuest} />;
+  }
+
+  const courseCards = allCourses.map(course => (
+    <CourseCardWithQuests key={`course-${course.id}`} course={course} />
+  ))
+
+  if (!headed) {
+    return (
+      <div className={grid}>
+        {/* Enrolled courses first, then standalone quests */}
+        {courseCards}
+        {allQuests.map(renderQuest)}
+      </div>
+    )
+  }
+
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6">
-      {/* Render enrolled courses first */}
-      {allCourses.map(course => (
-        <CourseCardWithQuests key={`course-${course.id}`} course={course} />
+    <div className="space-y-6">
+      {courseCards.length > 0 && <div className={grid}>{courseCards}</div>}
+      {groups.map((g) => (
+        <section key={g.key} aria-label={g.label}>
+          <h3 className="text-sm font-semibold text-gray-700 mb-3">
+            {g.label}
+            {g.former && <span className="font-normal text-gray-500"> · no longer in this class</span>}
+          </h3>
+          <div className={grid}>{g.quests.map(renderQuest)}</div>
+        </section>
       ))}
-
-      {/* Then render standalone quests */}
-      {allQuests.map(quest => {
-        const questData = quest.quests || quest;
-        const completedTasks = quest.tasks_completed || quest.completed_tasks || 0;
-        const totalTasks = questData.task_count || questData.total_tasks || 1;
-
-        const transformedQuest = {
-          id: quest.quest_id || quest.id,
-          title: questData.title,
-          description: questData.description || questData.big_idea,
-          image_url: questData.image_url,
-          header_image_url: questData.header_image_url,
-          metadata: questData.metadata,
-          user_enrollment: true,
-          completed_enrollment: quest.status === 'completed' || (!quest.is_active && quest.completed_at),
-          progress: {
-            completed_tasks: completedTasks,
-            total_tasks: totalTasks,
-            percentage: totalTasks > 0
-              ? Math.round((completedTasks / totalTasks) * 100)
-              : 0
-          },
-          quest_tasks: questData.quest_tasks || [],
-          // Set by a class, and when it is due. Null for a quest the student
-          // picked themselves. Lives on the enrollment, not the quest: the same
-          // quest is schoolwork for one student and a free choice for another.
-          class_assignment: quest.class_assignment || null
-        };
-        return <QuestCardSimple key={transformedQuest.id} quest={transformedQuest} />;
-      })}
     </div>
   )
 })

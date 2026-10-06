@@ -37,7 +37,7 @@ import { assignedMessage } from '../../pages/sis/trainingCopy'
  * are not a quest being written: attaching one that exists, and a link.
  */
 
-export default function TrainingForm({ orgId, audience, onAdded, onCancel, orgLogo = null, editItem = null }) {
+export default function TrainingForm({ orgId, audience, onAdded, onCancel, orgLogo = null, editItem = null, categories = [] }) {
   const editingLink = editItem?.kind === 'link'
   const editingQuest = !!editItem && !editingLink
   const [options, setOptions] = useState([])
@@ -130,6 +130,7 @@ export default function TrainingForm({ orgId, audience, onAdded, onCancel, orgLo
   if (editingQuest || tab === 'new') {
     return (
       <QuestEditor context="training" orgId={orgId} audience={audience} orgLogo={orgLogo}
+        trainingCategories={categories}
         questId={editingQuest ? editItem.quest_id : null}
         trainingId={editingQuest ? editItem.id : null}
         onDone={() => onAdded()}
@@ -204,7 +205,7 @@ export default function TrainingForm({ orgId, audience, onAdded, onCancel, orgLo
       )}
 
       <TrainingSettingsFields value={settings} onChange={patchSettings} audience={audience}
-        orgId={orgId} isLink={isLink} />
+        orgId={orgId} isLink={isLink} categories={categories} />
 
       <div className="flex justify-end gap-2">
         <button onClick={onCancel} className="px-3 py-1.5 rounded-lg text-sm text-neutral-600 hover:bg-gray-100">Cancel</button>

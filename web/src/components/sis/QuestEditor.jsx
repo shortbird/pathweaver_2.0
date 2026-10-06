@@ -15,6 +15,7 @@ import TrainingSettingsFields, {
   blankTrainingSettings, trainingSettingsBody, trainingSettingsFrom,
 } from './TrainingSettingsFields'
 import { useConfirm } from '../../contexts/ConfirmContext'
+import { REPLACE_COPY } from './classQuests/replaceOriginal'
 import { questEditorApi } from '../../hooks/api/useQuestEditor'
 
 /**
@@ -73,6 +74,9 @@ export default function QuestEditor({
   classId = null, curriculumId = null, trainingId: initialTrainingId = null, audience = 'staff',
   classLink = null, students = [], scheduledEnabled = false,
   curricula = [], orgLogo = null,
+  // The categories already filed on the training tab, offered as a pick
+  // list in the training section (ticket 79e58519).
+  trainingCategories = [],
   // Whether anybody is on this quest yet (a class, a curriculum, a learner).
   // The caller knows; the warning that an edit reaches them is only worth
   // showing when it does.
@@ -80,6 +84,9 @@ export default function QuestEditor({
   // Read-only on a class: "Make my own copy" (iCreate, 2026-10-01, 167ba6df).
   // The caller copies the quest onto the class and opens the copy.
   onMakeCopy = null,
+  // The class's quests ({quest_id, title}), so a teacher's copy can offer to
+  // replace its original on the class when it is published (987218e0).
+  classQuests = [],
   onClose, onDone,
 }) {
   const confirm = useConfirm()
@@ -171,6 +178,9 @@ export default function QuestEditor({
 
   const editable = !!quest?.editable
   const isDraft = !!quest?.is_draft
+  const originalOnClass = context === 'class' && quest?.draft?.copied_from
+    ? classQuests.find((q) => q.quest_id === quest.draft.copied_from) || null : null
+  const [replacing, setReplacing] = useState(false)
 
   // Each task's due date on THIS class (iCreate, ticket 26c91e25: "different
   // due dates for each week's reading assignment"). Only for a quest already
@@ -308,11 +318,12 @@ export default function QuestEditor({
         if (classSettings.due) body.due_date = dueInputToIso(classSettings.due)
         if (scheduledEnabled && classSettings.release) body.publish_at = releaseInputToIso(classSettings.release)
         if (Array.isArray(classSettings.studentIds)) body.student_ids = classSettings.studentIds
+        if (replacing && originalOnClass) body.replace_original = true
       }
       if (context === 'training') await saveContextSection()
       const out = await questEditorApi.publish(orgId, questId, context,
         { classId, curriculumId, trainingId, body })
-      toast.success(publishedMessage(context, out, body))
+      toast.success(out?.summary || publishedMessage(context, out, body))
       onDone?.({ published: true })
       onClose?.()
     } catch (err) {
@@ -563,6 +574,18 @@ export default function QuestEditor({
               <ClassSettingsSection value={classSettings} students={students}
                 scheduledEnabled={scheduledEnabled}
                 onChange={(patch) => { setDirty(true); setClassSettings((s) => ({ ...s, ...patch })) }} />
+              {/* A teacher's copy of a quest still on the class: put it in the
+                  original's place instead of beside it (987218e0). */}
+              {isDraft && originalOnClass && (
+                <label className="mt-3 flex items-start gap-2 text-sm text-neutral-800">
+                  <input type="checkbox" checked={replacing} onChange={(e) => setReplacing(e.target.checked)}
+                    className="mt-0.5 rounded border-gray-300 text-optio-purple focus:ring-optio-purple" />
+                  <span>
+                    Replace the original on this class (“{originalOnClass.title}”)
+                    <span className="block text-xs text-neutral-500">{REPLACE_COPY}</span>
+                  </span>
+                </label>
+              )}
             </section>
           )}
 
@@ -570,6 +593,7 @@ export default function QuestEditor({
             <section className="border-t border-gray-100 pt-4">
               <h3 className="text-sm font-semibold text-neutral-900 mb-2">In training</h3>
               <TrainingSettingsFields value={training} audience={audience} orgId={orgId}
+                categories={trainingCategories}
                 onChange={(patch) => { setDirty(true); setTraining((s) => ({ ...s, ...patch })) }} />
             </section>
           )}

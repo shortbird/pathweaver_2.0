@@ -704,3 +704,31 @@ def copy_class_quest(user_id, class_id, quest_id):
     except QuestAuthoringError as e:
         return jsonify({'success': False, 'error': e.message}), e.status
     return jsonify({'success': True, **out}), 201
+
+
+@bp.route('/classes/<class_id>/quests/<quest_id>/replace-original', methods=['POST'])
+@require_auth
+def replace_original_with_copy(user_id, class_id, quest_id):
+    """The teacher's copy (quest_id, already on this class) takes its
+    original's place on THIS class. Ticket 987218e0: the copy went on the class
+    beside the original, so students got both.
+
+    Same gate as every class-quest change (the class's moderator). Students who
+    already started the original keep it; see services/class_quest_replace.
+    The publish route does the same swap when its body says replace_original.
+    """
+    class_row, admin, err = _authorize(user_id, class_id)
+    if err:
+        return err
+    if _bad_uuid(quest_id):
+        return jsonify({'success': False, 'error': 'Invalid quest id'}), 400
+    from repositories.quest_editor_repository import QuestEditorRepository
+    from services import class_quest_replace as swap
+    copy_quest = QuestEditorRepository(client=admin).get_quest(quest_id)
+    if not copy_quest:
+        return jsonify({'success': False, 'error': 'Quest not found'}), 404
+    try:
+        out = swap.replace_original(admin, class_row=class_row, copy_quest=copy_quest)
+    except swap.ReplaceError as e:
+        return jsonify({'success': False, 'error': e.message}), e.status
+    return jsonify({'success': True, 'summary': swap.summary(out), **out})

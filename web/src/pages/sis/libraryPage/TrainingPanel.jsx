@@ -193,6 +193,10 @@ const TrainingPanel = () => {
       return acc
     }, {}), [ordered, matches])
   const anyMatch = Object.keys(grouped).length > 0
+  // What the add and edit forms offer as a pick list (ticket 79e58519): the
+  // categories this tab already files under, so a new item joins a heading
+  // rather than starting "Onboarding " beside "Onboarding".
+  const categories = useMemo(() => training.map((t) => t.category), [training])
 
 
   const done = (t) => (t.kind === 'link' ? !!t.my_done : !!t.my_progress?.completed)
@@ -223,6 +227,13 @@ const TrainingPanel = () => {
             </button>
           ))}
         </div>
+      )}
+
+      {/* Where the other side is. Admins set family training here and then
+          could not tell a parent where to find it (ticket 7aab5d3e): it is the
+          To do tab of School on the web platform (/family/forms). */}
+      {admin && audience === 'family' && (
+        <p className="text-sm text-neutral-500 -mt-2 mb-4">Families find these under School &gt; To do.</p>
       )}
 
       {mine.requiredTotal > 0 && (
@@ -259,11 +270,11 @@ const TrainingPanel = () => {
         </div>
       )}
 
-      {adding && <TrainingForm orgId={orgId} audience={audience} orgLogo={orgLogo}
+      {adding && <TrainingForm orgId={orgId} audience={audience} orgLogo={orgLogo} categories={categories}
         onAdded={() => { setAdding(false); load() }} onCancel={() => setAdding(false)} />}
 
       {editing && <TrainingForm key={`${editing.kind}-${editing.id}`} orgId={orgId} audience={audience}
-        orgLogo={orgLogo} editItem={editing}
+        orgLogo={orgLogo} editItem={editing} categories={categories}
         onAdded={() => { setEditing(null); load() }} onCancel={() => setEditing(null)} />}
 
       {!loading && training.length > 0 && (

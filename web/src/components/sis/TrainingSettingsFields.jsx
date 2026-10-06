@@ -1,7 +1,7 @@
 import React from 'react'
 import SearchSelect from '../ui/SearchSelect'
-import { Input } from '../ui/Input'
 import { useSisStaff } from '../../hooks/api/useSisStaff'
+import CategoryInput from './CategoryInput'
 
 /**
  * Where a training goes and how it is filed: category, required, "put it on
@@ -57,7 +57,9 @@ export const trainingSettingsBody = (s) => ({
   student_max_age: s.targets.includes('student') && s.maxAge !== '' ? Number(s.maxAge) : null,
 })
 
-export default function TrainingSettingsFields({ value, onChange, audience, orgId, isLink = false }) {
+// `categories` is every category already filed on this tab, offered as a
+// pick list (ticket 79e58519); typing a new one still works.
+export default function TrainingSettingsFields({ value, onChange, audience, orgId, isLink = false, categories = [] }) {
   const { category, required, autoAssign, targets, minAge, maxAge, roles, people } = value
   // Who a training can be aimed at by name. Admin-only screens, so this read
   // never runs for a teacher (who would 403 on it).
@@ -71,7 +73,8 @@ export default function TrainingSettingsFields({ value, onChange, audience, orgI
 
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-      <Input value={category} onChange={(e) => onChange({ category: e.target.value })} className="text-sm"
+      <CategoryInput value={category} onChange={(e) => onChange({ category: e.target.value })}
+        categories={categories}
         placeholder="Category (e.g. Onboarding, Classroom management)" aria-label="Category" />
       <label className="flex items-center gap-2 text-sm text-neutral-700">
         <input type="checkbox" checked={required} onChange={(e) => onChange({ required: e.target.checked })} />

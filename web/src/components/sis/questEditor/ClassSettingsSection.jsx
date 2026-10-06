@@ -44,14 +44,54 @@ export const classSettingsFrom = (link) => ({
   studentIds: link?.student_ids ?? null,
 })
 
-export default function ClassSettingsSection({ value, onChange, students = [], scheduledEnabled = false }) {
-  const everyone = value.studentIds === null || value.studentIds === undefined
-  const picked = everyone ? students.map((s) => s.student_id) : value.studentIds
+/**
+ * Who gets a quest on a class: a checkbox per student and an Everyone switch.
+ * value null is everyone on the class (and anyone who joins); a list is those
+ * students. Picking every student hands back null, so the choice keeps
+ * reaching students who join later. Shared by the quest editor's class
+ * section and a curriculum card's "Who gets it" (1a630837), which gives a
+ * whole curriculum to chosen students.
+ */
+export function AudiencePicker({ value, onChange, students = [], label = 'Who gets this quest' }) {
+  const everyone = value === null || value === undefined
+  const picked = everyone ? students.map((s) => s.student_id) : value
   const toggle = (id) => {
     const next = picked.includes(id) ? picked.filter((x) => x !== id) : [...picked, id]
     const all = students.every((s) => next.includes(s.student_id))
-    onChange({ studentIds: all ? null : next })
+    onChange(all ? null : next)
   }
+  return (
+    <div role="group" aria-label={label}>
+      <p className="text-xs font-medium text-neutral-600 mb-1">{label}</p>
+      {students.length === 0 ? (
+        <p className="text-xs text-neutral-400">Everyone on the class, and anyone who joins.</p>
+      ) : (
+        <>
+          <div className="flex flex-wrap gap-x-4 gap-y-1.5">
+            {students.map((s) => (
+              <label key={s.student_id} className="inline-flex items-center gap-1.5 text-sm text-neutral-800">
+                <input type="checkbox" checked={picked.includes(s.student_id)}
+                  onChange={() => toggle(s.student_id)}
+                  className="rounded border-gray-300 text-optio-purple focus:ring-optio-purple" />
+                {s.name}
+              </label>
+            ))}
+          </div>
+          <div className="mt-1.5 flex items-center gap-3 text-xs">
+            <button type="button" onClick={() => onChange(null)}
+              className="text-optio-purple hover:underline">Everyone</button>
+            <span className="text-neutral-400">
+              {everyone ? `Everyone (${students.length}), and anyone who joins`
+                : `${picked.length} of ${students.length} students`}
+            </span>
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
+export default function ClassSettingsSection({ value, onChange, students = [], scheduledEnabled = false }) {
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center gap-4">
@@ -76,33 +116,8 @@ export default function ClassSettingsSection({ value, onChange, students = [], s
           ? 'Students will not see the quest until the release date. You will.'
           : 'Both are optional. A due date marks the quest overdue; it does not lock it.'}
       </p>
-      <div role="group" aria-label="Who gets this quest">
-        <p className="text-xs font-medium text-neutral-600 mb-1">Who gets this quest</p>
-        {students.length === 0 ? (
-          <p className="text-xs text-neutral-400">Everyone on the class, and anyone who joins.</p>
-        ) : (
-          <>
-            <div className="flex flex-wrap gap-x-4 gap-y-1.5">
-              {students.map((s) => (
-                <label key={s.student_id} className="inline-flex items-center gap-1.5 text-sm text-neutral-800">
-                  <input type="checkbox" checked={picked.includes(s.student_id)}
-                    onChange={() => toggle(s.student_id)}
-                    className="rounded border-gray-300 text-optio-purple focus:ring-optio-purple" />
-                  {s.name}
-                </label>
-              ))}
-            </div>
-            <div className="mt-1.5 flex items-center gap-3 text-xs">
-              <button type="button" onClick={() => onChange({ studentIds: null })}
-                className="text-optio-purple hover:underline">Everyone</button>
-              <span className="text-neutral-400">
-                {everyone ? `Everyone (${students.length}), and anyone who joins`
-                  : `${picked.length} of ${students.length} students`}
-              </span>
-            </div>
-          </>
-        )}
-      </div>
+      <AudiencePicker value={value.studentIds} students={students}
+        onChange={(studentIds) => onChange({ studentIds })} />
     </div>
   )
 }

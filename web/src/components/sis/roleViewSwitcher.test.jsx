@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 
 // "Viewing as" (2026-08-31): for the front office it is ONE searchable person
@@ -101,5 +101,48 @@ describe('RoleViewSwitcher — non-admin with several roles', () => {
     const student = { role_view: { active_role: null, available_roles: ['student'] } }
     const { container } = render(<RoleViewSwitcher user={student} />)
     expect(container).toBeEmptyDOMElement()
+  })
+})
+
+// Ticket 3ed1ffc1: "I can't view the learning app as someone who is JUST a
+// parent, not also staff or a teacher." An admin who is also a parent at the
+// school gets a door into their own family, narrowed to the parent role.
+describe('RoleViewSwitcher — own family view (ticket 3ed1ffc1)', () => {
+  const adminParent = {
+    org_roles: ['org_admin', 'parent'],
+    role_view: { active_role: null, available_roles: ['org_admin', 'parent'] },
+  }
+  let hrefSpy
+  beforeEach(() => {
+    apiMock.post.mockResolvedValue({ data: { success: true } })
+    hrefSpy = vi.fn()
+    vi.stubGlobal('location', { set href(v) { hrefSpy(v) }, get href() { return '' } })
+  })
+  afterEach(() => { vi.unstubAllGlobals() })
+
+  it('is offered to an admin whose org_roles include parent', async () => {
+    render(<RoleViewSwitcher user={adminParent} />)
+    expect(await screen.findByRole('button', { name: 'Parent (my own family)' })).toBeInTheDocument()
+  })
+
+  it('is not offered to an admin who is not a parent', async () => {
+    render(<RoleViewSwitcher user={admin} />)
+    await screen.findByPlaceholderText('Search people…')
+    expect(screen.queryByRole('button', { name: 'Parent (my own family)' })).not.toBeInTheDocument()
+  })
+
+  it('is not offered while a role view is already on', async () => {
+    const viewing = { ...adminParent, role_view: { ...adminParent.role_view, active_role: 'parent' } }
+    render(<RoleViewSwitcher user={viewing} />)
+    await screen.findByText('Exit Parent view')
+    expect(screen.queryByRole('button', { name: 'Parent (my own family)' })).not.toBeInTheDocument()
+  })
+
+  it('starts the parent role view and lands on the family pages', async () => {
+    render(<RoleViewSwitcher user={adminParent} />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Parent (my own family)' }))
+    await waitFor(() => expect(apiMock.post).toHaveBeenCalledWith('/api/role-view/parent', {}))
+    await waitFor(() => expect(hrefSpy).toHaveBeenCalledWith('/family'))
+    expect(masq.startMasquerade).not.toHaveBeenCalled()
   })
 })

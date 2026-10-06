@@ -44,11 +44,13 @@ const PICKER_ROLES = ['superadmin', 'org_admin', 'campus_coordinator']
 const hasPersonPicker = (realRoles = []) => realRoles.some((r) => PICKER_ROLES.includes(r))
 
 
-export const startRoleView = async (role, orgId = null) => {
+export const startRoleView = async (role, orgId = null, landing = '/') => {
   await api.post(`/api/role-view/${role}`, orgId ? { organization_id: orgId } : {})
   // Full reload: /me must re-answer with the narrowed profile before any
-  // chrome renders, and cached queries from the old view must go.
-  window.location.href = '/'
+  // chrome renders, and cached queries from the old view must go. `landing`
+  // is a path the console hands to the learning app when it owns it
+  // (appSurface LEARNING_SURFACE_PATHS), e.g. '/family'.
+  window.location.href = landing
 }
 
 export const exitRoleView = async () => {
@@ -83,6 +85,13 @@ const RoleViewSwitcher = ({ user, orgId = null }) => {
   const masq = getMasqueradeState()
   const isSuperadmin = real.includes('superadmin')
   const picker = hasPersonPicker(real)
+  // An admin who is also a parent at the school (ticket 3ed1ffc1: "I can't
+  // view the learning app as someone who is JUST a parent, not also staff or
+  // a teacher"). The person picker opens somebody ELSE's family; this opens
+  // their own, narrowed to the parent role, so the family pages answer
+  // without the staff seat. The server allows it (utils.roles.may_view_as).
+  const holdsParent = real.includes('parent') || (user?.org_roles || []).includes('parent')
+  const ownFamilyView = picker && holdsParent && !active
   const orgReady = !isSuperadmin || Boolean(orgId)
 
   // The person list — everyone at the school this caller may open.
@@ -160,6 +169,22 @@ const RoleViewSwitcher = ({ user, orgId = null }) => {
         </label>
         {loadError && (
           <p className="px-1 text-[11px] text-red-600">{loadError}</p>
+        )}
+        {ownFamilyView && (
+          <button
+            onClick={async () => {
+              if (busy) return
+              setBusy(true)
+              try { await startRoleView('parent', null, '/family') } catch (err) {
+                toast.error(err?.response?.data?.error || 'Could not switch views')
+                setBusy(false)
+              }
+            }}
+            disabled={busy}
+            className="w-full rounded-lg border border-gray-200 bg-white px-2 py-1.5 text-xs font-semibold text-neutral-700 hover:bg-neutral-50 disabled:opacity-50"
+          >
+            Parent (my own family)
+          </button>
         )}
         {/* Role views are no longer started from here, but one can still be
             active (older session, TopNavbar); leave a way back. */}

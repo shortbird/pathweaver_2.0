@@ -68,8 +68,13 @@ def draft_info(quest: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         return None
     marker = (quest.get('metadata') or {}).get('draft') or {}
     settings = marker.get('class_settings')
-    return {'context': marker.get('context'), 'target_id': marker.get('target_id'),
-            'class_settings': settings if isinstance(settings, dict) else None}
+    out = {'context': marker.get('context'), 'target_id': marker.get('target_id'),
+           'class_settings': settings if isinstance(settings, dict) else None}
+    # A teacher's copy names its original, so the class editor can offer to
+    # replace it on the class at publish (services/class_quest_replace, 987218e0).
+    if marker.get('copied_from'):
+        out['copied_from'] = marker['copied_from']
+    return out
 
 
 def serialize(quest: Dict[str, Any], tasks: List[Dict[str, Any]], *,

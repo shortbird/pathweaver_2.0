@@ -12,6 +12,7 @@ import DocumentPreview, { isPreviewableDocument } from '../../../components/evid
 import { INPUT_CLASS } from '../../../components/ui/Input'
 import { ChevronUpIcon, ChevronDownIcon } from '@heroicons/react/24/outline'
 import useResourceOrder from '../../../hooks/useResourceOrder'
+import CategoryInput from '../../../components/sis/CategoryInput'
 
 const field = INPUT_CLASS
 /**
@@ -136,6 +137,7 @@ const DocumentsPanel = () => {
           resource={editing}
           paperwork={paperwork}
           staff={staff}
+          categories={resources.map((r) => r.category)}
           onDone={() => { setAdding(false); setEditing(null); load() }}
           onCancel={() => { setAdding(false); setEditing(null) }}
         />
@@ -321,7 +323,7 @@ const AckReportModal = ({ orgId, resource, onClose }) => {
   )
 }
 
-const ResourceForm = ({ orgId, resource, paperwork = [], staff = [], onDone, onCancel }) => {
+const ResourceForm = ({ orgId, resource, paperwork = [], staff = [], categories = [], onDone, onCancel }) => {
   const [f, setF] = useState({
     title: resource?.title || '', description: resource?.description || '',
     url: resource?.url || '', category: resource?.category || '',
@@ -373,7 +375,8 @@ const ResourceForm = ({ orgId, resource, paperwork = [], staff = [], onDone, onC
           <input value={f.title} onChange={(e) => set('title', e.target.value)} className={field} placeholder="Family Guidebook" autoFocus />
         </label>
         <label className="text-xs text-neutral-500 block">Category <span className="text-neutral-400">(optional, groups the list)</span>
-          <input value={f.category} onChange={(e) => set('category', e.target.value)} className={field} placeholder="Policies" />
+          <CategoryInput value={f.category} onChange={(e) => set('category', e.target.value)} className={field}
+            categories={categories} placeholder="Pick one or type a new one" />
         </label>
       </div>
       {/* A textarea, not a one-line input. "On resources, can we make it so

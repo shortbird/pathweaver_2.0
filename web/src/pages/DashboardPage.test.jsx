@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, fireEvent } from '@testing-library/react'
+import { render, screen, fireEvent, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import DashboardPage from './DashboardPage'
@@ -759,5 +759,55 @@ describe('DashboardPage', () => {
       expect(window.location.search).toBe('?ref=email')
       window.history.replaceState({}, '', '/')
     })
+  })
+})
+
+// Ticket a4c5d2e2: the dashboard's Current Quests was one flat grid, so class
+// work and a student's own quests were mixed together. It now groups by the
+// class each quest came through (`source_class` on /api/users/dashboard's
+// active_quests), the same groups as the Learning Snapshot.
+describe('DashboardPage current quests grouped by class (ticket a4c5d2e2)', () => {
+  const enrollment = (id, title, source_class = null) => ({
+    quest_id: id, is_active: true, completed_at: null, source_class,
+    quests: { id, title, task_count: 2 },
+  })
+  const show = (active_quests) => {
+    dashboardHookData = {
+      data: { active_quests, enrolled_courses: [], stats: { completed_quests_count: 0 } },
+      isLoading: false, error: null, refetch: vi.fn(),
+    }
+    renderDashboard()
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    queryClient.clear()
+    authState = { user: { id: 'user-1', first_name: 'Alex', role: 'student', created_at: '2025-01-01T00:00:00Z' } }
+    orgState = { school: null, organization: null, loading: false }
+    api.get.mockResolvedValue({ data: { success: true, announcements: [] } })
+    engagementData = { rhythm: { state: 'building', state_display: 'Building', message: '' }, calendar: { days: [] } }
+  })
+
+  it('puts each quest under its class, then the student\'s own under Personal', () => {
+    show([
+      enrollment('q-own', 'My garden'),
+      enrollment('q-bio', 'Cells', { id: 'c-bio', name: 'Biology', enrolled: true }),
+      enrollment('q-art', 'Clay', { id: 'c-art', name: 'Art', enrolled: false }),
+    ])
+    const bio = screen.getByRole('region', { name: 'Biology' })
+    expect(within(bio).getByTestId('quest-card-q-bio')).toBeInTheDocument()
+    const personal = screen.getByRole('region', { name: 'Personal' })
+    expect(within(personal).getByTestId('quest-card-q-own')).toBeInTheDocument()
+    const art = screen.getByRole('region', { name: 'Art' })
+    expect(within(art).getByText(/no longer in this class/)).toBeInTheDocument()
+    const order = screen.getAllByRole('region').map((r) => r.getAttribute('aria-label'))
+    expect(order).toEqual(['Biology', 'Personal', 'Art'])
+  })
+
+  it('draws no headings when no quest came through a class', () => {
+    show([enrollment('q-1', 'One'), enrollment('q-2', 'Two')])
+    expect(screen.getByTestId('quest-card-q-1')).toBeInTheDocument()
+    expect(screen.getByTestId('quest-card-q-2')).toBeInTheDocument()
+    expect(screen.queryByRole('region', { name: 'Personal' })).not.toBeInTheDocument()
   })
 })
