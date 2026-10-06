@@ -20,6 +20,7 @@ import ImageBlock from './blocks/ImageBlock';
 import LinkBlock from './blocks/LinkBlock';
 import VideoBlock from './blocks/VideoBlock';
 import DocumentBlock from './blocks/DocumentBlock';
+import AudioBlock from './blocks/AudioBlock';
 import EvidenceHeader from './EvidenceHeader';
 import EvidenceEmptyState from './EvidenceEmptyState';
 
@@ -228,6 +229,14 @@ const UnifiedEvidenceDisplay = ({
                   </div>
                 );
 
+              case 'audio':
+                return (
+                  <div key={key}>
+                    {uploaderBadge}
+                    <AudioBlock block={block} />
+                  </div>
+                );
+
               default:
                 return (
                   <div key={key} className="p-4 bg-gray-50 border border-gray-200 rounded-lg">
@@ -300,7 +309,7 @@ UnifiedEvidenceDisplay.propTypes = {
     evidence_type: PropTypes.oneOf(['multi_format', 'legacy_text', 'legacy_link', 'text', 'link']),
     evidence_blocks: PropTypes.arrayOf(PropTypes.shape({
       id: PropTypes.string,
-      block_type: PropTypes.oneOf(['text', 'image', 'link', 'video', 'document']).isRequired,
+      block_type: PropTypes.oneOf(['text', 'image', 'link', 'video', 'document', 'audio']).isRequired,
       content: PropTypes.object.isRequired,
       order_index: PropTypes.number,
       is_private: PropTypes.bool

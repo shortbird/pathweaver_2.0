@@ -66,12 +66,28 @@ def _httpx_transport_errors() -> tuple:
     return transport + (h2.exceptions.ProtocolError,)
 
 
+def _auth_retryable_errors() -> tuple:
+    """supabase_auth's own "try again" error.
+
+    GoTrue's client catches httpx's timeouts and transport errors and re-raises
+    them as AuthRetryableError, so the httpx types above never reach us from an
+    auth call. Its message is the wrapped one -- "The read operation timed
+    out" -- which the wording list below also matches (ticket d7bf46f0: a login
+    that timed out was answered as a 400 "check your password").
+    """
+    try:
+        from supabase_auth.errors import AuthRetryableError
+    except ImportError:
+        return ()
+    return (AuthRetryableError,)
+
+
 # Exceptions that should trigger retry
 RETRYABLE_EXCEPTIONS = (
     ConnectionError,
     TimeoutError,
     IOError,
-) + _httpx_transport_errors()
+) + _httpx_transport_errors() + _auth_retryable_errors()
 
 def is_retryable_error(error: Exception) -> bool:
     """Check if an error is retryable"""
@@ -85,6 +101,10 @@ def is_retryable_error(error: Exception) -> bool:
     retryable_patterns = [
         'connection',
         'timeout',
+        # Python's ssl/socket wording ("The read operation timed out") does not
+        # contain 'timeout'. supabase_auth passes it through verbatim inside
+        # AuthRetryableError (ticket d7bf46f0).
+        'timed out',
         'temporarily unavailable',
         'service unavailable',
         'too many requests',

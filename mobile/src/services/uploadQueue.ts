@@ -222,6 +222,56 @@ async function runJob(job: { eventId: string; studentId?: string; items: QueuedM
   }
 }
 
+// ── Failure handling ───────────────────────────────────────────────────────
+
+/**
+ * A 4xx (other than 408 timeout / 429 rate limit) is the server's final answer:
+ * the same file gets the same refusal on every retry. The queue used to retry
+ * everything, so a photo the safety screen refused (400 SAFETY_CONTACT) was
+ * re-sent five times over four days, then reported to Sentry under a toast that
+ * called it a video (ticket d3b9ef5a).
+ */
+export function isPermanentFailure(e: unknown): boolean {
+  const status = (e as { response?: { status?: number } })?.response?.status;
+  return typeof status === 'number' && status >= 400 && status < 500 && status !== 408 && status !== 429;
+}
+
+const MEDIA_NOUN: Record<QueuedMediaType, string> = {
+  image: 'A photo',
+  video: 'A video',
+  audio: 'A voice recording',
+  document: 'A document',
+};
+
+/** "A photo" / "A video" / ..., or "Some media" when a job mixes types. */
+export function mediaNoun(items: QueuedMediaItem[]): string {
+  const types = new Set(items.map((it) => it.type));
+  if (types.size === 1) return MEDIA_NOUN[[...types][0]] ?? 'Some media';
+  return 'Some media';
+}
+
+/**
+ * The toast for a job the queue drops. A SAFETY_* refusal carries a sentence
+ * written for the person (what was found, what to do), so it is shown as is;
+ * any other failure gets a generic line naming the right kind of media.
+ */
+export function failureMessage(e: unknown, items: QueuedMediaItem[], permanent: boolean): string {
+  const data = (e as { response?: { data?: { error?: unknown; error_code?: unknown } } })?.response?.data;
+  if (
+    permanent &&
+    typeof data?.error_code === 'string' &&
+    data.error_code.startsWith('SAFETY_') &&
+    typeof data.error === 'string' &&
+    data.error.trim()
+  ) {
+    return data.error;
+  }
+  const noun = mediaNoun(items);
+  return permanent
+    ? `${noun} couldn't be uploaded. Open the moment and add it again.`
+    : `${noun} couldn't be uploaded after several tries. Open the moment and add it again.`;
+}
+
 // ── Public API ─────────────────────────────────────────────────────────────
 
 let processing = false;
@@ -262,8 +312,11 @@ async function _enqueueUploadImpl(args: {
   if (!persistent) {
     // Web / no FileSystem: run inline, surface terminal failures.
     runJob(args).catch((e) => {
-      captureException(e, { stage: 'upload-queue-inline', extra: { eventId: args.eventId } });
-      toast.error('Some media couldn\'t be uploaded. Open the moment to try again.', { title: 'Upload failed' });
+      const permanent = isPermanentFailure(e);
+      if (!permanent) {
+        captureException(e, { stage: 'upload-queue-inline', extra: { eventId: args.eventId } });
+      }
+      toast.error(failureMessage(e, args.items, permanent), { title: 'Upload failed' });
     });
     return;
   }
@@ -312,7 +365,9 @@ async function _enqueueUploadImpl(args: {
  * Process every pending job in the queue. Safe to call repeatedly (re-entrancy
  * guarded). Removes a job only once it fully succeeds; otherwise increments its
  * attempt count and keeps it for the next trigger, dropping it after
- * MAX_ATTEMPTS with a user-visible toast.
+ * MAX_ATTEMPTS with a user-visible toast. A permanent failure (a 4xx other than
+ * 408/429, see isPermanentFailure) drops the job on the spot: a retry would
+ * only get the same refusal.
  */
 export async function processUploadQueue(): Promise<void> {
   if (!persistent || processing) return;
@@ -334,15 +389,18 @@ export async function processUploadQueue(): Promise<void> {
         const idx = current.findIndex((j) => j.id === job.id);
         if (idx === -1) continue;
         current[idx].attempts += 1;
-        if (current[idx].attempts >= MAX_ATTEMPTS) {
-          captureException(e, {
-            stage: 'upload-queue-gave-up',
-            extra: { eventId: job.eventId, attempts: current[idx].attempts },
-          });
-          toast.error(
-            'A video couldn\'t be uploaded after several tries. Open the moment and add it again.',
-            { title: 'Upload failed' },
-          );
+        const permanent = isPermanentFailure(e);
+        if (permanent || current[idx].attempts >= MAX_ATTEMPTS) {
+          // A 4xx is the server answering, not a defect: the api interceptor
+          // already reports the ones worth a look, so only a network /
+          // timeout / 5xx give-up goes to Sentry from here.
+          if (!permanent) {
+            captureException(e, {
+              stage: 'upload-queue-gave-up',
+              extra: { eventId: job.eventId, attempts: current[idx].attempts },
+            });
+          }
+          toast.error(failureMessage(e, job.items, permanent), { title: 'Upload failed' });
           const remaining = current.filter((j) => j.id !== job.id);
           await writeManifest(remaining);
           await deleteJobFiles(job.id);

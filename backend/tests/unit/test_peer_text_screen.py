@@ -960,3 +960,18 @@ def test_the_upload_rules_say_whose_contact_details_count():
     assert "a child's own phone number, home address, email" in prompt
     assert 'the office number on a worksheet header' in prompt
     assert '- a phone number, home address, email' not in prompt
+
+
+def test_the_parent_notice_links_to_the_childs_friends():
+    """Ticket cbaaea21: the held-message notice linked to bare '/family', the
+    page the parent is already on, so the link went nowhere. It now opens the
+    family dashboard on that child's Friends."""
+    notify = Mock()
+    with patch('utils.class_membership.guardians_by_student',
+               return_value={'kid-1': {'parent-a', 'parent-b'}}), \
+         patch('services.notification_service.NotificationService', return_value=notify), \
+         patch.object(ts, '_first_name', return_value='Sam'):
+        ts._tell_parents('kid-1', ts.SURFACE_MESSAGE, 'refused', text='hi', hold_id='h1')
+    calls = notify.create_notification.call_args_list
+    assert {c.kwargs['user_id'] for c in calls} == {'parent-a', 'parent-b'}
+    assert {c.kwargs['link'] for c in calls} == {'/family?friends=kid-1'}

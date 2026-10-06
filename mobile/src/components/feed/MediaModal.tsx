@@ -30,7 +30,13 @@ function ZoomableImage({ uri, width, height }: { uri: string; width: number; hei
   const savedTx = useSharedValue(0);
   const savedTy = useSharedValue(0);
 
+  // Called from the gesture callbacks below, which run on the UI thread. A
+  // plain JS closure is not callable there, so without this directive a
+  // double-tap on an already zoomed image threw "Object is not a function"
+  // and crashed the app (ticket 0c4fa428). Every function a gesture callback
+  // calls must be a worklet; MediaModal.worklets.test.ts checks it.
   const reset = () => {
+    'worklet';
     scale.value = withTiming(1);
     savedScale.value = 1;
     tx.value = withTiming(0);
@@ -45,12 +51,7 @@ function ZoomableImage({ uri, width, height }: { uri: string; width: number; hei
     })
     .onEnd(() => {
       if (scale.value < 1) {
-        scale.value = withTiming(1);
-        savedScale.value = 1;
-        tx.value = withTiming(0);
-        ty.value = withTiming(0);
-        savedTx.value = 0;
-        savedTy.value = 0;
+        reset();
       } else {
         savedScale.value = Math.min(scale.value, 4);
         scale.value = withTiming(savedScale.value);

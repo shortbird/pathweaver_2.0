@@ -13,7 +13,7 @@ from datetime import datetime, timedelta, timezone
 
 from utils.logger import get_logger
 from utils.api_response_v1 import error_response
-from utils.retry_handler import with_connection_retry
+from utils.retry_handler import is_retryable_error, with_connection_retry
 from utils.storage_urls import sign_in_place
 
 from .security import (
@@ -595,6 +595,21 @@ def register_routes(bp):
                         message='Too many login attempts. Please wait a minute before trying again.',
                         status=429
                     )
+            elif is_retryable_error(e):
+                # Supabase Auth was slow or unreachable, and with_connection_retry
+                # already tried again. The password was never checked, so do not
+                # tell the person to check it: that 400 sent people to reset a
+                # password that was fine (ticket d7bf46f0). Warning, not error:
+                # it is an upstream outage, not a bug in this code.
+                logger.warning(f"Login auth call timed out for {mask_email(email)}: {error_message}", extra={
+                    'email_masked': mask_email(email),
+                    'error_type': type(e).__name__,
+                })
+                return error_response(
+                    code='SERVICE_UNAVAILABLE',
+                    message='Sign-in is slow right now. Please try again.',
+                    status=503
+                )
             else:
                 # Genuinely unexpected — this IS worth surfacing in Sentry.
                 logger.error(f"Unhandled login error for {mask_email(email)}: {error_message}", extra={

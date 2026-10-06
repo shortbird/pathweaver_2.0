@@ -12,7 +12,8 @@ import {
   ArrowTopRightOnSquareIcon,
   XMarkIcon,
   Bars3Icon,
-  PencilIcon
+  PencilIcon,
+  MusicalNoteIcon
 } from '@heroicons/react/24/outline';
 import SwipeableBlock from '../ui/mobile/SwipeableBlock';
 import UndoToast from '../ui/mobile/UndoToast';
@@ -22,7 +23,9 @@ const EVIDENCE_ICONS = {
   image: PhotoIcon,
   video: VideoCameraIcon,
   link: LinkIcon,
-  document: DocumentIcon
+  document: DocumentIcon,
+  // Mobile voice notes (tickets 9040e599, 672adb58, 64c75285).
+  audio: MusicalNoteIcon
 };
 
 const EVIDENCE_COLORS = {
@@ -30,7 +33,8 @@ const EVIDENCE_COLORS = {
   image: { bg: 'bg-green-50', border: 'border-green-200', text: 'text-green-700' },
   video: { bg: 'bg-orange-50', border: 'border-orange-200', text: 'text-orange-700' },
   link: { bg: 'bg-optio-purple/5', border: 'border-optio-purple/20', text: 'text-optio-purple-dark' },
-  document: { bg: 'bg-gray-50', border: 'border-gray-200', text: 'text-gray-700' }
+  document: { bg: 'bg-gray-50', border: 'border-gray-200', text: 'text-gray-700' },
+  audio: { bg: 'bg-optio-pink/5', border: 'border-optio-pink/20', text: 'text-optio-pink' }
 };
 
 // Helper to normalize items from different formats
@@ -50,6 +54,9 @@ const normalizeItems = (content, type) => {
   }
   if (type === 'document' && content?.url) {
     return [{ url: content.url, title: content.title || '', filename: content.filename || '', description: content.description || '' }];
+  }
+  if (type === 'audio' && content?.url) {
+    return [{ url: content.url, filename: content.filename || '', duration_ms: content.duration_ms }];
   }
   return [];
 };
@@ -169,6 +176,23 @@ const EvidenceBlock = ({ block, onDelete, onDeleteItem, onUpdateBlock, onEdit, d
       onDeleteItem(block.id, itemIndex, newItems);
     }
   };
+
+  // Render voice notes (recorded on mobile)
+  const renderAudio = () => (
+    <div className="space-y-2">
+      {items.map((item, i) => (
+        <audio
+          key={item.url || i}
+          controls
+          preload="none"
+          src={item.url}
+          className="w-full"
+          aria-label={item.filename ? `Voice note ${item.filename}` : 'Voice note'}
+          data-testid="evidence-audio"
+        />
+      ))}
+    </div>
+  );
 
   // Render text evidence
   const renderText = () => (
@@ -406,6 +430,7 @@ const EvidenceBlock = ({ block, onDelete, onDeleteItem, onUpdateBlock, onEdit, d
         {blockType === 'video' && renderVideos()}
         {blockType === 'link' && renderLinks()}
         {blockType === 'document' && renderDocuments()}
+        {blockType === 'audio' && renderAudio()}
       </div>
 
       {/* Private indicator */}

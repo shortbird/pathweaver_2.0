@@ -40,6 +40,14 @@ UPLOAD_FOLDER = Config.EVIDENCE_UPLOAD_FOLDER
 
 # Using repository pattern for database access
 
+# The block types evidence_document_blocks accepts. Mirrors the table's CHECK
+# constraint (evidence_document_blocks_block_type_check). A type outside this
+# set used to reach the insert and fail the constraint, which surfaced as a 500
+# with nothing useful in it: mobile voice notes ('audio') did exactly that
+# before migration 20261006120000 (tickets 9040e599, 672adb58, 64c75285).
+# Keep the two in step: add a type here and in a migration together.
+ALLOWED_BLOCK_TYPES = frozenset({'text', 'image', 'video', 'link', 'document', 'audio'})
+
 # The six file-upload routes live in routes/evidence_uploads.py (QB-04). Same
 # blueprint, so their endpoint names are unchanged -- csrf_protection and
 # several tests resolve routes by name, and a second blueprint would have
@@ -166,6 +174,20 @@ def save_evidence_document(user_id: str, task_id: str):
                 'success': False,
                 'error': 'At least one piece of evidence is required to complete a task. Please add text, images, links, or documents to your evidence.'
             }), 400
+
+        # Reject an unknown block type here, before any write. The database
+        # would refuse it anyway, but only after the document row was touched,
+        # and as a 500 the client cannot explain to anybody.
+        if not isinstance(blocks, list):
+            return jsonify({'success': False, 'error': 'blocks must be a list.'}), 400
+        for block in blocks:
+            block_type = block.get('type') if isinstance(block, dict) else None
+            if block_type not in ALLOWED_BLOCK_TYPES:
+                return jsonify({
+                    'success': False,
+                    'error': (f"Unsupported evidence block type: {block_type!r}. "
+                              f"Allowed types: {', '.join(sorted(ALLOWED_BLOCK_TYPES))}.")
+                }), 400
 
         # Validate task exists and user is enrolled (V3 personalized task system)
         task_check = admin_supabase.table('user_quest_tasks')\

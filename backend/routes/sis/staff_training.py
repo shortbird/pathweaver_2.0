@@ -628,7 +628,9 @@ def upload_training_header_image(user_id):
         return jsonify({'success': False, 'error': 'That file is empty.'}), 400
 
     from services.file_upload_service import FileUploadService
-    result = FileUploadService().upload_quest_header(
+    # admin client justified: storage write to the public quest-headers bucket,
+    # caller already gated by ADMIN_ROLES + org (tickets 4a2f5cb3/d1aac23f/bd9d92be).
+    result = FileUploadService(_admin()).upload_quest_header(
         file_data=data,
         filename=file.filename,
         content_type=file.content_type,

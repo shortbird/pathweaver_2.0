@@ -249,7 +249,11 @@ def upload_header_image(user_id, quest_id):
     if not data:
         return _err('That file is empty.')
     from services.file_upload_service import FileUploadService
-    result = FileUploadService().upload_quest_header(
+    # admin client justified: storage write to the public quest-headers bucket;
+    # the caller already passed STAFF_ROLES and _load_editable's edit check.
+    # The service needs a client: calling it bare raised TypeError (tickets
+    # 4a2f5cb3, d1aac23f, bd9d92be) and no header upload ever worked here.
+    result = FileUploadService(_admin()).upload_quest_header(
         file_data=data, filename=file.filename, content_type=file.content_type,
         quest_id=quest['id'])
     if not result.success:

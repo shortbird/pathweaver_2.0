@@ -8,7 +8,8 @@ import {
   VideoCameraIcon,
   LinkIcon,
   DocumentIcon,
-  CameraIcon
+  CameraIcon,
+  MusicalNoteIcon
 } from '@heroicons/react/24/outline';
 import DocumentScannerModal from '../scan/DocumentScannerModal';
 import CameraCaptureButton from './CameraCaptureButton';
@@ -55,6 +56,16 @@ const blockTypes = {
     color: 'from-gray-500 to-gray-700',
     bgColor: 'bg-gray-50',
     borderColor: 'border-gray-200'
+  },
+  // Voice notes. Only the mobile app records them (TaskEvidenceSheet); the web
+  // editor shows and plays them so a student's own evidence never renders as a
+  // blank, typeless block (tickets 9040e599, 672adb58, 64c75285).
+  audio: {
+    Icon: MusicalNoteIcon,
+    label: 'Voice notes',
+    color: 'from-optio-pink to-optio-purple',
+    bgColor: 'bg-optio-pink/5',
+    borderColor: 'border-optio-pink/20'
   }
 };
 
@@ -75,6 +86,9 @@ const normalizeItems = (content, type) => {
   }
   if (type === 'document' && content.url) {
     return [{ url: content.url, title: content.title || '', filename: content.filename || '', description: content.description || '' }];
+  }
+  if (type === 'audio' && content.url) {
+    return [{ url: content.url, filename: content.filename || '', duration_ms: content.duration_ms }];
   }
   return [];
 };
@@ -194,9 +208,34 @@ export const EvidenceBlockRenderer = ({
       case 'document':
         if (items.length === 0) return 'No documents uploaded';
         return items.length === 1 ? (items[0].filename || items[0].title || 'Document') : `${items.length} documents`;
+      case 'audio':
+        if (items.length === 0) return 'No voice notes';
+        return items.length === 1 ? 'Voice note' : `${items.length} voice notes`;
       default:
         return 'Empty block';
     }
+  };
+
+  const renderAudioBlock = (block) => {
+    const items = normalizeItems(block.content, block.type);
+    if (items.length === 0) {
+      return <p className="text-sm text-gray-500">This voice note has no recording.</p>;
+    }
+    return (
+      <div className="space-y-2">
+        {items.map((item, i) => (
+          <audio
+            key={item.url || i}
+            controls
+            preload="none"
+            src={item.url}
+            className="w-full"
+            aria-label={item.filename ? `Voice note ${item.filename}` : 'Voice note'}
+            data-testid="evidence-audio"
+          />
+        ))}
+      </div>
+    );
   };
 
   const renderTextBlock = (block) => (
@@ -763,6 +802,7 @@ export const EvidenceBlockRenderer = ({
           {block.type === 'video' && renderVideoBlock(block)}
           {block.type === 'link' && renderLinkBlock(block)}
           {block.type === 'document' && renderDocumentBlock(block)}
+          {block.type === 'audio' && renderAudioBlock(block)}
         </div>
       )}
 

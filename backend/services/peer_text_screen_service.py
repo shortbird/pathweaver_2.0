@@ -678,12 +678,16 @@ def _tell_parents(author_id: str, surface: str, stage: str, *,
         # pictures, where, why) through GET /api/connections/holds/<id>.
         metadata = {'hold_id': hold_id, 'surface': surface, 'stage': stage,
                     'author_id': author_id} if hold_id else None
+        # The link names the child: bare '/family' is the page the parent is
+        # already on, so "View" went nowhere (ticket cbaaea21).
+        from utils.family_links import family_friends_link
+        link = family_friends_link(author_id)
         svc = NotificationService()
         for guardian_id in sorted(guardians):
             svc.create_notification(
                 user_id=guardian_id, notification_type='peer_text_held',
                 title=f'{name}: {what} was held', message=body,
-                link='/family', metadata=metadata)
+                link=link, metadata=metadata)
     except Exception as e:  # noqa: BLE001
         logger.warning('[peer-text-screen] could not notify parents of %s: %s',
                        str(author_id)[:8], e)

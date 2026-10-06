@@ -248,6 +248,19 @@ export function isExpectedApiOutcome(method: string | undefined, url: string | u
 }
 
 /**
+ * An upload refused by the safety screen: 400 with error_code SAFETY_HELD or
+ * SAFETY_CONTACT (backend/services/upload_safety_service.py). That is the
+ * screen working as designed and the person is shown its sentence, so it is
+ * not a contract bug for Sentry. One photo with a phone number in it filed a
+ * warning on every retry of the upload queue (ticket d3b9ef5a).
+ */
+export function isSafetyRefusal(status: number | null, data: unknown): boolean {
+  if (status !== 400 || !data || typeof data !== 'object') return false;
+  const code = (data as { error_code?: unknown }).error_code;
+  return typeof code === 'string' && code.startsWith('SAFETY_');
+}
+
+/**
  * Whether the app has left the foreground since a given moment.
  *
  * `AppState.currentState` answers "where is the app NOW", and the timeout fold
@@ -339,6 +352,7 @@ export function reportApiError(error: AxiosError, status: number | null) {
     message: error.message,
   };
   if (isExpectedApiOutcome(method, cfg?.url, status)) return;
+  if (isSafetyRefusal(status, error.response?.data)) return;
   // The device could not reach the API at all: airplane mode, no route, a
   // captive portal, DNS with no signal. axios says ERR_NETWORK and nothing
   // more. That is not a fact about an endpoint, and fingerprinted per endpoint

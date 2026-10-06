@@ -197,3 +197,24 @@ describe('reportApiError', () => {
     expect(captureException).toHaveBeenCalledTimes(1);
   });
 });
+
+describe('safety refusals (ticket d3b9ef5a)', () => {
+  const finalize = '/api/learning-events/abc/upload-finalize';
+
+  it('does not report a 400 SAFETY_CONTACT / SAFETY_HELD refusal', () => {
+    for (const code of ['SAFETY_CONTACT', 'SAFETY_HELD']) {
+      const err = axiosErr(400, finalize, 'post');
+      err.response.data = { error: 'That image shows a phone number.', error_code: code };
+      reportApiError(err, 400);
+    }
+    expect(captureException).not.toHaveBeenCalled();
+    expect(captureMessage).not.toHaveBeenCalled();
+  });
+
+  it('still reports a 400 with any other error_code', () => {
+    const err = axiosErr(400, finalize, 'post');
+    err.response.data = { error: 'bad bucket', error_code: 'REJECTED' };
+    reportApiError(err, 400);
+    expect(captureMessage).toHaveBeenCalledTimes(1);
+  });
+});
