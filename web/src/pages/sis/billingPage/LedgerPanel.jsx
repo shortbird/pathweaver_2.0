@@ -152,6 +152,9 @@ const LedgerPanel = ({ view, recurring, paymentPlans, loadRecurring }) => {
 
   const [outstanding, setOutstanding] = useState(null)
   const [sendingReminders, setSendingReminders] = useState(false)
+  // Ticket 0034e67c (iCreate): remind the families the office picks, not only
+  // everyone at once. Invoice ids, from the Outstanding rows.
+  const [selectedReminders, setSelectedReminders] = useState(() => new Set())
 
   const [detail, setDetail] = useState(null)
   const [detailHousehold, setDetailHousehold] = useState('')
@@ -283,6 +286,37 @@ const LedgerPanel = ({ view, recurring, paymentPlans, loadRecurring }) => {
     } catch { toast.error('Could not send reminders') }
     finally { setSendingReminders(false) }
   }
+
+  // A picked send skips the past-due check and the 25-day cooldown (the
+  // office chose these families on purpose); the server still only reminds
+  // about open invoices with a balance in this school.
+  const sendSelectedReminders = async () => {
+    const ids = [...selectedReminders]
+    if (!ids.length) return
+    setSendingReminders(true)
+    try {
+      const r = await api.post('/api/sis/billing/reminders/run',
+        { organization_id: orgId, invoice_ids: ids })
+      const d = r.data || {}
+      const families = d.invoices_reminded ?? 0
+      const notSent = d.not_sent ?? 0
+      const msg = `Reminders sent for ${families} of ${ids.length} selected `
+        + `(${d.reminded ?? 0} email${d.reminded === 1 ? '' : 's'})`
+        + (notSent ? `. ${notSent} not sent: no guardian email on file, or no longer owing.` : '')
+      if (families) toast.success(msg)
+      else toast.error(msg)
+      setSelectedReminders(new Set())
+    } catch (e) {
+      toast.error(e?.response?.data?.error || 'Could not send reminders')
+    } finally { setSendingReminders(false) }
+  }
+
+  const toggleReminder = (invoiceId) => setSelectedReminders((prev) => {
+    const next = new Set(prev)
+    if (next.has(invoiceId)) next.delete(invoiceId)
+    else next.add(invoiceId)
+    return next
+  })
 
   const printArea = () => printElement('.print-area')
 
@@ -438,6 +472,10 @@ const LedgerPanel = ({ view, recurring, paymentPlans, loadRecurring }) => {
             <Button size="sm" onClick={sendReminders} disabled={sendingReminders}>
               {sendingReminders ? 'Sending…' : 'Send payment reminders'}
             </Button>
+            <Button size="sm" variant="secondary" onClick={sendSelectedReminders}
+              disabled={sendingReminders || selectedReminders.size === 0}>
+              {`Send to selected (${selectedReminders.size})`}
+            </Button>
             <Button size="sm" variant="secondary" onClick={printArea}>Print</Button>
             <div className="flex-1" />
             <SearchBox value={search} onChange={setSearch} label="Search outstanding balances" />
@@ -459,6 +497,19 @@ const LedgerPanel = ({ view, recurring, paymentPlans, loadRecurring }) => {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="text-left text-xs uppercase tracking-wide text-neutral-400 border-b border-gray-200">
+                    <th className="px-4 py-2 w-8 no-print">
+                      <input type="checkbox" aria-label="Select all for reminders"
+                        checked={visibleOutstanding.length > 0
+                          && visibleOutstanding.every((r) => selectedReminders.has(r.invoice_id))}
+                        onChange={(e) => {
+                          const ids = visibleOutstanding.map((r) => r.invoice_id)
+                          setSelectedReminders((prev) => {
+                            const next = new Set(prev)
+                            ids.forEach((id) => (e.target.checked ? next.add(id) : next.delete(id)))
+                            return next
+                          })
+                        }} />
+                    </th>
                     <th className="px-4 py-2">Family</th>
                     <th className="px-4 py-2">Student</th>
                     {/* The number the family sees on their own invoice and
@@ -480,6 +531,13 @@ const LedgerPanel = ({ view, recurring, paymentPlans, loadRecurring }) => {
                       onClick={() => setInvoiceFor(row.invoice_id)}
                       className="cursor-pointer hover:bg-neutral-50"
                       title="View the invoice this family was sent">
+                      {/* The click stops here: ticking a box must not open the invoice. */}
+                      <td className="px-4 py-2 no-print" onClick={(e) => e.stopPropagation()}>
+                        <input type="checkbox"
+                          aria-label={`Select ${row.family_name || row.invoice_number || 'invoice'} for a reminder`}
+                          checked={selectedReminders.has(row.invoice_id)}
+                          onChange={() => toggleReminder(row.invoice_id)} />
+                      </td>
                       <td className="px-4 py-2 font-medium text-neutral-900">{row.family_name || '—'}</td>
                       <td className="px-4 py-2">{row.student_name || '—'}</td>
                       <td className="px-4 py-2 text-neutral-500 whitespace-nowrap">{row.invoice_number || '—'}</td>

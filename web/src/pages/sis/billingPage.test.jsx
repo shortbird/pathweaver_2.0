@@ -113,10 +113,17 @@ const { api, docState, recurringState } = vi.hoisted(() => {
   return {
     api: {
       get: vi.fn((url) => Promise.resolve(apiData(url))),
-      post: vi.fn((url) => Promise.resolve(
+      post: vi.fn((url, body) => Promise.resolve(
         url.includes('/reminders/run')
-          ? { data: { success: true, checked: 3, reminded: 2, skipped: 1 } }
-          : { data: { success: true, invoice: { id: 'inv9' } } }
+          ? (body?.invoice_ids
+            ? { data: { success: true, checked: 1, reminded: 2, skipped: 0,
+                        requested: body.invoice_ids.length,
+                        invoices_reminded: body.invoice_ids.length, not_sent: 0 } }
+            : { data: { success: true, checked: 3, reminded: 2, skipped: 1 } })
+          : url.includes('/split')
+            ? { data: { success: true, invoice: { id: 'inv1' },
+                        second_invoice: { id: 'inv10', invoice_number: 'INV-2026-SECOND' } } }
+            : { data: { success: true, invoice: { id: 'inv9' } } }
       )),
       patch: vi.fn(() => Promise.resolve({ data: { success: true, invoice: { id: 'inv1' } } })),
     },
@@ -267,6 +274,86 @@ describe('BillingPage', () => {
       expect(api.post).toHaveBeenCalledWith('/api/sis/billing/reminders/run', expect.objectContaining({ organization_id: expect.anything() })))
     await waitFor(() =>
       expect(toast.success).toHaveBeenCalledWith(expect.stringContaining('Reminders sent: 2')))
+  })
+
+  // Ticket 0034e67c (iCreate): "select certain individuals to send payment
+  // reminders to instead of everyone".
+  it('sends reminders to the selected families only', async () => {
+    const { toast } = await import('react-hot-toast')
+    render(<BillingPage />)
+    fireEvent.click(await screen.findByText('Outstanding'))
+    const send = await screen.findByRole('button', { name: 'Send to selected (0)' })
+    expect(send).toBeDisabled()
+    fireEvent.click(screen.getByLabelText('Select Bowman Family for a reminder'))
+    // Ticking the box must not open the invoice.
+    expect(screen.queryByText('INV-2026-3B3796')).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Send to selected (1)' }))
+    await waitFor(() =>
+      expect(api.post).toHaveBeenCalledWith('/api/sis/billing/reminders/run',
+        { organization_id: 'org-1', invoice_ids: ['inv1'] }))
+    await waitFor(() =>
+      expect(toast.success).toHaveBeenCalledWith(expect.stringContaining('Reminders sent for 1 of 1')))
+    expect(await screen.findByRole('button', { name: 'Send to selected (0)' })).toBeInTheDocument()
+  })
+
+  it('selects every visible outstanding row at once', async () => {
+    render(<BillingPage />)
+    fireEvent.click(await screen.findByText('Outstanding'))
+    fireEvent.click(await screen.findByLabelText('Select all for reminders'))
+    expect(screen.getByRole('button', { name: 'Send to selected (1)' })).toBeEnabled()
+    fireEvent.click(screen.getByLabelText('Select all for reminders'))
+    expect(screen.getByRole('button', { name: 'Send to selected (0)' })).toBeDisabled()
+  })
+})
+
+/**
+ * Ticket eacb3356 (iCreate): "invoice for half now and half in January ...
+ * ability to have multiple invoices", for a family reimbursed per bill.
+ */
+describe('splitting an invoice in two', () => {
+  it('splits an unpaid invoice and names the new one', async () => {
+    const { toast } = await import('react-hot-toast')
+    render(<BillingPage />)
+    fireEvent.click(await screen.findByText('Fall tuition'))
+    fireEvent.click(await screen.findByRole('button', { name: 'Split invoice' }))
+    // Half the $365.00 balance, rounded up to the cent, is the default.
+    expect(screen.getByLabelText('First amount').value).toBe('182.50')
+    fireEvent.change(screen.getByLabelText('First amount'), { target: { value: '200' } })
+    fireEvent.change(screen.getByLabelText('Second due date'), { target: { value: '2027-01-15' } })
+    expect(screen.getByText('$165.00')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Split invoice' }))
+    await waitFor(() =>
+      expect(api.post).toHaveBeenCalledWith('/api/sis/invoices/inv1/split', {
+        organization_id: 'org-1', first_amount_cents: 20000,
+        first_due_date: '2026-08-01', second_due_date: '2027-01-15',
+      }))
+    await waitFor(() =>
+      expect(toast.success).toHaveBeenCalledWith(expect.stringContaining('INV-2026-SECOND')))
+  })
+
+  it('will not split for the whole balance', async () => {
+    render(<BillingPage />)
+    fireEvent.click(await screen.findByText('Fall tuition'))
+    fireEvent.click(await screen.findByRole('button', { name: 'Split invoice' }))
+    fireEvent.change(screen.getByLabelText('First amount'), { target: { value: '365' } })
+    fireEvent.change(screen.getByLabelText('Second due date'), { target: { value: '2027-01-15' } })
+    expect(screen.getByRole('button', { name: 'Split invoice' })).toBeDisabled()
+  })
+
+  it('is not offered on a paid invoice', async () => {
+    render(<BillingPage />)
+    fireEvent.click(await screen.findByText('Art supplies'))
+    await screen.findByText('INV-2026-4C1180')
+    expect(screen.queryByRole('button', { name: 'Split invoice' })).toBeNull()
+  })
+
+  it('is not offered while autopay is running', async () => {
+    docState.autopay = { status: 'active', auto_charge: true, has_card: true, installment_count: 10,
+                         remaining_count: 8, remaining_cents: 58400, next_due_date: '2026-10-15' }
+    render(<BillingPage />)
+    fireEvent.click(await screen.findByText('Fall tuition'))
+    await screen.findByTestId('invoice-autopay')
+    expect(screen.queryByRole('button', { name: 'Split invoice' })).toBeNull()
   })
 })
 

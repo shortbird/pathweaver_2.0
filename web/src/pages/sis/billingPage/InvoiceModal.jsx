@@ -10,6 +10,7 @@ import { toast } from 'react-hot-toast'
 import { withOrg } from '../useSisOrg'
 import EditPaymentModal from './EditPaymentModal'
 import EditInvoiceModal from './EditInvoiceModal'
+import SplitInvoiceModal from './SplitInvoiceModal'
 import money from './money'
 import METHOD_LABEL from './METHOD_LABEL'
 import payLabel from './payLabel'
@@ -24,6 +25,7 @@ const InvoiceModal = ({ invoiceId, orgId, onClose, onPrint, onChanged }) => {
   // it wrong is a thing that needs fixing on any invoice, paid or not.
   const [correcting, setCorrecting] = useState(null)
   const [confirmStop, setConfirmStop] = useState(false)
+  const [splitting, setSplitting] = useState(false)
 
   const load = useCallback(() => {
     api.get(withOrg(`/api/sis/invoices/${invoiceId}/document`, orgId))
@@ -45,6 +47,13 @@ const InvoiceModal = ({ invoiceId, orgId, onClose, onPrint, onChanged }) => {
   // 15th, because nothing on this card could stop the plan. This can.
   const autopay = doc?.autopay || null
   const autopayRunning = autopay?.status === 'active'
+  // Ticket eacb3356: "half now and half in January", for a family reimbursed
+  // per bill. Offered only where the server will allow it: unpaid, no payment
+  // ever recorded, no payment plan or autopay. The server checks again.
+  const splittable = doc && ['draft', 'sent', 'overdue'].includes(doc.status)
+    && !doc.amount_paid_cents && !(doc.payments || []).length && !autopayRunning
+    && !doc.processing_fee_cents
+    && (doc.amount_due_cents ?? doc.total_cents ?? 0) > 1
 
   const voidInvoice = async () => {
     try {
@@ -84,6 +93,16 @@ const InvoiceModal = ({ invoiceId, orgId, onClose, onPrint, onChanged }) => {
         invoiceId={invoiceId} orgId={orgId} doc={doc}
         onCancel={() => setEditing(false)}
         onSaved={() => { setEditing(false); setDoc(null); load(); onChanged?.() }}
+      />
+    )
+  }
+
+  if (splitting && doc) {
+    return (
+      <SplitInvoiceModal
+        invoiceId={invoiceId} orgId={orgId} doc={doc}
+        onCancel={() => setSplitting(false)}
+        onSaved={() => { setSplitting(false); setDoc(null); load(); onChanged?.() }}
       />
     )
   }
@@ -220,6 +239,9 @@ const InvoiceModal = ({ invoiceId, orgId, onClose, onPrint, onChanged }) => {
         )}
         {voidable && (
           <Button size="sm" variant="secondary" onClick={voidInvoice}>Void</Button>
+        )}
+        {splittable && (
+          <Button size="sm" variant="secondary" onClick={() => setSplitting(true)}>Split invoice</Button>
         )}
         {editable && (
           <Button size="sm" variant="secondary" onClick={() => setEditing(true)}>Edit</Button>

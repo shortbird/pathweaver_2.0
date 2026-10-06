@@ -15,11 +15,55 @@ from repositories.base_repository import BaseRepository
 from utils.db_fetch import fetch_all_rows
 
 
+class SisInvoiceRepository(BaseRepository):
+    """sis_invoices, for the writes that must be conditional. Every method
+    takes the org, so an id from another school matches nothing."""
+    table_name = 'sis_invoices'
+
+    def for_org(self, org_id: str, invoice_id: str) -> Optional[Dict[str, Any]]:
+        rows = (self.client.table(self.table_name).select('*')
+                .eq('id', invoice_id).eq('organization_id', org_id)
+                .limit(1).execute()).data
+        return rows[0] if rows else None
+
+    def update_if_unchanged(self, org_id: str, invoice_id: str, expect: Dict[str, Any],
+                            patch: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """Update only while every column in `expect` still holds its value.
+        Returns the updated rows: [] means somebody else changed the invoice
+        first (a payment, an edit) and nothing was written."""
+        query = (self.client.table(self.table_name).update(patch)
+                 .eq('id', invoice_id).eq('organization_id', org_id))
+        for col, val in expect.items():
+            query = query.eq(col, val)
+        return query.execute().data or []
+
+    def restore(self, org_id: str, invoice_id: str, fields: Dict[str, Any]) -> None:
+        """Unconditional write-back, for undoing a half-finished operation."""
+        (self.client.table(self.table_name).update(fields)
+         .eq('id', invoice_id).eq('organization_id', org_id).execute())
+
+    def delete_for_org(self, org_id: str, invoice_id: str) -> None:
+        (self.client.table(self.table_name).delete()
+         .eq('id', invoice_id).eq('organization_id', org_id).execute())
+
+
 class SisInvoiceLineItemRepository(BaseRepository):
     table_name = 'sis_invoice_line_items'
 
     def for_invoice(self, invoice_id: str) -> List[Dict[str, Any]]:
         return self.find_all(filters={'invoice_id': invoice_id})
+
+    def insert_many(self, rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        if not rows:
+            return []
+        return self.client.table(self.table_name).insert(rows).execute().data or []
+
+    def delete_ids(self, ids: List[str]) -> None:
+        if ids:
+            self.client.table(self.table_name).delete().in_('id', ids).execute()
+
+    def delete_for_invoice(self, invoice_id: str) -> None:
+        self.client.table(self.table_name).delete().eq('invoice_id', invoice_id).execute()
 
 
 class SisPaymentRecordRepository(BaseRepository):
@@ -33,12 +77,20 @@ class SisPaymentRecordRepository(BaseRepository):
                              limit=1)
         return rows[0] if rows else None
 
+    def any_for_invoice(self, invoice_id: str) -> bool:
+        """True when any payment or refund was ever recorded on the invoice."""
+        return bool(self.find_all(filters={'invoice_id': invoice_id}, limit=1))
+
 
 class SisPaymentPlanRepository(BaseRepository):
     table_name = 'sis_payment_plans'
 
     def active_for_invoice(self, invoice_id: str) -> List[Dict[str, Any]]:
         return self.find_all(filters={'invoice_id': invoice_id, 'status': 'active'})
+
+    def for_invoice(self, invoice_id: str) -> List[Dict[str, Any]]:
+        """Every plan on the invoice, whatever its status."""
+        return self.find_all(filters={'invoice_id': invoice_id})
 
     def _active_monthly_query(self, org_id: str):
         """Active monthly plans for one org. sis_payment_plans has no

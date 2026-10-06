@@ -188,6 +188,35 @@ def void_invoice(user_id, invoice_id):
     return jsonify({'success': True, **result})
 
 
+@bp.route('/invoices/<invoice_id>/split', methods=['POST'])
+@require_role(*FINANCE_ROLES)
+def split_invoice(user_id, invoice_id):
+    """Split an unpaid invoice in two (ticket eacb3356: "half now and half in
+    January", for a family that is reimbursed per bill).
+
+    Body: {first_amount_cents, first_due_date?, second_due_date}. This invoice
+    keeps its number and first_amount_cents; a new invoice for the rest is
+    created with second_due_date. Refused when the invoice is void, paid, has
+    any payment, or has a payment plan or autopay -- see
+    sis_billing_service.split_invoice."""
+    org_id, err = sis_service.org_or_error(user_id)
+    if err:
+        return err
+    data = request.get_json(silent=True) or {}
+    amount = data.get('first_amount_cents')
+    if isinstance(amount, bool) or not isinstance(amount, int) or amount <= 0:
+        return jsonify({'success': False,
+                        'error': 'first_amount_cents must be a positive integer'}), 400
+    result = billing.split_invoice(
+        org_id, invoice_id, actor_user_id=user_id, first_amount_cents=amount,
+        first_due_date=data.get('first_due_date'),
+        second_due_date=data.get('second_due_date'))
+    if result.get('error'):
+        code = 404 if result['error'] == 'Invoice not found' else 400
+        return jsonify({'success': False, 'error': result['error']}), code
+    return jsonify({'success': True, **result}), 201
+
+
 @bp.route('/invoices/<invoice_id>/autopay/cancel', methods=['POST'])
 @require_role(*FINANCE_ROLES)
 def cancel_autopay(user_id, invoice_id):
@@ -449,8 +478,23 @@ def outstanding_report(user_id):
 @require_role(*FINANCE_ROLES)
 def run_reminders(user_id):
     """Manual admin trigger: email guardians of past-due invoices in this org.
-    Same logic as the cron sweep, scoped to the caller's organization."""
+    Same logic as the cron sweep, scoped to the caller's organization.
+
+    Body {invoice_ids?: [...]} sends to those invoices only (ticket 0034e67c).
+    A picked invoice skips the past-due check and the 25-day cooldown; ids
+    that are not open invoices of the caller's org are ignored."""
     org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
-    return jsonify({'success': True, **billing.run_payment_reminders(org_id=org_id)})
+    data = request.get_json(silent=True) or {}
+    invoice_ids = data.get('invoice_ids')
+    if invoice_ids is None:
+        return jsonify({'success': True, **billing.run_payment_reminders(org_id=org_id)})
+    if (not isinstance(invoice_ids, list) or not invoice_ids
+            or not all(isinstance(i, str) for i in invoice_ids)):
+        return jsonify({'success': False,
+                        'error': 'invoice_ids must be a non-empty list of invoice ids'}), 400
+    if len(invoice_ids) > 500:
+        return jsonify({'success': False, 'error': 'Pick 500 invoices or fewer'}), 400
+    return jsonify({'success': True, **billing.run_payment_reminders(
+        org_id=org_id, invoice_ids=invoice_ids)})

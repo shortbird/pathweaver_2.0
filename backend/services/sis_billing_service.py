@@ -17,6 +17,7 @@ citing a June 2026 discovery document that locked exactly that. The decision was
 reversed and the document is deleted; this file is the money.
 """
 
+import uuid
 from datetime import datetime, timezone, timedelta, date
 from typing import Dict, List, Any, Optional
 
@@ -24,6 +25,7 @@ from app_config import Config
 from repositories.sis_billing_repository import (SisBillingAuditRepository,
                                                  SisInstallmentRepository,
                                                  SisInvoiceLineItemRepository,
+                                                 SisInvoiceRepository,
                                                  SisPaymentPlanRepository,
                                                  SisPaymentRecordRepository)
 from services import sis_payment_profile as payment_profile
@@ -1012,6 +1014,257 @@ def void_invoice(org_id: str, invoice_id: str, actor_user_id: Optional[str],
             'reason': (reason or '').strip() or None})
     _cancel_plans_for_invoice(org_id, invoice_id, actor_user_id, why='invoice voided')
     return {'invoice': (updated or [inv])[0]}
+
+
+# ── Splitting an invoice in two ──────────────────────────────────────────────
+#
+# iCreate, ticket eacb3356: "invoice for half now and half in January ...
+# ability to have multiple invoices". A family that is reimbursed (a scholarship
+# program, an ESA) has to submit a bill per payment period. Before this the
+# office could only void the invoice and type two new ones by hand, which lost
+# the invoice number the family already had.
+
+SPLIT_SUFFIXES = (' (1 of 2)', ' (2 of 2)')
+# Statuses a split may start from. Partial and paid already have money on them.
+SPLITTABLE_STATUSES = ('draft', 'sent', 'overdue')
+
+
+def split_line_amounts(amounts: List[int], part_cents: int) -> List[int]:
+    """PURE. Share `part_cents` across lines in proportion to their amounts.
+
+    Largest remainder: each line gets the floor of its exact share, and the
+    cents left over go one each to the lines with the biggest fractions (ties
+    to the earlier line). The parts add up to exactly `part_cents`, and no
+    line's part is ever more than the line itself.
+    """
+    whole = sum(amounts)
+    if whole <= 0:
+        return [0 for _ in amounts]
+    floors = [a * part_cents // whole for a in amounts]
+    left = part_cents - sum(floors)
+    by_fraction = sorted(range(len(amounts)),
+                         key=lambda i: (-(amounts[i] * part_cents % whole), i))
+    for i in by_fraction[:left]:
+        floors[i] += 1
+    return floors
+
+
+def _is_uuid(value: Any) -> bool:
+    """Any UUID shape. An id that is not one would make PostgREST raise
+    (22P02) instead of matching nothing."""
+    try:
+        uuid.UUID(str(value))
+        return True
+    except (ValueError, TypeError, AttributeError):
+        return False
+
+
+def _valid_iso_date(value: Any) -> Optional[str]:
+    if not isinstance(value, str):
+        return None
+    try:
+        return date.fromisoformat(value.strip()).isoformat()
+    except ValueError:
+        return None
+
+
+def split_invoice(org_id: str, invoice_id: str, actor_user_id: Optional[str],
+                  first_amount_cents: Any, first_due_date: Any,
+                  second_due_date: Any) -> Dict[str, Any]:
+    """Split one unpaid invoice into two: this one keeps its number and
+    `first_amount_cents`, a new sibling invoice carries the rest.
+
+    Each line is shared between the two in proportion (split_line_amounts),
+    with the same description plus "(1 of 2)" / "(2 of 2)", so each bill still
+    says what it is for -- a reimbursement program reads the lines, and one
+    line reading "Balance" would be refused. The discount is shared the same
+    way, so each half carries its part of it. The sibling has the same family,
+    student and registration.
+
+    Refused, with nothing written, when the invoice is void, paid, or has any
+    payment ever recorded on it (a refund included); when it has a payment
+    plan with installments; when a card fee is on it (the fee is worked out
+    again when each half is paid); or when the first amount is not strictly
+    between 0 and the balance.
+
+    Autopay: autopay is a payment plan on the invoice, and the charge sweep
+    collects plan installments only (charge_due_installments). A split of an
+    invoice on autopay is therefore refused -- the installments were agreed
+    against the whole bill. The office stops autopay first, splits, and the
+    family can set autopay up on each half.
+
+    Atomic by compensation, as the database has no billing RPC: the original
+    is claimed with a conditional update (unchanged since it was read, still
+    nothing paid), then its lines are rewritten, then the sibling is created.
+    Any failure puts the original's row and lines back and deletes the
+    sibling. Returns {'invoice', 'second_invoice'} or {'error'}.
+    """
+    if not _is_uuid(invoice_id):
+        return {'error': 'Invoice not found'}
+    invoices = SisInvoiceRepository(client=_admin())
+    lines_repo = SisInvoiceLineItemRepository(client=_admin())
+    inv = invoices.for_org(org_id, invoice_id)
+    if not inv:
+        return {'error': 'Invoice not found'}
+    status = inv.get('status')
+    if status == 'void':
+        return {'error': 'This invoice was voided and cannot be split'}
+    if status == 'paid':
+        return {'error': 'This invoice is paid and cannot be split'}
+    if (inv.get('amount_paid_cents') or 0) != 0 or status not in SPLITTABLE_STATUSES \
+            or SisPaymentRecordRepository(client=_admin()).any_for_invoice(invoice_id):
+        return {'error': 'A payment has been recorded on this invoice, so it cannot be split. '
+                         'Edit it instead.'}
+    plans = SisPaymentPlanRepository(client=_admin()).for_invoice(invoice_id)
+    if plans:
+        live = [p for p in plans if p.get('status') == 'active']
+        kept = SisInstallmentRepository(client=_admin()).for_plans(
+            [p['id'] for p in plans], list(UNPAID_INSTALLMENT_STATUSES) + ['paid'])
+        if live or kept:
+            return {'error': 'This invoice has a payment plan or autopay. Stop it first, '
+                             'then split the invoice.'}
+    lines = sorted(lines_repo.for_invoice(invoice_id),
+                   key=lambda li: (str(li.get('created_at') or ''), str(li.get('id'))))
+    if (inv.get('processing_fee_cents') or 0) > 0 or any(
+            li.get('kind') == 'fee' and li.get('description') == PROCESSING_FEE_DESCRIPTION
+            for li in lines):
+        return {'error': 'This invoice has a card processing fee on it. Waive the fee first; '
+                         'it is added again when each part is paid.'}
+
+    total = int(inv.get('total_cents') or 0)
+    balance = amount_due_cents(inv)
+    if isinstance(first_amount_cents, bool) or not isinstance(first_amount_cents, int):
+        return {'error': 'The first amount must be a whole number of cents'}
+    if not 0 < first_amount_cents < balance:
+        return {'error': 'The first amount must be more than $0 and less than the balance '
+                         f'of {format_cents(balance)}'}
+    first_due = inv.get('due_date') if first_due_date in (None, '') else _valid_iso_date(first_due_date)
+    if first_due_date not in (None, '') and not first_due:
+        return {'error': 'The first due date is not a valid date'}
+    second_due = _valid_iso_date(second_due_date)
+    if not second_due:
+        return {'error': 'The second invoice needs a due date'}
+
+    amounts = [int(li.get('amount_cents') or 0) for li in lines]
+    subtotal = int(inv.get('subtotal_cents') or 0)
+    discount = int(inv.get('discount_cents') or 0)
+    if not lines or sum(amounts) != subtotal or subtotal - discount != total:
+        # The pieces must add up before they can be shared out; a split of an
+        # invoice whose lines disagree with its total would move money.
+        return {'error': "This invoice's lines do not add up to its total. "
+                         'Edit it first, then split it.'}
+
+    # The first part's share of the discount, rounded half up, and the lines
+    # it then needs so that lines - discount == first amount exactly.
+    first_discount = (2 * discount * first_amount_cents + total) // (2 * total)
+    first_subtotal = first_amount_cents + first_discount
+    first_parts = split_line_amounts(amounts, first_subtotal)
+    second_amount = total - first_amount_cents
+    second_discount = discount - first_discount
+
+    def _part(li, amount, suffix):
+        return {'description': f"{li['description']}{suffix}", 'amount_cents': amount,
+                'class_id': li.get('class_id'), 'kind': li.get('kind')}
+
+    first_lines = [_part(li, amt, SPLIT_SUFFIXES[0]) for li, amt in zip(lines, first_parts, strict=True)
+                   if amt > 0 or int(li.get('amount_cents') or 0) == 0]
+    second_lines = [_part(li, int(li.get('amount_cents') or 0) - amt, SPLIT_SUFFIXES[1])
+                    for li, amt in zip(lines, first_parts, strict=True)
+                    if int(li.get('amount_cents') or 0) - amt > 0]
+    new_status = 'draft' if status == 'draft' else 'sent'
+
+    restore_row = {k: inv.get(k) for k in ('status', 'subtotal_cents', 'discount_cents',
+                                           'total_cents', 'due_date', 'updated_at')}
+    old_line_rows = [{k: li.get(k) for k in ('id', 'invoice_id', 'description', 'class_id',
+                                              'amount_cents', 'quantity', 'kind', 'created_at')
+                      if k in li} for li in lines]
+    claimed = new_line_ids = old_deleted = None
+    # Reserved up front, so an insert that fails half way (row in, lines not)
+    # can still be found and deleted by the undo.
+    sibling = {'id': str(uuid.uuid4())}
+    try:
+        claimed = invoices.update_if_unchanged(
+            org_id, invoice_id,
+            expect={'updated_at': inv.get('updated_at'), 'amount_paid_cents': 0,
+                    'status': status},
+            patch={'subtotal_cents': first_subtotal, 'discount_cents': first_discount,
+                   'total_cents': first_amount_cents, 'due_date': first_due or None,
+                   'status': new_status, 'updated_at': _now()})
+        if not claimed:
+            return {'error': 'This invoice changed while it was being split. '
+                             'Reload it and try again.'}
+        new_line_ids = [r['id'] for r in lines_repo.insert_many(
+            [_line_row(invoice_id, li) for li in first_lines])]
+        lines_repo.delete_ids([li['id'] for li in lines])
+        old_deleted = True
+        sibling = write_invoice(
+            org_id, household_id=inv.get('household_id'),
+            student_user_id=inv.get('student_user_id'), lines=second_lines,
+            discount_cents=second_discount, status=new_status, due_date=second_due,
+            registration_id=inv.get('registration_id'), invoice_id=sibling['id'])
+        if int(sibling.get('total_cents') or 0) != second_amount:
+            raise RuntimeError(f"second invoice total {sibling.get('total_cents')} "
+                               f"!= {second_amount}")
+    except Exception as e:  # noqa: BLE001 -- undo, then report; never half a split
+        logger.error(f'[SIS billing] split of invoice {invoice_id} failed, undoing: {e}')
+        _undo_split(org_id, invoice_id, restore_row if claimed else None,
+                    new_line_ids or [], old_line_rows if old_deleted else [],
+                    sibling, invoices, lines_repo)
+        return {'error': 'The invoice could not be split. Nothing was changed.'}
+
+    detail = {
+        'from_total_cents': total,
+        'first_amount_cents': first_amount_cents,
+        'second_amount_cents': second_amount,
+        'first_discount_cents': first_discount,
+        'second_discount_cents': second_discount,
+        'first_due_date': first_due, 'second_due_date': second_due,
+        'first_invoice_id': invoice_id,
+        'first_invoice_number': inv.get('invoice_number'),
+        'second_invoice_id': sibling['id'],
+        'second_invoice_number': sibling.get('invoice_number'),
+    }
+    _audit(org_id, invoice_id, actor_user_id, 'invoice_split', detail)
+    _audit(org_id, sibling['id'], actor_user_id, 'invoice_split_created', detail)
+    enqueue_qbo(org_id, 'invoice', invoice_id)
+    enqueue_qbo(org_id, 'invoice', sibling['id'])
+    if new_status != 'draft':
+        notify_family_of_invoice_change(
+            org_id, claimed[0], total,
+            f"The school split it in two. The rest, {format_cents(second_amount)}, is on "
+            f"{sibling.get('invoice_number') or 'a second invoice'}"
+            f"{f', due {second_due}' if second_due else ''}.")
+    return {'invoice': get_invoice(org_id, invoice_id),
+            'second_invoice': get_invoice(org_id, sibling['id'])}
+
+
+def _undo_split(org_id: str, invoice_id: str, restore_row: Optional[Dict[str, Any]],
+                new_line_ids: List[str], old_line_rows: List[Dict[str, Any]],
+                sibling: Optional[Dict[str, Any]], invoices: SisInvoiceRepository,
+                lines_repo: SisInvoiceLineItemRepository) -> None:
+    """Put a half-finished split back. Each step is tried on its own so one
+    failure does not leave the rest undone; a failure here is logged as an
+    error, because then the invoice needs a person to look at it."""
+    steps = []
+    if sibling and sibling.get('id'):
+        # Both deletes are filtered by the reserved id, so they are no-ops
+        # when the insert never happened.
+        steps.append(('delete second invoice lines',
+                      lambda: lines_repo.delete_for_invoice(sibling['id'])))
+        steps.append(('delete second invoice',
+                      lambda: invoices.delete_for_org(org_id, sibling['id'])))
+    if new_line_ids:
+        steps.append(('delete new lines', lambda: lines_repo.delete_ids(new_line_ids)))
+    if old_line_rows:
+        steps.append(('restore old lines', lambda: lines_repo.insert_many(old_line_rows)))
+    if restore_row:
+        steps.append(('restore invoice', lambda: invoices.restore(org_id, invoice_id, restore_row)))
+    for name, step in steps:
+        try:
+            step()
+        except Exception as e:  # noqa: BLE001
+            logger.error(f'[SIS billing] split undo step "{name}" failed for invoice '
+                         f'{invoice_id}: {e}. Check this invoice by hand.')
 
 
 # ── Stopping autopay ─────────────────────────────────────────────────────────
@@ -3329,6 +3582,15 @@ def _reminder_bodies(org_name: str, amount_due_cents: int,
                      due_date: Optional[str]) -> Dict[str, str]:
     link = f"{Config.FRONTEND_URL.rstrip('/')}/family/billing"
     due_line = f" It was due on {due_date}." if due_date else ''
+    # A reminder the office picked by hand (ticket 0034e67c) can be for a bill
+    # that is not due yet; "it was due" would be false. The sweep only ever
+    # sends past-due reminders, so its wording does not change.
+    try:
+        if due_date and date.fromisoformat(str(due_date)[:10]) >= date.today():
+            due_line = f" It is due on {due_date}."
+    except ValueError:
+        # unparseable due date: keep the past-tense line
+        ...
     text = (
         f"Hello,\n\n"
         f"This is a friendly reminder from {org_name} that your family has a tuition "
@@ -3350,23 +3612,53 @@ def _reminder_bodies(org_name: str, amount_due_cents: int,
     return {'text': text, 'html': html}
 
 
-def run_payment_reminders(org_id: Optional[str] = None) -> Dict[str, Any]:
+def run_payment_reminders(org_id: Optional[str] = None,
+                          invoice_ids: Optional[List[str]] = None) -> Dict[str, Any]:
     """Email guardians about invoices with a balance due that are past due
     (invoice due date passed, or an installment's due date passed). Deduped per
     invoice via sis_payment_reminders (one reminder per REMINDER_COOLDOWN_DAYS).
     Returns {checked, reminded, skipped}: invoices with a balance examined,
-    reminder emails sent, and invoices skipped for a recent reminder."""
+    reminder emails sent, and invoices skipped for a recent reminder.
+
+    `invoice_ids` is the office picking families by hand (ticket 0034e67c,
+    iCreate: "select certain individuals to send payment reminders to instead
+    of everyone"). It needs `org_id`, and an id that is not an open invoice of
+    THAT org is ignored, so nothing is ever sent for another school's bill.
+    The owner's decision: a hand-picked send skips the past-due check and the
+    cooldown, because the office chose these families on purpose; it still
+    only reminds about open, unpaid, non-void invoices with a balance. The
+    extra keys {requested, invoices_reminded, not_sent} say how it went.
+    Without `invoice_ids` (the sweep, and the "everyone" button) nothing here
+    changes."""
+    selected = invoice_ids is not None
+    if selected:
+        wanted = sorted({str(i) for i in invoice_ids if _is_uuid(i)})
+        if not org_id or not wanted:
+            return {'checked': 0, 'reminded': 0, 'skipped': 0,
+                    'requested': len(invoice_ids), 'invoices_reminded': 0,
+                    'not_sent': len(invoice_ids)}
+
     def _open_invoices():
         query = (_admin().table('sis_invoices').select('*')
                  .in_('status', list(OPEN_INVOICE_STATUSES)))
+        if selected:
+            query = query.in_('id', wanted)
         return query.eq('organization_id', org_id) if org_id else query
 
     # Paged: with no org_id this is every open invoice on the platform, and an
     # invoice dropped past the row cap is a family who never gets reminded.
     invoices = [i for i in fetch_all_rows(_open_invoices) if amount_due_cents(i) > 0]
+    if selected:
+        # Belt and braces on the org filter: the query already has it.
+        invoices = [i for i in invoices if i.get('organization_id') == org_id]
     checked = len(invoices)
     reminded = skipped = 0
+    invoices_reminded = 0
     if not invoices:
+        if selected:
+            return {'checked': 0, 'reminded': 0, 'skipped': 0,
+                    'requested': len(invoice_ids), 'invoices_reminded': 0,
+                    'not_sent': len(wanted)}
         return {'checked': 0, 'reminded': 0, 'skipped': 0}
     _hydrate_invoices(invoices)
     orgs = _org_branding([i['organization_id'] for i in invoices])
@@ -3400,17 +3692,18 @@ def run_payment_reminders(org_id: Optional[str] = None) -> Dict[str, Any]:
         except ValueError:
             # unparseable due date: not past due
             ...
-        if not (overdue_installment or invoice_past_due):
+        if not selected and not (overdue_installment or invoice_past_due):
             continue
         household = households.get(inv.get('household_id'))
         if not household:
             continue
-        recent = (_admin().table('sis_payment_reminders').select('id')
-                  .eq('invoice_id', inv['id']).gte('sent_at', cutoff)
-                  .limit(1).execute()).data
-        if recent:
-            skipped += 1
-            continue
+        if not selected:
+            recent = (_admin().table('sis_payment_reminders').select('id')
+                      .eq('invoice_id', inv['id']).gte('sent_at', cutoff)
+                      .limit(1).execute()).data
+            if recent:
+                skipped += 1
+                continue
         guardians = _guardian_emails_for_household(
             household['id'], household.get('primary_contact_user_id'))
         if not guardians:
@@ -3418,8 +3711,12 @@ def run_payment_reminders(org_id: Optional[str] = None) -> Dict[str, Any]:
         org = orgs.get(inv['organization_id']) or {}
         org_name = org.get('name') or 'Your school'
         amount_due = amount_due_cents(inv)
-        due_date = (overdue_installment or {}).get('due_date') or inv.get('due_date')
+        # A hand-picked invoice may have nothing overdue yet: name the next
+        # unpaid installment, then the invoice's own due date.
+        next_installment = overdue_installment or (unpaid[0] if selected and unpaid else None)
+        due_date = (next_installment or {}).get('due_date') or inv.get('due_date')
         bodies = _reminder_bodies(org_name, amount_due, due_date)
+        sent_any = False
         for g in guardians:
             try:
                 sent = svc.send_email(
@@ -3443,6 +3740,13 @@ def run_payment_reminders(org_id: Optional[str] = None) -> Dict[str, Any]:
             except Exception as e:  # noqa: BLE001
                 logger.error(f"[SIS billing] reminder log failed for invoice {inv['id']}: {e}")
             reminded += 1
+            sent_any = True
+        if sent_any:
+            invoices_reminded += 1
+    if selected:
+        return {'checked': checked, 'reminded': reminded, 'skipped': skipped,
+                'requested': len(invoice_ids), 'invoices_reminded': invoices_reminded,
+                'not_sent': len(wanted) - invoices_reminded}
     return {'checked': checked, 'reminded': reminded, 'skipped': skipped}
 
 
