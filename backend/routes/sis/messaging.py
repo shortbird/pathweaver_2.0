@@ -135,3 +135,41 @@ def send_detail(user_id, send_id):
     if not detail:
         return jsonify({'success': False, 'error': 'Send not found'}), 404
     return jsonify({'success': True, 'send': detail})
+
+
+# ── All class chats (ticket bbb477db) ────────────────────────────────────────
+
+@bp.route('/class-chats', methods=['GET'])
+@require_role(*ADMIN_ROLES)
+def class_chats(user_id):
+    """Every class chat at the school, newest activity first, for the office:
+    "helpful for admins to see in one place" (bbb477db).
+
+    Query: q (class or chat name), page, per_page.
+    """
+    org_id, err = sis_service.org_or_error(user_id)
+    if err:
+        return err
+    from services import class_chat_directory_service as directory
+    try:
+        page = int(request.args.get('page') or 1)
+        per_page = int(request.args.get('per_page') or directory.DEFAULT_PER_PAGE)
+    except ValueError:
+        return jsonify({'success': False, 'error': 'page and per_page must be numbers'}), 400
+    result = directory.list_class_chats(org_id, request.args.get('q'), page, per_page)
+    return jsonify({'success': True, **result})
+
+
+@bp.route('/class-chats/<group_id>/open', methods=['POST'])
+@require_role(*ADMIN_ROLES)
+def open_class_chat(user_id, group_id):
+    """Join the admin to one class chat as an admin member, the way opening a
+    class's Messages tab does, so it opens in My messages."""
+    org_id, err = sis_service.org_or_error(user_id)
+    if err:
+        return err
+    from services import class_chat_directory_service as directory
+    group = directory.open_class_chat(org_id, group_id, user_id)
+    if not group:
+        return jsonify({'success': False, 'error': 'Class chat not found'}), 404
+    return jsonify({'success': True, 'group': group})

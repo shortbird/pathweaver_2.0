@@ -158,21 +158,13 @@ def class_messaging(user_id, class_id):
         return jsonify({'success': False, 'error': 'Class not found'}), 404
     cls = cls[0]
 
-    from services.class_group_sync_service import sync_class_groups
+    from services.class_group_sync_service import ensure_admin_member, sync_class_groups
     group_ids = sync_class_groups(class_id, actor_id=user_id)
 
     def _load_group(group_id, fallback_name):
         if not group_id:
             return None
-        me = (admin.table('group_members').select('id, role')
-              .eq('group_id', group_id).eq('user_id', user_id).limit(1).execute()).data
-        if not me:
-            admin.table('group_members').insert({
-                'group_id': group_id, 'user_id': user_id,
-                'role': 'admin', 'added_by': user_id,
-            }).execute()
-        elif me[0].get('role') != 'admin':
-            admin.table('group_members').update({'role': 'admin'}).eq('id', me[0]['id']).execute()
+        ensure_admin_member(group_id, user_id, admin=admin)
         rows = (admin.table('group_conversations')
                 .select('id, name, announcement_only, last_message_at')
                 .eq('id', group_id).limit(1).execute()).data

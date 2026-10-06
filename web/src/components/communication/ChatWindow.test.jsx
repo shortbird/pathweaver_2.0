@@ -69,7 +69,7 @@ describe('ChatWindow', () => {
     render(<ChatWindow conversation={advisor} />)
     const input = screen.getByPlaceholderText(/Message Ada/i)
     fireEvent.change(input, { target: { value: 'Hello' } })
-    fireEvent.keyDown(input, { key: 'Enter' })
+    fireEvent.keyDown(input, { key: 'Enter', ctrlKey: true }) // Ctrl+Enter sends (e937883a)
     expect(sendMutate).toHaveBeenCalledWith(expect.objectContaining({ targetUserId: 'a1', content: 'Hello' }))
   })
 
@@ -98,7 +98,7 @@ describe('ChatWindow', () => {
 
     const input = screen.getByPlaceholderText(/Message Sydney/i)
     fireEvent.change(input, { target: { value: 'Hi' } })
-    fireEvent.keyDown(input, { key: 'Enter' })
+    fireEvent.keyDown(input, { key: 'Enter', ctrlKey: true }) // Ctrl+Enter sends (e937883a)
 
     await waitFor(() => expect(useMessagingRealtime).toHaveBeenLastCalledWith(
       expect.objectContaining({ topicId: 'convo-new' })

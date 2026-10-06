@@ -397,3 +397,31 @@ def test_send_detail_lists_unread_first():
         detail = compose.send_detail(ORG, 's1')
     assert [r['user_id'] for r in detail['recipients']] == ['b', 'a', 'c']
     assert detail['recipient_count'] == 2 and detail['read_count'] == 1
+
+
+# ── Group name: ticket 21408d28 ("Can I name the group I'm sending to?") ─────
+
+def _group_name_for(universe, repo, **kwargs):
+    svc = Mock()
+    svc.create_group.return_value = {'id': 'g1'}
+    svc.send_message.return_value = {'id': 'gm1'}
+    with patch('services.group_message_service.GroupMessageService', return_value=svc), \
+         patch.object(compose, '_default_name', return_value='Tam and Al'):
+        compose.compose(ORG, KATE, body='Hi', recipient_ids=[TEACH, AIDE],
+                        mode='group', **kwargs)
+    return svc.create_group.call_args.args[1]
+
+
+@pytest.mark.unit
+class TestGroupName:
+    """Ticket 21408d28: a typed name wins, then the subject, then the names."""
+
+    def test_an_explicit_name_wins_over_the_subject(self, universe, repo):
+        assert _group_name_for(universe, repo, name='Field trip crew',
+                               subject='Friday trip') == 'Field trip crew'
+
+    def test_an_empty_name_uses_the_subject(self, universe, repo):
+        assert _group_name_for(universe, repo, name='  ', subject=' Friday trip ') == 'Friday trip'
+
+    def test_no_name_and_no_subject_falls_back_to_the_default(self, universe, repo):
+        assert _group_name_for(universe, repo, name=None, subject='') == 'Tam and Al'

@@ -151,6 +151,16 @@ def rename_class_groups(class_id: str, old_name: Optional[str],
     return renamed
 
 
+def ensure_admin_member(group_id: str, user_id: str, admin=None) -> None:
+    """Put a staff member in a class chat as an admin: insert them, or promote
+    a plain membership. Reading a group requires membership, and staff who can
+    reach a class administer its chats. Shared by the class Messages tab
+    (routes/sis/staff_portal.class_messaging) and the admin's "All class chats"
+    list (ticket bbb477db), so both joins write the same row."""
+    from repositories.group_repository import GroupRepository
+    GroupRepository(client=admin or _admin()).ensure_admin_member(group_id, user_id)
+
+
 def sync_class_group(class_id: str, actor_id: Optional[str] = None) -> Optional[str]:
     """Back-compat wrapper for the enrollment write paths: syncs BOTH groups,
     returns the family (parent chat) group id or None."""

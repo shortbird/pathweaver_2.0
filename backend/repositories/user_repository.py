@@ -368,6 +368,20 @@ class UserRepository(BaseRepository):
             logger.error(f"Error fetching users by IDs: {e}")
             raise DatabaseError("Failed to fetch users by IDs") from e
 
+    def find_by_emails(self, emails: List[str],
+                       select_fields: str = 'id, email') -> Dict[str, Dict[str, Any]]:
+        """{lower-cased email: user} for the accounts using these addresses.
+        Asked in chunks of 100; each chunk is at most 100 rows, under the cap."""
+        wanted = sorted({(e or '').strip().lower() for e in (emails or []) if e})
+        out: Dict[str, Dict[str, Any]] = {}
+        for i in range(0, len(wanted), 100):
+            rows = (self.client.table(self.table_name).select(select_fields)
+                    .in_('email', wanted[i:i + 100]).execute()).data or []
+            for r in rows:
+                if r.get('email'):
+                    out[r['email'].strip().lower()] = r
+        return out
+
     def get_basic_profiles(
         self,
         user_ids: List[str]

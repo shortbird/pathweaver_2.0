@@ -65,6 +65,26 @@ class SisClassRepository(BaseRepository):
         rows = fetch_all_rows(build)
         return sorted(rows, key=lambda c: (c.get('name') or '').lower())
 
+    def names_in_org(self, organization_id: str, class_ids: List[str]) -> Dict[str, str]:
+        """{class_id: name} for those of `class_ids` that belong to the org.
+        A class missing from the answer is not this org's."""
+        ids = sorted({c for c in (class_ids or []) if c})
+        out: Dict[str, str] = {}
+        for i in range(0, len(ids), 100):
+            rows = (self.client.table(self.table_name).select('id, name')
+                    .in_('id', ids[i:i + 100]).eq('organization_id', organization_id)
+                    .execute()).data or []
+            for c in rows:
+                out[c['id']] = c.get('name') or ''
+        return out
+
+    def ids_matching_name(self, organization_id: str, term: str, limit: int = 100) -> List[str]:
+        """Ids of the org's classes whose name contains `term` (case-blind)."""
+        rows = (self.client.table(self.table_name).select('id')
+                .eq('organization_id', organization_id).ilike('name', f'%{term}%')
+                .limit(limit).execute()).data or []
+        return [r['id'] for r in rows]
+
     def create_for_org(self, organization_id: str, created_by: str,
                        fields: Dict[str, Any]) -> Dict[str, Any]:
         payload = {

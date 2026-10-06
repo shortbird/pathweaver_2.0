@@ -10,6 +10,7 @@ import Button from '../../components/ui/Button'
 import { useSisOrg } from './useSisOrg'
 import SisNewUserModal from '../../components/sis/SisNewUserModal'
 import PeopleExportModal from '../../components/sis/PeopleExportModal'
+import InviteSecondParentsModal from '../../components/sis/InviteSecondParentsModal'
 import TeacherModal from '../../components/sis/TeacherModal'
 import { startMasquerade } from '../../services/masqueradeService'
 import { learningSurfaceHref } from '../../utils/appSurface'
@@ -72,7 +73,7 @@ const writeFilters = (params, f) => {
 }
 
 const PeoplePage = () => {
-  const { orgId, canViewAs } = useSisOrg()
+  const { orgId, canViewAs, isAdmin } = useSisOrg()
   const { openStudent, openFamily, openStaff } = useRecordDoors()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
@@ -91,6 +92,8 @@ const PeoplePage = () => {
   const [addMenu, setAddMenu] = useState(false)
   const [newFamily, setNewFamily] = useState('')
   const [showExport, setShowExport] = useState(false)
+  // Ticket d11e5168: second parents who are only an emergency contact.
+  const [showSecondParents, setShowSecondParents] = useState(false)
   const [resendingId, setResendingId] = useState(null)
 
   const refresh = () => {
@@ -209,6 +212,10 @@ const PeoplePage = () => {
       <div className="flex items-center justify-between mb-4 gap-3 flex-wrap">
         <h1 className="text-2xl font-bold text-neutral-900">People</h1>
         <div className="flex items-center gap-3">
+          {isAdmin && (
+            <Button variant="outline" size="sm" onClick={() => setShowSecondParents(true)} disabled={!orgId}
+              title="Parents listed only as an emergency contact, with no account">Invite second parents</Button>
+          )}
           <Button variant="outline" size="sm" onClick={() => setShowExport(true)} disabled={!visible.length}
             title="Exports the rows shown, with your filters and sort applied">Export CSV</Button>
           <PopMenu open={addMenu} onClose={() => setAddMenu(false)} width="w-44"
@@ -307,6 +314,11 @@ const PeoplePage = () => {
       {showExport && (
         <PeopleExportModal rows={visible} orgId={orgId} studentsOnly={filters.role === 'student'}
           onClose={() => setShowExport(false)} />
+      )}
+
+      {showSecondParents && (
+        <InviteSecondParentsModal orgId={orgId} onClose={() => setShowSecondParents(false)}
+          onDone={refresh} />
       )}
 
       {acting && (

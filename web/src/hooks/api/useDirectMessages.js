@@ -266,19 +266,28 @@ export const useEditMessage = () => {
   })
 }
 
-// Delete own DM (renders as a tombstone; superadmins keep the content)
+// Delete own DM (renders as a tombstone; superadmins keep the content).
+//
+// With a school `source`, deletes a message the caller sent AS the school
+// (ticket ecc73d0e): its sender is the school's inbox account, so the plain
+// DM delete refuses it; the school-inbox route checks sent_by_user_id instead.
 export const useDeleteMessage = () => {
   const queryClient = useQueryClient()
   const { user } = useAuth()
   const revealDeleted = user?.role === 'superadmin'
 
   return useMutation({
-    mutationFn: async ({ messageId }) => {
-      const response = await api.delete(`/api/messages/${messageId}`)
+    mutationFn: async ({ messageId, source }) => {
+      let url = `/api/messages/${messageId}`
+      if (source?.school) {
+        url = `/api/school-inbox/messages/${messageId}`
+        if (source.orgId) url += `?organization_id=${encodeURIComponent(source.orgId)}`
+      }
+      const response = await api.delete(url)
       return response.data.data || response.data
     },
-    onSuccess: (data, { conversationId, messageId }) => {
-      queryClient.setQueryData(['conversation-messages', conversationId], (old) => {
+    onSuccess: (data, { conversationId, messageId, source }) => {
+      queryClient.setQueryData(messagesQueryKey(conversationId, source), (old) => {
         if (!old?.messages) return old
         return {
           ...old,

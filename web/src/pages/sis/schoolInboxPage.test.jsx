@@ -109,10 +109,15 @@ const { api, state } = vi.hoisted(() => {
         return Promise.resolve({ data: { success: true } })
       }),
       put: vi.fn(() => Promise.resolve({ data: { success: true, data: {} } })),
+      patch: vi.fn(() => Promise.resolve({ data: { success: true, data: {} } })),
+      delete: vi.fn(() => Promise.resolve({ data: { success: true, data: { ok: true } } })),
     },
   }
 })
 vi.mock('../../services/api', () => ({ default: api }))
+
+// The delete confirm answers yes; the dialog itself has its own tests.
+vi.mock('../../contexts/ConfirmContext', () => ({ useConfirm: () => () => Promise.resolve(true) }))
 
 import SchoolInboxPage from './SchoolInboxPage'
 
@@ -1196,7 +1201,7 @@ describe('SchoolInboxPage — Open, Waiting, Closed (250c9c7a + 7402cb26)', () =
     fireEvent.click(await screen.findByText('Kim Family'))
     await screen.findByText('Thanks!')
     fireEvent.change(screen.getByPlaceholderText(/Reply as/), { target: { value: 'Any time' } })
-    fireEvent.keyDown(screen.getByPlaceholderText(/Reply as/), { key: 'Enter' })
+    fireEvent.keyDown(screen.getByPlaceholderText(/Reply as/), { key: 'Enter', ctrlKey: true }) // Ctrl+Enter sends (e937883a)
     await waitFor(() => expect(viewButton('Waiting')).toHaveTextContent('Waiting (1)'))
     expect(viewButton('Closed')).toHaveTextContent(/^Closed$/)
   })
@@ -1257,3 +1262,51 @@ describe('SchoolInboxPage — the numbers agree (16d13eb4)', () => {
     expect(screen.queryByText(/\d+ waiting on you/)).toBeNull()
   })
 })
+
+// ecc73d0e (iCreate campus coordinator, /inbox?tab=mine): "I would like to
+// delete a message that I sent by mistake." The inbox rendered bubbles with no
+// actions at all. My messages: your own messages get Edit and Delete. School
+// tab: only the messages the server marks can_delete (the ones this colleague
+// wrote as the school), and only Delete.
+// Text queries, not role queries: role queries over this whole page are slow
+// enough in jsdom to time a test out.
+describe('deleting your own message (ecc73d0e)', () => {
+  it('My messages: own message shows Edit and Delete; theirs shows neither', async () => {
+    authUser = { id: 'me-1', role: 'org_admin' }
+    // Their word last, so the thread shows under the default Open view.
+    state.myConvos = [{ ...convo(1, 'Ada'), last_message_sender_id: 'u1' }]
+    state.myMessages = [
+      { id: 'mm1', sender_id: 'u1', message_content: 'their note', created_at: '2026-08-30T11:00:00Z' },
+      { id: 'mm2', sender_id: 'me-1', message_content: 'sent by mistake', created_at: '2026-08-30T12:00:00Z' },
+    ]
+    render(<SchoolInboxPage />, { route: '/inbox?tab=mine' })
+    fireEvent.click(await screen.findByText('hello 1'))
+    await screen.findByText('sent by mistake')
+    expect(screen.getAllByText('Delete', { selector: 'button' })).toHaveLength(1)
+    expect(screen.getAllByText('Edit', { selector: 'button' })).toHaveLength(1)
+    fireEvent.click(screen.getByText('Delete', { selector: 'button' }))
+    await waitFor(() => expect(api.delete).toHaveBeenCalledWith('/api/messages/mm2'))
+  })
+
+  it('School tab: Delete only on the colleague\'s own school message, through the school route', async () => {
+    authUser = { id: 'me-1', role: 'org_admin' }
+    state.schoolConvos = [{ ...convo(1, 'Kim'), last_message_sender_id: 'u1' }]
+    state.schoolMessages = [
+      { id: 'sm1', sender_id: 'u1', message_content: 'family asks', created_at: '2026-08-30T10:00:00Z' },
+      { id: 'sm2', sender_id: 'inbox-1', sent_by_user_id: 'other', can_delete: false,
+        message_content: 'colleague answered', created_at: '2026-08-30T11:00:00Z' },
+      { id: 'sm3', sender_id: 'inbox-1', sent_by_user_id: 'me-1', can_delete: true,
+        message_content: 'my wrong answer', created_at: '2026-08-30T12:00:00Z' },
+    ]
+    render(<SchoolInboxPage />, { route: '/inbox?tab=school' })
+    fireEvent.click(await screen.findByText('hello 1'))
+    await screen.findByText('my wrong answer')
+    // No edit as the school: there is no route for it.
+    expect(screen.queryByText('Edit', { selector: 'button' })).toBeNull()
+    expect(screen.getAllByText('Delete', { selector: 'button' })).toHaveLength(1)
+    fireEvent.click(screen.getByText('Delete', { selector: 'button' }))
+    await waitFor(() => expect(api.delete).toHaveBeenCalledWith('/api/school-inbox/messages/sm3'))
+    expect(api.delete).not.toHaveBeenCalledWith('/api/messages/sm3')
+  })
+})
+

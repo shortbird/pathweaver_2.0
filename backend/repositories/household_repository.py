@@ -97,6 +97,24 @@ class HouseholdRepository(BaseRepository):
             .in_('household_id', household_ids)
         ))
 
+    def student_household_ids(self, student_ids: List[str]) -> Dict[str, str]:
+        """{student_id: household_id} for these students' student memberships
+        (the first one found when a child is listed in two). Paged, and asked
+        in chunks so the id list stays a sane URL length."""
+        ids = sorted({s for s in (student_ids or []) if s})
+        out: Dict[str, str] = {}
+        for i in range(0, len(ids), 100):
+            chunk = ids[i:i + 100]
+
+            def build(chunk: List[str] = chunk) -> Any:
+                return (self.client.table('household_members')
+                        .select('id, household_id, user_id')
+                        .in_('user_id', chunk).eq('relationship', 'student'))
+            for r in fetch_all_rows(build):
+                if r.get('household_id') and r.get('user_id'):
+                    out.setdefault(r['user_id'], r['household_id'])
+        return out
+
     def for_guardian(self, user_id: str, organization_id: str) -> Optional[str]:
         """The household this adult guards at one school, if any.
 

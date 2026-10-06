@@ -3,6 +3,7 @@ import { PaperAirplaneIcon, PaperClipIcon, XMarkIcon, DocumentIcon } from '@hero
 import toast from 'react-hot-toast'
 import api from '../../services/api'
 import { formatFileSize } from './MessageParts'
+import { isSendShortcut, sendShortcutLabel } from './sendShortcut'
 
 const ACCEPTED_FILES = 'image/*,video/*,audio/*,.pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.csv,.txt'
 const MAX_FILE_SIZE = 25 * 1024 * 1024 // 25MB (backend limit)
@@ -50,8 +51,9 @@ const MessageInput = ({
     }
   }
 
+  // Ctrl/Cmd+Enter sends; plain Enter is a new paragraph (ticket e937883a).
   const handleKeyDown = (e) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
+    if (isSendShortcut(e)) {
       e.preventDefault()
       handleSubmit(e)
     }
@@ -217,7 +219,7 @@ const MessageInput = ({
           {message.length}/2000
         </span>
         <span className="hidden lg:inline text-[11px] text-gray-300">
-          Enter to send
+          {sendShortcutLabel()} to send
         </span>
       </div>
     </form>

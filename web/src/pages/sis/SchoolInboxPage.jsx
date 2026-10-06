@@ -25,14 +25,16 @@ import {
   useSetConversationResolved,
   conversationsQueryKey,
 } from '../../hooks/api/useDirectMessages'
+import { useOwnMessageActions, OwnMessageLinks } from '../../components/communication/OwnMessageActions'
 import useMessagingRealtime from '../../hooks/api/useMessagingRealtime'
 import usePersistedChoice from '../../hooks/usePersistedChoice'
-import { useGroups } from '../../hooks/api/useGroupMessages'
+import { useGroups, groupsQueryKey } from '../../hooks/api/useGroupMessages'
 import ComposeMessageModal from '../../components/sis/ComposeMessageModal'
 import MakeTaskModal from '../../components/sis/MakeTaskModal'
 import SchoolInboxMembersModal from '../../components/sis/SchoolInboxMembersModal'
 import { useSchoolInboxAccess } from '../../hooks/api/useSisMessaging'
 import SentMessagesPanel from '../../components/sis/SentMessagesPanel'
+import AllClassChatsPanel from '../../components/sis/AllClassChatsPanel'
 import { formatMessageTime } from '../../components/communication/MessageParts'
 import { useAuth } from '../../contexts/AuthContext'
 import { isSisAdmin } from './sisRole'
@@ -179,6 +181,8 @@ const SchoolInboxPage = () => {
   const rawTab = searchParams.get('tab')
   const tab = rawTab === 'mine' ? 'mine'
     : rawTab === 'sent' && admin ? 'sent'
+      // Every class chat at the school, for the office (bbb477db).
+      : rawTab === 'classes' && admin ? 'classes'
       // Default: My messages, for everyone. The office used to open on the
       // shared school inbox, and a coordinator who pressed Compose there wrote
       // to a colleague as the school, into the inbox the whole office reads
@@ -249,6 +253,7 @@ const SchoolInboxPage = () => {
   const sendMutation = useSendMessage()
   const markRead = useMarkConversationAsRead()
   const resolveMutation = useSetConversationResolved()
+  const own = useOwnMessageActions({ conversationId: threadId, source }) // ecc73d0e
 
   // The school inbox marks a thread read on GET (shared read state: one
   // colleague reading it reads it for all). A teacher's own thread needs the
@@ -655,6 +660,8 @@ const SchoolInboxPage = () => {
               schoolInbox
                 ? <>Your own threads with staff, under your name. Parents and students are on the {orgName || 'school'} inbox tab.</>
                 : <>Your own threads. Everyone you write to sees your name.</>
+            ) : tab === 'classes' ? (
+              <>Every class chat at the school, in one place.</>
             ) : (
               <>Messages sent with Compose, and who has read them.</>
             )}
@@ -684,7 +691,7 @@ const SchoolInboxPage = () => {
           ...(schoolInbox ? [{ id: 'school', label: `${orgName || 'School'} inbox`,
             badge: schoolCount > 0 ? schoolCount : null }] : []),
           { id: 'mine', label: 'My messages', badge: mineCount > 0 ? mineCount : null },
-          ...(admin ? [{ id: 'sent', label: 'Sent' }] : []),
+          ...(admin ? [{ id: 'sent', label: 'Sent' }, { id: 'classes', label: 'All class chats' }] : []),
         ]}
         active={tab} onSelect={setTab}
       />
@@ -718,13 +725,23 @@ const SchoolInboxPage = () => {
           type="search"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder={tab === 'sent' ? 'Search sent messages' : 'Search by name or group'}
+          placeholder={tab === 'sent' ? 'Search sent messages' : tab === 'classes' ? 'Search class chats' : 'Search by name or group'}
           aria-label="Search conversations"
           className="w-full rounded-lg border border-gray-300 bg-white pl-9 pr-3 py-2 text-sm focus:border-optio-purple focus:outline-none focus:ring-1 focus:ring-optio-purple"
         />
       </div>
 
-      {tab === 'sent' ? (
+      {tab === 'classes' ? (
+        <div className="bg-white border border-gray-200 rounded-xl overflow-hidden min-h-[300px]">
+          {/* Opening a chat joins the admin to it, so it opens on My messages
+              through ?group= once the refetched list holds it (bbb477db). */}
+          <AllClassChatsPanel key={orgId || 'own'} orgId={isSuperadmin ? orgId : null} search={search}
+            onOpened={(g) => {
+              queryClient.removeQueries({ queryKey: groupsQueryKey(user?.id, undefined) })
+              setSearchParams({ tab: 'mine', group: g.id }, { replace: true })
+            }} />
+        </div>
+      ) : tab === 'sent' ? (
         <div className="bg-white border border-gray-200 rounded-xl overflow-hidden min-h-[300px]">
           {/* No Compose here: it always wrote as the school, from a tab that
               does not say so. Compose lives with the thread lists. */}
@@ -763,6 +780,16 @@ const SchoolInboxPage = () => {
                 (c8e2946d + af47046f; see SECTIONS_KEY). */}
             {renderGroupSection('groups', 'Group threads', shownGroups)}
             {renderGroupSection('classChats', 'Class chats', shownClassChats)}
+            {/* Class chats are not on this tab; say where they are (bbb477db). */}
+            {schoolSide && (
+              <p className="border-t border-gray-100 px-3 py-2 text-xs text-neutral-500">
+                Class chats are on{' '}
+                <button type="button" onClick={() => setTab(admin ? 'classes' : 'mine')}
+                  className="font-medium text-optio-purple underline hover:no-underline">
+                  {admin ? 'All class chats' : 'My messages'}
+                </button>.
+              </p>
+            )}
             {loading ? (
               <div className="flex items-center justify-center h-40">
                 <Spinner />
@@ -918,6 +945,7 @@ const SchoolInboxPage = () => {
                       schoolSide && fromMe && message.sent_by_name && `Sent by ${message.sent_by_name}`,
                       schoolSide && !fromMe && message.sent_by_name && `Forwarded by ${message.sent_by_name}`,
                     ].filter(Boolean).map((t) => ` · ${t}`).join('')
+                    const { canEdit, canDelete, isEditing } = own.permissions(message, { fromMe, asSchool: schoolSide })
                     return (
                       <div key={message.id} className={`flex ${fromMe ? 'justify-end' : 'justify-start'}`}>
                         {/* min-w-0: see GroupChatWindow (f2ad5cda). */}
@@ -928,7 +956,9 @@ const SchoolInboxPage = () => {
                             meta={meta || null}
                             // The read time, so the receipt says when (9b46c748).
                             seen={fromMe && i === messages.length - 1 && message.read_at ? message.read_at : false}
+                            {...own.editProps(message, isEditing)}
                           />
+                          <OwnMessageLinks {...own.linkProps(message, { canEdit, canDelete, isEditing })} />
                           {/* A family's message is how a request arrives now:
                               the office turns it into a task for whoever should
                               handle it (bf8b754d). */}

@@ -751,6 +751,38 @@ def add_household_guardian(user_id, household_id):
     return jsonify({'success': True, **result}), status
 
 
+@bp.route('/second-parent-invites', methods=['GET'])
+@require_role(*ADMIN_ROLES)
+def second_parent_invites_preview(user_id):
+    """Emergency-contact parents with an email who are not yet a linked
+    guardian (ticket d11e5168). services/second_parent_invite_service.py."""
+    org_id, err = sis_service.org_or_error(user_id)
+    if err:
+        return err
+    from services import second_parent_invite_service
+    return jsonify({'success': True,
+                    'candidates': second_parent_invite_service.preview(org_id)})
+
+
+@bp.route('/second-parent-invites', methods=['POST'])
+@require_role(*ADMIN_ROLES)
+def second_parent_invites_send(user_id):
+    """Invite the selected preview rows through "+ Add a parent".
+
+    Body: keys -- the preview's row keys. Nothing else is trusted.
+    """
+    org_id, err = sis_service.org_or_error(user_id)
+    if err:
+        return err
+    from services import second_parent_invite_service
+    result = second_parent_invite_service.invite(
+        org_id, user_id, (request.get_json(silent=True) or {}).get('keys') or [])
+    status = result.pop('status', 200)
+    if status >= 400:
+        return jsonify({'success': False, **result}), status
+    return jsonify({'success': True, **result}), status
+
+
 @bp.route('/households/<household_id>/members/<member_user_id>', methods=['DELETE'])
 @require_role(*ADMIN_ROLES)
 @require_relationship_to('member_user_id', allow=('org_staff',))

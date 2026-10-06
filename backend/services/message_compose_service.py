@@ -381,7 +381,7 @@ def compose(org_id: str, actor_id: str, *, body: str, recipient_ids: Iterable[st
 
     if group:
         result = _send_group(org_id, actor_id, wanted, kinds, content, name,
-                             attachments, push=push, school=school)
+                             attachments, push=push, school=school, subject=subject)
     else:
         mode = 'separate'
         result = _send_separately(org_id, actor_id, wanted, kinds, voices, content,
@@ -402,10 +402,14 @@ def compose(org_id: str, actor_id: str, *, body: str, recipient_ids: Iterable[st
 
 
 def _send_group(org_id, actor_id, recipients, kinds, content, name, attachments,
-                *, push, school):
+                *, push, school, subject=None):
     from services.group_message_service import GroupMessageService
     svc = GroupMessageService()
-    label = (name or '').strip()[:MAX_NAME] or _default_name(recipients)
+    # Ticket 21408d28 ("Can I name the group I'm sending to?"): a typed name
+    # wins; with none, the subject the office already wrote names the group
+    # better than a list of first names does.
+    label = ((name or '').strip()[:MAX_NAME] or (subject or '').strip()[:MAX_NAME]
+             or _default_name(recipients))
     audience_kind = _group_audience(kinds.values())
     if school:
         from services import school_inbox_service

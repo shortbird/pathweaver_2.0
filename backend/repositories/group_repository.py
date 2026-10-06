@@ -9,11 +9,12 @@ layer down, so counting unread group mail does not add another direct
 the layer guard in tests/unit/test_direct_db_calls_do_not_grow.py).
 
 Nothing here writes except the rename of a class's chats
-(rename_generated_chat), which the class-rename path needs. Other group
+(rename_generated_chat), which the class-rename path needs, and a staff
+member's admin membership of a class chat (ensure_admin_member). Other group
 mutation stays in the service until it is migrated deliberately.
 """
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from repositories.base_repository import BaseRepository
 from utils.db_fetch import fetch_all_rows
@@ -97,3 +98,42 @@ class GroupRepository(BaseRepository):
     def rename_generated_chat(self, group_id: str, fields: Dict[str, Any]) -> None:
         """Write a new name/description on one class chat."""
         self.client.table(self.table_name).update(fields).eq('id', group_id).execute()
+
+    def class_chats_page(self, organization_id: str, *, or_filter: Optional[str] = None,
+                         offset: int = 0, limit: int = 50) -> Tuple[List[Dict[str, Any]], int]:
+        """One page of the org's live class chats (source_class_id set), most
+        recent activity first, and the total counted in Postgres
+        (count='exact'), never by measuring a list (CLAUDE.md, row limits)."""
+        query = (self.client.table(self.table_name)
+                 .select('id, name, audience, source_class_id, last_message_at, '
+                         'last_message_preview, created_at', count='exact')
+                 .eq('organization_id', organization_id)
+                 .eq('is_active', True)
+                 .not_.is_('source_class_id', 'null'))
+        if or_filter:
+            query = query.or_(or_filter)
+        resp = (query.order('last_message_at', desc=True, nullsfirst=False)
+                .order('id').range(offset, offset + limit - 1).execute())
+        rows = resp.data or []
+        return rows, (resp.count if resp.count is not None else len(rows))
+
+    def class_chat(self, group_id: str) -> Optional[Dict[str, Any]]:
+        """One group with the fields a class chat opens with."""
+        rows = (self.client.table(self.table_name)
+                .select('id, name, audience, source_class_id, announcement_only, last_message_at')
+                .eq('id', group_id).limit(1).execute()).data or []
+        return rows[0] if rows else None
+
+    def ensure_admin_member(self, group_id: str, user_id: str) -> None:
+        """Insert `user_id` into the group as an admin, or promote a plain
+        membership. The one write behind "staff who reach a class administer
+        its chats" (class_group_sync_service.ensure_admin_member)."""
+        me = (self.client.table('group_members').select('id, role')
+              .eq('group_id', group_id).eq('user_id', user_id).limit(1).execute()).data
+        if not me:
+            self.client.table('group_members').insert({
+                'group_id': group_id, 'user_id': user_id,
+                'role': 'admin', 'added_by': user_id,
+            }).execute()
+        elif me[0].get('role') != 'admin':
+            self.client.table('group_members').update({'role': 'admin'}).eq('id', me[0]['id']).execute()

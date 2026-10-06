@@ -195,6 +195,15 @@ def get_thread(user_id: str, conversation_id: str):
             offset=int(request.args.get('offset', 0)),
         )
         school_inbox_service.attach_sent_by_names(messages)
+        # A colleague may delete what they wrote as the school (ticket
+        # ecc73d0e). sent_by_user_id is already on each row; can_delete is
+        # the same rule DELETE /messages/<id> applies, so the console does not
+        # re-derive it.
+        for m in messages:
+            m['can_delete'] = bool(
+                m.get('sender_id') == ctx['inbox_user_id']
+                and m.get('sent_by_user_id') == user_id
+                and not m.get('is_deleted'))
         # A masquerade reads without marking: the read state (and the
         # "opened by" mark) belongs to the staff member being viewed as
         # (ticket 50082917).
@@ -290,6 +299,35 @@ def resolve_thread(user_id: str, conversation_id: str):
     except Exception as e:
         logger.error(f"Error resolving school inbox thread: {str(e)}")
         return error_response('Failed to update the thread', status_code=500,
+                              error_code='internal_error')
+
+
+@bp.route('/messages/<message_id>', methods=['DELETE'])
+@require_role(*ADMIN_ROLES)
+def delete_school_message(user_id: str, message_id: str):
+    """Delete a message the caller sent as the school (soft delete).
+
+    Ticket ecc73d0e: a coordinator sent a message by mistake and had no way to
+    take it back. The school's reply carries the school as sender_id, so the
+    normal DM delete refuses it; the author is sent_by_user_id. Only that
+    colleague may delete it, and only a message of this org's school inbox --
+    anything else is refused with nothing written.
+
+    School GROUP messages have no sent_by column, so they stay undeletable."""
+    from services import messaging_extras_service as extras
+    try:
+        ctx, err = _resolve_inbox(user_id)
+        if err:
+            return err
+        result = extras.delete_school_message(user_id, ctx['inbox_user_id'], message_id)
+        if result.get('error'):
+            own = 'own' in result['error']
+            return error_response(result['error'], status_code=403 if own else 404,
+                                  error_code='forbidden' if own else 'not_found')
+        return success_response(result)
+    except Exception as e:
+        logger.error(f"Error deleting school inbox message: {str(e)}")
+        return error_response('Failed to delete the message', status_code=500,
                               error_code='internal_error')
 
 

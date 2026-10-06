@@ -9,6 +9,7 @@
  * console, which is the whole point of the file.
  */
 import React, { useState, useRef, useEffect, useLayoutEffect, forwardRef, useImperativeHandle } from 'react'
+import { isSendShortcut, sendShortcutLabel } from './sendShortcut'
 import {
   FaceSmileIcon,
   ArrowUturnLeftIcon,
@@ -424,9 +425,28 @@ export const MessageActionBar = ({
   )
 }
 
-/** Inline edit form replacing the bubble content while editing a message. */
+/** Inline edit form replacing the bubble content while editing a message.
+ *
+ * Ticket f7fe2ed2: the box was two fixed rows, no drag handle, inside a bubble
+ * only as wide as the old text, so editing anything longer than a line meant
+ * scrolling a sliver. It now opens at a comfortable fixed width (capped by the
+ * row's own max width), grows with the text up to the composer's cap, and can
+ * be dragged taller. Keys match the composer (e937883a): Ctrl/Cmd+Enter saves,
+ * Enter is a new line, Escape cancels.
+ */
+const EDIT_MAX_GROW_PX = 200 // the composer's cap (MessageInput MAX_GROW_PX)
+
 export const MessageEditForm = ({ initialContent, onSave, onCancel, saving = false }) => {
   const [value, setValue] = useState(initialContent || '')
+  const textareaRef = useRef(null)
+
+  // Grow to fit the text, on open and as it changes.
+  useLayoutEffect(() => {
+    const el = textareaRef.current
+    if (!el) return
+    el.style.height = 'auto'
+    el.style.height = `${Math.min(el.scrollHeight, EDIT_MAX_GROW_PX)}px`
+  }, [value])
 
   const handleSave = () => {
     const trimmed = value.trim()
@@ -434,24 +454,29 @@ export const MessageEditForm = ({ initialContent, onSave, onCancel, saving = fal
   }
 
   return (
-    <div className="w-full min-w-[200px]">
+    <div className="w-[28rem] max-w-full">
       <textarea
+        ref={textareaRef}
         autoFocus
         value={value}
         onChange={(e) => setValue(e.target.value)}
         onKeyDown={(e) => {
-          if (e.key === 'Enter' && !e.shiftKey) {
+          if (isSendShortcut(e)) {
             e.preventDefault()
             handleSave()
           }
           if (e.key === 'Escape') onCancel()
         }}
-        rows={2}
+        rows={3}
         maxLength={2000}
         aria-label="Edit message"
-        className="w-full text-sm text-gray-900 bg-white border border-gray-300 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-optio-purple focus:border-transparent resize-none"
+        className="w-full text-sm text-gray-900 bg-white border border-gray-300 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-optio-purple focus:border-transparent resize-y overflow-y-auto"
+        style={{ minHeight: '64px' }}
       />
       <div className="flex items-center justify-end gap-2 mt-1">
+        <span className="hidden lg:inline mr-auto text-[11px] text-gray-400">
+          {sendShortcutLabel()} to save
+        </span>
         <button
           type="button"
           onClick={onCancel}

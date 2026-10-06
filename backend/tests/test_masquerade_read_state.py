@@ -228,7 +228,9 @@ class TestSchoolInbox:
              patch('routes.school_inbox.message_service', svc):
             resp = client.get('/api/school-inbox/conversations/conv-1', headers=auth_headers)
         assert resp.status_code == 200
-        assert _data(resp)['messages'] == [{'id': 'm1', 'sender_id': 'mum'}]
+        # can_delete rides on every school message since ecc73d0e; a
+        # family's message is never deletable from the inbox.
+        assert _data(resp)['messages'] == [{'id': 'm1', 'sender_id': 'mum', 'can_delete': False}]
         assert mark.called is (not masq)
         assert record.called is (not masq)
 

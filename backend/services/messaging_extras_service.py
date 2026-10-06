@@ -353,7 +353,6 @@ def edit_message(user_id: str, message_type: str, message_id: str, content: str)
 
 
 def delete_message(user_id: str, message_type: str, message_id: str) -> Dict[str, Any]:
-    table = 'direct_messages' if message_type == 'dm' else 'group_messages'
     msg = _dm_row(message_id) if message_type == 'dm' else _group_row(message_id)
     if not msg:
         return {'error': 'Message not found'}
@@ -361,6 +360,35 @@ def delete_message(user_id: str, message_type: str, message_id: str) -> Dict[str
     is_moderator = message_type == 'group' and is_group_admin(user_id, msg['group_id'])
     if not (is_sender or is_moderator):
         return {'error': 'You can only delete your own messages'}
+    _soft_delete(message_type, msg)
+    return {'ok': True}
+
+
+def delete_school_message(user_id: str, inbox_user_id: str, message_id: str) -> Dict[str, Any]:
+    """Delete a DM the caller sent AS the school (ticket ecc73d0e).
+
+    A school-inbox reply has sender_id = the school's inbox account, so
+    delete_message's "your own messages" rule never matches the colleague who
+    wrote it. The author is direct_messages.sent_by_user_id; only that
+    colleague may delete it, and only while it is the school's message. Every
+    refusal writes nothing.
+
+    Group messages sent as the school have no sent_by column, so they cannot
+    be attributed to a colleague and are not deletable here."""
+    msg = _dm_row(message_id)
+    if not msg or msg.get('sender_id') != inbox_user_id:
+        return {'error': 'Message not found'}
+    if msg.get('sent_by_user_id') != user_id:
+        return {'error': 'You can only delete your own messages'}
+    if not msg.get('is_deleted'):
+        _soft_delete('dm', msg)
+    return {'ok': True}
+
+
+def _soft_delete(message_type: str, msg: Dict[str, Any]) -> None:
+    """Mark one message deleted and tell everyone looking at it."""
+    table = 'direct_messages' if message_type == 'dm' else 'group_messages'
+    message_id = msg['id']
     _admin().table(table).update({'is_deleted': True}).eq('id', message_id).execute()
     # Refresh the conversation-list preview so a deleted last message doesn't
     # keep showing its content in the conversation list.
@@ -374,7 +402,6 @@ def delete_message(user_id: str, message_type: str, message_id: str) -> Dict[str
         broadcast_dm(msg['conversation_id'], 'deleted', event)
     else:
         broadcast_group(msg['group_id'], 'deleted', event)
-    return {'ok': True}
 
 
 # ── Pins + announcement-only (group admin controls) ────────────────────────────

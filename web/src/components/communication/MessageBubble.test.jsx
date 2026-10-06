@@ -136,3 +136,48 @@ describe('MessageRow', () => {
     expect(scroller.scrollTop).toBe(100)
   })
 })
+
+// f7fe2ed2 (iCreate, SIS console): the edit box for a sent message was two
+// fixed rows inside a bubble only as wide as the old text, and Enter saved.
+describe('MessageEditForm (f7fe2ed2)', () => {
+  const editing = (props = {}) => render(
+    <MessageBubble message={message} isOwn isEditing onSaveEdit={vi.fn()}
+      onCancelEdit={vi.fn()} {...props} />
+  )
+
+  it('opens at a fixed comfortable width and can be dragged taller', () => {
+    editing()
+    const box = screen.getByLabelText('Edit message')
+    expect(box.parentElement.className).toContain('w-[28rem]')
+    expect(box.parentElement.className).toContain('max-w-full')
+    expect(box.className).toContain('resize-y')
+    expect(box.className).not.toContain('resize-none')
+  })
+
+  it('grows with the text up to the composer cap', () => {
+    editing()
+    const box = screen.getByLabelText('Edit message')
+    Object.defineProperty(box, 'scrollHeight', { configurable: true, value: 150 })
+    fireEvent.change(box, { target: { value: 'line\nline\nline\nline' } })
+    expect(box.style.height).toBe('150px')
+    Object.defineProperty(box, 'scrollHeight', { configurable: true, value: 900 })
+    fireEvent.change(box, { target: { value: 'much longer' } })
+    expect(box.style.height).toBe('200px')
+  })
+
+  it('Enter is a new line; Ctrl/Cmd+Enter saves; Escape cancels', () => {
+    const onSaveEdit = vi.fn()
+    const onCancelEdit = vi.fn()
+    editing({ onSaveEdit, onCancelEdit })
+    const box = screen.getByLabelText('Edit message')
+    fireEvent.change(box, { target: { value: 'fixed text' } })
+    fireEvent.keyDown(box, { key: 'Enter' })
+    expect(onSaveEdit).not.toHaveBeenCalled()
+    fireEvent.keyDown(box, { key: 'Enter', ctrlKey: true })
+    expect(onSaveEdit).toHaveBeenCalledWith('fixed text')
+    fireEvent.keyDown(box, { key: 'Enter', metaKey: true })
+    expect(onSaveEdit).toHaveBeenCalledTimes(2)
+    fireEvent.keyDown(box, { key: 'Escape' })
+    expect(onCancelEdit).toHaveBeenCalled()
+  })
+})

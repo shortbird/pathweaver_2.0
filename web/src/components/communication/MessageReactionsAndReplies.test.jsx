@@ -114,7 +114,7 @@ describe('reply flow', () => {
 
     const input = screen.getByPlaceholderText('Type a message...')
     fireEvent.change(input, { target: { value: 'a reply' } })
-    fireEvent.keyDown(input, { key: 'Enter' })
+    fireEvent.keyDown(input, { key: 'Enter', ctrlKey: true }) // Ctrl+Enter sends (e937883a)
     expect(onSend).toHaveBeenCalledWith('a reply', {
       attachments: [],
       replyToMessageId: 'm1'
