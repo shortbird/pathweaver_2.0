@@ -22,18 +22,20 @@ import { withOrg } from '../../pages/sis/useSisOrg'
  */
 const REFETCH_MS = 60000
 
-// Threads waiting on you -- what the inbox page counts -- not unread
-// messages. Messages made it "9+" against a page of three threads (iCreate,
-// 2026-09-15, 4b364a4c): one chatty parent counted five.
+// Unread THREADS -- rows the inbox page marks unread -- not unread messages.
+// Messages made it "9+" against a page of three threads (iCreate, 2026-09-15,
+// 4b364a4c): one chatty parent counted five.
 //
-// The one rule (SchoolInboxPage waitingCount, and the server's
-// needs_reply_threads): 1:1 threads in the Open view + group threads with
-// unread messages. Groups count since ticket 16d13eb4 ("my messages says I
-// have 1 unread, but I have no idea where that message might be"): every unit
-// is a row the page lists, an Open thread or a group section's unread pill.
+// The one rule (SchoolInboxPage unreadCount, and the server's unread_threads):
+// 1:1 threads with unread messages + group threads with unread messages.
+// Groups count since ticket 16d13eb4 ("my messages says I have 1 unread, but I
+// have no idea where that message might be"). It counted the Open view (they
+// wrote last, nobody pressed Close) until 13aa8bd0: "It says I have 5 new
+// messages but I have no unread messages in my folder" -- five read threads.
+// The Open view button keeps that count.
 const threadsFrom = (res) => {
   const data = res?.data?.data ?? res?.data ?? {}
-  return Number(data.needs_reply_threads ?? 0) || 0
+  return Number(data.unread_threads ?? data.needs_reply_threads ?? 0) || 0
 }
 
 // `admin` is the sidebar's answer (its own role check, minus a teacher
@@ -66,7 +68,7 @@ const InboxUnreadBadge = ({ orgId = null, isSuperadmin = false, admin = undefine
   if (!count) return null
   return (
     <span
-      aria-label={`${count} thread${count === 1 ? '' : 's'} waiting on you`}
+      aria-label={`${count} unread thread${count === 1 ? '' : 's'}`}
       className="ml-auto min-w-[20px] rounded-full bg-optio-pink px-1.5 py-0.5 text-center text-[11px] font-semibold leading-tight text-white"
     >
       {count > 9 ? '9+' : count}

@@ -334,26 +334,29 @@ def delete_school_message(user_id: str, message_id: str):
 @bp.route('/unread-count', methods=['GET'])
 @require_role(*ADMIN_ROLES)
 def unread_count(user_id: str):
-    """Threads in the shared inbox waiting for the office's reply (SIS
-    sidebar badge).
+    """Threads in the shared inbox with messages the office has not read
+    (SIS sidebar badge).
 
     Threads, not messages: the badge sits on the page that lists threads, and
     the two disagreed (iCreate, 2026-09-15, 4b364a4c). `unread_count` keeps
-    its name because the badge reads it; `needs_reply_threads` says what it is.
+    its name because the badge reads it; `unread_threads` says what it is.
 
-    The same one rule as /api/messages/unread-count?threads=1: 1:1 threads in
-    the Open view + the school's group threads with unread messages, so every
-    number points at a row on the School tab (ticket 16d13eb4).
+    The same one rule as /api/messages/unread-count?threads=1: 1:1 threads
+    with unread messages + the school's group threads with unread messages,
+    so every number points at a row on the School tab (ticket 16d13eb4). It
+    counted the Open view until 13aa8bd0 (2026-10-06).
     """
     try:
         ctx, err = _resolve_inbox(user_id)
         if err:
             return err
         inbox_id = ctx['inbox_user_id']
-        direct_threads = message_service.count_threads_needing_reply(inbox_id)
+        direct_threads = message_service.count_threads_with_unread(inbox_id)
         group_threads = _groups().count_groups_with_unread(inbox_id, owned_by=inbox_id)
         count = direct_threads + group_threads
-        return success_response({'unread_count': count, 'needs_reply_threads': count,
+        # needs_reply_threads: the old name, for a bundle loaded before 13aa8bd0.
+        return success_response({'unread_count': count, 'unread_threads': count,
+                                 'needs_reply_threads': count,
                                  'direct_threads': direct_threads,
                                  'group_threads': group_threads})
     except Exception as e:

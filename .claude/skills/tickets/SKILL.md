@@ -1,6 +1,6 @@
 ---
 name: tickets
-description: Work the Optio ticket queue (bug_reports) end to end - find what is open, fix it, write the reporter's note, mark it fixed with the commit, and let the release pipeline resolve it and email the reporter once the fix is live. Use for "/tickets", "what is open", "work the tickets", "close this ticket", or to file one by hand. Replaced Perch on 2026-09-14.
+description: Work the Optio ticket queue (bug_reports) end to end - find what is open, fix it, write the reporter's note, mark it fixed with the commit, and let the release pipeline resolve it and email the reporter once the fix is live. Checks past tickets for regressions and revert requests, and answers how-to questions with a /docs Help Center page. Use for "/tickets", "what is open", "work the tickets", "close this ticket", or to file one by hand. Replaced Perch on 2026-09-14.
 ---
 
 # The ticket tracker
@@ -86,6 +86,56 @@ its `fix_commit` corrected.
 
 Tickets already in `fixing` were started by an earlier session that did not
 finish. Read their `triage_notes` first; do not restart from zero.
+
+### 1a. Look back before you look forward
+
+Every open ticket gets a history check before you plan its fix. The same
+complaint has often been filed, fixed and shipped before, and the fix that
+"already happened" is the first suspect, not a reason to stop looking.
+
+Search the whole table, every status, for the same symptom: the same
+`current_route` or page, the same feature words in `title`/`message`, the same
+reporter, the same org. Use two or three phrasings; reporters describe one bug
+many ways ("unread", "badge", "new messages", "notification count").
+
+```sql
+select id, title, status, fix_commit, resolved_at, user_email,
+       left(resolution, 200) as resolution, left(triage_notes, 400) as notes
+  from bug_reports
+ where id <> '<this ticket>'
+   and ((title || ' ' || coalesce(message, '')) ~* '(word1|word2|word3)'
+        or current_route = '<this route>')
+ order by created_at desc
+ limit 25;
+```
+
+Then decide which of these the ticket is, and say it in the step 2 plan:
+
+- **Regression.** A past ticket with the same symptom was marked fixed. Check
+  whether its `fix_commit` is in the build the reporter used
+  (`git merge-base --is-ancestor <fix_commit> <app_version>`; `app_version` is
+  a short SHA on web). If it is, the fix shipped and the bug came back, or the
+  fix missed a case. Read the old ticket's `triage_notes` in full, then
+  `git log -p <fix_commit>..HEAD -- <the files that fix touched>` to find what
+  undid it. The new fix needs a test that pins the *old* ticket's case too, so
+  the next regression fails a build instead of reaching a customer. Tell the
+  user plainly: "This is a regression of <id>, fixed in <sha>." They will want
+  to know.
+- **Missed case of a past fix.** Same symptom, the old fix is in the build, and
+  nothing since undid it. Name what the old fix did not cover (another role,
+  another tab, another surface).
+- **Revert request.** The reporter asks to undo or change back something a
+  past ticket asked for ("it used to show X, please bring it back"). Find the
+  ticket and commit that made the change and who asked for it. Two reporters
+  who want opposite things is a product decision: put both tickets in front of
+  the user and do not pick a side.
+- **Duplicate of an open ticket.** Group it (step 2) and see step 5.
+- **New.** Nothing similar. Say "no prior tickets" so the reader knows you
+  looked.
+
+Write the finding to `triage_notes` straight away ("Regression of <id> (fixed
+in <short sha>, in reporter's build <app_version>)", "Revert request: undoes
+<id>", "No prior tickets"), so it survives a session that stops early.
 
 ### 2. Group before you fix
 
@@ -246,6 +296,77 @@ update bug_reports
  where id = '...';
 ```
 
+### 4a. How-to questions: answer with a Help Center page
+
+When a ticket asks how to do something that other people will also ask ("How
+do I get the kids signed in?", "Where do I see transcripts?"), the answer
+belongs in the public Help Center at `/docs`, and the reporter gets a link to
+it. One page answers this reporter and the next ten. A question about this
+reporter's own data or account ("why is Sam's XP missing?") is not a docs
+question; answer it in `resolution` as in step 2a.
+
+The Help Center is rows, not code: `docs_categories` and `docs_articles` on
+the production project, rendered at
+`https://app.optioeducation.com/docs/<category slug>/<article slug>`
+(public, no sign-in). Superadmin edits them at `/admin/docs`. A new or changed
+article is live the moment the row is written, with no deploy.
+
+1. **Look for an existing article.** Search titles, summaries and content:
+
+   ```sql
+   select c.slug as category, a.slug, a.title, a.target_roles, a.summary
+     from docs_articles a join docs_categories c on c.id = a.category_id
+    where a.is_published
+      and (a.title || ' ' || coalesce(a.summary, '') || ' ' || a.content) ~* '(word1|word2)'
+    order by c.sort_order, a.sort_order;
+   ```
+
+   If one answers the question for this reporter's role and surface, link it.
+   If one nearly answers it, update that article rather than writing a second
+   one on the same topic.
+
+2. **Otherwise write a new article.** Before you write a word, find out which
+   surface the reporter is on (`organizations.feature_flags.sis_enabled`, and
+   which SIS modules are hidden): the SIS console and the web platform do the
+   same job with different screens, and a page that describes the wrong one is
+   worse than no page. Read the code for every click path you describe, and
+   use the button and menu labels exactly as the UI shows them. Write for the
+   role that asked, in plain words, as numbered steps, with no jargon (a
+   school admin does not know "SIS", "RLS" or "org"). Keep it short: the
+   question, the steps, what they should see at the end, and what to do when
+   it goes wrong. Pick the category that fits (`for-schools`, `for-parents`,
+   `getting-started`, ...) and set `target_roles`.
+
+   Show the user the full draft and the URL before you insert it. It is
+   public the moment it is written.
+
+   ```sql
+   insert into docs_articles (title, slug, summary, content, category_id, target_roles, sort_order, is_published)
+   values ('Title', 'title-slug', 'One-line summary.', $md$...markdown...$md$,
+           (select id from docs_categories where slug = 'for-schools'),
+           array['org_admin'], 10, true);
+   ```
+
+   Then open the URL and check that it renders.
+
+3. **Answer the ticket.** It needs no deploy, so it goes straight to
+   `resolved` (step 4) and the cron mails the reporter within ten minutes.
+   Put a one-sentence answer and the full `https://` link in `resolution`; the
+   resolution email turns the link into a clickable one. Put what they will
+   see in `verification`.
+
+   ```sql
+   update bug_reports
+      set status = 'resolved', resolved_at = now(),
+          resolution = 'We wrote a step-by-step guide for this: https://app.optioeducation.com/docs/<category>/<slug>',
+          verification = 'Open the link. It walks through ...',
+          triage_notes = coalesce(triage_notes || E'\n', '') || 'Answered with docs article <slug> (new|existing).'
+    where id = '...';
+   ```
+
+   If the question also revealed a bug or a confusing screen, file or fix that
+   separately. The article answers the person; it does not excuse the screen.
+
 ### 5. Tickets you are not going to fix
 
 `wont_fix` with the reason in `resolution`. Declined tickets never email the
@@ -255,7 +376,8 @@ the same `fix_commit` and the same two sentences, and they are mailed too.
 
 ### 6. Finish the sweep
 
-Report to the user, as a table: ticket id, title, what you did in one line,
+Report to the user, as a table: ticket id, title, history (regression of
+<id>, revert of <id>, missed case, new), what you did in one line,
 the tests you added or changed (including any the step 3 audit found), how to verify locally, and status. List
 any reporter question still waiting on the user's answer. Then say which will email their reporters
 once the deploy is live and which already did (the cron ran). If any ticket
@@ -307,6 +429,7 @@ it ships; leave it null if not.
   has no answer in `resolution`, and do not invent the answer.
 - Do not raise `POSTGREST_MAX_ROWS` or count rows in Python; the route uses
   `count='exact'` for a reason (CLAUDE.md).
-- Do not email anyone from here. The sweep sends the one mail there is.
+- Do not email anyone from here. The sweep sends the one mail there is,
+  and a docs answer rides in it as a link in `resolution` (step 4a).
 - Do not touch the three Perch memory files' conventions; they describe a
   database this repository no longer files into.

@@ -934,41 +934,38 @@ class DirectMessageService(BaseService):
                              if (c.get('other_user') or {}).get('id') != own_office]
         return conversations
 
-    def count_threads_needing_reply(self, user_id: str) -> int:
-        """1:1 threads where the other side spoke last and this account has
-        not marked the thread closed since -- the console inbox's Open view.
+    def count_threads_with_unread(self, user_id: str) -> int:
+        """1:1 threads with at least one message this account has not read.
 
         The sidebar badge and the inbox tab badges say this number plus the
         group threads with unread messages
         (GroupMessageService.count_groups_with_unread); see the routes'
-        unread-count. It used to say unread MESSAGES -- five from one chatty
-        parent counted five -- which read as "9+" beside a page listing three
-        threads (iCreate, 2026-09-15, 4b364a4c: "Why does it say I have 9+
-        messages when I only have 3 unanswered?").
+        unread-count. Threads, not messages: five from one chatty parent are
+        one thread, not "9+" beside a page listing three (iCreate,
+        2026-09-15, 4b364a4c).
 
-        Same rule as SchoolInboxPage.needsReply; change both or neither. Runs
+        It used to count the Open view instead (the other side spoke last and
+        nobody closed the thread). Staff read the badge as unread mail, so a
+        read thread ending in "Thank you!" sat in the count until somebody
+        pressed Close: "It says I have 5 new messages but I have no unread
+        messages in my folder" (iCreate, 2026-10-06, 13aa8bd0; all five were
+        read). Owner decision 2026-10-06: the badge counts unread; the Open
+        view button keeps its own count of threads owed a reply.
+
+        Same rule as SchoolInboxPage.hasUnread; change both or neither. Runs
         over get_listed_conversations, so it counts only threads the page
         actually lists (the office's own-account thread is hidden there and
         is not counted here, ticket 16d13eb4), and shares that list's row
-        ceiling.
+        ceiling. `unread_count` there is recounted from direct_messages, not
+        the drifting cached counters.
         """
         try:
-            count = 0
-            for c in self.get_listed_conversations(user_id):
-                last_at = c.get('last_message_at')
-                if not last_at:
-                    continue
-                resolved_at = c.get('resolved_at')
-                if resolved_at and resolved_at >= last_at:
-                    continue
-                # A thread with no recorded last sender (older payload) still
-                # counts as owed a reply -- better to show one than hide one.
-                if c.get('last_message_sender_id') == user_id:
-                    continue
-                count += 1
-            return count
+            return sum(
+                1 for c in self.get_listed_conversations(user_id)
+                if (c.get('unread_count') or 0) > 0
+            )
         except Exception as e:
-            logger.error(f"Error counting threads needing reply: {str(e)}")
+            logger.error(f"Error counting threads with unread: {str(e)}")
             return 0
 
     def get_unread_count(self, user_id: str) -> int:

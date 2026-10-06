@@ -211,10 +211,9 @@ class TestUnreadCountEndpoint:
 @pytest.mark.unit
 class TestGroupThreadsWithUnread:
     """iCreate, ticket 16d13eb4: "my messages says I have 1 unread, but I have
-    no idea where that message might be." The console's number is threads
-    waiting on you: 1:1 threads in the Open view plus group THREADS with
-    unread -- each a row on the page (an Open thread or a group section's
-    unread pill). Groups count once each, however many messages wait."""
+    no idea where that message might be." The console's number is 1:1
+    threads with unread (13aa8bd0) plus group THREADS with unread -- each a
+    row on the page with an unread marker. Groups count once each, however many messages wait."""
 
     def test_counts_groups_not_messages(self):
         service, _ = _service(_rows(
@@ -263,7 +262,7 @@ class TestThreadsWaitingEndpoint:
     number, and it includes group threads with unread so a group explains
     the badge."""
 
-    def test_threads_is_open_one_to_one_threads_plus_unread_groups(self):
+    def test_threads_is_unread_one_to_one_threads_plus_unread_groups(self):
         from flask import Flask
         from unittest.mock import patch
         from routes import direct_messages as route
@@ -276,10 +275,11 @@ class TestThreadsWaitingEndpoint:
         with patch.object(auth_decorators.session_manager, 'get_effective_user_id',
                           return_value=PARENT), \
              patch.object(route.message_service, 'get_unread_count', return_value=0), \
-             patch.object(route.message_service, 'count_threads_needing_reply', return_value=0), \
+             patch.object(route.message_service, 'count_threads_with_unread', return_value=0), \
              patch.object(GroupMessageService, 'get_unread_total', return_value=1), \
              patch.object(GroupMessageService, 'count_groups_with_unread', return_value=1):
             body = app.test_client().get('/api/messages/unread-count?threads=1').get_json()
-        assert body['data']['needs_reply_threads'] == 1
+        assert body['data']['unread_threads'] == 1
+        assert body['data']['needs_reply_threads'] == 1  # old name, old bundles
         assert body['data']['direct_threads'] == 0
         assert body['data']['group_threads'] == 1

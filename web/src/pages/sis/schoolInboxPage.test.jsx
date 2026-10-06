@@ -727,7 +727,7 @@ describe('tab counts', () => {
     expect(api.get).toHaveBeenCalledWith('/api/school-inbox/unread-count', { expect403: true })
   })
 
-  it('counts threads needing a reply on the open tab, not unread messages', async () => {
+  it('counts unread threads on the open tab, not unread messages', async () => {
     // One thread, five unread messages: the sidebar says 1, so the tab does.
     state.schoolConvos = [{ ...convo(1, 'Greta'), unread_count: 5, last_message_sender_id: 'u1' }]
     state.schoolNeedsReply = 1
@@ -1225,7 +1225,8 @@ describe('SchoolInboxPage — Open, Waiting, Closed (250c9c7a + 7402cb26)', () =
 
 // Ticket 16d13eb4 (iCreate): "my messages says I have 1 unread, but I have no
 // idea where that message might be." One rule for every number -- 1:1 threads
-// in Open + group threads with unread -- so each one points at a row.
+// with unread + group threads with unread (13aa8bd0) -- so each one points at
+// a row with an unread marker.
 describe('SchoolInboxPage — the numbers agree (16d13eb4)', () => {
   const tabNamed = (re) => screen.getAllByRole('tab').find((t) => re.test(t.textContent))
 
@@ -1239,27 +1240,43 @@ describe('SchoolInboxPage — the numbers agree (16d13eb4)', () => {
     render(<SchoolInboxPage />, { route: '/inbox?tab=mine' })
     expect(await screen.findByLabelText('3 unread in Group threads')).toBeInTheDocument()
     await waitFor(() => expect(tabNamed(/My messages/).textContent).toMatch(/My messages1$/))
-    expect(screen.getByText(/1 waiting on you\./)).toBeInTheDocument()
+    expect(screen.getByText(/ 1 unread\./)).toBeInTheDocument()
     // Not the 3 unread messages: threads, as the sidebar counts.
-    expect(screen.queryByText(/3 waiting on you/)).toBeNull()
+    expect(screen.queryByText(/ 3 unread\./)).toBeNull()
   })
 
-  it('counts an Open thread once however many unread messages, on tab and subtitle alike', async () => {
+  it('counts an unread thread once however many unread messages, on tab and subtitle alike', async () => {
     state.schoolConvos = [{ ...convo(1, 'Greta'), unread_count: 5, last_message_sender_id: 'u1' }]
     state.schoolGroups = [{ id: 'sg1', name: 'Cover', audience: 'staff', member_count: 3,
       unread_count: 2, last_message_at: '2026-09-22T10:00:00Z' }]
     render(<SchoolInboxPage />, { route: '/inbox?tab=school' })
     await screen.findByText('Greta Family')
     await waitFor(() => expect(tabNamed(/inbox/).textContent).toMatch(/inbox2$/))
-    expect(screen.getByText(/2 waiting on you\./)).toBeInTheDocument()
+    expect(screen.getByText(/ 2 unread\./)).toBeInTheDocument()
   })
 
-  it('says nothing is waiting when the only thread is our turn done', async () => {
+  it('says nothing is unread when the only thread is our turn done', async () => {
     authUser = { id: 'me-1', role: 'advisor' }
     state.myConvos = [{ ...convo(1, 'Pat'), unread_count: 0, last_message_sender_id: 'me-1' }]
     render(<SchoolInboxPage />, { route: '/inbox?tab=mine' })
     await waitFor(() => expect(viewButton('Waiting')).toHaveTextContent('Waiting (1)'))
-    expect(screen.queryByText(/\d+ waiting on you/)).toBeNull()
+    expect(screen.queryByText(/ \d+ unread\./)).toBeNull()
+  })
+
+  // 13aa8bd0 (iCreate campus coordinator, /inbox?tab=mine, 2026-10-06): "It
+  // says I have 5 new messages but I have no unread messages in my folder."
+  // All five threads were read; they sat in Open because the parent wrote
+  // last ("thank you") and nobody pressed Close. The badges count unread; the
+  // Open view button keeps the needs-reply count (owner decision).
+  it('does not count read Open threads on the tab or subtitle; the Open button still does', async () => {
+    authUser = { id: 'me-1', role: 'org_managed', org_role: 'campus_coordinator' }
+    state.myConvos = [1, 2, 3, 4, 5].map((n) => ({
+      ...convo(n, `Parent${n}`), unread_count: 0, last_message_sender_id: `u${n}`,
+    }))
+    render(<SchoolInboxPage />, { route: '/inbox?tab=mine' })
+    await waitFor(() => expect(viewButton('Open')).toHaveTextContent('Open (5)'))
+    expect(tabNamed(/My messages/).textContent).toMatch(/My messages$/)
+    expect(screen.queryByText(/ \d+ unread\./)).toBeNull()
   })
 })
 

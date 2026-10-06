@@ -513,26 +513,30 @@ def get_unread_count(user_id: str):
         direct_unread = message_service.get_unread_count(user_id)
         group_unread = GroupMessageService().get_unread_total(user_id)
 
-        # The school console's badge asks for threads waiting on the caller
-        # (?threads=1) -- what its inbox page lists -- rather than message
-        # counts. Opt-in: it walks the conversation list, and the messenger's
-        # badge polls this route every minute without needing it.
+        # The school console's badge asks for unread THREADS (?threads=1) --
+        # rows its inbox page lists -- rather than message counts. Opt-in: it
+        # walks the conversation list, and the messenger's badge polls this
+        # route every minute without needing it.
         #
-        # One rule, the same on the page (SchoolInboxPage waitingCount), the
-        # tab badges, the sidebar (InboxUnreadBadge) and here: threads waiting
-        # on you = 1:1 threads in the Open view + group threads with unread
-        # messages. Each one is a row you can see -- an Open thread, or a
-        # group section's unread pill -- so the number always points
-        # somewhere (iCreate, ticket 16d13eb4: "my messages says I have 1
-        # unread, but I have no idea where that message might be").
+        # One rule, the same on the page (SchoolInboxPage unreadCount), the
+        # tab badges, the sidebar (InboxUnreadBadge) and here: 1:1 threads
+        # with unread messages + group threads with unread messages. Each one
+        # is a row you can see with an unread marker, so the number always
+        # points somewhere (iCreate, 16d13eb4: "my messages says I have 1
+        # unread, but I have no idea where that message might be"). It counted
+        # the Open view until 13aa8bd0 (2026-10-06): five read threads ending
+        # in "thank you" read as "5 new messages".
         threads = direct_threads = group_threads = None
         if request.args.get('threads') in ('1', 'true'):
-            direct_threads = message_service.count_threads_needing_reply(user_id)
+            direct_threads = message_service.count_threads_with_unread(user_id)
             group_threads = GroupMessageService().count_groups_with_unread(user_id)
             threads = direct_threads + group_threads
 
         return success_response({
             'unread_count': direct_unread + group_unread,
+            'unread_threads': threads,
+            # The old name, for a web bundle loaded before 13aa8bd0. Same
+            # number; drop once that bundle is gone.
             'needs_reply_threads': threads,
             'direct_threads': direct_threads,
             'group_threads': group_threads,

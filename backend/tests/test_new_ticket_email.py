@@ -87,3 +87,39 @@ def test_sentry_ticket_email_says_from_sentry_not_from_the_affected_user():
     assert 'Bug report from Sentry (affected user: kellee@horizon.example)' in kwargs['text_body']
     assert 'from kellee@horizon.example' not in kwargs['subject']
     assert 'https://app.example.com/admin/tickets/s1' in kwargs['html_body']
+
+
+@pytest.mark.unit
+def test_resolved_email_links_a_docs_url_in_the_answer():
+    """A question ticket is answered with a /docs link (2026-10-06, the
+    Apogee Central Florida "how do I get the kids signed in?" ticket).
+    Outlook does not auto-link a bare URL, so the mail must carry an <a>."""
+    svc = EmailService()
+    url = 'https://app.optioeducation.com/docs/for-schools/adding-students'
+    with patch.object(svc, 'send_email', return_value=True) as send:
+        svc.send_tickets_resolved_email('office@school.org', [{
+            'id': 't1', 'title': 'How do I get the kids signed in?', 'type': 'question',
+            'source': 'web',
+            'resolution': f'This page walks through it step by step: {url}.',
+            'verification': 'Open the link.',
+        }])
+
+    html_body = send.call_args.kwargs['html_body']
+    assert f'<a href="{url}"' in html_body
+    # The trailing full stop is prose, not part of the link.
+    assert f'{url}.</a>' not in html_body
+    assert url in send.call_args.kwargs['text_body']
+
+
+@pytest.mark.unit
+def test_resolved_email_link_cannot_carry_markup():
+    svc = EmailService()
+    with patch.object(svc, 'send_email', return_value=True) as send:
+        svc.send_tickets_resolved_email('office@school.org', [{
+            'id': 't1', 'title': 'x', 'type': 'question', 'source': 'web',
+            'resolution': 'See https://example.com/a<script>alert(1)</script>',
+        }])
+
+    html_body = send.call_args.kwargs['html_body']
+    assert '<script>' not in html_body
+    assert '<a href="https://example.com/a"' in html_body

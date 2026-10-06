@@ -131,12 +131,12 @@ const isClassChat = (g) => Boolean(g.source_class_id && CLASS_CHAT_TAG[g.audienc
 const SECTIONS_KEY = 'sis_inbox_open_sections'
 const validSections = (v) => (v && typeof v === 'object' && !Array.isArray(v) ? v : null)
 
-// Threads waiting on a reply, per tab -- the same two numbers the sidebar
-// badge (InboxUnreadBadge) adds together, from the same endpoints.
-const needsReplyFrom = (res) => {
+// Unread threads, per tab -- the same two numbers the sidebar badge
+// (InboxUnreadBadge) adds together, from the same endpoints.
+const unreadThreadsFrom = (res) => {
   if (!res) return null
   const data = res?.data?.data ?? res?.data ?? {}
-  return Number(data.needs_reply_threads ?? 0) || 0
+  return Number(data.unread_threads ?? data.needs_reply_threads ?? 0) || 0
 }
 
 const groupNames = (g) => [
@@ -433,7 +433,6 @@ const SchoolInboxPage = () => {
     waiting: conversations.filter(inView.waiting).length,
     closed: conversations.filter(inView.closed).length,
   }
-  const openCount = viewCounts.open
   // A search looks through every thread, not just the view on screen: the
   // thread somebody wants back is usually one that was closed long ago.
   const shownConversations = query
@@ -489,21 +488,19 @@ const SchoolInboxPage = () => {
   const shownClassChats = schoolSide ? [] : searchedGroups.filter(isClassChat)
   const groupsLoaded = groupsFetched
 
-  // One number for "waiting on you", everywhere it is shown: the subtitle,
-  // both tab badges, the sidebar badge (InboxUnreadBadge) and the server
-  // (/api/messages/unread-count?threads=1, /api/school-inbox/unread-count).
-  //
-  //   waiting = 1:1 threads in the Open view + group threads with unread
-  //
-  // Each unit is a row this page lists: an Open thread, or a group (or class
-  // chat) whose section shows an unread pill even when collapsed. It used to
-  // be 1:1 threads only on the badges and unread MESSAGES on the subtitle,
-  // and the server counted the office's own thread with the school that the
-  // list hides -- "my messages says I have 1 unread, but I have no idea where
-  // that message might be" (iCreate, ticket 16d13eb4). Change this rule on
-  // the server too (count_threads_needing_reply, count_groups_with_unread).
-  const groupsWaiting = allGroups.filter((g) => (g.unread_count || 0) > 0).length
-  const waitingCount = openCount + groupsWaiting
+  // One number for "unread" everywhere it is shown: the subtitle, both tab
+  // badges, the sidebar badge (InboxUnreadBadge) and the server
+  // (count_threads_with_unread + count_groups_with_unread; change both).
+  //   unread = 1:1 threads with unread messages + group threads with unread
+  // Each unit is a row with an unread pill, so the number points somewhere
+  // (16d13eb4: "my messages says I have 1 unread, but I have no idea where").
+  // It counted the Open view until 13aa8bd0 (2026-10-06): "It says I have 5
+  // new messages but I have no unread messages" -- five read threads ending
+  // in "thank you". Owner decision: badges count unread; the Open button
+  // keeps the needs-reply count.
+  const hasUnread = (c) => (c.unread_count || 0) > 0
+  const groupsUnread = allGroups.filter((g) => (g.unread_count || 0) > 0).length
+  const unreadCount = conversations.filter(hasUnread).length + groupsUnread
 
   // Each tab's count, shown on every tab whichever is open (iCreate,
   // 2026-09-29, 1570c67a: "On messaging on the side bar it says I have 3
@@ -526,17 +523,17 @@ const SchoolInboxPage = () => {
             .catch(() => null)
           : Promise.resolve(null),
       ])
-      return { mine: needsReplyFrom(mine), school: needsReplyFrom(school) }
+      return { mine: unreadThreadsFrom(mine), school: unreadThreadsFrom(school) }
     },
   })
   const listReady = listEnabled && !listLoading && groupsLoaded
-  const mineCount = tab === 'mine' && listReady ? waitingCount : tabCounts?.mine
-  const schoolCount = viewingSchool && listReady ? waitingCount : tabCounts?.school
+  const mineCount = tab === 'mine' && listReady ? unreadCount : tabCounts?.mine
+  const schoolCount = viewingSchool && listReady ? unreadCount : tabCounts?.school
   // When the open tab's live count moves (a reply, a thread closed, a group
   // read), the sidebar badge and the other tab's figure are re-read, so all
   // the numbers keep agreeing.
   const liveCountRef = useRef(null)
-  const liveCount = listReady && (tab === 'mine' || viewingSchool) ? `${tab}:${waitingCount}` : null
+  const liveCount = listReady && (tab === 'mine' || viewingSchool) ? `${tab}:${unreadCount}` : null
   useEffect(() => {
     if (!liveCount) return
     const prev = liveCountRef.current
@@ -665,8 +662,8 @@ const SchoolInboxPage = () => {
             ) : (
               <>Messages sent with Compose, and who has read them.</>
             )}
-            {/* The tab badge's number, not unread messages (16d13eb4). */}
-            {isMessages && listReady && waitingCount > 0 && ` ${waitingCount} waiting on you.`}
+            {/* The tab badge's number: unread threads, not messages (16d13eb4, 13aa8bd0). */}
+            {isMessages && listReady && unreadCount > 0 && ` ${unreadCount} unread.`}
           </p>
         </div>
         {/* Org admins choose who opens the school inbox (19047fd0). */}

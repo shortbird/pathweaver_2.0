@@ -33,11 +33,11 @@ const answers = ({ mine = 0, school = 0, mineFails = false, schoolFails = false 
   api.get.mockImplementation((url) => {
     if (url.includes('/api/school-inbox/unread-count')) {
       return schoolFails ? Promise.reject(new Error('nope'))
-        : Promise.resolve({ data: { data: { unread_count: school, needs_reply_threads: school } } })
+        : Promise.resolve({ data: { data: { unread_count: school, unread_threads: school } } })
     }
     if (url.includes('/api/messages/unread-count')) {
       return mineFails ? Promise.reject(new Error('nope'))
-        : Promise.resolve({ data: { data: { unread_count: mine + 20, needs_reply_threads: mine } } })
+        : Promise.resolve({ data: { data: { unread_count: mine + 20, unread_threads: mine } } })
     }
     return Promise.resolve({ data: {} })
   })
@@ -120,20 +120,28 @@ describe('InboxUnreadBadge', () => {
   it('names the count for a screen reader', async () => {
     answers({ mine: 1 })
     withClient(<InboxUnreadBadge orgId="org-1" />)
-    expect(await screen.findByLabelText('1 thread waiting on you')).toBeInTheDocument()
+    expect(await screen.findByLabelText('1 unread thread')).toBeInTheDocument()
   })
 
   it('counts a group with unread through the server\'s one number, once', async () => {
     // Ticket 16d13eb4 (iCreate): "my messages says I have 1 unread, but I
     // have no idea where that message might be." The number is 1:1 threads
-    // in Open + group threads with unread; the server already adds the group
-    // into needs_reply_threads, so the badge must not add it again.
+    // with unread + group threads with unread; the server already adds the
+    // group into unread_threads, so the badge must not add it again.
     api.get.mockImplementation((url) => Promise.resolve(url.includes('/api/messages/unread-count')
-      ? { data: { data: { needs_reply_threads: 1, direct_threads: 0, group_threads: 1,
+      ? { data: { data: { unread_threads: 1, direct_threads: 0, group_threads: 1,
         group_unread: 7, unread_count: 7 } } }
+      : { data: { data: { unread_threads: 0 } } }))
+    withClient(<InboxUnreadBadge orgId="org-1" />)
+    expect(await screen.findByLabelText('1 unread thread')).toBeInTheDocument()
+  })
+
+  it('reads the old needs_reply_threads name from a server deployed before 13aa8bd0', async () => {
+    api.get.mockImplementation((url) => Promise.resolve(url.includes('/api/messages/unread-count')
+      ? { data: { data: { needs_reply_threads: 2 } } }
       : { data: { data: { needs_reply_threads: 0 } } }))
     withClient(<InboxUnreadBadge orgId="org-1" />)
-    expect(await screen.findByLabelText('1 thread waiting on you')).toBeInTheDocument()
+    expect(await screen.findByLabelText('2 unread threads')).toBeInTheDocument()
   })
 
   it('asks for threads, and ignores the message count that used to inflate it', async () => {

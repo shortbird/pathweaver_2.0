@@ -1058,10 +1058,20 @@ class EmailService(BaseService):
                 .replace('>', '&gt;')
             )
 
+        # A question ticket is often answered with a link to a /docs article.
+        # Outlook does not auto-link a bare URL in an HTML body, so link it
+        # here. Escape first, then link: the URL pattern stops at whitespace
+        # and at the escaped '&lt;'/'&gt;', so no markup can ride in on it.
+        _url_re = re.compile(r'https://[^\s<>"]+?(?=[.,;:!?)]*(?:\s|$|&lt;|&gt;))')
+
         def _para(text: str) -> str:
+            linked = _url_re.sub(
+                lambda m: f'<a href="{m.group(0)}" style="color:#6D469B;">{m.group(0)}</a>',
+                _esc(text),
+            )
             return (
                 f'<div style="white-space:pre-wrap;font-size:15px;line-height:1.5;color:#111827;">'
-                f'{_esc(text)}</div>'
+                f'{linked}</div>'
             )
 
         def _noun(t: Dict[str, Any]) -> str:
