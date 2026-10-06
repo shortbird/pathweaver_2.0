@@ -13,7 +13,7 @@ import {
 } from './crmApi'
 import { useConfirm } from '../../../contexts/ConfirmContext'
 import { Alert, FormFooter, PageLoader } from '../../../components/ui'
-import { CONTACT_TYPES, CONTACT_TYPE_LABELS, FUNNEL_TYPES } from './crmConstants'
+import { CONTACT_TYPES, CONTACT_TYPE_LABELS, FUNNEL_TYPES, FUNNEL_TYPE_LABELS } from './crmConstants'
 
 const EMPTY_FORM = {
   name: '',
@@ -347,7 +347,7 @@ const FunnelEditor = () => {
             >
               {FUNNEL_TYPES.map((type) => (
                 <option key={type} value={type}>
-                  {type === 'nurture' ? 'Nurture (exits on conversion)' : 'Onboarding (keeps sending)'}
+                  {FUNNEL_TYPE_LABELS[type]}
                 </option>
               ))}
             </select>

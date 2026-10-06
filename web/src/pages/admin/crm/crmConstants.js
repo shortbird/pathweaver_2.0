@@ -36,7 +36,14 @@ export const MEMBERSHIP_STATUSES = ['active', 'completed', 'exited']
 
 export const FUNNEL_STATUSES = ['active', 'paused', 'archived']
 
-export const FUNNEL_TYPES = ['nurture', 'onboarding']
+export const FUNNEL_TYPES = ['nurture', 'onboarding', 'recovery']
+
+export const FUNNEL_TYPE_LABELS = {
+  nurture: 'Nurture (exits on conversion)',
+  onboarding: 'Onboarding (keeps sending)',
+  // Entered by the sweep from a stalled registration, not by a form.
+  recovery: 'Registration recovery (exits when the registration is finished)',
+}
 
 export const LEAD_STATUS_BADGES = {
   active: 'bg-green-100 text-green-700',

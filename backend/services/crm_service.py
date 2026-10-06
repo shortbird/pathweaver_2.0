@@ -249,20 +249,27 @@ def sync_new_account(email, first_name=None, last_name=None, role=None):
         return None
 
 
-def _enter_onboarding(db, lead, funnel, source) -> Optional[str]:
+def _enter_onboarding(db, lead, funnel, source,
+                      displace_reason: Optional[str] = None) -> Optional[str]:
     """Funnel entry for already-converted leads (onboarding sequences exist
     BECAUSE of conversion). Same gates as _enter_funnel minus the
-    active-status requirement; suppression still wins."""
+    active-status requirement; suppression still wins.
+
+    With displace_reason, an active membership elsewhere is exited under that
+    reason instead of blocking the entry (recovery funnels)."""
     if lead.get('status') in ('unsubscribed', 'suppressed'):
         return None
     if is_suppressed(lead['email']):
         return None
     memberships = (db.table('crm_funnel_memberships').select('id, funnel_id, status')
                    .eq('lead_id', lead['id']).execute()).data or []
-    if any(m['status'] == 'active' for m in memberships):
-        return None
     if any(m['funnel_id'] == funnel['id'] for m in memberships):
         return None
+    if any(m['status'] == 'active' for m in memberships):
+        if not displace_reason:
+            return None
+        from repositories.crm_repository import CrmRepository
+        CrmRepository(client=db).exit_active_memberships(lead['id'], displace_reason)
     try:
         db.table('crm_funnel_memberships').insert({
             'lead_id': lead['id'], 'funnel_id': funnel['id'],
@@ -273,6 +280,25 @@ def _enter_onboarding(db, lead, funnel, source) -> Optional[str]:
                   {'funnel_key': funnel['key'], 'funnel_name': funnel['name'],
                    'source': source})
     return funnel['name'] if funnel.get('status') == 'active' else None
+
+
+def enter_recovery(db, email, funnel, first_name=None, last_name=None) -> bool:
+    """Put a parent with an unfinished registration into a recovery funnel.
+    Returns True when a membership was created.
+
+    The registration is the strongest intent signal the CRM sees, so it
+    displaces whatever sequence the lead is in (a nurture, or the welcome
+    that a separate signup started); one funnel per lead still holds. A lead
+    runs a given recovery funnel once: a parent who stalls again after the
+    sequence finished does not get it twice. Converted leads are welcome
+    here (they are account holders by construction); unsubscribed and
+    suppressed ones never are."""
+    lead = _upsert_lead(db, email, lead_source='registration_started',
+                        first_name=first_name, last_name=last_name)
+    if not lead:
+        return False
+    return _enter_onboarding(db, lead, funnel, source='registration_stalled',
+                             displace_reason='registration_started') is not None
 
 
 def _is_under_13(email):
@@ -351,7 +377,9 @@ def _mark_converted_row(db, lead: Dict[str, Any], event: str):
     """Converted-state transition for a lead row we already hold: set status
     (unsubscribed/suppressed stay as they are — conversion doesn't re-open a
     mailbox), stamp the event, and exit any active NURTURE membership.
-    Onboarding memberships are untouched: they exist because of conversion."""
+    Onboarding memberships are untouched: they exist because of conversion.
+    Recovery memberships are untouched too: their members already converted,
+    and only finishing the registration ends them."""
     if lead.get('status') == 'active':
         db.table('crm_leads').update({
             'status': 'converted',
@@ -365,7 +393,7 @@ def _mark_converted_row(db, lead: Dict[str, Any], event: str):
                    .execute()).data or []
     for m in memberships:
         funnel = m.get('crm_funnels') or {}
-        if funnel.get('funnel_type') == 'onboarding':
+        if funnel.get('funnel_type') in ('onboarding', 'recovery'):
             continue
         db.table('crm_funnel_memberships').update({
             'status': 'exited',

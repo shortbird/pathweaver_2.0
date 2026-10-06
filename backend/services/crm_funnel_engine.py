@@ -158,7 +158,15 @@ def run_sweep(now: Optional[datetime] = None) -> Dict[str, Any]:
         return {'skipped': 'no_active_funnels', 'sent': 0}
     funnel_by_id = {f['id']: f for f in funnels}
 
-    steps = (db.table('crm_funnel_steps').select('*')
+    # Recovery funnels have no form feeding them; their entry is a stalled
+    # registration, found here so this run can already send its first step.
+    from services.crm_registration_recovery import enroll_stalled, registration_open
+    try:
+        enroll_stalled(db, funnels, now)
+    except Exception as e:  # noqa: BLE001  # entry failing must not stop the sends
+        logger.warning(f'CRM sweep: recovery enrollment failed: {e}')
+
+    steps =(db.table('crm_funnel_steps').select('*')
              .in_('funnel_id', list(funnel_by_id)).eq('is_active', True)
              .order('step_order').execute()).data or []
     steps_by_funnel: Dict[str, List[Dict[str, Any]]] = {}
@@ -207,12 +215,16 @@ def run_sweep(now: Optional[datetime] = None) -> Dict[str, Any]:
         # members are converted by construction. Treating that as an exit
         # (as this did until 2026-09-03) silently killed every onboarding
         # membership on its first due step, before a single email went out.
+        #
+        # 'recovery' members hold an account too (the registration made it),
+        # so for them the safety net is the registration's own status.
         lead_status = lead.get('status')
         is_onboarding = funnel.get('funnel_type') == 'onboarding'
+        is_recovery = funnel.get('funnel_type') == 'recovery'
         if lead_status in ('unsubscribed', 'suppressed'):
             _exit_membership(db, membership, f'lead_{lead_status}')
             continue
-        if lead_status != 'active' and not is_onboarding:
+        if lead_status != 'active' and not (is_onboarding or is_recovery):
             _exit_membership(db, membership, f'lead_{lead_status}')
             continue
         suppressed = suppression_state(lead['email'])
@@ -222,12 +234,20 @@ def run_sweep(now: Optional[datetime] = None) -> Dict[str, Any]:
         if suppressed:
             _exit_membership(db, membership, 'suppressed')
             continue
+        if is_recovery:
+            still_open = registration_open(db, lead['email'], funnel['key'])
+            if still_open is None:
+                skipped += 1
+                continue
+            if not still_open:
+                _exit_membership(db, membership, 'registration_completed')
+                continue
         try:
             has_account = bool((db.table('users').select('id')
                                 .ilike('email', lead['email']).limit(1).execute()).data)
         except Exception:  # noqa: BLE001
             has_account = False
-        if has_account and not is_onboarding:
+        if has_account and not (is_onboarding or is_recovery):
             mark_converted(lead['email'], event='account_signup')
             skipped += 1
             continue

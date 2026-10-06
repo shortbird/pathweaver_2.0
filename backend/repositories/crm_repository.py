@@ -163,6 +163,10 @@ class CrmRepository(BaseRepository):
             'status': status, 'updated_at': _now_iso(),
         }).eq('id', lead_id).execute()
 
+    def exit_active_memberships(self, lead_id: str, reason: str) -> None:
+        """End whatever sequence the lead is in, under `reason`."""
+        self._exit_active_memberships(lead_id, reason)
+
     def _exit_active_memberships(self, lead_id: str, reason: str) -> None:
         rows = (self.client.table('crm_funnel_memberships').select('id')
                 .eq('lead_id', lead_id).eq('status', 'active').execute()).data or []

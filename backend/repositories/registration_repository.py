@@ -19,7 +19,7 @@ constraint names.
 REGISTRATIONS_TABLE = 'registrations'
 
 
-from typing import Any, Dict, List  # noqa: E402
+from typing import Any, Dict, List, Optional  # noqa: E402
 
 from repositories.base_repository import BaseRepository  # noqa: E402
 
@@ -47,3 +47,40 @@ class RegistrationRepository(BaseRepository):
 
     def update_answers(self, registration_id: str, answers: Dict[str, Any]) -> None:
         self.client.table(self.table_name).update({'answers': answers}).eq('id', registration_id).execute()
+
+    # ------------------------------------------------- CRM recovery funnels
+
+    def org_id_for_slug(self, slug: str) -> Optional[str]:
+        rows = (self.client.table('organizations').select('id')
+                .eq('slug', slug).limit(1).execute()).data
+        return rows[0]['id'] if rows else None
+
+    def stalled_parents(self, organization_id: str, statuses: List[str],
+                        idle_before: str, touched_after: str) -> List[Dict[str, Any]]:
+        """The parents (id, email, names) of this org's registrations that sit
+        in one of `statuses` and were last touched inside the window. Bounded
+        by one org's open registrations over a few weeks, so no paging."""
+        regs = (self.client.table(self.table_name).select('parent_user_id')
+                .eq('organization_id', organization_id)
+                .in_('status', statuses)
+                .lte('updated_at', idle_before)
+                .gte('updated_at', touched_after)
+                .execute()).data or []
+        parent_ids = list({r['parent_user_id'] for r in regs if r.get('parent_user_id')})
+        if not parent_ids:
+            return []
+        return (self.client.table('users').select('id, email, first_name, last_name')
+                .in_('id', parent_ids).execute()).data or []
+
+    def latest_status_for_email(self, organization_id: str, email: str) -> Optional[str]:
+        """Status of the newest registration this address's account made with
+        this org, or None when there is no such account or registration."""
+        users = (self.client.table('users').select('id')
+                 .ilike('email', email).limit(1).execute()).data
+        if not users:
+            return None
+        regs = (self.client.table(self.table_name).select('status')
+                .eq('organization_id', organization_id)
+                .eq('parent_user_id', users[0]['id'])
+                .order('created_at', desc=True).limit(1).execute()).data
+        return regs[0].get('status') if regs else None
