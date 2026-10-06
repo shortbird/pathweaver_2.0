@@ -2,6 +2,7 @@ import React, { useRef, useState } from 'react'
 import { QRCodeSVG } from 'qrcode.react'
 import { LinkIcon, CheckIcon, ArrowDownTrayIcon } from '@heroicons/react/24/outline'
 import { usePromptText } from '../../contexts/ConfirmContext'
+import { getLearningOrigin } from '../../utils/appSurface'
 
 /**
  * SchoolLoginLinkCard - Shows the org's login URL with copy button and QR code.
@@ -16,7 +17,11 @@ export default function SchoolLoginLinkCard({ slug }) {
 
   if (!slug) return null
 
-  const loginUrl = `${window.location.origin}/login/${slug}`
+  // The learning app's address, not this page's: the card is also on SIS
+  // console Settings, and sis.optioeducation.com has no /login/<slug>, so a
+  // signed-out student was sent to the email-only /login and could not use
+  // their username (2026-10-06, found writing the sign-in help article).
+  const loginUrl = `${getLearningOrigin()}/login/${slug}`
 
   const handleCopy = async () => {
     try {

@@ -493,6 +493,11 @@ def create_username_student(current_user_id, current_org_id, is_superadmin, org_
         raise
 
 
+# A link an admin sends lives longer than a self-service one (1 hour): the
+# student may not open school email until the next class.
+ADMIN_RESET_LINK_EXPIRY_HOURS = 24
+
+
 @bp.route('/<org_id>/users/<user_id>/reset-password', methods=['POST'])
 @require_org_admin
 @require_relationship_to('user_id', allow=('org_staff',))
@@ -505,8 +510,15 @@ def reset_user_password(current_user_id, current_org_id, is_superadmin, org_id, 
 
     For username-based accounts, auto-generates a kid-friendly password if none provided.
 
+    For an email account with no new_password (the SIS drawer's "Reset
+    password" button sends {}), emails the person a link to set their own,
+    the same link "Forgot your password?" sends. It used to answer 400
+    "new_password is required", so the button failed for every email student
+    (2026-10-06). The admin never sees or sets an email account's password.
+
     Request body:
-        new_password: str - Optional. If not provided, auto-generates a new password.
+        new_password: str - Optional. If not provided, auto-generates a new password
+            (username accounts) or emails a reset link (email accounts).
         regenerate: bool - Optional. If true, generates a new password even if new_password provided.
 
     Returns:
@@ -545,11 +557,27 @@ def reset_user_password(current_user_id, current_org_id, is_superadmin, org_id, 
         regenerate = data.get('regenerate', False)
         new_password = data.get('new_password', '')
 
+        user_name = f"{user_result.data.get('first_name', '')} {user_result.data.get('last_name', '')}".strip()
+
+        if not regenerate and not new_password and not is_username_account:
+            email = user_result.data.get('email')
+            if not email:
+                return jsonify({'error': 'This account has no email address or username to reset'}), 400
+            from services.password_reset_service import send_reset_link
+            sent = send_reset_link(client, user_id, email, user_result.data.get('first_name') or user_name,
+                                   expiry_hours=ADMIN_RESET_LINK_EXPIRY_HOURS)
+            if not sent:
+                return jsonify({'error': 'Could not send the reset email. Try again in a minute.'}), 502
+            logger.info(f"Password reset link emailed for user {user_id} in org {org_id} by {current_user_id}")
+            return jsonify({
+                'success': True,
+                'emailed': True,
+                'message': f'We emailed {email} a link to set a new password.',
+            }), 200
+
         if regenerate or (not new_password and is_username_account):
             # Auto-generate a kid-friendly password for username accounts
             new_password = generate_simple_password()
-        elif not new_password:
-            return jsonify({'error': 'new_password is required'}), 400
         elif is_username_account:
             # Validate simple password format for username accounts
             is_valid, error_msg = validate_simple_password(new_password)
@@ -573,7 +601,6 @@ def reset_user_password(current_user_id, current_org_id, is_superadmin, org_id, 
             logger.error(f"Failed to reset password for user {user_id}: {auth_error}")
             return jsonify({'error': 'Failed to reset password'}), 500
 
-        user_name = f"{user_result.data.get('first_name', '')} {user_result.data.get('last_name', '')}".strip()
         username = user_result.data.get('username')
 
         logger.info(f"Password reset for user {user_id} ({username or user_name}) in org {org_id} by {current_user_id}")

@@ -405,6 +405,10 @@ def get_roster(org_id: str) -> List[Dict[str, Any]]:
             'avatar_url': s.get('avatar_url'),
             'total_xp': s.get('total_xp'),
             'last_active': s.get('last_active'),
+            # Never signed in, with a real email: the row offers "Resend
+            # invite" (resend_member_invite). Staff rows get login_pending
+            # instead, in _annotate_roster_staff.
+            'setup_pending': is_setup_pending(s),
             # iCreate, 2026-08-19: "it would be nice to ... see people that have
             # recently registered so that we know to welcome them ... I think we
             # had 3 or 4 families who said they joined today and I can see the
@@ -1808,6 +1812,18 @@ def link_staff_account(org_id: str, staff_id: str, email: str) -> Dict[str, Any]
             'placeholder_removed': placeholder_removed}
 
 
+def _invitee_row(admin, org_id: str, person_id: str) -> Optional[Dict[str, Any]]:
+    """The user row a resend needs, or None when they are not at this org."""
+    rows = (
+        admin.table('users')
+        .select('id, email, first_name, organization_id, org_role, org_roles, last_active')
+        .eq('id', person_id).limit(1).execute()
+    ).data
+    if not rows or rows[0].get('organization_id') != org_id:
+        return None
+    return rows[0]
+
+
 def resend_staff_invite(org_id: str, staff_id: str) -> Dict[str, Any]:
     """Re-send the account-setup invite to a staff member who hasn't finished
     setting up. Refuses once they've actually signed in, so an admin can't
@@ -1815,14 +1831,9 @@ def resend_staff_invite(org_id: str, staff_id: str) -> Dict[str, Any]:
     confirmation: the admin email swap during account linking marks the
     address confirmed even though the teacher never chose a password.)"""
     admin = _admin()
-    rows = (
-        admin.table('users')
-        .select('id, email, first_name, organization_id, org_role, org_roles')
-        .eq('id', staff_id).limit(1).execute()
-    ).data
-    if not rows or rows[0].get('organization_id') != org_id:
+    u = _invitee_row(admin, org_id, staff_id)
+    if not u:
         return {'error': 'Staff member not found'}
-    u = rows[0]
     if not any(r in _user_org_roles(u) for r in STAFF_ORG_ROLES):
         return {'error': 'Staff member not found'}
     if is_placeholder_staff_email(u.get('email')):
@@ -1838,6 +1849,62 @@ def resend_staff_invite(org_id: str, staff_id: str) -> Dict[str, Any]:
     email_sent = send_staff_invite(staff_id, u['email'], u.get('first_name'), org_id)
     if not email_sent:
         return {'error': 'The invite email could not be sent — try again in a minute'}
+    return {'email': u['email'], 'email_sent': True}
+
+
+def is_setup_pending(row: Dict[str, Any]) -> bool:
+    """A student or parent with a real email who has never been active: the
+    account exists (an import, "Add a child", "Add a parent") but its
+    set-your-password email was never used. Drives "Resend invite" on their
+    People row; resend_member_invite re-checks against auth properly."""
+    email = (row.get('email') or '').strip()
+    return bool(email) and not is_placeholder_staff_email(email) \
+        and not email.endswith('@optio-internal-placeholder.local') \
+        and not row.get('last_active')
+
+
+def resend_member_invite(org_id: str, person_id: str) -> Dict[str, Any]:
+    """Re-send the account-setup email to a student or parent who has never
+    signed in.
+
+    Staff have resend_staff_invite. Students and parents had nothing: the
+    People row said "invited" with no way to send it again, and a fresh
+    "Invite by email" was refused because the account already existed. The
+    gap surfaced on 2026-10-06 when Apogee Central Florida imported 60
+    students and asked how to get them signed in. The email is the roster
+    import's ("Welcome to Optio -- set your password"), whose link sets the
+    password and confirms the address in one step. Refuses once the person
+    has signed in, the same line resend_staff_invite holds.
+    """
+    admin = _admin()
+    u = _invitee_row(admin, org_id, person_id)
+    if not u:
+        return {'error': 'Person not found'}
+    roles = _user_org_roles(u)
+    if any(r in roles for r in STAFF_ORG_ROLES):
+        return resend_staff_invite(org_id, person_id)
+    if 'student' not in roles and 'parent' not in roles:
+        return {'error': 'Person not found'}
+    if not is_setup_pending({**u, 'last_active': None}):
+        return {'error': 'This account has no email address. Reset their password instead.'}
+    try:
+        auth_user = admin.auth.admin.get_user_by_id(person_id)
+    except Exception as e:  # noqa: BLE001
+        logger.error(f'resend_member_invite: auth lookup failed for {person_id[:8]}: {e}')
+        return {'error': 'Could not look up the account'}
+    if u.get('last_active') or (auth_user and auth_user.user
+                                and getattr(auth_user.user, 'last_sign_in_at', None)):
+        return {'error': 'This account is already set up. They can sign in, '
+                         'or use "Forgot your password?" on the login page.'}
+    # The roster import's sender; patched by that name in its tests, so it is
+    # reached through the module rather than copied here.
+    from services import roster_import_service
+    sent = roster_import_service._send_invite(
+        admin, person_id, u['email'], u.get('first_name'), _org_name(org_id),
+        is_parent='student' not in roles,
+    )
+    if not sent:
+        return {'error': 'The invite email could not be sent. Try again in a minute.'}
     return {'email': u['email'], 'email_sent': True}
 
 

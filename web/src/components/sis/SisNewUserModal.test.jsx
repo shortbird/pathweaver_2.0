@@ -19,6 +19,10 @@ vi.mock('../../contexts/AuthContext', async () => {
   return { AuthContext: React.createContext(null) }
 })
 
+// The console (sis.) has no /login/<slug>: the login URL must name the
+// learning app's host, whatever host the console is on.
+vi.mock('../../utils/appSurface', () => ({ getLearningOrigin: () => 'https://app.example.test' }))
+
 import SisNewUserModal from './SisNewUserModal'
 import { AuthContext as Ctx } from '../../contexts/AuthContext'
 
@@ -58,6 +62,9 @@ describe('SisNewUserModal', () => {
       expect.objectContaining({ username: 'john.doe', first_name: 'John', last_name: 'Doe', org_role: 'student' })
     ))
     expect(await screen.findByText('1234apple')).toBeInTheDocument()
+    // 2026-10-06: it was built from window.location, so on the console it
+    // read sis.optioeducation.com/login/acme, a page that does not exist.
+    expect(screen.getByText('https://app.example.test/login/acme')).toBeInTheDocument()
   })
 
   it('passes link_to_me when the child checkbox is ticked', async () => {
@@ -92,6 +99,19 @@ describe('SisNewUserModal', () => {
     ))
     expect(onCreated).toHaveBeenCalled()
     expect(onClose).toHaveBeenCalled()
+  })
+
+  // 2026-10-06: a second invite to the same email used to be refused (409)
+  // for seven days. The server now replaces it and says so.
+  it('says the invitation went out again when it replaced an old one', async () => {
+    const { toast } = await import('react-hot-toast')
+    api.post.mockResolvedValueOnce({ data: { success: true, replaced: true, email_sent: true } })
+    setup()
+    fireEvent.change(screen.getByRole('combobox'), { target: { value: 'org_admin' } })
+    fireEvent.change(screen.getByPlaceholderText('user@example.com'), { target: { value: 'kid@x.com' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Send Invitation' }))
+    await waitFor(() => expect(toast.success).toHaveBeenCalledWith(
+      'Invitation sent again to kid@x.com. The old link no longer works.'))
   })
 
   it('validates required fields before creating', async () => {

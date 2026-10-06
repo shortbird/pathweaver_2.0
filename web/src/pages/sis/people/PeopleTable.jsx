@@ -79,12 +79,17 @@ const PeopleTable = ({
                   {status === 'invite_pending' && (
                     <span className="text-xs text-neutral-500">{waitingFor(s.joined_at)}</span>
                   )}
-                  {status === 'invite_pending' && onResendInvite && (
+                  {/* Staff who never signed in show as invite_pending. A
+                      student or parent with an email who never signed in
+                      (an import, "Add a child") had no way to get the email
+                      again (2026-10-06); setup_pending gives them one. */}
+                  {(status === 'invite_pending' || s.setup_pending) && onResendInvite && (
                     <button type="button"
                       onClick={(e) => { e.stopPropagation(); onResendInvite(s) }}
                       disabled={resendingId === s.student_id}
                       className="text-xs font-medium text-optio-purple hover:underline disabled:opacity-50">
-                      {resendingId === s.student_id ? 'Sending…' : 'Resend invite'}
+                      {resendingId === s.student_id ? 'Sending…'
+                        : status === 'invite_pending' ? 'Resend invite' : 'Send setup email'}
                     </button>
                   )}
                 </span>

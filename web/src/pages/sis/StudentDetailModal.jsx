@@ -270,7 +270,12 @@ const ROLE_OPTIONS = [
 const AccountSection = ({ student, orgId, onSaved, onClose }) => {
   const confirm = useConfirm()
   const resetPassword = async () => {
-    if (!(await confirm(`Reset ${student.name}'s password?`))) return
+    // An email student gets a link to set their own; a username student gets
+    // a new password shown here (2026-10-06: email students used to fail).
+    const ask = student.email
+      ? `Email ${student.name} a link to set a new password? It goes to ${student.email}.`
+      : `Reset ${student.name}'s password?`
+    if (!(await confirm(ask))) return
     try {
       const r = await sisStudentApi.resetPassword(orgId, student.student_id)
       const pw = r.data?.new_password || r.data?.password

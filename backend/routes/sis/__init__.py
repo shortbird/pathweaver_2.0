@@ -250,6 +250,22 @@ def resend_staff_invite(user_id, staff_id):
     return jsonify({'success': True, **result})
 
 
+@bp.route('/people/<person_id>/resend-invite', methods=['POST'])
+@require_role(*ADMIN_ROLES)
+@require_relationship_to('person_id', allow=('org_staff',))
+def resend_member_invite(user_id, person_id):
+    """Re-send the set-your-password email to anyone at the school who has
+    never signed in: students and parents (sis_service.resend_member_invite),
+    and staff through the staff invite."""
+    org_id, err = sis_service.org_or_error(user_id)
+    if err:
+        return err
+    result = sis_service.resend_member_invite(org_id, person_id)
+    if result.get('error'):
+        return jsonify({'success': False, 'error': result['error']}), 400
+    return jsonify({'success': True, **result})
+
+
 @bp.route('/staff/<staff_id>', methods=['PATCH'])
 @require_role(*ADMIN_ROLES)
 @require_relationship_to('staff_id', allow=('org_staff',))

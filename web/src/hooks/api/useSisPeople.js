@@ -30,8 +30,10 @@ export const sisPeopleApi = {
     api.delete(`/api/sis/people/${personId}?organization_id=${orgId}&mode=${mode}`),
   mergePlaceholder: (orgId, placeholderId, email) =>
     api.post(`/api/sis/staff/${placeholderId}/link`, { email, organization_id: orgId }),
-  resendInvite: (orgId, staffId) =>
-    api.post(`/api/sis/staff/${staffId}/resend-invite`, { organization_id: orgId }),
+  // Anyone at the school who has never signed in: staff get the staff invite,
+  // students and parents the set-your-password email (2026-10-06).
+  resendInvite: (orgId, personId) =>
+    api.post(`/api/sis/people/${personId}/resend-invite`, { organization_id: orgId }),
   createHousehold: (orgId, name) =>
     api.post('/api/sis/households', { name, organization_id: orgId }),
 }

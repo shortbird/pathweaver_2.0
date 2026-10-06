@@ -4,6 +4,7 @@ import api from '../../services/api'
 import { AuthContext } from '../../contexts/AuthContext'
 import { canGrantAdmin } from '../../pages/sis/sisRole'
 import ModalOverlay from '../ui/ModalOverlay'
+import { getLearningOrigin } from '../../utils/appSurface'
 
 /**
  * Add any type of user to the organization from the SIS Users page.
@@ -86,7 +87,8 @@ export default function SisNewUserModal({ orgId, onClose, onCreated }) {
           name: `${form.first_name} ${form.last_name}`.trim(),
           username: creds.username,
           password: creds.password,
-          loginUrl: `${window.location.origin}${creds.login_url}`,
+          // The learning app hosts /login/<slug>; the console does not.
+          loginUrl: `${getLearningOrigin()}${creds.login_url}`,
           linkedToParent: res.data.linked_to_parent === true,
         })
       } else {
@@ -99,9 +101,13 @@ export default function SisNewUserModal({ orgId, onClose, onCreated }) {
         if (res.data?.success === false) {
           setError(res.data.error || 'Failed to send invitation')
         } else {
+          // replaced: they already had an unaccepted invitation; the server
+          // retired it and sent a fresh one (it used to refuse with a 409).
           toast.success(
             form.send_email
-              ? `Invitation emailed to ${form.email.trim()}`
+              ? (res.data?.replaced
+                ? `Invitation sent again to ${form.email.trim()}. The old link no longer works.`
+                : `Invitation emailed to ${form.email.trim()}`)
               : `Invitation created for ${form.email.trim()}`
           )
           onCreated?.()

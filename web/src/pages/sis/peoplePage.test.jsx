@@ -72,7 +72,8 @@ const ROSTER = [
     household_id: 'h2', household_name: 'Bee', household_former: true }),
   person('Bea Bee', { household_id: 'h2', household_name: 'Bee', household_former: true,
     stated_payment_methods: ['Utah Fits All'] }),
-  person('Cal Cat', { is_student: true, roles: ['student'], role: 'student', age: 7, enrollment_status: 'unassigned' }),
+  person('Cal Cat', { is_student: true, roles: ['student'], role: 'student', age: 7, enrollment_status: 'unassigned',
+    setup_pending: true }),
   person('Molly Christensen', { roles: ['org_admin', 'parent'], role: 'org_admin', household_id: 'h1', household_name: 'Ant',
     last_active: '2026-09-01T00:00:00Z', registration_hold: true, registration_hold_reason: 'Unpaid fee',
     stated_payment_methods: ['Self-Pay'], payment_plan: 'monthly' }),
@@ -355,7 +356,18 @@ describe('what a row can do', () => {
     await screen.findByText('Ada Ant')
     fireEvent.click(within(rowOf('Julia Connor')).getByRole('button', { name: 'Resend invite' }))
     await waitFor(() => expect(api.post).toHaveBeenCalledWith(
-      '/api/sis/staff/Julia Connor/resend-invite', { organization_id: 'org-1' }))
+      '/api/sis/people/Julia Connor/resend-invite', { organization_id: 'org-1' }))
+  })
+
+  // 2026-10-06: a student or parent with an email who never signed in (an
+  // import, "Add a child") had no way to get the setup email again.
+  it('offers a student who never signed in the setup email, and not a signed-in one', async () => {
+    render(<PeoplePage />)
+    await screen.findByText('Ada Ant')
+    expect(within(rowOf('Ada Ant')).queryByRole('button', { name: /setup email|Resend invite/ })).toBeNull()
+    fireEvent.click(within(rowOf('Cal Cat')).getByRole('button', { name: 'Send setup email' }))
+    await waitFor(() => expect(api.post).toHaveBeenCalledWith(
+      '/api/sis/people/Cal Cat/resend-invite', { organization_id: 'org-1' }))
   })
 
   it('names the same person on two rows and offers the merge', async () => {

@@ -203,18 +203,19 @@ def create_parent_invitation(current_user_id, current_org_id, is_superadmin, org
             .eq('status', 'pending') \
             .execute()
 
-        if existing_invitation.data:
-            # Check if still valid
-            inv = existing_invitation.data[0]
-            expires_at = datetime.fromisoformat(inv['expires_at'].replace('Z', '+00:00'))
-            if expires_at > datetime.utcnow().replace(tzinfo=expires_at.tzinfo):
-                return jsonify({'error': 'A pending invitation already exists for this email'}), 409
-            else:
-                # Mark old one as expired
-                supabase.table('org_invitations') \
-                    .update({'status': 'expired'}) \
-                    .eq('id', inv['id']) \
-                    .execute()
+        # A pending invitation for this email is replaced, not refused: the
+        # new one gets a fresh code and seven more days, and the email goes
+        # out again. It used to answer 409 "A pending invitation already
+        # exists" until the old one ran out, and students and parents had no
+        # Resend button, so a lost email meant waiting a week (2026-10-06).
+        # The old code stops working; only the newest link is live.
+        replaced = False
+        for inv in existing_invitation.data or []:
+            supabase.table('org_invitations') \
+                .update({'status': 'expired'}) \
+                .eq('id', inv['id']) \
+                .execute()
+            replaced = True
 
         # Get organization details
         org_result = supabase.table('organizations') \
@@ -311,7 +312,8 @@ def create_parent_invitation(current_user_id, current_org_id, is_superadmin, org
             'invitation': invitation,
             'email_sent': email_sent,
             'students': valid_students,
-            'message': 'Parent invitation created successfully'
+            'replaced': replaced,
+            'message': 'Invitation sent again' if replaced else 'Parent invitation created successfully'
         }), 201
 
     except Exception as e:
@@ -378,18 +380,19 @@ def create_invitation(current_user_id, current_org_id, is_superadmin, org_id):
             .eq('status', 'pending') \
             .execute()
 
-        if existing_invitation.data:
-            # Check if still valid
-            inv = existing_invitation.data[0]
-            expires_at = datetime.fromisoformat(inv['expires_at'].replace('Z', '+00:00'))
-            if expires_at > datetime.utcnow().replace(tzinfo=expires_at.tzinfo):
-                return jsonify({'error': 'A pending invitation already exists for this email'}), 409
-            else:
-                # Mark old one as expired
-                supabase.table('org_invitations') \
-                    .update({'status': 'expired'}) \
-                    .eq('id', inv['id']) \
-                    .execute()
+        # A pending invitation for this email is replaced, not refused: the
+        # new one gets a fresh code and seven more days, and the email goes
+        # out again. It used to answer 409 "A pending invitation already
+        # exists" until the old one ran out, and students and parents had no
+        # Resend button, so a lost email meant waiting a week (2026-10-06).
+        # The old code stops working; only the newest link is live.
+        replaced = False
+        for inv in existing_invitation.data or []:
+            supabase.table('org_invitations') \
+                .update({'status': 'expired'}) \
+                .eq('id', inv['id']) \
+                .execute()
+            replaced = True
 
         # Get organization details
         org_result = supabase.table('organizations') \
@@ -475,7 +478,8 @@ def create_invitation(current_user_id, current_org_id, is_superadmin, org_id):
             'success': True,
             'invitation': invitation,
             'email_sent': email_sent,
-            'message': 'Invitation created successfully'
+            'replaced': replaced,
+            'message': 'Invitation sent again' if replaced else 'Invitation created successfully'
         }), 201
 
     except Exception as e:
