@@ -88,6 +88,14 @@ class TestInvitePending:
         # Dating the invite is what turns the list into "how long has this sat".
         assert staff[0]['created_at'] == '2026-07-20T00:00:00Z'
 
+    def test_last_active_stamped_at_creation_is_still_pending(self):
+        """users.last_active defaults to now(), so in production a teacher who
+        never signed in reads last_active == created_at, never NULL. All 11
+        such staff had no Resend button until 2026-10-06."""
+        staff = _list([_user('e', 'Julia Connor', 'juliaconnor03@gmail.com',
+                             last_active='2026-07-20T00:00:00Z')])
+        assert staff[0]['login_pending'] is True
+
     def test_someone_who_has_signed_in_is_not_pending(self):
         staff = _list([_user('e', 'Nate Vance', 'nate@example.com',
                              last_active='2026-07-31T12:00:00Z')])

@@ -31,8 +31,10 @@ def _user(uid, first, last, *, role='org_managed', org_roles=None, email=None,
 USERS = [
     _user('molly', 'Molly', 'Christensen', org_roles=['org_admin', 'parent'],
           email='molly@example.com', last_active='2026-09-15T00:00:00+00:00'),
+    # last_active == created_at: the column defaults to now(), so this is what
+    # "never signed in" looks like in production (2026-10-06).
     _user('julia', 'Julia', 'Teacher', org_roles=['advisor'],
-          email='julia@example.com', last_active=None),
+          email='julia@example.com', last_active='2026-09-01T00:00:00+00:00'),
     _user('julia-ph', 'Julia', 'Teacher', org_roles=['advisor'],
           email='julia.teacher@placeholder.optio.invalid'),
     _user('kid-a', 'Ada', 'Ant', org_roles=['student'], dob='2016-01-01'),
@@ -85,6 +87,13 @@ class TestStaffFactsOnTheRoster:
         assert roster['julia-ph']['duplicate_of']['id'] == 'julia'
         assert roster['julia']['duplicate_of']['id'] == 'julia-ph'
         assert roster['julia-ph']['class_count'] == 2
+
+    def test_a_parent_who_never_signed_in_offers_the_setup_email(self, roster):
+        """2026-10-06: students and parents had no resend at all."""
+        assert roster['mom-b']['setup_pending'] is True
+        assert roster['molly']['setup_pending'] is False
+        # No email (a username student) has nothing to send to.
+        assert roster['kid-a']['setup_pending'] is False
 
     def test_a_signed_in_admin_is_not_pending(self, roster):
         assert roster['molly']['login_pending'] is False

@@ -454,7 +454,10 @@ def _annotate_roster_staff(org_id: str, roster: List[Dict[str, Any]]) -> None:
     for r in staff:
         r['id'] = r['student_id']
         r['is_placeholder'] = is_placeholder_staff_email(r.get('email'))
-        r['login_pending'] = (not r['is_placeholder'] and not r.get('last_active'))
+        # _never_active, not "last_active is null": the column defaults to
+        # now(), so a NULL test never fired (2026-10-06).
+        r['login_pending'] = (not r['is_placeholder'] and _never_active(
+            {'last_active': r.get('last_active'), 'created_at': r.get('joined_at')}))
     _annotate_class_counts(org_id, staff)
     _annotate_duplicates(staff)
     archived = _archived_staff_ids(org_id)
@@ -1190,7 +1193,7 @@ def list_org_staff(org_id: str, include_archived: bool = False) -> List[Dict[str
             # probably still sitting in their inbox (or lost). Drives the
             # "Resend setup email" action; the backend re-checks properly.
             'login_pending': (not is_placeholder_staff_email(u.get('email'))
-                              and not u.get('last_active')),
+                              and _never_active(u)),
             # When the invite went out, so "invited but hasn't accepted" can say
             # how long it has been sitting there.
             'created_at': u.get('created_at'),
@@ -1816,7 +1819,7 @@ def _invitee_row(admin, org_id: str, person_id: str) -> Optional[Dict[str, Any]]
     """The user row a resend needs, or None when they are not at this org."""
     rows = (
         admin.table('users')
-        .select('id, email, first_name, organization_id, org_role, org_roles, last_active')
+        .select('id, email, first_name, organization_id, org_role, org_roles, last_active, created_at')
         .eq('id', person_id).limit(1).execute()
     ).data
     if not rows or rows[0].get('organization_id') != org_id:
@@ -1852,15 +1855,38 @@ def resend_staff_invite(org_id: str, staff_id: str) -> Dict[str, Any]:
     return {'email': u['email'], 'email_sent': True}
 
 
+def _never_active(row: Dict[str, Any]) -> bool:
+    """No activity since the account was made.
+
+    users.last_active defaults to now(), so a fresh account is never NULL
+    there: Apogee's 60 imported students all read last_active = the import
+    time, and a "last_active is null" test hid "Send setup email" from every
+    one of them (2026-10-06, caught the day it shipped). Activity within a
+    few minutes of creation is the insert itself, not a person.
+    """
+    from datetime import datetime, timedelta
+    last, made = row.get('last_active'), row.get('created_at')
+    if not last:
+        return True
+    if not made:
+        return False
+    try:
+        def parse(v):
+            return datetime.fromisoformat(str(v).replace('Z', '+00:00').replace(' ', 'T'))
+        return parse(last) - parse(made) < timedelta(minutes=5)
+    except ValueError:
+        return False
+
+
 def is_setup_pending(row: Dict[str, Any]) -> bool:
     """A student or parent with a real email who has never been active: the
     account exists (an import, "Add a child", "Add a parent") but its
-    set-your-password email was never used. Drives "Resend invite" on their
-    People row; resend_member_invite re-checks against auth properly."""
+    set-your-password email was never used. Drives "Send setup email" on
+    their People row; resend_member_invite re-checks against auth."""
     email = (row.get('email') or '').strip()
     return bool(email) and not is_placeholder_staff_email(email) \
         and not email.endswith('@optio-internal-placeholder.local') \
-        and not row.get('last_active')
+        and _never_active(row)
 
 
 def resend_member_invite(org_id: str, person_id: str) -> Dict[str, Any]:
@@ -1885,14 +1911,14 @@ def resend_member_invite(org_id: str, person_id: str) -> Dict[str, Any]:
         return resend_staff_invite(org_id, person_id)
     if 'student' not in roles and 'parent' not in roles:
         return {'error': 'Person not found'}
-    if not is_setup_pending({**u, 'last_active': None}):
+    if not is_setup_pending({**u, 'last_active': None, 'created_at': None}):
         return {'error': 'This account has no email address. Reset their password instead.'}
     try:
         auth_user = admin.auth.admin.get_user_by_id(person_id)
     except Exception as e:  # noqa: BLE001
         logger.error(f'resend_member_invite: auth lookup failed for {person_id[:8]}: {e}')
         return {'error': 'Could not look up the account'}
-    if u.get('last_active') or (auth_user and auth_user.user
+    if not _never_active(u) or (auth_user and auth_user.user
                                 and getattr(auth_user.user, 'last_sign_in_at', None)):
         return {'error': 'This account is already set up. They can sign in, '
                          'or use "Forgot your password?" on the login page.'}

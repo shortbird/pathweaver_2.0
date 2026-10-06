@@ -66,6 +66,11 @@ class TestResendMemberInvite:
         assert 'already set up' in out['error']
         send.assert_not_called()
 
+    def test_an_imported_student_stamped_at_creation_is_sent_the_email(self):
+        out, send = _resend({**STUDENT, 'created_at': '2026-10-06T18:44:34+00:00',
+                             'last_active': '2026-10-06T18:44:34+00:00'})
+        assert out['email_sent'] is True
+
     def test_refused_once_active_even_without_an_auth_sign_in(self):
         out, send = _resend({**STUDENT, 'last_active': '2026-10-06T10:00:00Z'})
         assert 'already set up' in out['error']
@@ -96,6 +101,23 @@ class TestResendMemberInvite:
 class TestSetupPendingFlag:
     def test_real_email_never_active_is_pending(self):
         assert sis_service.is_setup_pending({'email': 'a@b.org', 'last_active': None})
+
+    def test_last_active_stamped_at_creation_still_counts_as_never_active(self):
+        """users.last_active defaults to now(): Apogee's imported students all
+        read last_active == the import time. A NULL-only test hid the button
+        from every one of them (2026-10-06)."""
+        row = {'email': 'silas@school.org',
+               'created_at': '2026-10-06T18:44:34.286549+00:00',
+               'last_active': '2026-10-06T18:44:34.286549+00:00'}
+        assert sis_service.is_setup_pending(row)
+        # Postgres text form, as a raw read can return it.
+        assert sis_service.is_setup_pending({**row, 'created_at': '2026-10-06 18:44:34.286549+00',
+                                             'last_active': '2026-10-06 18:44:34.286549+00'})
+
+    def test_activity_after_creation_is_not_pending(self):
+        assert not sis_service.is_setup_pending({
+            'email': 'silas@school.org', 'created_at': '2026-10-06T18:44:34+00:00',
+            'last_active': '2026-10-07T09:00:00+00:00'})
 
     def test_active_is_not(self):
         assert not sis_service.is_setup_pending({'email': 'a@b.org', 'last_active': '2026-10-01'})
