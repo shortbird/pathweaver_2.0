@@ -46,6 +46,7 @@ import {
 // owns its own markup, which is the half that was 650 lines of one render.
 import AccountStep from './registerFunnel/AccountStep'
 import VerifyStep from './registerFunnel/VerifyStep'
+import { openCodeScreen } from './registerFunnel/codeScreen'
 import FamilyStep from './registerFunnel/FamilyStep'
 import DetailsStep from './registerFunnel/DetailsStep'
 import RecordsStep from './registerFunnel/RecordsStep'
@@ -426,12 +427,7 @@ const RegisterFunnelPage = () => {
         first_name: account.first_name.trim(), last_name: account.last_name.trim(),
         email: account.email.trim(), password: account.password,
       })
-      setPendingVerify({ registration_id: data.registration_id, email: data.email })
-      if (data.otp_sent === false) {
-        toast.error('We could not send the confirmation email — click "Resend code" in a moment.')
-      } else if (data.message) {
-        toast.success(data.message)
-      }
+      openCodeScreen(data, setPendingVerify)
     } catch (e) {
       toast.error(e.response?.data?.error || 'Could not create your account')
     } finally {
@@ -489,6 +485,7 @@ const RegisterFunnelPage = () => {
       const { data } = await api.post('/api/registration/login', {
         code, email: account.email.trim(), password: account.password,
       })
+      if (data.pending_verify) return openCodeScreen(data, setPendingVerify)
       setReg({ registration_id: data.registration_id, access_token: data.access_token })
       await establishSession(account.email.trim(), account.password)
       toast.success(`Welcome back${data.first_name ? `, ${data.first_name}` : ''}!`)

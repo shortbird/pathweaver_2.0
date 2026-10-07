@@ -70,6 +70,17 @@ logger = get_logger(__name__)
 MAX_OTP_ATTEMPTS = 5
 
 
+def _pending_verify(admin, org_id, user_id):
+    """This parent's registration with this org that still waits on the
+    emailed code, or None."""
+    rows = (admin.table('registrations').select('id, status, parent_user_id')
+            .eq('organization_id', org_id).eq('parent_user_id', user_id)
+            .eq('status', 'verify').order('created_at', desc=True).limit(1)
+            .execute()).data or []
+    return next((r for r in rows if r.get('status') == 'verify'
+                 and r.get('parent_user_id') == user_id), None)
+
+
 def register_routes(bp):
     """Attach the entry steps to the `registration` blueprint."""
     @bp.route('/start', methods=['POST'])
@@ -113,8 +124,12 @@ def register_routes(bp):
             ).data or []
             match = next((p for p in pending if (p.get('users') or {}).get('email') == email), None)
             if match:
-                if not _password_ok(email, password):
-                    return jsonify({'error': 'This email already started registering. Enter the same password, or use "Sign in" instead.'}), 409
+                # No password check here: it signed in to check, and Supabase
+                # refuses to sign in an unconfirmed email, so every parent who
+                # left before entering the code was refused with their correct
+                # password (0 of 368 unconfirmed accounts had ever signed in,
+                # 2026-10-07). The code goes only to this address, so it is the
+                # proof; the account keeps the password it was created with.
                 code = _issue_otp(admin, match['id'])
                 sent = _send_otp_email(email, first, org.get('name') or 'your school', code)
                 return jsonify({'success': True, 'registration_id': match['id'], 'email': email,
@@ -259,6 +274,19 @@ def register_routes(bp):
         refusal = _parent_guardrails(admin, user, org)
         if refusal:
             return refusal
+
+        # A parent whose registration still waits on the emailed code cannot
+        # sign in at all (Supabase refuses unconfirmed emails), so a password
+        # check here could only ever say "incorrect". Send a fresh code and let
+        # the page show the code screen, as /start does for the same parent.
+        pending = _pending_verify(admin, org['id'], user['id'])
+        if pending:
+            code = _issue_otp(admin, pending['id'])
+            sent = _send_otp_email(email, user.get('first_name'), org.get('name') or 'your school', code)
+            return jsonify({'success': True, 'pending_verify': True,
+                            'registration_id': pending['id'], 'email': email,
+                            'otp_sent': bool(sent),
+                            'message': 'Check your email for a confirmation code.'}), 200
 
         if not _password_ok(email, password):
             return _password_failure(admin, user, org.get('name') or 'the school')
