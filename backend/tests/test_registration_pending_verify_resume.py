@@ -12,8 +12,13 @@ from unittest.mock import patch
 
 import pytest
 
+from tests import test_registration_passwordless_accounts as _accounts
 from tests.test_registration_passwordless_accounts import (  # noqa: F401  (fixtures)
-    _INVITE, _FakeAdmin, _parent, _reset_rate_limiter, client)
+    _INVITE, _FakeAdmin, _parent, _reset_rate_limiter)
+
+# The shared app-client fixture, bound by assignment: imported by name, each
+# test's `client` parameter reads to ruff as a redefinition (F811).
+client = _accounts.client
 
 PENDING = {'id': 'reg-1', 'status': 'verify', 'parent_user_id': 'u1',
            'users': {'email': 'c@example.com'}}
