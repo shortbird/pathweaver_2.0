@@ -38,6 +38,14 @@ class OrganizationRepository(BaseRepository):
         rows = self.client.table(self.table_name).select('id, name').in_('id', ids).execute()
         return {o['id']: o.get('name') for o in (rows.data or [])}
 
+    def ids_issuing_under_optio(self) -> List[str]:
+        """Ids of every organization whose transcripts and diplomas are Optio
+        Academy's (accreditation_source = 'optio'): the Academy itself and the
+        microschools that act as its extensions. A handful of rows."""
+        rows = (self.client.table(self.table_name).select('id')
+                .eq('accreditation_source', 'optio').execute())
+        return [o['id'] for o in (rows.data or [])]
+
     def assign_user_to_organization(self, user_id: str, organization_id: str) -> bool:
         """Assign a user to an organization"""
         response = self.client.table('users')\

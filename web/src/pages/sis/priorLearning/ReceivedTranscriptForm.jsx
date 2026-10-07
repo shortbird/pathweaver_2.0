@@ -23,7 +23,14 @@ import inputClass from './inputClass'
  * The record opens in review (the office is already looking at it), so it is
  * immediately analyzable, acceptable and transcribable like any other.
  */
-const ReceivedTranscriptForm = ({ orgId, onClose, onFiled }) => {
+const ReceivedTranscriptForm = ({
+  orgId, onClose, onFiled,
+  // An extension school sends this to Optio Academy instead of filing it for
+  // its own review (ExtensionUploadView), so the words change, not the form.
+  heading = 'Upload a transcript you received',
+  intro = 'For paperwork that came to the school directly. It goes into review with the family’s submissions and is credited the same way.',
+  submitLabel = 'File for review',
+}) => {
   const [students, setStudents] = useState(null)   // null while loading
   const [studentId, setStudentId] = useState('')
   const [school, setSchool] = useState('')
@@ -122,11 +129,8 @@ const ReceivedTranscriptForm = ({ orgId, onClose, onFiled }) => {
     <div className="bg-white rounded-xl border border-gray-200 p-5 space-y-4">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <h2 className="font-semibold text-gray-900">Upload a transcript you received</h2>
-          <p className="text-sm text-gray-600 mt-0.5">
-            For paperwork that came to the school directly. It goes into review with
-            the family’s submissions and is credited the same way.
-          </p>
+          <h2 className="font-semibold text-gray-900">{heading}</h2>
+          <p className="text-sm text-gray-600 mt-0.5">{intro}</p>
         </div>
         <button type="button" onClick={onClose} className="text-sm text-gray-500 shrink-0">
           Cancel
@@ -218,7 +222,7 @@ const ReceivedTranscriptForm = ({ orgId, onClose, onFiled }) => {
 
       <button type="button" disabled={saving || !studentId || !staged.length} onClick={save}
               className="px-4 py-2 rounded-lg text-sm font-medium text-white bg-gradient-primary disabled:opacity-50">
-        {saving ? 'Uploading…' : 'File for review'}
+        {saving ? 'Uploading…' : submitLabel}
       </button>
     </div>
   )

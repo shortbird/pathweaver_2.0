@@ -111,7 +111,7 @@ features into fake toggles or merge real toggles into fake features. So:
 | `training` | on | Staff & Family Training | parent `sis` |
 | `reports` | on | Reports & Exports | parent `sis`, `min_tier: admin` |
 | `community` | off | Community Hub, Family Directory | parent `sis`; = today's `community_enabled` |
-| `prior_learning` | off | Prior Learning | parent `sis`; = today's `prior_learning_enabled` — already gated full-stack, the template this design generalizes |
+| `prior_learning` | on, gate `optio_diploma` | Prior Learning | parent `sis`; only where `accreditation_source = 'optio'` (Optio Academy and its extension schools, 2026-10-07); `prior_learning_enabled = false` still switches it off |
 | `kiosk` | off | Kiosk Check-In | **no parent** (core LMS surfaces only, so an LMS-only school can run it; lost its `sis` parent 2026-09-07); = today's flat `kiosk` flag |
 
 **Tuition** (inside `billing`) additionally declares `requires_any: (clp, goals)` —

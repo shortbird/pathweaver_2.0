@@ -29,7 +29,11 @@ CATEGORIES = ('learning', 'credentials', 'ai', 'people', 'operations', 'communit
 DEFAULTS = ('core', 'on', 'off')   # core: always on, no toggle | on: opt-out | off: opt-in
 TIERS = ('staff', 'admin', 'finance', 'hr')   # mirrors utils/sis_roles.py tier names
 SURFACES = ('console', 'learning', 'family', 'mobile', 'public')
-GATES = ('flags', 'ai_columns')
+# 'optio_diploma': the flags decide AND the org issues Optio Academy diplomas
+# (organizations.accreditation_source = 'optio' -- Optio Academy itself and the
+# microschools that act as its extensions). Off everywhere else, whatever the
+# flags say.
+GATES = ('flags', 'ai_columns', 'optio_diploma')
 
 # Legacy sources: where the gate's answer comes from when feature_flags.modules
 # has no explicit entry for the key. None = the registry default decides.
@@ -221,9 +225,13 @@ def _defs() -> Tuple[ModuleDef, ...]:
                   default='off', parent='sis',
                   surfaces=('console', 'family', 'mobile'),
                   legacy='community_enabled'),
+        # Only where the diploma is Optio Academy's (2026-10-07): there, every
+        # family can send prior learning from the school page and Optio Academy
+        # reviews it. A school without the diploma setting has no reviewer, so
+        # no page. Such a school may still switch it off.
         ModuleDef('prior_learning', 'Prior Learning', 'credentials',
                   ('Prior Learning',),
-                  default='off', parent='sis', surfaces=('console', 'family'),
+                  default='on', parent='sis', gate='optio_diploma', surfaces=('console', 'family'),
                   legacy='prior_learning_enabled'),
         # A shared classroom device: tap your name, photograph your paper
         # work into a quest task. It rides on core LMS surfaces only (quests,

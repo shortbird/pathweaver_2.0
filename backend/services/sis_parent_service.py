@@ -24,7 +24,7 @@ from services import sis_tuition_service as tuition
 from utils.db_fetch import fetch_all_rows
 from utils import person_name
 from utils.org_features import org_has_feature
-from modules.enabled import effective_modules_for_row
+from modules.enabled import effective_modules_for_row, module_enabled_for_row
 from modules.registry import surface_keys
 from utils.logger import get_logger
 from services.class_quest_enrollment import enroll_in_class_quests as _enroll_in_class_quests
@@ -182,7 +182,7 @@ def context(user_id: str) -> Dict[str, Any]:
             # ai_features_enabled is here only so effective_modules_list below
             # can answer for the ai-gated modules; without it they evaluate
             # False and a family surface would hide a block the org has on.
-            _admin().table('organizations').select('id, name, feature_flags, ai_features_enabled')
+            _admin().table('organizations').select('id, name, feature_flags, ai_features_enabled, accreditation_source')
             .in_('id', list(orgs.keys())).execute()
         ).data or []
         from modules import effective_modules_list
@@ -210,9 +210,7 @@ def context(user_id: str) -> Dict[str, Any]:
                 # carries Prior Learning as a section where the school takes
                 # it (2026-09-28). Without the flag here the section never
                 # showed for a real parent -- only the school context had it.
-                orgs[r['id']]['prior_learning_enabled'] = (
-                    ((r.get('feature_flags') or {}).get('sis_settings') or {})
-                    .get('prior_learning_enabled') is True)
+                orgs[r['id']]['prior_learning_enabled'] = module_enabled_for_row(r, 'prior_learning')
                 # Appointment-booking link (e.g. iCreate's Customized Learning Plan
                 # meetings) so the Schedule Builder can offer "Book appointment".
                 icfg = get_registration_config(r.get('feature_flags'))
@@ -256,7 +254,7 @@ def school_context(user_id: str) -> Dict[str, Any]:
 
     rows_by_id: Dict[str, Dict[str, Any]] = {}
     try:
-        rows = (_admin().table('organizations').select('id, name, feature_flags, branding_config')
+        rows = (_admin().table('organizations').select('id, name, feature_flags, branding_config, accreditation_source')
                 .in_('id', org_ids).execute()).data or []
         rows_by_id = {r['id']: r for r in rows}
     except Exception as e:  # noqa: BLE001
@@ -288,9 +286,9 @@ def _hub_org_entry(oid: str, row: Dict[str, Any], is_guardian: bool) -> Dict[str
         # Optio Academy org id in frontend config/optioAcademy.js).
         'family_first_home': settings.get('family_first_home') is True,
         'post_registration_flow': settings.get('post_registration_flow') or 'schedule',
-        # Opt-in, so the Prior Learning card is absent for every school that
-        # hasn't turned it on rather than present-and-403ing.
-        'prior_learning_enabled': settings.get('prior_learning_enabled') is True,
+        # Only where the diploma is Optio Academy's; read through the module so
+        # the card is never present-and-403ing.
+        'prior_learning_enabled': bool(row) and module_enabled_for_row(row, 'prior_learning'),
         # The school's own mark, for the hub's header. Often a data: URI
         # (that's how SisOrgSettings stores uploads), so it can be large —
         # this endpoint is one page's one call.

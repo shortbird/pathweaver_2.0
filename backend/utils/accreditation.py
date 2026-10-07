@@ -36,6 +36,23 @@ ACCREDITATION_ACTIVE = True
 
 _VALID_SOURCES = ('optio', 'self', 'none')
 
+# The accredited institution of record. Mirrors ACCREDITED_SCHOOL_NAME in
+# web/src/constants/accreditation.js.
+ACCREDITED_SCHOOL_NAME = 'Optio Academy'
+
+
+def transcript_school_name(org_name, accreditation):
+    """The school a transcript (and so a diploma) names.
+
+    A microschool that acts as an extension of Optio Academy keeps its students
+    for everything else, but the diploma is Optio Academy's: a transcript issued
+    under the Academy's accreditation names the Academy, not the microschool.
+    Every other transcript names the student's own school, or none.
+    """
+    if (accreditation or {}).get('source') == 'optio':
+        return ACCREDITED_SCHOOL_NAME
+    return org_name
+
 
 def resolve_transcript_accreditation(organization_id, organization_row=None,
                                      academy_enrolled=None):

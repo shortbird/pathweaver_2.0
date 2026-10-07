@@ -171,15 +171,15 @@ describe('what a guardian gets', () => {
   // Optio Academy runs almost none of the school-community surfaces, so its
   // parents get two doors: Courses and Credits (own-curriculum courses and
   // semester check-ins, 2026-09-28) and Prior Learning where it is switched on.
-  it('gives an Optio Academy guardian Courses and Credits alone: no Feed, no Prior Learning tab', () => {
-    // 2026-09-28: the feed had never had a post, and Prior Learning is a
-    // section of Courses and Credits now.
+  it('gives an Optio Academy guardian Courses and Credits and Prior Learning: no Feed', () => {
+    // 2026-09-28: the feed had never had a post. 2026-10-07: Prior Learning is
+    // a door on every school's page, Optio Academy's included.
     const academy = { ...GUARDIAN_ORG, family_first_home: true }
     expect(familyNavItemsFor(academy).map((i) => [i.name, i.path])).toEqual([
       ['Courses and Credits', '/courses-and-credits'],
     ])
     expect(familyNavItemsFor({ ...academy, prior_learning_enabled: true }, { homepage: true }).map((i) => i.name)).toEqual([
-      'Courses and Credits',
+      'Courses and Credits', 'Prior Learning',
     ])
     expect(familyNavItemsFor({ ...academy, is_guardian: false })).toEqual([])
   })

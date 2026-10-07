@@ -60,7 +60,9 @@ MAX_EVIDENCE_PER_RECORD = 25
 
 # No single body of prior learning is worth more than a few Carnegie units; a
 # typo of 100 in the credits box would otherwise land straight on a transcript.
-MAX_CREDITS_PER_SUBJECT = 12
+# The same ceiling as transfer_credit_service: this was 12, so a reviewer could
+# accept 11 credits and then have the transcript step refuse the same number.
+MAX_CREDITS_PER_SUBJECT = 10
 
 
 # admin client justified: prior_learning_* have RLS on with no policies
@@ -81,14 +83,69 @@ def enabled_for_org(org_id: Optional[str]) -> bool:
     """
     if not org_id:
         return False
+    # The module decides (on where the diploma is Optio Academy's), so the
+    # family card, this check and the console's nav can never disagree.
     try:
-        row = (_admin().table('organizations').select('feature_flags')
+        from modules import module_enabled_for_row
+        row = (_admin().table('organizations').select('id, feature_flags, ai_features_enabled, accreditation_source')
                .eq('id', org_id).single().execute().data or {})
     except Exception as e:  # noqa: BLE001 — fail closed, as org_has_feature does
         logger.error(f'prior-learning flag lookup failed for {org_id}: {e}')
         return False
-    settings = ((row.get('feature_flags') or {}).get('sis_settings') or {})
-    return settings.get('prior_learning_enabled') is True
+    return module_enabled_for_row(row, 'prior_learning')
+
+
+# ── Who reviews ───────────────────────────────────────────────────────────────
+# A record belongs to the school it was filed in, and that school's office
+# reviews it — unless the school is an extension of Optio Academy
+# (organizations.accreditation_source = 'optio'). Its students stay in their
+# microschool for everything else, but their diploma is Optio Academy's, issued
+# under its WASC accreditation, and an accredited school evaluates the transfer
+# credit it prints. So the family uploads on the microschool's own school page
+# exactly as before; the record shows up in Optio Academy's queue, and the
+# microschool watches it read-only.
+#
+# Derived at read time from the org row, not stored on the record: a school
+# that becomes an extension later moves its pending records to the Academy's
+# queue on the next read, with nothing to backfill.
+
+def academy_org_id() -> str:
+    from app_config import Config
+    return Config.OPTIO_ACADEMY_ORG_ID
+
+
+def _extension_org_ids() -> List[str]:
+    """Schools other than Optio Academy itself that issue Academy diplomas."""
+    from repositories.organization_repository import OrganizationRepository
+    academy = academy_org_id()
+    return [o for o in OrganizationRepository(client=_admin()).ids_issuing_under_optio()
+            if o != academy]
+
+
+def annotate_reviewer(records: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Stamp each record with `reviewer_org_id` and `academy_reviews`."""
+    academy = academy_org_id()
+    extensions = set(_extension_org_ids()) if records else set()
+    for record in records:
+        partner = record.get('organization_id') in extensions
+        record['academy_reviews'] = partner
+        record['reviewer_org_id'] = academy if partner else record.get('organization_id')
+    return records
+
+
+def may_review(record: Dict[str, Any], org_id: str) -> bool:
+    """Only the reviewing school may review, analyze or transcribe a record.
+    An extension school still sees an Academy-reviewed record and may add
+    documents to it; the decision is the Academy's."""
+    return bool(org_id) and record.get('reviewer_org_id') == org_id
+
+
+def _scope_to_queue(query, org_id: str):
+    """The rows one school's office reviews or watches: its own records, and
+    for Optio Academy also every extension school's."""
+    if org_id != academy_org_id():
+        return query.eq('organization_id', org_id)
+    return query.in_('organization_id', [org_id, *_extension_org_ids()])
 
 
 # ── Cleaning ──────────────────────────────────────────────────────────────────
@@ -205,6 +262,13 @@ def _attach_names(records: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     }
     for record in records:
         record['student_name'] = names.get(record.get('student_user_id'), 'Student')
+    # Optio Academy's queue mixes its own families with partner schools', and
+    # the reviewer needs to know which school a student came through.
+    from repositories.organization_repository import OrganizationRepository
+    orgs = OrganizationRepository(client=_admin()).names_for(
+        r.get('organization_id') for r in records)
+    for record in records:
+        record['organization_name'] = (orgs.get(record.get('organization_id') or '') or '').strip() or None
     return records
 
 
@@ -231,8 +295,7 @@ def list_for_org(org_id: str, status: Optional[str] = None,
                  limit: int = 200) -> List[Dict[str, Any]]:
     """The staff review queue. Drafts are excluded — a family still assembling a
     record has not asked anyone to look at it yet."""
-    query = (_admin().table('prior_learning_records').select('*')
-             .eq('organization_id', org_id))
+    query = _scope_to_queue(_admin().table('prior_learning_records').select('*'), org_id)
     if status:
         query = query.eq('status', status)
     else:
@@ -241,7 +304,7 @@ def list_for_org(org_id: str, status: Optional[str] = None,
         query = query.eq('student_user_id', student_id)
     records = (query.order('created_at', desc=True)
                .limit(min(int(limit or 200), 500)).execute().data or [])
-    return _attach_names(_attach_evidence(records))
+    return annotate_reviewer(_attach_names(_attach_evidence(records)))
 
 
 def queue_counts(org_id: str) -> Dict[str, int]:
@@ -252,24 +315,30 @@ def queue_counts(org_id: str) -> Dict[str, int]:
     """
     counts: Dict[str, int] = {}
     for status in ('submitted', 'under_review', 'accepted', 'rejected'):
-        counts[status] = (_admin().table('prior_learning_records')
-                          .select('id', count='exact')
-                          .eq('organization_id', org_id).eq('status', status)
-                          .limit(1).execute().count or 0)
+        query = _scope_to_queue(
+            _admin().table('prior_learning_records').select('id', count='exact'), org_id)
+        counts[status] = query.eq('status', status).limit(1).execute().count or 0
     return counts
 
 
 def get_record(record_id: str, org_id: str) -> Optional[Dict[str, Any]]:
+    """One record, if this school filed it or reviews it (see `may_review`)."""
     rows = (_admin().table('prior_learning_records').select('*')
-            .eq('id', record_id).eq('organization_id', org_id).limit(1).execute().data or [])
+            .eq('id', record_id).limit(1).execute().data or [])
     if not rows:
         return None
-    return _attach_evidence(rows)[0]
+    record = annotate_reviewer(rows)[0]
+    if org_id not in (record.get('organization_id'), record.get('reviewer_org_id')):
+        return None
+    return _attach_evidence([record])[0]
 
 
 def get_own_record(record_id: str, org_id: str, guardian_id: str) -> Optional[Dict[str, Any]]:
     record = get_record(record_id, org_id)
-    if not record or record.get('submitted_by') != guardian_id:
+    # The family acts only in the school they filed in, never through the
+    # reviewer's door.
+    if (not record or record.get('submitted_by') != guardian_id
+            or record.get('organization_id') != org_id):
         return None
     return record
 
@@ -367,6 +436,7 @@ def submit_record(record_id: str, org_id: str, guardian_id: str) -> Dict[str, An
         return {'error': 'Attach at least one piece of evidence before submitting'}
     updated = (_admin().table('prior_learning_records')
                .update({'status': 'submitted'}).eq('id', record_id).execute().data)
+    notify_reviewers(record)
     return {'record': {**(updated[0] if updated else record),
                        'evidence': record.get('evidence', [])}}
 
@@ -568,18 +638,27 @@ def staff_create_record(org_id: str, staff_id: str, student_id: str,
     fields = _record_fields(data)
     if not fields['title']:
         return {'error': 'Give this record a title'}
+    # An extension school's upload is a hand-off to Optio Academy, so it opens
+    # as `submitted` and lands in the Academy's New tab; its status then shows
+    # the school when the Academy picks it up.
+    hands_off = org_id in _extension_org_ids()
     row = {
         **fields,
         'organization_id': org_id,
         'student_user_id': student_id,
         'submitted_by': staff_id,
         'source': SOURCE_STAFF,
-        'status': 'under_review',
+        'status': 'submitted' if hands_off else 'under_review',
     }
     created = _admin().table('prior_learning_records').insert(row).execute().data
     if not created:
         return {'error': 'Could not save this record'}
-    return {'record': {**created[0], 'evidence': []}}
+    record = annotate_reviewer([created[0]])[0]
+    # A microschool office filing for an Academy student hands the record to
+    # the Academy; the Academy's own office does not need telling.
+    if record['reviewer_org_id'] != org_id:
+        notify_reviewers(record)
+    return {'record': {**record, 'evidence': []}}
 
 
 def staff_add_evidence(record_id: str, org_id: str, staff_id: str,
@@ -613,8 +692,21 @@ def review(record_id: str, org_id: str, reviewer_id: str,
     record = get_record(record_id, org_id)
     if not record:
         return {'error': 'Record not found', 'status': 404}
+    if not may_review(record, org_id):
+        return {'error': 'Optio Academy reviews this record', 'status': 403}
     if record['status'] == 'draft':
         return {'error': 'This family has not submitted this record yet'}
+    # Once the credit is on the transcript, the review is settled. Rejecting
+    # cleared awarded_credits and left the transfer_credits row (and its XP)
+    # in place, so the transcript kept counting a record the office had turned
+    # down; re-accepting with a new split changed the record but not the
+    # transcript. The transcript row is undone first, by hand, where the
+    # office can see what it removes.
+    from services import transfer_credit_service as credit
+    if credit.already_converted(record_id):
+        return {'error': 'This credit is already on the transcript. Remove it from '
+                         "the student's transfer credits before changing the review.",
+                'status': 409}
 
     update: Dict[str, Any] = {
         'status': status,
@@ -643,4 +735,58 @@ def review(record_id: str, org_id: str, reviewer_id: str,
                .eq('id', record_id).execute().data)
     if not updated:
         return {'error': 'Could not save this review'}
-    return {'record': {**updated[0], 'evidence': record.get('evidence', [])}}
+    if status in ('accepted', 'rejected') and record.get('status') != status:
+        notify_family_of_review({**record, **updated[0]})
+    return {'record': {**record, **updated[0], 'evidence': record.get('evidence', [])}}
+
+
+# ── Notifications ─────────────────────────────────────────────────────────────
+# Best-effort, never raises. Before these, a family's upload reached nobody: the
+# office found it only by opening the queue, and the family learned the outcome
+# only by coming back to look.
+
+def notify_reviewers(record: Dict[str, Any]) -> None:
+    """Tell the reviewing school's office a record is waiting."""
+    try:
+        from services.notification_service import NotificationService
+        from services.school_inbox_service import admin_recipient_ids
+        reviewer = record.get('reviewer_org_id') or annotate_reviewer([dict(record)])[0]['reviewer_org_id']
+        names = _attach_names([dict(record)])[0]
+        via = (f" through {names['organization_name']}"
+               if reviewer != record.get('organization_id') and names.get('organization_name') else '')
+        service = NotificationService()
+        for admin_id in admin_recipient_ids(reviewer):
+            if admin_id == record.get('submitted_by'):
+                continue
+            service.create_notification(
+                user_id=admin_id,
+                notification_type='school_notice',
+                title=f"Prior learning to review: {names.get('student_name') or 'Student'}{via}",
+                message=record.get('title') or 'New documents were sent in.',
+                link='/prior-learning',
+                metadata={'prior_learning_record_id': record['id']},
+                organization_id=reviewer,
+            )
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f"prior learning: reviewer notification failed for {record.get('id')}: {e}")
+
+
+def notify_family_of_review(record: Dict[str, Any]) -> None:
+    """Tell the guardian who sent a record how it was decided."""
+    if record.get('source') != SOURCE_FAMILY or not record.get('submitted_by'):
+        return
+    try:
+        from services.notification_service import NotificationService
+        accepted = record.get('status') == 'accepted'
+        NotificationService().create_notification(
+            user_id=record['submitted_by'],
+            notification_type='school_notice',
+            title=('Prior learning reviewed: credit awarded' if accepted
+                   else 'Prior learning reviewed: not accepted'),
+            message=(record.get('review_notes') or record.get('title') or '')[:300],
+            link='/family/prior-learning',
+            metadata={'prior_learning_record_id': record['id']},
+            organization_id=record.get('organization_id'),
+        )
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f"prior learning: family notification failed for {record.get('id')}: {e}")

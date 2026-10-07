@@ -77,7 +77,7 @@ export function settingsCardsFor({ surface, org, seesFinance }) {
  * header search lands on one card (pages/sis/sisSearchIndex.js); scroll-mt
  * keeps the card's title out from under the sticky header.
  */
-export function SettingsCards({ surface, orgId, orgData, seesFinance = true, canEditSlug = false, onUpdate, onLogoChange }) {
+export function SettingsCards({ surface, orgId, orgData, seesFinance = true, canEditSlug = false, canEditAccreditation = false, onUpdate, onLogoChange }) {
   const org = orgData?.organization
   return (
     <div className="grid gap-6">
@@ -88,6 +88,7 @@ export function SettingsCards({ surface, orgId, orgData, seesFinance = true, can
             org={org}
             orgData={orgData}
             canEditSlug={canEditSlug}
+            canEditAccreditation={canEditAccreditation}
             onUpdate={onUpdate}
             onLogoChange={onLogoChange}
           />

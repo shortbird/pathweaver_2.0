@@ -130,13 +130,21 @@ def update_organization(current_user_id, current_org_id, is_superadmin, org_id):
             # so renaming it invalidates every link and printed QR an org has handed out.
             allowed_fields = ['name', 'slug', 'quest_visibility_policy', 'course_visibility_policy', 'branding_config', 'is_active',
                             'ai_features_enabled', 'ai_chatbot_enabled', 'ai_lesson_helper_enabled', 'ai_task_generation_enabled',
-                            'feature_flags']
+                            'feature_flags', 'accreditation_source']
         else:
             # Org admins can update name, branding, AI settings, visibility policies, and feature flags
             allowed_fields = ['name', 'branding_config', 'quest_visibility_policy', 'course_visibility_policy', 'ai_features_enabled',
                             'ai_chatbot_enabled', 'ai_lesson_helper_enabled', 'ai_task_generation_enabled', 'feature_flags']
 
         update_data = {k: v for k, v in data.items() if k in allowed_fields}
+
+        # Superadmin only (above): 'optio' makes the school an extension of
+        # Optio Academy. Its transcripts and diplomas name Optio Academy under
+        # the WASC mark, and Optio Academy reviews its prior learning. A school
+        # never grants itself that (school_onboarding_service says the same).
+        if 'accreditation_source' in update_data \
+                and update_data['accreditation_source'] not in ('optio', 'self', 'none'):
+            return jsonify({'error': "accreditation_source must be 'optio', 'self' or 'none'"}), 400
 
         if not update_data:
             return jsonify({'error': 'No valid fields to update'}), 400

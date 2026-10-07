@@ -470,6 +470,11 @@ class Config:
     # copy, so rotating it in the school's settings rotates it here too.
     OPTIO_BILLING_STRIPE_ORG_ID = os.getenv('OPTIO_BILLING_STRIPE_ORG_ID',
                                             '8ee22671-6e38-473c-a326-90ff86460310')
+    # Optio Academy's organization: the accredited school whose registrar
+    # reviews transfer credit for every student it will issue a diploma to,
+    # including a partner microschool's (services/sis_prior_learning_service).
+    OPTIO_ACADEMY_ORG_ID = os.getenv('OPTIO_ACADEMY_ORG_ID',
+                                     '8ee22671-6e38-473c-a326-90ff86460310')
     # Gets Optio's own copy of every invoice and reminder sent from
     # /admin/billing. Stripe's API cannot CC an invoice email (CC is a
     # per-customer dashboard setting), so Optio sends the copy itself.

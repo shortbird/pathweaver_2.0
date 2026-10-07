@@ -15,6 +15,11 @@ console.
 Gated per-org on feature_flags.sis_settings.prior_learning_enabled — the same
 flag the family side checks, so a school can't end up with a queue nobody can
 file into, or vice versa.
+
+Optio Academy's queue also holds the records of every extension school
+(accreditation_source 'optio'), because the Academy issues those students'
+diplomas and evaluates the credit on them. The microschool still lists those records, marked
+can_review=False; review, analyze and credit refuse it (prior.may_review).
 """
 
 from flask import Blueprint, request, jsonify
@@ -49,8 +54,20 @@ def list_records(user_id):
     converted = credit.conversions_for_records([r['id'] for r in records])
     for record in records:
         record['transfer_credit'] = converted.get(record['id'])
+        # False on a partner microschool's copy of a record Optio Academy
+        # reviews: the microschool watches it and may add documents, nothing more.
+        record['can_review'] = prior.may_review(record, org_id)
+        if not record['can_review']:
+            # The analyzer's draft is Optio Academy's working note, not a
+            # decision; the school watching the record sees decisions only.
+            for key in ('ai_suggestion', 'ai_status', 'ai_model', 'ai_analyzed_at', 'ai_error'):
+                record.pop(key, None)
     return jsonify({
         'success': True,
+        # True for an extension of Optio Academy: its office uploads and follows
+        # progress, and Optio Academy does the reviewing (the page renders an
+        # upload-and-status view instead of the review queue).
+        'optio_reviews': org_id in prior._extension_org_ids(),
         'records': records,
         'counts': prior.queue_counts(org_id),
         # The award vocabulary, so the reviewer's boxes and the analyzer's
@@ -148,6 +165,7 @@ def get_record(user_id, record_id):
     if not record:
         return jsonify({'success': False, 'error': 'Record not found'}), 404
     from services import transfer_credit_service as credit
+    record['can_review'] = prior.may_review(record, org_id)
     return jsonify({
         'success': True,
         'record': record,
@@ -221,6 +239,8 @@ def analyze_record(user_id, record_id):
     record = prior.get_record(record_id, org_id)
     if not record:
         return jsonify({'success': False, 'error': 'Record not found'}), 404
+    if not prior.may_review(record, org_id):
+        return jsonify({'success': False, 'error': 'Optio Academy reviews this record'}), 403
 
     data = request.json or {}
     raw_passwords = data.get('passwords') or data.get('password') or []
@@ -229,7 +249,9 @@ def analyze_record(user_id, record_id):
     passwords = [p for p in (str(x).strip() for x in raw_passwords[:10]) if p]
 
     from services.sis_prior_learning_analyzer import analyze_record as run_analysis
-    result = run_analysis(record, org_id, passwords)
+    # The record's own school, not the caller's: the analyzer's writes pin the
+    # row's organization_id, and Optio Academy analyzes partner-school records.
+    result = run_analysis(record, record['organization_id'], passwords)
     if result.get('error'):
         return jsonify({'success': False, 'error': result['error']}), 502
     return jsonify({'success': True, **result})
@@ -255,6 +277,8 @@ def credit_record(user_id, record_id):
     record = prior.get_record(record_id, org_id)
     if not record:
         return jsonify({'success': False, 'error': 'Record not found'}), 404
+    if not prior.may_review(record, org_id):
+        return jsonify({'success': False, 'error': 'Optio Academy reviews this record'}), 403
     if record.get('status') != 'accepted':
         return jsonify({'success': False,
                         'error': 'Accept this record before adding it to the transcript'}), 400

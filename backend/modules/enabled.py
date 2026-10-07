@@ -28,7 +28,7 @@ logger = get_logger(__name__)
 
 # The columns the evaluators need from `organizations`. Callers that already
 # hold an org row with these fields can use the *_for_row functions directly.
-ORG_ROW_COLUMNS = 'id, feature_flags, ai_features_enabled'
+ORG_ROW_COLUMNS = 'id, feature_flags, ai_features_enabled, accreditation_source'
 
 
 def _raw_value(entry: ModuleDef, flags: Dict) -> bool:
@@ -47,7 +47,8 @@ def _raw_value(entry: ModuleDef, flags: Dict) -> bool:
     if legacy == 'community_enabled':
         return sis_settings.get('community_enabled') is True
     if legacy == 'prior_learning_enabled':
-        return sis_settings.get('prior_learning_enabled') is True
+        # Default on (2026-10-07): only an explicit False turns it off.
+        return sis_settings.get('prior_learning_enabled') is not False
     if legacy == 'kiosk_flag':
         return bool(flags.get('kiosk'))
     if legacy == 'goals_mode':
@@ -68,6 +69,9 @@ def module_enabled_for_row(org_row: Optional[Dict], key: str) -> bool:
         return False
     if entry.gate == 'ai_columns':
         return bool(org_row.get('ai_features_enabled'))
+    if entry.gate == 'optio_diploma' and org_row.get('accreditation_source') != 'optio':
+        # A row read without the column fails closed, like a missing org.
+        return False
     flags = org_row.get('feature_flags') or {}
     if not _raw_value(entry, flags):
         return False

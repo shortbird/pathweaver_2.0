@@ -129,7 +129,8 @@ describe('SchoolShell', () => {
     renderAt('/school')
     await waitFor(() => expect(screen.getByTestId('where')).toHaveTextContent('/courses-and-credits'))
     expect(screen.queryByRole('tab', { name: 'Feed' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('tab', { name: 'Prior Learning' })).not.toBeInTheDocument()
+    // A Prior Learning door since 2026-10-07, as at every school.
+    expect(screen.getByRole('tab', { name: 'Prior Learning' })).toBeInTheDocument()
   })
 
   it('stays out of the way of a superadmin, who belongs to no school', () => {

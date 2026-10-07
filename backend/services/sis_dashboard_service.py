@@ -119,7 +119,7 @@ def _count(table: str, org_id: str, **filters) -> int:
 
 def _org_settings(org_id: str) -> Dict[str, Any]:
     row = (_admin().table('organizations')
-           .select('id, name, slug, feature_flags, ai_features_enabled')
+           .select('id, name, slug, feature_flags, ai_features_enabled, accreditation_source')
            .eq('id', org_id).limit(1).execute()).data or []
     org = row[0] if row else {'id': org_id}
     settings = (org.get('feature_flags') or {}).get('sis_settings') or {}

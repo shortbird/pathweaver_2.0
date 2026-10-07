@@ -16,6 +16,7 @@ describe('sisModules', () => {
     }
     // ...and the opt-ins are off until enabled -- that is what a tile filter
     // actually wants to know, which the old raw-array read couldn't say.
+    // (Prior Learning: off unless the school issues Optio Academy diplomas.)
     for (const key of ['community', 'prior_learning', 'goals']) {
       expect(hidden.has(key)).toBe(true)
     }

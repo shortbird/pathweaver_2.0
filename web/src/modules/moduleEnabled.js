@@ -28,7 +28,8 @@ function rawValue(def, key, flags) {
     case 'community_enabled':
       return ss.community_enabled === true
     case 'prior_learning_enabled':
-      return ss.prior_learning_enabled === true
+      // Default on (2026-10-07): only an explicit false turns it off.
+      return ss.prior_learning_enabled !== false
     case 'kiosk_flag':
       return Boolean(flags.kiosk)
     case 'goals_mode':
@@ -55,6 +56,8 @@ export function moduleEnabled(org, key) {
     return org.effective_modules.includes(key)
   }
   if (def.gate === 'ai_columns') return Boolean(org.ai_features_enabled)
+  // Prior Learning: only where the diploma is Optio Academy's.
+  if (def.gate === 'optio_diploma' && org.accreditation_source !== 'optio') return false
   const flags = org.feature_flags || {}
   if (!rawValue(def, key, flags)) return false
   return def.parent ? moduleEnabled(org, def.parent) : true

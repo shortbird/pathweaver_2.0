@@ -214,7 +214,7 @@ def register_routes(bp):
                     if response_data.get('organization_id'):
                         try:
                             org_data = admin_client.table('organizations')\
-                                .select('id, name, slug, branding_config, quest_visibility_policy, feature_flags, ai_features_enabled')\
+                                .select('id, name, slug, branding_config, quest_visibility_policy, feature_flags, ai_features_enabled, accreditation_source')\
                                 .eq('id', response_data['organization_id'])\
                                 .maybe_single()\
                                 .execute()

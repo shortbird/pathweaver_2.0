@@ -106,8 +106,8 @@ const coursesAndCreditsCard = {
   guardianOnly: true,
 }
 
-/** Opt-in per org (feature_flags.sis_settings.prior_learning_enabled), so a
- *  school that doesn't take prior-learning submissions never shows the door. */
+/** Only where the diploma is Optio Academy's (the prior_learning module's
+ *  optio_diploma gate, 2026-10-07): Optio Academy and its extension schools. */
 const priorLearningCard = {
   name: 'Prior Learning', path: '/family/prior-learning', Icon: AcademicCapIcon,
   description: 'Submit learning done before Optio for high-school credit.',
@@ -134,12 +134,15 @@ export function cardGroupsFor(org, { viewerRole } = {}) {
   // the original) runs almost none of the school-community surfaces, so the
   // full card set was a row of doors onto empty rooms — which is why its
   // parents had this page taken out of the nav entirely. It came back for
-  // Courses and Credits, and that is ALL it carries for such a school. Prior
-  // Learning was a second card until 2026-09-28; it is a section of Courses
-  // and Credits now, where its accepted credit already showed up.
+  // Courses and Credits, plus Prior Learning. Prior Learning was folded into
+  // Courses and Credits on 2026-09-28 and came back as its own card on
+  // 2026-10-07, so every school's families find the upload in the same place;
+  // at a family-first school its address still lands on that section.
   if (isFamilyFirstHubOrg(org)) {
     if (!org.is_guardian) return []
-    return [{ id: 'family', title: 'My family', cards: [coursesAndCreditsCard] }]
+    const cards = [coursesAndCreditsCard]
+    if (org.prior_learning_enabled) cards.push(priorLearningCard)
+    return [{ id: 'family', title: 'My family', cards }]
   }
   const family = [flowCard(org.post_registration_flow), ...FAMILY_CARDS]
   if (org.prior_learning_enabled) family.push(priorLearningCard)

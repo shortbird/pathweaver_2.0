@@ -37,7 +37,19 @@ describe('moduleEnabled', () => {
     const o = org({ sis_enabled: true, sis_settings: { community_enabled: true } })
     expect(moduleEnabled(o, 'billing')).toBe(true)
     expect(moduleEnabled(o, 'community')).toBe(true)
+    // Off: iCreate does not issue Optio Academy diplomas (2026-10-07).
     expect(moduleEnabled(o, 'prior_learning')).toBe(false)
+  })
+
+  it('prior learning exists only where the diploma is Optio Academy’s', () => {
+    const diploma = (flags) => ({ ...org({ sis_enabled: true, ...flags }), accreditation_source: 'optio' })
+    expect(moduleEnabled(diploma({}), 'prior_learning')).toBe(true)
+    expect(moduleEnabled(org({ sis_enabled: true, sis_settings: { prior_learning_enabled: true } }),
+      'prior_learning')).toBe(false)
+    // A diploma school may still switch it off.
+    expect(moduleEnabled(diploma({ sis_settings: { prior_learning_enabled: false } }),
+      'prior_learning')).toBe(false)
+    expect(moduleEnabled(diploma({ modules: { prior_learning: false } }), 'prior_learning')).toBe(false)
   })
 
   it('optio-academy shape: hidden modules off, goals mode on, catalog stays', () => {
@@ -49,6 +61,7 @@ describe('moduleEnabled', () => {
         prior_learning_enabled: true,
       },
     })
+    o.accreditation_source = 'optio'
     expect(moduleEnabled(o, 'classes')).toBe(false)
     expect(moduleEnabled(o, 'goals')).toBe(true)
     expect(moduleEnabled(o, 'prior_learning')).toBe(true)

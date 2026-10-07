@@ -8,6 +8,7 @@ import { isSupported, kindFor } from '../../utils/priorLearningFiles'
 
 
 import ReceivedTranscriptForm from './priorLearning/ReceivedTranscriptForm'
+import ExtensionUploadView from './priorLearning/ExtensionUploadView'
 import EvidenceList from './priorLearning/EvidenceList'
 import AiSuggestion from './priorLearning/AiSuggestion'
 import TranscriptStep from './priorLearning/TranscriptStep'
@@ -88,6 +89,11 @@ const PriorLearningPage = () => {
   const [suggested, setSuggested] = useState({})
   const [disabled, setDisabled] = useState(false)
   const [adding, setAdding] = useState(false)
+  // An extension of Optio Academy uploads and watches; Optio reviews.
+  const [optioReviews, setOptioReviews] = useState(false)
+  // Which view to show is only known once the first read returns; until then
+  // show neither, or an extension school's office sees the review tools flash.
+  const [ready, setReady] = useState(false)
 
   const query = useMemo(() => {
     const params = new URLSearchParams({ status })
@@ -102,13 +108,14 @@ const PriorLearningPage = () => {
         setRecords(r.data?.records || [])
         setCounts(r.data?.counts || {})
         setSubjects(r.data?.subjects || [])
+        setOptioReviews(Boolean(r.data?.optio_reviews))
         setDisabled(false)
       })
       .catch((err) => {
         if (err.response?.status === 403) { setDisabled(true); return }
         toast.error('Could not load prior learning records')
       })
-      .finally(() => setLoading(false))
+      .finally(() => { setLoading(false); setReady(true) })
   }, [query])
 
   useEffect(() => { load() }, [load])
@@ -254,6 +261,9 @@ const PriorLearningPage = () => {
     )
   }
 
+  if (!ready) return <p className="p-6 text-sm text-gray-500">Loading…</p>
+  if (optioReviews) return <ExtensionUploadView orgId={orgId} />
+
   return (
     <div className="p-6 space-y-5">
       <div className="flex items-start justify-between gap-4">
@@ -311,6 +321,20 @@ const PriorLearningPage = () => {
                       filed by the office
                     </span>
                   )}
+                  {/* Optio Academy reviews the records of a microschool that
+                      issues its diplomas (accreditation_source 'optio'). The
+                      Academy needs to know which school the family is at; the
+                      microschool needs to know the decision is not theirs. */}
+                  {record.academy_reviews && record.can_review && record.organization_name && (
+                    <span className="text-xs px-2 py-0.5 rounded-full bg-purple-50 text-optio-purple">
+                      via {record.organization_name}
+                    </span>
+                  )}
+                  {record.can_review === false && (
+                    <span className="text-xs px-2 py-0.5 rounded-full bg-purple-50 text-optio-purple">
+                      Optio Academy reviews this
+                    </span>
+                  )}
                 </div>
                 <p className="text-sm text-gray-500 mt-0.5">
                   {[record.student_name, record.provider, dateRange(record),
@@ -318,6 +342,7 @@ const PriorLearningPage = () => {
                     .filter(Boolean).join(' · ')}
                 </p>
               </div>
+              {record.can_review !== false && (
               <div className="flex items-center gap-3 shrink-0">
                 <button type="button" disabled={analyzing === record.id}
                         onClick={() => analyze(record.id)}
@@ -330,6 +355,7 @@ const PriorLearningPage = () => {
                   {openId === record.id ? 'Close' : 'Review'}
                 </button>
               </div>
+              )}
             </div>
 
             {record.description && (
@@ -340,7 +366,7 @@ const PriorLearningPage = () => {
                           onAdd={(files) => addDocuments(record.id, files)}
                           onDelete={(evidenceId) => deleteEvidence(record.id, evidenceId)} />
 
-            {record.ai_suggestion && (
+            {record.ai_suggestion && record.can_review !== false && (
               <AiSuggestion
                 suggestion={record.ai_suggestion}
                 busy={analyzing === record.id}
@@ -352,13 +378,20 @@ const PriorLearningPage = () => {
               />
             )}
 
-            {openId === record.id && (
+            {openId === record.id && record.can_review !== false && record.transfer_credit && (
+              <p className="text-sm text-gray-600">
+                This credit is on the transcript. To change the review, remove it from the
+                student&apos;s transfer credits first.
+              </p>
+            )}
+
+            {openId === record.id && record.can_review !== false && !record.transfer_credit && (
               <ReviewForm record={record} subjects={subjects} busy={busy}
                           prefill={suggested[record.id]}
                           onSubmit={(payload) => review(record.id, payload)} />
             )}
 
-            {record.status === 'accepted' && (
+            {record.status === 'accepted' && record.can_review !== false && (
               <TranscriptStep record={record} busy={busy}
                               suggestion={record.ai_suggestion}
                               onSubmit={(payload) => addToTranscript(record.id, payload)} />

@@ -190,8 +190,8 @@
     "requires_any": []
   },
   "prior_learning": {
-    "default": "off",
-    "gate": "flags",
+    "default": "on",
+    "gate": "optio_diploma",
     "legacy": "prior_learning_enabled",
     "parent": "sis",
     "requires": [],

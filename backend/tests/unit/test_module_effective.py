@@ -28,8 +28,9 @@ SIS_DEFAULT_ON = {
 }
 
 
-def org(flags=None, ai=True):
-    return {'id': 'org-1', 'feature_flags': flags or {}, 'ai_features_enabled': ai}
+def org(flags=None, ai=True, accreditation='none'):
+    return {'id': 'org-1', 'feature_flags': flags or {}, 'ai_features_enabled': ai,
+            'accreditation_source': accreditation}
 
 
 # ---------------------------------------------------------------------------
@@ -54,7 +55,8 @@ def test_optio_academy_shape_twelve_hidden_plus_optins():
                'registration': {'fee_cents': 0},
                'sis_settings': {'hidden_modules': hidden,
                                 'post_registration_flow': 'goals',
-                                'prior_learning_enabled': True}})
+                                'prior_learning_enabled': True}},
+              accreditation='optio')
     got = effective_modules_for_row(row)
     sis_part = {'sis', 'billing', 'tasks', 'goals', 'prior_learning',
                 'registration', 'submissions', 'catalog'}
@@ -153,3 +155,20 @@ def test_kiosk_is_a_platform_block_with_no_sis_parent():
     assert not module_enabled_for_row(org({'kiosk': True, 'modules': {'kiosk': False}}), 'kiosk')
     got = effective_modules_for_row(org({'modules': {'kiosk': True}}))
     assert 'kiosk' in got and 'sis' not in got
+
+
+def test_prior_learning_exists_only_where_the_diploma_is_optio_academys():
+    """2026-10-07: a school without the diploma setting has no reviewer for
+    prior learning, so the module is off there whatever its flags say."""
+    sis = {'sis_enabled': True}
+    assert module_enabled_for_row(org(sis, accreditation='optio'), 'prior_learning')
+    assert not module_enabled_for_row(org(sis, accreditation='none'), 'prior_learning')
+    assert not module_enabled_for_row(org(sis, accreditation='self'), 'prior_learning')
+    assert not module_enabled_for_row(
+        org({**sis, 'sis_settings': {'prior_learning_enabled': True}}), 'prior_learning')
+    # A row read without the column fails closed.
+    assert not module_enabled_for_row({'id': 'o', 'feature_flags': sis}, 'prior_learning')
+    # And a diploma school may still switch it off.
+    assert not module_enabled_for_row(
+        org({**sis, 'sis_settings': {'prior_learning_enabled': False}}, accreditation='optio'),
+        'prior_learning')

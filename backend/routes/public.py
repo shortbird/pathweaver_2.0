@@ -11,7 +11,7 @@ from database import get_supabase_admin_client
 from generated.credits import TRANSCRIPT_SUBJECT_NAMES, XP_PER_CREDIT
 from utils.logger import get_logger
 from utils.slug_utils import generate_slug, ensure_unique_slug
-from utils.accreditation import resolve_transcript_accreditation
+from utils.accreditation import resolve_transcript_accreditation, transcript_school_name
 from utils.transcript_grades import compute_gpa
 from services import academy_enrollment_service as academy_enrollment
 from utils.storage_urls import sign_stored_url
@@ -278,6 +278,8 @@ def get_public_transcript(user_id):
             student.get('organization_id'), org_row,
             academy_enrolled=academy_enrollment.is_academy_student(user_id, client=client),
         )
+        # An extension school's diploma is Optio Academy's, so its header is too.
+        org_name = transcript_school_name(org_name, accreditation)
 
         # This handler renders the same transcript as
         # routes/admin/transcript_generator.py, for a public share link, and

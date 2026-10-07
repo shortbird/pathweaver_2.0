@@ -15,7 +15,7 @@ import { SettingsCards } from '../../settings/settingsRegistry'
  * Org admins are the only role that reaches this tab (campus coordinators
  * work in the SIS console), so the finance tier is granted outright.
  */
-export default function SettingsTab({ orgId, orgData, onUpdate, onLogoChange, canEditSlug = false }) {
+export default function SettingsTab({ orgId, orgData, onUpdate, onLogoChange, canEditSlug = false, canEditAccreditation = false }) {
   return (
     <SettingsCards
       surface="learning"
@@ -23,6 +23,7 @@ export default function SettingsTab({ orgId, orgData, onUpdate, onLogoChange, ca
       orgData={orgData}
       seesFinance
       canEditSlug={canEditSlug}
+      canEditAccreditation={canEditAccreditation}
       onUpdate={onUpdate}
       onLogoChange={onLogoChange}
     />

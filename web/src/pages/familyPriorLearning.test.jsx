@@ -392,8 +392,11 @@ describe('the school hub card is opt-in', () => {
   describe('at Optio Academy, the page carries only Courses and Credits', () => {
     const academy = (extra) => guardianOrg({ organization_id: OPTIO_ACADEMY_ORG_ID, ...extra })
 
-    it('carries Courses and Credits alone, with prior learning inside it rather than beside it', () => {
-      expect(names(academy({ prior_learning_enabled: true }))).toEqual(['Courses and Credits'])
+    // 2026-10-07: Prior Learning is a door on every school's page again, so
+    // families everywhere find the upload in the same place.
+    it('carries Courses and Credits and a Prior Learning door', () => {
+      expect(names(academy({ prior_learning_enabled: true })))
+        .toEqual(['Courses and Credits', 'Prior Learning'])
     })
 
     it('drops the cards this school does not run — the reason the page was pulled', () => {

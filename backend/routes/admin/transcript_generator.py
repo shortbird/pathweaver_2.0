@@ -47,7 +47,7 @@ from utils.auth.org_scope import caller_can_access_user
 from utils.auth.relationships import require_relationship_to
 from utils.api_response import success_response, error_response
 from utils.logger import get_logger
-from utils.accreditation import resolve_transcript_accreditation
+from utils.accreditation import resolve_transcript_accreditation, transcript_school_name
 from utils.transcript_grades import compute_gpa, normalize_grade
 from services import academy_enrollment_service as academy_enrollment
 from utils.storage_urls import sign_stored_url
@@ -144,6 +144,8 @@ def get_transcript_data(admin_user_id, user_id):
             student.get('organization_id'), org_row,
             academy_enrolled=academy_enrollment.is_academy_student(user_id, client=supabase),
         )
+        # An extension school's diploma is Optio Academy's, so its header is too.
+        org_name = transcript_school_name(org_name, accreditation)
 
         # Transfer credits (all records) - fetch first to subtract from earned
         tc_result = supabase.table('transfer_credits').select('*').eq(

@@ -35,7 +35,7 @@ const ToggleRow = ({ label, description, on, onClick, disabled, indent = false }
   </div>
 )
 
-const SisOrgSettings = ({ orgId, orgData, onUpdate, onLogoChange, canEditSlug = false }) => {
+const SisOrgSettings = ({ orgId, orgData, onUpdate, onLogoChange, canEditSlug = false, canEditAccreditation = false }) => {
   const org = orgData?.organization || {}
   const [name, setName] = useState(org.name || '')
   const [slug, setSlug] = useState(org.slug || '')
@@ -71,6 +71,10 @@ const SisOrgSettings = ({ orgId, orgData, onUpdate, onLogoChange, canEditSlug = 
   // At-home learning: whether Optio platform courses appear in the family Schedule Builder.
   const [optioCourses, setOptioCourses] = useState(org.feature_flags?.sis_settings?.optio_courses_enabled ?? true)
   const [savingToggle, setSavingToggle] = useState(false)
+  // An extension of Optio Academy: the school keeps its students, but their
+  // transcripts and diplomas are Optio Academy's, and Optio Academy reviews
+  // their prior learning. Optio's decision, so superadmin only.
+  const [optioDiplomas, setOptioDiplomas] = useState(org.accreditation_source === 'optio')
 
   // One org-wide price for ALL Optio courses (dollars in the input, cents in storage).
   const storedTuition = org.feature_flags?.sis_settings?.optio_course_tuition_cents
@@ -344,6 +348,17 @@ const SisOrgSettings = ({ orgId, orgData, onUpdate, onLogoChange, canEditSlug = 
             onClick={() => toggleSetting(
               { sis_settings: { directory_default_in: !directoryDefaultIn } },
               () => setDirectoryDefaultIn(!directoryDefaultIn),
+            )}
+          />
+          )}
+          {canEditAccreditation && (
+          <ToggleRow
+            label="Diplomas through Optio Academy"
+            description="Students stay in this school, but their transcripts and diplomas name Optio Academy under its WASC accreditation, and Optio Academy reviews their prior learning. Optio staff only."
+            on={optioDiplomas} disabled={savingToggle}
+            onClick={() => toggleField(
+              { accreditation_source: optioDiplomas ? 'none' : 'optio' },
+              () => setOptioDiplomas(!optioDiplomas),
             )}
           />
           )}

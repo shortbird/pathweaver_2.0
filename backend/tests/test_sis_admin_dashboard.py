@@ -282,9 +282,11 @@ class TestTheRestOfThePayload:
         # gate agree by construction. The kiosk is not in this list any more:
         # it lost its SIS parent on 2026-09-07 (LMS-only schools run it).
         # Weekly goals and bounty management (2026-10-01) are opt-in too, so
-        # they are reported off here.
+        # they are reported off here. Prior learning is off too: this school
+        # does not issue Optio Academy diplomas (2026-10-07).
         assert data['settings'] == {
-            'hidden_modules': ['billing', 'bloomy', 'bounty_management', 'clp', 'community', 'weekly_goals'],
+            'hidden_modules': ['billing', 'bloomy', 'bounty_management', 'clp', 'community',
+                               'prior_learning', 'weekly_goals'],
             'prior_learning_enabled': True,
             'post_registration_flow': 'goals',
         }

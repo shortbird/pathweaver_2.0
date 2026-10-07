@@ -133,17 +133,24 @@ class TestWhichPostRegistrationFlow:
         """Same reason as the flow above: the hub can't read feature_flags for a
         platform parent, so the Prior Learning card has to arrive with the org."""
         ctx = _school_context('parent-1', guardian_orgs=[ICREATE], org_rows=[
-            {**ICREATE_ROW, 'feature_flags': {'sis_settings': {
-                'prior_learning_enabled': True}}}])
+            {**ICREATE_ROW, 'accreditation_source': 'optio',
+             'feature_flags': {'sis_enabled': True, 'sis_settings': {
+                 'prior_learning_enabled': True}}}])
         assert ctx['orgs'][0]['prior_learning_enabled'] is True
 
-    def test_prior_learning_is_off_for_a_school_that_never_set_it(self):
-        """Fails closed — a truthy-ish value is not an opt-in either."""
-        ctx = _school_context('parent-1', guardian_orgs=[ICREATE], org_rows=[ICREATE_ROW])
+    def test_prior_learning_is_on_only_where_the_diploma_is_optio_academys(self):
+        """2026-10-07: Optio Academy and its extension schools carry the
+        door; a school without the diploma setting has no reviewer, so none."""
+        ctx = _school_context('parent-1', guardian_orgs=[ICREATE], org_rows=[
+            {**ICREATE_ROW, 'accreditation_source': 'optio', 'feature_flags': {'sis_enabled': True}}])
+        assert ctx['orgs'][0]['prior_learning_enabled'] is True
+        ctx = _school_context('parent-1', guardian_orgs=[ICREATE], org_rows=[
+            {**ICREATE_ROW, 'accreditation_source': 'none', 'feature_flags': {'sis_enabled': True}}])
         assert ctx['orgs'][0]['prior_learning_enabled'] is False
         ctx = _school_context('parent-1', guardian_orgs=[ICREATE], org_rows=[
-            {**ICREATE_ROW, 'feature_flags': {'sis_settings': {
-                'prior_learning_enabled': 'yes'}}}])
+            {**ICREATE_ROW, 'accreditation_source': 'optio',
+             'feature_flags': {'sis_enabled': True, 'sis_settings': {
+                 'prior_learning_enabled': False}}}])
         assert ctx['orgs'][0]['prior_learning_enabled'] is False
 
     def test_a_school_that_is_not_on_the_sis_gets_no_hub(self):
@@ -406,7 +413,8 @@ class TestGuardianContextCarriesPriorLearning:
         student = {'student_id': 'kid-1', 'org_id': 'org-1', 'household_id': None,
                    'name': 'Ada', 'date_of_birth': None}
         org_row = {'id': 'org-1', 'name': 'Optio Academy', 'ai_features_enabled': False,
-                   'feature_flags': {'sis_settings': sis_settings}}
+                   'accreditation_source': 'optio',
+                   'feature_flags': {'sis_enabled': True, 'sis_settings': sis_settings}}
         client = Mock()
         client.table.side_effect = lambda name: _table_returning(
             [org_row] if name == 'organizations' else [])
@@ -419,6 +427,6 @@ class TestGuardianContextCarriesPriorLearning:
         org = self._context({'prior_learning_enabled': True})['orgs'][0]
         assert org['prior_learning_enabled'] is True
 
-    def test_a_school_that_does_not_says_so_too(self):
-        org = self._context({})['orgs'][0]
+    def test_a_school_that_switched_it_off_says_so_too(self):
+        org = self._context({'prior_learning_enabled': False})['orgs'][0]
         assert org['prior_learning_enabled'] is False

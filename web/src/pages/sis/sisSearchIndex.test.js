@@ -19,6 +19,8 @@ const teacher = { id: 'u3', role: 'org_managed', org_role: 'advisor', org_roles:
 // parent every console module cascades from).
 const fullOrg = {
   id: 'org-1',
+  // Issues Optio Academy diplomas, so Prior Learning is on (2026-10-07).
+  accreditation_source: 'optio',
   feature_flags: {
     sis_enabled: true,
     sis_settings: { community_enabled: true, prior_learning_enabled: true, clp_enabled: true, post_registration_flow: 'goals' },
@@ -84,8 +86,9 @@ describe('buildSearchIndex', () => {
     expect(names(index)).not.toContain('Community')
     expect(names(index)).not.toContain('Lost and found')
     expect(names(index)).not.toContain('CLP')
-    expect(names(index)).not.toContain('Prior Learning')
     expect(names(index)).not.toContain('Goals')
+    // Not a diploma school, so no Prior Learning (2026-10-07).
+    expect(names(index)).not.toContain('Prior Learning')
   })
 
   it('offers the teacher console while an admin previews a teacher', () => {

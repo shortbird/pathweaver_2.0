@@ -102,9 +102,15 @@ class TestGuardiansCannotWriteTheOfficesColumns:
 
 @pytest.mark.unit
 class TestReviewLifecycle:
+    @pytest.fixture(autouse=True)
+    def _nothing_on_the_transcript_yet(self, monkeypatch):
+        from services import transfer_credit_service as credit
+        monkeypatch.setattr(credit, 'already_converted', lambda rid: None)
+        monkeypatch.setattr(prior, 'notify_family_of_review', lambda record: None)
+
     def test_a_record_the_family_has_not_submitted_is_not_reviewable(self, monkeypatch):
         monkeypatch.setattr(prior, 'get_record',
-                            lambda rid, oid: {'id': rid, 'status': 'draft'})
+                            lambda rid, oid: {'id': rid, 'status': 'draft', 'reviewer_org_id': oid})
         result = prior.review('r1', 'o1', 'staff1', 'accepted')
         assert 'not submitted' in result['error']
 
@@ -116,6 +122,7 @@ class TestReviewLifecycle:
         captured = {}
         monkeypatch.setattr(prior, 'get_record', lambda rid, oid: {
             'id': rid, 'status': 'accepted', 'awarded_credits': {'math': 1.0}, 'evidence': [],
+            'reviewer_org_id': oid,
         })
         monkeypatch.setattr(prior, '_admin', lambda: _FakeClient(captured))
 
@@ -128,7 +135,8 @@ class TestReviewLifecycle:
     def test_accepting_with_empty_boxes_is_recognition_without_credit(self, monkeypatch):
         captured = {}
         monkeypatch.setattr(prior, 'get_record',
-                            lambda rid, oid: {'id': rid, 'status': 'submitted', 'evidence': []})
+                            lambda rid, oid: {'id': rid, 'status': 'submitted', 'evidence': [],
+                                              'reviewer_org_id': oid})
         monkeypatch.setattr(prior, '_admin', lambda: _FakeClient(captured))
 
         prior.review('r1', 'o1', 'staff1', 'accepted', awarded_credits={})
@@ -140,7 +148,8 @@ class TestReviewLifecycle:
     def test_a_bad_award_fails_the_whole_accept(self, monkeypatch):
         """Half-accepting — status moved, credit refused — is the worst outcome."""
         monkeypatch.setattr(prior, 'get_record',
-                            lambda rid, oid: {'id': rid, 'status': 'submitted', 'evidence': []})
+                            lambda rid, oid: {'id': rid, 'status': 'submitted', 'evidence': [],
+                                              'reviewer_org_id': oid})
         result = prior.review('r1', 'o1', 'staff1', 'accepted',
                               awarded_credits={'astrology': 1})
         assert 'Unknown subject' in result['error']
@@ -428,6 +437,8 @@ class TestTheOfficeFilesItsOwnRecords:
                 return type('R', (), {'data': [{'id': 'r1', **captured['row']}]})()
 
         monkeypatch.setattr(prior, '_admin', _Insert)
+        # No extension schools here, so the office that files reviews.
+        monkeypatch.setattr(prior, '_extension_org_ids', lambda: [])
         return captured
 
     def test_a_student_who_is_not_in_this_school_cannot_be_filed_for(self, monkeypatch):
@@ -453,6 +464,19 @@ class TestTheOfficeFilesItsOwnRecords:
 
         assert captured['row']['status'] == 'under_review'
         assert captured['row']['status'] not in prior.FAMILY_EDITABLE
+
+    def test_an_extension_schools_upload_is_sent_to_optio_academy(self, monkeypatch):
+        """It lands in the Academy's New tab, so the school's status bar can show
+        the Academy picking it up."""
+        monkeypatch.setattr(prior, 'student_options',
+                            lambda oid: [{'student_id': 'kid-1', 'name': 'Ada'}])
+        monkeypatch.setattr(prior, 'notify_reviewers', lambda record: None)
+        captured = self._capture_insert(monkeypatch)
+        monkeypatch.setattr(prior, '_extension_org_ids', lambda: ['o1'])
+
+        prior.staff_create_record('o1', 'admin-1', 'kid-1', {'title': 'Transcript'})
+
+        assert captured['row']['status'] == 'submitted'
 
     def test_it_is_marked_as_the_offices_own(self, monkeypatch):
         monkeypatch.setattr(prior, 'student_options',
@@ -606,3 +630,113 @@ class TestPostedEvidenceIsValidatedTheSameWayForBothSurfaces:
         assert evidence['content'] == 'Sealed copy, mailed 8/28'
         assert evidence['url'] == 'https://s/o/scan.pdf'
         assert evidence['file_name'] == 'scan.pdf'
+
+
+ACADEMY = 'academy-org'
+MICRO = 'micro-org'
+
+
+@pytest.mark.unit
+class TestOptioAcademyReviewsItsExtensionSchools:
+    """A microschool that issues Optio Academy diplomas (accreditation_source
+    'optio') keeps its students and its school page; its families upload there
+    as before. Optio Academy reviews the records, because the Academy prints the
+    credit on a diploma under its own accreditation. The microschool watches.
+    Any other school reviews its own."""
+
+    @pytest.fixture(autouse=True)
+    def _schools(self, monkeypatch):
+        monkeypatch.setattr(prior, 'academy_org_id', lambda: ACADEMY)
+        monkeypatch.setattr(prior, '_extension_org_ids', lambda: [MICRO])
+        monkeypatch.setattr(prior, '_attach_evidence', lambda records: records)
+
+    def _stored(self, monkeypatch, record):
+        class _Rows:
+            def table(self, _name): return self
+            def select(self, *_a, **_k): return self
+            def eq(self, *_a): return self
+            def limit(self, *_a): return self
+            def execute(self): return type('R', (), {'data': [dict(record)]})()
+        monkeypatch.setattr(prior, '_admin', _Rows)
+
+    def test_an_extension_schools_record_is_reviewed_by_the_academy(self):
+        record = prior.annotate_reviewer([{'organization_id': MICRO}])[0]
+        assert record['academy_reviews'] is True
+        assert record['reviewer_org_id'] == ACADEMY
+
+    def test_any_other_school_reviews_its_own(self):
+        record = prior.annotate_reviewer([{'organization_id': 'own-diploma-school'}])[0]
+        assert record['academy_reviews'] is False
+        assert record['reviewer_org_id'] == 'own-diploma-school'
+
+    def test_the_academys_own_families_are_not_partner_records(self):
+        record = prior.annotate_reviewer([{'organization_id': ACADEMY}])[0]
+        assert record['academy_reviews'] is False
+        assert record['reviewer_org_id'] == ACADEMY
+
+    def test_both_schools_can_open_it_and_no_third_school_can(self, monkeypatch):
+        self._stored(monkeypatch, {'id': 'r1', 'organization_id': MICRO})
+        assert prior.get_record('r1', ACADEMY) is not None
+        assert prior.get_record('r1', MICRO) is not None
+        assert prior.get_record('r1', 'some-other-school') is None
+
+    def test_the_academy_cannot_reach_a_school_that_issues_its_own_diplomas(self, monkeypatch):
+        self._stored(monkeypatch, {'id': 'r1', 'organization_id': 'own-diploma-school'})
+        assert prior.get_record('r1', ACADEMY) is None
+
+    def test_a_family_acts_only_in_the_school_they_filed_in(self, monkeypatch):
+        """The Academy's door is for reviewing; a guardian naming the Academy as
+        their school must not reach a record filed at the microschool."""
+        self._stored(monkeypatch, {'id': 'r1', 'organization_id': MICRO, 'submitted_by': 'mom'})
+        assert prior.get_own_record('r1', MICRO, 'mom') is not None
+        assert prior.get_own_record('r1', ACADEMY, 'mom') is None
+
+    def test_the_microschool_cannot_review_what_the_academy_reviews(self, monkeypatch):
+        self._stored(monkeypatch, {'id': 'r1', 'organization_id': MICRO, 'status': 'submitted'})
+        result = prior.review('r1', MICRO, 'micro-admin', 'accepted', awarded_credits={'math': 1})
+        assert result['status'] == 403
+        assert 'Optio Academy' in result['error']
+
+    def test_the_academy_queue_reads_its_own_and_its_extensions_records(self):
+        class _Query:
+            def eq(self, col, val): self.filter = ('eq', col, val); return self
+            def in_(self, col, vals): self.filter = ('in', col, list(vals)); return self
+        assert prior._scope_to_queue(_Query(), ACADEMY).filter == ('in', 'organization_id', [ACADEMY, MICRO])
+        assert prior._scope_to_queue(_Query(), MICRO).filter == ('eq', 'organization_id', MICRO)
+
+
+@pytest.mark.unit
+class TestASettledReviewStaysSettled:
+    def test_a_record_already_on_the_transcript_cannot_be_rejected(self, monkeypatch):
+        """Rejecting used to clear awarded_credits and leave the transfer row and
+        its XP behind, so the transcript kept a credit the school turned down."""
+        from services import transfer_credit_service as credit
+        monkeypatch.setattr(prior, 'get_record', lambda rid, oid: {
+            'id': rid, 'status': 'accepted', 'reviewer_org_id': oid, 'evidence': []})
+        monkeypatch.setattr(credit, 'already_converted', lambda rid: {'id': 'tc-1'})
+        for status in ('rejected', 'accepted', 'under_review'):
+            result = prior.review('r1', 'o1', 'staff1', status, awarded_credits={'math': 2})
+            assert result['status'] == 409
+            assert 'already on the transcript' in result['error']
+
+    def test_the_award_ceiling_matches_the_transcript_ceiling(self):
+        """At 12 against the transcript's 10, the office could accept 11 credits
+        and then be refused the same number at the transcript step."""
+        from services import transfer_credit_service as credit
+        assert prior.MAX_CREDITS_PER_SUBJECT == credit.MAX_CREDITS_PER_SUBJECT
+
+
+@pytest.mark.unit
+class TestTheFamilyHearsTheOutcome:
+    def test_only_a_family_record_notifies_a_family(self, monkeypatch):
+        sent = []
+        import services.notification_service as ns
+        monkeypatch.setattr(ns, 'NotificationService', lambda: type('S', (), {
+            'create_notification': lambda self, **kw: sent.append(kw)})())
+        prior.notify_family_of_review({'id': 'r1', 'source': 'staff', 'submitted_by': 'admin',
+                                       'status': 'accepted'})
+        assert sent == []
+        prior.notify_family_of_review({'id': 'r1', 'source': 'family', 'submitted_by': 'mom',
+                                       'status': 'accepted', 'organization_id': MICRO})
+        assert sent[0]['user_id'] == 'mom'
+        assert 'credit awarded' in sent[0]['title']
