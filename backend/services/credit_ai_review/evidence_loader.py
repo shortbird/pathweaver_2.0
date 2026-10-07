@@ -99,6 +99,7 @@ class EvidencePart:
     uploaded_by_role: str = 'student'
     skip_reason: Optional[str] = None
     note: Optional[str] = None       # e.g. "read as text, the PDF was too large"
+    words: Optional[str] = None      # the student's caption/description on a file
 
     @property
     def was_read(self) -> bool:
@@ -121,6 +122,7 @@ class EvidencePart:
             'how': self.kind,
             'skip_reason': self.skip_reason,
             'note': self.note,
+            'has_caption': bool(self.words),
             'uploaded_by_role': self.uploaded_by_role,
         }
 
@@ -142,7 +144,8 @@ class LoadResult:
 
     @property
     def anything_readable(self) -> bool:
-        return bool(self.read_parts)
+        # A caption is readable even when the file under it is not.
+        return bool(self.read_parts) or any(p.words for p in self.parts)
 
     def stats(self) -> Dict[str, Any]:
         return {
@@ -338,17 +341,39 @@ class EvidenceLoader:
             return part
 
         ref = parse_object_ref(url)
-        if ref:
-            part = self._new_part(block_index, item_index, block, item, 'upload')
-            return self._load_upload(part, ref, item)
-
-        source, extracted = fetchers.classify_url(url)
+        source, extracted = ('upload', {}) if ref else fetchers.classify_url(url)
         part = self._new_part(block_index, item_index, block, item, source)
+        part.words = self._words_on(item)
+        if ref:
+            return self._load_upload(part, ref, item)
         if source in ('google_doc', 'google_slides', 'google_sheet', 'google_drive'):
             return self._load_google(part, source, extracted)
-        if source in ('youtube', 'vimeo'):
+        if source in ('youtube', 'vimeo', 'tiktok'):
             return self._load_video_link(part, source, extracted)
         return self._load_web(part, url)
+
+    def _words_on(self, item: Dict[str, Any]) -> Optional[str]:
+        """What the student wrote ON a file: its caption and description.
+
+        These used to reach the model only as the file's label, cut to 120
+        characters. Students write whole answers there -- Emory Waite's chapter
+        summary was 667 characters under a photo of her book, and the AI saw
+        the first sentence and reported the summary missing (2026-10-07).
+        Charged to the text budget like any other written evidence.
+        """
+        pieces: List[str] = []
+        for key in ('caption', 'description'):
+            value = item.get(key)
+            if isinstance(value, str) and value.strip() and value.strip() not in pieces:
+                pieces.append(value.strip())
+        if not pieces:
+            return None
+        room = self.budget.max_text_chars - self.result.text_chars
+        if room <= 0:
+            return None
+        words = truncate('\n'.join(pieces), min(self.budget.text_block_chars, room))
+        self.result.text_chars += len(words)
+        return words
 
     # -- sources -------------------------------------------------------------
 
@@ -419,7 +444,7 @@ class EvidenceLoader:
                 return part
 
         # Otherwise say what the video is, which beats saying nothing.
-        summary = fetchers.fetch_oembed(source, video_id)
+        summary = fetchers.fetch_oembed(source, video_id, handle=extracted.get('handle'))
         if summary:
             part.note = 'the video itself was not watched; only its title was read'
             return self._as_text(part, summary, 2000)

@@ -91,7 +91,7 @@ def offline(monkeypatch):
               '123456789': 'Rehearsal'}
     calls: Dict[str, List[Any]] = {'oembed': [], 'fetch': []}
 
-    def fake_oembed(source, video_id):
+    def fake_oembed(source, video_id, handle=None):
         calls['oembed'].append((source, video_id))
         return oembed.get(video_id)
 

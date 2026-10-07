@@ -64,3 +64,8 @@ class CreditSubmissionRepository(BaseRepository):
             'reviewer_action, reviewer_feedback, org_reviewer_action, org_reviewer_feedback'
         ).eq('completion_id', completion_id).order('round_number').execute().data
         return [r for r in (rows or []) if isinstance(r, dict)]
+
+    def replace_round_snapshot(self, round_id: str, blocks: List[Dict[str, Any]]) -> None:
+        """Bring an unreviewed round's snapshot up to the evidence as it stands."""
+        self.client.table('diploma_review_rounds').update(
+            {'evidence_snapshot': blocks}).eq('id', round_id).execute()

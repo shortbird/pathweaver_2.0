@@ -159,6 +159,45 @@ class TestUploads:
 
 
 @pytest.mark.unit
+class TestCaptionsAreWrittenEvidence:
+    """A caption under a photo is often the whole written answer.
+
+    Emory Waite's 667-character chapter summary reached the model as a
+    120-character file label, and the AI reported the summary missing.
+    """
+
+    SUMMARY = 'Dawn and her family host a barbecue. ' * 18  # ~670 chars
+
+    def _photo(self, **extra):
+        return _block('image', {'items': [{'url': f'{STORAGE}/u/IMG_1823.jpeg',
+                                           'title': 'IMG_1823.jpeg', **extra}]})
+
+    def test_the_full_caption_reaches_the_prompt(self):
+        from services.credit_ai_review.prompt import _evidence_line
+        result = _load([self._photo(caption=self.SUMMARY)],
+                       admin=_storage_client(_png_bytes()))
+        part = result.parts[0]
+        assert part.words == self.SUMMARY.strip()
+        assert self.SUMMARY.strip() in _evidence_line(part)
+
+    def test_a_description_is_carried_too(self):
+        result = _load([self._photo(description='My notes on chapter ten.')],
+                       admin=_storage_client(_png_bytes()))
+        assert result.parts[0].words == 'My notes on chapter ten.'
+
+    def test_a_caption_counts_against_the_text_budget(self):
+        result = _load([self._photo(caption=self.SUMMARY)],
+                       admin=_storage_client(_png_bytes()))
+        assert result.text_chars >= len(self.SUMMARY.strip())
+
+    def test_a_caption_is_readable_when_the_file_is_not(self):
+        result = _load([self._photo(caption=self.SUMMARY)],
+                       admin=_storage_client(error=RuntimeError('gone')))
+        assert result.parts[0].skip_reason
+        assert result.anything_readable
+
+
+@pytest.mark.unit
 class TestPdfs:
     def _pdf(self, pages=1, **encryption):
         import fitz
@@ -291,6 +330,29 @@ class TestVideoLinks:
             result = _load([_block('video', {'items': [{'url': 'https://youtu.be/ccccccccccc'}]})])
         assert result.parts[0].kind == 'text'
         assert 'not watched' in (result.parts[0].note or '')
+
+
+@pytest.mark.unit
+class TestTikTokLinks:
+    """A TikTok page has no readable text; its oEmbed caption is the fallback."""
+
+    URL = ('https://www.tiktok.com/@paisleypwright/video/7689675175654231310'
+           '?is_from_webapp=1')
+
+    def test_a_tiktok_link_is_classified(self):
+        assert classify_url(self.URL) == (
+            'tiktok', {'handle': 'paisleypwright', 'video_id': '7689675175654231310'})
+
+    def test_the_caption_is_read_and_the_video_is_not_claimed_watched(self):
+        with patch.object(loader.fetchers, 'fetch_oembed',
+                          return_value='Scrapbook cover craft — paisleypwright') as oembed:
+            result = _load([_block('link', {'items': [{'url': self.URL}]})])
+        part = result.parts[0]
+        oembed.assert_called_once_with('tiktok', '7689675175654231310',
+                                       handle='paisleypwright')
+        assert part.kind == 'text'
+        assert 'Scrapbook' in part.text
+        assert 'not watched' in part.note
 
 
 @pytest.mark.unit

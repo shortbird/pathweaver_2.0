@@ -257,6 +257,10 @@ def _evidence_line(part: EvidencePart) -> str:
     label = part.label or 'an attachment'
     who = '' if part.uploaded_by_role == 'student' else f' (added by a {part.uploaded_by_role})'
 
+    return _evidence_head(part, label, who) + _words_lines(part)
+
+
+def _evidence_head(part: EvidencePart, label: str, who: str) -> str:
     if not part.was_read:
         return f'  [E{part.block_index}] NOT READ -- {label}{who}: {part.skip_reason}'
 
@@ -271,6 +275,14 @@ def _evidence_line(part: EvidencePart) -> str:
     if part.kind == 'file_uri':
         return f'  [E{part.block_index}] {label}{who} (a video, attached below){note}'
     return f'  [E{part.block_index}] {label}{who}{note}'
+
+
+def _words_lines(part: EvidencePart) -> str:
+    """The student's caption on a file is written evidence in its own right."""
+    if not part.words:
+        return ''
+    return ('\n      The student wrote with it:\n'
+            f'      {_indent(part.words)}')
 
 
 def _indent(text: str) -> str:

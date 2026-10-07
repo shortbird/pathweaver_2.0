@@ -311,6 +311,10 @@ def save_evidence_document(user_id: str, task_id: str):
         # Update content blocks
         update_document_blocks(admin_supabase, document_id, blocks, uploader=scope)
 
+        # A credit request waiting on review reads a snapshot; keep it current.
+        from services.credit_ai_review.trigger import evidence_changed
+        evidence_changed(user_id=user_id, task_id=task_id, admin=admin_supabase)
+
         # If completing the task, award XP
         xp_awarded = 0
         quest_completed = False
@@ -1230,6 +1234,10 @@ def delete_evidence_block(user_id: str, block_id: str):
                 .delete() \
                 .eq('id', document_id) \
                 .execute()
+
+        from services.credit_ai_review.trigger import evidence_changed
+        evidence_changed(user_id=user_id, task_id=doc_result.data['task_id'],
+                         admin=admin_supabase)
 
         logger.info(f"Evidence block deleted: block_id={block_id}, user_id={user_id}")
 

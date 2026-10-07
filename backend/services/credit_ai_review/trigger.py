@@ -121,6 +121,66 @@ def _run_each(review_ids: List[str]) -> None:
             logger.error(f'AI credit review {str(review_id)[:8]} raised: {e}')
 
 
+# ── evidence edited while the submission waits ─────────────────────────────
+
+def evidence_changed(*, user_id: str, task_id: str, admin=None) -> bool:
+    """Bring a pending submission's snapshot up to date with its evidence.
+
+    A round's ``evidence_snapshot`` is taken the moment the student asks for
+    credit, and the review reads that snapshot. But the evidence stays editable
+    while the request waits, and the human reviewer is shown the live blocks.
+    London Grover asked for credit with three questions typed out, added the
+    interview with her dad that answered them half an hour later, and the AI
+    reviewed the questions alone while the reviewer was looking at both
+    (2026-10-07).
+
+    So while nobody has acted on the round, the round follows the evidence: the
+    snapshot is replaced and the review is queued again. Queued, not kicked --
+    this runs on every autosave, and the next sweep (ten minutes at most) is the
+    debounce that keeps a student typing from paying for a review per keystroke.
+
+    Returns True when the snapshot changed. Never raises: a failure here must
+    not fail the student's save.
+    """
+    try:
+        admin = admin or _admin()
+        from repositories.credit_submission_repository import CreditSubmissionRepository
+        repo = CreditSubmissionRepository(client=admin)
+
+        completion = repo.completion_for_task(user_id, task_id)
+        if not completion or completion.get('diploma_status') not in store.REVIEWABLE_STATUSES:
+            return False
+        completion_id = completion['id']
+
+        rounds = repo.review_rounds(completion_id)
+        if not rounds or rounds[-1].get('reviewer_action'):
+            return False
+        this_round = rounds[-1]
+        blocks = repo.evidence_blocks(user_id, task_id)
+
+        from services.credit_ai_review.evidence_loader import fingerprint_snapshot
+        if fingerprint_snapshot(blocks) == fingerprint_snapshot(
+                this_round.get('evidence_snapshot') or []):
+            return False
+
+        repo.replace_round_snapshot(this_round['id'], blocks)
+
+        if enabled():
+            try:
+                store.queue_review(admin, round_id=this_round['id'],
+                                   completion_id=completion_id, force=True)
+            except store.AlreadyRunning:
+                # The running review read the old snapshot. Its row will say
+                # complete, and the sweep does not reopen complete rows, so this
+                # is the one case a superadmin's Re-run still has to cover.
+                logger.info(f'AI credit review for round {this_round["id"][:8]} '
+                            'is running; evidence changed underneath it')
+        return True
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f'Could not refresh a pending credit snapshot: {e}')
+        return False
+
+
 # ── the sweep ────────────────────────────────────────────────────────────────
 
 def sweep(limit: Optional[int] = None, admin=None) -> Dict[str, Any]:

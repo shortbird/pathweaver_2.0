@@ -54,13 +54,14 @@ _YOUTUBE_RE = re.compile(
     r'(?:youtube\.com/(?:[^/]+/.+/|(?:v|e(?:mbed)?)/|.*[?&]v=)|youtu\.be/)([^"&?/\s]{11})'
 )
 _VIMEO_RE = re.compile(r'vimeo\.com/(?:video/)?(\d+)')
+_TIKTOK_RE = re.compile(r'tiktok\.com/@([\w.\-]+)/video/(\d+)')
 
 
 def classify_url(url: str) -> Tuple[str, Dict[str, str]]:
     """What kind of link this is, and the ids needed to fetch it.
 
     Returns ``(source, extracted)`` where source is one of google_doc,
-    google_slides, google_sheet, google_drive, youtube, vimeo, web.
+    google_slides, google_sheet, google_drive, youtube, vimeo, tiktok, web.
     """
     if not url or not isinstance(url, str):
         return 'web', {}
@@ -86,6 +87,9 @@ def classify_url(url: str) -> Tuple[str, Dict[str, str]]:
     m = _VIMEO_RE.search(url)
     if m:
         return 'vimeo', {'video_id': m.group(1)}
+    m = _TIKTOK_RE.search(url)
+    if m:
+        return 'tiktok', {'handle': m.group(1), 'video_id': m.group(2)}
     return 'web', {}
 
 
@@ -248,7 +252,7 @@ def readable_page_text(html: bytes, *, max_chars: int) -> Optional[str]:
     return text[:max_chars] if text else None
 
 
-def fetch_oembed(source: str, video_id: str) -> Optional[str]:
+def fetch_oembed(source: str, video_id: str, handle: Optional[str] = None) -> Optional[str]:
     """A video's title and author, when the video itself cannot be watched.
 
     Not much, but it is the difference between telling the model "there is a
@@ -259,6 +263,12 @@ def fetch_oembed(source: str, video_id: str) -> Optional[str]:
                f'https%3A//www.youtube.com/watch%3Fv%3D{video_id}')
     elif source == 'vimeo':
         url = f'https://vimeo.com/api/oembed.json?url=https%3A//vimeo.com/{video_id}'
+    elif source == 'tiktok' and handle:
+        # A TikTok page is a JavaScript shell with no readable text, so this is
+        # the only way the model learns what a linked TikTok is about: its
+        # caption arrives as the oEmbed title.
+        url = ('https://www.tiktok.com/oembed?url=https%3A//www.tiktok.com/'
+               f'%40{handle}/video/{video_id}')
     else:
         return None
 
