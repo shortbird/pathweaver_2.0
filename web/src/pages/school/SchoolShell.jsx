@@ -84,7 +84,7 @@ export default function SchoolShell() {
         logoUrl={schoolOrg?.logo_url}
         logoSubtitle={schoolOrg?.logo_subtitle}
       />
-      {volunteer.shown && <VolunteerHoursLine hours={volunteer.hours} updatedAt={volunteer.updatedAt} />}
+      {volunteer.shown && <VolunteerHoursLine hours={volunteer.hours} updatedAt={volunteer.updatedAt} note={volunteer.note} />}
       {tabs.length > 1 && (
         <div className="mt-6 flex flex-col items-center gap-3">
           <GlassTabBar
@@ -119,18 +119,24 @@ export default function SchoolShell() {
  * not everyone sees everyone elses." The school keeps the number; the family
  * only reads it here.
  */
-export function VolunteerHoursLine({ hours, updatedAt }) {
+export function VolunteerHoursLine({ hours, updatedAt, note }) {
   const value = Number(hours || 0)
   const shown = Number.isInteger(value) ? String(value) : value.toFixed(2).replace(/0$/, '')
   const updated = updatedAt ? new Date(updatedAt).toLocaleDateString() : null
   return (
-    <div className="mt-4 flex justify-center">
+    <div className="mt-4 flex flex-col items-center">
       <div className="inline-flex items-baseline gap-2 rounded-full border border-optio-purple/20 bg-optio-purple/5 px-4 py-1.5"
         data-testid="family-volunteer-hours">
         <span className="text-sm text-neutral-600">Volunteer hours</span>
         <span className="text-sm font-semibold text-optio-purple">{shown}</span>
         {updated && <span className="text-xs text-neutral-400">as of {updated}</span>}
       </div>
+      {/* iCreate b98a167f: staff's note under the hours ("a little message
+          with dates"); drawn only when there is one. */}
+      {note && (
+        <p className="mt-2 max-w-md whitespace-pre-line text-center text-xs text-neutral-600"
+          data-testid="family-volunteer-hours-note">{note}</p>
+      )}
     </div>
   )
 }

@@ -176,7 +176,7 @@ class HouseholdRepository(BaseRepository):
             return []
         return (
             self.client.table(self.table_name)
-            .select('id, name, volunteer_hours, volunteer_hours_updated_at')
+            .select('id, name, volunteer_hours, volunteer_hours_updated_at, volunteer_hours_note')
             .in_('id', household_ids)
             .eq('organization_id', organization_id)
             .execute()

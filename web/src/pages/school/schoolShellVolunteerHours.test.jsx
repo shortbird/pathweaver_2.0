@@ -101,6 +101,29 @@ describe('volunteer hours on the School page (iCreate 01082b30)', () => {
     expect(screen.queryByTestId('family-volunteer-hours')).not.toBeInTheDocument()
   })
 
+  it('shows the note from the school under the hours (iCreate b98a167f)', async () => {
+    // "Can a note section be added just below that for the building manager
+    // cc can add a little message with dates"
+    hoursResponse = { data: { success: true, volunteer_hours: 12.5, updated_at: null,
+      note: 'Sep 12 book fair: 2h\nOct 3 cleanup: 3h', shown: true } }
+    renderShell()
+    const note = await screen.findByTestId('family-volunteer-hours-note')
+    expect(note).toHaveTextContent('Sep 12 book fair: 2h')
+    expect(note).toHaveTextContent('Oct 3 cleanup: 3h')
+    const line = screen.getByTestId('family-volunteer-hours')
+    expect(line.compareDocumentPosition(note) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
+  it('draws no note when there is none (iCreate b98a167f)', async () => {
+    for (const note of [null, '', '   ']) {
+      hoursResponse = { data: { success: true, volunteer_hours: 12.5, updated_at: null, note, shown: true } }
+      const { unmount } = renderShell()
+      await screen.findByTestId('family-volunteer-hours')
+      expect(screen.queryByTestId('family-volunteer-hours-note')).not.toBeInTheDocument()
+      unmount()
+    }
+  })
+
   it('never asks for hours for a member who guards nobody', async () => {
     authState = { user: { id: 's1', role: 'student' }, effectiveRole: 'student' }
     memberOrg = { ...ORG, is_guardian: false, students: [] }

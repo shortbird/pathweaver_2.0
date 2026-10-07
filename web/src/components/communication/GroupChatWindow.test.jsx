@@ -256,3 +256,41 @@ describe('GroupChatWindow', () => {
     expect(onMakeTask).toHaveBeenCalledWith(expect.objectContaining({ id: 'm1' }))
   })
 })
+
+/**
+ * Ticket e6cc5fe5 (iCreate campus coordinator): drafts survive leaving the
+ * thread. GroupChatWindow passes the composer a key built from the signed-in
+ * user and the group, and a separate one when writing as the school.
+ */
+describe('GroupChatWindow drafts (e6cc5fe5)', () => {
+  beforeEach(() => {
+    window.localStorage.clear()
+    groupMessages = { data: { messages: [] }, isLoading: false }
+    groupDetails = { data: null }
+  })
+  const box = () => screen.getByPlaceholderText('Type a message...')
+
+  it('restores a group draft when the group opens again (e6cc5fe5)', () => {
+    const first = render(<GroupChatWindow group={group} />)
+    fireEvent.change(box(), { target: { value: 'Group draft' } })
+    first.unmount()
+    render(<GroupChatWindow group={group} />)
+    expect(box().value).toBe('Group draft')
+  })
+
+  it('does not carry a group draft into another group (e6cc5fe5)', () => {
+    const first = render(<GroupChatWindow group={group} />)
+    fireEvent.change(box(), { target: { value: 'Group draft' } })
+    first.unmount()
+    render(<GroupChatWindow group={{ ...group, id: 'g2', name: 'Other' }} />)
+    expect(box().value).toBe('')
+  })
+
+  it('keeps writing as the school apart from writing as yourself (e6cc5fe5)', () => {
+    const first = render(<GroupChatWindow group={group} />)
+    fireEvent.change(box(), { target: { value: 'As me' } })
+    first.unmount()
+    render(<GroupChatWindow group={group} source={{ school: true, orgId: 'o1' }} />)
+    expect(box().value).toBe('')
+  })
+})

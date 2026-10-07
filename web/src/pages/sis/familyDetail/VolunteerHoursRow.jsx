@@ -10,6 +10,8 @@ import { sisFamilyApi } from '../../../hooks/api/useSisFamilyDetail'
 // sees everyone elses." Staff keep it here; only this family's guardians see
 // it (their School page). Saved on its own, so editing the address never
 // re-stamps when the hours were last updated.
+const NOTE_MAX = 1000
+
 const VolunteerHoursRow = ({ household, orgId, onSaved }) => {
   const initial = Number(household.volunteer_hours || 0)
   const [hours, setHours] = useState(String(initial))
@@ -26,6 +28,24 @@ const VolunteerHoursRow = ({ household, orgId, onSaved }) => {
       toast.success('Volunteer hours saved'); onSaved?.()
     } catch (e) { toast.error(e?.response?.data?.error || 'Could not save') }
     finally { setBusy(false) }
+  }
+
+  // iCreate b98a167f: "a note section ... just below that for the building
+  // manager ... a little message with dates". Same visibility as the number,
+  // saved on its own so a note edit never re-stamps the hours.
+  const initialNote = household.volunteer_hours_note || ''
+  const [note, setNote] = useState(initialNote)
+  const [noteBusy, setNoteBusy] = useState(false)
+  const noteTooLong = note.length > NOTE_MAX
+  const noteDirty = !noteTooLong && note.trim() !== initialNote.trim()
+
+  const saveNote = async () => {
+    setNoteBusy(true)
+    try {
+      await sisFamilyApi.updateHousehold(household.id, { volunteer_hours_note: note.trim() || null }, orgId)
+      toast.success('Volunteer hours note saved'); onSaved?.()
+    } catch (e) { toast.error(e?.response?.data?.error || 'Could not save') }
+    finally { setNoteBusy(false) }
   }
 
   const updated = household.volunteer_hours_updated_at
@@ -46,6 +66,15 @@ const VolunteerHoursRow = ({ household, orgId, onSaved }) => {
         {'This family\'s guardians see this number on their School page. Other families never see it.'}
         {updated && ` Last updated ${updated}.`}
       </span>
+      <label className="mt-3 text-xs text-neutral-500 block">Volunteer hours note
+        <textarea value={note} onChange={(e) => setNote(e.target.value)} rows={3}
+          maxLength={NOTE_MAX} placeholder="For example: Sep 12 book fair, 2 hours"
+          className={`${field} mt-1`} aria-label="Volunteer hours note" />
+      </label>
+      <div className="mt-1 flex items-center justify-between gap-2">
+        <span className="text-[11px] text-neutral-400">The family sees this note under their hours.</span>
+        <Button size="sm" variant="secondary" onClick={saveNote} loading={noteBusy} disabled={!noteDirty}>Save note</Button>
+      </div>
     </div>
   )
 }

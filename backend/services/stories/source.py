@@ -703,9 +703,10 @@ def link_video(url: str) -> Tuple[Optional[str], Optional[str]]:
     return None, None
 
 
-#: Uploads are stored as `<uuid>_<YYYYMMDD>_<HHMMSS>_<original name>`; the
-#: prefix is machine noise (same rule as web/src/utils/evidenceItems.js).
-_STAMPED_UPLOAD_RE = re.compile(r'^[0-9a-f-]{36}_\d{8}_\d{6}_(.+)$', re.IGNORECASE)
+#: Uploads are stored as `<uuid>_<YYYYMMDD>_<HHMMSS>_<8 hex>_<original name>`
+#: (the hex since 2026-10-07; older files have none); the prefix is machine
+#: noise (same rule as web/src/utils/evidenceItems.js).
+_STAMPED_UPLOAD_RE = re.compile(r'^[0-9a-f-]{36}_\d{8}_\d{6}_(?:[0-9a-f]{8}_)?(.+)$', re.IGNORECASE)
 
 
 def document_title(name: str) -> str:

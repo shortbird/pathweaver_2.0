@@ -12,6 +12,7 @@ Covers:
 from __future__ import annotations
 
 import io
+import re
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -149,6 +150,30 @@ def test_generate_storage_path_task_context():
     )
     assert path.startswith("evidence-tasks/user-abc/task-123_")
     assert path.endswith("photo.png")
+
+
+def test_generate_storage_path_same_name_same_second_differs():
+    """Tickets 983756ff / 1bc78cf0 (Sentry optio-mobile 7777737640, optio-backend
+    7777740985, 2026-10-07): an iPhone names every picked photo "image.jpg", and
+    the path was {task}_{time to the second}_{name}, so a second photo for the
+    same task in the same second got the same path and Storage answered
+    409 Duplicate "The resource already exists"."""
+    from datetime import datetime as real_datetime
+    svc, *_ = _make_service_with_stub_client()
+    with patch("services.media_upload_service.datetime") as dt:
+        dt.utcnow.return_value = real_datetime(2026, 10, 7, 0, 10, 29)
+        first, second = (
+            svc._generate_storage_path(
+                context_type="task", context_id="task-123", user_id="user-abc",
+                filename="image.jpg", ext="jpg",
+            )
+            for _ in range(2)
+        )
+    assert first != second
+    for path in (first, second):
+        assert re.match(
+            r"^evidence-tasks/user-abc/task-123_20261007_001029_[0-9a-f]{8}_image\.jpg$", path
+        ), path
 
 
 def test_generate_storage_path_moment_context_uses_uuid():

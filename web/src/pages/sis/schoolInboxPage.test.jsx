@@ -1327,3 +1327,87 @@ describe('deleting your own message (ecc73d0e)', () => {
   })
 })
 
+/**
+ * Ticket e6cc5fe5 (iCreate campus coordinator, SIS /inbox): "Can we make our
+ * drafts save when we switch out of messages and then come back to it?" The
+ * page passes the composer a draft key for the signed-in person and thread.
+ */
+describe('SchoolInboxPage drafts (e6cc5fe5)', () => {
+  const draftKeys = () => Array.from({ length: window.localStorage.length },
+    (_, i) => window.localStorage.key(i)).filter((k) => k.startsWith('optio:message-draft:'))
+  beforeEach(() => {
+    draftKeys().forEach((k) => window.localStorage.removeItem(k))
+    // Earlier tests in this file swap api.post's implementation and
+    // clearAllMocks does not undo that; sends here start from a plain success.
+    api.post.mockImplementation(() => Promise.resolve({ data: { success: true } }))
+  })
+
+  it('restores a reply after switching threads and coming back (e6cc5fe5)', async () => {
+    state.schoolConvos = [convo(1, 'Greta'), convo(2, 'Pat')]
+    render(<SchoolInboxPage />, { route: '/inbox?tab=school' })
+    fireEvent.click(await screen.findByText('Greta Family'))
+    fireEvent.change(await screen.findByPlaceholderText(/Reply as Hearthwood/),
+      { target: { value: 'Half a reply to Greta' } })
+
+    fireEvent.click(screen.getByText('Pat Family'))
+    await waitFor(() =>
+      expect(screen.getByPlaceholderText(/Reply as Hearthwood/).value).toBe(''))
+
+    fireEvent.click(screen.getByText('Greta Family'))
+    await waitFor(() =>
+      expect(screen.getByPlaceholderText(/Reply as Hearthwood/).value).toBe('Half a reply to Greta'))
+  })
+
+  it('restores a reply after leaving the inbox and opening it again (e6cc5fe5)', async () => {
+    state.schoolConvos = [convo(1, 'Greta')]
+    const first = render(<SchoolInboxPage />, { route: '/inbox?tab=school&conversation=c1' })
+    fireEvent.change(await screen.findByPlaceholderText(/Reply as Hearthwood/),
+      { target: { value: 'Still writing' } })
+    first.unmount()
+
+    render(<SchoolInboxPage />, { route: '/inbox?tab=school&conversation=c1' })
+    await waitFor(() =>
+      expect(screen.getByPlaceholderText(/Reply as Hearthwood/).value).toBe('Still writing'))
+  })
+
+  it('keys the draft by the signed-in coordinator, not the shared school inbox (e6cc5fe5)', async () => {
+    state.schoolConvos = [convo(1, 'Greta')]
+    const first = render(<SchoolInboxPage />, { route: '/inbox?tab=school&conversation=c1' })
+    fireEvent.change(await screen.findByPlaceholderText(/Reply as Hearthwood/),
+      { target: { value: 'Mine, not my colleague\'s' } })
+    expect(draftKeys()).toEqual(['optio:message-draft:me-1:school:org-1:dm:c1'])
+    first.unmount()
+
+    authUser = { id: 'me-2', role: 'org_admin' }
+    render(<SchoolInboxPage />, { route: '/inbox?tab=school&conversation=c1' })
+    await waitFor(() =>
+      expect(screen.getByPlaceholderText(/Reply as Hearthwood/).value).toBe(''))
+  })
+
+  it('clears the draft once the reply sends (e6cc5fe5)', async () => {
+    authUser = { id: 'me-1', role: 'advisor' }
+    state.myConvos = [convo(2, 'Pat')]
+    render(<SchoolInboxPage />)
+    fireEvent.click(await screen.findByText('Pat Family'))
+    fireEvent.change(await screen.findByPlaceholderText('Write a reply...'),
+      { target: { value: 'On it' } })
+    expect(draftKeys()).toHaveLength(1)
+    fireEvent.click(screen.getByLabelText('Send message'))
+    await waitFor(() => expect(draftKeys()).toHaveLength(0))
+  })
+
+  it('keeps the draft when the reply fails to send (e6cc5fe5)', async () => {
+    authUser = { id: 'me-1', role: 'advisor' }
+    state.myConvos = [convo(2, 'Pat')]
+    api.post.mockImplementation((url) => (url.endsWith('/send')
+      ? Promise.reject(Object.assign(new Error('500'), { response: { data: { error: 'boom' } } }))
+      : Promise.resolve({ data: { success: true } })))
+    render(<SchoolInboxPage />)
+    fireEvent.click(await screen.findByText('Pat Family'))
+    const box = await screen.findByPlaceholderText('Write a reply...')
+    fireEvent.change(box, { target: { value: 'Did not go' } })
+    fireEvent.click(screen.getByLabelText('Send message'))
+    await waitFor(() => expect(box.value).toBe('Did not go'))
+    expect(draftKeys()).toHaveLength(1)
+  })
+})

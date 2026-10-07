@@ -222,6 +222,15 @@ class QuestRepository(BaseRepository):
                         .update({
                             'is_active': True,
                             'completed_at': None,
+                            # A quest saved for later (POST /archive) comes back
+                            # through here when it is started again from its
+                            # page. Leaving archived_at set made it active but
+                            # invisible: the dashboard's active list skips
+                            # archived rows, and Saved for Later kept listing
+                            # it (ticket e17134c6, 2026-10-07).
+                            'archived_at': None,
+                            'archive_reason': None,
+                            'archive_feedback': None,
                             'last_picked_up_at': datetime.now(timezone.utc).isoformat(),
                             'enrolled_by_user_id': enrolled_by_user_id,
                         })
@@ -287,6 +296,105 @@ class QuestRepository(BaseRepository):
         except APIError as e:
             logger.error(f"Error setting aside enrollment {user_quest_id}: {e}")
             raise DatabaseError("Failed to set the quest aside") from e
+
+    # ── Save for later / Resume (ticket e17134c6, 2026-10-07) ───────────────
+    #
+    # "Paused" is every enrollment that is inactive and not completed. Three
+    # forms reach that state, written by different paths over the years:
+    #   - archived_at set   (POST /archive, "Save for later")
+    #   - status set_down   (set-down, /end below an XP line, class removal)
+    #   - neither           (older writes that only cleared is_active)
+    # Saved for Later lists all three, Resume revives all three, and
+    # archive_reason 'lost_interest' ("I'm done with it") hides one from every
+    # list while its work, XP and evidence stay in the portfolio.
+
+    HIDDEN_ARCHIVE_REASON = 'lost_interest'
+
+    def save_for_later(self, user_id: str, quest_id: str,
+                       reason: Optional[str], feedback: Optional[str]) -> int:
+        """Archive every enrollment of this quest that is not truly ended.
+
+        The quest page treats `is_active` as active whether or not
+        completed_at is set (routes/quest/detail.py: "a quest can have both
+        is_active=True AND completed_at set when restarted"), so the row
+        lookup follows the same rule; filtering on completed_at IS NULL alone
+        404'd Save for later on such a quest. An already-paused row matches
+        too: that is the "Remove" on a Saved for Later row (reason
+        lost_interest). Only an inactive row WITH completed_at -- a quest that
+        was marked done -- is left alone.
+
+        Returns the number of rows archived; 0 means nothing to archive.
+        """
+        from datetime import datetime, timezone
+        rows = (
+            self.client.table('user_quests')
+            .select('id, is_active, completed_at')
+            .eq('user_id', user_id)
+            .eq('quest_id', quest_id)
+            .execute()
+        ).data or []
+        targets = [r for r in rows if r.get('is_active') or not r.get('completed_at')]
+        if not targets:
+            return 0
+        payload = {
+            'archived_at': datetime.now(timezone.utc).isoformat(),
+            'archive_reason': reason,
+            'archive_feedback': feedback,
+            'is_active': False,
+        }
+        # An active row that still carries a completed_at from an earlier
+        # finish would read as "done" once inactive. Saving for later marks
+        # nothing complete, so the stale stamp goes.
+        if any(r.get('completed_at') for r in targets):
+            payload['completed_at'] = None
+        updated = (
+            self.client.table('user_quests')
+            .update(payload)
+            .in_('id', [r['id'] for r in targets])
+            .execute()
+        ).data or []
+        return len(updated)
+
+    def resume_saved(self, user_id: str, quest_id: str) -> int:
+        """Bring back any paused enrollment (archived, set_down or unmarked).
+
+        Status goes back to 'picked_up', the value the lifecycle service's
+        pick-up writes (services/quest_lifecycle_service._pickup_existing_quest).
+        Returns the number of rows restored; 0 means nothing was paused.
+        """
+        from datetime import datetime, timezone
+        updated = (
+            self.client.table('user_quests')
+            .update({
+                'is_active': True,
+                'status': 'picked_up',
+                'archived_at': None,
+                'archive_reason': None,
+                'archive_feedback': None,
+                'last_picked_up_at': datetime.now(timezone.utc).isoformat(),
+            })
+            .eq('user_id', user_id)
+            .eq('quest_id', quest_id)
+            .eq('is_active', False)
+            .is_('completed_at', 'null')
+            .execute()
+        ).data or []
+        return len(updated)
+
+    def enrollment_has_completed_task(self, user_id: str, quest_id: str,
+                                      user_quest_id: str) -> bool:
+        """Has this enrollment at least one completed task? Mark done on a
+        quest with no XP finish line needs one (ticket e17134c6)."""
+        rows = (
+            self.client.table('quest_task_completions')
+            .select('id, user_quest_tasks!inner(user_quest_id)')
+            .eq('user_id', user_id)
+            .eq('quest_id', quest_id)
+            .eq('user_quest_tasks.user_quest_id', user_quest_id)
+            .limit(1)
+            .execute()
+        ).data or []
+        return bool(rows)
 
     def abandon_quest(self, user_id: str, quest_id: str) -> bool:
         """

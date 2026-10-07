@@ -42,7 +42,7 @@ vi.mock('react-hot-toast', () => ({
 }))
 
 vi.mock('../services/api', () => ({
-  default: { get: vi.fn().mockResolvedValue({ data: { success: true, members: [] } }), delete: vi.fn(), put: vi.fn() }
+  default: { get: vi.fn().mockResolvedValue({ data: { success: true, members: [] } }), delete: vi.fn(), put: vi.fn(), post: vi.fn() }
 }))
 
 vi.mock('../utils/logger', () => ({
@@ -55,7 +55,10 @@ vi.mock('../utils/queryKeys', () => ({
       detail: (id, scopeId) => ['quests', 'detail', id, scopeId || 'me'],
       detailAll: (id) => ['quests', 'detail', id],
     },
-    invalidateCourses: vi.fn()
+    invalidateCourses: vi.fn(),
+    // Read by the real useArchiveEnrollment's onSuccess (Save for later).
+    invalidateQuests: vi.fn(),
+    user: { dashboard: () => ['user', 'dashboard'] }
   },
   mutationKeys: {
     deleteEnrollment: 'deleteEnrollment',
@@ -392,14 +395,22 @@ describe('QuestDetail', () => {
     })
   })
 
-  // --- Ending a quest ---
+  // --- Save for later / Mark done ---
   //
-  // A Hearthwood parent showing her daughter how to submit a biology lab ended
-  // the whole subject instead, four seconds after opening the task, with seven
-  // of nine tasks still to do. "End quest" fired on one tap with no warning,
-  // and once ended there was no way back from inside the app.
-  describe('ending and reopening a quest', () => {
-    const enrolledQuest = () => ({
+  // Ticket e17134c6-4d17-432d-a075-4e6e89174282, 2026-10-07. An iCreate org
+  // admin on this page: "You have 'End Quest' but that's not super clear what
+  // that means. And I didn't dare select that because I was worried I might
+  // end the quest on accident and I didn't know what would happen."
+  //
+  // One "End quest" button became two. These tests used to pin "End quest"
+  // and "Finish quest"; they were rewritten, not deleted, because the
+  // promises they pinned still hold under the new labels: ask first, name the
+  // unfinished tasks, keep the work and XP, and offer the way back. The
+  // Hearthwood history behind the warning: a parent showing her daughter how
+  // to submit a biology lab ended the whole subject with seven of nine tasks
+  // still to do, on one tap with no warning and no way back.
+  describe('save for later and mark done', () => {
+    const enrolledQuest = (extra = {}) => ({
       id: 'quest-123',
       title: 'High School Biology',
       user_enrollment: { id: 'enrollment-1', quest_id: 'quest-123' },
@@ -410,55 +421,185 @@ describe('QuestDetail', () => {
         { id: 'task-3', title: 'Unit 1 - Test', xp_value: 200, is_completed: false, pillar: 'stem_logic' }
       ],
       has_template_tasks: false,
-      progress: { percentage: 33, completed_tasks: 1, total_tasks: 3 }
+      progress: { percentage: 33, completed_tasks: 1, total_tasks: 3 },
+      ...extra
     })
 
-    it('asks before ending, and says how many tasks are still unfinished', async () => {
-      questDetailData.quest = enrolledQuest()
+    const onQuest = (extra = {}, earnedXP = 150) => {
+      questDetailData.quest = enrolledQuest(extra)
       questDetailData.totalTasks = 3
       questDetailData.completedTasks = 1
+      questDetailData.xpData = { earnedXP }
+    }
 
+    it('offers the two named actions and no "End quest"', () => {
+      onQuest()
       renderQuestDetail()
-      fireEvent.click(screen.getByText('End quest'))
+      expect(screen.getByRole('button', { name: /Save for later/ })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: /Mark done/ })).toBeInTheDocument()
+      expect(screen.queryByText('End quest')).not.toBeInTheDocument()
+      expect(screen.queryByText('Finish quest')).not.toBeInTheDocument()
+    })
+
+    // The confirm copy is the promise the reporter reads before she dares to
+    // press: what happens to the work and XP, where the quest goes, how to
+    // come back. Assert the words. Since the follow-up to ticket e17134c6
+    // (owner, 2026-10-07) Save for later asks one question with two answers:
+    // "I'll come back to it" and "I'm done with it".
+    it('Save for later asks one question with two answers, and says the work and XP are kept', async () => {
+      authState = { user: { id: 'user-1', role: 'student' }, effectiveRole: 'student' }
+      onQuest()
+      renderQuestDetail()
+      fireEvent.click(screen.getByRole('button', { name: /Save for later/ }))
+
+      expect(await screen.findByText('Will you come back to this quest?')).toBeInTheDocument()
+      expect(screen.getByText('All work and XP are kept either way.')).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: /I'll come back to it/ })).toHaveTextContent(
+        'It moves to Saved for Later on the dashboard, and Resume there brings it back.')
+      expect(screen.getByRole('button', { name: /I'm done with it/ })).toHaveTextContent(
+        'It leaves every list. Its work and XP stay in the portfolio.')
+      expect(api.post).not.toHaveBeenCalled()
+    })
+
+    it('Save for later tells staff, who have no Saved for Later list, to come back through this page', async () => {
+      authState = { user: { id: 'user-1', role: 'org_managed' }, effectiveRole: 'org_admin' }
+      onQuest()
+      renderQuestDetail()
+      fireEvent.click(screen.getByRole('button', { name: /Save for later/ }))
+
+      expect(await screen.findByText(
+        'It leaves your active list, and you can open it again here to pick it back up.'
+      )).toBeInTheDocument()
+    })
+
+    it("\"I'll come back to it\" archives the enrollment for Saved for Later and never ends the quest", async () => {
+      api.post.mockResolvedValueOnce({ data: { success: true, archived: 1 } })
+      onQuest()
+      renderQuestDetail()
+      fireEvent.click(screen.getByRole('button', { name: /Save for later/ }))
+      fireEvent.click(await screen.findByRole('button', { name: /I'll come back to it/ }))
 
       await waitFor(() => {
-        expect(screen.getByText('End this quest?')).toBeInTheDocument()
+        expect(api.post).toHaveBeenCalledWith('/api/quests/quest-123/archive',
+          { reason: undefined, feedback: undefined })
       })
-      expect(screen.getByText(/2 tasks are still unfinished/)).toBeInTheDocument()
+      expect(questDetailData.endQuestMutation.mutate).not.toHaveBeenCalled()
+      await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('/dashboard'))
+      expect(toast.success).toHaveBeenCalledWith('Saved for later. Your work and XP are kept.')
+    })
+
+    it("\"I'm done with it\" archives with reason lost_interest, which hides the quest", async () => {
+      api.post.mockResolvedValueOnce({ data: { success: true, archived: 1 } })
+      onQuest()
+      renderQuestDetail()
+      fireEvent.click(screen.getByRole('button', { name: /Save for later/ }))
+      fireEvent.click(await screen.findByRole('button', { name: /I'm done with it/ }))
+
+      await waitFor(() => {
+        expect(api.post).toHaveBeenCalledWith('/api/quests/quest-123/archive',
+          { reason: 'lost_interest', feedback: undefined })
+      })
+      expect(questDetailData.endQuestMutation.mutate).not.toHaveBeenCalled()
+      await waitFor(() => expect(toast.success).toHaveBeenCalledWith(
+        'Removed from your lists. Its work and XP stay in the portfolio.'))
+    })
+
+    it('does not save the quest when the person cancels', async () => {
+      onQuest()
+      renderQuestDetail()
+      fireEvent.click(screen.getByRole('button', { name: /Save for later/ }))
+      fireEvent.click(await screen.findByText('Cancel'))
+
+      await waitFor(() => expect(screen.queryByText('Will you come back to this quest?')).not.toBeInTheDocument())
+      expect(api.post).not.toHaveBeenCalled()
+    })
+
+    it('Mark done is unavailable with no finished task on a quest with no XP finish line, and says why', () => {
+      onQuest()
+      questDetailData.completedTasks = 0
+      questDetailData.xpData = { earnedXP: 0 }
+      renderQuestDetail()
+
+      const markDone = screen.getByRole('button', { name: /Mark done/ })
+      expect(markDone).toBeDisabled()
+      expect(screen.getByText('Finish at least one task to mark this quest done.')).toBeInTheDocument()
+      fireEvent.click(markDone)
+      expect(questDetailData.endQuestMutation.mutate).not.toHaveBeenCalled()
+      expect(screen.getByRole('button', { name: /Save for later/ })).toBeEnabled()
+    })
+
+    it('Mark done is available after one finished task on a quest with no XP finish line', () => {
+      onQuest()
+      renderQuestDetail()
+      expect(screen.getByRole('button', { name: /Mark done/ })).toBeEnabled()
+      expect(screen.queryByText(/Finish at least one task/)).not.toBeInTheDocument()
+    })
+
+    it('Mark done says the work and XP are kept, where the quest goes, how to come back, and names the unfinished tasks', async () => {
+      onQuest()
+      renderQuestDetail()
+      fireEvent.click(screen.getByRole('button', { name: /Mark done/ }))
+
+      expect(await screen.findByText('Mark this quest done?')).toBeInTheDocument()
+      expect(screen.getByText(
+        'All work and XP are kept, and the quest moves to Completed. You can reopen it from this page. 2 unfinished tasks will leave the dashboard.'
+      )).toBeInTheDocument()
       expect(questDetailData.endQuestMutation.mutate).not.toHaveBeenCalled()
     })
 
-    it('does not end the quest when the person cancels', async () => {
-      questDetailData.quest = enrolledQuest()
-      questDetailData.totalTasks = 3
-      questDetailData.completedTasks = 1
-
+    it('Mark done ends the quest once confirmed, and never archives it', async () => {
+      onQuest()
       renderQuestDetail()
-      fireEvent.click(screen.getByText('End quest'))
-      await waitFor(() => expect(screen.getByText('Cancel')).toBeInTheDocument())
-      fireEvent.click(screen.getByText('Cancel'))
-
-      await waitFor(() => {
-        expect(questDetailData.endQuestMutation.mutate).not.toHaveBeenCalled()
-      })
-    })
-
-    it('ends the quest once confirmed', async () => {
-      questDetailData.quest = enrolledQuest()
-      questDetailData.totalTasks = 3
-      questDetailData.completedTasks = 1
-
-      renderQuestDetail()
-      fireEvent.click(screen.getByText('End quest'))
-      await waitFor(() => expect(screen.getByText('Confirm')).toBeInTheDocument())
-      fireEvent.click(screen.getByText('Confirm'))
+      fireEvent.click(screen.getByRole('button', { name: /Mark done/ }))
+      const dialogButtons = await screen.findAllByRole('button', { name: 'Mark done' })
+      fireEvent.click(dialogButtons[dialogButtons.length - 1])
 
       await waitFor(() => {
         expect(questDetailData.endQuestMutation.mutate).toHaveBeenCalledWith('quest-123', expect.any(Object))
       })
+      expect(api.post).not.toHaveBeenCalled()
     })
 
-    it('offers a reopen button on a quest that was ended', async () => {
+    it('does not mark the quest done when the person cancels', async () => {
+      onQuest()
+      renderQuestDetail()
+      fireEvent.click(screen.getByRole('button', { name: /Mark done/ }))
+      fireEvent.click(await screen.findByText('Cancel'))
+
+      await waitFor(() => expect(screen.queryByText('Mark this quest done?')).not.toBeInTheDocument())
+      expect(questDetailData.endQuestMutation.mutate).not.toHaveBeenCalled()
+    })
+
+    // Below the school's XP finish line, POST /end does not finish a quest --
+    // it sets it aside. Offering "Mark done" there would be the same
+    // ambiguity under a new name.
+    it('Mark done is unavailable below the XP finish line, and says how much is left', () => {
+      onQuest({ xp_threshold: 300 }, 150)
+      renderQuestDetail()
+
+      const markDone = screen.getByRole('button', { name: /Mark done/ })
+      expect(markDone).toBeDisabled()
+      expect(screen.getByText('150 XP to go before you can mark this quest done.')).toBeInTheDocument()
+      fireEvent.click(markDone)
+      expect(questDetailData.endQuestMutation.mutate).not.toHaveBeenCalled()
+      // Save for later is still there: below the line it is the way out.
+      expect(screen.getByRole('button', { name: /Save for later/ })).toBeEnabled()
+    })
+
+    it('Mark done is available exactly at the finish line', () => {
+      onQuest({ xp_threshold: 300 }, 300)
+      renderQuestDetail()
+      expect(screen.getByRole('button', { name: /Mark done/ })).toBeEnabled()
+      expect(screen.queryByText(/XP to go/)).not.toBeInTheDocument()
+    })
+
+    it('Mark done is available above the finish line', () => {
+      onQuest({ xp_threshold: 300 }, 450)
+      renderQuestDetail()
+      expect(screen.getByRole('button', { name: /Mark done/ })).toBeEnabled()
+    })
+
+    it('offers a reopen button on a quest that was marked done', async () => {
       const quest = enrolledQuest()
       quest.completed_enrollment = { id: 'enrollment-1' }
       questDetailData.quest = quest
@@ -470,7 +611,8 @@ describe('QuestDetail', () => {
 
       const reopen = screen.getByText('Reopen this quest')
       expect(reopen).toBeInTheDocument()
-      expect(screen.queryByText('End quest')).not.toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: /Mark done/ })).not.toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: /Save for later/ })).not.toBeInTheDocument()
 
       fireEvent.click(reopen)
       expect(questDetailData.reopenQuestMutation.mutate).toHaveBeenCalledWith('quest-123', expect.any(Object))
@@ -480,7 +622,8 @@ describe('QuestDetail', () => {
     // no button to end it once the celebration had been closed. The page must
     // key on the enrollment having ended, not on progress -- so this sets the
     // progress-derived flag the old hook produced and expects the button anyway.
-    it('offers Finish quest when every task is done but the quest is still active', async () => {
+    // (Was "offers Finish quest ..."; the label is now Mark done.)
+    it('offers Mark done when every task is done but the quest is still active', async () => {
       const quest = enrolledQuest()
       quest.quest_tasks = quest.quest_tasks.map(t => ({ ...t, is_completed: true }))
       quest.progress = { percentage: 100, completed_tasks: 3, total_tasks: 3 }
@@ -490,9 +633,12 @@ describe('QuestDetail', () => {
       questDetailData.completedTasks = 3
 
       renderQuestDetail()
-      fireEvent.click(screen.getByText('Finish quest'))
-      await waitFor(() => expect(screen.getByText('Confirm')).toBeInTheDocument())
-      fireEvent.click(screen.getByText('Confirm'))
+      fireEvent.click(screen.getByRole('button', { name: /Mark done/ }))
+      expect(await screen.findByText(
+        'All work and XP are kept, and the quest moves to Completed. You can reopen it from this page.'
+      )).toBeInTheDocument()
+      const dialogButtons = await screen.findAllByRole('button', { name: 'Mark done' })
+      fireEvent.click(dialogButtons[dialogButtons.length - 1])
 
       await waitFor(() => {
         expect(questDetailData.endQuestMutation.mutate).toHaveBeenCalledWith('quest-123', expect.any(Object))
@@ -500,10 +646,7 @@ describe('QuestDetail', () => {
     })
 
     it('does not offer reopen while the quest is still active', () => {
-      questDetailData.quest = enrolledQuest()
-      questDetailData.totalTasks = 3
-      questDetailData.completedTasks = 1
-
+      onQuest()
       renderQuestDetail()
       expect(screen.queryByText('Reopen this quest')).not.toBeInTheDocument()
     })
@@ -946,18 +1089,23 @@ const CACHE_KEY = ['quests', 'detail', 'quest-123', 'me']
       progress: { percentage: 0, completed_tasks: 0, total_tasks: 1 }
     })
 
+    // Was "End class" / "End this class?" until ticket e17134c6 split the
+    // one End button into Save for later and Mark done; the point it pins --
+    // a class is called a class -- is unchanged.
     it('calls a class a class, not a quest', async () => {
       questDetailData.quest = classQuest()
-      questDetailData.totalTasks = 1
-      questDetailData.completedTasks = 0
+      // One finished task: with none, Mark done is off on a quest with no XP
+      // finish line (ticket e17134c6).
+      questDetailData.totalTasks = 2
+      questDetailData.completedTasks = 1
 
       renderQuestDetail()
-      fireEvent.click(screen.getByText('End class'))
+      fireEvent.click(screen.getByRole('button', { name: /Mark done/ }))
 
       await waitFor(() => {
-        expect(screen.getByText('End this class?')).toBeInTheDocument()
+        expect(screen.getByText('Mark this class done?')).toBeInTheDocument()
       })
-      expect(screen.getByText(/1 task is still unfinished/)).toBeInTheDocument()
+      expect(screen.getByText(/1 unfinished task will leave the dashboard/)).toBeInTheDocument()
     })
 
     it('says which requirements are missing when the backend refuses', async () => {
@@ -965,7 +1113,8 @@ const CACHE_KEY = ['quests', 'detail', 'quest-123', 'me']
       // generic "Failed to finish quest. Please try again." tells a student to
       // retry something that will never succeed.
       questDetailData.quest = classQuest()
-      questDetailData.totalTasks = 1
+      questDetailData.totalTasks = 2
+      questDetailData.completedTasks = 1   // see "calls a class a class" (e17134c6)
       questDetailData.endQuestMutation = {
         mutate: vi.fn((_id, opts) => opts.onError({
           response: {
@@ -979,8 +1128,9 @@ const CACHE_KEY = ['quests', 'detail', 'quest-123', 'me']
       }
 
       renderQuestDetail()
-      fireEvent.click(screen.getByText('End class'))
-      fireEvent.click(await screen.findByText('Confirm'))
+      fireEvent.click(screen.getByRole('button', { name: /Mark done/ }))
+      const dialogButtons = await screen.findAllByRole('button', { name: 'Mark done' })
+      fireEvent.click(dialogButtons[dialogButtons.length - 1])
 
       await waitFor(() => {
         expect(toast.error).toHaveBeenCalledWith('Finish the lab report before ending this class.')
@@ -1001,11 +1151,13 @@ const CACHE_KEY = ['quests', 'detail', 'quest-123', 'me']
         expect(questDetailData.endQuestMutation.mutate)
           .toHaveBeenCalledWith('quest-123', expect.any(Object))
       })
-      expect(screen.queryByText('End this class?')).not.toBeInTheDocument()
+      expect(screen.queryByText('Mark this class done?')).not.toBeInTheDocument()
     })
   })
 
-  // ── The bottom End button's own visibility rules ──────────────────────────
+  // ── The bottom actions' own visibility rules ──────────────────────────────
+  // These pinned "End quest" until ticket e17134c6 replaced it with Save for
+  // later and Mark done; they now pin both, for the same reasons.
   describe('when the end action is offered at all', () => {
     const enrolled = (extra = {}) => ({
       id: 'quest-123',
@@ -1019,7 +1171,8 @@ const CACHE_KEY = ['quests', 'detail', 'quest-123', 'me']
     it('is hidden on an LMS quest, where the LMS owns completion', () => {
       questDetailData.quest = enrolled({ lms_platform: 'canvas' })
       renderQuestDetail()
-      expect(screen.queryByText('End quest')).not.toBeInTheDocument()
+      expect(screen.queryByText('Save for later')).not.toBeInTheDocument()
+      expect(screen.queryByText('Mark done')).not.toBeInTheDocument()
     })
 
     it('is hidden while the student is mid-task inside a course lesson', () => {
@@ -1029,7 +1182,8 @@ const CACHE_KEY = ['quests', 'detail', 'quest-123', 'me']
       try {
         questDetailData.quest = enrolled()
         renderQuestDetail()
-        expect(screen.queryByText('End quest')).not.toBeInTheDocument()
+        expect(screen.queryByText('Save for later')).not.toBeInTheDocument()
+        expect(screen.queryByText('Mark done')).not.toBeInTheDocument()
       } finally {
         sessionStorage.removeItem('courseTaskReturnInfo')
       }

@@ -7,6 +7,9 @@ import TaskCard from '../components/sis/tasks/TaskCard'
 import { taskApi } from '../hooks/api/useTasks'
 import { useFamilyOrgSelection } from '../hooks/api/useSchoolContext'
 import { useEndMemberQuest } from '../hooks/api/useFamilyQuests'
+import { useArchiveEnrollment } from '../hooks/api/useQuests'
+import { markDoneBlocker } from '../utils/markDoneRule'
+import SaveForLaterDialog, { REASON_FOR } from '../components/quest/SaveForLaterDialog'
 import { useConfirm } from '../contexts/ConfirmContext'
 
 /**
@@ -48,6 +51,11 @@ const questProgressStyle = (p) => {
 const moduleOn = (org, key) => !Array.isArray(org?.modules) || org.modules.includes(key)
 
 
+// The quest page's Mark done rule on a row of /api/sis/parent/quests.
+const blockerFor = (q) => markDoneBlocker({
+  xpThreshold: q.xp_threshold, earnedXP: q.earned_xp, completedTasks: q.progress?.done,
+})
+
 /** Quests the school set for families — back to school night and the like.
  *  Yours, on your own account: this is not your child's work.
  *
@@ -62,8 +70,14 @@ const moduleOn = (org, key) => !Array.isArray(org?.modules) || org.modules.inclu
  *  Ending here goes through the same route with `force`, keeps the work and
  *  XP, and can be undone from the completed quests list. The
  *  auto-assign catch-up in sis_parent_service.school_quests only enrols
- *  families with NO row, and an ended quest keeps its row, so it stays ended. */
-function FamilyQuests({ quests, orgName, onEnd, ending }) {
+ *  families with NO row, and an ended quest keeps its row, so it stays ended.
+ *
+ *  Ticket e17134c6 (2026-10-07): "End quest" became the quest page's two
+ *  exits. Save for later asks one question with two answers ("I'll come
+ *  back to it" / "I'm done with it", which hides the row); Mark done follows
+ *  the quest page's rule (utils/markDoneRule) instead of forcing past the
+ *  XP goal, because Save for later is now the way to leave a quest. */
+function FamilyQuests({ quests, orgName, onSaveForLater, onMarkDone, busy }) {
   const open = quests.filter((q) => !q.progress?.completed)
   if (!open.length) return null
   return (
@@ -92,12 +106,22 @@ function FamilyQuests({ quests, orgName, onEnd, ending }) {
                 {q.progress?.started ? 'Continue' : 'Start this quest'}
               </Link>
               {q.progress?.started && (
-                <button type="button" onClick={() => onEnd(q)} disabled={ending}
-                  className="text-sm text-gray-500 hover:text-gray-700 hover:underline disabled:opacity-50">
-                  End quest
-                </button>
+                <>
+                  <button type="button" onClick={() => onSaveForLater(q)} disabled={busy}
+                    className="text-sm text-gray-500 hover:text-gray-700 hover:underline disabled:opacity-50">
+                    Save for later
+                  </button>
+                  <button type="button" onClick={() => onMarkDone(q)}
+                    disabled={busy || Boolean(blockerFor(q))}
+                    className="text-sm text-green-700 hover:text-green-800 hover:underline disabled:opacity-40 disabled:no-underline disabled:cursor-not-allowed">
+                    Mark done
+                  </button>
+                </>
               )}
             </div>
+            {q.progress?.started && blockerFor(q) && (
+              <p className="text-xs text-gray-500 mt-1">{blockerFor(q)}</p>
+            )}
           </QuestListItem>
         ))}
       </div>
@@ -168,6 +192,8 @@ const FamilyFormsPage = () => {
   const openTaskId = searchParams.get('task')
   const confirm = useConfirm()
   const endQuest = useEndMemberQuest()
+  const archive = useArchiveEnrollment()
+  const [savingQuest, setSavingQuest] = useState(null)
   const orgName = org?.organization_name || 'your school'
   const showTasks = moduleOn(org, 'tasks') || moduleOn(org, 'onboarding')
   // Training links are the `training` module's, not the tasks module's -- the
@@ -221,16 +247,29 @@ const FamilyFormsPage = () => {
   useEffect(() => { loadTasks() }, [loadTasks])
   useEffect(() => { loadRest() }, [loadRest])
 
-  const endFamilyQuest = async (q) => {
+  // Save for later on the parent's OWN quest: no student_id. The parent has
+  // no Saved for Later list, so the way back is the quest page.
+  const chooseSaveForLater = (answer) => {
+    archive.mutate({ questId: savingQuest.quest_id, studentId: null, reason: REASON_FOR[answer] }, {
+      onSuccess: () => { setSavingQuest(null); loadRest() },
+    })
+  }
+
+  const markFamilyQuestDone = async (q) => {
     const remaining = Math.max((q.progress?.total || 0) - (q.progress?.done || 0), 0)
-    const message = remaining > 0
-      ? `End "${q.title}"? ${remaining} task${remaining === 1 ? '' : 's'} ${remaining === 1 ? 'is' : 'are'} still unfinished. Finished work and XP are kept, and you can reopen it later from your completed quests.`
-      : `End "${q.title}"? Work and XP are kept, and you can reopen it later from your completed quests.`
-    if (!(await confirm(message))) return
-    // force: leaving, not finishing for credit -- see useEndMemberQuest.
-    endQuest.mutate({ questId: q.quest_id, studentId: null, force: true }, {
-      onSuccess: () => { toast.success(`You ended ${q.title}`); loadRest() },
-      onError: (err) => toast.error(err?.response?.data?.error || 'Could not end the quest'),
+    const unfinished = remaining > 0
+      ? ` ${remaining} unfinished task${remaining === 1 ? '' : 's'} will leave the dashboard.`
+      : ''
+    const ok = await confirm({
+      title: `Mark "${q.title}" done?`,
+      body: `All work and XP are kept, and the quest moves to your completed quests, where you can reopen it.${unfinished}`,
+      confirmLabel: 'Mark done',
+      destructive: false,
+    })
+    if (!ok) return
+    endQuest.mutate({ questId: q.quest_id, studentId: null }, {
+      onSuccess: () => { toast.success(`You marked ${q.title} done`); loadRest() },
+      onError: (err) => toast.error(err?.response?.data?.message || err?.response?.data?.error || 'Could not mark the quest done'),
     })
   }
 
@@ -317,7 +356,10 @@ const FamilyFormsPage = () => {
             ))}
           </ul>
         )}
-        <FamilyQuests quests={quests} orgName={orgName} onEnd={endFamilyQuest} ending={endQuest.isPending} />
+        <FamilyQuests quests={quests} orgName={orgName} onSaveForLater={setSavingQuest}
+          onMarkDone={markFamilyQuestDone} busy={endQuest.isPending || archive.isPending} />
+        <SaveForLaterDialog isOpen={Boolean(savingQuest)} onClose={() => setSavingQuest(null)}
+          onChoose={chooseSaveForLater} hasSavedForLaterList={false} busy={archive.isPending} />
         <FamilyTrainingLinks links={trainingLinks} orgName={orgName}
           onToggleDone={toggleTrainingDone} busyId={markingTraining} />
         {showDone && finished.length > 0 && (

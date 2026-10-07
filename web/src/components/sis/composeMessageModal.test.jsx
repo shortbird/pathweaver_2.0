@@ -21,8 +21,10 @@ vi.mock('react-hot-toast', () => ({
   default: { success: vi.fn(), error: vi.fn() },
 }))
 vi.mock('../../pages/sis/useSisOrg', () => ({ withOrg: (url) => url }))
+const auth = vi.hoisted(() => ({ user: { id: 'coord-1' } }))
+vi.mock('../../contexts/AuthContext', () => ({ useAuth: () => auth }))
 
-import ComposeMessageModal, { filterPeople, classPartIds, senderFor, voiceOf } from './ComposeMessageModal'
+import ComposeMessageModal, { filterPeople, classPartIds, senderFor, voiceOf, composeDraftKey } from './ComposeMessageModal'
 
 const TAM = { id: 'tam', name: 'Tam Teacher', kinds: ['staff', 'family'], staff_kinds: ['teacher'], role_labels: ['Teacher'], child_ids: ['ada'], children: ['Ada'] }
 const AL = { id: 'al', name: 'Al Aide', kinds: ['staff'], staff_kinds: ['teacher'], role_labels: ['Teacher'] }
@@ -98,6 +100,8 @@ describe('filterPeople', () => {
 
 describe('ComposeMessageModal', () => {
   beforeEach(() => {
+    window.localStorage.clear()
+    auth.user = { id: 'coord-1' }
     api.get.mockReset()
     api.post.mockReset()
     api.get.mockResolvedValue({ data: { people: PEOPLE, classes: [ART], presets: [], without_birthdate: 1 } })
@@ -204,5 +208,84 @@ describe('ComposeMessageModal', () => {
     fireEvent.click(screen.getByLabelText('Select Kate Office'))
     fireEvent.click(screen.getByLabelText(/One group thread/))
     expect(screen.getByText(/Families in it see each other/)).toBeInTheDocument()
+  })
+
+  // Ticket e6cc5fe5 (iCreate campus coordinator, SIS /inbox): "Can we make our
+  // drafts save when we switch out of messages and then come back to it?"
+  // Compose threw the half-written message away on every close.
+  describe('draft (ticket e6cc5fe5)', () => {
+    const type = (label, value) => fireEvent.change(screen.getByLabelText(label), { target: { value } })
+    const open = async () => {
+      const view = render(<ComposeMessageModal isOpen onClose={vi.fn()} />)
+      await screen.findByLabelText('Select Kate Office')
+      return view
+    }
+
+    it('brings the subject and message back after a close and a reopen, but not the picks', async () => {
+      const first = await open()
+      fireEvent.click(screen.getByLabelText('Select Kate Office'))
+      type('Subject (optional)', 'Field trip')
+      type('Message', 'Bring a packed lunch')
+      first.unmount()
+      await open()
+      expect(screen.getByLabelText('Subject (optional)')).toHaveValue('Field trip')
+      expect(screen.getByLabelText('Message')).toHaveValue('Bring a packed lunch')
+      // Last week's people do not come back with last week's words.
+      expect(screen.getByLabelText('Select Kate Office')).not.toBeChecked()
+    })
+
+    it('does not show one user\'s draft to another user on the same browser', async () => {
+      const first = await open()
+      type('Message', 'Private note')
+      first.unmount()
+      auth.user = { id: 'coord-2' }
+      await open()
+      expect(screen.getByLabelText('Message')).toHaveValue('')
+    })
+
+    it('clears the draft when the send works', async () => {
+      const first = await open()
+      fireEvent.click(screen.getByLabelText('Select Kate Office'))
+      type('Message', 'Staff meeting at 3')
+      fireEvent.click(screen.getByRole('button', { name: 'Send' }))
+      await waitFor(() => expect(api.post).toHaveBeenCalled())
+      await waitFor(() => expect(window.localStorage.getItem(composeDraftKey('coord-1'))).toBeNull())
+      first.unmount()
+      await open()
+      expect(screen.getByLabelText('Message')).toHaveValue('')
+    })
+
+    it('keeps the draft when the send fails', async () => {
+      api.post.mockRejectedValue({ response: { data: { error: 'Server down' } } })
+      const first = await open()
+      fireEvent.click(screen.getByLabelText('Select Kate Office'))
+      type('Subject (optional)', 'Pickup')
+      type('Message', 'Gate B today')
+      fireEvent.click(screen.getByRole('button', { name: 'Send' }))
+      await waitFor(() => expect(api.post).toHaveBeenCalled())
+      await waitFor(() => expect(screen.getByRole('button', { name: 'Send' })).not.toBeDisabled())
+      expect(screen.getByLabelText('Message')).toHaveValue('Gate B today')
+      first.unmount()
+      await open()
+      expect(screen.getByLabelText('Subject (optional)')).toHaveValue('Pickup')
+      expect(screen.getByLabelText('Message')).toHaveValue('Gate B today')
+    })
+
+    it('lets you type and send when storage throws', async () => {
+      const boom = () => { throw new Error('blocked') }
+      const spies = ['getItem', 'setItem', 'removeItem']
+        .map((m) => vi.spyOn(Storage.prototype, m).mockImplementation(boom))
+      try {
+        await open()
+        fireEvent.click(screen.getByLabelText('Select Kate Office'))
+        type('Message', 'Still works')
+        expect(screen.getByLabelText('Message')).toHaveValue('Still works')
+        fireEvent.click(screen.getByRole('button', { name: 'Send' }))
+        await waitFor(() => expect(api.post).toHaveBeenCalled())
+        expect(api.post.mock.calls[0][1]).toMatchObject({ body: 'Still works', recipient_ids: ['kate'] })
+      } finally {
+        spies.forEach((s) => s.mockRestore())
+      }
+    })
   })
 })

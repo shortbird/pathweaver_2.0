@@ -43,6 +43,20 @@ describe('useFamilyQuests', () => {
     await act(async () => { await result.current.endMemberQuest('q-1', null); });
     expect(api.post).toHaveBeenCalledWith('/api/quests/q-1/end', {});
   });
+
+  // Ticket e17134c6: the card's Save for later. "I'm done with it" adds
+  // reason lost_interest, which hides the quest everywhere.
+  it("saves a run for later with student_id, adds lost_interest for \"I'm done with it\", and refetches", async () => {
+    const { result } = renderHook(() => useFamilyQuests());
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    await act(async () => { await result.current.archiveMemberQuest('q-1', 'kid-a', 'later'); });
+    expect(api.post).toHaveBeenCalledWith('/api/quests/q-1/archive', { student_id: 'kid-a' });
+    await act(async () => { await result.current.archiveMemberQuest('q-1', 'kid-a', 'done'); });
+    expect(api.post).toHaveBeenCalledWith('/api/quests/q-1/archive', { reason: 'lost_interest', student_id: 'kid-a' });
+    await act(async () => { await result.current.archiveMemberQuest('q-1', null, 'later'); });
+    expect(api.post).toHaveBeenCalledWith('/api/quests/q-1/archive', {});
+    expect(api.get).toHaveBeenCalledTimes(4);
+  });
 });
 
 describe('createFamilyQuest', () => {

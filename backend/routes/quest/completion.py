@@ -610,6 +610,24 @@ def end_quest(user_id: str, quest_id: str):
                     }
                 }), 400
 
+            # Mark done on a quest with no XP finish line needs at least one
+            # completed task on this enrollment (ticket e17134c6, 2026-10-07).
+            # With nothing done, "done" marks an empty quest finished; Save
+            # for later is the exit for that. LTI quests and course projects
+            # keep their own rules above.
+            meta = quest_meta.data or {}
+            no_line = not (meta.get('xp_threshold') and meta.get('xp_threshold') > 0)
+            if no_line and not meta.get('lms_platform') and not eligibility.get('is_course_quest'):
+                from repositories.quest_repository import QuestRepository
+                if not QuestRepository(client=supabase).enrollment_has_completed_task(
+                        user_id, quest_id, current_enrollment['id']):
+                    return jsonify({
+                        'success': False,
+                        'error': 'Finish at least one task to mark this quest done.',
+                        'reason': 'NO_COMPLETED_TASKS',
+                        'message': 'Finish at least one task to mark this quest done.',
+                    }), 400
+
         # If not already inactive, mark it as such.
         # End the enrollment chosen above, not simply the newest row. With a
         # re-enrollment the newest row can be an older ended copy, and ending

@@ -59,6 +59,8 @@ import { TaskDueChip } from '@/src/components/quests/TaskDueChip';
 import type { LearningEvent } from '@/src/hooks/useJournal';
 import { useThemeColors } from '@/src/hooks/useThemeColors';
 import { showAlert, confirmAlert } from '@/src/utils/alerts';
+import { askSaveForLater, archiveBody, markDoneRule, type SaveForLaterAnswer } from '@/src/components/quests/questExit';
+import { useIsParent } from '@/src/hooks/useStartSomething';
 import {
   VStack, HStack, Heading, UIText, Card, Button, ButtonText,
   Badge, BadgeText, Divider, Skeleton,
@@ -850,6 +852,9 @@ export function QuestDetailView({ questId: id, studentId = null, autoOpenTaskWiz
   } = useQuestDetail(id || null, { studentId });
   const preferredChallengeLevel = useAuthStore((s) => s.user?.preferred_challenge_level ?? null);
   const authUser = useAuthStore((s) => s.user);
+  // A parent's OWN quest has no Saved for Later list on mobile (the parent
+  // shell has no Home of its own); the Save for later copy says so.
+  const viewerIsParent = useIsParent();
   const isEnrolled = !!quest?.user_enrollment;
   const { data: engagement } = useQuestEngagement(isEnrolled ? quest?.id || null : null, studentId);
   const c = useThemeColors();
@@ -1005,30 +1010,88 @@ export function QuestDetailView({ questId: id, studentId = null, autoOpenTaskWiz
     return acc;
   }, {} as Record<string, number>);
 
-  // End the quest -- set it down. The work and XP stay, the quest leaves
-  // the active list, and it can be reopened later. For a parent in family
-  // scope this ends the CHILD's run (student_id; the backend's
-  // @student_scope). Until 2026-09-15 a parent's only exit here was "Remove
-  // quest", which deletes the enrollment and reverses the XP -- the
-  // destructive one, offered as the only one.
-  const handleEndQuest = async () => {
+  // ── Save for later / Mark done ─────────────────────────────────────────
+  //
+  // These replaced "Leave Quest" / "End Class" / "End quest" (ticket
+  // e17134c6, 2026-10-07), matching the web quest page. An iCreate org admin
+  // on the web: "You have 'End Quest' but that's not super clear what that
+  // means. And I didn't dare select that because I was worried I might end
+  // the quest on accident and I didn't know what would happen." One button
+  // finished the quest at its XP finish line and quietly set it aside below
+  // it; the label said neither. Each button now does one thing.
+  //
+  // For a parent in family scope both act on the CHILD's run (student_id;
+  // the backend's @student_scope on /end and /archive). A parent's "Remove
+  // quest" further down is still the only one that deletes.
+  const questLabel = quest.quest_type === 'class' ? 'class' : 'quest';
+  const scopeBody = studentId ? { student_id: studentId } : {};
+
+  // Mark done is offered exactly when POST /end would mark the quest
+  // complete: at or above the XP finish line. With no finish line the backend
+  // refuses /end until at least one task is done (ticket e17134c6), so the
+  // button waits for one too and says so.
+  const { canMarkDone, hint: markDoneHint } = markDoneRule({
+    xpThreshold: quest.xp_threshold,
+    earnedXP,
+    completedTasks: completedCount,
+    questLabel,
+  });
+
+  // POST /end. Also the Quest Complete card's button, which is its own
+  // prompt and does not ask twice.
+  const handleMarkDone = async () => {
     try {
-      await api.post(`/api/quests/${quest.id}/end`, studentId ? { student_id: studentId } : {});
+      await api.post(`/api/quests/${quest.id}/end`, scopeBody);
       router.back();
     } catch {
-      showAlert('Could not end', 'That quest could not be ended. Try again.');
+      showAlert('Could not mark done', `That ${questLabel} could not be marked done. Try again.`);
     }
   };
 
-  // A student's "Leave Quest" ends the quest; it never deletes it. Until
-  // 2026-10-02 it called the enrollment DELETE, which removes the tasks and
-  // reverses the XP, under a dialog promising "Your completed tasks will be
-  // preserved". Only a parent's explicit "Remove quest" deletes.
-  const handleLeaveQuest = async () => {
-    if (!studentId) {
-      await handleEndQuest();
-      return;
+  // POST /archive: non-destructive. Nothing is marked complete, the work and
+  // XP stay, and the quest leaves the active list until it is picked up again.
+  // A student's exit here deleted the enrollment and reversed the XP until
+  // 2026-10-02, under a dialog promising the work was kept.
+  // "I'm done with it" is the same POST with reason 'lost_interest', which
+  // hides the quest from every list, Saved for Later included.
+  const handleSaveForLater = async (answer: SaveForLaterAnswer) => {
+    try {
+      await api.post(`/api/quests/${quest.id}/archive`, archiveBody(answer, studentId));
+      router.back();
+    } catch {
+      showAlert('Could not save', `That ${questLabel} could not be saved for later. Try again.`);
     }
+  };
+
+  // One question, two answers (ticket e17134c6): "I'll come back to it"
+  // goes to Saved for Later, "I'm done with it" hides the quest everywhere.
+  // Home lists saved quests under "Saved for Later" with Resume (for a
+  // parent, the child's Home in family scope), so the prompt names that list
+  // the way the web quest page does. A parent's own quest has no such list.
+  const confirmSaveForLater = async () => {
+    const answer = await askSaveForLater(questLabel, !!studentId || !viewerIsParent);
+    if (answer) handleSaveForLater(answer);
+  };
+
+  // Name the unfinished tasks so the number itself is the warning (a
+  // Hearthwood parent ended a whole subject by mistake, seven of nine tasks
+  // still to do).
+  const confirmMarkDone = async () => {
+    const remaining = tasks.length - completedCount;
+    const unfinished = remaining > 0
+      ? ` ${remaining} unfinished task${remaining === 1 ? '' : 's'} will leave the dashboard.`
+      : '';
+    const ok = await confirmAlert({
+      title: `Mark this ${questLabel} done?`,
+      message: `All work and XP are kept, and the ${questLabel} moves to Completed. You can reopen it later.${unfinished}`,
+      confirmText: 'Mark done',
+    });
+    if (ok) handleMarkDone();
+  };
+
+  // A parent's "Remove quest": the one exit that deletes the enrollment and
+  // reverses the child's XP. Named for what it does and asked first.
+  const handleRemoveQuest = async () => {
     try {
       // The enrollment-delete route takes ?student_id= for parent delegation
       // and reverses the child's XP for the quest.
@@ -1174,9 +1237,11 @@ export function QuestDetailView({ questId: id, studentId = null, autoOpenTaskWiz
                       2026-10-02 this card had no button, so a finished quest
                       stayed active forever unless the student deleted it
                       (London Grover: four of them). */}
-                  {!quest.completed_enrollment && (
-                    <Button testID="finish-quest-btn" className="mt-2" onPress={handleEndQuest}>
-                      <ButtonText>{quest.quest_type === 'class' ? 'Finish class' : 'Finish quest'}</ButtonText>
+                  {/* Below the XP finish line /end would set the quest aside,
+                      not finish it, so the card offers Mark done only at it. */}
+                  {!quest.completed_enrollment && canMarkDone && (
+                    <Button testID="finish-quest-btn" className="mt-2" onPress={handleMarkDone}>
+                      <ButtonText>Mark done</ButtonText>
                     </Button>
                   )}
                 </VStack>
@@ -1298,55 +1363,59 @@ export function QuestDetailView({ questId: id, studentId = null, autoOpenTaskWiz
                   classSubject={quest.quest_type === 'class' ? (quest.transcript_subject || null) : null}
                 />
 
-                {/* A parent in family scope: end the child's run, work kept.
-                    The parent's "Remove quest" below is the one that deletes. */}
-                {studentId && !allComplete && (
+                {/* Save for later / Mark done -- the same two actions as the
+                    web quest page (ticket e17134c6). Keyed on the enrollment
+                    having ended, never on progress. */}
+                {!quest.completed_enrollment && (
+                  <>
+                    <Divider className="mt-4" />
+                    <HStack space="md" className="justify-center flex-wrap pt-3">
+                      <Button
+                        testID="save-for-later-btn"
+                        variant="outline"
+                        onPress={confirmSaveForLater}
+                        accessibilityLabel={`Save this ${questLabel} for later`}
+                      >
+                        <ButtonText>Save for later</ButtonText>
+                      </Button>
+                      <Button
+                        testID="mark-done-btn"
+                        variant="outline"
+                        onPress={confirmMarkDone}
+                        isDisabled={!canMarkDone}
+                      >
+                        <ButtonText>Mark done</ButtonText>
+                      </Button>
+                    </HStack>
+                    {!canMarkDone && markDoneHint && (
+                      <UIText testID="mark-done-hint" size="xs" className="text-center text-typo-500 dark:text-dark-typo-500">
+                        {markDoneHint}
+                      </UIText>
+                    )}
+                  </>
+                )}
+
+                {/* A parent's "Remove quest" -- the one that deletes. */}
+                {studentId && (
                   <>
                     <Divider className="mt-4" />
                     <Pressable
                       onPress={async () => {
-                        const remaining = tasks.length - completedCount;
                         const ok = await confirmAlert({
-                          title: quest.quest_type === 'class' ? 'End class?' : 'End quest?',
-                          message: remaining > 0
-                            ? `${remaining} task${remaining === 1 ? '' : 's'} ${remaining === 1 ? 'is' : 'are'} still unfinished. ${childName || 'Their'}${childName ? "'s" : ''} finished work and XP are kept, and the quest can be reopened later.`
-                            : `${childName || 'Their'}${childName ? "'s" : ''} work and XP are kept, and the quest can be reopened later.`,
-                          confirmText: 'End',
+                          title: 'Remove quest?',
+                          message: `This takes the quest off ${childName || 'their'} account. Their progress and XP for it are removed, and this cannot be undone.`,
+                          confirmText: 'Remove',
+                          destructive: true,
                         });
-                        if (ok) handleEndQuest();
+                        if (ok) handleRemoveQuest();
                       }}
                       className="py-3 items-center"
                       style={{ minHeight: 44, justifyContent: 'center' }}
                     >
-                      <UIText size="sm" className="text-typo-500 dark:text-dark-typo-500">
-                        {quest.quest_type === 'class' ? 'End class' : 'End quest'}
-                      </UIText>
+                      <UIText size="sm" className="text-red-400">Remove quest</UIText>
                     </Pressable>
                   </>
                 )}
-
-                {/* Leave Quest — "End Class" for class-type quests */}
-                <Divider className="mt-4" />
-                <Pressable
-                  onPress={async () => {
-                    const isClass = quest.quest_type === 'class';
-                    const ok = await confirmAlert({
-                      title: studentId ? 'Remove quest?' : (isClass ? 'End Class?' : 'Leave Quest?'),
-                      message: studentId
-                        ? `This takes the quest off ${childName || 'their'} account. Their progress and XP for it are removed, and this cannot be undone.`
-                        : 'Your finished work and XP are kept, and you can reopen it later.',
-                      confirmText: studentId ? 'Remove' : (isClass ? 'End Class' : 'Leave'),
-                      destructive: !!studentId,
-                    });
-                    if (ok) handleLeaveQuest();
-                  }}
-                  className="py-3 items-center"
-                  style={{ minHeight: 44, justifyContent: 'center' }}
-                >
-                  <UIText size="sm" className="text-red-400">
-                    {studentId ? 'Remove quest' : (quest.quest_type === 'class' ? 'End Class' : 'Leave Quest')}
-                  </UIText>
-                </Pressable>
               </VStack>
             )}
 

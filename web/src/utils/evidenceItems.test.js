@@ -30,6 +30,12 @@ describe('filenameFromUrl', () => {
     expect(filenameFromUrl(PHOTO)).toBe('IMG_20260827_123518.jpg')
   })
 
+  it('strips the random part uploads carry since 2026-10-07 (tickets 983756ff / 1bc78cf0)', () => {
+    // Two iPhone photos sent in one second were both "image.jpg" at the same
+    // path, and Storage refused the second; the stamp now ends in 8 hex.
+    expect(filenameFromUrl(`${STORAGE}/117195ae-2ef4-4475-b235-7ab9161c251e_20261007_001029_a1b2c3d4_image.jpg`)).toBe('image.jpg')
+  })
+
   it('keeps a plain filename as it is', () => {
     expect(filenameFromUrl('https://x.test/notes.pdf')).toBe('notes.pdf')
   })

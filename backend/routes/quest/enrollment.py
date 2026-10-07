@@ -12,7 +12,7 @@ from repositories.quest_repository import QuestRepository
 from repositories.base_repository import NotFoundError, DatabaseError
 from utils.auth.decorators import require_auth
 from utils.auth.relationships import current_student_scope, student_scope
-from utils.roles import get_effective_role
+from utils.roles import get_effective_roles
 from middleware.idempotency import require_idempotency
 from utils.logger import get_logger
 from utils.api_response_v1 import error_response
@@ -32,6 +32,29 @@ def template_task_wanted(task, picked_ids):
     if picked_ids is None or task.get('is_required'):
         return True
     return str(task.get('id')) in picked_ids
+
+
+# Roles that manage or watch a learner but are never one themselves.
+_NON_LEARNER_ROLES = frozenset({'parent', 'observer'})
+
+
+def self_enrollment_refused(caller_row) -> bool:
+    """May this account NOT start a quest as itself?
+
+    Refused only when every role the account holds is a non-learner one. It
+    used to ask the PRIMARY role (get_effective_role, i.e. org_roles[0]), so
+    the answer depended on the order the roles were saved in: an Apogee
+    parent who also runs the school (org_roles=['parent', 'org_admin'])
+    was refused, while the same two roles saved the other way round passed.
+    The web treats an org admin who is also a parent as having a surface of
+    their own (FamilyScopeContext.worksThroughFamily), so it showed him
+    Start Quest unscoped and the click came back 403 ROLE_NOT_ALLOWED
+    (ticket 5900dcc0-4d67-42d2-964e-6f839919b70b, Sentry 7778836988).
+    """
+    if not caller_row:
+        return False
+    roles = get_effective_roles(caller_row)
+    return bool(roles) and all(role in _NON_LEARNER_ROLES for role in roles)
 
 
 @bp.route('/<quest_id>/enroll', methods=['POST'])
@@ -67,7 +90,7 @@ def enroll_in_quest(user_id: str, quest_id: str):
                 .eq('id', user_id)\
                 .single()\
                 .execute()
-            if caller.data and get_effective_role(caller.data) in ('parent', 'observer'):
+            if self_enrollment_refused(caller.data):
                 return error_response(
                     code='ROLE_NOT_ALLOWED',
                     message='Parents and observers cannot enroll themselves in quests. Start a quest on behalf of a child instead.',

@@ -1078,8 +1078,14 @@ class MediaUploadService:
         sub_id: Optional[str] = None,
     ) -> str:
         """Generate the storage path based on context type."""
-        timestamp = datetime.utcnow().strftime('%Y%m%d_%H%M%S')
         file_uuid = str(uuid.uuid4())
+        # The stamp carries 8 random hex characters after the second. iOS names
+        # every photo from the picker "image.jpg", so two photos sent to one
+        # task in the same second got the same path and Storage refused the
+        # second with 409 Duplicate (tickets 983756ff / 1bc78cf0, 2026-10-07).
+        # The display parsers (stories/source.py _STAMPED_UPLOAD_RE, web
+        # utils/evidenceItems.js filenameFromUrl) strip it with the rest.
+        timestamp = f"{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}_{file_uuid[:8]}"
 
         template = STORAGE_PATH_TEMPLATES.get(context_type)
         if not template:

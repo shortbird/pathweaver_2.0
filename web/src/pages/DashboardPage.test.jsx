@@ -37,7 +37,10 @@ vi.mock('../hooks/api/useUserData', () => ({
 const unarchiveMutate = vi.fn()
 vi.mock('../hooks/api/useQuests', () => ({
   useGlobalEngagement: () => ({ data: engagementData }),
-  useUnarchiveEnrollment: () => ({ mutate: (...a) => unarchiveMutate(...a), isPending: false })
+  useUnarchiveEnrollment: () => ({ mutate: (...a) => unarchiveMutate(...a), isPending: false }),
+  // Saved for Later "Remove" (ticket e17134c6); pinned in
+  // dashboardSavedForLaterResume.test.jsx against the real hook.
+  useArchiveEnrollment: () => ({ mutate: vi.fn(), isPending: false })
 }))
 
 // Mock child components

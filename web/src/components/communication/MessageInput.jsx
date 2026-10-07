@@ -1,9 +1,10 @@
-import React, { useState, useRef } from 'react'
+import React, { useState, useRef, useEffect, useLayoutEffect } from 'react'
 import { PaperAirplaneIcon, PaperClipIcon, XMarkIcon, DocumentIcon } from '@heroicons/react/24/outline'
 import toast from 'react-hot-toast'
 import api from '../../services/api'
 import { formatFileSize } from './MessageParts'
 import { isSendShortcut, sendShortcutLabel } from './sendShortcut'
+import { readDraft, writeDraft, clearDraft } from './messageDrafts'
 
 const ACCEPTED_FILES = 'image/*,video/*,audio/*,.pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.csv,.txt'
 const MAX_FILE_SIZE = 25 * 1024 * 1024 // 25MB (backend limit)
@@ -20,15 +21,35 @@ const MAX_GROW_PX = 200
  *
  * onSendMessage(content, { attachments, replyToMessageId })
  * replyTo: { id, sender_name, content } | null - shows the reply banner
+ * draftKey: messageDraftKey(userId, threadId) | null - keeps the unsent text
+ *   for that thread in localStorage (ticket e6cc5fe5). It is restored when the
+ *   thread opens again and removed once a send succeeds. onSendMessage says a
+ *   send failed by returning (or resolving to) false, or by rejecting; then the
+ *   draft is kept and the text goes back in the box.
  */
 const MessageInput = ({
   onSendMessage,
   disabled = false,
   placeholder = 'Type a message...',
   replyTo = null,
-  onCancelReply
+  onCancelReply,
+  draftKey = null
 }) => {
-  const [message, setMessage] = useState('')
+  const [message, setMessage] = useState(() => readDraft(draftKey))
+  // A parent that does not remount the composer per thread (ChatWindow) only
+  // changes the key: load that thread's draft in place of the last one's.
+  const [loadedKey, setLoadedKey] = useState(draftKey)
+  if (loadedKey !== draftKey) {
+    setLoadedKey(draftKey)
+    setMessage(readDraft(draftKey))
+  }
+  const mountedRef = useRef(true)
+  const keyRef = useRef(draftKey)
+  keyRef.current = draftKey
+  useEffect(() => {
+    mountedRef.current = true
+    return () => { mountedRef.current = false }
+  }, [])
   const [attachments, setAttachments] = useState([])
   const [uploading, setUploading] = useState(false)
   const [uploadProgress, setUploadProgress] = useState(0)
@@ -37,12 +58,38 @@ const MessageInput = ({
 
   const canSend = (message.trim().length > 0 || attachments.length > 0) && !disabled && !uploading
 
+  // Size a restored draft to its text, as typing would have.
+  useLayoutEffect(() => {
+    const el = textareaRef.current
+    if (!el || !message) return
+    el.style.height = 'auto'
+    el.style.height = `${Math.min(el.scrollHeight, MAX_GROW_PX)}px`
+  }, [draftKey])
+
   const handleSubmit = (e) => {
     e.preventDefault()
     if (!canSend) return
-    onSendMessage(message.trim(), {
-      attachments,
-      replyToMessageId: replyTo?.id || null
+    const sentKey = draftKey
+    const sentText = message
+    let result
+    try {
+      result = onSendMessage(message.trim(), {
+        attachments,
+        replyToMessageId: replyTo?.id || null
+      })
+    } catch {
+      result = false
+    }
+    // The draft outlives the box until the send is known to have worked: a
+    // failed send keeps it, and puts the text back if nothing new was typed.
+    Promise.resolve(result).catch(() => false).then((ok) => {
+      if (ok !== false) {
+        // Unless something new was typed into this thread meanwhile.
+        if (readDraft(sentKey) === sentText) clearDraft(sentKey)
+        return
+      }
+      if (!mountedRef.current || keyRef.current !== sentKey) return
+      setMessage((current) => (current ? current : sentText))
     })
     setMessage('')
     setAttachments([])
@@ -61,6 +108,7 @@ const MessageInput = ({
 
   const handleChange = (e) => {
     setMessage(e.target.value)
+    writeDraft(draftKey, e.target.value)
     // Auto-resize textarea
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto'

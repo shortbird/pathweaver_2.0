@@ -37,6 +37,22 @@ export interface EngagementData {
   };
 }
 
+/** One Saved for Later row of GET /api/users/dashboard (`archived_quests`).
+ *  archived_at is null for a quest paused another way (set down). */
+export interface ArchivedQuest {
+  id: string;
+  quest_id: string;
+  archived_at: string | null;
+  archive_reason?: string | null;
+  quests?: {
+    id?: string;
+    title?: string | null;
+    description?: string | null;
+    image_url?: string | null;
+    header_image_url?: string | null;
+  } | null;
+}
+
 export interface DashboardData {
   active_quests: any[];
   /** Quests assigned via org classes that the student hasn't started yet.
@@ -44,6 +60,9 @@ export interface DashboardData {
   assigned_class_quests?: any[];
   enrolled_courses: any[];
   recent_completed_quests: any[];
+  /** Quests set aside with "Save for later" (ticket e17134c6): paused and
+   *  never completed, as the backend defines Saved for Later. */
+  archived_quests?: ArchivedQuest[];
   stats: {
     total_xp: number;
     completed_quests_count: number;

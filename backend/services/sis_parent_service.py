@@ -1261,7 +1261,7 @@ def school_quests(user_id: str, org_id: str) -> Optional[List[Dict[str, Any]]]:
     admin = _admin()
     rows = (admin.table('sis_staff_training')
             .select('quest_id, category, is_required, sequence_order, auto_assign, '
-                    'quests(id, title, description, is_active, header_image_url)')
+                    'quests(id, title, description, is_active, header_image_url, xp_threshold)')
             .eq('organization_id', org_id).contains('audiences', ['family'])
             .order('sequence_order').execute()).data or []
     catalog = [r for r in rows if (r.get('quests') or {}).get('is_active')]
@@ -1274,12 +1274,12 @@ def school_quests(user_id: str, org_id: str) -> Optional[List[Dict[str, Any]]]:
     # the guardian's own dashboard, so nothing here needs keeping in step.
     def _read_progress():
         user_quests = (admin.table('user_quests')
-                       .select('id, quest_id, completed_at')
+                       .select('id, quest_id, completed_at, is_active, archive_reason')
                        .eq('user_id', user_id).in_('quest_id', quest_ids).execute()).data or []
         uq_ids = [uq['id'] for uq in user_quests]
         tasks = []
         if uq_ids:
-            tasks = (admin.table('user_quest_tasks').select('id, user_quest_id')
+            tasks = (admin.table('user_quest_tasks').select('id, user_quest_id, xp_value')
                      .in_('user_quest_id', uq_ids).execute()).data or []
         done = set()
         task_ids = [t['id'] for t in tasks]
@@ -1325,7 +1325,14 @@ def school_quests(user_id: str, org_id: str) -> Optional[List[Dict[str, Any]]]:
     for r in catalog:
         quest = r['quests']
         uq = by_quest.get(r['quest_id'])
+        # "I'm done with it" (Save for later, archive_reason lost_interest,
+        # ticket e17134c6) hides a quest from every list; its work stays in
+        # the portfolio.
+        if uq and not uq.get('is_active', True) and not uq.get('completed_at') \
+                and uq.get('archive_reason') == 'lost_interest':
+            continue
         own = [t for t in tasks if uq and t['user_quest_id'] == uq['id']]
+        finished = [t for t in own if t['id'] in done]
         out.append({
             'quest_id': r['quest_id'],
             'title': quest.get('title'),
@@ -1333,10 +1340,15 @@ def school_quests(user_id: str, org_id: str) -> Optional[List[Dict[str, Any]]]:
             'image_url': quest.get('header_image_url'),
             'category': r.get('category'),
             'is_required': bool(r.get('is_required')),
+            # Mark done's rule needs the finish line and the XP toward it
+            # (ticket e17134c6): below a line, or with no line and nothing
+            # finished, the row offers Save for later only.
+            'xp_threshold': quest.get('xp_threshold'),
+            'earned_xp': sum(t.get('xp_value') or 0 for t in finished),
             'progress': {
                 'started': bool(uq),
                 'completed': bool(uq and uq.get('completed_at')),
-                'done': len([t for t in own if t['id'] in done]),
+                'done': len(finished),
                 'total': len(own),
             },
         })
@@ -1663,9 +1675,15 @@ def family_volunteer_hours(user_id: str, org_id: str) -> Optional[Dict[str, Any]
     # sees their total; the families are both theirs.
     hours = round(sum(float(h.get('volunteer_hours') or 0) for h in households), 2)
     stamps = [h['volunteer_hours_updated_at'] for h in households if h.get('volunteer_hours_updated_at')]
-    shown = hours > 0 or repo.org_records_volunteer_hours(org_id)
+    # iCreate b98a167f: staff's short note under the hours ("a little message
+    # with dates"), same visibility as the number. None when no family has one.
+    notes = [h['volunteer_hours_note'].strip() for h in households
+             if (h.get('volunteer_hours_note') or '').strip()]
+    note = '\n\n'.join(notes) or None
+    shown = hours > 0 or bool(note) or repo.org_records_volunteer_hours(org_id)
     return {'volunteer_hours': hours,
             'updated_at': max(stamps) if stamps else None,
+            'note': note,
             'shown': bool(shown)}
 
 

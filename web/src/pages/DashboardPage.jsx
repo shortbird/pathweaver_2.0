@@ -3,7 +3,8 @@ import { Link, Navigate, useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { useFamilyScope } from '../contexts/FamilyScopeContext'
 import { useUserDashboard } from '../hooks/api/useUserData'
-import { useGlobalEngagement, useUnarchiveEnrollment } from '../hooks/api/useQuests'
+import { useGlobalEngagement, useUnarchiveEnrollment, useArchiveEnrollment } from '../hooks/api/useQuests'
+import { useConfirm } from '../contexts/ConfirmContext'
 import QuestCardSimple from '../components/quest/QuestCardSimple'
 import CourseCardWithQuests from '../components/course/CourseCardWithQuests'
 import RhythmIndicator from '../components/quest/RhythmIndicator'
@@ -304,6 +305,26 @@ const DashboardPage = () => {
 
   // Restore a "Saved for later" (archived) quest to the active list
   const unarchiveMutation = useUnarchiveEnrollment()
+  // "Remove" on a Saved for Later row: archive with reason lost_interest
+  // ("I'm done with it"), which hides the quest from every list while its
+  // work and XP stay in the portfolio (ticket e17134c6). In family scope it
+  // is the child's row, so the child's student_id goes with it.
+  const archiveMutation = useArchiveEnrollment()
+  const confirm = useConfirm()
+  const removeSaved = async (archived) => {
+    const ok = await confirm({
+      title: `Remove "${archived.quests?.title || 'this quest'}" from Saved for Later?`,
+      body: 'It leaves every list. Its work and XP stay in the portfolio.',
+      confirmLabel: 'Remove',
+      destructive: false,
+    })
+    if (!ok) return
+    archiveMutation.mutate({
+      questId: archived.quest_id,
+      reason: 'lost_interest',
+      studentId: selectedChild?.id,
+    })
+  }
 
   // ✅ SSO FIX: Clear sso_pending flag from URL on mount
   useEffect(() => {
@@ -642,9 +663,14 @@ const DashboardPage = () => {
                         <h3 className="text-lg font-semibold text-gray-800 group-hover:text-optio-purple transition-colors truncate">
                           {quest.title}
                         </h3>
-                        <p className="text-sm text-gray-600">
-                          Saved on {new Date(archived.archived_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-                        </p>
+                        {/* saved_at: the date it was paused, whichever way
+                            (archived, set down, or older writes) -- the list
+                            holds all three since ticket e17134c6. */}
+                        {(archived.saved_at || archived.archived_at) && (
+                          <p className="text-sm text-gray-600">
+                            Saved on {new Date(archived.saved_at || archived.archived_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                          </p>
+                        )}
                       </div>
                     </Link>
                     <button
@@ -653,6 +679,13 @@ const DashboardPage = () => {
                       className="btn-secondary flex-shrink-0 min-h-[44px] touch-manipulation"
                     >
                       Resume
+                    </button>
+                    <button
+                      onClick={() => removeSaved(archived)}
+                      disabled={archiveMutation.isPending}
+                      className="text-sm text-gray-500 hover:text-gray-700 hover:underline flex-shrink-0 min-h-[44px] touch-manipulation disabled:opacity-50"
+                    >
+                      Remove
                     </button>
                   </div>
                 );

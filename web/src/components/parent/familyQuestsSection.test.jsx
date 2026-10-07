@@ -101,25 +101,98 @@ describe('FamilyQuestsSection', () => {
     expect(navigateMock).toHaveBeenCalledWith('/quests/nz')
   })
 
-  it("ends a child's run at a quest from the row, after a confirm that counts the unfinished tasks", async () => {
+  // Ticket e17134c6 (2026-10-07): the row's "End" became the quest page's
+  // two exits -- Save for later (one question, two answers) and Mark done
+  // (same finish-line rule) -- each sending the child's student_id.
+  it("marks a child's quest done from the row, after a confirm that counts the unfinished tasks", async () => {
     renderSection()
     await screen.findByText('New Zealand 101')
-    await userEvent.click(screen.getByRole('button', { name: "End Romney's quest" }))
-    expect(confirmMock).toHaveBeenCalledWith(expect.stringMatching(/End Romney's run at "Pack for the trip"\? 1 task is still unfinished/))
+    await userEvent.click(screen.getByRole('button', { name: "Mark Romney's quest done" }))
+    expect(confirmMock).toHaveBeenCalledWith(expect.objectContaining({
+      title: 'Mark Romney\'s "Pack for the trip" done?',
+      body: 'All work and XP are kept, and the quest moves to Completed. It can be reopened from the quest page. 1 unfinished task will leave the dashboard.',
+    }))
     await waitFor(() => {
       expect(api.post).toHaveBeenCalledWith('/api/quests/trip/end', { student_id: 'romney' })
     })
-    expect(toast.success).toHaveBeenCalledWith('Pack for the trip ended for Romney')
+    expect(toast.success).toHaveBeenCalledWith('Pack for the trip marked done for Romney')
   })
 
-  it("ends the parent's own run without a student_id, and offers no End on a completed run", async () => {
+  it("marks the parent's own quest done without a student_id, and offers nothing on a completed run", async () => {
     renderSection()
     await screen.findByText('New Zealand 101')
-    expect(screen.queryByRole('button', { name: "End Sib's quest" })).not.toBeInTheDocument()
-    await userEvent.click(screen.getByRole('button', { name: 'End your quest' }))
+    expect(screen.queryByRole('button', { name: "Mark Sib's quest done" })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: "Save Sib's quest for later" })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /^End/ })).not.toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'Mark your quest done' }))
     await waitFor(() => {
       expect(api.post).toHaveBeenCalledWith('/api/quests/nz/end', {})
     })
+  })
+
+  it("\"I'll come back to it\" saves the child's quest for later with the child's student_id", async () => {
+    renderSection()
+    await screen.findByText('New Zealand 101')
+    await userEvent.click(screen.getByRole('button', { name: "Save Romney's quest for later" }))
+    expect(await screen.findByText('Will you come back to this quest?')).toBeInTheDocument()
+    expect(screen.getByText('All work and XP are kept either way.')).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: /I'll come back to it/ }))
+    await waitFor(() => {
+      expect(api.post).toHaveBeenCalledWith('/api/quests/trip/archive',
+        { reason: undefined, feedback: undefined, student_id: 'romney' })
+    })
+  })
+
+  it("\"I'm done with it\" archives the child's quest with reason lost_interest", async () => {
+    renderSection()
+    await screen.findByText('New Zealand 101')
+    await userEvent.click(screen.getByRole('button', { name: "Save Romney's quest for later" }))
+    await userEvent.click(await screen.findByRole('button', { name: /I'm done with it/ }))
+    await waitFor(() => {
+      expect(api.post).toHaveBeenCalledWith('/api/quests/trip/archive',
+        { reason: 'lost_interest', feedback: undefined, student_id: 'romney' })
+    })
+  })
+
+  it("saves the parent's own quest for later without a student_id; Cancel sends nothing", async () => {
+    renderSection()
+    await screen.findByText('New Zealand 101')
+    await userEvent.click(screen.getByRole('button', { name: 'Save your quest for later' }))
+    await userEvent.click(await screen.findByRole('button', { name: 'Cancel' }))
+    expect(api.post).not.toHaveBeenCalled()
+    await userEvent.click(screen.getByRole('button', { name: 'Save your quest for later' }))
+    await userEvent.click(await screen.findByRole('button', { name: /I'll come back to it/ }))
+    await waitFor(() => {
+      expect(api.post).toHaveBeenCalledWith('/api/quests/nz/archive', { reason: undefined, feedback: undefined })
+    })
+  })
+
+  it('turns Mark done off with no finished task on a quest with no XP finish line, and says why', async () => {
+    api.get.mockResolvedValue({ data: { success: true, quests: [{
+      ...QUESTS[1], xp_threshold: null,
+      members: [{ ...QUESTS[1].members[0], earned_xp: 0, progress: { completed_tasks: 0, total_tasks: 2, percentage: 0 } }],
+    }] } })
+    renderSection()
+    await screen.findByText('Pack for the trip')
+    expect(screen.getByRole('button', { name: "Mark Romney's quest done" })).toBeDisabled()
+    expect(screen.getByText('Finish at least one task to mark this quest done.')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: "Save Romney's quest for later" })).toBeEnabled()
+  })
+
+  it('turns Mark done off below the XP finish line, and on at it', async () => {
+    const at = (earned) => ({ ...QUESTS[1], xp_threshold: 300,
+      members: [{ ...QUESTS[1].members[0], earned_xp: earned }] })
+    api.get.mockResolvedValue({ data: { success: true, quests: [at(100)] } })
+    const { unmount } = renderSection()
+    await screen.findByText('Pack for the trip')
+    expect(screen.getByRole('button', { name: "Mark Romney's quest done" })).toBeDisabled()
+    expect(screen.getByText('200 XP to go before you can mark this quest done.')).toBeInTheDocument()
+    unmount()
+
+    api.get.mockResolvedValue({ data: { success: true, quests: [at(300)] } })
+    renderSection()
+    await screen.findByText('Pack for the trip')
+    expect(screen.getByRole('button', { name: "Mark Romney's quest done" })).toBeEnabled()
   })
 
   it('offers to add only the children who are not on the quest yet', async () => {

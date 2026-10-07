@@ -94,6 +94,9 @@ export interface QuestDetail {
   header_image_url: string | null;
   image_url: string | null;
   quest_type: string;
+  /** The school's XP finish line (quests.xp_threshold). POST /end marks the
+   *  quest complete only at or above it; below it the quest is set aside. */
+  xp_threshold?: number | null;
   /** Set when quest_type='class' — one of the 11 school_subject keys. */
   transcript_subject?: string | null;
   class_review_status?: 'submitted_for_review' | 'credit_awarded' | 'rejected' | null;

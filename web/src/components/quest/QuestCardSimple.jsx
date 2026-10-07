@@ -2,6 +2,7 @@ import React, { memo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuestEngagement, useArchiveEnrollment } from '../../hooks/api/useQuests';
 import { useFamilyScope } from '../../contexts/FamilyScopeContext';
+import { useStudentScope } from '../../hooks/useStudentScope';
 import ModalOverlay from '../ui/ModalOverlay';
 import { dueStatus, dueChipOverlayClasses } from '../../utils/dueDate';
 import { MiniHeatMap, rhythmConfig } from './RhythmBadge';
@@ -76,6 +77,7 @@ const QuestCardSimple = ({ quest, ownOnly = false }) => {
   const [showArchive, setShowArchive] = useState(false);
   const archiveEnrollment = useArchiveEnrollment();
   const { isScoped, exitScope } = useFamilyScope();
+  const { studentId: scopedStudentId } = useStudentScope();
 
   // Fetch engagement data for this quest
   const { data: engagement } = useQuestEngagement(quest.id, { ownOnly });
@@ -87,7 +89,12 @@ const QuestCardSimple = ({ quest, ownOnly = false }) => {
 
   const confirmArchive = async ({ reason, feedback }) => {
     try {
-      await archiveEnrollment.mutateAsync({ questId: quest.id, reason, feedback });
+      // On the student dashboard in family scope the card is the CHILD's
+      // quest: archiving without student_id hit the parent's own (missing)
+      // row and 404'd (ticket e17134c6). An own card (`ownOnly`) is the
+      // signed-in user's quest even while a child is picked.
+      const studentId = ownOnly ? undefined : scopedStudentId;
+      await archiveEnrollment.mutateAsync({ questId: quest.id, reason, feedback, studentId });
       setShowArchive(false);
     } catch { /* hook surfaces its own error toast */ }
   };

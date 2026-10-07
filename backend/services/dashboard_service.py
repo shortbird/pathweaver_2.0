@@ -599,20 +599,37 @@ class DashboardService:
 
     def get_archived_quests(self, user_id: str, limit: int = 24) -> List[Dict[str, Any]]:
         """
-        H1-archived (saved-for-later) enrollments: is_active=False,
-        archived_at set, never completed. Shown on the dashboard as their own
-        "Saved for later" section so they don't read as finished quests.
+        Saved for Later: every paused enrollment -- inactive and never
+        completed -- shown on the dashboard as its own section so it doesn't
+        read as finished.
+
+        Paused has three forms (ticket e17134c6, 2026-10-07): archived_at set
+        (Save for later), status set_down (set-down, /end below an XP line,
+        class removal), or neither (older writes that only cleared
+        is_active). Until then only the first was listed, so the other two
+        had left the active list with no way back from the dashboard. One
+        exception: archive_reason 'lost_interest' is "I'm done with it",
+        hidden from every list; its work stays in the portfolio.
+
+        `saved_at` is the date the row was paused, whichever form wrote it.
+        Bounded by one user's enrollments, so read whole and sorted here.
         """
+        hidden = 'lost_interest'
         response = self.client.table('user_quests')\
-            .select('id, quest_id, archived_at, archive_reason, quests(id, title, description, image_url, header_image_url)')\
+            .select('id, quest_id, status, archived_at, archive_reason, last_set_down_at, '
+                    'last_picked_up_at, started_at, '
+                    'quests(id, title, description, image_url, header_image_url)')\
             .eq('user_id', user_id)\
+            .eq('is_active', False)\
             .is_('completed_at', 'null')\
-            .not_.is_('archived_at', 'null')\
-            .order('archived_at', desc=True)\
-            .limit(limit)\
             .execute()
 
-        return response.data or []
+        rows = [r for r in (response.data or []) if r.get('archive_reason') != hidden]
+        for r in rows:
+            r['saved_at'] = (r.get('archived_at') or r.get('last_set_down_at')
+                             or r.get('last_picked_up_at') or r.get('started_at'))
+        rows.sort(key=lambda r: r.get('saved_at') or '', reverse=True)
+        return rows[:limit]
 
     def get_completed_tasks_count(self, user_id: str) -> int:
         """Get total count of completed tasks for a user."""

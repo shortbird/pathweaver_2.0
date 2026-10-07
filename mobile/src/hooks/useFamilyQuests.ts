@@ -22,6 +22,7 @@ import api from '../services/api';
 import { useAuthStore } from '../stores/authStore';
 import { useRefetchOnForeground } from './useRefetchOnForeground';
 import type { RhythmState } from './useDashboard';
+import { archiveBody, type SaveForLaterAnswer } from '../components/quests/questExit';
 
 export interface QuestRhythm extends RhythmState {
   last_7_days?: { date: string; intensity: number }[];
@@ -35,6 +36,9 @@ export interface FamilyQuestMember {
   is_self: boolean;
   completed_at: string | null;
   progress?: { completed_tasks: number; total_tasks: number };
+  /** This member's XP on the quest, when the backend sends it. Mark done
+   *  needs it on a quest with an XP finish line (components/quests/questExit). */
+  xp_earned?: number | null;
   rhythm?: QuestRhythm | null;
 }
 
@@ -43,6 +47,8 @@ export interface FamilyQuest {
   title: string;
   description?: string | null;
   image_url?: string | null;
+  /** The quest's XP finish line, when the backend sends it. */
+  xp_threshold?: number | null;
   members: FamilyQuestMember[];
 }
 
@@ -79,7 +85,16 @@ export function useFamilyQuests() {
     await refetch();
   }, [refetch]);
 
-  return { quests, loading, refetch, enrollChildren, endMemberQuest };
+  // Save for later (ticket e17134c6): POST /archive, with reason
+  // 'lost_interest' for "I'm done with it". Work and XP are kept either way.
+  const archiveMemberQuest = useCallback(async (
+    questId: string, studentId: string | null, answer: SaveForLaterAnswer,
+  ) => {
+    await api.post(`/api/quests/${questId}/archive`, archiveBody(answer, studentId));
+    await refetch();
+  }, [refetch]);
+
+  return { quests, loading, refetch, enrollChildren, endMemberQuest, archiveMemberQuest };
 }
 
 /**

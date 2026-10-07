@@ -98,7 +98,10 @@ class TestAtOrAboveTheLine:
         webhook.return_value.emit_event.assert_called_once()
 
     def test_no_line_at_all_completes_as_before(self, client, mock_verify_token):
-        tables = _tables(lms_platform=None, earned=(), threshold=None)
+        # One finished task: since ticket e17134c6 (2026-10-07) a quest with
+        # no XP line needs one before it can be marked done
+        # (test_save_for_later_paused_forms.TestMarkDoneNeedsOneTask).
+        tables = _tables(lms_platform=None, earned=(25,), threshold=None)
         resp, _, _, _ = _end(client, tables)
         assert resp.status_code == 200
         written = tables['user_quests'].update.call_args[0][0]

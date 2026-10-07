@@ -26,6 +26,7 @@ jest.mock('@/src/services/api', () =>
 jest.mock('@/src/utils/alerts', () => ({
   showAlert: jest.fn(),
   confirmAlert: jest.fn().mockResolvedValue(true),
+  chooseAlert: jest.fn().mockResolvedValue('later'),
 }));
 jest.mock('@/src/services/tokenStore', () => ({
   tokenStore: {
@@ -168,16 +169,61 @@ describe('QuestDetailScreen in family scope', () => {
     expect(result.getByText('Remove from quest')).toBeTruthy();
   });
 
-  it("lets a parent END the child's quest, work kept, beside the destructive remove", async () => {
+  // Was "lets a parent END the child's quest ...", pressing "End quest".
+  // Ticket e17134c6 (2026-10-07) split that button into Save for later and
+  // Mark done -- an iCreate admin "didn't dare select [End Quest] because I
+  // was worried I might end the quest on accident". The promise this test
+  // pinned still holds under the new labels: the gentle exits act on the
+  // CHILD's run with the work kept, beside the destructive remove.
+  it("lets a parent save the child's quest for later, work kept, beside the destructive remove", async () => {
     // "Remove quest" deletes the enrollment and reverses XP. A parent tidying
-    // up a quest her son has moved on from wants the gentle exit: end it,
-    // keep the work. Same route as the student's own End, with student_id.
+    // up a quest her son has moved on from wants the gentle exit.
     (api.post as jest.Mock).mockResolvedValue({ data: { success: true } });
     const result = renderScreen();
 
-    await waitFor(() => expect(result.getByText('End quest')).toBeTruthy());
+    await waitFor(() => expect(result.getByText('Save for later')).toBeTruthy());
     expect(result.getByText('Remove quest')).toBeTruthy();
-    fireEvent.press(result.getByText('End quest'));
+    expect(result.queryByText('End quest')).toBeNull();
+    fireEvent.press(result.getByText('Save for later'));
+
+    await waitFor(() => {
+      expect(api.post).toHaveBeenCalledWith('/api/quests/quest-1/archive', { student_id: 'kid-1' });
+    });
+    expect(api.post).not.toHaveBeenCalledWith('/api/quests/quest-1/end', expect.anything());
+  });
+
+  // Ticket e17134c6, owner follow-up: "I'm done with it" on a child's quest
+  // hides it everywhere, still naming the child and still keeping the work.
+  it("lets a parent answer \"I'm done with it\" for the child, work kept", async () => {
+    const { chooseAlert } = require('@/src/utils/alerts');
+    (chooseAlert as jest.Mock).mockResolvedValueOnce('done');
+    (api.post as jest.Mock).mockResolvedValue({ data: { success: true } });
+    const result = renderScreen();
+
+    await waitFor(() => expect(result.getByText('Save for later')).toBeTruthy());
+    fireEvent.press(result.getByText('Save for later'));
+
+    await waitFor(() => {
+      expect(api.post).toHaveBeenCalledWith('/api/quests/quest-1/archive', { reason: 'lost_interest', student_id: 'kid-1' });
+    });
+    expect(api.delete).not.toHaveBeenCalled();
+  });
+
+  // With no XP finish line the backend refuses /end until a task is done
+  // (ticket e17134c6, owner follow-up), so this child's quest has one done.
+  it("lets a parent mark the child's quest done", async () => {
+    mockQuestRead(dependentContext, {
+      ...baseQuest,
+      quest_tasks: [{ ...baseQuest.quest_tasks[0], is_completed: true }, {
+        id: 'task-2', title: 'Build the bridge', pillar: 'stem',
+        xp_value: 50, is_completed: false, order_index: 1, is_required: false,
+      }],
+    });
+    (api.post as jest.Mock).mockResolvedValue({ data: { success: true } });
+    const result = renderScreen();
+
+    await waitFor(() => expect(result.getByText('Mark done')).toBeTruthy());
+    fireEvent.press(result.getByText('Mark done'));
 
     await waitFor(() => {
       expect(api.post).toHaveBeenCalledWith('/api/quests/quest-1/end', { student_id: 'kid-1' });

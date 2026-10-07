@@ -8,7 +8,9 @@
  * their rhythm on it -- the engagement icon and seven days of boxes, not a
  * progress bar; a member's row opens THEIR copy: a child's in family scope,
  * the parent's own on the learner's quest screen. Children not on it yet can
- * be added from the card, a member's run can be ended from the card, and
+ * be added from the card, a member's run can be saved for later or marked
+ * done from the card (ticket e17134c6, the same two actions as the quest
+ * screen; it said "End" until 2026-10-07), and
  * "New family quest" sets one up for whichever children the parent picks
  * (hooks/useFamilyQuests).
  *
@@ -32,18 +34,30 @@ import type { Child } from '@/src/types/family';
 import { confirmAlert, showAlert } from '@/src/utils/alerts';
 import { extractApiError } from '@/src/services/apiError';
 import { RhythmBadge } from '@/src/components/engagement/RhythmBadge';
+import { askSaveForLater, markDoneRule, type SaveForLaterAnswer } from '@/src/components/quests/questExit';
 import { CreateQuestSheet } from '@/src/components/journal/CreateQuestSheet';
 
-function MemberRow({ member, onOpen, onEnd, ending }: {
+function MemberRow({ member, xpThreshold, onOpen, onSaveForLater, onMarkDone, ending }: {
   member: FamilyQuestMember;
+  xpThreshold: number | null | undefined;
   onOpen: (m: FamilyQuestMember) => void;
-  onEnd: (m: FamilyQuestMember) => void;
+  onSaveForLater: (m: FamilyQuestMember) => void;
+  onMarkDone: (m: FamilyQuestMember) => void;
   ending: boolean;
 }) {
   const done = Boolean(member.completed_at);
   const who = member.is_self ? 'your' : `${member.first_name}'s`;
+  // The quest screen's rule (components/quests/questExit): with no XP finish
+  // line, at least one finished task; with one, the finish line.
+  const { canMarkDone, hint } = markDoneRule({
+    xpThreshold,
+    earnedXP: member.xp_earned ?? null,
+    completedTasks: member.progress?.completed_tasks || 0,
+    questLabel: 'quest',
+  });
   return (
-    <HStack className="items-center gap-2 py-1">
+    <VStack className="py-1">
+    <HStack className="items-center gap-2">
       <Pressable
         onPress={() => onOpen(member)}
         accessibilityRole="button"
@@ -68,30 +82,49 @@ function MemberRow({ member, onOpen, onEnd, ending }: {
           )}
         </View>
       </Pressable>
-      {/* End this member's run at the quest -- what the End button on the
-          quest screen does, reachable from here so a parent does not have to
-          open each child's copy to tidy up. */}
+      {/* Save for later / Mark done for this member's run -- what the two
+          buttons on the quest screen do (ticket e17134c6), reachable from
+          here so a parent does not have to open each child's copy to tidy
+          up. */}
       {!done && (
-        <Pressable
-          onPress={() => onEnd(member)}
-          disabled={ending}
-          hitSlop={8}
-          accessibilityRole="button"
-          accessibilityLabel={`End ${who} quest`}
-        >
-          <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">End</UIText>
-        </Pressable>
+        <HStack className="items-center gap-3">
+          <Pressable
+            onPress={() => onSaveForLater(member)}
+            disabled={ending}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel={`Save ${who} quest for later`}
+          >
+            <UIText size="xs" className="text-typo-500 dark:text-dark-typo-500">Save for later</UIText>
+          </Pressable>
+          <Pressable
+            onPress={() => onMarkDone(member)}
+            disabled={ending || !canMarkDone}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel={`Mark ${who} quest done`}
+            accessibilityState={{ disabled: ending || !canMarkDone }}
+            style={{ opacity: canMarkDone ? 1 : 0.4 }}
+          >
+            <UIText size="xs" className="text-typo-500 dark:text-dark-typo-500">Mark done</UIText>
+          </Pressable>
+        </HStack>
       )}
     </HStack>
+    {!done && !canMarkDone && hint && (
+      <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400 text-right">{hint}</UIText>
+    )}
+    </VStack>
   );
 }
 
-function FamilyQuestCard({ quest, kids, onOpen, onAdd, onEnd, adding, ending }: {
+function FamilyQuestCard({ quest, kids, onOpen, onAdd, onSaveForLater, onMarkDone, adding, ending }: {
   quest: FamilyQuest;
   kids: Child[];
   onOpen: (q: FamilyQuest, m: FamilyQuestMember) => void;
   onAdd: (q: FamilyQuest, kid: Child) => void;
-  onEnd: (q: FamilyQuest, m: FamilyQuestMember) => void;
+  onSaveForLater: (q: FamilyQuest, m: FamilyQuestMember) => void;
+  onMarkDone: (q: FamilyQuest, m: FamilyQuestMember) => void;
   adding: boolean;
   ending: boolean;
 }) {
@@ -121,8 +154,10 @@ function FamilyQuestCard({ quest, kids, onOpen, onAdd, onEnd, adding, ending }: 
           <MemberRow
             key={m.user_id}
             member={m}
+            xpThreshold={quest.xp_threshold}
             onOpen={(member) => onOpen(quest, member)}
-            onEnd={(member) => onEnd(quest, member)}
+            onSaveForLater={(member) => onSaveForLater(quest, member)}
+            onMarkDone={(member) => onMarkDone(quest, member)}
             ending={ending}
           />
         ))}
@@ -158,7 +193,7 @@ function FamilyQuestCard({ quest, kids, onOpen, onAdd, onEnd, adding, ending }: 
 export function FamilyQuestsSection({ kids }: { kids: Child[] }) {
   const c = useThemeColors();
   const { isLargeScreen, isWide } = useBreakpoint();
-  const { quests, loading, refetch, enrollChildren, endMemberQuest } = useFamilyQuests();
+  const { quests, loading, refetch, enrollChildren, endMemberQuest, archiveMemberQuest } = useFamilyQuests();
   const setSelected = useFamilyStore((s) => s.setSelected);
   const [creating, setCreating] = useState(false);
   const [adding, setAdding] = useState(false);
@@ -190,23 +225,40 @@ export function FamilyQuestsSection({ kids }: { kids: Child[] }) {
     }
   };
 
-  const endFor = async (quest: FamilyQuest, member: FamilyQuestMember) => {
+  // Save for later: one question, two answers (components/quests/questExit).
+  // A child's quest goes to Saved for Later on the child's Home; the
+  // parent's own has no such list on mobile, and the copy says so.
+  const saveForLaterFor = async (quest: FamilyQuest, member: FamilyQuestMember) => {
+    const answer: SaveForLaterAnswer | null = await askSaveForLater('quest', !member.is_self);
+    if (!answer) return;
+    setEnding(true);
+    try {
+      await archiveMemberQuest(quest.id, member.is_self ? null : member.user_id, answer);
+    } catch (err) {
+      showAlert('Could not save the quest', extractApiError(err).message);
+    } finally {
+      setEnding(false);
+    }
+  };
+
+  // Mark done: POST /end, named unfinished tasks as the quest screen does.
+  const markDoneFor = async (quest: FamilyQuest, member: FamilyQuestMember) => {
     const remaining = Math.max((member.progress?.total_tasks || 0) - (member.progress?.completed_tasks || 0), 0);
     const whose = member.is_self ? 'your' : `${member.first_name}'s`;
+    const unfinished = remaining > 0
+      ? ` ${remaining} unfinished task${remaining === 1 ? '' : 's'} will leave the dashboard.`
+      : '';
     const ok = await confirmAlert({
-      title: `End ${whose} run at "${quest.title}"?`,
-      message: remaining > 0
-        ? `${remaining} task${remaining === 1 ? ' is' : 's are'} still unfinished. Finished work and XP are kept, and the quest can be reopened later.`
-        : 'Work and XP are kept, and the quest can be reopened later.',
-      confirmText: 'End quest',
-      destructive: true,
+      title: `Mark ${whose} "${quest.title}" done?`,
+      message: `All work and XP are kept, and the quest moves to Completed. It can be reopened later.${unfinished}`,
+      confirmText: 'Mark done',
     });
     if (!ok) return;
     setEnding(true);
     try {
       await endMemberQuest(quest.id, member.is_self ? null : member.user_id);
     } catch (err) {
-      showAlert('Could not end the quest', extractApiError(err).message);
+      showAlert('Could not mark the quest done', extractApiError(err).message);
     } finally {
       setEnding(false);
     }
@@ -255,7 +307,8 @@ export function FamilyQuestsSection({ kids }: { kids: Child[] }) {
                 kids={kids}
                 onOpen={openCopy}
                 onAdd={addChild}
-                onEnd={endFor}
+                onSaveForLater={saveForLaterFor}
+                onMarkDone={markDoneFor}
                 adding={adding}
                 ending={ending}
               />

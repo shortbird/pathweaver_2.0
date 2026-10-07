@@ -4,6 +4,8 @@ import { Modal } from '../ui'
 import PeoplePicker from './ui/PeoplePicker'
 import SearchSelect from '../ui/SearchSelect'
 import { useComposeAudience, useSendCompose } from '../../hooks/api/useSisMessaging'
+import { useAuth } from '../../contexts/AuthContext'
+import { messageDraftKey, readDraft, writeDraft, clearDraft } from '../communication/messageDrafts'
 
 /**
  * Compose: one message to any mix of staff, families and students.
@@ -134,10 +136,35 @@ const describe = (p) => {
 }
 
 /**
- * Mounted only while open, so every half-written message and every pick is
- * thrown away on close: last week's words to last week's people reappearing
- * is worse than retyping a sentence.
+ * The words outlive the dialog; the people do not (ticket e6cc5fe5, iCreate
+ * campus coordinator: "Can we make our drafts save when we switch out of
+ * messages and then come back to it?"). The subject and message are kept per
+ * signed-in user in localStorage (messageDrafts) and come back when Compose
+ * opens again, after a close or a reload. A successful send removes them; a
+ * failed send keeps them.
+ *
+ * The picks, the filters, the group name and the channels are still thrown
+ * away on close. Last week's words reappearing is a sentence to delete; last
+ * week's people reappearing is a message to the wrong family. Compose is
+ * never opened pre-addressed, so one draft per user (per org) is enough.
  */
+export const composeDraftKey = (userId, orgId) =>
+  messageDraftKey(userId, orgId ? `compose:sis:${orgId}` : 'compose:sis')
+
+const readComposeDraft = (key) => {
+  try {
+    const saved = JSON.parse(readDraft(key) || '{}')
+    return { subject: String(saved.subject || ''), body: String(saved.body || '') }
+  } catch {
+    return { subject: '', body: '' }
+  }
+}
+
+const writeComposeDraft = (key, subject, body) => {
+  if (subject.trim() || body.trim()) writeDraft(key, JSON.stringify({ subject, body }))
+  else clearDraft(key)
+}
+
 export default function ComposeMessageModal({ isOpen, ...props }) {
   return isOpen ? <ComposeDialog {...props} /> : null
 }
@@ -146,6 +173,9 @@ function ComposeDialog({ orgId, orgName = '', asSchool = false, asTeacher = fals
   const audienceQuery = useComposeAudience(orgId)
   const data = audienceQuery.isError ? {} : (audienceQuery.data || null)
   const sendMutation = useSendCompose(orgId)
+  const { user } = useAuth()
+  const draftKey = composeDraftKey(user?.id, orgId)
+  const [draft] = useState(() => readComposeDraft(draftKey))
   const [roles, setRoles] = useState(() => new Set())
   const [classId, setClassId] = useState('')
   const [ageMin, setAgeMin] = useState('')
@@ -153,8 +183,8 @@ function ComposeDialog({ orgId, orgName = '', asSchool = false, asTeacher = fals
   const [chosen, setChosen] = useState(() => new Set())
   const [mode, setMode] = useState('separate')
   const [name, setName] = useState('')
-  const [subject, setSubject] = useState('')
-  const [body, setBody] = useState('')
+  const [subject, setSubject] = useState(draft.subject)
+  const [body, setBody] = useState(draft.body)
   const [push, setPush] = useState(true)
   const [email, setEmail] = useState(false)
   const [showAllTo, setShowAllTo] = useState(false)
@@ -223,6 +253,7 @@ function ComposeDialog({ orgId, orgName = '', asSchool = false, asTeacher = fals
         email: asTeacher ? false : email,
         as_school: asTeacher ? false : asSchool,
       })
+      clearDraft(draftKey)
       toast.success(
         (result.mode === 'group'
           ? `Sent to ${plural(result.sent, ['person', 'people'])} in one thread`
@@ -450,12 +481,12 @@ function ComposeDialog({ orgId, orgName = '', asSchool = false, asTeacher = fals
 
           <div>
             <label className="block text-xs text-neutral-500 mb-1" htmlFor="compose-subject">Subject (optional)</label>
-            <input id="compose-subject" value={subject} onChange={(e) => setSubject(e.target.value)}
+            <input id="compose-subject" value={subject} onChange={(e) => { setSubject(e.target.value); writeComposeDraft(draftKey, e.target.value, body) }}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-optio-purple focus:border-transparent" />
           </div>
           <div>
             <label className="block text-xs text-neutral-500 mb-1" htmlFor="compose-body">Message</label>
-            <textarea id="compose-body" value={body} onChange={(e) => setBody(e.target.value)}
+            <textarea id="compose-body" value={body} onChange={(e) => { setBody(e.target.value); writeComposeDraft(draftKey, subject, e.target.value) }}
               rows={5} maxLength={2000}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-optio-purple focus:border-transparent" />
           </div>

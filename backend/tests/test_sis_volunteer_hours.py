@@ -174,7 +174,7 @@ def test_a_student_or_stranger_has_no_family_number():
 def test_a_family_at_zero_sees_zero_when_the_school_tracks_hours():
     """iCreate 01082b30: a school that tracks hours shows a family its 0."""
     result = _read(_db(smith_hours=12.5, jones_hours=0), JONES_PARENT)
-    assert result == {'volunteer_hours': 0, 'updated_at': None, 'shown': True}
+    assert result == {'volunteer_hours': 0, 'updated_at': None, 'note': None, 'shown': True}
 
 
 @pytest.mark.unit

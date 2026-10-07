@@ -524,7 +524,32 @@ def update_household(user_id, household_id):
             return jsonify({'success': False, 'error': 'volunteer_hours must be between 0 and 9999'}), 400
         fields['volunteer_hours'] = hours
         fields['volunteer_hours_updated_at'] = datetime.now(timezone.utc).isoformat()
+    # iCreate b98a167f: a short note under the hours ("a little message with
+    # dates"), same visibility as the number. It does not re-stamp the hours.
+    if 'volunteer_hours_note' in data:
+        note = data.get('volunteer_hours_note')
+        if note is not None and not isinstance(note, str):
+            return jsonify({'success': False, 'error': 'volunteer_hours_note must be text'}), 400
+        note = sanitize_multiline_note(note or '')
+        if len(note) > VOLUNTEER_NOTE_MAX:
+            return jsonify({'success': False,
+                            'error': f'volunteer_hours_note must be {VOLUNTEER_NOTE_MAX} characters or fewer'}), 400
+        fields['volunteer_hours_note'] = note or None
     return jsonify({'success': True, 'household': repo.update(household_id, fields)})
+
+
+VOLUNTEER_NOTE_MAX = 1000
+
+
+def sanitize_multiline_note(text: str) -> str:
+    """sanitize_text per line, keeping the line breaks a dated list needs.
+    Rendered as text (React escapes), so it is not HTML-escaped here."""
+    from utils.validation import sanitize_text
+    lines = [sanitize_text(line) for line in str(text).replace('\r\n', '\n').split('\n')]
+    out = '\n'.join(lines).strip('\n')
+    while '\n\n\n' in out:
+        out = out.replace('\n\n\n', '\n\n')
+    return out
 
 
 @bp.route('/households/<household_id>', methods=['DELETE'])

@@ -35,6 +35,7 @@ import { HomeBountyCard } from '@/src/components/bounties/HomeBountyCard';
 import { useMyClaims } from '@/src/hooks/useBounties';
 import { useStudentAgenda } from '@/src/hooks/useStudentAgenda';
 import { UpcomingCard } from '@/src/components/class/UpcomingCard';
+import { SavedForLaterSection } from '@/src/components/quests/SavedForLaterSection';
 import { useStartSomething, useIsParent } from '@/src/hooks/useStartSomething';
 
 // ── Quest Card with engagement ──
@@ -448,6 +449,18 @@ export default function DashboardScreen() {
               </Pressable>
             )}
           </VStack>
+
+          {/* Saved for Later (ticket e17134c6): quests set aside with the
+              quest page's "Save for later", with Resume. The same list the
+              web dashboard shows, from the same dashboard read. Remove hides
+              one for good (work and XP kept). In family scope it is the
+              child's, and Resume and Remove name the child. Nothing when the
+              list is empty. */}
+          <SavedForLaterSection
+            quests={data?.archived_quests}
+            studentId={scopedChildId}
+            onChanged={refetch}
+          />
 
           {/* Journal Topics (bug #34: "Could journal topics be included here?").
               Shows the student's topics/tracks on Home so learning moments are

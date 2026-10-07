@@ -23,6 +23,7 @@ import {
 import useMessagingRealtime from '../../hooks/api/useMessagingRealtime'
 import GroupSettingsModal from './GroupSettingsModal'
 import MessageInput from './MessageInput'
+import { messageDraftKey } from './messageDrafts'
 import MessageBubble from './MessageBubble'
 import { ReactionsRow, MessageActionBar, MessageRow } from './MessageParts'
 import useThreadScroll from './useThreadScroll'
@@ -152,7 +153,7 @@ const GroupChatWindow = ({ group, onBack, source, onMakeTask = null }) => {
   })
 
   const handleSend = async (content, { attachments = [], replyToMessageId = null } = {}) => {
-    if (!group?.id) return
+    if (!group?.id) return false
     const replyToPreview = replyTo || null
     setReplyTo(null)
     try {
@@ -166,7 +167,8 @@ const GroupChatWindow = ({ group, onBack, source, onMakeTask = null }) => {
         source
       })
     } catch (error) {
-      // Error handled by mutation
+      // Error handled by mutation. False keeps the draft (e6cc5fe5).
+      return false
     }
   }
 
@@ -459,6 +461,12 @@ const GroupChatWindow = ({ group, onBack, source, onMakeTask = null }) => {
           placeholder="Type a message..."
           replyTo={replyTo}
           onCancelReply={() => setReplyTo(null)}
+          // Writing as the school and writing as yourself are separate drafts
+          // in the same group (e6cc5fe5).
+          draftKey={messageDraftKey(
+            user?.id,
+            group?.id ? `${asSchool ? `school:${source?.orgId || ''}:` : ''}group:${group.id}` : null
+          )}
         />
       ) : (
         <div className="p-4 border-t border-gray-200 bg-white">

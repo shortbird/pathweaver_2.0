@@ -46,3 +46,43 @@ export function confirmAlert(options: {
     );
   });
 }
+
+/**
+ * One question with several answers (plus Cancel). Resolves the chosen
+ * answer's key, or null when cancelled or dismissed.
+ *
+ * Native: one Alert with every answer as a button. Android shows at most
+ * three buttons, so keep it to two answers plus Cancel. Web (dev-only target):
+ * window.confirm has two buttons, so each answer is offered in turn and the
+ * first one confirmed wins.
+ */
+export function chooseAlert<K extends string>(options: {
+  title: string;
+  message?: string;
+  choices: { key: K; text: string; destructive?: boolean }[];
+  cancelText?: string;
+}): Promise<K | null> {
+  const { title, message, choices, cancelText = 'Cancel' } = options;
+  if (Platform.OS === 'web') {
+    const head = message ? `${title}\n\n${message}` : title;
+    for (const choice of choices) {
+      if (window.confirm(`${head}\n\nOK: ${choice.text}`)) return Promise.resolve(choice.key);
+    }
+    return Promise.resolve(null);
+  }
+  return new Promise((resolve) => {
+    Alert.alert(
+      title,
+      message,
+      [
+        { text: cancelText, style: 'cancel', onPress: () => resolve(null) },
+        ...choices.map((choice) => ({
+          text: choice.text,
+          style: (choice.destructive ? 'destructive' : 'default') as 'destructive' | 'default',
+          onPress: () => resolve(choice.key),
+        })),
+      ],
+      { cancelable: true, onDismiss: () => resolve(null) }
+    );
+  });
+}

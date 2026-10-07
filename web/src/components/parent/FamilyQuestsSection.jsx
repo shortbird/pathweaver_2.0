@@ -5,6 +5,11 @@ import { AcademicCapIcon, PlusIcon } from '@heroicons/react/24/outline'
 import { useFamilyScope } from '../../contexts/FamilyScopeContext'
 import { useConfirm } from '../../contexts/ConfirmContext'
 import { useEndMemberQuest, useEnrollChildrenInQuest, useFamilyQuests } from '../../hooks/api/useFamilyQuests'
+import { useArchiveEnrollment } from '../../hooks/api/useQuests'
+import { useQueryClient } from '@tanstack/react-query'
+import { queryKeys } from '../../utils/queryKeys'
+import { markDoneBlocker } from '../../utils/markDoneRule'
+import SaveForLaterDialog, { REASON_FOR } from '../quest/SaveForLaterDialog'
 import CreateQuestModal from '../CreateQuestModal'
 import QuestListItem from '../quest/QuestListItem'
 import RhythmBadge from '../quest/RhythmBadge'
@@ -48,46 +53,65 @@ function MemberInitial({ member }) {
   )
 }
 
-function MemberRow({ member, onOpen, onEnd, ending }) {
+function MemberRow({ member, xpThreshold, onOpen, onSaveForLater, onMarkDone, busy }) {
   const done = Boolean(member.completed_at)
   const who = member.is_self ? 'your' : `${member.first_name}'s`
+  // The quest page's rule (utils/markDoneRule, ticket e17134c6): at the XP
+  // finish line, or with no line, after one finished task.
+  const blocker = done ? null : markDoneBlocker({
+    xpThreshold, earnedXP: member.earned_xp, completedTasks: member.progress?.completed_tasks,
+  })
   return (
-    <div className="group/row flex items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-optio-purple/5 transition-colors">
-      <button
-        type="button"
-        onClick={() => onOpen(member)}
-        className="flex items-center gap-3 min-w-0 flex-1 text-left"
-        aria-label={`Open ${who} copy`}
-      >
-        <MemberInitial member={member} />
-        <span className="text-sm text-gray-900 truncate w-20 flex-shrink-0">{member.is_self ? 'You' : member.first_name}</span>
-        <span className="min-w-0 flex-1">
-          {done ? (
-            <span className="block w-fit text-xs font-semibold text-green-700 bg-green-50 rounded-lg px-2 py-1">Completed</span>
-          ) : (
-            <RhythmBadge rhythm={member.rhythm} days={member.rhythm?.last_7_days} size="sm" label={false} className="w-fit" />
-          )}
-        </span>
-      </button>
-      {/* End this member's run at the quest -- the same thing the End button
-          on the quest page does, reachable from here so a parent does not
-          have to open each child's copy to tidy up. */}
-      {!done && (
+    <div>
+      <div className="group/row flex items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-optio-purple/5 transition-colors">
         <button
           type="button"
-          onClick={() => onEnd(member)}
-          disabled={ending}
-          className="flex-shrink-0 text-xs font-medium text-gray-400 hover:text-red-600 opacity-0 group-hover/row:opacity-100 focus-visible:opacity-100 transition-opacity disabled:opacity-50"
-          aria-label={`End ${who} quest`}
+          onClick={() => onOpen(member)}
+          className="flex items-center gap-3 min-w-0 flex-1 text-left"
+          aria-label={`Open ${who} copy`}
         >
-          End
+          <MemberInitial member={member} />
+          <span className="text-sm text-gray-900 truncate w-20 flex-shrink-0">{member.is_self ? 'You' : member.first_name}</span>
+          <span className="min-w-0 flex-1">
+            {done ? (
+              <span className="block w-fit text-xs font-semibold text-green-700 bg-green-50 rounded-lg px-2 py-1">Completed</span>
+            ) : (
+              <RhythmBadge rhythm={member.rhythm} days={member.rhythm?.last_7_days} size="sm" label={false} className="w-fit" />
+            )}
+          </span>
         </button>
-      )}
+        {/* The quest page's two exits, reachable from here so a parent does
+            not have to open each child's copy to tidy up. They replaced one
+            "End" (ticket e17134c6). */}
+        {!done && (
+          <span className="flex-shrink-0 flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => onSaveForLater(member)}
+              disabled={busy}
+              className="text-xs font-medium text-gray-500 hover:text-gray-800 disabled:opacity-50"
+              aria-label={`Save ${who} quest for later`}
+            >
+              Save for later
+            </button>
+            <button
+              type="button"
+              onClick={() => onMarkDone(member)}
+              disabled={busy || Boolean(blocker)}
+              className="text-xs font-medium text-green-700 hover:text-green-800 disabled:opacity-40 disabled:cursor-not-allowed"
+              aria-label={`Mark ${who} quest done`}
+            >
+              Mark done
+            </button>
+          </span>
+        )}
+      </div>
+      {blocker && <p className="px-2 pb-1 text-xs text-gray-500">{blocker}</p>}
     </div>
   )
 }
 
-function FamilyQuestCard({ quest, kids, onOpen, onAdd, onEnd, adding, ending }) {
+function FamilyQuestCard({ quest, kids, onOpen, onAdd, onSaveForLater, onMarkDone, adding, busy }) {
   const onIt = new Set(quest.members.map((m) => m.user_id))
   const notYet = kids.filter((c) => !onIt.has(c.id))
   // The rows and the Add buttons are the card's footer: full width, under
@@ -99,9 +123,11 @@ function FamilyQuestCard({ quest, kids, onOpen, onAdd, onEnd, adding, ending }) 
           <MemberRow
             key={m.user_id}
             member={m}
+            xpThreshold={quest.xp_threshold}
             onOpen={(member) => onOpen(quest, member)}
-            onEnd={(member) => onEnd(quest, member)}
-            ending={ending}
+            onSaveForLater={(member) => onSaveForLater(quest, member)}
+            onMarkDone={(member) => onMarkDone(quest, member)}
+            busy={busy}
           />
         ))}
       </div>
@@ -135,8 +161,12 @@ export default function FamilyQuestsSection({ className = '' }) {
   const { data: quests, isLoading } = useFamilyQuests()
   const enroll = useEnrollChildrenInQuest()
   const endQuest = useEndMemberQuest()
+  const archive = useArchiveEnrollment()
+  const queryClient = useQueryClient()
   const confirm = useConfirm()
   const [creating, setCreating] = useState(false)
+  // { quest, member } while the Save for later question is open.
+  const [saving, setSaving] = useState(null)
 
   const openCopy = (quest, member) => {
     // The quest page renders whichever copy the family scope points at: a
@@ -161,18 +191,39 @@ export default function FamilyQuestsSection({ className = '' }) {
     },
   )
 
-  const endFor = async (quest, member) => {
+  // Save for later: the two answers of the quest page's question, for one
+  // member's copy -- a child's by student_id, the parent's own without.
+  const chooseSaveForLater = (answer) => {
+    const { quest, member } = saving
+    archive.mutate(
+      { questId: quest.id, studentId: member.is_self ? null : member.user_id, reason: REASON_FOR[answer] },
+      {
+        onSuccess: () => {
+          setSaving(null)
+          queryClient.invalidateQueries({ queryKey: queryKeys.family.quests() })
+        },
+      },
+    )
+  }
+
+  const markDone = async (quest, member) => {
     const remaining = Math.max((member.progress?.total_tasks || 0) - (member.progress?.completed_tasks || 0), 0)
     const whose = member.is_self ? 'your' : `${member.first_name}'s`
-    const message = remaining > 0
-      ? `End ${whose} run at "${quest.title}"? ${remaining} task${remaining === 1 ? '' : 's'} ${remaining === 1 ? 'is' : 'are'} still unfinished. Finished work and XP are kept, and the quest can be reopened later.`
-      : `End ${whose} run at "${quest.title}"? Work and XP are kept, and the quest can be reopened later.`
-    if (!(await confirm(message))) return
+    const unfinished = remaining > 0
+      ? ` ${remaining} unfinished task${remaining === 1 ? '' : 's'} will leave the dashboard.`
+      : ''
+    const ok = await confirm({
+      title: `Mark ${whose} "${quest.title}" done?`,
+      body: `All work and XP are kept, and the quest moves to Completed. It can be reopened from the quest page.${unfinished}`,
+      confirmLabel: 'Mark done',
+      destructive: false,
+    })
+    if (!ok) return
     endQuest.mutate(
       { questId: quest.id, studentId: member.is_self ? null : member.user_id },
       {
-        onSuccess: () => toast.success(member.is_self ? `You ended ${quest.title}` : `${quest.title} ended for ${member.first_name}`),
-        onError: (err) => toast.error(err.response?.data?.error || 'Could not end the quest'),
+        onSuccess: () => toast.success(member.is_self ? `You marked ${quest.title} done` : `${quest.title} marked done for ${member.first_name}`),
+        onError: (err) => toast.error(err.response?.data?.message || err.response?.data?.error || 'Could not mark the quest done'),
       },
     )
   }
@@ -220,13 +271,24 @@ export default function FamilyQuestsSection({ className = '' }) {
               kids={children}
               onOpen={openCopy}
               onAdd={addChild}
-              onEnd={endFor}
+              onSaveForLater={(quest, member) => setSaving({ quest, member })}
+              onMarkDone={markDone}
               adding={enroll.isPending}
-              ending={endQuest.isPending}
+              busy={endQuest.isPending || archive.isPending}
             />
           ))}
         </div>
       )}
+
+      <SaveForLaterDialog
+        isOpen={Boolean(saving)}
+        onClose={() => setSaving(null)}
+        onChoose={chooseSaveForLater}
+        // A child's copy goes to the child's Saved for Later; the parent's own
+        // has no such list, so the way back is the quest page.
+        hasSavedForLaterList={Boolean(saving && !saving.member.is_self)}
+        busy={archive.isPending}
+      />
 
       <CreateQuestModal
         isOpen={creating}

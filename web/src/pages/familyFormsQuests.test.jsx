@@ -107,51 +107,98 @@ describe('quests the school set for families', () => {
 })
 
 /**
- * Ending a school quest from the To do page.
+ * Leaving or finishing a school quest from the To do page.
  *
  * iCreate's Exploration Quest was auto-assigned to every parent (80 of them,
  * none finished), and the row offered Start and Continue and nothing else --
  * so a parent who did not want it had it on this page for good (2026-09-16,
- * seen on Lynette Evans's account). The quest page's End button was no way
- * out either: the quest carries a 400 XP goal and POST /end refuses below it.
- * So this ends the parent's OWN copy (no student_id, whichever child the
- * family scope points at) with force -- leaving, not finishing for credit.
+ * seen on Lynette Evans's account). That got an "End quest" here, forced past
+ * the 400 XP goal.
+ *
+ * Ticket e17134c6 (2026-10-07) replaced it with the quest page's two exits on
+ * the parent's OWN copy (no student_id): Save for later, one question with two
+ * answers ("I'm done with it" is the way out of an unwanted quest and hides
+ * the row), and Mark done under the quest page's rule -- at the XP goal, or
+ * with no goal after one finished task -- without force.
  */
-describe('ending a quest the school set', () => {
-  const started = { ...QUEST, progress: { started: true, completed: false, done: 1, total: 3 } }
+describe('leaving or finishing a quest the school set', () => {
+  const started = { ...QUEST, progress: { started: true, completed: false, done: 1, total: 3 }, xp_threshold: null, earned_xp: 50 }
 
   beforeEach(() => {
     confirmSpy.mockResolvedValue(true)
     api.post.mockResolvedValue({ data: { success: true } })
   })
 
-  it('offers End quest on a quest that is under way', async () => {
+  it('offers Save for later and Mark done on a quest under way, and no End quest', async () => {
     mockPortal({ quests: [started] })
     render(<FamilyFormsPage />)
-    expect(await screen.findByRole('button', { name: 'End quest' })).toBeInTheDocument()
-  })
-
-  it('does not offer it on a quest never started -- there is nothing to end', async () => {
-    mockPortal()
-    render(<FamilyFormsPage />)
-    await screen.findByText('Back to school night')
+    expect(await screen.findByRole('button', { name: 'Save for later' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Mark done' })).toBeEnabled()
     expect(screen.queryByRole('button', { name: 'End quest' })).not.toBeInTheDocument()
   })
 
-  it('asks first, says what is unfinished and what is kept, then ends the parent’s own copy', async () => {
-    mockPortal({ quests: [started] })
+  it('offers neither on a quest never started', async () => {
+    mockPortal()
     render(<FamilyFormsPage />)
-    fireEvent.click(await screen.findByRole('button', { name: 'End quest' }))
-    await waitFor(() => expect(api.post).toHaveBeenCalledWith('/api/quests/q1/end', { force: true }))
-    expect(confirmSpy.mock.calls[0][0]).toMatch(/End "Back to school night"\? 2 tasks are still unfinished/)
-    expect(confirmSpy.mock.calls[0][0]).toMatch(/XP are kept/)
+    await screen.findByText('Back to school night')
+    expect(screen.queryByRole('button', { name: 'Save for later' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Mark done' })).not.toBeInTheDocument()
   })
 
-  it('does nothing when the parent backs out', async () => {
+  it("\"I'm done with it\" archives the parent's own copy with reason lost_interest", async () => {
+    mockPortal({ quests: [started] })
+    render(<FamilyFormsPage />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Save for later' }))
+    expect(await screen.findByText('Will you come back to this quest?')).toBeInTheDocument()
+    expect(screen.getByText('All work and XP are kept either way.')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: /I'm done with it/ }))
+    await waitFor(() => expect(api.post).toHaveBeenCalledWith('/api/quests/q1/archive',
+      { reason: 'lost_interest', feedback: undefined }))
+  })
+
+  it("\"I'll come back to it\" archives without a reason; Cancel sends nothing", async () => {
+    mockPortal({ quests: [started] })
+    render(<FamilyFormsPage />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Save for later' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Cancel' }))
+    expect(api.post).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole('button', { name: 'Save for later' }))
+    fireEvent.click(await screen.findByRole('button', { name: /I'll come back to it/ }))
+    await waitFor(() => expect(api.post).toHaveBeenCalledWith('/api/quests/q1/archive',
+      { reason: undefined, feedback: undefined }))
+  })
+
+  it('Mark done asks first, says what is unfinished and what is kept, then ends the own copy without force', async () => {
+    mockPortal({ quests: [started] })
+    render(<FamilyFormsPage />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Mark done' }))
+    await waitFor(() => expect(api.post).toHaveBeenCalledWith('/api/quests/q1/end', {}))
+    expect(confirmSpy.mock.calls[0][0]).toMatchObject({
+      title: 'Mark "Back to school night" done?',
+      body: 'All work and XP are kept, and the quest moves to your completed quests, where you can reopen it. 2 unfinished tasks will leave the dashboard.',
+    })
+  })
+
+  it('Mark done is off with no finished task and no XP goal, and says why', async () => {
+    mockPortal({ quests: [{ ...started, earned_xp: 0, progress: { ...started.progress, done: 0 } }] })
+    render(<FamilyFormsPage />)
+    expect(await screen.findByRole('button', { name: 'Mark done' })).toBeDisabled()
+    expect(screen.getByText('Finish at least one task to mark this quest done.')).toBeInTheDocument()
+  })
+
+  it('Mark done is off below the XP goal, and says how much is left', async () => {
+    mockPortal({ quests: [{ ...started, xp_threshold: 400, earned_xp: 50 }] })
+    render(<FamilyFormsPage />)
+    expect(await screen.findByRole('button', { name: 'Mark done' })).toBeDisabled()
+    expect(screen.getByText('350 XP to go before you can mark this quest done.')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Save for later' })).toBeEnabled()
+  })
+
+  it('does nothing when the parent backs out of Mark done', async () => {
     confirmSpy.mockResolvedValue(false)
     mockPortal({ quests: [started] })
     render(<FamilyFormsPage />)
-    fireEvent.click(await screen.findByRole('button', { name: 'End quest' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Mark done' }))
     await waitFor(() => expect(confirmSpy).toHaveBeenCalled())
     expect(api.post).not.toHaveBeenCalled()
   })
@@ -172,7 +219,7 @@ describe('ending a quest the school set', () => {
     })
     api.post.mockImplementation(async () => { ended = true; return { data: { success: true } } })
     render(<FamilyFormsPage />)
-    fireEvent.click(await screen.findByRole('button', { name: 'End quest' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Mark done' }))
     expect(await screen.findByText('Nothing to do right now.')).toBeInTheDocument()
     expect(screen.queryByText('Back to school night')).not.toBeInTheDocument()
   })

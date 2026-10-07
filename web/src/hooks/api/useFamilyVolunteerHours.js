@@ -16,7 +16,7 @@ import { queryKeys } from '../../utils/queryKeys'
  * has entered hours for any family, so a school that never uses the field
  * shows nothing.
  *
- * Returns { hours, updatedAt, shown }. `shown` is false while loading and on
+ * Returns { hours, updatedAt, note, shown }. `shown` is false while loading and on
  * any failure: the line is a nicety, never an error on the page.
  */
 export default function useFamilyVolunteerHours(orgId, { enabled = true } = {}) {
@@ -39,6 +39,8 @@ export default function useFamilyVolunteerHours(orgId, { enabled = true } = {}) 
   return {
     hours: data ? Number(data.volunteer_hours || 0) : null,
     updatedAt: data?.updated_at || null,
+    // iCreate b98a167f: staff's note under the hours; null when there is none.
+    note: (data?.note || '').trim() || null,
     shown: Boolean(data?.shown),
   }
 }

@@ -10,6 +10,7 @@ Handles pick up/set down workflow and reflection system.
 
 from flask import Blueprint, request, jsonify
 from utils.auth.decorators import require_auth
+from utils.auth.relationships import student_scope
 from services.quest_lifecycle_service import QuestLifecycleService
 from services.quest_invitation_service import QuestInvitationService
 from middleware.error_handler import ValidationError, NotFoundError, AuthorizationError
@@ -154,6 +155,7 @@ def delete_enrollment(user_id, quest_id):
 
 @quest_lifecycle_bp.route('/quests/<quest_id>/archive', methods=['POST'])
 @require_auth
+@student_scope()
 def archive_enrollment(user_id, quest_id):
     """
     H1: non-destructively archive a quest enrollment. Unlike DELETE enrollment
@@ -162,23 +164,33 @@ def archive_enrollment(user_id, quest_id):
 
     Optional exit survey: {reason, feedback}. reason is a short code
     (break | done | too_hard | too_easy | lost_interest | no_materials).
+
+    This is the quest page's "Save for later" (ticket e17134c6, 2026-10-07),
+    which replaced the single "End quest" button: an iCreate admin "didn't
+    dare select that because I was worried I might end the quest on accident".
+    `student_id` lets a parent in family scope save a CHILD's quest for later
+    (@student_scope, the same guardian check /end uses). Without it the
+    parent's only non-destructive exit would have gone with the End button,
+    leaving "Remove quest" -- which deletes and reverses XP.
+
+    reason 'lost_interest' is "I'm done with it": the quest is hidden from
+    every list (active, Saved for Later), and its work, XP and evidence stay
+    in the portfolio. It also applies to an already-paused enrollment, which
+    is the "Remove" on a Saved for Later row (ticket e17134c6).
     """
     try:
-        from datetime import datetime, timezone
+        from repositories.quest_repository import QuestRepository
         data = request.get_json() or {}
         reason = (data.get('reason') or '').strip() or None
         feedback = (data.get('feedback') or '').strip() or None
-        # admin client justified: self-scoped update of the caller's own user_quests row, filtered by user_id from @require_auth (candidate for user-client scoping)
-        supabase = get_supabase_admin_client()
-        res = supabase.table('user_quests').update({
-            'archived_at': datetime.now(timezone.utc).isoformat(),
-            'archive_reason': reason,
-            'archive_feedback': feedback,
-            'is_active': False,
-        }).eq('user_id', user_id).eq('quest_id', quest_id).is_('completed_at', 'null').execute()
-        if not res.data:
+        # admin client justified: user_quests row of the caller, or of a child the caller is guardian of (@student_scope), filtered by that user_id
+        repo = QuestRepository(client=get_supabase_admin_client())
+        # Any enrollment the quest page treats as active, and any already
+        # paused one ("Remove" on Saved for Later). See save_for_later.
+        archived = repo.save_for_later(user_id, quest_id, reason, feedback)
+        if not archived:
             return jsonify({'error': 'No active enrollment to archive'}), 404
-        return jsonify({'success': True, 'archived': len(res.data)}), 200
+        return jsonify({'success': True, 'archived': archived}), 200
     except Exception as e:
         logger.error(f"Error archiving enrollment for quest {quest_id}: {str(e)}")
         raise
@@ -186,18 +198,24 @@ def archive_enrollment(user_id, quest_id):
 
 @quest_lifecycle_bp.route('/quests/<quest_id>/unarchive', methods=['POST'])
 @require_auth
+@student_scope()
 def unarchive_enrollment(user_id, quest_id):
-    """Restore an H1-archived enrollment back to the active list."""
+    """Restore a paused enrollment back to the active list.
+
+    Student-scoped like /archive, so the dashboard's "Resume" works on the
+    child's Saved for Later list a parent is looking at. "Paused" is any
+    inactive, not-completed enrollment: archived_at set, status set_down, or
+    neither (ticket e17134c6), and status goes back to picked_up."""
     try:
-        # admin client justified: self-scoped update of the caller's own user_quests row, filtered by user_id from @require_auth (candidate for user-client scoping)
-        supabase = get_supabase_admin_client()
-        res = supabase.table('user_quests').update({
-            'archived_at': None, 'archive_reason': None, 'archive_feedback': None,
-            'is_active': True,
-        }).eq('user_id', user_id).eq('quest_id', quest_id).not_.is_('archived_at', 'null').execute()
-        if not res.data:
+        from repositories.quest_repository import QuestRepository
+        # admin client justified: user_quests row of the caller, or of a child the caller is guardian of (@student_scope), filtered by that user_id
+        repo = QuestRepository(client=get_supabase_admin_client())
+        # Every paused form comes back: archived, set_down, or inactive with
+        # neither (ticket e17134c6), because Saved for Later lists all three.
+        restored = repo.resume_saved(user_id, quest_id)
+        if not restored:
             return jsonify({'error': 'No archived enrollment to restore'}), 404
-        return jsonify({'success': True, 'restored': len(res.data)}), 200
+        return jsonify({'success': True, 'restored': restored}), 200
     except Exception as e:
         logger.error(f"Error unarchiving enrollment for quest {quest_id}: {str(e)}")
         raise

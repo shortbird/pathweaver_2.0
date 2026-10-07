@@ -206,22 +206,34 @@ export const useDeleteEnrollment = () => {
 }
 
 /**
- * Hook for non-destructively archiving an enrollment (H1). Keeps progress + XP,
- * just hides the quest from the active list. Optional exit survey {reason, feedback}.
+ * Hook for non-destructively archiving an enrollment (H1) -- "Save for later".
+ * Keeps progress + XP, just hides the quest from the active list and lists it
+ * under Saved for Later. Optional exit survey {reason, feedback}.
+ *
+ * `studentId` is passed explicitly, never read from the family scope here:
+ * QuestCardSimple also archives the signed-in user's OWN quests on the role
+ * homes while a child is picked (its `ownOnly`), and those must not be sent
+ * as the child's. The quest page passes the scoped child (ticket e17134c6).
  */
 export const useArchiveEnrollment = () => {
   const queryClient = useQueryClient()
 
   return useMutation({
     mutationKey: ['archiveEnrollment'],
-    mutationFn: async ({ questId, reason, feedback }) => {
-      const response = await api.post(`/api/quests/${questId}/archive`, { reason, feedback })
+    mutationFn: async ({ questId, reason, feedback, studentId }) => {
+      const body = { reason, feedback }
+      if (studentId) body.student_id = studentId
+      const response = await api.post(`/api/quests/${questId}/archive`, body)
       return response.data
     },
-    onSuccess: () => {
+    onSuccess: (_data, variables) => {
       queryKeys.invalidateQuests(queryClient)
       queryClient.invalidateQueries(queryKeys.user.dashboard())
-      toast.success('Quest archived — your progress is saved')
+      // reason lost_interest is "I'm done with it": hidden from every list,
+      // not listed under Saved for Later (ticket e17134c6).
+      toast.success(variables?.reason === 'lost_interest'
+        ? 'Removed from your lists. Its work and XP stay in the portfolio.'
+        : 'Saved for later. Your work and XP are kept.')
     },
     onError: (error) => {
       toast.error(error.response?.data?.error || 'Failed to archive quest')
@@ -235,11 +247,14 @@ export const useArchiveEnrollment = () => {
  */
 export const useUnarchiveEnrollment = () => {
   const queryClient = useQueryClient()
+  // The Saved for Later list it resumes from is the scoped dashboard's, so
+  // Resume names the same child (the backend's @student_scope).
+  const { params: scope } = useStudentScope()
 
   return useMutation({
     mutationKey: ['unarchiveEnrollment'],
     mutationFn: async ({ questId }) => {
-      const response = await api.post(`/api/quests/${questId}/unarchive`, {})
+      const response = await api.post(`/api/quests/${questId}/unarchive`, { ...scope })
       return response.data
     },
     onSuccess: () => {

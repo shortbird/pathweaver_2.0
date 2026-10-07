@@ -140,3 +140,66 @@ describe('ChatWindow', () => {
     })
   })
 })
+
+/**
+ * Ticket e6cc5fe5 (iCreate campus coordinator): "Can we make our drafts save
+ * when we switch out of messages and then come back to it?" ChatWindow passes
+ * the composer a draft key built from the signed-in user and the thread.
+ */
+describe('ChatWindow drafts (e6cc5fe5)', () => {
+  beforeEach(() => {
+    window.localStorage.clear()
+    vi.clearAllMocks()
+    authUser = { id: 'u1' }
+    sendMutate.mockResolvedValue({})
+    messagesState = { data: { messages: [] }, isLoading: false, error: null, refetch: vi.fn() }
+  })
+
+  const box = () => screen.getByPlaceholderText(/Message /)
+
+  it('restores a half-written message when the thread opens again (e6cc5fe5)', () => {
+    const first = render(<ChatWindow conversation={advisor} />)
+    fireEvent.change(box(), { target: { value: 'Draft for Ada' } })
+    first.unmount()
+    render(<ChatWindow conversation={advisor} />)
+    expect(box().value).toBe('Draft for Ada')
+  })
+
+  it('switching to another thread shows that thread\'s box, not this draft (e6cc5fe5)', () => {
+    const view = render(<ChatWindow conversation={advisor} />)
+    fireEvent.change(box(), { target: { value: 'Draft for Ada' } })
+    view.rerender(<ChatWindow conversation={parentThread} />)
+    expect(box().value).toBe('')
+    view.rerender(<ChatWindow conversation={advisor} />)
+    expect(box().value).toBe('Draft for Ada')
+  })
+
+  it('does not show the draft to a different signed-in user (e6cc5fe5)', () => {
+    const first = render(<ChatWindow conversation={advisor} />)
+    fireEvent.change(box(), { target: { value: 'Draft for Ada' } })
+    first.unmount()
+    authUser = { id: 'u2' }
+    render(<ChatWindow conversation={advisor} />)
+    expect(box().value).toBe('')
+  })
+
+  it('clears the draft after a successful send (e6cc5fe5)', async () => {
+    render(<ChatWindow conversation={advisor} />)
+    fireEvent.change(box(), { target: { value: 'Sent fine' } })
+    fireEvent.click(screen.getByLabelText('Send message'))
+    await waitFor(() => expect(sendMutate).toHaveBeenCalled())
+    await waitFor(() => expect(window.localStorage.length).toBe(0))
+  })
+
+  it('keeps the draft when the send fails (e6cc5fe5)', async () => {
+    sendMutate.mockRejectedValue(new Error('500'))
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    const first = render(<ChatWindow conversation={advisor} />)
+    fireEvent.change(box(), { target: { value: 'Did not go' } })
+    fireEvent.click(screen.getByLabelText('Send message'))
+    await waitFor(() => expect(box().value).toBe('Did not go'))
+    first.unmount()
+    render(<ChatWindow conversation={advisor} />)
+    expect(box().value).toBe('Did not go')
+  })
+})

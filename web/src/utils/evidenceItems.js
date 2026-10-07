@@ -48,7 +48,9 @@ export const filenameFromUrl = (url) => {
   } catch {
     // Malformed percent-encoding — keep the raw segment.
   }
-  const stamped = name.match(/^[0-9a-f-]{36}_\d{8}_\d{6}_(.+)$/i);
+  // The 8 hex after the time arrived on 2026-10-07 (backend
+  // media_upload_service._generate_storage_path); older files have none.
+  const stamped = name.match(/^[0-9a-f-]{36}_\d{8}_\d{6}_(?:[0-9a-f]{8}_)?(.+)$/i);
   return stamped ? stamped[1] : name;
 };
 

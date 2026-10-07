@@ -17,8 +17,10 @@ import ClassCurriculum from '../components/discussion/ClassCurriculum';
 import toast from 'react-hot-toast';
 import logger from '../utils/logger';
 import { useActivityTracking } from '../hooks/useActivityTracking';
-import { useDeleteEnrollment } from '../hooks/api/useQuests';
-import { ArrowPathIcon, ArrowRightStartOnRectangleIcon } from '@heroicons/react/24/outline';
+import { useDeleteEnrollment, useArchiveEnrollment } from '../hooks/api/useQuests';
+import SaveForLaterDialog, { REASON_FOR } from '../components/quest/SaveForLaterDialog';
+import { markDoneBlocker } from '../utils/markDoneRule';
+import { ArrowPathIcon, BookmarkIcon, CheckCircleIcon } from '@heroicons/react/24/outline';
 import Spinner, { PageLoader } from '../components/ui/Spinner';
 import { useProgramQuestView } from '../programs/registry';
 import { isFocusMode, getFocusConfig } from '../utils/focusMode';
@@ -112,6 +114,7 @@ const QuestDetail = () => {
   const detailKey = queryKeys.quests.detail(id, scopeId);
 
   const deleteEnrollmentMutation = useDeleteEnrollment();
+  const archiveEnrollmentMutation = useArchiveEnrollment();
   const programQuest = useProgramQuestView(quest);   // program-specific quest UI + behavior (e.g. Treehouse)
   const [showDeleteConfirm, setShowDeleteConfirm] = React.useState(false);
 
@@ -266,24 +269,64 @@ const QuestDetail = () => {
     }
   };
 
+  // ── Save for later / Mark done ─────────────────────────────────────────
+  //
+  // These two replaced a single "End quest" button (ticket e17134c6,
+  // 2026-10-07). An iCreate org admin: "I didn't dare select that because I
+  // was worried I might end the quest on accident and I didn't know what
+  // would happen." One button did two different things -- finished the quest
+  // at its XP finish line, quietly set it aside below it -- and the label
+  // said neither. Each button now does one thing and its confirm says what
+  // happens to the work and XP, where the quest goes, and how to come back.
+  const questLabel = quest?.quest_type === 'class' ? 'class' : 'quest';
+
+  // Mark done is offered exactly when POST /end would mark the quest
+  // complete. /end finishes a quest only at or above its XP finish line
+  // (quests.xp_threshold); below it the backend sets the quest aside
+  // instead, which is Save for later's job. A quest with no finish line needs
+  // one finished task (utils/markDoneRule, ticket e17134c6).
+  const markDoneHint = markDoneBlocker({
+    xpThreshold: quest?.xp_threshold, earnedXP, completedTasks, label: questLabel,
+  });
+  const canMarkDone = !markDoneHint;
+  const [showSaveForLater, setShowSaveForLater] = useState(false);
+
+  // The student dashboard (and a parent's view of the child's) lists saved
+  // quests under "Saved for Later" with a Resume button. The staff and parent
+  // role homes have no such list, so there the way back is the quest page.
+  const hasSavedForLaterList = effectiveRole === 'student' || inFamilyScope;
+
+  // One question, two answers (components/quest/SaveForLaterDialog), both
+  // POST /archive: nothing marked complete, work and XP kept.
+  const chooseSaveForLater = (answer) => {
+    archiveEnrollmentMutation.mutate(
+      { questId: id, studentId: scopeParams?.student_id, reason: REASON_FOR[answer] },
+      { onSuccess: () => { setShowSaveForLater(false); navigate('/dashboard'); } }
+    );
+  };
+
   // `skipConfirm` is for the completion celebration, which asks "Finish This
-  // Quest?" in its own dialog before it gets here.
-  const handleEndQuest = async ({ skipConfirm = false } = {}) => {
+  // Quest?" in its own dialog before it gets here, and for the LMS header's
+  // "Mark Complete", which asks its own question too.
+  const handleMarkDone = async ({ skipConfirm = false } = {}) => {
     if (!quest?.user_enrollment) return;
 
-    // Ending is a one-tap action that hides every unfinished task from the
-    // dashboard and both the student's feed and the parent's, and it used to
-    // fire with no warning at all. A Hearthwood parent walking her daughter
-    // through a biology lab ended the subject four seconds after opening the
-    // task, with seven of nine tasks still to do. Name the remaining tasks so
-    // the number itself is the warning.
+    // Name the unfinished tasks so the number itself is the warning. A
+    // Hearthwood parent walking her daughter through a biology lab ended the
+    // subject four seconds after opening the task, seven of nine tasks still
+    // to do, when this fired with no warning at all.
     if (!skipConfirm) {
       const remaining = totalTasks - completedTasks;
-      const label = quest.quest_type === 'class' ? 'class' : 'quest';
-      const message = remaining > 0
-        ? `End this ${label}? ${remaining} task${remaining === 1 ? '' : 's'} ${remaining === 1 ? 'is' : 'are'} still unfinished, and ${remaining === 1 ? 'it' : 'they'} will disappear from your dashboard. Your finished work and XP are kept, and you can reopen the ${label} later.`
-        : `End this ${label}? Your work and XP are kept, and you can reopen it later.`;
-      if (!(await confirm(message))) return;
+      const unfinished = remaining > 0
+        ? ` ${remaining} unfinished task${remaining === 1 ? '' : 's'} will leave the dashboard.`
+        : '';
+      const ok = await confirm({
+        title: `Mark this ${questLabel} done?`,
+        body: `All work and XP are kept, and the ${questLabel} moves to Completed. You can reopen it from this page.${unfinished}`,
+        confirmLabel: 'Mark done',
+        destructive: false,
+      });
+      if (!ok) return;
     }
 
     endQuestMutation.mutate(id, {
@@ -328,7 +371,7 @@ const QuestDetail = () => {
 
   const handleFinishQuestFromCelebration = () => {
     setShowQuestCompletionCelebration(false);
-    handleEndQuest({ skipConfirm: true });
+    handleMarkDone({ skipConfirm: true });
   };
 
   const handleReopenQuest = () => {
@@ -616,7 +659,7 @@ const QuestDetail = () => {
         earnedXP={earnedXP}
         isQuestCompleted={isQuestCompleted}
         // The header's LMS "Mark Complete" asks first, so don't ask twice.
-        onEndQuest={() => handleEndQuest({ skipConfirm: true })}
+        onEndQuest={() => handleMarkDone({ skipConfirm: true })}
         endQuestMutation={endQuestMutation}
       />
 
@@ -716,26 +759,40 @@ const QuestDetail = () => {
           )
         )}
 
-        {/* End quest/class - bottom action. Keyed on the enrollment having
-            ended, never on progress: with every task done this is the only
-            way to finish once the celebration has been closed. */}
+        {/* Save for later / Mark done - bottom actions. Keyed on the
+            enrollment having ended, never on progress: with every task done
+            Mark done is the only way to finish once the celebration has been
+            closed. They replaced one "End quest" button (ticket e17134c6). */}
         {quest.user_enrollment && !quest.completed_enrollment && !quest?.lms_platform &&
           !sessionStorage.getItem('courseTaskReturnInfo') && (
-          <div className="mt-6 flex justify-center">
-            <button
-              onClick={() => handleEndQuest()}
-              disabled={endQuestMutation?.isPending}
-              className="flex items-center gap-1.5 px-4 py-2.5 bg-white text-red-500 border border-red-200 rounded-full hover:bg-red-50 transition-all text-sm font-medium shadow-sm disabled:opacity-50 min-h-[44px] touch-manipulation"
-            >
-              <ArrowRightStartOnRectangleIcon className="w-4 h-4" />
-              <span>
-                {endQuestMutation?.isPending
-                  ? 'Ending...'
-                  : quest.quest_type === 'class'
-                    ? 'End class'
-                    : (totalTasks > 0 && completedTasks >= totalTasks ? 'Finish quest' : 'End quest')}
-              </span>
-            </button>
+          <div className="mt-6 flex flex-col items-center gap-2">
+            <div className="flex flex-wrap justify-center gap-3">
+              <button
+                onClick={() => setShowSaveForLater(true)}
+                disabled={archiveEnrollmentMutation.isPending || endQuestMutation?.isPending}
+                className="flex items-center gap-1.5 px-4 py-2.5 bg-white text-gray-700 border border-gray-300 rounded-full hover:bg-gray-50 transition-all text-sm font-medium shadow-sm disabled:opacity-50 min-h-[44px] touch-manipulation"
+              >
+                <BookmarkIcon className="w-4 h-4" aria-hidden="true" />
+                <span>{archiveEnrollmentMutation.isPending ? 'Saving...' : 'Save for later'}</span>
+              </button>
+              <button
+                onClick={() => handleMarkDone()}
+                disabled={!canMarkDone || endQuestMutation?.isPending || archiveEnrollmentMutation.isPending}
+                aria-describedby={canMarkDone ? undefined : 'mark-done-hint'}
+                className="flex items-center gap-1.5 px-4 py-2.5 bg-white text-green-700 border border-green-300 rounded-full hover:bg-green-50 transition-all text-sm font-medium shadow-sm disabled:opacity-50 disabled:cursor-not-allowed min-h-[44px] touch-manipulation"
+              >
+                <CheckCircleIcon className="w-4 h-4" aria-hidden="true" />
+                <span>{endQuestMutation?.isPending ? 'Marking done...' : 'Mark done'}</span>
+              </button>
+            </div>
+            {!canMarkDone && (
+              <p id="mark-done-hint" className="text-xs text-gray-500 text-center">
+                {markDoneHint}
+              </p>
+            )}
+            <SaveForLaterDialog isOpen={showSaveForLater} onClose={() => setShowSaveForLater(false)}
+              onChoose={chooseSaveForLater} questLabel={questLabel}
+              hasSavedForLaterList={hasSavedForLaterList} busy={archiveEnrollmentMutation.isPending} />
           </div>
         )}
 

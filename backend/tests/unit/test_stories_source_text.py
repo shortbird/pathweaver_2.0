@@ -365,3 +365,15 @@ def test_a_document_without_a_recorded_name_is_titled_from_its_path():
     block = {'id': 'd1', 'block_type': 'document', 'content': {'items': [{'url': url}]}}
     source = _load([block], objects={url: b'Some notes.'})
     assert source.tasks[0].quotes[0].caption == 'From Reflection week 3'
+
+
+def test_document_title_drops_the_random_part_of_a_new_stamp():
+    """Tickets 983756ff / 1bc78cf0 (2026-10-07): upload stamps gained 8 hex
+    after the time so two "image.jpg" photos in one second stop colliding.
+    The title must still be the student's own file name, old stamp or new."""
+    assert source_mod.document_title(
+        '117195ae-2ef4-4475-b235-7ab9161c251e_20261007_001029_a1b2c3d4_Lab report.pdf'
+    ) == 'Lab report'
+    assert source_mod.document_title(
+        '117195ae-2ef4-4475-b235-7ab9161c251e_20260827_183541_Lab report.pdf'
+    ) == 'Lab report'

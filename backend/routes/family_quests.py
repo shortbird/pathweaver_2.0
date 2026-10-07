@@ -132,13 +132,13 @@ def list_family_quests(user_id):
     family_ids = [user_id] + sorted(children_of_parent(user_id))
 
     mine = supabase.table('quests') \
-        .select('id, title, description, big_idea, image_url, header_image_url, created_by, created_at') \
+        .select('id, title, description, big_idea, image_url, header_image_url, created_by, created_at, xp_threshold') \
         .in_('created_by', family_ids).eq('is_public', False).eq('is_active', True).is_('archived_at', 'null') \
         .execute().data or []
     quests = {q['id']: q for q in mine}
 
     own_enrollments = supabase.table('user_quests') \
-        .select('quest_id, quests(id, title, description, big_idea, image_url, header_image_url, created_by, created_at)') \
+        .select('quest_id, quests(id, title, description, big_idea, image_url, header_image_url, created_by, created_at, xp_threshold)') \
         .eq('user_id', user_id).eq('is_active', True) \
         .execute().data or []
     for uq in own_enrollments:
@@ -159,16 +159,18 @@ def list_family_quests(user_id):
 
     enrollment_ids = [e['id'] for e in enrollments]
     tasks_by_enrollment = {}
+    task_xp = {}
     if enrollment_ids:
         # Paged: a family on many quests crosses the 1,000-row cap here, and a
         # truncated read silently under-counts every member's tasks (Sentry
         # OPTIO-BACKEND-90, a family dashboard on 2026-09-14).
         tasks = fetch_all_rows(lambda: supabase.table('user_quest_tasks')
-                               .select('id, user_quest_id')
+                               .select('id, user_quest_id, xp_value')
                                .in_('user_quest_id', enrollment_ids)
                                .eq('approval_status', 'approved'))
         for t in tasks:
             tasks_by_enrollment.setdefault(t['user_quest_id'], set()).add(t['id'])
+            task_xp[t['id']] = t.get('xp_value') or 0
 
     done_by_user_quest = {}
     if enrollments:
@@ -208,6 +210,9 @@ def list_family_quests(user_id):
                 'total_tasks': total,
                 'percentage': round(len(done) / total * 100) if total else 0,
             },
+            # Mark done's rule (ticket e17134c6) weighs this against the
+            # quest's xp_threshold, or needs one finished task without one.
+            'earned_xp': sum(task_xp.get(t, 0) for t in done),
             # This member's rhythm on the quest: the card shows it instead of
             # a progress bar.
             'rhythm': quest_rhythm(supabase, e['user_id'], e['quest_id']),
@@ -229,6 +234,7 @@ def list_family_quests(user_id):
             'created_by': q.get('created_by'),
             'is_family_quest': q.get('created_by') in family_ids,
             'created_at': q.get('created_at'),
+            'xp_threshold': q.get('xp_threshold'),
             'members': members,
         })
 

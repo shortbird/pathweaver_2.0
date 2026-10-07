@@ -34,7 +34,12 @@ from flask import request, jsonify
 
 from middleware.rate_limiter import rate_limit
 from utils.auth.decorators import require_auth
-from utils.validation import sanitize_input
+from utils.validation import (
+    BREACHED_PASSWORD_MESSAGE,
+    is_weak_password_error,
+    sanitize_input,
+    validate_password_not_breached,
+)
 from utils.logger import get_logger
 from services.registration_funnel_support import (
     _admin,
@@ -117,9 +122,26 @@ def register_routes(bp):
                                 'message': 'We re-sent your confirmation code.'}), 200
             return jsonify({'error': 'An account with this email already exists — use "Sign in with Optio" below.'}), 409
 
+        # Supabase runs its own breach check and refuses the write. Until this
+        # pre-check, that refusal reached the parent as "Could not create your
+        # account. Please try again." and Sentry as an error, for a password the
+        # parent could simply have changed (tickets 77688d67, f61b7520,
+        # 2026-10-07; the same miss ticket 132cd11c fixed on add-login). Asked
+        # only here, after the resume branch: a parent resuming must retype the
+        # password they already chose, and that one is already on the account.
+        is_valid, error_message = validate_password_not_breached(password)
+        if not is_valid:
+            return jsonify({'error': error_message}), 400
+
         try:
             parent_id = _create_org_parent(admin, org_id, email, password, first, last)
         except Exception as e:  # noqa: BLE001
+            if is_weak_password_error(e):
+                # The pre-check fails open, so GoTrue's own refusal can still
+                # arrive. create_user is the first write, so nothing is left
+                # behind; the parent's fix is a different password.
+                logger.info('registration start: GoTrue refused a weak or breached password')
+                return jsonify({'error': BREACHED_PASSWORD_MESSAGE}), 400
             logger.error(f'registration start: parent creation failed: {e}')
             return jsonify({'error': 'Could not create your account. Please try again.'}), 500
 

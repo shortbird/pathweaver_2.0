@@ -14,6 +14,7 @@ import {
 } from '@heroicons/react/24/outline'
 import MessageBubble from '../../components/communication/MessageBubble'
 import MessageInput from '../../components/communication/MessageInput'
+import { schoolInboxDraftKey } from '../../components/communication/messageDrafts'
 import ThreadRow from '../../components/communication/ThreadRow'
 import GroupChatWindow from '../../components/communication/GroupChatWindow'
 import useThreadScroll from '../../components/communication/useThreadScroll'
@@ -367,7 +368,7 @@ const SchoolInboxPage = () => {
   }, [wantedConversation, isMessages, conversations])
 
   const handleSend = async (content, { attachments = [] } = {}) => {
-    if (!selected?.other_user?.id) return
+    if (!selected?.other_user?.id) return false
     try {
       const sent = await sendMutation.mutateAsync({
         targetUserId: selected.other_user.id,
@@ -391,7 +392,8 @@ const SchoolInboxPage = () => {
       const convoId = selected.id || sent?.conversation_id
       if (convoId && convoId !== selected.id) setSelected((c) => ({ ...c, id: convoId }))
     } catch {
-      // The mutation already toasted.
+      // The mutation already toasted. False keeps the draft (e6cc5fe5).
+      return false
     }
   }
 
@@ -981,6 +983,7 @@ const SchoolInboxPage = () => {
                 onSendMessage={handleSend}
                 disabled={sendMutation.isPending}
                 placeholder={schoolSide ? `Reply as ${orgName || 'the school'}...` : 'Write a reply...'}
+                draftKey={schoolInboxDraftKey(user?.id, { schoolSide, orgId, thread: selected })}
               />
             </>
           )}

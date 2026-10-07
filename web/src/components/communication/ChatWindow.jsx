@@ -15,6 +15,7 @@ import {
 import useMessagingRealtime from '../../hooks/api/useMessagingRealtime'
 import MessageThread from './MessageThread'
 import MessageInput from './MessageInput'
+import { messageDraftKey } from './messageDrafts'
 import { OPTIO_LOGO_URL } from './ThreadRow'
 
 const ChatWindow = ({ conversation, onBack }) => {
@@ -125,6 +126,8 @@ const ChatWindow = ({ conversation, onBack }) => {
     } catch (error) {
       // Error handling is done in the mutation
       console.error('Failed to send message:', error)
+      // Tells the composer to keep the draft (e6cc5fe5).
+      return false
     }
   }
 
@@ -307,6 +310,9 @@ const ChatWindow = ({ conversation, onBack }) => {
         placeholder={`Message ${displayName}...`}
         replyTo={replyTo}
         onCancelReply={() => setReplyTo(null)}
+        // `id` is the other person for every DM here (contactToConversation),
+        // so a thread not yet started keeps its draft too (e6cc5fe5).
+        draftKey={messageDraftKey(user?.id, conversation?.id ? `dm:${conversation.id}` : null)}
       />
     </div>
   )

@@ -24,6 +24,21 @@ export const EVIDENCE_TYPES = [
   { id: 'document', label: 'Document', Icon: DocumentIcon, description: 'Upload files or scan with camera' },
 ];
 
+// Camera items are split into 'image' and 'video' items, and an image or video
+// block opened for editing arrives with that type too, so the "Added evidence"
+// list and the heading meet ids the picker above never offers. Reading .Icon
+// off a failed EVIDENCE_TYPES lookup crashed the whole modal (Sentry
+// optio-web 7777415203, ticket 9c55b29d, 2026-10-06).
+const DISPLAY_ONLY_TYPES = [
+  { id: 'image', label: 'Photo', Icon: PhotoIcon },
+  { id: 'video', label: 'Video', Icon: VideoCameraIcon },
+];
+
+export const evidenceTypeInfo = (id) =>
+  EVIDENCE_TYPES.find(t => t.id === id)
+  || DISPLAY_ONLY_TYPES.find(t => t.id === id)
+  || { id, label: 'Evidence', Icon: DocumentIcon };
+
 /**
  * EvidenceContentEditor - Single source of truth for evidence content entry.
  * Handles evidence type selection, content editing, file uploads, and multi-item support.
@@ -583,7 +598,13 @@ const EvidenceContentEditor = ({ onSave, onCancel, onUpdate, editingBlock = null
       <div className="p-6">
         {/* Type header with back button */}
         <div className="flex items-center gap-3 mb-6">
+          {/* No way back to the type picker while editing one block: Back
+              copied the block into the "Added evidence" list (which crashed
+              on an image or video, ticket 9c55b29d), and Update then wrote
+              whatever type was picked next over the block being edited. */}
+          {!isEditMode && (
           <button
+            aria-label="Back to evidence types"
             onClick={() => {
               if (isCurrentItemValid()) {
                 setEvidenceItems([...evidenceItems, { ...currentItem, id: `temp_${Date.now()}` }]);
@@ -597,8 +618,9 @@ const EvidenceContentEditor = ({ onSave, onCancel, onUpdate, editingBlock = null
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
             </svg>
           </button>
+          )}
           <h3 className="text-lg font-semibold text-gray-900">
-            Add {EVIDENCE_TYPES.find(t => t.id === selectedType)?.label}
+            Add {evidenceTypeInfo(selectedType).label}
           </h3>
         </div>
 
@@ -617,14 +639,14 @@ const EvidenceContentEditor = ({ onSave, onCancel, onUpdate, editingBlock = null
             </h4>
             <div className="flex flex-wrap gap-2">
               {evidenceItems.map((item, index) => {
-                const typeInfo = EVIDENCE_TYPES.find(t => t.id === item.type);
+                const typeInfo = evidenceTypeInfo(item.type);
                 return (
                   <div
                     key={index}
                     className="flex items-center gap-2 px-3 py-1.5 bg-green-50 border border-green-200 rounded-full text-sm"
                   >
                     <typeInfo.Icon className="w-4 h-4 text-green-600" />
-                    <span className="text-green-700">{typeInfo?.label}</span>
+                    <span className="text-green-700">{typeInfo.label}</span>
                     <button
                       onClick={() => handleRemoveItem(index)}
                       className="text-green-600 hover:text-red-500"
