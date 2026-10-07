@@ -163,6 +163,22 @@ class CrmRepository(BaseRepository):
             'status': status, 'updated_at': _now_iso(),
         }).eq('id', lead_id).execute()
 
+    def active_leads_with_accounts(self) -> List[Dict[str, Any]]:
+        """'active' leads whose (lowercased) email has a users row: people
+        who signed up without any hook converting their lead."""
+        from utils.db_fetch import fetch_all_rows
+        leads = fetch_all_rows(lambda: (
+            self.client.table('crm_leads').select('*').eq('status', 'active')))
+        matched: List[Dict[str, Any]] = []
+        for i in range(0, len(leads), 100):
+            chunk = leads[i:i + 100]
+            rows = (self.client.table('users').select('email')
+                    .in_('email', [lead['email'] for lead in chunk])
+                    .execute()).data or []
+            with_account = {(r.get('email') or '').lower() for r in rows}
+            matched.extend(lead for lead in chunk if lead['email'] in with_account)
+        return matched
+
     def exit_active_memberships(self, lead_id: str, reason: str) -> None:
         """End whatever sequence the lead is in, under `reason`."""
         self._exit_active_memberships(lead_id, reason)

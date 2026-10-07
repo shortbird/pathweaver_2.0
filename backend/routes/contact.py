@@ -100,6 +100,9 @@ def submit_contact():
             if not existing_user.data:
                 from services.crm_service import sync_lead
                 crm_funnel = sync_lead(email, contact_type, name=name)
+            else:
+                from services.crm_service import record_account_holder_form
+                record_account_holder_form(email, contact_type, name=name)
         except Exception as brevo_err:
             logger.warning(f"Brevo lead sync skipped: {brevo_err}")
 

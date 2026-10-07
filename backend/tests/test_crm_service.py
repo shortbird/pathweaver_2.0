@@ -219,3 +219,63 @@ class TestRecordClassStart:
 
     def test_unknown_user_is_a_noop(self, world):
         crm_service.record_class_start('missing-user')  # must not raise
+
+
+@pytest.mark.unit
+class TestAccountHolderForm:
+    def test_records_form_and_converts_without_a_funnel(self, world):
+        world.data['users'] = [{'email': 'parent@example.com',
+                                'requires_parental_consent': False,
+                                'date_of_birth': None}]
+        crm_service.record_account_holder_form('parent@example.com', 'claim_free_class',
+                                               name='Pat Parent')
+        lead = _lead(world, 'parent@example.com')
+        assert lead['status'] == 'converted'
+        assert lead['lead_type'] == 'claim_free_class'
+        assert lead['first_name'] == 'Pat'
+        assert _memberships(world, lead['id']) == []
+        forms = [e for e in world.data['crm_events']
+                 if e['event_type'] == 'form_submitted']
+        assert forms and forms[0]['detail']['account_holder'] is True
+
+    def test_under_13_account_is_skipped(self, world):
+        world.data['users'] = [{'email': 'kid@example.com',
+                                'requires_parental_consent': True,
+                                'date_of_birth': None}]
+        crm_service.record_account_holder_form('kid@example.com', 'academy')
+        assert _lead(world, 'kid@example.com') is None
+
+    def test_unsubscribed_lead_keeps_its_status(self, world):
+        world.data['users'] = [{'email': 'lead@example.com',
+                                'requires_parental_consent': False,
+                                'date_of_birth': None}]
+        world.data['crm_leads'].append({'id': 'lead-u', 'email': 'lead@example.com',
+                                        'status': 'unsubscribed',
+                                        'unsubscribe_token': 't'})
+        crm_service.record_account_holder_form('lead@example.com', 'academy')
+        assert _lead(world)['status'] == 'unsubscribed'
+
+
+@pytest.mark.unit
+class TestReconcileAccountHolders:
+    def test_converts_active_leads_with_an_account_only(self, world):
+        crm_service.sync_lead('signed-up@example.com', 'academy')
+        crm_service.sync_lead('still-a-lead@example.com', 'academy')
+        world.data['users'] = [{'id': 'u1', 'email': 'signed-up@example.com'}]
+        assert crm_service.reconcile_account_holders() == 1
+        assert _lead(world, 'signed-up@example.com')['status'] == 'converted'
+        assert _lead(world, 'still-a-lead@example.com')['status'] == 'active'
+
+    def test_exits_the_nurture_of_a_converted_lead(self, world):
+        crm_service.sync_lead('lead@example.com', 'claim_free_class')
+        world.data['users'] = [{'id': 'u1', 'email': 'lead@example.com'}]
+        crm_service.reconcile_account_holders()
+        membership = _memberships(world, _lead(world)['id'])[0]
+        assert membership['status'] == 'exited'
+        assert membership['exit_reason'] == 'converted_signup'
+
+    def test_second_run_converts_nothing(self, world):
+        crm_service.sync_lead('lead@example.com', 'academy')
+        world.data['users'] = [{'id': 'u1', 'email': 'lead@example.com'}]
+        crm_service.reconcile_account_holders()
+        assert crm_service.reconcile_account_holders() == 0

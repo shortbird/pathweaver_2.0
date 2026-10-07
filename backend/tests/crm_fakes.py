@@ -118,8 +118,15 @@ class FakeQuery:
         self.on_conflict = on_conflict or 'key'
         return self
 
+    @property
+    def not_(self):
+        self._negate_next = True
+        return self
+
     def is_(self, col, val):
-        self.filters.append(('eq', col, None if val == 'null' else val))
+        kind = 'neq' if getattr(self, '_negate_next', False) else 'eq'
+        self._negate_next = False
+        self.filters.append((kind, col, None if val == 'null' else val))
         return self
 
     def eq(self, col, val):

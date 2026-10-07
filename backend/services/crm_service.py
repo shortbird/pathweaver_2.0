@@ -205,6 +205,49 @@ def sync_lead(email, contact_type, name=None, phone=None):
         return None
 
 
+def record_account_holder_form(email, contact_type, name=None, phone=None):
+    """A marketing form from someone who already has an account. They are a
+    customer, so no nurture funnel; but the submission is still intent (an
+    existing parent asking about the Academy), and until 2026-10-07 it left
+    no CRM trace at all. Record the lead and the form, and settle the lead as
+    converted. Under-13 accounts are skipped, as for every marketing sync."""
+    try:
+        if _is_under_13(email):
+            return
+        db = _db()
+        first, last = _split_name(name)
+        lead = _upsert_lead(db, email, lead_type=contact_type,
+                            lead_source='contact_form',
+                            first_name=first, last_name=last, phone=phone)
+        if not lead:
+            return
+        _record_event(db, lead['id'], 'form_submitted',
+                      {'contact_type': contact_type, 'account_holder': True})
+        if lead.get('status') == 'active':
+            _mark_converted_row(db, lead, 'account_signup')
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f'CRM account-holder form sync error: {e}')
+
+
+def reconcile_account_holders() -> int:
+    """Convert every 'active' lead whose email now has an account.
+
+    Conversion is otherwise caught by signup hooks, or by the sweep's
+    pre-send check, which only sees leads with a step due. A lead in no
+    funnel (an Academy inquiry, a person added by hand) that later signs up
+    stayed 'active' forever and undercounted conversions. Returns how many
+    leads it converted.
+
+    Matches on the lowercased email: lead emails are stored lowercased, and
+    users.email is lowercase on all but a handful of rows."""
+    from repositories.crm_repository import CrmRepository
+    db = _db()
+    leads = CrmRepository(client=db).active_leads_with_accounts()
+    for lead in leads:
+        _mark_converted_row(db, lead, 'account_signup')
+    return len(leads)
+
+
 def sync_poe_parent(parent_email, first_name=None, last_name=None):
     """Record a POE signup's parent as a lead. Marketing records parents only;
     student emails must never be synced (all POE signups are minors). No

@@ -89,6 +89,26 @@ class TestSendgridWebhook:
         assert lead['status'] == 'suppressed'
         assert world.data['crm_funnel_memberships'][0]['status'] == 'exited'
 
+    def test_transactional_engagement_is_not_stored(self, client, keypair):
+        """The webhook sees the whole SendGrid account. Opens and deliveries
+        of transactional mail (no send_id) are dropped; a transactional
+        bounce is kept, because it still closes the mailbox."""
+        private, public_b64 = keypair
+        world = make_world()
+        events = [
+            {'sg_event_id': 'tx-1', 'event': 'open', 'email': 'user@example.com'},
+            {'sg_event_id': 'tx-2', 'event': 'delivered', 'email': 'user@example.com'},
+            {'sg_event_id': 'tx-3', 'event': 'bounce', 'email': 'user@example.com',
+             'type': 'bounce'},
+        ]
+        payload = json.dumps(events).encode()
+        with patch.object(Config, 'SENDGRID_WEBHOOK_PUBLIC_KEY', public_b64), \
+             patch('routes.crm._admin_db', return_value=world):
+            response = client.post(self.URL, data=payload,
+                                   headers=_signed_headers(private, payload))
+        assert response.get_json()['stored'] == 1
+        assert [e['sg_event_id'] for e in world.data['crm_email_events']] == ['tx-3']
+
     def test_blocked_bounce_is_recorded_but_does_not_suppress(self, client, keypair):
         """SendGrid reports transient failures (bad MX, SMTP timeout) as
         event 'bounce' with type 'blocked'. Those must not close a mailbox

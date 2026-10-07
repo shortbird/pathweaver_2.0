@@ -74,7 +74,8 @@ def overview(user_id):
         db.table('crm_sends').select('id, step_id, status')))
     events = fetch_all_rows(lambda: (
         db.table('crm_email_events').select('send_id, event_type')
-        .in_('event_type', ['open', 'click', 'bounce'])))
+        .in_('event_type', ['open', 'click', 'bounce'])
+        .not_.is_('send_id', 'null')))
 
     send_step = {s['id']: s['step_id'] for s in sends}
     step_stats = {}

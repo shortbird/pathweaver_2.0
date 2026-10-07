@@ -154,7 +154,16 @@ def funnel_sweep():
     if err:
         return err
     from services.crm_funnel_engine import run_sweep
-    return jsonify({'success': True, **run_sweep()})
+    from services.crm_service import reconcile_account_holders
+    result = run_sweep()
+    # After the sweep, not before: a stalled registration must displace a
+    # nurture sequence as 'registration_started' before this pass would
+    # exit it as a plain signup.
+    try:
+        result['reconciled'] = reconcile_account_holders()
+    except Exception as e:  # noqa: BLE001  # bookkeeping must not fail the sweep
+        logger.warning(f'CRM account-holder reconcile failed: {e}')
+    return jsonify({'success': True, **result})
 
 
 @bp.route('/internal/calendar-poll', methods=['POST'])
@@ -237,6 +246,13 @@ def sendgrid_events():
         event_type = event.get('event')
         email = (event.get('email') or '').lower().strip()
         custom = {k: event.get(k) for k in ('send_id', 'lead_id') if event.get(k)}
+        # The webhook covers the whole SendGrid account, so most events are
+        # transactional mail (logins, receipts) with no send_id. Their
+        # opens/deliveries were ~85% of this table and every CRM overview
+        # load paged through them. Keep only the ones that close a mailbox:
+        # suppression and the transient-bounce strike count read those.
+        if not custom and event_type not in SUPPRESSING_EVENTS:
+            continue
         occurred = event.get('timestamp')
         occurred_iso = (datetime.fromtimestamp(occurred, tz=timezone.utc).isoformat()
                         if isinstance(occurred, (int, float)) else None)
