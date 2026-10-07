@@ -182,4 +182,24 @@ describe('QuestCardSimple', () => {
       expect(mockNavigate).toHaveBeenCalledWith('/quests/quest-abc')
     })
   })
+
+  // Horizon, ticket 4ea811d6 (2026-10-07): "Teacher feedback lands in chat or
+  // the inbox with a small badge, and students miss it." The card says so.
+  describe('new feedback marker', () => {
+    it('shows "New feedback" when the quest has unread teacher feedback', () => {
+      renderCard({ user_enrollment: true, unread_feedback_count: 2 })
+      expect(screen.getByTestId('quest-card-new-feedback')).toHaveTextContent('New feedback')
+    })
+
+    it('shows nothing when there is none', () => {
+      renderCard({ user_enrollment: true, unread_feedback_count: 0 })
+      expect(screen.queryByText('New feedback')).not.toBeInTheDocument()
+    })
+
+    it('shows nothing when the payload has no count', () => {
+      renderCard({ user_enrollment: true })
+      expect(screen.queryByText('New feedback')).not.toBeInTheDocument()
+    })
+  })
+
 })

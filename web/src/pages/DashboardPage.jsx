@@ -252,7 +252,10 @@ const ActiveQuests = memo(({ activeQuests, enrolledCourses, completedQuestsCount
       // Set by a class, and when it is due. Null for a quest the student
       // picked themselves. Lives on the enrollment, not the quest: the same
       // quest is schoolwork for one student and a free choice for another.
-      class_assignment: quest.class_assignment || null
+      class_assignment: quest.class_assignment || null,
+      // Unread teacher feedback, for the card's "New feedback" marker
+      // (ticket 4ea811d6). On the enrollment, like class_assignment.
+      unread_feedback_count: quest.unread_feedback_count || 0
     };
     return <QuestCardSimple key={transformedQuest.id} quest={transformedQuest} />;
   }

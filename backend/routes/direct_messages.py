@@ -116,8 +116,11 @@ def _add_class_contacts(supabase, contacts, user_ids, relationship, user_id, use
 
 def _add_friend_contacts(supabase, contacts, user_id):
     """Append the friends this student may DM, with the peer profile shape
-    (display name and avatar; never a legal surname)."""
-    from services import peer_connection_service
+    (display name and avatar; never a legal surname). None when the school
+    turned Student Chat off (ticket 81cc92e6): the send would be refused."""
+    from services import peer_connection_service, student_chat_service
+    if student_chat_service.closed_for(user_id):
+        return
     try:
         friend_ids = peer_connection_service.messageable_friend_ids(user_id)
     except Exception as e:  # noqa: BLE001
@@ -1377,3 +1380,4 @@ def upload_attachment(user_id: str):
         'url': url, 'display_url': sign_stored_url(url, bucket),
         'type': kind, 'name': file.filename[:255], 'size': size,
     }})
+

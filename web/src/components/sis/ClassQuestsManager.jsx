@@ -15,6 +15,7 @@ import PopMenu from './ui/PopMenu'
 import CurriculumCard from './classQuests/CurriculumCard'
 import { groupByCurriculum } from './classQuests/groupByCurriculum'
 import { REPLACE_COPY } from './classQuests/replaceOriginal'
+import usePersistedChoice from '../../hooks/usePersistedChoice'
 
 /**
  * ClassQuestsManager — the teacher's Quests tab for one SIS class.
@@ -51,6 +52,16 @@ function QuestField({ label, hint, groupLabel, className = '', children }) {
   )
 }
 
+// Whether the Curriculum section is open, per class, on this browser. Ticket
+// 9f1afd73: "Adding curriculum pushes active quests down the page, so we've
+// stopped adding it there. Keeping active quests at the top, or letting us
+// collapse the curriculum section, would fix that." The section sits below the
+// assigned quests and folds; a class with CURRICULUM_FOLD_AT or more curricula
+// starts folded until the teacher opens it.
+const CURRICULUM_OPEN_KEY = 'sis_class_curriculum_open'
+const CURRICULUM_FOLD_AT = 3
+const validOpenMap = (v) => (v && typeof v === 'object' && !Array.isArray(v) ? v : null)
+
 // The three tiers assignable-quests returns, in the order it returns them.
 const SCOPE_HEADING = {
   curriculum: 'On this class’s curriculum',
@@ -85,6 +96,14 @@ export default function ClassQuestsManager({ classId, orgId = null, scheduledEna
   const [searching, setSearching] = useState(false)
   // Curriculum attached to this class, each with its saved quest set.
   const [curricula, setCurricula] = useState([])
+  const [curriculumOpenByClass, setCurriculumOpenByClass] = usePersistedChoice(
+    CURRICULUM_OPEN_KEY, {}, { validate: validOpenMap })
+  const curriculumOpen = typeof curriculumOpenByClass[classId] === 'boolean'
+    ? curriculumOpenByClass[classId]
+    : curricula.length < CURRICULUM_FOLD_AT
+  const toggleCurriculum = () => setCurriculumOpenByClass((prev) => ({
+    ...(prev || {}), [classId]: !curriculumOpen,
+  }))
   const [syncing, setSyncing] = useState(null) // curriculum id mid-copy/save
   // Optional release date for the NEXT assignment, shared by "assign existing"
   // and "create new". It has to be set at assign time: assigning enrolls the
@@ -466,15 +485,6 @@ export default function ClassQuestsManager({ classId, orgId = null, scheduledEna
           onClose={() => setWorkFor(null)} onChanged={load} />
       )}
 
-      {/* The curriculum round trip. Only rendered when a curriculum is actually
-          attached — the point is to make the reusable set obvious where the
-          teacher is already working, not to add a permanent empty panel. */}
-      {curricula.map((c) => (
-        <CurriculumCard key={c.curriculum_id} curriculum={c} students={students}
-          busy={syncing === c.curriculum_id} onAdd={copyFromCurriculum}
-          canSave={canSaveToCurriculum && quests.length > 0} onSave={saveToCurriculum} />
-      ))}
-
       {/* Assign panel */}
       {mode && (
         <div className="bg-white rounded-xl border border-gray-200 p-4">
@@ -842,6 +852,27 @@ export default function ClassQuestsManager({ classId, orgId = null, scheduledEna
             )
           })}
         </ul>
+      )}
+
+      {/* The curriculum round trip, BELOW the assigned quests and folding
+          (ticket 9f1afd73: the cards pushed active quests down the page, so a
+          school stopped attaching curricula). Only rendered when a curriculum
+          is actually attached -- no permanent empty panel. */}
+      {curricula.length > 0 && (
+        <section aria-label="Curriculum" className="space-y-3">
+          <button type="button" onClick={toggleCurriculum} aria-expanded={curriculumOpen}
+            className="inline-flex items-center gap-1.5 text-sm font-semibold text-neutral-700 hover:text-neutral-900">
+            {curriculumOpen
+              ? <ChevronDownIcon className="w-4 h-4" />
+              : <ChevronRightIcon className="w-4 h-4" />}
+            Curriculum ({curricula.length})
+          </button>
+          {curriculumOpen && curricula.map((c) => (
+            <CurriculumCard key={c.curriculum_id} curriculum={c} students={students}
+              busy={syncing === c.curriculum_id} onAdd={copyFromCurriculum}
+              canSave={canSaveToCurriculum && quests.length > 0} onSave={saveToCurriculum} />
+          ))}
+        </section>
       )}
     </div>
   )

@@ -328,6 +328,8 @@ def register_all(app):
     from routes import direct_messages, group_messages
     app.register_blueprint(direct_messages.bp)
     app.register_blueprint(group_messages.bp)
+    from routes import student_chat_settings
+    app.register_blueprint(student_chat_settings.bp)
 
     # ── School inbox (staff side of the "{School Name}" contact) ──────────────
     from routes import school_inbox

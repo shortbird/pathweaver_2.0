@@ -97,6 +97,15 @@ def _defs() -> Tuple[ModuleDef, ...]:
         # has enabled yet, not a feature every child is in.
         ModuleDef('friends', 'Friends', 'community', ('Friends',),
                   surfaces=('learning', 'mobile', 'family')),
+        # Students' own chat: class Student Chats and friend DMs. Ticket
+        # 81cc92e6 (Horizon): "An option to turn off in-app chat would help,
+        # because it can pull students away from their work and bury teacher
+        # feedback." Off, a student of the school loses those two and keeps
+        # every message from a teacher or the school
+        # (services/student_chat_service.py). On by default, and the org
+        # admin flips it from Settings -- it is the school's call, not a sale.
+        ModuleDef('student_chat', 'Student Chat', 'community', (),
+                  surfaces=('console', 'learning', 'mobile')),
         # The LMS-core teacher toolkit: class create/roster/progress, task
         # verification, check-ins. Core so an LMS-only school always has it.
         ModuleDef('teaching', 'Teaching', 'operations',

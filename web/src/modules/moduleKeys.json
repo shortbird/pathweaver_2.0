@@ -245,6 +245,14 @@
     "requires": [],
     "requires_any": []
   },
+  "student_chat": {
+    "default": "on",
+    "gate": "flags",
+    "legacy": null,
+    "parent": null,
+    "requires": [],
+    "requires_any": []
+  },
   "submissions": {
     "default": "on",
     "gate": "flags",

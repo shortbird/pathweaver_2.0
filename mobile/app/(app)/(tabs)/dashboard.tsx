@@ -20,6 +20,7 @@ import { useDashboard } from '@/src/hooks/useDashboard';
 import { useUnifiedTopics } from '@/src/hooks/useJournal';
 import { useThemeColors } from '@/src/hooks/useThemeColors';
 import api from '@/src/services/api';
+import { NewFeedbackMarker } from '@/src/components/quests/TeacherFeedbackBanner';
 import type { EngagementData } from '@/src/hooks/useDashboard';
 import {
   VStack, HStack, Heading, UIText,
@@ -81,6 +82,12 @@ function QuestCard({ quest }: { quest: any }) {
         <UIText size="sm" className="font-poppins-semibold mb-2" numberOfLines={1}>
           {q?.title || 'Quest'}
         </UIText>
+      )}
+
+      {/* Unread teacher feedback (Horizon, ticket 4ea811d6: "students
+          miss it"). On the enrollment; 0 for a parent in family scope. */}
+      {quest.unread_feedback_count > 0 && (
+        <View className="mb-2"><NewFeedbackMarker count={quest.unread_feedback_count} /></View>
       )}
 
       {/* Rhythm + mini heatmap */}

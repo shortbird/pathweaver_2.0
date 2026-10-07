@@ -42,6 +42,7 @@ from flask import Blueprint, request, jsonify
 from utils.auth.decorators import require_auth, validate_uuid_param
 from utils.logger import get_logger
 from utils.quest_completion import is_quest_done
+from utils.org_task_xp import org_min_task_xp
 from utils.validation import validate_uuid
 from services import sis_service
 from services import sis_notifications
@@ -1080,7 +1081,7 @@ def add_preset_task(user_id, class_id, quest_id):
     last = (admin.table('quest_template_tasks').select('order_index')
             .eq('quest_id', quest_id).order('order_index', desc=True).limit(1).execute()).data
     next_order = ((last[0]['order_index'] or 0) + 1) if last else 0
-    task = _clean_task(data, next_order)
+    task = _clean_task(data, next_order, org_min_task_xp(quest.get('organization_id')))
     if not task:
         return jsonify({'success': False, 'error': 'A task title is required.'}), 400
     task['quest_id'] = quest_id
@@ -1160,7 +1161,8 @@ def update_preset_task(user_id, class_id, quest_id, task_id):
             xp = int(data.get('xp_value'))
         except (TypeError, ValueError):
             return jsonify({'success': False, 'error': 'XP must be a number.'}), 400
-        updates['xp_value'] = max(0, xp)
+        # The org's floor, the same one the quest form's full save uses (a6f7b429).
+        updates['xp_value'] = max(org_min_task_xp(quest.get('organization_id')), xp)
     if 'is_required' in data:
         updates['is_required'] = bool(data.get('is_required'))
     if not updates and 'diploma_subjects' not in data and 'subject_xp_distribution' not in data:

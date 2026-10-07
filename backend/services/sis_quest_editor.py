@@ -38,6 +38,7 @@ from repositories.quest_editor_repository import QuestEditorRepository
 from services import sis_quest_authoring as authoring
 from services.sis_quest_task_editing import resync, serialize_task
 from utils.logger import get_logger
+from utils.org_task_xp import org_min_task_xp
 from utils.person_name import full_name
 
 logger = get_logger(__name__)
@@ -101,6 +102,9 @@ def serialize(quest: Dict[str, Any], tasks: List[Dict[str, Any]], *,
         # which controls the form draws.
         'editable': editable,
         'can_lock_xp': editable and is_admin,
+        # The org's task XP floor (ticket a6f7b429), so the form's XP inputs
+        # and their copy match what save will store.
+        'min_task_xp': org_min_task_xp(quest.get('organization_id')),
     }
 
 
@@ -153,8 +157,12 @@ def start_draft(admin, *, org_id: str, user_id: str, context: str,
     return out
 
 
-def _clean_tasks(raw_tasks: Any) -> List[Dict[str, Any]]:
-    """The submitted task list as insertable rows, each keeping its saved id."""
+def _clean_tasks(raw_tasks: Any, min_xp: int) -> List[Dict[str, Any]]:
+    """The submitted task list as insertable rows, each keeping its saved id.
+
+    min_xp is the quest's org floor, the same one update_task applies, so the
+    full save and the single-task edit agree on every row (ticket a6f7b429).
+    """
     if not isinstance(raw_tasks, list):
         raise QuestEditorError('tasks must be a list.')
     if len(raw_tasks) > authoring.MAX_TASKS:
@@ -163,7 +171,7 @@ def _clean_tasks(raw_tasks: Any) -> List[Dict[str, Any]]:
     for raw in raw_tasks:
         if not isinstance(raw, dict):
             continue
-        row = authoring.clean_task(raw, len(cleaned))
+        row = authoring.clean_task(raw, len(cleaned), min_xp)
         if not row:
             continue
         task_id = (raw.get('id') or '').strip() if isinstance(raw.get('id'), str) else ''
@@ -237,7 +245,8 @@ def save(admin, quest: Dict[str, Any], data: Dict[str, Any], *, is_admin: bool) 
         if is_admin:
             fields['teachers_may_change_xp'] = data['teachers_may_change_xp']
 
-    cleaned = _clean_tasks(data['tasks']) if 'tasks' in data else None
+    cleaned = (_clean_tasks(data['tasks'], org_min_task_xp(quest.get('organization_id')))
+               if 'tasks' in data else None)
 
     repo = _repo(admin)
     if fields:

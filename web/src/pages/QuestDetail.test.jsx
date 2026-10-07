@@ -1263,4 +1263,52 @@ const CACHE_KEY = ['quests', 'detail', 'quest-123', 'me']
       expect(mockNavigate).toHaveBeenCalledWith('/quests')
     })
   })
+
+  // --- Unread teacher feedback banner ---
+  // Horizon, ticket 4ea811d6 (2026-10-07): "Teacher feedback lands in chat or
+  // the inbox with a small badge, and students miss it. A banner or pop-up
+  // attached to the quest itself would make sure they see it."
+  describe('teacher feedback banner', () => {
+    const enrolledQuest = (overrides = {}) => ({
+      id: 'quest-123',
+      title: 'Volcanoes',
+      user_enrollment: { id: 'uq-1', is_active: true },
+      quest_tasks: [
+        { id: 't1', title: 'Sketch the cone', xp_value: 25, is_completed: true },
+        { id: 't2', title: 'Build it', xp_value: 25, is_completed: true },
+      ],
+      allow_custom_tasks: true,
+      template_tasks: [],
+      ...overrides,
+    })
+    const latest = {
+      task_id: 't2', task_title: 'Build it', completion_id: 'comp-2',
+      author_name: 'Dallin Bird', preview: 'Label the vent and resubmit.',
+    }
+
+    it('shows the banner when there is unread feedback', () => {
+      questDetailData.quest = enrolledQuest({ unread_feedback_count: 1, latest_feedback: latest })
+      renderQuestDetail()
+      expect(screen.getByText('Your teacher left feedback on Build it')).toBeInTheDocument()
+      expect(screen.getByText('Label the vent and resubmit.')).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Read feedback' })).toBeInTheDocument()
+    })
+
+    it('shows no banner when the count is 0', () => {
+      questDetailData.quest = enrolledQuest({ unread_feedback_count: 0, latest_feedback: null })
+      renderQuestDetail()
+      expect(screen.queryByTestId('teacher-feedback-banner')).not.toBeInTheDocument()
+      expect(screen.queryByText(/left feedback on/)).not.toBeInTheDocument()
+    })
+
+    it('Read feedback opens the task the note is on', () => {
+      questDetailData.quest = enrolledQuest({ unread_feedback_count: 1, latest_feedback: latest })
+      renderQuestDetail()
+      fireEvent.click(screen.getByRole('button', { name: 'Read feedback' }))
+      expect(questDetailData.setSelectedTask).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 't2', title: 'Build it' }),
+      )
+    })
+  })
+
 })

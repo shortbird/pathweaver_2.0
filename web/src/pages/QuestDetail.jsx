@@ -10,6 +10,8 @@ import QuestDetailHeader from '../components/quest/QuestDetailHeader';
 import QuestEnrollment from '../components/quest/QuestEnrollment';
 import QuestMetadataCard from '../components/quest/QuestMetadataCard';
 import QuestFriendsCard from '../components/quest/QuestFriendsCard';
+import TeacherFeedbackBanner from '../components/quest/TeacherFeedbackBanner';
+import useTeacherFeedbackActions from '../components/quest/useTeacherFeedbackActions';
 import PrintTaskListButton from '../components/quest/PrintTaskListButton'
 import GiveStudentsMyTasksCard from '../components/quest/GiveStudentsMyTasksCard'
 import QuestResourceList from '../components/quest/QuestResourceList';
@@ -586,6 +588,7 @@ const QuestDetail = () => {
     }
   };
 
+  const { bannerProps, feedbackRead } = useTeacherFeedbackActions({ questId: id, quest, onSelectTask: handleTaskSelect });
   // Handle error display
   if (error) {
     const errorMsg = error.response?.status === 404
@@ -665,6 +668,8 @@ const QuestDetail = () => {
 
       {/* Main Content */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-2 sm:py-4">
+        <TeacherFeedbackBanner {...bannerProps} />{/* ticket 4ea811d6 */}
+
         {/* Quest Metadata Card - Deliverables and details */}
         <QuestMetadataCard
           quest={quest}
@@ -735,7 +740,7 @@ const QuestDetail = () => {
           /* A program may supply a custom task view (e.g. Treehouse's simplified
              big-button view for young learners); otherwise the core workspace. */
           programQuest.simpleTasksView || (
-            <div className="bg-white rounded-xl shadow-md overflow-hidden h-[calc(100vh-180px)] min-h-[500px]">
+            <div id="quest-task-workspace" className="bg-white rounded-xl shadow-md overflow-hidden h-[calc(100vh-180px)] min-h-[500px]">
               <Suspense fallback={<LoadingFallback />}>
                 <TaskWorkspace
                   task={selectedTask}
@@ -752,6 +757,7 @@ const QuestDetail = () => {
                     ? undefined
                     : () => setShowPersonalizationWizard(true)}
                   onRemoveTask={handleDropTask}
+                  onFeedbackRead={feedbackRead}
                   onClose={() => setSelectedTask(null)}
                 />
               </Suspense>

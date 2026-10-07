@@ -51,6 +51,9 @@ const TaskWorkspace = ({
   onTaskUpdate,
   onAddTask,
   onRemoveTask,
+  // Called once a task's unread teacher feedback is marked read, so the
+  // quest page can drop its banner (ticket 4ea811d6).
+  onFeedbackRead,
   onClose
 }) => {
   const { canUseTaskGeneration, hasAccess: viewerHasAi } = useAIAccess();
@@ -808,6 +811,7 @@ const TaskWorkspace = ({
                 // A parent sees the child's moment but does not edit it here,
                 // as on mobile.
                 onEditMoment={isDelegated ? undefined : handleEditMoment}
+                onFeedbackRead={onFeedbackRead}
               />
             </div>
           ) : (

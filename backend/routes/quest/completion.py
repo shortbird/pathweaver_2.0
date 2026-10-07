@@ -89,6 +89,11 @@ def get_user_active_quests(user_id: str):
                     all_completions[q_id] = set()
                 all_completions[q_id].add(tc['task_id'])
 
+        # Batch query 3: unread teacher feedback per quest, for the "New
+        # feedback" card marker (Horizon, ticket 4ea811d6). Two reads total.
+        from services.task_feedback_service import unread_counts_by_quest
+        unread_feedback = unread_counts_by_quest(supabase, user_id)
+
         # Process each quest using pre-fetched data
         active_quests = []
         for uq in user_quests.data:
@@ -120,6 +125,7 @@ def get_user_active_quests(user_id: str):
                 if task['id'] in completed_task_ids
             )
             quest['xp_earned'] = xp_earned
+            quest['unread_feedback_count'] = unread_feedback.get(quest_id, 0)
 
             active_quests.append(quest)
 

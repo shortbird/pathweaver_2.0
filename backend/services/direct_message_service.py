@@ -148,8 +148,14 @@ class DirectMessageService(BaseService):
             # flipping it off, a block, or the friendship ending closes the
             # thread at once. (The March 2026 pruning removed the old
             # friendship rule; this is its policy-gated replacement.)
+            # A school can turn its students' chat off (ticket 81cc92e6), and
+            # then no friend thread opens for a student of that school, from
+            # either side.
             if sender_effective_role == 'student' and target_effective_role == 'student':
-                from services import peer_connection_service
+                from services import peer_connection_service, student_chat_service
+                if student_chat_service.friend_rows_closed(sender.data, target.data):
+                    logger.debug("[can_message_user] DENIED: Student chat is off at the school")
+                    return False
                 if peer_connection_service.friends_can_message(user_id, target_id):
                     logger.debug("[can_message_user] ALLOWED: Friends, both families allow chat")
                     return True
@@ -519,6 +525,12 @@ class DirectMessageService(BaseService):
         if sent_from is None:
             sent_from = request_client_platform()
         try:
+            # A school that turned Student Chat off closes friend threads
+            # (ticket 81cc92e6); say so plainly rather than "no permission".
+            from services import student_chat_service
+            if student_chat_service.friend_thread_closed(sender_id, recipient_id):
+                raise ValueError(student_chat_service.CLOSED_MESSAGE)
+
             # Verify permission
             if not self.can_message_user(sender_id, recipient_id):
                 raise ValueError("You don't have permission to message this user")
@@ -715,6 +727,15 @@ class DirectMessageService(BaseService):
             if conversation is None:
                 return []
             actual_conversation_id = conversation['id']
+
+            # A friend thread at a school that turned Student Chat off is
+            # closed for reading too (ticket 81cc92e6). Nothing is deleted.
+            other_id = (conversation['participant_2_id']
+                        if conversation['participant_1_id'] == user_id
+                        else conversation['participant_1_id'])
+            from services import student_chat_service
+            if student_chat_service.friend_thread_closed(user_id, other_id):
+                raise ValueError(student_chat_service.CLOSED_MESSAGE)
 
             # Newest page first, flipped back to chronological for the client.
             # Ordering ascending and taking range(0, 49) returned the OLDEST 50,
@@ -932,6 +953,16 @@ class DirectMessageService(BaseService):
         if own_office:
             conversations = [c for c in conversations
                              if (c.get('other_user') or {}).get('id') != own_office]
+        # Ticket 81cc92e6 (Horizon: chat "can pull students away from their
+        # work and bury teacher feedback"): a student at a school with Student
+        # Chat off does not see friend threads -- threads with another student.
+        # Teacher, office, parent and school-inbox threads all stay.
+        from services import student_chat_service
+        if conversations and student_chat_service.closed_for(user_id):
+            other_ids = [(c.get('other_user') or {}).get('id') for c in conversations]
+            students = student_chat_service.student_ids([o for o in other_ids if o])
+            conversations = [c for c in conversations
+                             if (c.get('other_user') or {}).get('id') not in students]
         return conversations
 
     def count_threads_with_unread(self, user_id: str) -> int:
@@ -987,6 +1018,14 @@ class DirectMessageService(BaseService):
             Total unread count
         """
         try:
+            # A student whose school turned Student Chat off has friend
+            # threads the list hides (ticket 81cc92e6); count what the list
+            # shows, or the badge points at messages they cannot open.
+            from services import student_chat_service
+            if student_chat_service.closed_for(user_id):
+                return sum(c.get('unread_count') or 0
+                           for c in self.get_listed_conversations(user_id))
+
             supabase = self._get_client()
             resp = supabase.table('direct_messages').select(
                 'id', count='exact'

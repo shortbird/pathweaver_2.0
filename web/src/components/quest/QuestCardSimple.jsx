@@ -121,6 +121,10 @@ const QuestCardSimple = ({ quest, ownOnly = false }) => {
   // to see it was to open the class.
   const assignment = quest.class_assignment || {};
   const due = dueStatus(assignment.due_date);
+  // Unread teacher feedback on this quest (Horizon, ticket 4ea811d6:
+  // "students miss it"). From the dashboard's active_quests; 0 for a parent
+  // in family scope.
+  const hasNewFeedback = (quest.unread_feedback_count || 0) > 0;
 
   return (
     <div
@@ -206,8 +210,17 @@ const QuestCardSimple = ({ quest, ownOnly = false }) => {
               {/* The class is named whenever the quest is schoolwork, due date
                   or not -- a class quest with no deadline still belongs to
                   Language Studio B, and that name is how a parent finds it. */}
-              {(due || assignment.class_name) && (
+              {(due || assignment.class_name || hasNewFeedback) && (
                 <div className="flex items-center gap-1.5 mb-1.5">
+                  {hasNewFeedback && (
+                    <span
+                      data-testid="quest-card-new-feedback"
+                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-white text-optio-purple text-[11px] font-semibold whitespace-nowrap"
+                    >
+                      <span className="w-1.5 h-1.5 rounded-full bg-optio-pink" aria-hidden="true" />
+                      New feedback
+                    </span>
+                  )}
                   {due && (
                     <span
                       className={`px-2 py-0.5 rounded text-[11px] font-semibold whitespace-nowrap ${dueChipOverlayClasses(due)}`}

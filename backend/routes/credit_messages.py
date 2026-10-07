@@ -32,24 +32,9 @@ REVIEWER_ROLES = {'advisor', 'org_admin', 'campus_coordinator', 'superadmin'}
 ORG_WIDE_REVIEWER_ROLES = {'org_admin', 'campus_coordinator'}
 
 
-def _author_name(user):
-    return (user.get('display_name')
-            or ' '.join(filter(None, [user.get('first_name'), user.get('last_name')])).strip()
-            or 'User')
-
-
-def _is_optio_voice(author_role):
-    """Whether a reviewer speaks as "Optio" rather than as themselves.
-
-    Only Optio's own review (superadmin; 'reviewer' is the legacy row value)
-    is branded. A school's teacher shows their real name -- the student knows
-    them, and "Optio replied to your work" gave them no reason to connect the
-    feedback to the person who wrote it (Gryffin, 2026-08-31).
-
-    The thread display and the notification MUST agree, so both call this.
-    """
-    return author_role in ('superadmin', 'reviewer')
-
+# The thread display, the notification and the quest banner (ticket 4ea811d6)
+# must name the author the same way, so the rule lives in one place.
+from utils.feedback_voice import _author_name, _is_optio_voice  # noqa: E402,F401
 
 def _load_context(user_id, completion_id, admin):
     comp = admin.table('quest_task_completions')\
@@ -351,3 +336,38 @@ def post_credit_message(user_id, completion_id):
     except Exception as e:
         logger.error(f"Error posting credit message: {e}")
         return jsonify({'success': False, 'error': 'Failed to post message'}), 500
+
+
+@bp.route('/api/credit/<completion_id>/messages/read', methods=['POST'])
+@require_auth
+def mark_credit_messages_read(user_id, completion_id):
+    """Mark the student's unread feedback on this completion read.
+
+    Horizon, ticket 4ea811d6 (2026-10-07): "Teacher feedback lands in chat or
+    the inbox with a small badge, and students miss it. A banner or pop-up
+    attached to the quest itself would make sure they see it." The quest page
+    now shows a banner while a teacher's note is unread; opening the thread
+    calls this, and the banner and the bell clear together, because the
+    notification row's is_read is the one read state.
+
+    Only the student who owns the work: the rows are their bell. Anyone else
+    -- a parent, a teacher -- is refused rather than silently marking nothing,
+    so a client that calls this for the wrong person finds out.
+    """
+    try:
+        # admin client justified: the owner check below is the gate, and the
+        # update is filtered to the caller's own notification rows.
+        admin = get_supabase_admin_client()
+        from repositories.task_feedback_repository import TaskFeedbackRepository
+        repo = TaskFeedbackRepository(admin)
+        owner = repo.completion_owner(completion_id)
+        if not owner:
+            return jsonify({'success': False, 'error': 'Not found'}), 404
+        if owner != user_id:
+            return jsonify({'success': False, 'error': 'Access denied'}), 403
+
+        marked = repo.mark_read(user_id, completion_id)
+        return jsonify({'success': True, 'marked': marked})
+    except Exception as e:
+        logger.error(f"Error marking credit messages read: {e}")
+        return jsonify({'success': False, 'error': 'Failed to mark feedback read'}), 500

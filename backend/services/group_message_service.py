@@ -492,6 +492,7 @@ class GroupMessageService(BaseService):
 
             if not group.data:
                 raise ValueError("Group not found")
+            self.refuse_closed_student_chat(user_id, group_id, group.data)
 
             # Get members with user info
             # last_read_at is the group's read receipt: "Seen by 3" on a
@@ -677,6 +678,28 @@ class GroupMessageService(BaseService):
             user_id, group_id, bool(muted))
         return bool(muted)
 
+    def refuse_closed_student_chat(self, user_id: str, group_id: str,
+                                   group: Optional[Dict[str, Any]] = None) -> None:
+        """Raise ValueError (the routes' 403) when `user_id` is a student whose
+        school turned Student Chat off and this group is a class Student Chat.
+
+        Ticket 81cc92e6, Horizon: "An option to turn off in-app chat would
+        help, because it can pull students away from their work and bury
+        teacher feedback." The list hides the group (get_user_groups); this
+        closes the door for a stale tab, a push notification tapped later, or
+        a client that cached the id. Staff never qualify, so a teacher keeps
+        reading the class's student chat history.
+        """
+        from services import student_chat_service
+        if not student_chat_service.closed_for(user_id):
+            return
+        if group is None:
+            from repositories.group_repository import GroupRepository
+            rows = GroupRepository(client=self._get_client()).active_groups([group_id])
+            group = rows[0] if rows else None
+        if student_chat_service.is_class_student_chat(group):
+            raise ValueError(student_chat_service.CLOSED_MESSAGE)
+
     def get_unread_total(self, user_id: str) -> int:
         """Unread GROUP messages across every group this user belongs to.
 
@@ -709,8 +732,15 @@ class GroupMessageService(BaseService):
                 m['group_id']: m.get('last_read_at') for m in memberships
             }
 
+            # A class Student Chat the school turned off is not on this
+            # student's list, so it is not in the badge either (81cc92e6).
+            from services import student_chat_service
+            chat_closed = student_chat_service.closed_for(user_id)
+
             total = 0
             for group in repo.active_groups(list(last_read_by_group)):
+                if chat_closed and student_chat_service.is_class_student_chat(group):
+                    continue
                 last_read_at = last_read_by_group.get(group['id'])
                 last_message_at = group.get('last_message_at')
                 if last_read_at and (not last_message_at or last_message_at <= last_read_at):
@@ -747,9 +777,13 @@ class GroupMessageService(BaseService):
             if not memberships:
                 return 0
             last_read_by_group = {m['group_id']: m.get('last_read_at') for m in memberships}
+            from services import student_chat_service
+            chat_closed = student_chat_service.closed_for(user_id)
             count = 0
             for group in repo.active_groups(list(last_read_by_group)):
                 if owned_by and group.get('created_by') != owned_by:
+                    continue
+                if chat_closed and student_chat_service.is_class_student_chat(group):
                     continue
                 last_read_at = last_read_by_group.get(group['id'])
                 last_message_at = group.get('last_message_at')
@@ -795,6 +829,14 @@ class GroupMessageService(BaseService):
             ).eq('is_active', True).order('last_message_at', desc=True).execute()
 
             rows = groups.data or []
+            # Ticket 81cc92e6 (Horizon: "it can pull students away from their
+            # work and bury teacher feedback"): a school that turned Student
+            # Chat off hides its class Student Chats from its students. The
+            # group and its history stay; staff still see it.
+            from services import student_chat_service
+            if rows and student_chat_service.closed_for(user_id):
+                rows = [g for g in rows
+                        if not student_chat_service.is_class_student_chat(g)]
             if not rows:
                 return []
 
@@ -1070,6 +1112,7 @@ class GroupMessageService(BaseService):
             member_id = on_behalf_of or user_id
             if not self.is_group_member(member_id, group_id):
                 raise ValueError("You are not a member of this group")
+            self.refuse_closed_student_chat(user_id, group_id)
 
             supabase = self._get_client()
 
@@ -1210,6 +1253,7 @@ class GroupMessageService(BaseService):
         try:
             if not self.is_group_member(user_id, group_id):
                 raise ValueError("You are not a member of this group")
+            self.refuse_closed_student_chat(user_id, group_id)
 
             supabase = self._get_client()
 

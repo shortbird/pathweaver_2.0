@@ -28,6 +28,7 @@ from typing import Any, Dict, Optional, Tuple
 
 from repositories import organization_repository
 from utils.org_finance_flags import guard_org_flags_write
+from utils.org_task_xp import SETTING_KEY as MIN_TASK_XP_KEY, invalid_min_task_xp
 from utils.org_secrets import (
     STRIPE_SECRET_KEY,
     secret_shaped_keys,
@@ -102,6 +103,16 @@ def clean_feature_flags(
                 'error': 'Who can open the school inbox is set by an organization admin.',
                 'fields': ['sis_settings.school_inbox_member_ids']})
 
+    # The org's task XP floor (ticket a6f7b429): a whole number 1..25, or
+    # absent for Optio's 25. Checked on both doors, and only when it changes,
+    # so a row stored before this check cannot block an unrelated save.
+    floor = _min_task_xp(flags)
+    if floor != _min_task_xp(stored):
+        error = invalid_min_task_xp(floor)
+        if error:
+            raise FlagsRejected(400, {'error': error,
+                                      'fields': ['sis_settings.' + MIN_TASK_XP_KEY]})
+
     # The Stripe secret key is submitted through the same feature_flags blob
     # the settings UI round-trips, but it must never be STORED there:
     # organizations.feature_flags is anon-readable by row policy (RLS filters
@@ -159,6 +170,11 @@ def clean_feature_flags(
 def _inbox_members(flags: Optional[Dict[str, Any]]):
     sis = (flags or {}).get('sis_settings') if isinstance(flags, dict) else None
     return (sis or {}).get('school_inbox_member_ids') if isinstance(sis, dict) else None
+
+
+def _min_task_xp(flags: Optional[Dict[str, Any]]):
+    sis = (flags or {}).get('sis_settings') if isinstance(flags, dict) else None
+    return (sis or {}).get(MIN_TASK_XP_KEY) if isinstance(sis, dict) else None
 
 
 def merge_patch(stored: Dict[str, Any], patch: Dict[str, Any]) -> Dict[str, Any]:

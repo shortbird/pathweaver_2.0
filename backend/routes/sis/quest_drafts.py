@@ -101,10 +101,22 @@ def generate(user_id):
 
     from services.quest_ai_service import QuestAIService
     from services.base_ai_service import AIServiceOverloadedError, AIServiceError
+    from services import sis_service
+    from utils.org_task_xp import org_min_task_xp
+    # The caller's org floor (ticket a6f7b429): a school that lowered it gets
+    # drafted tasks it can keep at, say, 10 XP instead of rounded up to 25.
+    # A failed lookup drafts at the default rather than refusing: the form and
+    # the save still apply the real floor, so this only shapes the suggestion.
+    try:
+        min_task_xp = org_min_task_xp(
+            sis_service.resolve_org_id(user_id, sis_service.requested_org_id()))
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f'Quest draft: could not read the org XP floor: {e}')
+        min_task_xp = 25
     try:
         result = QuestAIService().draft_quest_from_context(
             context[:_MAX_CONTEXT_CHARS], notes=notes[:1000], target_task_count=task_count,
-            keep_wording=keep_wording)
+            keep_wording=keep_wording, min_task_xp=min_task_xp)
     except AIServiceOverloadedError:
         return jsonify({'success': False,
                         'error': 'The AI is busy right now — try again in a moment.'}), 503

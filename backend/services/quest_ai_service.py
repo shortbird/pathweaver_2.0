@@ -377,7 +377,8 @@ Return ONLY valid JSON (no markdown code blocks):
 
     def draft_quest_from_context(self, context: str, notes: str = "",
                                  target_task_count: int = 4,
-                                 keep_wording: bool = False) -> Dict[str, Any]:
+                                 keep_wording: bool = False,
+                                 min_task_xp: int = 25) -> Dict[str, Any]:
         """Turn whatever material a school already has into a quest draft.
 
         Built for the SIS (2026-08-12): staff paste a syllabus, a unit outline or
@@ -429,6 +430,18 @@ instruction about one task to every task.
 {notes.strip()}
 \"\"\"
 """ if (notes or '').strip() else "")
+
+        if min_task_xp >= 25:
+            xp_rule = """    - xp_value: one of 25, 50, 75, 100, 150, sized on the XP scale below to the
+      work the task asks for. 25 is a hard floor — a smaller number is not
+      storable, so use 25 when asked for less."""
+        else:
+            # The school lowered its floor (ticket a6f7b429). Saying "25 is a
+            # hard floor" here would make the model round a teacher's 10 up.
+            xp_rule = f"""    - xp_value: sized on the XP scale below to the work the task asks for,
+      normally one of 25, 50, 75, 100, 150. This school allows tasks as small
+      as {min_task_xp} XP, so when the teacher asks for a smaller number, use it
+      (never below {min_task_xp})."""
 
         if keep_wording:
             task_rules = f"""- tasks: ONE task per activity, step or assignment the source lists,
@@ -488,9 +501,7 @@ Produce ONE quest:
       not the unit: a unit can be history while the essay task inside it is
       history AND language arts. Name a second or third subject only when the
       task genuinely does that work too.
-    - xp_value: one of 25, 50, 75, 100, 150, sized on the XP scale below to the
-      work the task asks for. 25 is a hard floor — a smaller number is not
-      storable, so use 25 when asked for less.
+{xp_rule}
     - is_required: true for the core of the unit, false for extensions. Set it
       on EVERY task. If the teacher's instructions name which tasks are
       required, every task they did not name is false — "make the first task
@@ -552,7 +563,7 @@ Return a single JSON object: {{"title": str, "description": str, "tasks": [...]}
                     'error': 'The AI could not find enough to build a quest from that.',
                     'quest': None}
 
-        quest = self._normalize_quest_draft(data, target_task_count)
+        quest = self._normalize_quest_draft(data, target_task_count, min_task_xp)
         result = {'success': True, 'quest': quest,
                   'tasks_truncated': False, 'source_task_count': None}
         if keep_wording:
@@ -591,7 +602,8 @@ Return a single JSON object: {{"title": str, "description": str, "tasks": [...]}
         return {'tasks_truncated': source_count > kept,
                 'source_task_count': source_count or None}
 
-    def _normalize_quest_draft(self, data: Dict[str, Any], target_task_count: int) -> Dict[str, Any]:
+    def _normalize_quest_draft(self, data: Dict[str, Any], target_task_count: int,
+                               min_task_xp: int = 25) -> Dict[str, Any]:
         """Coerce a model draft into exactly the shape the SIS quest form holds.
 
         The form is the contract: anything missing or out of range is corrected
@@ -612,10 +624,18 @@ Return a single JSON object: {{"title": str, "description": str, "tasks": [...]}
                 xp = int(raw.get('xp_value') or 100)
             except (TypeError, ValueError):
                 xp = 100
-            # 25 is the XP floor and the step the form's picker uses; rounding
-            # here keeps a generated value from being one the teacher cannot
-            # reproduce by hand.
-            xp = max(25, min(150, round(xp / 25) * 25))
+            if min_task_xp >= 25:
+                # 25 is Optio's default floor and the step the form's picker
+                # uses; rounding here keeps a generated value from being one
+                # the teacher cannot reproduce by hand.
+                xp = max(25, min(150, round(xp / 25) * 25))
+            else:
+                # The org lowered its floor (utils.org_task_xp, ticket
+                # a6f7b429). The form then steps by 1, so any whole number is
+                # reproducible by hand, and rounding to 25 would turn the
+                # model's 10 back into the 25 the school opted out of. Clamp
+                # only: the org's floor below, the same 150 ceiling above.
+                xp = max(min_task_xp, min(150, xp))
             tasks.append({
                 'title': title[:300],
                 'description': str(raw.get('description') or '').strip()[:1000],

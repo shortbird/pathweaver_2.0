@@ -309,4 +309,30 @@ describe('DashboardScreen', () => {
       expect(r.queryByTestId('welcome-greeting')).toBeNull();
     });
   });
+
+  // Horizon, ticket 4ea811d6 (2026-10-07): "Teacher feedback lands in chat or
+  // the inbox with a small badge, and students miss it." The card says so.
+  describe('new feedback marker', () => {
+    it('marks the quest card that has unread teacher feedback, and only that one', () => {
+      (useDashboard as jest.Mock).mockReturnValue({
+        data: {
+          ...mockDashboardData,
+          active_quests: [
+            { ...mockDashboardData.active_quests[0], unread_feedback_count: 2 },
+            { ...mockDashboardData.active_quests[1], unread_feedback_count: 0 },
+          ],
+        },
+        loading: false, error: null, refetch: jest.fn(),
+      });
+      const r = tryRender(<DashboardScreen />);
+      expect(r.getAllByTestId('quest-card-new-feedback')).toHaveLength(1);
+      expect(r.getByText('New feedback')).toBeTruthy();
+    });
+
+    it('shows no marker when the payload has no count', () => {
+      const r = tryRender(<DashboardScreen />);
+      expect(r.queryByTestId('quest-card-new-feedback')).toBeNull();
+    });
+  });
+
 });

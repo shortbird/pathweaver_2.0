@@ -43,6 +43,9 @@ const toCardQuest = (q) => ({
     percentage: Math.round(q.progress?.percentage || 0),
   },
   quest_tasks: q.quest_tasks || [],
+  // Unread teacher feedback, for the card's "New feedback" marker
+  // (ticket 4ea811d6).
+  unread_feedback_count: q.unread_feedback_count || 0,
 })
 
 export default function MyEnrolledQuests({ className = '' }) {

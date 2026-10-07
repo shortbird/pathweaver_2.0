@@ -35,6 +35,8 @@ PILLAR_ALIASES = {
 }
 DEFAULT_PILLAR = 'art'
 DEFAULT_XP = 100
+# Optio's default floor. An org may lower it for its own tasks (ticket
+# a6f7b429); clean_task takes the org's floor from utils.org_task_xp.
 MIN_XP = 25
 
 # Matches validate_school_subjects in utils/school_subjects.
@@ -172,11 +174,17 @@ def subject_updates(current, data, updates):
     return {'diploma_subjects': subjects, 'subject_xp_distribution': distribution}
 
 
-def clean_task(raw, order_index):
+def clean_task(raw, order_index, min_xp=MIN_XP):
     """One submitted task row -> an insertable quest_template_tasks row.
 
     Returns None for a task with no title: the form ships with blank rows, and
     silently dropping the untouched ones is kinder than refusing the save.
+
+    min_xp is the org's floor (utils.org_task_xp.org_min_task_xp). It defaults
+    to 25 only for callers with no org; every SIS path passes the org's own,
+    because a fixed 25 here is what reset Horizon's 10 XP tasks on every save
+    while the single-task edit kept them (ticket a6f7b429, Jon England:
+    "Students are now seeing odd totals like 100/65").
     """
     title = (raw.get('title') or '').strip()
     if not title:
@@ -185,7 +193,7 @@ def clean_task(raw, order_index):
         xp = int(raw.get('xp_value') or DEFAULT_XP)
     except (TypeError, ValueError):
         xp = DEFAULT_XP
-    xp = max(MIN_XP, xp)
+    xp = max(min_xp, xp)
     pillar = norm_pillar(raw.get('pillar'))
     # Accepts school_subjects too: that is the name the AI drafter's task shape
     # uses, and a draft goes straight into this form.
@@ -344,7 +352,9 @@ def create_org_quest(admin, *, org_id, user_id, title, description, raw_tasks=No
         raise QuestAuthoringError('Could not create the quest.', 500)
     quest_id = quest_row[0]['id']
 
-    cleaned = [t for t in (clean_task(r, i) for i, r in enumerate(raw_tasks)) if t]
+    from utils.org_task_xp import org_min_task_xp
+    floor = org_min_task_xp(org_id) if raw_tasks else MIN_XP
+    cleaned = [t for t in (clean_task(r, i, floor) for i, r in enumerate(raw_tasks)) if t]
     task_rows = []
     if cleaned:
         for t in cleaned:

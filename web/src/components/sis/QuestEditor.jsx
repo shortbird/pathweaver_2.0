@@ -495,6 +495,7 @@ export default function QuestEditor({
             showSubjects={context !== 'training'}
             onSaveForAttachments={saveForAttachments}
             taskDue={taskDue}
+            minTaskXp={quest?.min_task_xp}
             titlePlaceholder={context !== 'training' ? 'Quest title (e.g. Watercolor Basics)'
               : audience === 'family' ? 'Quest title (e.g. Back to school night)'
                 : audience === 'student' ? 'Quest title (e.g. Welcome to iCreate)'

@@ -61,7 +61,7 @@ export const MomentEvidence = ({ evidenceBlocks, onEditMoment }) => (
   </>
 );
 
-const TaskEvidenceSection = ({ canRequestCredit, creditStatus, error, evidenceBlocks, handleDeleteEvidence, handleDeleteItem, handleEditEvidence, handleMarkComplete, handleReorder, handleRequestCredit, handleTogglePortfolio, isClassQuest, isCompleting, isLoading, isRequestingCredit, isSaving, isTaskCompleted, isTogglingPortfolio, onEditMoment, portfolioPick, setIsModalOpen, task }) => (
+const TaskEvidenceSection = ({ canRequestCredit, creditStatus, error, evidenceBlocks, handleDeleteEvidence, handleDeleteItem, handleEditEvidence, handleMarkComplete, handleReorder, handleRequestCredit, handleTogglePortfolio, isClassQuest, isCompleting, isLoading, isRequestingCredit, isSaving, isTaskCompleted, isTogglingPortfolio, onEditMoment, onFeedbackRead, portfolioPick, setIsModalOpen, task }) => (
   task.is_moment ? (
     <MomentEvidence evidenceBlocks={evidenceBlocks} onEditMoment={onEditMoment} />
   ) : (
@@ -230,9 +230,17 @@ const TaskEvidenceSection = ({ canRequestCredit, creditStatus, error, evidenceBl
           (Gryffin, 2026-08-31: "I submitted feedback on one of the
           submissions, and the student doesn't see it anywhere").
           completionId comes from loadPortfolioPick, already fetched
-          for every completed task. */}
-      {task.is_completed && portfolioPick?.completionId && (
-        <CreditFeedbackThread completionId={portfolioPick.completionId} />
+          for every completed task.
+          Horizon, ticket 4ea811d6 (2026-10-07): it also shows on any task a
+          teacher has written on (`feedback_count` from GET /api/quests/<id>),
+          and `unread_feedback` brings it into view and marks it read. */}
+      {(task.completion_id || portfolioPick?.completionId)
+        && (task.is_completed || task.feedback_count > 0) && (
+        <CreditFeedbackThread
+          completionId={task.completion_id || portfolioPick.completionId}
+          markRead={task.unread_feedback > 0}
+          onRead={onFeedbackRead}
+        />
       )}
     </div>
   </>

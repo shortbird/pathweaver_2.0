@@ -53,6 +53,9 @@ import { EditMomentModal } from '@/src/components/journal/EditMomentModal';
 import { TaskEditModal } from '@/src/components/tasks/TaskEditModal';
 import { EditEvidenceTextSheet, replaceBlockText } from '@/src/components/quests/EditEvidenceTextSheet';
 import { TaskReviewChip } from '@/src/components/quests/TaskReviewChip';
+import { TaskFeedbackThread } from '@/src/components/quests/TaskFeedbackThread';
+import { TeacherFeedbackBanner } from '@/src/components/quests/TeacherFeedbackBanner';
+import type { LatestFeedback } from '@/src/hooks/useQuestDetail';
 import { TaskCreditControl } from '@/src/components/quests/TaskCreditControl';
 import { offersTaskCredit } from '@/src/hooks/useTaskCredit';
 import { TaskDueChip } from '@/src/components/quests/TaskDueChip';
@@ -63,7 +66,7 @@ import { askSaveForLater, archiveBody, markDoneRule, type SaveForLaterAnswer } f
 import { useIsParent } from '@/src/hooks/useStartSomething';
 import {
   VStack, HStack, Heading, UIText, Card, Button, ButtonText,
-  Badge, BadgeText, Divider, Skeleton,
+  Badge, BadgeText, Divider, Skeleton, BottomSheet,
 } from '@/src/components/ui';
 
 const pillarColors: Record<string, { bg: string; text: string; bar: string }> = {
@@ -257,6 +260,7 @@ function TaskItem({
   canComplete = true,
   canRemove = true,
   offersCredit = false,
+  onFeedbackRead,
 }: {
   task: any;
   onComplete: (taskId: string) => void;  // just update local state, no API call
@@ -280,6 +284,8 @@ function TaskItem({
   canRemove?: boolean;
   /** Offer per-task diploma credit once the task is complete (offersTaskCredit). */
   offersCredit?: boolean;
+  /** The thread marked this task's unread feedback read (ticket 4ea811d6). */
+  onFeedbackRead?: () => void;
 }) {
   const [expanded, setExpanded] = useState(false);
   const [completing, setCompleting] = useState(false);
@@ -716,6 +722,17 @@ function TaskItem({
                   accepted it, for the parents to see?"). */}
               {task.is_completed && <TaskReviewChip review={task.review} />}
 
+              {/* The teacher's notes and the student's replies (Horizon,
+                  ticket 4ea811d6). On any task a teacher wrote on, finished
+                  or not; opening it marks unread notes read. */}
+              {task.completion_id && (task.is_completed || (task.feedback_count || 0) > 0) && (
+                <TaskFeedbackThread
+                  completionId={task.completion_id}
+                  markRead={(task.unread_feedback || 0) > 0}
+                  onRead={() => onFeedbackRead?.()}
+                />
+              )}
+
               {/* Diploma credit: Request Credit, or where the request stands. */}
               {task.is_completed && offersCredit && (
                 <TaskCreditControl taskId={task.id} studentId={studentId} />
@@ -888,6 +905,8 @@ export function QuestDetailView({ questId: id, studentId = null, autoOpenTaskWiz
   // "Edit pillar & subjects" button.
   const [editTask, setEditTask] = useState<any | null>(null);
   const scrollRef = React.useRef<ScrollView>(null);
+  // The note the banner's "Read feedback" opened (ticket 4ea811d6).
+  const [openFeedback, setOpenFeedback] = useState<LatestFeedback | null>(null);
 
   const handleEditMoment = async (task: any) => {
     const eventId = String(task.id || '').replace(/^moment-/, '');
@@ -1173,6 +1192,14 @@ export function QuestDetailView({ questId: id, studentId = null, autoOpenTaskWiz
               )}
             </VStack>
 
+            {/* Unread teacher feedback (Horizon, ticket 4ea811d6: "students
+                miss it"). Set only for the student on their own quest. */}
+            <TeacherFeedbackBanner
+              count={quest.unread_feedback_count}
+              feedback={quest.latest_feedback}
+              onRead={setOpenFeedback}
+            />
+
             {/* Class header (only for class-type quests) */}
             {quest.quest_type === 'class' && isEnrolled && (
               <ClassDetailHeader
@@ -1293,6 +1320,7 @@ export function QuestDetailView({ questId: id, studentId = null, autoOpenTaskWiz
                         // gets neither control rather than one that 403s.
                         onEditMoment={studentId ? undefined : handleEditMoment}
                         onEditTask={studentId ? undefined : setEditTask}
+                        onFeedbackRead={refetch}
                       />
                     ))}
                   </VStack>
@@ -1422,6 +1450,21 @@ export function QuestDetailView({ questId: id, studentId = null, autoOpenTaskWiz
           </VStack>
         </VStack>
       </ScrollView>
+
+      {/* The banner's note, opened in place: the thread loads, marks itself
+          read, and the refetch drops the banner. */}
+      <BottomSheet visible={!!openFeedback} onClose={() => setOpenFeedback(null)}>
+        {openFeedback ? (
+          <VStack space="md" className="p-5">
+            <Heading size="md">{openFeedback.task_title || 'Feedback'}</Heading>
+            <TaskFeedbackThread
+              completionId={openFeedback.completion_id}
+              markRead
+              onRead={() => refetch()}
+            />
+          </VStack>
+        ) : null}
+      </BottomSheet>
 
       {/* No quest-scoped FAB here — the global center Capture button reads
           captureContextStore.quest while this screen is focused, so it

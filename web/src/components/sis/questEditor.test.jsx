@@ -106,11 +106,14 @@ describe('the task list, saved whole and by id', () => {
     await open()
     fireEvent.click(await screen.findByRole('button', { name: /Add a preset task/ }))
     fireEvent.change(screen.getByPlaceholderText(/Task 4 /), { target: { value: 'Hang it' } })
-    fireEvent.click(screen.getByRole('button', { name: /Save to add files and links to this task/ }))
+    // Ticket 19646f5f: a labelled button, not a small text link, and it
+    // opens that task's add form once the save gives the task an id.
+    fireEvent.click(screen.getByRole('button', { name: /Links and files for this task/ }))
     await waitFor(() => expect(api.put).toHaveBeenCalled())
     // The saved task comes back with an id, so its attachments open.
     await waitFor(() => expect(api.get).toHaveBeenCalledWith('/api/sis/quests/q1/resources'))
-    expect(screen.queryByRole('button', { name: /Save to add files and links to this task/ })).toBeNull()
+    expect(screen.queryByRole('button', { name: /Links and files for this task/ })).toBeNull()
+    expect(await screen.findByLabelText('Resource URL')).toBeInTheDocument()
   })
 })
 

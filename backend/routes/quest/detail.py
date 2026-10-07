@@ -301,8 +301,18 @@ def get_quest_detail(user_id: str, quest_id: str):
                         pillar_key = 'art'  # Default fallback
                     task['pillar'] = pillar_key  # Send key, not display name
 
-            _attach_reviews(supabase, quest_tasks, {
-                task_id: c.get('id') for task_id, c in completion_data_map.items() if c.get('id')})
+            completion_id_by_task = {
+                task_id: c.get('id') for task_id, c in completion_data_map.items() if c.get('id')}
+            _attach_reviews(supabase, quest_tasks, completion_id_by_task)
+
+            # Unread teacher feedback, for the quest-page banner (Horizon,
+            # ticket 4ea811d6: "students miss it"). Only the student's own
+            # visit is told what is new -- the unread rows are their bell.
+            from services.task_feedback_service import attach_to_quest_detail
+            attach_to_quest_detail(supabase, student_id=user_id,
+                                   viewer_is_student=caller_id == user_id,
+                                   quest_data=quest_data, tasks=quest_tasks,
+                                   completion_id_by_task=completion_id_by_task)
 
             # Opened, for the teacher's Student Progress tab (ticket 7cf5d330).
             _record_opened(supabase, caller_id, user_id, enrollment_to_use)
@@ -354,6 +364,8 @@ def get_quest_detail(user_id: str, quest_id: str):
             quest_data['user_enrollment'] = None
             quest_data['completed_enrollment'] = None
             quest_data['progress'] = None
+            quest_data['unread_feedback_count'] = 0
+            quest_data['latest_feedback'] = None
 
         # Resources attached to the quest and to its individual tasks. Before
         # this, a quest had one `material_link` and a task had nothing, so a

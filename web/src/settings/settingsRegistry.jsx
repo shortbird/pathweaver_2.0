@@ -11,6 +11,8 @@ import PillarsCard from './cards/PillarsCard'
 import StepPrintingCard from './cards/StepPrintingCard'
 import IncidentReportsCard from './cards/IncidentReportsCard'
 import FriendsCard from './cards/FriendsCard'
+import StudentChatCard from './cards/StudentChatCard'
+import TaskXpFloorCard from './cards/TaskXpFloorCard'
 import { moduleEnabled } from '../modules/moduleEnabled'
 
 /**
@@ -60,6 +62,13 @@ export const SETTINGS_CARDS = [
   // surfaces: an LMS-only school (Apogee Odessa) needs it as much as a
   // console school does, and until 2026-09-30 neither had a screen for it.
   { key: 'friends', module: 'friends', surfaces: ['console', 'learning'], Component: FriendsCard },
+  // The school's Student Chat switch (ticket 81cc92e6, Horizon). No `module`
+  // gate on purpose: the card is how a school turns the module back on. Org
+  // admins only; the card renders nothing for anyone the API refuses.
+  { key: 'student-chat', surfaces: ['console', 'learning'], Component: StudentChatCard },
+  // The smallest XP one of the school's own tasks may be worth (ticket
+  // a6f7b429). Both surfaces: every school authors quests, console or not.
+  { key: 'task-xp-floor', surfaces: ['console', 'learning'], Component: TaskXpFloorCard },
 ]
 
 export function settingsCardsFor({ surface, org, seesFinance }) {

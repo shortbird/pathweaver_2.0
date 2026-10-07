@@ -45,6 +45,7 @@ from middleware.rate_limiter import rate_limit
 from app_config import Config
 from utils.auth.decorators import require_role
 from utils.logger import get_logger
+from utils.org_task_xp import org_min_task_xp
 from utils.validation import validate_uuid
 from services import sis_service
 from services import sis_age
@@ -85,8 +86,7 @@ _PILLAR_ALIASES = {
 }
 _DEFAULT_PILLAR = 'art'
 _DEFAULT_XP = 100
-# The XP floor since the scale was halved (2026-06-15).
-_MIN_XP = sis_training_service.MIN_XP
+_MIN_XP = sis_training_service.MIN_XP  # Optio's default; an org may lower it (utils.org_task_xp)
 
 
 # What our own upload endpoint returns. The image URL arrives from the client,
@@ -142,7 +142,7 @@ _roles_of = sis_training_service.roles_of
 _item_applies_to = sis_training_service.item_applies_to
 
 
-def _clean_task(raw, order_index, keep_id=False):
+def _clean_task(raw, order_index, keep_id=False, min_xp=_MIN_XP):
     """One preset task, or None when it has no title (an untouched blank row).
 
     The shared authoring rule since P6 (2026-09-23). This screen used to keep
@@ -157,7 +157,7 @@ def _clean_task(raw, order_index, keep_id=False):
     """
     if not isinstance(raw, dict):
         return None
-    row = authoring.clean_task(raw, order_index)
+    row = authoring.clean_task(raw, order_index, min_xp)
     if row is None:
         return None
     task_id = (raw.get('id') or '').strip() if keep_id and isinstance(raw.get('id'), str) else None
@@ -1128,7 +1128,8 @@ def update_training_quest(user_id, training_id):
     # source_template_task_id and would now also cascade away any resources
     # attached to those tasks -- so saving a typo in the description could
     # silently delete the handouts. See sis_quest_authoring.replace_template_tasks.
-    cleaned = [t for t in (_clean_task(r, i, keep_id=True) for i, r in enumerate(raw_tasks)) if t]
+    floor = org_min_task_xp(org_id)  # the org's own task XP floor (ticket a6f7b429)
+    cleaned = [t for t in (_clean_task(r, i, True, floor) for i, r in enumerate(raw_tasks)) if t]
     authoring.replace_template_tasks(admin, item['quest_id'], cleaned)
 
     # Best-effort: the edit is saved either way. An admin told the save failed

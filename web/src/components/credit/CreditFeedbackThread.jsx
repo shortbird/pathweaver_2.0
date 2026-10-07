@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { toast } from 'react-hot-toast'
 import api from '../../services/api'
 
@@ -7,15 +7,28 @@ import api from '../../services/api'
  * the student's view of their work and the reviewer's Credit Review dashboard.
  * Reviewer messages are shown to students as coming from "Optio".
  */
-export default function CreditFeedbackThread({ completionId }) {
+export default function CreditFeedbackThread({ completionId, markRead = false, onRead }) {
   const [messages, setMessages] = useState([])
   const [loading, setLoading] = useState(true)
   const [body, setBody] = useState('')
   const [sending, setSending] = useState(false)
+  const rootRef = useRef(null)
 
   useEffect(() => {
     if (completionId) load()
   }, [completionId])
+
+  // Unread teacher feedback (Horizon, ticket 4ea811d6: "students miss it").
+  // `markRead` is set only for the student who owns the work while a note is
+  // unread. Once the thread has loaded, bring it into view and clear the
+  // unread state, which also clears the quest banner and the bell.
+  useEffect(() => {
+    if (!markRead || loading || !completionId) return
+    rootRef.current?.scrollIntoView?.({ behavior: 'smooth', block: 'center' })
+    api.post(`/api/credit/${completionId}/messages/read`, {}, { expect403: true })
+      .then(() => onRead?.(completionId))
+      .catch(() => {})
+  }, [markRead, loading, completionId])
 
   const load = async () => {
     try {
@@ -52,7 +65,7 @@ export default function CreditFeedbackThread({ completionId }) {
   if (!completionId) return null
 
   return (
-    <div className="mt-4 border-t border-gray-200 pt-4">
+    <div ref={rootRef} id={`feedback-thread-${completionId}`} className="mt-4 border-t border-gray-200 pt-4">
       <h4 className="text-sm font-semibold text-gray-700 mb-2">Feedback conversation</h4>
       {loading ? (
         <p className="text-sm text-gray-400">Loading…</p>

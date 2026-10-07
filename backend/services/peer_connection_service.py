@@ -944,6 +944,10 @@ def list_connections(user_id: str) -> Dict[str, Any]:
 
     active, incoming, outgoing, awaiting = [], [], [], []
     my_policy = policy_svc.effective_policy(user_id)
+    # A school that turned Student Chat off (ticket 81cc92e6) closes friend
+    # DMs, so no Message button either; the friendships themselves stay.
+    from services import student_chat_service
+    chat_closed = student_chat_service.closed_for(user_id)
     for conn in rows:
         other_id = (conn['addressee_id'] if conn['requester_id'] == user_id
                     else conn['requester_id'])
@@ -959,7 +963,8 @@ def list_connections(user_id: str) -> Dict[str, Any]:
             # Both families must allow chat; the client shows a Message
             # button only when this is true, and the send path re-checks.
             item['can_message'] = (
-                'message' in my_policy.friends_can
+                not chat_closed
+                and 'message' in my_policy.friends_can
                 and 'message' in policy_svc.effective_policy(other_id).friends_can
                 and not pa.is_blocked_between(user_id, other_id))
             active.append(item)
@@ -988,6 +993,16 @@ def friends_can_message(a_id: str, b_id: str) -> bool:
         return False
     return all('message' in policy_svc.effective_policy(uid).friends_can
                for uid in (a_id, b_id))
+
+
+def _message_button(user_id: str, peer_id: str) -> bool:
+    """Whether a friend surface shows a Message button: the friends rule, and
+    the school has not turned Student Chat off for either side (ticket
+    81cc92e6). The send path re-checks both."""
+    if not friends_can_message(user_id, peer_id):
+        return False
+    from services import student_chat_service
+    return not student_chat_service.friend_thread_closed(user_id, peer_id)
 
 
 def friend_page(user_id: str, peer_id: str) -> Dict[str, Any]:
@@ -1028,7 +1043,7 @@ def friend_page(user_id: str, peer_id: str) -> Dict[str, Any]:
         'peer': _peer_profile(peer_id),
         'connection_id': conn.get('id'),
         'friends_since': conn.get('activated_at') or conn.get('created_at'),
-        'can_message': friends_can_message(user_id, peer_id),
+        'can_message': _message_button(user_id, peer_id),
         'shared_classes': sorted(class_names.values()),
         'quests': quests,
         # The viewer's own quests in progress: what Collaborate can invite
@@ -1049,7 +1064,7 @@ def friends_on_quest(user_id: str, quest_id: str) -> List[Dict[str, Any]]:
     out = []
     for pid in peers:
         if any(q['id'] == quest_id for q in by_user.get(pid, [])):
-            out.append({**_peer_profile(pid), 'can_message': friends_can_message(user_id, pid)})
+            out.append({**_peer_profile(pid), 'can_message': _message_button(user_id, pid)})
     return out
 
 

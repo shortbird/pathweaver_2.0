@@ -71,6 +71,23 @@ export interface QuestTask {
   due_date?: string | null;
   /** What the teacher attached to THIS task — the worksheet for step 3. */
   resources?: QuestResource[];
+  /** The completion this task's feedback thread hangs on; null before the
+   *  task is done (ticket 4ea811d6). */
+  completion_id?: string | null;
+  /** Teacher-written messages on the thread. The thread shows when > 0. */
+  feedback_count?: number;
+  /** Unread teacher notes, for the student on their own quest only. */
+  unread_feedback?: number;
+}
+
+/** The newest unread teacher note on a quest, for the banner (ticket 4ea811d6). */
+export interface LatestFeedback {
+  task_id: string | null;
+  task_title: string | null;
+  completion_id: string;
+  author_name: string;
+  preview: string;
+  created_at?: string | null;
 }
 
 /** What a parent may DO on a delegated quest view, per the backend's own write
@@ -114,6 +131,9 @@ export interface QuestDetail {
   progress: { completed_tasks: number; total_tasks: number; percentage: number } | null;
   /** Set only on a parent's delegated read of a child's quest. */
   viewer_context?: QuestViewerContext;
+  /** Unread teacher feedback on this quest; 0 in family scope (ticket 4ea811d6). */
+  unread_feedback_count?: number;
+  latest_feedback?: LatestFeedback | null;
 }
 
 /** A hand-written task, as POST /api/quests/<id>/add-manual-tasks takes it. */

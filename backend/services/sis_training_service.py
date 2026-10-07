@@ -437,7 +437,8 @@ def link_acks_by_user(link_ids):
 # Who a catalog row can be set for. Listed in the order a row's PRIMARY group is
 # picked when it targets several -- see primary_audience.
 AUDIENCES = ('staff', 'family', 'student')
-# The XP floor since the scale was halved (2026-06-15).
+# Optio's default task XP floor since the scale was halved (2026-06-15). An
+# org may lower it for its own tasks: utils.org_task_xp (ticket a6f7b429).
 MIN_XP = 25
 
 

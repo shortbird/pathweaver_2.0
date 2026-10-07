@@ -41,18 +41,20 @@ class GroupRepository(BaseRepository):
         ))
 
     def active_groups(self, group_ids: List[str]) -> List[Dict[str, Any]]:
-        """id + last_message_at + created_by for the still-active groups among
-        `group_ids`.
+        """id + last_message_at + created_by + audience + source_class_id for
+        the still-active groups among `group_ids`.
 
         last_message_at is what lets a caller skip the per-group count query
         for a group with nothing newer than the reader's last_read_at;
-        created_by is what tells a school-owned group (get_school_groups).
+        created_by is what tells a school-owned group (get_school_groups);
+        audience + source_class_id tell a class Student Chat, which a school
+        can turn off for its students (student_chat_service, ticket 81cc92e6).
         """
         if not group_ids:
             return []
         return fetch_all_rows(lambda: (
             self.client.table('group_conversations')
-            .select('id, last_message_at, created_by')
+            .select('id, last_message_at, created_by, audience, source_class_id')
             .in_('id', list(group_ids))
             .eq('is_active', True)
         ))

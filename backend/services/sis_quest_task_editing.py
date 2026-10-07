@@ -31,6 +31,7 @@ from services.sis_quest_authoring import (
     subject_updates,
 )
 from utils.logger import get_logger
+from utils.org_task_xp import org_min_task_xp
 from utils.validation import validate_uuid
 
 logger = get_logger(__name__)
@@ -47,6 +48,15 @@ class QuestTaskEditError(Exception):
         super().__init__(message)
         self.message = message
         self.status = status
+
+
+
+def quest_min_task_xp(admin, quest_id: str) -> int:
+    """The floor for the tasks of one quest: its org's, or 25 for a quest with
+    no org (the Optio library)."""
+    from repositories.quest_editor_repository import QuestEditorRepository
+    quest = QuestEditorRepository(client=admin).get_quest(quest_id) or {}
+    return org_min_task_xp(quest.get('organization_id'))
 
 
 def _bad_uuid(*values) -> bool:
@@ -168,7 +178,7 @@ def add_task(admin, quest_id: str, data: Dict[str, Any]) -> Dict[str, Any]:
             .eq('quest_id', quest_id).order('order_index', desc=True)
             .limit(1).execute()).data
     next_order = ((last[0]['order_index'] or 0) + 1) if last else 0
-    task = clean_task(data, next_order)
+    task = clean_task(data, next_order, quest_min_task_xp(admin, quest_id))
     if not task:
         raise QuestTaskEditError('A task title is required.')
     task['quest_id'] = quest_id
@@ -197,11 +207,13 @@ def update_task(admin, quest_id: str, task_id: str,
                 data: Dict[str, Any]) -> Dict[str, Any]:
     """Patch one field or several on one task.
 
-    Note the XP rule here is max(0, xp), not the max(25, xp) floor that
-    clean_task applies on create. That difference predates this module and is
-    preserved rather than quietly changed, because it is a platform-wide
-    economy decision rather than a detail of this screen. It now has one home
-    instead of two, so changing it is a one-line change when somebody decides.
+    XP is floored at the quest's org floor (utils.org_task_xp), the same
+    floor the full form save applies through clean_task. This used to be
+    max(0, xp) while the save used max(25, xp), so a 10 XP task survived a
+    single edit and was reset to 25 by the next full save -- ticket a6f7b429,
+    Jon England (Horizon): "When we save a task, the XP minimum goes back to
+    25 and overrides the custom XP we set for that task." The owner's answer
+    was a per-org floor (default 25), and both paths now read it.
     """
     if _bad_uuid(task_id):
         raise QuestTaskEditError('Invalid task id')
@@ -224,7 +236,7 @@ def update_task(admin, quest_id: str, task_id: str,
             xp = int(data['xp_value'])
         except (TypeError, ValueError):
             raise QuestTaskEditError('XP must be a number.') from None
-        updates['xp_value'] = max(0, xp)
+        updates['xp_value'] = max(quest_min_task_xp(admin, quest_id), xp)
     if 'is_required' in data:
         updates['is_required'] = bool(data.get('is_required'))
     if not updates and 'diploma_subjects' not in data \

@@ -21,10 +21,17 @@ import api from '../../services/api'
 
 const KIND_ICON = { file: DocumentTextIcon, video: PlayCircleIcon, link: LinkIcon }
 
-const QuestResourcesPanel = ({ questId, taskId = null, compact = false }) => {
+// label: the heading (non-compact only). A task's panel says whose links these
+// are, "Links and files for this task" -- ticket 19646f5f: with no heading,
+// staff took per-task links for a quest-only feature.
+// startAdding: open with the add form showing, for the task whose "Links and
+// files" button saved the quest a moment ago.
+const QuestResourcesPanel = ({ questId, taskId = null, compact = false, label = 'Resources',
+  addLabel = '+ Add a resource', startAdding = false }) => {
   const [resources, setResources] = useState([])
   const [loading, setLoading] = useState(true)
-  const [adding, setAdding] = useState(false)
+  const [adding, setAdding] = useState(startAdding)
+  useEffect(() => { if (startAdding) setAdding(true) }, [startAdding])
   const [url, setUrl] = useState('')
   const [title, setTitle] = useState('')
   const [busy, setBusy] = useState(false)
@@ -122,7 +129,7 @@ const QuestResourcesPanel = ({ questId, taskId = null, compact = false }) => {
     <div className={compact ? 'mt-2' : 'mt-4'}>
       {!compact && (
         <p className="text-xs font-semibold uppercase tracking-wide text-neutral-500 mb-2">
-          Resources
+          {label}
         </p>
       )}
 
@@ -215,7 +222,7 @@ const QuestResourcesPanel = ({ questId, taskId = null, compact = false }) => {
       ) : (
         <button type="button" onClick={() => setAdding(true)}
           className="mt-2 text-sm font-medium text-optio-purple hover:underline">
-          + Add a resource
+          {addLabel}
         </button>
       )}
     </div>

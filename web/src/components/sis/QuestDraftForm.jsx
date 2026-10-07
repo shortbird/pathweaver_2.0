@@ -35,9 +35,27 @@ const PILLAR_ORDER = ['art', 'stem', 'communication', 'wellness', 'civics']
 export const PILLARS = PILLAR_ORDER.map((key) => [key, PILLAR_CONFIG[key].display_name])
 export const PILLAR_LABEL = Object.fromEntries(PILLARS)
 
-// 25 is the XP floor since the scale was halved (2026-06-15), and the step
-// matches it so the picker can't produce a value the backend will round.
+// Optio's default task XP floor since the scale was halved (2026-06-15). An
+// org may lower it for its own tasks (SIS Settings, "Smallest XP for a task";
+// ticket a6f7b429), and the quest editor passes the org's floor in as
+// minTaskXp. At 25 the step matches it so the picker can't produce a value the
+// backend will round; below 25 the step is 1, because a school that chose 10
+// wants 10, not 25.
 export const MIN_TASK_XP = 25
+
+/** The floor to use: a whole number 1..25, else Optio's 25. */
+export function taskXpFloor(minTaskXp) {
+  const n = Number(minTaskXp)
+  return Number.isInteger(n) && n >= 1 && n <= MIN_TASK_XP ? n : MIN_TASK_XP
+}
+
+// The heading on each task's attachments panel and the button on a task that
+// has not been saved yet. One label for both, so staff learn one name for it
+// (ticket 19646f5f, Jon England, Horizon: "Right now we can only add links at
+// the quest level... Being able to add a link inside each task would help a
+// lot." Per-task links already existed, behind an unlabeled "+ Add a resource"
+// on saved tasks and a small text link on unsaved ones.)
+export const TASK_LINKS_LABEL = 'Links and files for this task'
 
 // description is the instructional text under the task title — what the learner
 // reads when they open it. It was always stored and always shown (the preview
@@ -132,7 +150,18 @@ export function TaskDueInput({ task, index, taskDue }) {
   )
 }
 
-export function TaskRows({ tasks, setTasks, addLabel = 'Add a preset task', showPillars = true, showSubjects = true, questId = null, onSaveForAttachments = null, taskDue = null }) {
+export function TaskRows({ tasks, setTasks, addLabel = 'Add a preset task', showPillars = true, showSubjects = true, questId = null, onSaveForAttachments = null, taskDue = null, minTaskXp = MIN_TASK_XP }) {
+  const floor = taskXpFloor(minTaskXp)
+  // The unsaved task whose "Links and files" button was pressed: after the
+  // save gives it an id, its panel opens with the add form ready. Matched on
+  // the title, not the index, because the save drops blank rows above it.
+  const [linksWanted, setLinksWanted] = useState(null)
+  const openLinksAfterSave = async (title) => {
+    setLinksWanted(title)
+    await onSaveForAttachments()
+  }
+  const linksTarget = linksWanted == null ? -1
+    : tasks.findIndex((t) => t.id && (t.title || '').trim() === linksWanted)
   const update = (i, patch) => setTasks((prev) => prev.map((t, idx) => (idx === i ? { ...t, ...patch } : t)))
   const remove = (i) => setTasks((prev) => prev.filter((_, idx) => idx !== i))
   // iCreate, 2026-09-07 (4da3680d): "I'd also like to be able to duplicate
@@ -189,10 +218,10 @@ export function TaskRows({ tasks, setTasks, addLabel = 'Add a preset task', show
             )}
             <label className="flex items-center gap-1 text-sm text-neutral-600">
               XP
-              <input type="number" min={MIN_TASK_XP} step={MIN_TASK_XP} value={t.xp_value}
+              <input type="number" min={floor} step={floor >= MIN_TASK_XP ? MIN_TASK_XP : 1} value={t.xp_value}
                 onChange={(e) => update(i, { xp_value: e.target.value })}
                 aria-label={`Task ${i + 1} XP`}
-                title={`${MIN_TASK_XP} is the smallest a task can be worth`}
+                title={`${floor} is the smallest a task can be worth`}
                 className="w-20 rounded-lg border border-gray-300 px-2 py-1.5 text-sm" />
             </label>
             <label className="flex items-center gap-1.5 text-sm text-neutral-600">
@@ -218,18 +247,23 @@ export function TaskRows({ tasks, setTasks, addLabel = 'Add a preset task', show
               xpValue={t.xp_value} pillar={t.pillar} idPrefix={`draft-task-${i}`}
               onChange={(patch) => update(i, patch)} />
           )}
-          {/* A saved task can carry its own video, link or file. A task typed
-              into the form and not saved yet has no id to attach to, so it
-              waits for the save. */}
+          {/* A saved task can carry its own video, link or file. Labelled and
+              full size, like the quest-level block above, because the compact
+              unlabeled version read as if links only worked on the quest
+              (ticket 19646f5f). A task typed into the form and not saved yet
+              has no id to attach to, so it waits for the save. */}
           {questId && t.id && (
-            <QuestResourcesPanel questId={questId} taskId={t.id} compact />
+            <QuestResourcesPanel questId={questId} taskId={t.id}
+              label={TASK_LINKS_LABEL} addLabel="+ Add a link or file"
+              startAdding={i === linksTarget} />
           )}
           {/* The quest editor (P6) saves the whole draft on this click, which
-              gives the new task its id, so its files can go on straight away. */}
+              gives the new task its id; then this task's panel opens with the
+              add form ready. Every task right after an AI draft is here. */}
           {questId && !t.id && onSaveForAttachments && t.title.trim() && (
-            <button type="button" onClick={onSaveForAttachments}
-              className="text-xs text-optio-purple hover:underline">
-              Save to add files and links to this task
+            <button type="button" onClick={() => openLinksAfterSave(t.title.trim())}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-optio-purple/40 bg-optio-purple/5 text-sm font-medium text-optio-purple hover:bg-optio-purple/10">
+              <PlusIcon className="w-4 h-4" /> {TASK_LINKS_LABEL}
             </button>
           )}
         </div>
@@ -243,7 +277,7 @@ export function TaskRows({ tasks, setTasks, addLabel = 'Add a preset task', show
         <PlusIcon className="w-4 h-4" /> {addLabel}
       </button>
       <p className="text-[11px] text-neutral-400">
-        A task is worth at least {MIN_TASK_XP} XP — that is the platform floor, so a smaller
+        A task is worth at least {floor} XP{floor >= MIN_TASK_XP ? ' — Optio’s default floor' : ' — your school’s floor'}, so a smaller
         number is raised to it when you save.
       </p>
     </div>
@@ -320,6 +354,9 @@ export default function QuestDraftForm({
   // Opened for a class: each saved task's due date on that class (see
   // TaskDueInput). Null everywhere else.
   taskDue = null,
+  // The org's task XP floor, from the quest editor's payload (min_task_xp).
+  // 25 unless the school lowered it in SIS Settings (ticket a6f7b429).
+  minTaskXp = MIN_TASK_XP,
 }) {
   // Decided once, on open: a picker that appeared or vanished mid-edit would
   // be stranger than one that stays put.
@@ -345,7 +382,7 @@ export default function QuestDraftForm({
       {questId && (
         <div>
           <p className="text-xs text-neutral-400 mb-1">
-            Videos, links and files for the whole quest. Anything that belongs to one step goes on that task below.
+            Videos, links and files for the whole quest. A link for one task goes on that task below, under “{TASK_LINKS_LABEL}”.
           </p>
           <QuestResourcesPanel questId={questId} />
         </div>
@@ -354,7 +391,7 @@ export default function QuestDraftForm({
         <p className="text-xs text-neutral-400 mb-2">{taskHint}</p>
         <TaskRows tasks={tasks} setTasks={setTasks} addLabel={addLabel} showPillars={showPillars}
           showSubjects={subjectsShown} questId={questId}
-          onSaveForAttachments={onSaveForAttachments} taskDue={taskDue} />
+          onSaveForAttachments={onSaveForAttachments} taskDue={taskDue} minTaskXp={minTaskXp} />
       </div>
     </div>
   )
