@@ -89,12 +89,12 @@ class TestAskingForLess:
             [Exception('400 Invalid JSON payload: unknown name "response_schema"'),
              _response('{"ok": true}')],
             response_schema=SCHEMA,
-            generation_config={'temperature': 0.2})
+            generation_config={'max_output_tokens': 8192})
         assert result.data == {'ok': True}
         assert result.schema_used is False
         retried = gen.call_args.kwargs['generation_config']
         assert 'response_schema' not in retried
-        assert retried['temperature'] == 0.2
+        assert retried['max_output_tokens'] == 8192
 
     def test_dropping_the_schema_is_surfaced_not_swallowed(self):
         result, _ = _call(

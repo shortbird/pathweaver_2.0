@@ -88,13 +88,10 @@ SOCIAL_HOSTS = frozenset({
 })
 
 IMAGE_GENERATION_CONFIG = {
-    'temperature': 0.0,
-    'top_p': 0.8,
     'max_output_tokens': 4096,
 }
 
 TEXT_GENERATION_CONFIG: Dict[str, Any] = {
-    'temperature': 0.0,
     'max_output_tokens': 2048,
 }
 
@@ -210,7 +207,6 @@ class SafetyChecker(BaseAIService):
         allowances = ''.join(TEXT_ALLOWED_LINE.format(name=n) + '\n' for n in allowed if n)
         answer = self.generate_json(
             TEXT_PROMPT + allowances + TEXT_PROMPT_TAIL + text,
-            temperature=TEXT_GENERATION_CONFIG['temperature'],
             max_output_tokens=TEXT_GENERATION_CONFIG['max_output_tokens'],
         )
         phrases = answer.get('phrases') if isinstance(answer, dict) else None

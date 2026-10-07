@@ -21,7 +21,7 @@ Features:
     - Robust JSON extraction from AI responses
     - Optional safety filtering for generated content
     - Performance logging and metrics
-    - Generation config for temperature/sampling control
+    - Generation config presets (output length)
     - Token usage tracking for cost monitoring
     - Optional response caching
 """
@@ -46,31 +46,35 @@ logger = get_logger(__name__)
 # Standardized Generation Configs
 # =============================================================================
 
+# Gemini ignores custom sampling values since 3.6 Flash, and the upcoming
+# models reject them (and thinking_budget) with 400 INVALID_ARGUMENT (Google AI
+# Studio notice, 2026-10-06). Use thinking_level if a call ever needs one.
+# strip_deprecated_generation_keys() drops them at the API boundary so a stray
+# config cannot break every AI feature on the next model bump.
+DEPRECATED_GENERATION_KEYS = frozenset({'temperature', 'top_p', 'top_k', 'thinking_budget'})
+
+
+def strip_deprecated_generation_keys(config: Any) -> Any:
+    """Return a dict generation config without the keys Gemini now rejects."""
+    if isinstance(config, dict):
+        return {k: v for k, v in config.items() if k not in DEPRECATED_GENERATION_KEYS}
+    return config
+
+
 GENERATION_CONFIGS = {
     'default': {
-        'temperature': 0.7,
-        'top_p': 0.9,
         'max_output_tokens': 2048,
     },
     'quality_scoring': {
-        'temperature': 0.3,
-        'top_p': 0.8,
-        'top_k': 40,
         'max_output_tokens': 1500,
     },
     'creative_generation': {
-        'temperature': 0.8,
-        'top_p': 0.95,
         'max_output_tokens': 4096,
     },
     'structured_output': {
-        'temperature': 0.5,
-        'top_p': 0.85,
         'max_output_tokens': 2048,
     },
     'deterministic': {
-        'temperature': 0.1,
-        'top_p': 0.7,
         'max_output_tokens': 1024,
     },
 }
@@ -406,7 +410,7 @@ class BaseAIService(BaseService):
                 # backoff stays under the gunicorn worker timeout.
                 response = model.generate_content(
                     prompt,
-                    generation_config=gen_config if gen_config else None,
+                    generation_config=strip_deprecated_generation_keys(gen_config) or None,
                     request_options=RequestOptions(timeout=self.AI_REQUEST_TIMEOUT),
                 )
                 if idx > 0:
@@ -701,10 +705,7 @@ class BaseAIService(BaseService):
         max_retries: int = None,
         retry_delay: float = None,
         log_tokens: bool = True,
-        temperature: float = None,
         max_output_tokens: int = None,
-        top_p: float = None,
-        top_k: int = None,
         generation_config_preset: str = None,
         cache_ttl: int = None
     ) -> str:
@@ -716,10 +717,7 @@ class BaseAIService(BaseService):
             max_retries: Number of retry attempts (default: 3)
             retry_delay: Initial delay between retries in seconds (default: 1.0)
             log_tokens: Whether to log token usage (default: True)
-            temperature: Sampling temperature (0.0-1.0). Lower = more deterministic.
             max_output_tokens: Maximum tokens in response.
-            top_p: Nucleus sampling parameter (0.0-1.0).
-            top_k: Top-k sampling parameter.
             generation_config_preset: Use a preset config ('quality_scoring',
                 'creative_generation', 'structured_output', 'deterministic').
             cache_ttl: Cache response for this many seconds (None = no caching).
@@ -738,10 +736,7 @@ class BaseAIService(BaseService):
 
         # Build generation config
         gen_config = self._build_generation_config(
-            temperature=temperature,
             max_output_tokens=max_output_tokens,
-            top_p=top_p,
-            top_k=top_k,
             preset=generation_config_preset
         )
 
@@ -882,20 +877,14 @@ class BaseAIService(BaseService):
 
     def _build_generation_config(
         self,
-        temperature: float = None,
         max_output_tokens: int = None,
-        top_p: float = None,
-        top_k: int = None,
         preset: str = None
     ) -> Optional[Dict[str, Any]]:
         """
         Build generation config from parameters or preset.
 
         Args:
-            temperature: Sampling temperature
             max_output_tokens: Max output tokens
-            top_p: Nucleus sampling parameter
-            top_k: Top-k sampling parameter
             preset: Name of preset config to use
 
         Returns:
@@ -910,14 +899,8 @@ class BaseAIService(BaseService):
             logger.warning(f"Unknown generation config preset: {preset}")
 
         # Override with explicit parameters
-        if temperature is not None:
-            config['temperature'] = max(0.0, min(1.0, temperature))
         if max_output_tokens is not None:
             config['max_output_tokens'] = max_output_tokens
-        if top_p is not None:
-            config['top_p'] = max(0.0, min(1.0, top_p))
-        if top_k is not None:
-            config['top_k'] = top_k
 
         return config if config else None
 
@@ -948,10 +931,7 @@ class BaseAIService(BaseService):
         prompt: str,
         max_retries: int = None,
         strict: bool = False,
-        temperature: float = None,
         max_output_tokens: int = None,
-        top_p: float = None,
-        top_k: int = None,
         generation_config_preset: str = None,
         cache_ttl: int = None
     ) -> Union[Dict, List]:
@@ -962,10 +942,7 @@ class BaseAIService(BaseService):
             prompt: The prompt to send to Gemini
             max_retries: Number of retry attempts
             strict: If True, raise on parse failure; if False, return empty dict
-            temperature: Sampling temperature (0.0-1.0). Lower = more deterministic.
             max_output_tokens: Maximum tokens in response.
-            top_p: Nucleus sampling parameter (0.0-1.0).
-            top_k: Top-k sampling parameter.
             generation_config_preset: Use a preset config ('quality_scoring',
                 'creative_generation', 'structured_output', 'deterministic').
             cache_ttl: Cache response for this many seconds (None = no caching).
@@ -981,10 +958,7 @@ class BaseAIService(BaseService):
         text = self.generate(
             prompt,
             max_retries=max_retries,
-            temperature=temperature,
             max_output_tokens=max_output_tokens,
-            top_p=top_p,
-            top_k=top_k,
             generation_config_preset=generation_config_preset,
             cache_ttl=cache_ttl
         )
@@ -1101,7 +1075,7 @@ class BaseAIService(BaseService):
                 ``{'mime_type': str, 'data': bytes}`` dicts, ``genai`` File
                 handles, or ``protos.Part`` values. Passed through to the SDK
                 untouched.
-            generation_config: temperature / max_output_tokens / etc. Note that
+            generation_config: max_output_tokens / etc. Note that
                 the stock ``deterministic`` preset caps output at 1024 tokens,
                 which truncates a real structured answer mid-JSON.
             response_schema: An SDK-dialect schema. When given, the call also
@@ -1955,10 +1929,6 @@ class BaseAIService(BaseService):
         # Add model info
         if model_name:
             log_parts.append(f"model={model_name}")
-
-        # Add config info if custom
-        if gen_config and 'temperature' in gen_config:
-            log_parts.append(f"temp={gen_config['temperature']}")
 
         logger.info(" ".join(log_parts))
 

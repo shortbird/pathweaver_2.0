@@ -331,7 +331,7 @@ class PeerTextScreenService(BaseAIService):
     # the three texts the model had to think about ("i'm 11, how old are
     # you") came back as the single word "Here" with finish_reason
     # MAX_TOKENS, and posted as pending.
-    GENERATION_CONFIG = {'temperature': 0.1, 'top_p': 0.7, 'max_output_tokens': 4096}
+    GENERATION_CONFIG = {'max_output_tokens': 4096}
 
     def generate_with_fallback(self, prompt: Any, *, fallback_models: Optional[List[str]] = None,
                                **kwargs: Any) -> Any:

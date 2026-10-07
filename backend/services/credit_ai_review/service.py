@@ -35,14 +35,11 @@ from services.credit_ai_review.schema import RESPONSE_SCHEMA
 
 logger = get_logger(__name__)
 
-# Near-deterministic: this reads evidence against a checklist rather than writing
-# prose, and two reviewers running it on the same submission should not get two
-# different verdicts. The output ceiling is generous because the stock presets
+# Sampling is the model default (Gemini rejects custom temperature/top_p; see
+# base_ai_service.DEPRECATED_GENERATION_KEYS). The output ceiling is generous because the stock presets
 # cap at 1024 tokens, which truncates a five-criterion answer mid-JSON and throws
 # the whole (expensive, multimodal) call away as unparseable.
 GENERATION_CONFIG = {
-    'temperature': 0.2,
-    'top_p': 0.8,
     'max_output_tokens': 8192,
 }
 

@@ -55,14 +55,12 @@ MAX_ATTACHMENTS = 8
 MAX_ATTACHMENT_BYTES = 12 * 1024 * 1024
 
 
-# Near-deterministic, because this reads numbers off a document rather than
-# writing prose — but with room to answer. The stock 'deterministic' preset caps
+# Room to answer. Sampling is the model default (Gemini rejects custom
+# temperature/top_p; see base_ai_service.DEPRECATED_GENERATION_KEYS). The stock 'deterministic' preset caps
 # output at 1024 tokens, which truncates a real transcript mid-JSON (several
 # subjects, each with course line items and a rationale) and the whole call is
 # then thrown away as unparseable.
 ANALYSIS_CONFIG = {
-    'temperature': 0.1,
-    'top_p': 0.7,
     'max_output_tokens': 8192,
 }
 
@@ -189,8 +187,6 @@ class PriorLearningAnalyzer(BaseAIService):
         if not attachments:
             return self.generate_json(
                 prompt,
-                temperature=ANALYSIS_CONFIG['temperature'],
-                top_p=ANALYSIS_CONFIG['top_p'],
                 max_output_tokens=ANALYSIS_CONFIG['max_output_tokens'],
             )
 

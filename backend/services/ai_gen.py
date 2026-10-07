@@ -29,4 +29,7 @@ def generate_with_timeout(model: Any, prompt: Any, **kwargs: Any) -> Any:
     from google.generativeai.types import RequestOptions
 
     request_options = kwargs.pop("request_options", None) or RequestOptions(timeout=timeout)
+    if "generation_config" in kwargs:
+        from services.base_ai_service import strip_deprecated_generation_keys
+        kwargs["generation_config"] = strip_deprecated_generation_keys(kwargs["generation_config"])
     return model.generate_content(prompt, request_options=request_options, **kwargs)

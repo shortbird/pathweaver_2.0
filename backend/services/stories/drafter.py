@@ -56,8 +56,6 @@ ITEM_REASONS = {
 logger = get_logger(__name__)
 
 GENERATION_CONFIG = {
-    'temperature': 0.7,
-    'top_p': 0.9,
     'max_output_tokens': 8192,
 }
 
