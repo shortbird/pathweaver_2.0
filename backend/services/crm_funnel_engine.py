@@ -42,6 +42,18 @@ from utils.logger import get_logger
 logger = get_logger(__name__)
 
 STALE_CLAIM_HOURS = 1
+
+# Onboarding sequences written for the person doing the work ("start a
+# class, finish a task today"). Entry checks the role at signup, but every
+# account starts as a student and a school's admins and advisors get their
+# org role afterwards (setup link, invite), so eight staff got the student
+# welcome before 2026-10-07. The role is checked again before each send.
+LEARNER_ONBOARDING = ('new_account_welcome', 'course_student_onboarding')
+LEARNER_ROLES = ('student', 'parent')
+# A parent of one of these orgs gets that org's own welcome when the
+# registration completes (crm_registration_recovery.WELCOME_FUNNEL_ORGS),
+# so the generic one stops.
+OWN_WELCOME_ORGS = ('optio-academy',)
 PER_LEAD_THROTTLE_HOURS = 20
 DEFAULT_BATCH_CAP = 50
 
@@ -160,11 +172,16 @@ def run_sweep(now: Optional[datetime] = None) -> Dict[str, Any]:
 
     # Recovery funnels have no form feeding them; their entry is a stalled
     # registration, found here so this run can already send its first step.
-    from services.crm_registration_recovery import enroll_stalled, registration_open
+    from services.crm_registration_recovery import (
+        enroll_completed, enroll_stalled, registration_open)
     try:
         enroll_stalled(db, funnels, now)
     except Exception as e:  # noqa: BLE001  # entry failing must not stop the sends
         logger.warning(f'CRM sweep: recovery enrollment failed: {e}')
+    try:
+        enroll_completed(db, funnels, now)
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f'CRM sweep: registration welcome enrollment failed: {e}')
 
     steps =(db.table('crm_funnel_steps').select('*')
              .in_('funnel_id', list(funnel_by_id)).eq('is_active', True)
@@ -234,6 +251,14 @@ def run_sweep(now: Optional[datetime] = None) -> Dict[str, Any]:
         if suppressed:
             _exit_membership(db, membership, 'suppressed')
             continue
+        if funnel['key'] in LEARNER_ONBOARDING:
+            reason = _not_for_learner_onboarding(db, lead['email'])
+            if reason is None:
+                skipped += 1  # lookup failed; try again next sweep
+                continue
+            if reason:
+                _exit_membership(db, membership, reason)
+                continue
         if is_recovery:
             still_open = registration_open(db, lead['email'], funnel['key'])
             if still_open is None:
@@ -312,6 +337,24 @@ def run_sweep(now: Optional[datetime] = None) -> Dict[str, Any]:
               'memberships_scanned': len(memberships)}
     logger.info(f'CRM sweep: {result}')
     return result
+
+
+def _not_for_learner_onboarding(db, email: str) -> Optional[str]:
+    """The exit reason when this account should not get a learner onboarding
+    sequence, '' when it should, None when the lookup failed."""
+    from repositories.crm_repository import CrmRepository
+    try:
+        account = CrmRepository(client=db).account_role(email)
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f'CRM sweep: role lookup failed: {e}')
+        return None
+    if not account or not account['role']:
+        return ''
+    if account['role'] not in LEARNER_ROLES:
+        return 'staff_role'
+    if account['role'] == 'parent' and account['org_slug'] in OWN_WELCOME_ORGS:
+        return 'org_welcome'
+    return ''
 
 
 def _complete_membership(db, membership):

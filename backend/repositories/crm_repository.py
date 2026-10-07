@@ -163,6 +163,24 @@ class CrmRepository(BaseRepository):
             'status': status, 'updated_at': _now_iso(),
         }).eq('id', lead_id).execute()
 
+    def account_role(self, email: str) -> Optional[Dict[str, Any]]:
+        """{'role': effective role, 'org_slug': slug or None} for the account
+        holding this email, None when there is no account. Raises on a failed
+        lookup so the caller can tell "no account" from "could not check"."""
+        users = (self.client.table('users')
+                 .select('role, org_role, organization_id')
+                 .ilike('email', email).limit(1).execute()).data
+        if not users:
+            return None
+        user = users[0]
+        role = user.get('org_role') if user.get('role') == 'org_managed' else user.get('role')
+        org_slug = None
+        if user.get('organization_id'):
+            orgs = (self.client.table('organizations').select('slug')
+                    .eq('id', user['organization_id']).limit(1).execute()).data
+            org_slug = orgs[0].get('slug') if orgs else None
+        return {'role': role, 'org_slug': org_slug}
+
     def active_leads_with_accounts(self) -> List[Dict[str, Any]]:
         """'active' leads whose (lowercased) email has a users row: people
         who signed up without any hook converting their lead."""

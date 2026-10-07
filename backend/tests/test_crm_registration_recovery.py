@@ -219,3 +219,56 @@ class TestSendGates:
         _, membership = self._enrolled(world)
         mark_converted('parent@example.com', event='class_start')
         assert membership['status'] == 'active'
+
+
+WELCOME_ID = 'funnel-academy-welcome'
+
+
+@pytest.mark.unit
+class TestAcademyParentWelcome:
+    """A completed Academy registration starts the Academy parent welcome,
+    which replaces the recovery sequence (and the generic welcome)."""
+
+    @pytest.fixture(autouse=True)
+    def _welcome_funnel(self, world):
+        world.data['crm_funnels'].append({
+            'id': WELCOME_ID, 'key': 'academy_parent_welcome',
+            'name': 'Academy Parent Welcome', 'status': 'active',
+            'funnel_type': 'onboarding', 'entry_types': [], 'description': None,
+            'created_at': _now().isoformat(), 'updated_at': _now().isoformat(),
+        })
+        world.data['crm_funnel_steps'].append(
+            {'id': 'wstep-1', 'funnel_id': WELCOME_ID, 'step_order': 1,
+             'name': 'Welcome', 'subject': 'Welcome', 'html_body': '<p>Hi</p>',
+             'text_body': None, 'delay_hours': 0, 'is_active': True})
+
+    def _welcome_memberships(self, world):
+        return [m for m in world.data['crm_funnel_memberships']
+                if m['funnel_id'] == WELCOME_ID]
+
+    def test_completion_enters_and_displaces_recovery(self, world):
+        reg = _add_registration(world)
+        engine.run_sweep()
+        [recovery] = _recovery_memberships(world)
+        reg['status'] = 'completed'
+        engine.run_sweep()
+        assert recovery['status'] == 'exited'
+        assert recovery['exit_reason'] == 'registration_completed'
+        [welcome] = self._welcome_memberships(world)
+        assert welcome['status'] == 'active'
+
+    def test_completion_older_than_the_window_never_enters(self, world):
+        _add_registration(world, status='completed', idle_hours=24 * 20)
+        engine.run_sweep()
+        assert self._welcome_memberships(world) == []
+
+    def test_paused_welcome_enrolls_nobody(self, world):
+        world.data['crm_funnels'][-1]['status'] = 'paused'
+        _add_registration(world, status='completed')
+        engine.run_sweep()
+        assert self._welcome_memberships(world) == []
+
+    def test_other_orgs_completion_never_enters(self, world):
+        _add_registration(world, status='completed', org_id='org-other')
+        engine.run_sweep()
+        assert self._welcome_memberships(world) == []

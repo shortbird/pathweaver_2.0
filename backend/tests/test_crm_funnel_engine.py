@@ -216,6 +216,48 @@ class TestOnboardingFunnels:
 
 
 @pytest.mark.unit
+class TestLearnerOnboardingRole:
+    """Every account starts as a student; a school's admins and advisors get
+    their org role later. The welcome's "start a class" copy went to eight
+    staff before the role was checked again at send time (2026-10-07)."""
+
+    def _welcome(self, world, user):
+        world.data['crm_funnels'][0].update(
+            {'key': 'new_account_welcome', 'name': 'New Account Welcome',
+             'funnel_type': 'onboarding', 'entry_types': []})
+        lead, membership = _add_lead(world, lead_status='converted')
+        world.data['users'] = [{'id': 'u1', 'email': lead['email'], **user}]
+        world.data['organizations'] = [{'id': 'org-a', 'slug': 'optio-academy'},
+                                       {'id': 'org-i', 'slug': 'icreate'}]
+        return membership
+
+    def test_school_admin_exits_without_an_email(self, world):
+        membership = self._welcome(world, {'role': 'org_managed', 'org_role': 'org_admin',
+                                           'organization_id': 'org-i'})
+        engine.run_sweep()
+        assert world.sent == []
+        assert membership['exit_reason'] == 'staff_role'
+
+    def test_academy_parent_leaves_for_the_academy_welcome(self, world):
+        membership = self._welcome(world, {'role': 'org_managed', 'org_role': 'parent',
+                                           'organization_id': 'org-a'})
+        engine.run_sweep()
+        assert world.sent == []
+        assert membership['exit_reason'] == 'org_welcome'
+
+    def test_other_schools_parent_still_gets_it(self, world):
+        membership = self._welcome(world, {'role': 'org_managed', 'org_role': 'parent',
+                                           'organization_id': 'org-i'})
+        assert engine.run_sweep()['sent'] == 1
+        assert membership['status'] == 'active'
+
+    def test_platform_student_still_gets_it(self, world):
+        self._welcome(world, {'role': 'student', 'org_role': None,
+                              'organization_id': None})
+        assert engine.run_sweep()['sent'] == 1
+
+
+@pytest.mark.unit
 class TestSweepClaims:
     def test_stale_sending_claim_fails_and_never_retries(self, world):
         lead, membership = _add_lead(world, entered_hours_ago=2)

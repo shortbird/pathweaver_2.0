@@ -36,6 +36,16 @@ OPEN_STATUSES = ('verify', 'family', 'details', 'paperwork', 'fee')
 STALL_HOURS = 3
 MAX_AGE_DAYS = 30
 
+# Onboarding funnel key -> the slug of the org whose COMPLETED registrations
+# feed it: the family's welcome to that school, in place of the generic
+# new-account welcome (crm_funnel_engine.OWN_WELCOME_ORGS stops that one).
+# A completion older than WELCOME_MAX_AGE_DAYS is past welcoming, so
+# activating the funnel does not mail families who started months ago.
+WELCOME_FUNNEL_ORGS = {
+    'academy_parent_welcome': 'optio-academy',
+}
+WELCOME_MAX_AGE_DAYS = 14
+
 
 def _repo(db) -> RegistrationRepository:
     return RegistrationRepository(client=db)
@@ -68,6 +78,37 @@ def enroll_stalled(db, funnels: Iterable[Dict[str, Any]], now: datetime) -> int:
             if enter_recovery(db, parent['email'], funnel,
                               first_name=parent.get('first_name'),
                               last_name=parent.get('last_name')):
+                entered += 1
+    return entered
+
+
+def enroll_completed(db, funnels: Iterable[Dict[str, Any]], now: datetime) -> int:
+    """Enter every parent whose registration completed in the last
+    WELCOME_MAX_AGE_DAYS into their org's active welcome funnel. Same pass
+    shape as enroll_stalled, for the same reason: completion has several
+    doors (the funnel's last step, staff marking it done, the legacy
+    schedule/appointment settle), and the sweep sees all of them. Returns
+    how many entered."""
+    from services.crm_service import enter_registration_welcome
+
+    entered = 0
+    for funnel in funnels:
+        slug = WELCOME_FUNNEL_ORGS.get(funnel['key'])
+        org_id = _org_id(db, slug) if slug else None
+        if not org_id:
+            continue
+        # stalled_parents is "parents with a registration in these statuses,
+        # last touched inside the window"; with idle_before=now it is simply
+        # every completion in the window.
+        parents = _repo(db).stalled_parents(
+            org_id, ['completed'], idle_before=now.isoformat(),
+            touched_after=(now - timedelta(days=WELCOME_MAX_AGE_DAYS)).isoformat())
+        for parent in parents:
+            if not parent.get('email'):
+                continue
+            if enter_registration_welcome(db, parent['email'], funnel,
+                                          first_name=parent.get('first_name'),
+                                          last_name=parent.get('last_name')):
                 entered += 1
     return entered
 

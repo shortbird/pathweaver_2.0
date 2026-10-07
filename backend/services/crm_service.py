@@ -344,6 +344,21 @@ def enter_recovery(db, email, funnel, first_name=None, last_name=None) -> bool:
                              displace_reason='registration_started') is not None
 
 
+def enter_registration_welcome(db, email, funnel, first_name=None, last_name=None) -> bool:
+    """Put a parent whose registration just completed into their school's
+    welcome funnel. Returns True when a membership was created.
+
+    Completion ends a recovery sequence and replaces the generic welcome, so
+    this displaces whatever the lead is in. Once per lead, like every
+    funnel; unsubscribed and suppressed leads never enter."""
+    lead = _upsert_lead(db, email, lead_source='registration_completed',
+                        first_name=first_name, last_name=last_name)
+    if not lead:
+        return False
+    return _enter_onboarding(db, lead, funnel, source='registration_completed',
+                             displace_reason='registration_completed') is not None
+
+
 def _is_under_13(email):
     """True when this address belongs to an account we know to be under 13.
 
