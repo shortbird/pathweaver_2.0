@@ -35,8 +35,10 @@ CURRENT_TOS_VERSION = "1.1"
 #   families allow it; the automated safety check (Gemini) on every comment
 #   and message between students; held text kept for the author's parent;
 #   parents can hide a comment and read their child's messages.
-CURRENT_PRIVACY_POLICY_VERSION = "1.4"
+# 1.5 (2026-10-07): AI task suggestions. What the quest personalization wizard
+#   sends Gemini, what it does not, no training, and the parent switch.
+CURRENT_PRIVACY_POLICY_VERSION = "1.5"
 
 # Date when current versions became effective (must match the shared docs)
 TOS_EFFECTIVE_DATE = "2026-08-01"
-PRIVACY_POLICY_EFFECTIVE_DATE = "2026-09-17"
+PRIVACY_POLICY_EFFECTIVE_DATE = "2026-10-07"

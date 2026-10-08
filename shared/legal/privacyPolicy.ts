@@ -31,11 +31,17 @@ import type { LegalDocument } from './types';
  * Parents can read their child's messages, hide a comment on their child's
  * work, and are told when something their child wrote was held. Reports on a
  * friend's comment or a message can be acted on by our moderators.
+ *
+ * v1.5 (2026-10-07): AI task suggestions. The quest personalization wizard
+ * sends Google Gemini the quest's text and what the student tells it about
+ * their interests and goals; the policy listed Gemini only for the AI Tutor
+ * and the safety check. Described what is and is not sent, that Google does
+ * not train on it, and the parent switch that turns it off.
  */
 export const privacyPolicy: LegalDocument = {
   title: 'Privacy Policy',
-  effectiveDate: 'September 17, 2026',
-  version: '1.4',
+  effectiveDate: 'October 7, 2026',
+  version: '1.5',
   sections: [
     {
       heading: '1. Introduction',
@@ -95,6 +101,15 @@ export const privacyPolicy: LegalDocument = {
             'Safety ratings and flagged content',
             'Parent oversight settings',
           ],
+        },
+        { type: 'subheading', text: 'AI Task Suggestions' },
+        {
+          type: 'paragraph',
+          text: 'When a student personalizes a quest, Optio can suggest tasks that fit them. To write those suggestions we send Google Gemini the quest\'s description, the interests and subjects the student picks, anything they type to steer the suggestions, the learning goals they have written in their profile, and the goals and hobbies recorded by their school. We do not send their name, email address, birthdate, or any work they have uploaded. Google does not use this information to train its models. The suggestions are saved in Optio so the student can choose from them.',
+        },
+        {
+          type: 'paragraph',
+          text: 'A parent can turn AI task suggestions off for their child, on its own or together with every other AI feature, from the Parent Dashboard. A school can turn them off for all of its students.',
         },
         { type: 'subheading', text: 'Parent Dashboard Data' },
         { type: 'paragraph', text: 'For parents monitoring their students, we collect:' },
@@ -527,7 +542,7 @@ export const privacyPolicy: LegalDocument = {
           items: [
             [{ bold: 'Supabase' }, ' - Database, authentication, and storage (GDPR compliant)'],
             [{ bold: 'Stripe' }, ' - Payment processing (PCI DSS compliant)'],
-            [{ bold: 'Google Gemini' }, ' - AI Tutor features with safety monitoring, and the safety check on comments and messages between students'],
+            [{ bold: 'Google Gemini' }, ' - AI Tutor features with safety monitoring, AI task suggestions, and the safety check on comments and messages between students'],
             [{ bold: 'Pexels' }, ' - Quest and badge imagery (licensed stock photos)'],
             [{ bold: 'Meta (Facebook)' }, ' - Marketing analytics, the Meta Pixel, and custom/lookalike advertising audiences (adult account holders only)'],
             [{ bold: 'Render' }, ' - Web hosting and application infrastructure'],

@@ -43,14 +43,33 @@ logger = get_logger(__name__)
 VALID_FEATURES = {'chatbot', 'lesson_helper', 'task_generation'}
 
 
+def parent_switched_off(user: dict) -> bool:
+    """Whether a parent's master AI switch is off for this user.
+
+    users.ai_features_enabled defaults to false for EVERY row, so false alone
+    means "off" only for a dependent (whose AI is opt-in by design). For anyone
+    else -- a teen with their own login linked to a parent -- false is just the
+    column default, and reading it as a refusal would cut AI off for every
+    linked student. There the switch counts as off only once somebody has set
+    it (ai_features_enabled_by, written by PUT /api/dependents/<id>/ai-access).
+    Before 2026-10-07 a parent could turn the switch off for a linked student
+    and nothing read it.
+    """
+    if user.get('ai_features_enabled'):
+        return False
+    if user.get('is_dependent'):
+        return True
+    return bool(user.get('ai_features_enabled_by'))
+
+
 def check_ai_access(user_id: str, feature: str = None, *, strict: bool = False):
     """
     Check if a user has access to AI features.
 
     Checks two levels:
-    1. User-level: If user is a dependent, checks ai_features_enabled flag
+    1. User-level: the parent's master switch (see parent_switched_off)
     2. Org-level: Checks if the user's organization has AI features enabled
-    3. Feature-level (optional): Checks specific feature toggle
+    3. Feature-level (optional): the org's and the parent's per-feature switch
 
     Args:
         user_id: The user's ID
@@ -78,7 +97,7 @@ def check_ai_access(user_id: str, feature: str = None, *, strict: bool = False):
         supabase = get_supabase_admin_client()
 
         # Build user select query with granular feature fields
-        user_fields = 'id, is_dependent, ai_features_enabled, organization_id'
+        user_fields = 'id, is_dependent, ai_features_enabled, ai_features_enabled_by, organization_id'
         if feature:
             # Add feature-specific fields
             user_fields += ', ai_chatbot_enabled, ai_lesson_helper_enabled, ai_task_generation_enabled'
@@ -96,9 +115,11 @@ def check_ai_access(user_id: str, feature: str = None, *, strict: bool = False):
 
         user = user_result.data[0]
 
-        # Check user-level master toggle (for dependents)
-        if user.get('is_dependent') and not user.get('ai_features_enabled'):
-            logger.info(f"AI access denied for dependent {user_id}: ai_features_enabled=False")
+        # Check the parent's master switch. The code keeps its historical
+        # DEPENDENT_ name for the clients that key on it; it now covers linked
+        # students too.
+        if parent_switched_off(user):
+            logger.info(f"AI access denied for {user_id}: parent switched AI off")
             return False, {
                 'error': 'ai_disabled',
                 'message': 'AI features are not enabled for your account. Ask your parent to enable them in their dashboard.',
@@ -143,17 +164,18 @@ def check_ai_access(user_id: str, feature: str = None, *, strict: bool = False):
                         'feature': feature
                     }, 403
 
-            # Check user-level feature toggle (for dependents only)
-            if user.get('is_dependent'):
-                user_feature_enabled = user.get(feature_column, True)
-                if not user_feature_enabled:
-                    logger.info(f"AI feature '{feature}' denied for dependent {user_id}: {feature_column}=False")
-                    return False, {
-                        'error': 'ai_feature_disabled',
-                        'message': 'This AI feature is not enabled for your account.',
-                        'code': 'DEPENDENT_AI_FEATURE_DISABLED',
-                        'feature': feature
-                    }, 403
+            # Check the parent's per-feature switch. These columns default to
+            # true and only PUT /api/dependents/<id>/ai-features turns one off,
+            # so they apply to linked students as well as dependents --
+            # get_ai_feature_status below already read them that way.
+            if user.get(feature_column) is False:
+                logger.info(f"AI feature '{feature}' denied for {user_id}: {feature_column}=False")
+                return False, {
+                    'error': 'ai_feature_disabled',
+                    'message': 'This AI feature is not enabled for your account.',
+                    'code': 'DEPENDENT_AI_FEATURE_DISABLED',
+                    'feature': feature
+                }, 403
 
         # Access granted
         return True, None, None
@@ -222,7 +244,7 @@ def get_ai_feature_status(user_id: str):
         # access (Sentry OPTIO-BACKEND-7J). An empty list takes the branch that
         # was written for exactly this case.
         user_result = supabase.table('users').select(
-            'id, is_dependent, ai_features_enabled, organization_id, '
+            'id, is_dependent, ai_features_enabled, ai_features_enabled_by, organization_id, '
             'ai_chatbot_enabled, ai_lesson_helper_enabled, ai_task_generation_enabled'
         ).eq('id', user_id).limit(1).execute()
 
@@ -247,8 +269,8 @@ def get_ai_feature_status(user_id: str):
             'org_limits': org_limits
         }
 
-        # Check master toggle for dependents
-        if user.get('is_dependent') and not user.get('ai_features_enabled'):
+        # Check the parent's master switch (same rule as check_ai_access)
+        if parent_switched_off(user):
             return {
                 'has_access': False,
                 'reason': 'AI features are not enabled for your account. Ask your parent to enable them in their dashboard.',

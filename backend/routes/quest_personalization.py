@@ -427,7 +427,7 @@ def generate_tasks(user_id: str, quest_id: str):
         # caller: the toggle being honored is the parent's answer to "may my
         # child's work be sent to an AI vendor" (see utils/ai_access), and it is
         # the child's content that goes into the prompt.
-        ai_access_error = require_ai_access(subject_id)
+        ai_access_error = require_ai_access(subject_id, 'task_generation')
         if ai_access_error:
             return ai_access_error
 
@@ -570,6 +570,13 @@ def refine_tasks(user_id: str, quest_id: str):
         if refused:
             return refused
 
+        # The same prompt as generate-tasks, the student's SIS goals and
+        # hobbies included, so the same consent question: before 2026-10-07
+        # this door sent them with no check at all.
+        ai_access_error = require_ai_access(user_id, 'task_generation')
+        if ai_access_error:
+            return ai_access_error
+
         data = request.get_json()
 
         session_id = data.get('session_id')
@@ -684,7 +691,7 @@ def adjust_task_difficulty(user_id: str, quest_id: str):
     """
     try:
         # Check AI access before proceeding (same gate as generate-tasks)
-        ai_access_error = require_ai_access(user_id)
+        ai_access_error = require_ai_access(user_id, 'task_generation')
         if ai_access_error:
             return ai_access_error
 
@@ -731,7 +738,7 @@ def analyze_manual_task(user_id: str, quest_id: str):
     try:
         # Same gate as generate-tasks: the child's words go to the AI vendor, so
         # the parent's AI toggle for the child is what decides.
-        ai_access_error = require_ai_access(user_id)
+        ai_access_error = require_ai_access(user_id, 'task_generation')
         if ai_access_error:
             return ai_access_error
 

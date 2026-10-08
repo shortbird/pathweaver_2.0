@@ -20,6 +20,7 @@ from datetime import date, datetime
 from typing import Any, Dict, List, Optional
 
 from repositories.family_repository import FamilyRepository
+from utils.ai_access import parent_switched_off
 from utils.class_membership import links_of_parent
 from utils.logger import get_logger
 from utils.storage_urls import sign_in_place
@@ -87,7 +88,10 @@ def _child(row: Dict[str, Any], parent_id: str, links: Dict[str, bool],
         'level': row.get('level') or 1,
         'active_quest_count': active_quests,
         'links': dict(links),
-        'ai_features_enabled': bool(row.get('ai_features_enabled')),
+        # The switch as check_ai_access reads it, not the raw column: the
+        # column defaults to false, which for a linked student means "never
+        # set" and AI on. Reporting it raw showed a parent "Off" while AI ran.
+        'ai_features_enabled': not parent_switched_off(row),
         'ai_chatbot_enabled': row.get('ai_chatbot_enabled') is not False,
         'ai_lesson_helper_enabled': row.get('ai_lesson_helper_enabled') is not False,
         'ai_task_generation_enabled': row.get('ai_task_generation_enabled') is not False,

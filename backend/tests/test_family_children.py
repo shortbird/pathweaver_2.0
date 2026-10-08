@@ -108,6 +108,19 @@ class TestChildrenOf:
         assert cy['active_quest_count'] == 0
         assert (cy['total_xp'], cy['level']) == (0, 1)
 
+    def test_the_ai_switch_is_reported_as_check_ai_access_reads_it(self, family):
+        by_id = {c['id']: c for c in svc.children_of('mum', today=TODAY)}
+        # A dependent's AI is opt-in: an unset switch is off.
+        assert by_id['kid-household']['ai_features_enabled'] is False
+        # A linked student's unset switch is the column default, and AI runs.
+        assert by_id['kid-linked']['ai_features_enabled'] is True
+        ROWS['kid-linked']['ai_features_enabled_by'] = 'mum'
+        try:
+            ben = {c['id']: c for c in svc.children_of('mum', today=TODAY)}['kid-linked']
+            assert ben['ai_features_enabled'] is False
+        finally:
+            del ROWS['kid-linked']['ai_features_enabled_by']
+
     def test_a_linked_students_own_display_name_wins(self, family):
         ben = svc.children_of('mum', today=TODAY)[1]
         assert ben['display_name'] == 'Benny'

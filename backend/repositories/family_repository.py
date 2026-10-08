@@ -23,7 +23,7 @@ CHILD_FIELDS = (
     'id, first_name, last_name, display_name, preferred_name, username, email, '
     'avatar_url, date_of_birth, is_dependent, managed_by_parent_id, '
     'promotion_eligible_at, organization_id, total_xp, level, '
-    'ai_features_enabled, ai_chatbot_enabled, ai_lesson_helper_enabled, '
+    'ai_features_enabled, ai_features_enabled_by, ai_chatbot_enabled, ai_lesson_helper_enabled, '
     'ai_task_generation_enabled'
 )
 
