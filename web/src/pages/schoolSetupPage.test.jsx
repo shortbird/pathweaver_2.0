@@ -123,7 +123,9 @@ describe('SchoolSetupPage', () => {
       collects_tuition: 'yes', families_register: 'no', ai_choice: 'on', library_choice: 'all_optio',
     })
     expect(localStorage.getItem(KEY)).toBeNull()
-  })
+    // The whole form, filled field by field: under 1s locally but over the 5s
+    // default under CI's coverage run, which failed release 03f2ded7.
+  }, 20000)
 
   it('a used link says so and forgets the saved token', async () => {
     localStorage.setItem(KEY, 'tok123')
