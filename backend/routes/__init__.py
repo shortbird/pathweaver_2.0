@@ -252,6 +252,9 @@ def register_all(app):
     # Same prefix: the assistant (Gmail, to-dos, drafts); no rule overlaps.
     from routes.admin import crm_assistant as admin_crm_assistant
     app.register_blueprint(admin_crm_assistant.bp)
+    # Same prefix again: email lists for Gmail BCC; no rule overlaps.
+    from routes.admin import crm_lists as admin_crm_lists
+    app.register_blueprint(admin_crm_lists.bp)
 
     # ── Organization classes (classroom mgmt) ─────────────────────────────────
     from routes.classes import bp as classes_bp

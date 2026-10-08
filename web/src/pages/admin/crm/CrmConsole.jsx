@@ -9,6 +9,7 @@ import LeadDetail from './LeadDetail'
 import SuppressionList from './SuppressionList'
 import PeopleList from './PeopleList'
 import PersonDetail from './PersonDetail'
+import EmailLists from './EmailLists'
 import TodayPage from './TodayPage'
 
 const TABS = [
@@ -16,6 +17,7 @@ const TABS = [
   { id: 'funnels', label: 'Funnels' },
   { id: 'leads', label: 'Leads' },
   { id: 'people', label: 'People' },
+  { id: 'lists', label: 'Lists' },
   { id: 'suppressions', label: 'Suppressions' },
 ]
 
@@ -53,6 +55,7 @@ const CrmConsole = () => {
         <Route path="leads/:leadId" element={<LeadDetail />} />
         <Route path="people" element={<PeopleList />} />
         <Route path="people/:personId" element={<PersonDetail />} />
+        <Route path="lists" element={<EmailLists />} />
         <Route path="suppressions" element={<SuppressionList />} />
         {/* Absolute on purpose: a relative "funnels" resolves against the
             unmatched path, so /admin/crm/people/x on a build without that

@@ -116,3 +116,10 @@ export const sendDraft = (draftId, fields = {}) =>
 
 export const listClientOrgs = () => api.get('/api/admin/crm/client-orgs')
 export const setClientOrgs = (orgIds) => api.put('/api/admin/crm/client-orgs', { org_ids: orgIds })
+
+// Email lists (copy for Gmail BCC; nothing sends)
+export const getDirectory = () => api.get('/api/admin/crm/directory')
+export const listEmailLists = () => api.get('/api/admin/crm/lists')
+export const createEmailList = (data) => api.post('/api/admin/crm/lists', { ...data })
+export const updateEmailList = (listId, data) => api.put(`/api/admin/crm/lists/${listId}`, { ...data })
+export const deleteEmailList = (listId) => api.delete(`/api/admin/crm/lists/${listId}`)
