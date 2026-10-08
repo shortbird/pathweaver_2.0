@@ -20,9 +20,9 @@ from zoneinfo import ZoneInfo
 
 from services import sis_attendance_sweep as rules
 from services import sis_notifications
+from utils.class_membership import guardians_by_student
 from utils.db_fetch import fetch_all_rows
 from utils.logger import get_logger
-from config.constants import GUARDIAN_RELATIONSHIPS
 
 logger = get_logger(__name__)
 
@@ -130,46 +130,15 @@ def _org_admins(org_id: str) -> List[str]:
 
 
 def guardians_for_student(student_id: str) -> Set[str]:
-    """Resolve a student's guardian user_ids across the family models."""
-    ids: Set[str] = set()
-    # 1) household guardians (members of the same household who aren't the student)
-    try:
-        memberships = (
-            _admin().table('household_members').select('household_id')
-            .eq('user_id', student_id).execute()
-        ).data or []
-        hh_ids = [m['household_id'] for m in memberships]
-        if hh_ids:
-            members = (
-                _admin().table('household_members')
-                .select('user_id, relationship').in_('household_id', hh_ids).execute()
-            ).data or []
-            for m in members:
-                if m['user_id'] != student_id and m.get('relationship') in GUARDIAN_RELATIONSHIPS:
-                    ids.add(m['user_id'])
-    except Exception as e:
-        logger.warning(f"household guardian lookup failed: {e}")
-    # 2) dependent management
-    try:
-        u = (
-            _admin().table('users').select('managed_by_parent_id')
-            .eq('id', student_id).limit(1).execute()
-        ).data
-        if u and u[0].get('managed_by_parent_id'):
-            ids.add(u[0]['managed_by_parent_id'])
-    except Exception as _exc:
-        logger.debug("student lookup failed: %s", _exc, exc_info=True)
-    # 3) active parent-student links
-    try:
-        links = (
-            _admin().table('parent_student_links').select('parent_user_id, status')
-            .eq('student_user_id', student_id).eq('status', 'active').execute()
-        ).data or []
-        for l in links:
-            ids.add(l['parent_user_id'])
-    except Exception as _exc:
-        logger.debug("guardian-link lookup failed: %s", _exc, exc_info=True)
-    return ids
+    """A student's guardians, by the platform's one definition of parent
+    (utils.class_membership.guardians_by_student).
+
+    This used to be its own copy of that lookup, and its parent-link query
+    matched status='active' -- a status no parent_student_links row has (they
+    are 'approved'). A parent linked to a student with their own login was
+    never told their child missed a class. Fixed 2026-10-07.
+    """
+    return set(guardians_by_student([student_id]).get(student_id, set()))
 
 
 def _already_alerted(org_id: str, on_date: str) -> set:
