@@ -29,11 +29,13 @@ vi.mock('react-hot-toast', () => ({
 }))
 
 let authUser = { id: 'me-1', role: 'org_admin' }
+// null: no org picked, which hides nothing. A test sets a school here.
+const inboxOrg = vi.hoisted(() => ({ current: null }))
 vi.mock('../../contexts/AuthContext', () => ({ useAuth: () => ({ user: authUser }) }))
 
 vi.mock('./useSisOrg', async (importOriginal) => ({
   ...(await importOriginal()),
-  useSisOrg: () => ({ orgId: 'org-1', setOrgId: vi.fn(), orgs: [], isSuperadmin: false, loading: false, activeOrg: null }),
+  useSisOrg: () => ({ orgId: 'org-1', setOrgId: vi.fn(), orgs: [], isSuperadmin: false, loading: false, activeOrg: inboxOrg.current }),
 }))
 
 // Realtime needs a Supabase socket; the hook is covered by its own tests.
@@ -1409,5 +1411,19 @@ describe('SchoolInboxPage drafts (e6cc5fe5)', () => {
     fireEvent.click(screen.getByLabelText('Send message'))
     await waitFor(() => expect(box.value).toBe('Did not go'))
     expect(draftKeys()).toHaveLength(1)
+  })
+})
+
+
+describe('class chats follow the classes module (SIS_SIMPLIFICATION rule 2)', () => {
+  it('a school with classes off has no All class chats tab', async () => {
+    inboxOrg.current = { id: 'org-1', effective_modules: ['sis', 'messaging'] }
+    try {
+      render(<SchoolInboxPage />)
+      expect(await screen.findByRole('tab', { name: /My messages/ })).toBeInTheDocument()
+      expect(screen.queryByRole('tab', { name: 'All class chats' })).not.toBeInTheDocument()
+    } finally {
+      inboxOrg.current = null
+    }
   })
 })

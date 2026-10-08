@@ -62,6 +62,16 @@ class SisPointsRepository(BaseRepository):
                 .order('created_at', desc=True)
                 .limit(limit).execute()).data or []
 
+    def given_since(self, org_id: str, since_iso: str) -> List[Dict[str, Any]]:
+        """The amounts of every award (amount > 0) since a date. Grows with
+        the school's daily awards, so it pages."""
+        return fetch_all_rows(lambda: (
+            self.client.table(self.table_name).select('id, amount')
+            .eq('organization_id', org_id)
+            .gt('amount', 0)
+            .gte('created_at', since_iso)
+        ))
+
     def balances(self, org_id: str, student_ids: Optional[Iterable[str]] = None) -> List[Dict[str, Any]]:
         """{student_user_id, balance, earned, spent} per student with any entry.
         One row per student, so bounded by the roster; paged anyway because the

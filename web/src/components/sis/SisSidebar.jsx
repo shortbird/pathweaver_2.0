@@ -1,5 +1,5 @@
 import React from 'react'
-import { NavLink } from 'react-router-dom'
+import { Link, NavLink } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
 import { userHasFamily } from '../../contexts/FamilyScopeContext'
 import { switchSurfaceInApp } from '../../utils/appSurface'
@@ -71,7 +71,7 @@ export const NAV_SECTIONS = [
       { name: 'People', path: '/people', adminOnly: true, d: ICONS.users, keywords: ['roster', 'users', 'staff', 'households'] },
       { name: 'Directory', path: '/directory', teacherOnly: true, d: ICONS.person, keywords: ['staff', 'phonebook', 'contacts'] },
       // Community Hub — opt-in per org (feature_flags.sis_settings.community_enabled).
-      { name: 'Community', path: '/community', communityMode: true, d: ICONS.community, keywords: ['hub', 'board'] },
+      { name: 'Community', path: '/community', d: ICONS.community, keywords: ['hub', 'board'] },
     ],
   },
   {
@@ -89,13 +89,13 @@ export const NAV_SECTIONS = [
       // goals and notes (individual_work). Its own item since 2026-10-08, for
       // a school that works with each child rather than in classes.
       { name: 'Students', path: '/students', d: ICONS.person, keywords: ['individual', 'one on one', 'submissions', 'assign quest', 'student work'] },
-      { name: 'CLP', path: '/clp', adminOnly: true, clpMode: true, d: ICONS.doc, keywords: ['customized learning plan', 'learning plan'] },
+      { name: 'CLP', path: '/clp', adminOnly: true, d: ICONS.doc, keywords: ['customized learning plan', 'learning plan'] },
       { name: 'Calendar', path: '/calendar', d: ICONS.calendar, keywords: ['events', 'schedule', 'dates', 'holidays'] },
       // Prior Learning — opt-in per org (Optio Academy today).
-      { name: 'Prior Learning', path: '/prior-learning', adminOnly: true, priorLearningMode: true, d: ICONS.doc, keywords: ['transfer credit', 'transcript'] },
-      { name: 'Goals', path: '/goals', goalsMode: true, d: ICONS.doc, keywords: ['direction', 'subject goals'] },
-      // Monday goals and the Thursday check-in (Apogee Cache Valley); opt-in.
-      { name: 'Weekly Goals', path: '/weekly-goals', d: ICONS.check, keywords: ['planner', 'freedom', 'check-in', 'complaints'] },
+      { name: 'Prior Learning', path: '/prior-learning', adminOnly: true, d: ICONS.doc, keywords: ['transfer credit', 'transcript'] },
+      // Every kind of goal, one page (2026-10-08): this week's goals and the
+      // check-in, year goals, and goals parents set -- each tab on its module.
+      { name: 'Goals', path: '/goals', d: ICONS.check, keywords: ['direction', 'subject goals', 'weekly goals', 'planner', 'freedom', 'check-in', 'complaints', 'year goals'] },
       // Points for school jobs, spent on perks (Apogee Cache Valley's ClassDojo); opt-in.
       { name: 'Points', path: '/points', d: ICONS.card, keywords: ['dojo', 'classdojo', 'daily job', 'perks', 'rewards', 'balance'] },
       // The school's bounties: chores, jobs and their rewards; opt-in.
@@ -228,6 +228,16 @@ const SisSidebar = ({ open = false, onNavigate = () => {} }) => {
             </React.Fragment>
           )
         })}
+        {/* A school starts with few features on (the microschool baseline),
+            so the way to the rest sits under them: the Settings Features card
+            lists every option (docs/sis/SIS_SIMPLIFICATION.md, 2026-10-08). */}
+        {isAdmin && (
+          <Link to="/settings#settings-features" onClick={onNavigate}
+            className="mt-4 flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium font-poppins text-optio-purple hover:bg-[#F3EFF4]">
+            <span>{icon('M12 4v16m8-8H4')}</span>
+            Add features
+          </Link>
+        )}
       </nav>
     </aside>
   )

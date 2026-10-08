@@ -170,6 +170,10 @@ class PointsService:
                 out.append(self.history(sid))
         return out
 
+    def given_since(self, org_id: str, since_iso: str) -> int:
+        """Points given (not spent) since a date, for the School Dashboard."""
+        return sum(r['amount'] for r in self.repository.given_since(org_id, since_iso))
+
     # -- writes ---------------------------------------------------------------
 
     def add(self, org_id: str, data: Dict[str, Any], staff_id: str) -> Dict[str, Any]:

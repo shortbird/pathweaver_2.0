@@ -13,7 +13,7 @@ import { settingsCardsFor } from '../settingsRegistry'
  * API refuses (a campus coordinator) sees nothing.
  */
 
-const { api } = vi.hoisted(() => ({ api: { get: vi.fn(), put: vi.fn() } }))
+const { api } = vi.hoisted(() => ({ api: { get: vi.fn(), put: vi.fn(), post: vi.fn() } }))
 vi.mock('../../services/api', () => ({ default: api }))
 const { confirm } = vi.hoisted(() => ({ confirm: vi.fn() }))
 vi.mock('../../contexts/ConfirmContext', () => ({ useConfirm: () => confirm }))
@@ -137,5 +137,37 @@ describe('settingsCardsFor: the Features card', () => {
   it('is on the SIS Settings page only, whatever is switched on', () => {
     expect(keys('console', { feature_flags: {}, effective_modules: [] })).toContain('features')
     expect(keys('learning', { feature_flags: {} })).not.toContain('features')
+  })
+})
+
+
+describe('every option, and Ask Optio (2026-10-08)', () => {
+  const withOptio = () => ({
+    groups: GROUPS,
+    features: [
+      ...payload({ registration: false }).features,
+      { key: 'bloomy', group: 'teaching', name: 'Bloomy', description: 'Bloomy work comes in.', enabled: false, requires: [], switchable: false },
+      { key: 'ai', group: 'teaching', name: 'AI helpers', description: 'AI helps.', enabled: true, requires: [], switchable: false },
+    ],
+  })
+
+  beforeEach(() => {
+    api.get.mockResolvedValue({ data: { data: withOptio() } })
+    api.post.mockResolvedValue({ data: { data: { requested: true, ticket_id: 't1' } } })
+  })
+
+  it('lists what only Optio turns on, with no switch', async () => {
+    render(<FeaturesCard orgId="org-1" />)
+    expect(await screen.findByText('Bloomy')).toBeInTheDocument()
+    expect(screen.queryByRole('switch', { name: 'Bloomy' })).not.toBeInTheDocument()
+    expect(screen.getByText('On')).toBeInTheDocument()
+  })
+
+  it('Ask Optio files the request and says it was asked', async () => {
+    render(<FeaturesCard orgId="org-1" />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Ask Optio to turn on Bloomy' }))
+    await waitFor(() => expect(api.post).toHaveBeenCalledWith(
+      '/api/school-features/request', { key: 'bloomy' }, { params: { organization_id: 'org-1' } }))
+    expect(await screen.findByText('Asked')).toBeInTheDocument()
   })
 })

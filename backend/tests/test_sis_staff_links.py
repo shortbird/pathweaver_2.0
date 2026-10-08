@@ -23,6 +23,14 @@ import pytest
 from services import sis_staff_service as staff
 
 
+@pytest.fixture(autouse=True)
+def _resources_on():
+    """These schools run Resources; the off case is tested on its own below
+    (pins and the library follow the module since 2026-10-08)."""
+    with patch('modules.enabled.module_enabled', return_value=True):
+        yield
+
+
 class _Query:
     def __init__(self, rows):
         self._rows = rows
@@ -177,3 +185,14 @@ class TestStaffResources:
              patch('services.sis_staff_service.sign_in_place', lambda *a, **k: None):
             titles = [r['title'] for r in staff.staff_resources_for('t', 'org-1')]
         assert titles == ['Charlie', 'Bravo', 'Alpha']
+
+
+@pytest.mark.unit
+class TestResourcesOff:
+    """A school with Resources off has no pins and no library on any
+    dashboard (docs/sis/SIS_SIMPLIFICATION.md, rule 2)."""
+
+    def test_no_pins_and_no_library(self):
+        with patch('modules.enabled.module_enabled', return_value=False):
+            assert _run(staff.pinned_links_for, admin_caller=True) == []
+            assert _run(staff.staff_resources_for, admin_caller=True) == []

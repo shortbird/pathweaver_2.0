@@ -64,6 +64,20 @@ def save_week(user_id, student_id, week_start):
     return jsonify({'success': True, 'week': row})
 
 
+@bp.route('/students/<student_id>/year', methods=['PUT'])
+@require_role(*STAFF_ROLES)
+@require_relationship_to('student_id', allow=('org_staff',))
+def save_year(user_id, student_id):
+    """Body: {subjects: [{subject, year_goal}]}. The year goals a student's
+    weeks serve; the same write as the goals blueprint's, on this module's
+    door (routes/sis/goals.save_year_goals)."""
+    org_id, error = _org_or_400(user_id)
+    if error:
+        return error
+    from routes.sis.goals import save_year_goals
+    return save_year_goals(user_id, org_id, student_id, request.get_json(silent=True) or {})
+
+
 @bp.route('/mine', methods=['GET'])
 @require_auth
 def mine(user_id):

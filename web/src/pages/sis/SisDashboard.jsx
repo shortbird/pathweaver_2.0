@@ -66,9 +66,16 @@ const ATTENTION_TILES = [
     module: '/registration' },
   { key: 'waitlist_waiting', label: 'Waiting for a place', to: '/registration?tab=queues',
     module: '/registration' },
-  { key: 'goals_pending', label: 'Goals to review', to: '/goals', module: '/goals' },
+  { key: 'goals_pending', label: 'Family goals to review', to: '/goals?tab=family', module: '/family-goals' },
   { key: 'prior_learning_pending', label: 'Prior learning to review', to: '/prior-learning',
     module: '/prior-learning' },
+  // The microschool blocks (docs/sis/SIS_SIMPLIFICATION.md, 2026-10-08):
+  // what waits in the modules a school has on, each gated on its own.
+  { key: 'submissions_new', label: 'Work to review', to: '/submissions', module: '/submissions' },
+  { key: 'weekly_goals_unset', label: 'No goals this week', to: '/goals', module: '/weekly-goals' },
+  { key: 'weekly_checkins_due', label: 'Check-ins to do', to: '/goals', module: '/weekly-goals', urgent: true },
+  { key: 'bounties_to_review', label: 'Bounties to review', to: '/bounties', module: '/bounties' },
+  { key: 'bloomy_inactive', label: 'No Bloomy work this week', to: '/bloomy', module: '/bloomy' },
   { key: 'students_no_family', label: 'Students not in a family', to: '/people?role=student&family=none' },
 ]
 
@@ -184,6 +191,15 @@ const SisDashboard = () => {
   // (MICROSCHOOL_FIRST_PLAN part 2).
   const attendanceOn = !isPathHidden('/attendance', activeOrg)
   const billingOn = !isPathHidden('/billing', activeOrg)
+  // The same second filter for the rest of the page (rule 2: an off module
+  // leaves no trace): the noticeboard is the Library's resources, the class
+  // list is classes, the events are the calendar, the Enrolled count is
+  // registration's.
+  const resourcesOn = !isPathHidden('/resources', activeOrg)
+  const classesOn = !isPathHidden('/classes', activeOrg)
+  const calendarOn = !isPathHidden('/calendar', activeOrg)
+  const registrationOn = !isPathHidden('/registration', activeOrg)
+  const pointsOn = !isPathHidden('/points', activeOrg)
 
   return (
     <div className="space-y-6">
@@ -223,7 +239,7 @@ const SisDashboard = () => {
             )}
           </section>
 
-          {pinnedLinks.length > 0 && (
+          {resourcesOn && pinnedLinks.length > 0 && (
             <section className="mb-6">
               <div className="flex items-baseline justify-between gap-2 mb-2">
                 <h2 className="text-sm font-semibold uppercase tracking-wide text-neutral-400">
@@ -253,7 +269,7 @@ const SisDashboard = () => {
 
           {/* The coordinator dashboard's "Leaving soon", the same component
               (ticket 31e93fbb). */}
-          <LeavingSoon students={today.leaving_soon} />
+          {classesOn && <LeavingSoon students={today.leaving_soon} />}
 
           {/* Masonry, via CSS multi-column rather than grid.
               A grid row stretches every card to the tallest one and pins each to
@@ -263,7 +279,7 @@ const SisDashboard = () => {
               column flow closes the space. `break-inside-avoid` is what stops a
               card being sliced in half across the column boundary. */}
           <div className="columns-1 lg:columns-2 2xl:columns-3 gap-4">
-            {today.schedule && (
+            {classesOn && today.schedule && (
               <DashboardCard
                 title="Today's classes"
                 className={MASONRY_CARD}
@@ -375,7 +391,7 @@ const SisDashboard = () => {
               </DashboardCard>
             )}
 
-            {events.length > 0 && (
+            {calendarOn && events.length > 0 && (
               <DashboardCard title="Coming up" className={MASONRY_CARD}>
                 <ul className="space-y-1.5">
                   {events.map((e) => (
@@ -409,7 +425,12 @@ const SisDashboard = () => {
               />
               <StatCard label="Active (last 7 days)" value={snapshot.active_last_7_days} accent="text-green-600" />
               <StatCard label="Families" value={snapshot.households} />
-              <StatCard label="Enrolled" value={counts.enrolled || 0} accent="text-optio-purple" />
+              {registrationOn && (
+                <StatCard label="Enrolled" value={counts.enrolled || 0} accent="text-optio-purple" />
+              )}
+              {pointsOn && data.points && (
+                <StatCard label="Points given this week" value={data.points.given_this_week} accent="text-optio-purple" />
+              )}
             </div>
           </section>
 

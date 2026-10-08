@@ -154,13 +154,16 @@ describe('moduleEnabled: the starter baseline', () => {
   })
 
   it('leaves orgs without the key exactly as before (iCreate, Horizon)', () => {
-    const icreate = org({ sis_enabled: true, sis_settings: { community_enabled: true } })
+    // iCreate carries clp_enabled: CLP is opt-in on it since 2026-10-08.
+    const icreate = org({ sis_enabled: true, sis_settings: { community_enabled: true, clp_enabled: true } })
     const horizon = org({ sis_enabled: true, icreate_registration: { enabled: true },
       modules: { student_chat: false } })
     for (const key of STARTER_OFF) {
       expect(moduleEnabled(icreate, key)).toBe(true)
-      expect(moduleEnabled(horizon, key)).toBe(true)
+      // Horizon never ran CLPs; the module follows clp_enabled, not the baseline.
+      if (key !== 'clp') expect(moduleEnabled(horizon, key)).toBe(true)
     }
+    expect(moduleEnabled(horizon, 'clp')).toBe(false)
     expect(moduleEnabled(org({ sis_enabled: true, module_baseline: 'everything' }), 'billing')).toBe(true)
   })
 })
@@ -202,5 +205,28 @@ describe('moduleKnownOff', () => {
 
   it('never reports a core module off', () => {
     expect(moduleKnownOff(org({}, { effective_modules: [] }), 'quests')).toBe(false)
+  })
+})
+
+describe('moduleEnabled: the microschool baseline (2026-10-08)', () => {
+  // Mirrors backend/modules/enabled.py; the registry test holds the key sets.
+  const micro = (extra = {}) => org({ sis_enabled: true, module_baseline: 'microschool', ...extra })
+
+  it('starts one child at a time: no classes, roll, timetable, curriculum or reports', () => {
+    for (const key of ['classes', 'attendance', 'calendar', 'curriculum', 'reports', 'registration', 'billing', 'tasks']) {
+      expect(moduleEnabled(micro(), key)).toBe(false)
+    }
+  })
+
+  it('starts with weekly goals, individual students and the inbox on', () => {
+    for (const key of ['weekly_goals', 'individual_work', 'submissions']) {
+      expect(moduleEnabled(micro(), key)).toBe(true)
+    }
+  })
+
+  it('an explicit switch still wins either way', () => {
+    const o = micro({ modules: { classes: true, weekly_goals: false } })
+    expect(moduleEnabled(o, 'classes')).toBe(true)
+    expect(moduleEnabled(o, 'weekly_goals')).toBe(false)
   })
 })

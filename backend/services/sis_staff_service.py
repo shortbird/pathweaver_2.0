@@ -364,7 +364,13 @@ def staff_resources_for(user_id: str, org_id: str,
     before the viewer was considered at all. iCreate's library sorts
     "Substitute Availability/Contact Info" and "Weekly Teacher Survey" ninth and
     twelfth, and neither reached any dashboard.
+
+    The library is the resources module's; off, a dashboard has none to show
+    (docs/sis/SIS_SIMPLIFICATION.md, rule 2).
     """
+    from modules.enabled import module_enabled
+    if not module_enabled(org_id, 'resources'):
+        return []
     rows = sis_service.filter_role_visible(user_id, (
         _admin().table('org_resources')
         .select('id, title, url, category, audience, visible_to_roles, visible_to_user_ids')
@@ -393,7 +399,13 @@ def pinned_links_for(user_id: str, org_id: str) -> List[Dict[str, Any]]:
     of which four name coordinators, and Katrina saw none of them (2026-09-01,
     "it doesn't show on Katrine who is a coordinator - because she doesn't even
     seem to have a portal").
+
+    Pins are Resources rows, so a school with resources off has none to show
+    on any dashboard (docs/sis/SIS_SIMPLIFICATION.md, rule 2).
     """
+    from modules.enabled import module_enabled
+    if not module_enabled(org_id, 'resources'):
+        return []
     out = [
         {'id': r['id'], 'title': r['title'], 'url': r.get('url'),
          'description': r.get('description')}

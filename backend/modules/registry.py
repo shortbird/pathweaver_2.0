@@ -45,6 +45,7 @@ LEGACY_SOURCES = (
     'kiosk_flag',               # flat flags.kiosk
     'goals_mode',               # sis_settings.post_registration_flow == 'goals'
     'oea_enabled',              # flat flags.oea_enabled (diploma program; P0 trace)
+    'clp_enabled',              # sis_settings.clp_enabled is True and clp not in hidden_modules
 )
 
 
@@ -185,9 +186,14 @@ def _defs() -> Tuple[ModuleDef, ...]:
                   ('Secure Documents',),
                   parent='sis', min_tier='hr', surfaces=('console',),
                   legacy='hidden_modules'),
+        # CLPs are iCreate's workflow. Opt-in since 2026-10-08: the module is
+        # on only where sis_settings.clp_enabled is set (and clp is not in
+        # hidden_modules), which is exactly what the console already asked
+        # for on top of the module (isClpEnabled). One check now, not two
+        # (docs/sis/SIS_SIMPLIFICATION.md, rule 1).
         ModuleDef('clp', 'Learning Plans', 'people', ('Learning Plans',),
-                  parent='sis', surfaces=('console', 'family'),
-                  legacy='hidden_modules'),
+                  default='off', parent='sis', surfaces=('console', 'family'),
+                  legacy='clp_enabled'),
         ModuleDef('goals', 'Goals', 'people', (),
                   default='off', parent='sis',
                   surfaces=('console', 'family'), legacy='goals_mode'),
@@ -311,6 +317,19 @@ STARTER_KEEPS = frozenset({
 
 STARTER_BASELINE = 'starter'
 
+# The microschool baseline (docs/sis/SIS_SIMPLIFICATION.md, decision 2,
+# 2026-10-08): every org created from that day starts here, and the 'starter'
+# orgs before it keep what they had (Tanner: new schools only). Smaller again:
+# a school that works one child at a time has no classes, timetable, roll,
+# curriculum library or reports until it turns them on, and it starts with the
+# weekly goals a coach keeps with each student. Everything else is one switch
+# away on the Settings Features card, which lists every module.
+MICROSCHOOL_BASELINE = 'microschool'
+MICROSCHOOL_OFF = STARTER_OFF | frozenset({
+    'classes', 'attendance', 'calendar', 'curriculum', 'reports',
+})
+MICROSCHOOL_ON = frozenset({'weekly_goals'})
+
 
 def surface_keys(surface: str) -> frozenset:
     """Module keys declared on a surface ('family', 'console', ...). Family
@@ -346,6 +365,11 @@ def _validate() -> None:
             raise ValueError(f'starter baseline names {key!r}, not a non-core module')
     if STARTER_OFF & STARTER_KEEPS:
         raise ValueError('a module is both off and kept in the starter baseline')
+    for key in MICROSCHOOL_OFF | MICROSCHOOL_ON:
+        if key not in MODULES or MODULES[key].default == 'core':
+            raise ValueError(f'microschool baseline names {key!r}, not a non-core module')
+    if MICROSCHOOL_OFF & MICROSCHOOL_ON:
+        raise ValueError('a module is both off and on in the microschool baseline')
 
 
 _validate()

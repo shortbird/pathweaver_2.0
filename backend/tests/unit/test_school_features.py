@@ -92,7 +92,7 @@ def test_the_list_says_what_is_on_and_what_each_needs():
     assert rows['billing']['enabled'] is False      # starter baseline
     assert rows['attendance']['enabled'] is True
     assert [g['name'] for g in out['groups']] == [
-        'Teaching', 'Families and registration', 'Money', 'Office']
+        'Teaching', 'Families and registration', 'Credit and diplomas', 'Money', 'Office']
 
 
 def test_turning_a_feature_on_removes_it_from_the_hidden_list():
@@ -168,9 +168,10 @@ def test_a_malformed_body_is_refused(body):
 # New orgs and the settings round-trip
 # ---------------------------------------------------------------------------
 
-def test_a_new_org_starts_on_the_starter_baseline():
+def test_a_new_org_starts_on_the_microschool_baseline():
+    # 'starter' until 2026-10-08; orgs created before then keep it.
     row = new_org_row('Juniper', 'juniper', 'all_optio')
-    assert row['feature_flags']['module_baseline'] == 'starter'
+    assert row['feature_flags']['module_baseline'] == 'microschool'
 
 
 def test_a_settings_round_trip_cannot_drop_the_baseline():
@@ -313,3 +314,62 @@ def test_a_failed_audit_insert_does_not_undo_the_save(audit_repo):
         out = svc.set_features(ORG, {'tasks': False}, actor_id='admin')
     repo.update_organization.assert_called_once()
     assert {r['key']: r['enabled'] for r in out['features']}['tasks'] is False
+
+
+# ── Every option, and "Ask Optio" (docs/sis/SIS_SIMPLIFICATION.md, 2026-10-08) ──
+
+def test_the_card_lists_what_only_optio_turns_on_without_a_switch():
+    """A school sees every option it has: the ones it cannot switch are listed
+    with switchable False. Only the console itself, student chat (its own card)
+    and CLPs (iCreate's) stay off the card."""
+    assert set(svc.OPTIO_FEATURES) <= svc.SUPERADMIN_ONLY | svc.NOT_HERE
+    assert (svc.SUPERADMIN_ONLY | svc.NOT_HERE) - set(svc.OPTIO_FEATURES) == {'sis', 'student_chat', 'clp'}
+    rows = {r['key']: r for r in svc.features_for_row(_org())['features']}
+    assert rows['bloomy']['switchable'] is False
+    assert rows['points']['switchable'] is True
+    assert {g['key'] for g in svc.features_for_row(_org())['groups']} >= {r['group'] for r in rows.values()}
+
+
+class _Tickets:
+    def __init__(self, existing=None):
+        self.existing, self.created = existing, []
+
+    def find_open_feature_request(self, org_id, key):
+        return self.existing
+
+    def create(self, row):
+        self.created.append(row)
+        return {**row, 'id': 't1'}
+
+
+def _ask(key, tickets):
+    org_repo = Mock()
+    org_repo.find_by_id.return_value = {'id': ORG, 'name': 'Apogee'}
+    admin = Mock()
+    admin.table.return_value.select.return_value.eq.return_value.limit.return_value \
+        .execute.return_value = Mock(data=[{'email': 'm@x.com', 'org_role': 'org_admin'}])
+    with patch('repositories.bug_report_repository.BugReportRepository', return_value=tickets), \
+         patch('repositories.organization_repository.OrganizationRepository', return_value=org_repo), \
+         patch('services.school_features_service._admin', return_value=admin):
+        return svc.request_feature(ORG, key, actor_id='admin-1')
+
+
+def test_ask_optio_files_one_feature_ticket():
+    tickets = _Tickets()
+    out = _ask('bloomy', tickets)
+    assert out == {'requested': True, 'ticket_id': 't1', 'already': False}
+    row = tickets.created[0]
+    assert (row['type'], row['source'], row['organization_id']) == ('feature', 'web', ORG)
+    assert row['extra'] == {'feature_request': 'bloomy'}
+    assert row['title'] == 'Turn on Bloomy for Apogee'
+
+
+def test_a_second_ask_returns_the_open_ticket():
+    tickets = _Tickets(existing={'id': 't0'})
+    assert _ask('bloomy', tickets) == {'requested': True, 'ticket_id': 't0', 'already': True}
+    assert tickets.created == []
+
+
+def test_a_switchable_feature_is_not_asked_for():
+    with pytest.raises(svc.FeatureChangeError):
+        _ask('points', _Tickets())

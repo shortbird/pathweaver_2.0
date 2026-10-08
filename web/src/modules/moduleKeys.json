@@ -6,7 +6,8 @@
     "parent": null,
     "requires": [],
     "requires_any": [],
-    "starter_off": false
+    "starter_off": false,
+    "microschool": null
   },
   "attendance": {
     "default": "on",
@@ -15,7 +16,8 @@
     "parent": "sis",
     "requires": [],
     "requires_any": [],
-    "starter_off": false
+    "starter_off": false,
+    "microschool": "off"
   },
   "billing": {
     "default": "on",
@@ -26,7 +28,8 @@
       "registration"
     ],
     "requires_any": [],
-    "starter_off": true
+    "starter_off": true,
+    "microschool": "off"
   },
   "bloomy": {
     "default": "off",
@@ -35,7 +38,8 @@
     "parent": "sis",
     "requires": [],
     "requires_any": [],
-    "starter_off": false
+    "starter_off": false,
+    "microschool": null
   },
   "bounties": {
     "default": "on",
@@ -44,7 +48,8 @@
     "parent": null,
     "requires": [],
     "requires_any": [],
-    "starter_off": false
+    "starter_off": false,
+    "microschool": null
   },
   "bounty_management": {
     "default": "off",
@@ -55,7 +60,8 @@
       "bounties"
     ],
     "requires_any": [],
-    "starter_off": false
+    "starter_off": false,
+    "microschool": null
   },
   "calendar": {
     "default": "on",
@@ -64,7 +70,8 @@
     "parent": "sis",
     "requires": [],
     "requires_any": [],
-    "starter_off": false
+    "starter_off": false,
+    "microschool": "off"
   },
   "catalog": {
     "default": "on",
@@ -75,7 +82,8 @@
       "classes"
     ],
     "requires_any": [],
-    "starter_off": true
+    "starter_off": true,
+    "microschool": "off"
   },
   "classes": {
     "default": "on",
@@ -84,16 +92,18 @@
     "parent": "sis",
     "requires": [],
     "requires_any": [],
-    "starter_off": false
+    "starter_off": false,
+    "microschool": "off"
   },
   "clp": {
-    "default": "on",
+    "default": "off",
     "gate": "flags",
-    "legacy": "hidden_modules",
+    "legacy": "clp_enabled",
     "parent": "sis",
     "requires": [],
     "requires_any": [],
-    "starter_off": true
+    "starter_off": true,
+    "microschool": "off"
   },
   "community": {
     "default": "off",
@@ -102,7 +112,8 @@
     "parent": "sis",
     "requires": [],
     "requires_any": [],
-    "starter_off": false
+    "starter_off": false,
+    "microschool": null
   },
   "course_builder": {
     "default": "off",
@@ -111,7 +122,8 @@
     "parent": null,
     "requires": [],
     "requires_any": [],
-    "starter_off": false
+    "starter_off": false,
+    "microschool": null
   },
   "courses": {
     "default": "on",
@@ -120,7 +132,8 @@
     "parent": null,
     "requires": [],
     "requires_any": [],
-    "starter_off": false
+    "starter_off": false,
+    "microschool": null
   },
   "credits": {
     "default": "off",
@@ -129,7 +142,8 @@
     "parent": null,
     "requires": [],
     "requires_any": [],
-    "starter_off": false
+    "starter_off": false,
+    "microschool": null
   },
   "curriculum": {
     "default": "on",
@@ -138,7 +152,8 @@
     "parent": "sis",
     "requires": [],
     "requires_any": [],
-    "starter_off": false
+    "starter_off": false,
+    "microschool": "off"
   },
   "friends": {
     "default": "on",
@@ -147,7 +162,8 @@
     "parent": null,
     "requires": [],
     "requires_any": [],
-    "starter_off": false
+    "starter_off": false,
+    "microschool": null
   },
   "goals": {
     "default": "off",
@@ -156,7 +172,8 @@
     "parent": "sis",
     "requires": [],
     "requires_any": [],
-    "starter_off": false
+    "starter_off": false,
+    "microschool": null
   },
   "individual_work": {
     "default": "on",
@@ -165,7 +182,8 @@
     "parent": "sis",
     "requires": [],
     "requires_any": [],
-    "starter_off": false
+    "starter_off": false,
+    "microschool": null
   },
   "journal": {
     "default": "on",
@@ -174,7 +192,8 @@
     "parent": null,
     "requires": [],
     "requires_any": [],
-    "starter_off": false
+    "starter_off": false,
+    "microschool": null
   },
   "kiosk": {
     "default": "off",
@@ -183,7 +202,8 @@
     "parent": null,
     "requires": [],
     "requires_any": [],
-    "starter_off": false
+    "starter_off": false,
+    "microschool": null
   },
   "messaging": {
     "default": "core",
@@ -192,7 +212,8 @@
     "parent": null,
     "requires": [],
     "requires_any": [],
-    "starter_off": false
+    "starter_off": false,
+    "microschool": null
   },
   "observer": {
     "default": "on",
@@ -201,7 +222,8 @@
     "parent": null,
     "requires": [],
     "requires_any": [],
-    "starter_off": false
+    "starter_off": false,
+    "microschool": null
   },
   "onboarding": {
     "default": "on",
@@ -210,7 +232,8 @@
     "parent": "sis",
     "requires": [],
     "requires_any": [],
-    "starter_off": true
+    "starter_off": true,
+    "microschool": "off"
   },
   "points": {
     "default": "off",
@@ -219,7 +242,8 @@
     "parent": "sis",
     "requires": [],
     "requires_any": [],
-    "starter_off": false
+    "starter_off": false,
+    "microschool": null
   },
   "portfolio": {
     "default": "core",
@@ -228,7 +252,8 @@
     "parent": null,
     "requires": [],
     "requires_any": [],
-    "starter_off": false
+    "starter_off": false,
+    "microschool": null
   },
   "prior_learning": {
     "default": "on",
@@ -237,7 +262,8 @@
     "parent": "sis",
     "requires": [],
     "requires_any": [],
-    "starter_off": false
+    "starter_off": false,
+    "microschool": null
   },
   "quests": {
     "default": "core",
@@ -246,7 +272,8 @@
     "parent": null,
     "requires": [],
     "requires_any": [],
-    "starter_off": false
+    "starter_off": false,
+    "microschool": null
   },
   "registration": {
     "default": "on",
@@ -255,7 +282,8 @@
     "parent": "sis",
     "requires": [],
     "requires_any": [],
-    "starter_off": true
+    "starter_off": true,
+    "microschool": "off"
   },
   "reports": {
     "default": "on",
@@ -264,7 +292,8 @@
     "parent": "sis",
     "requires": [],
     "requires_any": [],
-    "starter_off": false
+    "starter_off": false,
+    "microschool": "off"
   },
   "resources": {
     "default": "on",
@@ -273,7 +302,8 @@
     "parent": "sis",
     "requires": [],
     "requires_any": [],
-    "starter_off": true
+    "starter_off": true,
+    "microschool": "off"
   },
   "secure_documents": {
     "default": "on",
@@ -282,7 +312,8 @@
     "parent": "sis",
     "requires": [],
     "requires_any": [],
-    "starter_off": true
+    "starter_off": true,
+    "microschool": "off"
   },
   "sis": {
     "default": "off",
@@ -291,7 +322,8 @@
     "parent": null,
     "requires": [],
     "requires_any": [],
-    "starter_off": false
+    "starter_off": false,
+    "microschool": null
   },
   "student_chat": {
     "default": "on",
@@ -300,7 +332,8 @@
     "parent": null,
     "requires": [],
     "requires_any": [],
-    "starter_off": false
+    "starter_off": false,
+    "microschool": null
   },
   "submissions": {
     "default": "on",
@@ -309,7 +342,8 @@
     "parent": "sis",
     "requires": [],
     "requires_any": [],
-    "starter_off": false
+    "starter_off": false,
+    "microschool": null
   },
   "tasks": {
     "default": "on",
@@ -318,7 +352,8 @@
     "parent": "sis",
     "requires": [],
     "requires_any": [],
-    "starter_off": true
+    "starter_off": true,
+    "microschool": "off"
   },
   "teaching": {
     "default": "core",
@@ -327,7 +362,8 @@
     "parent": null,
     "requires": [],
     "requires_any": [],
-    "starter_off": false
+    "starter_off": false,
+    "microschool": null
   },
   "training": {
     "default": "on",
@@ -336,7 +372,8 @@
     "parent": "sis",
     "requires": [],
     "requires_any": [],
-    "starter_off": true
+    "starter_off": true,
+    "microschool": "off"
   },
   "transcripts": {
     "default": "off",
@@ -347,7 +384,8 @@
       "credits"
     ],
     "requires_any": [],
-    "starter_off": false
+    "starter_off": false,
+    "microschool": null
   },
   "weekly_goals": {
     "default": "off",
@@ -356,7 +394,8 @@
     "parent": "sis",
     "requires": [],
     "requires_any": [],
-    "starter_off": false
+    "starter_off": false,
+    "microschool": "on"
   },
   "xp": {
     "default": "core",
@@ -365,6 +404,7 @@
     "parent": null,
     "requires": [],
     "requires_any": [],
-    "starter_off": false
+    "starter_off": false,
+    "microschool": null
   }
 }

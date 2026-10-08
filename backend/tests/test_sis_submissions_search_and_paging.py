@@ -127,7 +127,9 @@ def _world(n_completions=3, reviewed=()):
     }
 
 
-def _list(tables, **params):
+def _list(tables, school=None, **params):
+    """`school`: the current students of a school that runs individual
+    students (its inbox holds all their work), or None for one that does not."""
     calls = []
     admin = _admin(tables, calls)
     qs = urlencode(params)
@@ -135,6 +137,7 @@ def _list(tables, **params):
          patch.object(submissions, 'get_supabase_admin_client', return_value=admin), \
          patch.object(submissions.sis_service, 'org_or_error', return_value=(ORG, None)), \
          patch.object(submissions.sis_service, 'class_scope', return_value=None), \
+         patch.object(submissions, '_school_students', return_value=school), \
          patch.object(submissions, 'sign_in_place'), \
          patch.object(submissions, 'PortfolioService'):
         resp = submissions.list_submissions.__wrapped__(TEACHER)
@@ -260,3 +263,82 @@ class TestOneStudent:
     def test_a_student_outside_the_callers_scope_gets_nothing(self):
         body, _ = _list(_world(6), scope='new', student_id='s-stranger')
         assert body['submissions'] == []
+
+
+@pytest.mark.unit
+class TestWholeSchool:
+    """A school that runs individual students reviews ALL of its students'
+    work (Tanner, 2026-10-08), not only class work and quests given by name:
+    a quest a student picked up on their own reaches the inbox too."""
+
+    @staticmethod
+    def _own_quest(world):
+        world['quests'].append({'id': 'q-own', 'title': 'My own quest'})
+        world['user_quest_tasks'].append({'id': 't-own', 'user_id': 's-ada', 'quest_id': 'q-own',
+                                          'title': 'Built a birdhouse', 'description': None,
+                                          'pillar': 'art', 'xp_value': 25})
+        world['quest_task_completions'].append({'id': 'c-own', 'user_id': 's-ada', 'quest_id': 'q-own',
+                                                'user_quest_task_id': 't-own',
+                                                'completed_at': '2026-02-01T00:00:00Z'})
+        return world
+
+    def test_work_on_a_quest_no_class_holds_reaches_the_inbox(self):
+        body, _ = _list(self._own_quest(_world(2)), school={'s-ada', 's-bob'}, scope='new')
+        assert 'c-own' in _ids(body)
+        own = next(s for s in body['submissions'] if s['completion_id'] == 'c-own')
+        assert own['class_name'] is None
+
+    def test_without_the_module_it_stays_out(self):
+        body, _ = _list(self._own_quest(_world(2)), school=None, scope='new')
+        assert 'c-own' not in _ids(body)
+
+    def test_a_class_filter_still_means_that_class_only(self):
+        body, _ = _list(self._own_quest(_world(2)), school={'s-ada', 's-bob'}, scope='new',
+                        class_id=CLASS)
+        assert 'c-own' not in _ids(body)
+
+
+@pytest.mark.unit
+class TestReviewScopeWholeSchool:
+    """Accepting a submission checks it is in scope; at a whole-school inbox a
+    current student's own-quest work is."""
+
+    def _scope(self, school):
+        world = TestWholeSchool._own_quest(_world(2))
+        admin = _admin(world, [])
+        with Flask(__name__).test_request_context('/'), \
+             patch.object(submissions, 'get_supabase_admin_client', return_value=admin), \
+             patch.object(submissions.sis_service, 'class_scope', return_value=None), \
+             patch.object(submissions, '_individual_pairs', return_value=set()), \
+             patch.object(submissions, '_school_students', return_value=school):
+            return submissions._completion_in_scope(TEACHER, ORG, 'c-own')
+
+    def test_in_scope_at_a_whole_school(self):
+        completion, err = self._scope({'s-ada'})
+        assert err is None and completion['id'] == 'c-own'
+
+    def test_out_of_scope_otherwise(self):
+        completion, err = self._scope(None)
+        assert completion is None and err[1] == 404
+
+
+@pytest.mark.unit
+class TestNewCount:
+    """The School Dashboard's "Work to review" is the inbox's own 'new' count,
+    through the same scope (_inbox), so the two can never disagree."""
+
+    def _count(self, world, school=None):
+        admin = _admin(world, [])
+        with Flask(__name__).test_request_context('/'), \
+             patch.object(submissions, 'get_supabase_admin_client', return_value=admin), \
+             patch.object(submissions.sis_service, 'class_scope', return_value=None), \
+             patch.object(submissions, '_school_students', return_value=school):
+            return submissions.new_count(TEACHER, ORG)
+
+    def test_counts_what_is_not_reviewed(self):
+        assert self._count(_world(5, reviewed=[0, 1])) == 3
+
+    def test_a_whole_school_counts_own_quest_work_too(self):
+        world = TestWholeSchool._own_quest(_world(2))
+        assert self._count(world) == 2
+        assert self._count(TestWholeSchool._own_quest(_world(2)), school={'s-ada', 's-bob'}) == 3

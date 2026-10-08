@@ -45,6 +45,16 @@ class SisSubmissionRepository:
             .in_('quest_id', quests)
         ))
 
+    def completions_by(self, student_ids: Iterable[str]) -> List[Dict[str, Any]]:
+        """Every completion by these students on any quest, in id order: the
+        inbox of a school that reviews all of its students' work."""
+        students = list(student_ids)
+        return fetch_all_rows(lambda: (
+            self.client.table('quest_task_completions')
+            .select('id, user_id, quest_id, user_quest_task_id, completed_at')
+            .in_('user_id', students)
+        ))
+
     def org_reviews(self, org_id: str) -> List[Dict[str, Any]]:
         """Every SIS review row in the org (one per reviewed submission)."""
         return fetch_all_rows(lambda: (

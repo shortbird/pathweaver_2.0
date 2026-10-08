@@ -86,6 +86,9 @@ def _run(*, roles=('org_admin',), sees_pay=True, settings=None, counts=None, row
                                 return_value=batches or []),
         'schedule': patch.object(dash.coordinator, 'today_schedule', return_value=[]),
         'leaving_soon': patch.object(dash.coordinator, 'leaving_soon', return_value=[]),
+        # The inbox count is the submissions route's own (tested there).
+        'submissions_new': patch.object(dash, '_submissions_new', return_value=0),
+        'pinned': patch.object(dash, 'pinned_links_for', return_value=[]),
     }
     patches.update(overrides or {})
 
@@ -285,6 +288,8 @@ class TestTheRestOfThePayload:
             'attendance_alerts': 0, 'tasks_overdue': 0,
             'signatures_pending': 0, 'tasks_open': 0, 'age_exceptions': 0,
             'waitlist_waiting': 0, 'students_no_family': 0,
+            # The submissions inbox is on by default, so its queue is asked.
+            'submissions_new': 0,
         }
 
     def test_settings_are_echoed_so_the_frontend_filters_with_sismodules(self):
@@ -486,3 +491,64 @@ class TestABlockSwitchesOffItsOwnSections:
         data = _run(modules={'billing': False})
         assert data['snapshot'] == SNAPSHOT
         assert not any('cents' in k or 'invoice' in k for k in data['snapshot'])
+
+
+@pytest.mark.unit
+class TestMicroschoolQueues:
+    """The blocks a microschool runs show what is waiting in them, and a block
+    that is off shows nothing (docs/sis/SIS_SIMPLIFICATION.md, 2026-10-08).
+    The clock in _run is Friday 2026-08-14, after the Thursday check-in."""
+
+    BOARD = {'students': [
+        {'student_id': 's1', 'week': None},
+        {'student_id': 's2', 'week': {'goals': [{'goal': 'Ch 1'}], 'checked_in_at': None}},
+        {'student_id': 's3', 'week': {'goals': [{'goal': 'Ch 2', 'completed': True}],
+                                      'checked_in_at': 'x', 'valid_complaints': 0}},
+    ]}
+
+    def test_weekly_goals_count_unset_weeks_and_check_ins_to_do(self):
+        with patch('services.sis_weekly_goal_service.WeeklyGoalService.board', return_value=self.BOARD):
+            data = _run(modules={'weekly_goals': True})
+        assert data['attention']['weekly_goals_unset'] == 1
+        assert data['attention']['weekly_checkins_due'] == 1
+
+    def test_no_weekly_goal_tiles_without_the_module(self):
+        with patch('services.sis_weekly_goal_service.WeeklyGoalService.board') as board:
+            data = _run()
+        assert 'weekly_goals_unset' not in data['attention']
+        board.assert_not_called()
+
+    def test_bounties_to_review_count_the_schools_turned_in_claims(self):
+        data = _run(modules={'bounty_management': True},
+                    rows={'bounties': [{'id': 'b1'}, {'id': 'b2'}]},
+                    counts={'bounty_claims': 2})
+        assert data['attention']['bounties_to_review'] == 2
+        assert 'bounties_to_review' not in _run(counts={'bounty_claims': 2})['attention']
+
+    def test_points_given_this_week_ride_along_only_with_the_module(self):
+        with patch('services.sis_points_service.PointsService.given_since', return_value=45):
+            assert _run(modules={'points': True})['points'] == {'given_this_week': 45}
+            assert 'points' not in _run()
+
+    def test_bloomy_counts_linked_students_with_no_work_this_week(self):
+        links = [{'user_id': 's1'}, {'user_id': 's2'}, {'user_id': None}]
+        with patch('repositories.external_learning_repository.ExternalLearningRepository.links',
+                   return_value=links), \
+             patch('services.bloomy_sync_service.week_summaries', return_value={'s1': {'days': 2}}):
+            data = _run(modules={'bloomy': True})
+        assert data['attention']['bloomy_inactive'] == 1
+
+    def test_no_noticeboard_without_resources(self):
+        with patch.object(dash, 'pinned_links_for', return_value=[{'id': 'l1'}]) as pinned:
+            data = _run(settings={'hidden_modules': ['resources']},
+                        overrides={'pinned': patch.object(dash, 'pinned_links_for', new=pinned)})
+        assert data['pinned_links'] == []
+        pinned.assert_not_called()
+
+    def test_the_work_to_review_tile_follows_submissions(self):
+        with patch.object(dash, '_submissions_new', return_value=4) as count:
+            data = _run(overrides={'submissions_new': patch.object(dash, '_submissions_new', new=count)})
+            assert data['attention']['submissions_new'] == 4
+            data = _run(modules={'submissions': False},
+                        overrides={'submissions_new': patch.object(dash, '_submissions_new', new=count)})
+        assert 'submissions_new' not in data['attention']

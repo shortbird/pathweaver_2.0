@@ -40,6 +40,7 @@ import { formatMessageTime } from '../../components/communication/MessageParts'
 import { useAuth } from '../../contexts/AuthContext'
 import { isSisAdmin } from './sisRole'
 import { useSisOrg, withOrg } from './useSisOrg'
+import { isPathHidden } from './sisModules'
 import api from '../../services/api'
 import { Spinner } from '../../components/ui/Spinner'
 import GlassTabBar from '../../components/ui/GlassTabBar'
@@ -148,6 +149,7 @@ const groupNames = (g) => [
 
 const SchoolInboxPage = () => {
   const { orgId, isSuperadmin, activeOrg } = useSisOrg()
+  const classesOn = !isPathHidden('/classes', activeOrg) // no classes, no class chats (SIS_SIMPLIFICATION rule 2)
   const { user } = useAuth()
   const queryClient = useQueryClient()
   // Whether this caller has a school inbox to read at all. The backend is the
@@ -183,7 +185,7 @@ const SchoolInboxPage = () => {
   const tab = rawTab === 'mine' ? 'mine'
     : rawTab === 'sent' && admin ? 'sent'
       // Every class chat at the school, for the office (bbb477db).
-      : rawTab === 'classes' && admin ? 'classes'
+      : rawTab === 'classes' && admin && classesOn ? 'classes'
       // Default: My messages, for everyone. The office used to open on the
       // shared school inbox, and a coordinator who pressed Compose there wrote
       // to a colleague as the school, into the inbox the whole office reads
@@ -690,7 +692,7 @@ const SchoolInboxPage = () => {
           ...(schoolInbox ? [{ id: 'school', label: `${orgName || 'School'} inbox`,
             badge: schoolCount > 0 ? schoolCount : null }] : []),
           { id: 'mine', label: 'My messages', badge: mineCount > 0 ? mineCount : null },
-          ...(admin ? [{ id: 'sent', label: 'Sent' }, { id: 'classes', label: 'All class chats' }] : []),
+          ...(admin ? [{ id: 'sent', label: 'Sent' }, ...(classesOn ? [{ id: 'classes', label: 'All class chats' }] : [])] : []),
         ]}
         active={tab} onSelect={setTab}
       />
@@ -780,7 +782,7 @@ const SchoolInboxPage = () => {
             {renderGroupSection('groups', 'Group threads', shownGroups)}
             {renderGroupSection('classChats', 'Class chats', shownClassChats)}
             {/* Class chats are not on this tab; say where they are (bbb477db). */}
-            {schoolSide && (
+            {schoolSide && classesOn && (
               <p className="border-t border-gray-100 px-3 py-2 text-xs text-neutral-500">
                 Class chats are on{' '}
                 <button type="button" onClick={() => setTab(admin ? 'classes' : 'mine')}

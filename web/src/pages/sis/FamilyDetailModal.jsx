@@ -9,6 +9,7 @@ import { inboxThreadLink } from './StudentDetailModal'
 import { useRecordDoors } from '../../components/sis/recordDoorsContext'
 import PersonPhoto from '../../components/sis/PersonPhoto'
 import { useSisOrg } from './useSisOrg'
+import { isPathHidden } from './sisModules'
 import { useAuth } from '../../contexts/AuthContext'
 import { canSeeFinance } from './sisRole'
 import { useConfirm } from '../../contexts/ConfirmContext'
@@ -85,15 +86,20 @@ const TABS = [
  * two coordinators). Hide what the backend would refuse, the way the sidebar
  * and the staff modal already do.
  */
-export const familyTabsFor = (user) =>
+export const familyTabsFor = (user, activeOrg = null) =>
   TABS.filter((t) => t.key !== 'billing' || canSeeFinance(user))
+    // A tab for a module the school has off is not offered (SIS_SIMPLIFICATION
+    // rule 2): a school that does not bill or register through Optio has no
+    // Billing or Registration to open.
+    .filter((t) => !['billing', 'registration'].includes(t.key) || !isPathHidden(`/${t.key}`, activeOrg))
 
 const FamilyDetailModal = ({ household, orgId, members, onClose, onSaved, initialTab = null }) => {
   const confirm = useConfirm()
   const navigate = useNavigate()
   const { user } = useAuth()
+  const { activeOrg } = useSisOrg()
   const [tab, setTab] = useState(
-    initialTab && familyTabsFor(user).some((t) => t.key === initialTab) ? initialTab : 'family')
+    initialTab && familyTabsFor(user, activeOrg).some((t) => t.key === initialTab) ? initialTab : 'family')
   const [editingName, setEditingName] = useState(false)
   const [name, setName] = useState(household.name || '')
   const [saving, setSaving] = useState(false)
@@ -240,7 +246,7 @@ const FamilyDetailModal = ({ household, orgId, members, onClose, onSaved, initia
         <div className="px-4 pt-3 pb-1">
           <GlassTabBar
             align="start" aria-label="Family sections"
-            tabs={familyTabsFor(user).map((t) => ({ id: t.key, label: t.label }))}
+            tabs={familyTabsFor(user, activeOrg).map((t) => ({ id: t.key, label: t.label }))}
             active={tab} onSelect={setTab}
           />
         </div>
@@ -513,8 +519,16 @@ const RegistrationAccessSection = ({ household, orgId, onSaved }) => {
     if ((household.registration_hold_reason || '') === reason.trim()) return
     patch({ registration_hold_reason: reason.trim() || null })
   }
+  // Each part follows its module (SIS_SIMPLIFICATION rule 2): the hold is
+  // registration's, the funding source is how tuition is paid (billing), the
+  // directory row is the family directory (community).
+  const registrationOn = !isPathHidden('/registration', activeOrg)
+  const billingOn = !isPathHidden('/billing', activeOrg)
+  const directoryOn = !isPathHidden('/community', activeOrg)
+  if (!registrationOn && !billingOn && !directoryOn) return null
   return (
     <section className="rounded-lg border border-gray-200 p-3 space-y-3">
+      {registrationOn && (<>
       <h4 className="text-xs font-semibold uppercase tracking-wide text-neutral-400">Class registration access</h4>
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0">
@@ -545,8 +559,9 @@ const RegistrationAccessSection = ({ household, orgId, onSaved }) => {
             className={field} placeholder="e.g. Please call the office about your paperwork" />
         </label>
       )}
-      <FundingRow household={household} orgId={orgId} schoolName={schoolName} onSaved={onSaved} />
-      <DirectoryRow household={household} orgId={orgId} onSaved={onSaved} defaultIn={directoryDefaultIn} />
+      </>)}
+      {billingOn && <FundingRow household={household} orgId={orgId} schoolName={schoolName} onSaved={onSaved} />}
+      {directoryOn && <DirectoryRow household={household} orgId={orgId} onSaved={onSaved} defaultIn={directoryDefaultIn} />}
     </section>
   )
 }

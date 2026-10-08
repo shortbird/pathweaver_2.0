@@ -2497,6 +2497,16 @@ def households_with_members(org_id: str) -> List[Dict[str, Any]]:
     return households
 
 
+def current_student_ids(org_id: str) -> set:
+    """Ids of the school's current students: withdrawn and graduated left
+    out, the rule the People and Students pages follow."""
+    enrollments = _enrollments_by_student(org_id)
+    return {
+        u['id'] for u in _org_students(org_id)
+        if (enrollments.get(u['id']) or {}).get('status') not in INACTIVE_ENROLLMENT_STATUSES
+    }
+
+
 def students_for_individual_work(org_id: str) -> List[Dict[str, Any]]:
     """The school's current students for a teacher's "Students" list, each with
     how many quests a teacher gave them by name (student_quest_assignments).

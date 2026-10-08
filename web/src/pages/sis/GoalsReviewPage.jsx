@@ -10,9 +10,11 @@ import { statusLabel } from '../../components/sis/ui/statusMaps'
 import { INLINE_INPUT_CLASS } from '../../components/ui/Input'
 
 /**
- * Goals — the staff side of goal/direction setting (goals-mode schools). Parents
- * submit a long-term direction + per-subject year goals for each child; staff
- * review them in a family meeting and mark them reviewed here.
+ * Family goals -- the staff side of the parents' goal setting (the `goals`
+ * module). Parents submit a long-term direction and per-subject year goals for
+ * each child; staff read them and mark them reviewed here. The Family goals tab
+ * of the Goals page since 2026-10-08. Its text must hold at any school that
+ * runs the module: not every school registers families through Optio.
  */
 
 const field = INLINE_INPUT_CLASS
@@ -103,7 +105,9 @@ const GoalDetail = ({ goal, orgId, onClose, onReviewed }) => {
   )
 }
 
-const GoalsReviewPage = () => {
+/** `embedded`: the Family goals tab of the Goals page (GoalsPage), which
+ * carries the title. */
+const GoalsReviewPage = ({ embedded = false }) => {
   const { orgId, activeOrg } = useSisOrg()
   const [goals, setGoals] = useState(null)
   const [config, setConfig] = useState(null)
@@ -131,8 +135,8 @@ const GoalsReviewPage = () => {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold text-neutral-900">Goals</h1>
+      <div className={`flex items-center mb-6 ${embedded ? 'justify-end' : 'justify-between'}`}>
+        {!embedded && <h1 className="text-2xl font-bold text-neutral-900">Goals</h1>}
         <div className="flex items-center gap-3">
           <Button variant="secondary" size="sm" onClick={() => setPreviewing(true)}>
             Preview family view
@@ -171,7 +175,7 @@ const GoalsReviewPage = () => {
 
       {goals === null && <p className="text-neutral-500">Loading…</p>}
       {goals?.length === 0 && (
-        <p className="text-neutral-500">No family goals yet. Parents set goals from their Goal Setting page after registering.</p>
+        <p className="text-neutral-500">No family goals yet. Parents add them from Goal Setting on the family side.</p>
       )}
 
       {grouped.map(({ status, items }) => {

@@ -13,7 +13,8 @@ import os
 import pytest
 
 from modules.registry import (
-    CATEGORIES, DEFAULTS, GATES, MODULES, STARTER_KEEPS, STARTER_OFF, TIERS,
+    CATEGORIES, DEFAULTS, GATES, MICROSCHOOL_OFF, MICROSCHOOL_ON, MODULES, STARTER_KEEPS,
+    STARTER_OFF, TIERS,
 )
 
 # The 12 opt-out keys are a promise already made: they are the values orgs
@@ -22,8 +23,9 @@ from modules.registry import (
 # 14th, 'timesheets', was removed with its feature on 2026-09-18, and the
 # 13th, 'forms', with requests and forms on 2026-09-24 -- nothing to un-hide
 # in either case; a stale key in an org's array is ignored.)
+# clp left this list on 2026-10-08: it is opt-in on sis_settings.clp_enabled.
 HIDDEN_MODULES_KEYS = {
-    'attendance', 'billing', 'calendar', 'classes', 'clp', 'curriculum',
+    'attendance', 'billing', 'calendar', 'classes', 'curriculum',
     'onboarding', 'reports', 'resources', 'secure_documents',
     'tasks', 'training',
 }
@@ -105,6 +107,9 @@ def test_module_keys_json_mirrors_the_registry():
         assert entry['requires_any'] == list(m.requires_any), key
         assert entry['gate'] == m.gate, key
         assert entry['starter_off'] == (key in STARTER_OFF), key
+        expected = ('off' if key in MICROSCHOOL_OFF
+                    else 'on' if key in MICROSCHOOL_ON else None)
+        assert entry['microschool'] == expected, key
 
 
 # ---------------------------------------------------------------------------

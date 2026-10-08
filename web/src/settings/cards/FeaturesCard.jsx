@@ -2,6 +2,9 @@ import React, { useEffect, useState } from 'react'
 import api from '../../services/api'
 import * as orgStore from '../../pages/sis/sisOrgStore'
 import { useConfirm } from '../../contexts/ConfirmContext'
+import { getSchoolFeatures, requestSchoolFeature, setSchoolFeatures } from '../../hooks/api/schoolFeatures'
+
+export { getSchoolFeatures, setSchoolFeatures }
 
 /**
  * The school's own feature switches (docs/MICROSCHOOL_FIRST_PLAN.md part 3).
@@ -10,8 +13,11 @@ import { useConfirm } from '../../contexts/ConfirmContext'
  * turn them off. This card lists what a school may decide for itself, each
  * with one plain sentence; the list, the words and the rules come from
  * backend/services/school_features_service.py (GET/PUT /api/school-features).
- * What Optio sets up (the console itself, AI, credits, kiosks ...) is not on
- * it.
+ *
+ * Since 2026-10-08 it lists every option a school has, so a new school that
+ * starts small can see the rest (docs/sis/SIS_SIMPLIFICATION.md). What only
+ * Optio turns on (Bloomy, AI, credits, prior learning ...) has no switch: it
+ * says On when it is, and otherwise an "Ask Optio" button files a ticket.
  *
  * A feature that needs another one says so and stays disabled until that one
  * is on. Turning off a feature that others still use asks first and turns
@@ -21,15 +27,6 @@ import { useConfirm } from '../../contexts/ConfirmContext'
  * renders nothing. After a save the org is re-read everywhere it is cached,
  * so the console's sidebar and the other Settings cards follow at once.
  */
-const unwrap = (res) => res.data?.data ?? res.data ?? {}
-const params = (orgId) => (orgId ? { organization_id: orgId } : {})
-
-export const getSchoolFeatures = (orgId) =>
-  api.get('/api/school-features', { params: params(orgId) }).then(unwrap)
-
-export const setSchoolFeatures = (orgId, changes) =>
-  api.put('/api/school-features', changes, { params: params(orgId) }).then(unwrap)
-
 // A superadmin's console reads the selected org from the shared picker list;
 // an org admin's reads OrganizationContext (refreshed through onLogoChange).
 function reloadPickerOrgs() {
@@ -63,6 +60,8 @@ export default function FeaturesCard({ orgId, onUpdate, onLogoChange }) {
   const [data, setData] = useState(null)
   const [saving, setSaving] = useState(null)
   const [problem, setProblem] = useState(null)
+  // Features this school has asked Optio for during this visit.
+  const [asked, setAsked] = useState({})
   const confirm = useConfirm()
 
   useEffect(() => {
@@ -88,6 +87,19 @@ export default function FeaturesCard({ orgId, onUpdate, onLogoChange }) {
     })
     visit(key)
     return out
+  }
+
+  const ask = async (feature) => {
+    setSaving(feature.key)
+    setProblem(null)
+    try {
+      await requestSchoolFeature(orgId, feature.key)
+      setAsked((a) => ({ ...a, [feature.key]: true }))
+    } catch (error) {
+      setProblem({ key: feature.key, text: error.response?.data?.error || 'Could not send the request. Please try again.' })
+    } finally {
+      setSaving(null)
+    }
   }
 
   const toggle = async (feature) => {
@@ -126,6 +138,7 @@ export default function FeaturesCard({ orgId, onUpdate, onLogoChange }) {
       <h2 className="text-xl font-bold mb-1">Features</h2>
       <p className="text-sm text-gray-500 mb-4">
         Turn on what your school uses. Anything you turn off is hidden, not deleted, and comes back when you turn it on.
+        Optio turns on the few marked Ask Optio; ask and we will set it up with you.
       </p>
       <div className="space-y-6">
         {data.groups.map((group) => {
@@ -152,12 +165,26 @@ export default function FeaturesCard({ orgId, onUpdate, onLogoChange }) {
                           <span role="alert" className="block text-xs text-red-600 mt-1">{problem.text}</span>
                         )}
                       </div>
-                      <Switch
-                        label={f.name}
-                        checked={f.enabled}
-                        disabled={blocked || saving !== null}
-                        onClick={() => toggle(f)}
-                      />
+                      {f.switchable === false ? (
+                        f.enabled ? (
+                          <span className="shrink-0 text-xs font-semibold text-optio-purple">On</span>
+                        ) : asked[f.key] ? (
+                          <span className="shrink-0 text-xs text-gray-500">Asked</span>
+                        ) : (
+                          <button type="button" onClick={() => ask(f)} disabled={saving !== null}
+                            className="shrink-0 rounded-lg border border-optio-purple/40 px-2.5 py-1 text-xs font-semibold text-optio-purple hover:bg-optio-purple/5 disabled:opacity-50"
+                            aria-label={`Ask Optio to turn on ${f.name}`}>
+                            Ask Optio
+                          </button>
+                        )
+                      ) : (
+                        <Switch
+                          label={f.name}
+                          checked={f.enabled}
+                          disabled={blocked || saving !== null}
+                          onClick={() => toggle(f)}
+                        />
+                      )}
                     </li>
                   )
                 })}

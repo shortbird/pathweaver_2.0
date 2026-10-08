@@ -20,8 +20,9 @@ LMS_ON = {'journal', 'courses', 'bounties', 'observer', 'friends', 'student_chat
 
 # The 13 opt-out SIS module keys plus the no-legacy defaults that ride along
 # once `sis` is on.
+# clp is not here since 2026-10-08: opt-in on sis_settings.clp_enabled (iCreate).
 SIS_DEFAULT_ON = {
-    'attendance', 'billing', 'calendar', 'classes', 'clp', 'curriculum',
+    'attendance', 'billing', 'calendar', 'classes', 'curriculum',
     'onboarding', 'reports', 'resources', 'secure_documents',
     'tasks', 'training',
     'catalog', 'registration', 'submissions',
@@ -41,9 +42,19 @@ def org(flags=None, ai=True, accreditation='none'):
 
 def test_icreate_shape_everything_on_plus_community():
     row = org({'sis_enabled': True,
-               'sis_settings': {'community_enabled': True}})
+               'sis_settings': {'community_enabled': True, 'clp_enabled': True}})
     got = effective_modules_for_row(row)
-    assert got == CORE | LMS_ON | {'ai', 'sis', 'community'} | SIS_DEFAULT_ON
+    assert got == CORE | LMS_ON | {'ai', 'sis', 'community', 'clp'} | SIS_DEFAULT_ON
+
+
+def test_clp_is_on_only_where_clp_enabled_is_set():
+    """CLPs are iCreate's workflow (2026-10-08): no other school gets the
+    module, and hiding it still wins over the setting."""
+    assert 'clp' not in effective_modules_for_row(org({'sis_enabled': True}))
+    assert 'clp' in effective_modules_for_row(
+        org({'sis_enabled': True, 'sis_settings': {'clp_enabled': True}}))
+    assert 'clp' not in effective_modules_for_row(
+        org({'sis_enabled': True, 'sis_settings': {'clp_enabled': True, 'hidden_modules': ['clp']}}))
 
 
 def test_optio_academy_shape_twelve_hidden_plus_optins():
@@ -226,12 +237,35 @@ def test_orgs_without_a_baseline_are_exactly_as_before():
     """The rollout promise: no existing school moves. iCreate (console on,
     nothing hidden) and Horizon (console on, every office module on, a
     leftover icreate_registration config) carry no module_baseline key."""
-    icreate = org({'sis_enabled': True, 'sis_settings': {'community_enabled': True}})
+    icreate = org({'sis_enabled': True,
+                   'sis_settings': {'community_enabled': True, 'clp_enabled': True}})
     assert effective_modules_for_row(icreate) == \
-        CORE | LMS_ON | {'ai', 'sis', 'community'} | SIS_DEFAULT_ON
+        CORE | LMS_ON | {'ai', 'sis', 'community', 'clp'} | SIS_DEFAULT_ON
 
     horizon = org({'sis_enabled': True,
                    'icreate_registration': {'enabled': True},
                    'modules': {'student_chat': False}})
     assert effective_modules_for_row(horizon) == \
         CORE | (LMS_ON - {'student_chat'}) | {'ai', 'sis'} | SIS_DEFAULT_ON
+
+
+def test_the_microschool_baseline_starts_one_child_at_a_time():
+    """Orgs created from 2026-10-08 (docs/sis/SIS_SIMPLIFICATION.md, decision
+    2): no classes, timetable, roll, curriculum or reports, and the coach's
+    weekly goals on. An explicit modules entry still wins either way."""
+    from modules.registry import MICROSCHOOL_OFF
+    row = org({'sis_enabled': True, 'module_baseline': 'microschool'})
+    got = effective_modules_for_row(row)
+    assert not (got & MICROSCHOOL_OFF)
+    assert {'weekly_goals', 'individual_work', 'submissions'} <= got
+    row = org({'sis_enabled': True, 'module_baseline': 'microschool',
+               'modules': {'classes': True, 'weekly_goals': False}})
+    got = effective_modules_for_row(row)
+    assert 'classes' in got and 'weekly_goals' not in got
+
+
+def test_starter_orgs_keep_what_they_had():
+    """New schools only (Tanner, 2026-10-08): a 'starter' org still has
+    classes and no weekly goals unless it turned them on."""
+    got = effective_modules_for_row(org({'sis_enabled': True, 'module_baseline': 'starter'}))
+    assert 'classes' in got and 'weekly_goals' not in got

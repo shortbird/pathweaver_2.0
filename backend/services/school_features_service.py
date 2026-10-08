@@ -54,6 +54,7 @@ NOT_HERE = frozenset({'student_chat', 'goals', 'clp'})
 GROUPS: Tuple[Tuple[str, str], ...] = (
     ('teaching', 'Teaching'),
     ('families', 'Families and registration'),
+    ('credits', 'Credit and diplomas'),
     ('money', 'Money'),
     ('office', 'Office'),
 )
@@ -88,6 +89,24 @@ FEATURES: Dict[str, Tuple[str, str, str]] = {
 }
 
 
+# What Optio turns on for a school, listed on the same card so a school sees
+# every option it has (Tanner, 2026-10-08: "a way for them to see all the
+# options available to them, but not have them all enabled"). No switch: the
+# card's "Ask Optio" files a ticket (bug_reports, source 'web', no email).
+# Not listed: 'sis' (the console itself), 'student_chat' (its own card) and
+# 'clp' (iCreate's own workflow, on only where Optio set clp_enabled).
+OPTIO_FEATURES: Dict[str, Tuple[str, str, str]] = {
+    'ai': ('teaching', 'AI helpers', 'Optio AI suggests tasks and ideas and helps students along, within your family consent settings.'),
+    'course_builder': ('teaching', 'Course builder', 'Build full courses out of projects and lessons.'),
+    'bloomy': ('teaching', 'Bloomy', "Students' Bloomy Math and Reading work comes in as finished tasks each night."),
+    'goals': ('families', 'Family goal setting', 'Parents set a direction and year goals for each child, and staff review them.'),
+    'credits': ('credits', 'Credits', 'Students earn school credit for the work staff approve.'),
+    'transcripts': ('credits', 'Transcripts and diplomas', 'Official transcripts and diplomas built from approved credit.'),
+    'prior_learning': ('credits', 'Prior learning', 'Optio Academy reviews work and transcripts from before a student joined, for credit.'),
+    'kiosk': ('office', 'Sign-in kiosk', 'A tablet at the door where students sign in and out.'),
+}
+
+
 class FeatureChangeError(Exception):
     def __init__(self, message: str, status: int = 400, violations: Optional[List[str]] = None):
         super().__init__(message)
@@ -107,8 +126,53 @@ def features_for_row(org: Dict[str, Any]) -> Dict[str, Any]:
             'description': description,
             'enabled': module_enabled_for_row(org, key),
             'requires': [r for r in m.requires if r in FEATURES],
+            'switchable': True,
+        })
+    for key, (group, name, description) in OPTIO_FEATURES.items():
+        rows.append({
+            'key': key,
+            'group': group,
+            'name': name,
+            'description': description,
+            'enabled': module_enabled_for_row(org, key),
+            'requires': [],
+            'switchable': False,
         })
     return {'groups': [{'key': k, 'name': n} for k, n in GROUPS], 'features': rows}
+
+
+def request_feature(org_id: str, key: Any, *, actor_id: str) -> Dict[str, Any]:
+    """'Ask Optio' for a feature only Optio turns on: one ticket per school
+    and feature while it is open (a second click returns the first), filed as
+    a feature request on /admin/tickets. No email (Tanner, 2026-10-08)."""
+    if key not in OPTIO_FEATURES:
+        raise FeatureChangeError('That feature can be switched on the card itself'
+                                 if key in FEATURES else f'Unknown feature: {key}')
+    from repositories.bug_report_repository import BugReportRepository
+    from repositories.organization_repository import OrganizationRepository
+    repo = BugReportRepository()
+    existing = repo.find_open_feature_request(org_id, key)
+    if existing:
+        return {'requested': True, 'ticket_id': existing['id'], 'already': True}
+    org = OrganizationRepository().find_by_id(org_id) or {}
+    user = (_admin().table('users').select('email, role, org_role')
+            .eq('id', actor_id).limit(1).execute()).data or [{}]
+    name = OPTIO_FEATURES[key][1]
+    created = repo.create({
+        'user_id': actor_id,
+        'user_email': user[0].get('email'),
+        'user_role': user[0].get('org_role') or user[0].get('role'),
+        'organization_id': org_id,
+        'title': f'Turn on {name} for {org.get("name") or "a school"}'[:120],
+        'message': (f'{org.get("name") or "A school"} asked to turn on {name} from the '
+                    'Features card in Settings.'),
+        'type': 'feature',
+        'source': 'web',
+        'status': 'new',
+        'current_route': '/settings',
+        'extra': {'feature_request': key},
+    })
+    return {'requested': True, 'ticket_id': created.get('id'), 'already': False}
 
 
 def check_feature_changes(changes: Any) -> Dict[str, bool]:

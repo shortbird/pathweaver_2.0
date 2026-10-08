@@ -246,6 +246,26 @@ class BugReportRepository(BaseRepository):
             logger.error(f"Error looking up bug_report for sentry issue {sentry_key}: {e}")
             raise DatabaseError("Failed to look up bug report") from e
 
+    def find_open_feature_request(self, org_id: str, feature_key: str) -> Optional[Dict[str, Any]]:
+        """An open "Ask Optio" ticket for this school and feature, if any
+        (extra.feature_request, from the Settings Features card): a second
+        click shows the first request instead of filing another."""
+        try:
+            response = (
+                self.client.table(self.table_name)
+                .select('id, status, created_at')
+                .eq('organization_id', org_id)
+                .eq('extra->>feature_request', feature_key)
+                .in_('status', list(OPEN_STATUSES))
+                .order('created_at', desc=True)
+                .limit(1)
+                .execute()
+            )
+            return response.data[0] if response.data else None
+        except APIError as e:
+            logger.error(f"Error looking up feature request {feature_key}: {e}")
+            raise DatabaseError("Failed to look up feature request") from e
+
     def find_latest_by_canary_token(self, token: str) -> Optional[Dict[str, Any]]:
         """The newest ticket a canarytoken has filed, open or closed, if any.
 

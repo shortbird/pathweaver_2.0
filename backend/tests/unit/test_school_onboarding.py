@@ -201,7 +201,7 @@ def test_the_form_never_sets_accreditation_or_raw_flags():
     org = orgs.rows[0]
     assert 'accreditation_source' not in org
     assert org['feature_flags'] == {'due_dates': True, 'scheduled_publish': True,
-                                    'module_baseline': 'starter'}
+                                    'module_baseline': 'microschool'}
     assert repo.link['answers']['accreditation'] == 'Cognia'
     assert 'accreditation_source' not in repo.link['answers']
     assert 'feature_flags' not in repo.link['answers']
@@ -242,15 +242,15 @@ def test_no_picks_change_nothing():
     orgs = FakeOrgRepo()
     run(FakeRepo(), orgs, answers(features=['mobile_app']))
     assert orgs.rows[0]['feature_flags'] == {'due_dates': True, 'scheduled_publish': True,
-                                             'module_baseline': 'starter'}
+                                             'module_baseline': 'microschool'}
 
 
-def test_every_new_school_starts_on_the_starter_baseline():
+def test_every_new_school_starts_on_the_microschool_baseline():
     from modules import module_enabled_for_row
     orgs = FakeOrgRepo()
     run(FakeRepo(), orgs, answers(features=['attendance']))
     org = orgs.rows[0]
-    assert org['feature_flags']['module_baseline'] == 'starter'
+    assert org['feature_flags']['module_baseline'] == 'microschool'
     assert module_enabled_for_row(org, 'attendance')
     for key in ('registration', 'catalog', 'billing', 'tasks', 'onboarding', 'clp',
                 'resources', 'training'):

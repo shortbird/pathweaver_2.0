@@ -21,7 +21,7 @@ export default function StudentGoals({ orgId, studentId }) {
     <section className="rounded-xl border border-gray-200 bg-white p-4" aria-label="Goals">
       <div className="flex items-center justify-between gap-2 mb-2">
         <h2 className="font-semibold text-neutral-900">Goals</h2>
-        <Link to="/weekly-goals" className="text-xs font-semibold text-optio-purple hover:underline">
+        <Link to="/goals" className="text-xs font-semibold text-optio-purple hover:underline">
           Set goals
         </Link>
       </div>

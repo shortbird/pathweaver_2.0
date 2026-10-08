@@ -364,7 +364,15 @@ def staff_save_year_goals(user_id, student_id):
     org_id = sis_service.resolve_org_id(user_id, sis_service.requested_org_id())
     if not org_id:
         return jsonify({'success': False, 'error': 'No organization in context'}), 400
+    return save_year_goals(user_id, org_id, student_id, request.json or {})
 
+
+def save_year_goals(user_id, org_id, student_id, body):
+    """The year-goal write behind both doors: this blueprint's (goals mode)
+    and PUT /api/sis/weekly-goals/students/<id>/year (weekly goals), so a
+    school that runs weekly goals without the parents' goal flow can still set
+    the year its weeks serve (2026-10-08). The caller has already checked the
+    role and the relationship."""
     from repositories.sis_weekly_goal_repository import SisWeeklyGoalRepository
     repo = SisWeeklyGoalRepository()
     student = repo.user_row(student_id)
@@ -373,7 +381,7 @@ def staff_save_year_goals(user_id, student_id):
     _enabled, subjects, school_year = _goals_config(repo.org_row(org_id) or {})
 
     wanted = {e['subject']: e['year_goal']
-              for e in _sanitize_subjects((request.json or {}).get('subjects'))}
+              for e in _sanitize_subjects(body.get('subjects'))}
     existing = repo.annual_goal_for_year(org_id, student_id, school_year)
     old = {s.get('subject'): s for s in ((existing or {}).get('subjects') or [])
            if isinstance(s, dict)}

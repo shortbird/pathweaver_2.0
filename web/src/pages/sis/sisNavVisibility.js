@@ -1,8 +1,6 @@
 import { isSisAdmin, canSeeFinance, canSeeHr } from './sisRole'
 import { getPreviewTeacher } from './teacherPreview'
-import {
-  isPathHidden, isCommunityEnabled, isPriorLearningEnabled, isGoalsEnabled, isClpEnabled,
-} from './sisModules'
+import { isPathHidden } from './sisModules'
 
 /**
  * Who may be OFFERED a console destination.
@@ -15,8 +13,13 @@ import {
  *
  * Flags an item may carry (see NAV_SECTIONS for what each means):
  *   superadmin, adminOnly, teacherOnly, hideInPreview, financeOnly, hrOnly,
- *   goalsMode, communityMode, priorLearningMode, clpMode,
  *   and `path`, whose module may be off for the org (sisModules).
+ *
+ * Whether a page exists for a school is its module and nothing else
+ * (docs/sis/SIS_SIMPLIFICATION.md, rule 1). Until 2026-10-08 four items
+ * carried a second switch of their own (goalsMode, communityMode,
+ * priorLearningMode, clpMode); the first three repeated their module, and
+ * CLP's extra setting is now the clp module's own source.
  */
 
 export function navContextFor(user, activeOrg) {
@@ -49,14 +52,5 @@ export function navItemVisible(item, ctx) {
   // feature_flags.modules entry, or its legacy flag) -- one evaluator covers
   // the opt-outs and the opt-ins alike.
   if (item.path && isPathHidden(item.path, activeOrg)) return false
-  // Goals-mode orgs (e.g. Gryffin) set direction/subject goals after
-  // registration instead of building a schedule; the Goals tab is meaningless
-  // for others.
-  if (item.goalsMode && !isGoalsEnabled(activeOrg)) return false
-  // Community Hub and Prior Learning are opt-in per org.
-  if (item.communityMode && !isCommunityEnabled(activeOrg)) return false
-  if (item.priorLearningMode && !isPriorLearningEnabled(activeOrg)) return false
-  // CLPs are iCreate's workflow; every other school opts in.
-  if (item.clpMode && !isClpEnabled(activeOrg)) return false
   return true
 }

@@ -97,7 +97,7 @@ const WeekEditor = ({ student, subjects, weekStart, orgId, yearGoalsEditable, on
     setSaving(checkIn ? 'checkin' : 'goals')
     try {
       if (editingYear) {
-        await api.put(withOrg(`/api/sis/goals/students/${student.student_id}/year`, orgId), {
+        await api.put(withOrg(`/api/sis/weekly-goals/students/${student.student_id}/year`, orgId), {
           subjects: subjects.map((subject) => ({ subject, year_goal: yearGoals[subject] || '' })),
         })
       }
@@ -221,7 +221,8 @@ const WeekEditor = ({ student, subjects, weekStart, orgId, yearGoalsEditable, on
   )
 }
 
-const WeeklyGoalsPage = () => {
+/** `embedded`: a tab of the Goals page (GoalsPage), which carries the title. */
+const WeeklyGoalsPage = ({ embedded = false }) => {
   const { orgId, activeOrg } = useSisOrg()
   const [weekStart, setWeekStart] = useState(() => mondayOf())
   const [data, setData] = useState(null)
@@ -257,8 +258,8 @@ const WeeklyGoalsPage = () => {
 
   return (
     <div>
-      <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
-        <h1 className="text-2xl font-bold text-neutral-900">Weekly Goals</h1>
+      <div className={`flex flex-wrap items-center gap-3 mb-6 ${embedded ? 'justify-end' : 'justify-between'}`}>
+        {!embedded && <h1 className="text-2xl font-bold text-neutral-900">Weekly Goals</h1>}
         <div className="flex items-center gap-2">
           <Button variant="secondary" size="sm" onClick={() => goToWeek(addDays(weekStart, -7))} aria-label="Previous week">Previous</Button>
           <span className="text-sm font-medium text-neutral-700 min-w-[9rem] text-center">

@@ -75,6 +75,17 @@ def freedom_for(row: Optional[Dict[str, Any]]) -> Optional[str]:
     return FREEDOM_NOT_EARNED
 
 
+def week_status_for(row: Optional[Dict[str, Any]]) -> str:
+    """Where a week stands, in the words the board's pill uses
+    (WeeklyGoalsPage.weekStatus): not_set, goals_set, then the freedom
+    answer once checked in."""
+    if not row or not any((g.get('goal') or '').strip() for g in (row.get('goals') or [])):
+        return 'not_set'
+    if not row.get('checked_in_at'):
+        return 'goals_set'
+    return freedom_for(row) or 'checked_in'
+
+
 def _clean_goals(raw: Any, subjects: List[str], check_in: bool) -> List[Dict[str, Any]]:
     """[{subject, goal, completed}] in the org's subject order. Unknown subjects
     are dropped; a missing subject gets an empty goal. At the check-in an

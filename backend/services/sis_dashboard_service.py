@@ -79,6 +79,10 @@ ATTENTION_KEYS = (
     'attendance_alerts', 'tasks_overdue',
     'signatures_pending', 'tasks_open', 'age_exceptions',
     'waitlist_waiting', 'prior_learning_pending', 'goals_pending',
+    # The blocks a microschool runs (docs/sis/SIS_SIMPLIFICATION.md, 2026-10-08):
+    # the dashboard shows what is waiting in the modules a school has on.
+    'submissions_new', 'weekly_goals_unset', 'weekly_checkins_due',
+    'bounties_to_review', 'bloomy_inactive',
     'students_no_family',
 )
 
@@ -221,6 +225,55 @@ def _upcoming_events(org_id: str, now, sees_all_audiences: bool) -> List[Dict[st
     return rows
 
 
+def _submissions_new(caller_id: str, org_id: str) -> int:
+    """Work waiting for this caller's review: the inbox's own 'new' count."""
+    from routes.sis.submissions import new_count
+    return new_count(caller_id, org_id)
+
+
+def _weekly_goals(org_id: str, now) -> Dict[str, int]:
+    """Students with no goals this week, and -- from Thursday, the check-in
+    day -- weeks with goals that nobody has checked in yet."""
+    from services.sis_weekly_goal_service import WeeklyGoalService, week_status_for
+    board = WeeklyGoalService().board(org_id, now.date())
+    statuses = [week_status_for(s.get('week')) for s in board.get('students') or []]
+    out = {'weekly_goals_unset': statuses.count('not_set')}
+    if now.weekday() >= 3:
+        out['weekly_checkins_due'] = statuses.count('goals_set')
+    return out
+
+
+def _bounties_to_review(org_id: str) -> int:
+    """Claims turned in on the school's bounties and not yet reviewed."""
+    ids = [b['id'] for b in (_admin().table('bounties').select('id')
+                             .eq('organization_id', org_id).execute()).data or []]
+    if not ids:
+        return 0
+    res = (_admin().table('bounty_claims').select('id', count='exact')
+           .in_('bounty_id', ids).eq('status', 'submitted').limit(1).execute())
+    return res.count or 0
+
+
+def _bloomy_inactive(org_id: str, now) -> int:
+    """Students linked to Bloomy with no Bloomy work this week."""
+    from repositories.external_learning_repository import ExternalLearningRepository
+    from services.bloomy_sync_service import PLATFORM, week_summaries
+    repo = ExternalLearningRepository()
+    linked = [l['user_id'] for l in repo.links(org_id, PLATFORM) if l.get('user_id')]
+    if not linked:
+        return 0
+    monday = (now.date() - timedelta(days=now.weekday())).isoformat()
+    week = week_summaries(org_id, linked, monday, repo=repo)
+    return sum(1 for uid in linked if not (week.get(uid) or {}).get('days'))
+
+
+def _points_week(org_id: str, now) -> int:
+    """Points staff and bounties gave this week (Monday on)."""
+    from services.sis_points_service import PointsService
+    monday = (now.date() - timedelta(days=now.weekday())).isoformat()
+    return PointsService().given_since(org_id, monday)
+
+
 def _invoice_totals(org_id: str) -> Dict[str, Any]:
     from services import sis_billing_service as billing
     rows = billing.outstanding_invoices(org_id)
@@ -268,6 +321,24 @@ def _build_jobs(org_id: str, *, caller_id: str, hidden: set, settings: Dict[str,
         'students_no_family': (lambda: len(sis_service.unassigned_students(org_id)), None),
         'prior_learning_pending': (lambda: _prior_learning_pending(org_id), None),
     }
+
+    # The noticeboard's links are managed in the Library's resources, so a
+    # school with resources off has no board (rule 2: an off module leaves no
+    # trace on the dashboard).
+    if 'resources' in hidden:
+        del jobs['pinned_links']
+
+    # The microschool blocks: each queue only where its module is on.
+    if 'submissions' not in hidden:
+        jobs['submissions_new'] = (lambda: _submissions_new(caller_id, org_id), None)
+    if 'weekly_goals' not in hidden and now:
+        jobs['weekly'] = (lambda: _weekly_goals(org_id, now), None)
+    if 'bounty_management' not in hidden:
+        jobs['bounties_to_review'] = (lambda: _bounties_to_review(org_id), None)
+    if 'bloomy' not in hidden and now:
+        jobs['bloomy_inactive'] = (lambda: _bloomy_inactive(org_id, now), None)
+    if 'points' not in hidden and now:
+        jobs['points_week'] = (lambda: _points_week(org_id, now), None)
 
     # The Registration page's enrollment queues. They follow the registration
     # module: a school that does not register through Optio has no waitlist
@@ -355,7 +426,7 @@ def get_admin_dashboard(org_id: str, caller_id: str) -> Dict[str, Any]:
     # rest, and read the alert count off the board that already computed it. A
     # None — module hidden, org hasn't opted in, or the source failed — leaves
     # its key out entirely rather than claiming an empty queue.
-    flat = {**r, **(r.get('tasks') or {})}
+    flat = {**r, **(r.get('tasks') or {}), **(r.get('weekly') or {})}
     if r.get('board') and flat.get('attendance_alerts') is None:
         flat['attendance_alerts'] = r['board'].get('open_alert_count')
     attention = {k: flat[k] for k in ATTENTION_KEYS if flat.get(k) is not None}
@@ -376,6 +447,8 @@ def get_admin_dashboard(org_id: str, caller_id: str) -> Dict[str, Any]:
                   **({'leaving_soon': r['leaving_soon']} if r.get('leaving_soon') else {})},
         'events': r.get('events') or [],
         'pinned_links': r.get('pinned_links') or [],
+        **({'points': {'given_this_week': r['points_week']}}
+           if r.get('points_week') is not None else {}),
         # Echoed so the frontend filters tiles with the same sisModules.js that
         # filters the nav, instead of a second copy of the module map here.
         'settings': {

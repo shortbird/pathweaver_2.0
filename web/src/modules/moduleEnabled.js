@@ -22,6 +22,11 @@ function rawValue(def, key, flags) {
   // The starter baseline (docs/MICROSCHOOL_FIRST_PLAN.md, part 1): a school
   // that starts small has the office side off until it is explicitly on.
   if (flags.module_baseline === 'starter' && def.starter_off) return false
+  // The microschool baseline (2026-10-08): every org created from that day.
+  if (flags.module_baseline === 'microschool') {
+    if (def.microschool === 'off') return false
+    if (def.microschool === 'on') return true
+  }
   const ss = flags.sis_settings || {}
   switch (def.legacy) {
     case 'sis_enabled':
@@ -39,6 +44,9 @@ function rawValue(def, key, flags) {
       return ss.post_registration_flow === 'goals'
     case 'oea_enabled':
       return Boolean(flags.oea_enabled)
+    case 'clp_enabled':
+      return ss.clp_enabled === true
+        && !(Array.isArray(ss.hidden_modules) && ss.hidden_modules.includes(key))
     default:
       return def.default === 'on'
   }

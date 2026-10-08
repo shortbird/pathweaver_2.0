@@ -54,7 +54,11 @@ export const SIS_MODULE_BY_PATH = {
   '/registration': 'registration',
   '/community': 'community',
   '/prior-learning': 'prior_learning',
+  // Goals is one page since 2026-10-08 (GoalsPage): its tabs follow
+  // weekly_goals (This week, Year goals) and goals (Family goals, the
+  // parents' goal setting). '/goals' itself is answered in isPathHidden.
   '/goals': 'goals',
+  '/family-goals': 'goals',
   '/weekly-goals': 'weekly_goals',
   '/points': 'points',
   '/bounties': 'bounty_management',
@@ -90,9 +94,24 @@ export function isPathHidden(path, organization) {
   if (path === '/library') {
     return Boolean(organization) && LIBRARY_TAB_PATHS.every((p) => isPathHidden(p, organization))
   }
+  if (path === '/goals') {
+    // The page shows while any of its tabs would.
+    return Boolean(organization) && isPathHidden('/weekly-goals', organization)
+      && isPathHidden('/family-goals', organization)
+  }
   const mod = SIS_MODULE_BY_PATH[path]
   if (!mod || !organization) return false
   return !moduleEnabled(organization, mod)
+}
+
+/**
+ * Where the submissions inbox lives for this school: a tab on Classes, or on
+ * Students when classes is off (2026-10-08). /submissions links (credit
+ * messages, notifications, the dashboard tile) go there.
+ */
+export function submissionsHome(organization) {
+  return isPathHidden('/classes', organization) && !isPathHidden('/students', organization)
+    ? '/students' : '/classes'
 }
 
 /** Community Hub — opt-in (registry default 'off'; legacy community_enabled). */
@@ -126,6 +145,7 @@ export function isGoalsEnabled(organization) {
  * hidden even if somebody later turns the flag on.
  */
 export function isClpEnabled(organization) {
-  if (organization?.feature_flags?.sis_settings?.clp_enabled !== true) return false
-  return !isPathHidden('/clp', organization)
+  // Since 2026-10-08 the clp module itself is on only where clp_enabled is
+  // set (its legacy source, moduleEnabled.js), so the module is the answer.
+  return Boolean(organization) && moduleEnabled(organization, 'clp')
 }

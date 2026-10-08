@@ -98,20 +98,13 @@ Already gated on modules: the attention tiles (attendance, tasks,
 registration, goals, prior learning), the quick actions, Teachers to check
 (attendance), the Money card (billing).
 
-Not gated, so a school with the module off still sees it:
-
-- **Noticeboard** "Manage links" goes to /library, which is the resources
-  module.
-- **Today's classes** depends on `today.schedule` from the backend; the card
-  itself has no `classes` check.
-- **Leaving soon** has no gate. It is withdrawals, which is a registration
-  idea.
-- **Coming up** links to /calendar with no `calendar` check. Calendar is off at
-  Apogee.
-- **Students not in a family** tile, **Families** and **Enrolled** snapshot
-  stats, and the **Add a family** quick action are all family and enrollment
-  ideas from registration.
-- **Goals to review** counts the parent goal-setting flow, not weekly goals.
+Correction (2026-10-08, while building phase 4): Today's classes, Leaving
+soon and Coming up were already gated on the backend (classes, classes,
+calendar); only the page lacked the second filter. What was really ungated:
+the Noticeboard (pins are Resources rows), the Enrolled stat (registration),
+and Goals to review, which counts the parents' goal setting. Families,
+Students not in a family and Add a family are People, which every school has,
+so they stay.
 
 Missing for the active modules: nothing on the dashboard says anything about
 weekly goals (students without goals this week, check-ins not done), bounties
@@ -196,6 +189,19 @@ What changes:
    its module is on. The individual student page (decision 1) gets a Goals
    section with that student's weekly and year goals.
 
+### Answers before the full build (Tanner, 2026-10-08)
+
+4. **The inbox shows all the work** at a school with `individual_work` on:
+   every quest task any current student turns in, not only class work and
+   quests given by name.
+5. **All staff see it**, as on the Students page.
+6. **Apogee's modules:** approved to turn off classes, tasks, registration,
+   billing, reports, resources, training, secure_documents and clp.
+7. **New schools only** get the smaller starting set. Existing schools keep
+   their modules and use the Features card.
+8. **"Ask Optio"** on the Features card files a ticket (bug_reports) the
+   school can follow. No email.
+
 ## Plan
 
 Each phase is one sitting and ends with a localhost check by Tanner.
@@ -224,8 +230,56 @@ Each phase is one sitting and ends with a localhost check by Tanner.
    approved first).
 8. **Rule 2 everywhere else.** Work through the text inventory page by page.
 
+## What was built (2026-10-08, all phases)
+
+1. **Students** page for `individual_work` (phase 1, committed e3cd3d997).
+   The inbox now holds ALL of a school's student work when `individual_work`
+   is on (decision 4): `routes/sis/submissions._inbox` is the one scope rule,
+   shared with the dashboard's `new_count`.
+2. **Rule 1.** `goalsMode`, `communityMode`, `priorLearningMode`, `clpMode` are
+   gone from the sidebar; each item follows its module. CLP is an opt-in
+   module on its own legacy source `clp_enabled` (only iCreate has it), so
+   `isClpEnabled` is the module check.
+3. **Goals** is one page (`GoalsPage`): This week and Year goals (weekly_goals),
+   Family goals (goals). /weekly-goals redirects. Year goals save on the
+   weekly goals door (PUT /api/sis/weekly-goals/students/<id>/year, shared with
+   the goals blueprint's write). The family goals empty text no longer says
+   "after registering".
+4. **Dashboard** queues for the microschool blocks: Work to review, No goals
+   this week, Check-ins to do (from Thursday), Bounties to review, No Bloomy
+   work this week, Points given this week. Noticeboard and Enrolled gated.
+5. **Operations = Messaging** at Apogee follows from step 7 (sidebar test
+   `components/sis/sisSidebar.test.jsx` holds the exact list).
+6. **Microschool baseline** (`MICROSCHOOL_OFF` / `MICROSCHOOL_ON` in
+   modules/registry.py) for every org created from now; 'starter' orgs keep
+   theirs. The Features card lists every option; what only Optio turns on has
+   "Ask Optio" (POST /api/school-features/request, one open ticket per school
+   and feature, no email). "Add features" at the foot of the sidebar.
+7. **Apogee data** applied in production 2026-10-08 14:45 UTC: classes, tasks,
+   registration, billing, reports, resources, training, secure_documents and
+   clp set false through modules.toggle.apply_changes (hidden_modules kept in
+   step). Audit row 3db89115 (admin_audit_logs). Until the release ships,
+   production's old console has no Classes page, which is where Students and
+   Submissions lived; one statement turns classes back on if needed.
+8. **Rule 2 sweep:** the family record's Billing and Registration tabs,
+   registration hold, funding source and directory row follow their modules;
+   pins and the staff library follow resources on every dashboard; All class
+   chats follows classes.
+
+### Still to inventory (rule 2)
+
+- The Settings "School" card (SisOrgSettings): MICROSCHOOL_FIRST_PLAN part 2
+  gated its fields, but read it again with Apogee's module set.
+- The family side (learning app) school page and cards: checked only for the
+  new Points and Weekly Goals cards.
+- Mobile: no SIS console, but its school screens read the same modules.
+- Copy that names iCreate's process on pages a microschool can open: search
+  "CLP", "registering", "family meeting", "tuition", "UFA".
+
 ## Log
 
+- 2026-10-08: **phases 2-8 built** (uncommitted until Tanner's localhost
+  check), Apogee's modules turned off in production. See "What was built".
 - 2026-10-08: **phase 1 built** (uncommitted until Tanner's localhost check).
   Students is its own page (/students, sidebar item for `individual_work`)
   with two tabs, Students and Submissions; Classes lost its Students tab

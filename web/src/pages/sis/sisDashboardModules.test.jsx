@@ -77,7 +77,7 @@ describe('the dashboard follows the modules', () => {
     expect(screen.getByText('Money')).toBeInTheDocument()
     expect(screen.getByText('Waiting for a place')).toBeInTheDocument()
     expect(screen.getByText('Age exception requests')).toBeInTheDocument()
-    expect(screen.getByText('Goals to review')).toBeInTheDocument()
+    expect(screen.getByText('Family goals to review')).toBeInTheDocument()
     expect(screen.getByText(/Teachers to check/)).toBeInTheDocument()
     expect(screen.getByText("Today's attendance")).toBeInTheDocument()
     expect(screen.getByText('No roll yet')).toBeInTheDocument()
@@ -106,13 +106,49 @@ describe('the dashboard follows the modules', () => {
 
   it('goals off: no goals tile', async () => {
     await renderWith(org(['billing', 'registration', 'attendance']))
-    expect(screen.queryByText('Goals to review')).not.toBeInTheDocument()
+    expect(screen.queryByText('Family goals to review')).not.toBeInTheDocument()
   })
 
-  it('keeps Families and Enrolled for every school; neither is money', async () => {
+  it('keeps Families for every school, and Enrolled only with registration', async () => {
+    // Enrolled counts registration's enrollment status. A school that does not
+    // register through Optio read "Enrolled 0" beside its real student count
+    // (SIS_SIMPLIFICATION rule 2, 2026-10-08).
     await renderWith(org([]))
     expect(screen.getByText('Families')).toBeInTheDocument()
-    expect(screen.getByText('Enrolled')).toBeInTheDocument()
+    expect(screen.queryByText('Enrolled')).not.toBeInTheDocument()
     expect(screen.queryByText(/\$/)).not.toBeInTheDocument()
+  })
+
+  it('registration on keeps Enrolled', async () => {
+    await renderWith(org(['registration']))
+    expect(screen.getByText('Enrolled')).toBeInTheDocument()
+  })
+
+  it('classes and calendar off: no class list and no events', async () => {
+    FULL.events = [{ id: 'e1', title: 'Field day', starts_at: '2026-10-08T15:00:00Z' }]
+    await renderWith({ id: 'org-1', effective_modules: ['sis'] })
+    expect(screen.queryByText('Pottery')).not.toBeInTheDocument()
+    expect(screen.queryByText('Field day')).not.toBeInTheDocument()
+    FULL.events = []
+  })
+
+  it('shows the microschool queues for the blocks that are on', async () => {
+    FULL.attention = { ...FULL.attention, submissions_new: 3, weekly_goals_unset: 2,
+      weekly_checkins_due: 1, bounties_to_review: 4, bloomy_inactive: 5 }
+    await renderWith({ id: 'org-1',
+      effective_modules: ['sis', 'submissions', 'weekly_goals', 'bounty_management', 'bounties', 'bloomy'] })
+    for (const label of ['Work to review', 'No goals this week', 'Check-ins to do',
+      'Bounties to review', 'No Bloomy work this week']) {
+      expect(screen.getByText(label)).toBeInTheDocument()
+    }
+  })
+
+  it('and none of them for blocks that are off', async () => {
+    await renderWith({ id: 'org-1', effective_modules: ['sis'] })
+    for (const label of ['Work to review', 'No goals this week', 'Bounties to review',
+      'No Bloomy work this week']) {
+      expect(screen.queryByText(label)).not.toBeInTheDocument()
+    }
+    FULL.attention = { waitlist_waiting: 6, age_exceptions: 2, goals_pending: 4 }
   })
 })

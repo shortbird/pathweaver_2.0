@@ -2,7 +2,7 @@ import React, { lazy, useEffect } from 'react'
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import SisLayout from '../components/sis/SisLayout'
 import { goToLearningSurface, LEARNING_SURFACE_PATHS, sisEquivalentPath } from '../utils/appSurface'
-import { isPathHidden, isClpEnabled } from '../pages/sis/sisModules'
+import { isPathHidden, isClpEnabled, submissionsHome } from '../pages/sis/sisModules'
 import { useSisOrg } from '../pages/sis/useSisOrg'
 import { canSeeFinance, canSeeHr, isSisAdmin } from '../pages/sis/sisRole'
 import { useAuth } from '../contexts/AuthContext'
@@ -41,9 +41,7 @@ const SubmissionsRedirect = () => {
   const { activeOrg } = useSisOrg()
   const params = new URLSearchParams(search)
   params.set('tab', 'submissions')
-  const home = isPathHidden('/classes', activeOrg) && !isPathHidden('/students', activeOrg)
-    ? '/students' : '/classes'
-  return <Navigate to={`${home}?${params.toString()}`} replace />
+  return <Navigate to={`${submissionsHome(activeOrg)}?${params.toString()}`} replace />
 }
 
 // The four library pages became one on 2026-09-18 (M22): /library holds
@@ -188,8 +186,7 @@ const RegistrationPage = lazy(() => import('../pages/sis/RegistrationPage'))
 const CalendarPage = lazy(() => import('../pages/sis/CalendarPage'))
 const CommunityPage = lazy(() => import('../pages/sis/CommunityPage'))
 const SettingsPage = lazy(() => import('../pages/sis/SettingsPage'))
-const GoalsReviewPage = lazy(() => import('../pages/sis/GoalsReviewPage'))
-const WeeklyGoalsPage = lazy(() => import('../pages/sis/WeeklyGoalsPage'))
+const GoalsPage = lazy(() => import('../pages/sis/GoalsPage'))
 const PointsPage = lazy(() => import('../pages/sis/PointsPage'))
 const SisBountiesPage = lazy(() => import('../pages/sis/SisBountiesPage'))
 const BloomyPage = lazy(() => import('../pages/sis/BloomyPage'))
@@ -249,8 +246,9 @@ const SisRoutes = () => (
       <Route path="billing" element={<FinanceRoute><ModuleGate path="/billing"><BillingPage /></ModuleGate></FinanceRoute>} />
       <Route path="tuition" element={<TuitionRedirect />} />
       <Route path="attendance" element={<ClassesRedirect tab="attendance" />} />
-      <Route path="goals" element={<ModuleGate path="/goals"><GoalsReviewPage /></ModuleGate>} />
-      <Route path="weekly-goals" element={<ModuleGate path="/weekly-goals"><WeeklyGoalsPage /></ModuleGate>} />
+      <Route path="goals" element={<ModuleGate path="/goals"><GoalsPage /></ModuleGate>} />
+      {/* Weekly Goals became the This week tab of Goals (2026-10-08). */}
+      <Route path="weekly-goals" element={<Navigate to="/goals" replace />} />
       <Route path="points" element={<ModuleGate path="/points"><PointsPage /></ModuleGate>} />
       <Route path="bloomy" element={<AdminRoute><ModuleGate path="/bloomy"><BloomyPage /></ModuleGate></AdminRoute>} />
       <Route path="bounties" element={<BountiesGate><SisBountiesPage /></BountiesGate>} />

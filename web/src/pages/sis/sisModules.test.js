@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { getHiddenModules, isPathHidden, isCommunityEnabled, isGoalsEnabled, SIS_MODULE_BY_PATH } from './sisModules'
+import { getHiddenModules, isPathHidden, isCommunityEnabled, isGoalsEnabled, SIS_MODULE_BY_PATH, submissionsHome } from './sisModules'
 
 // A SIS org (the console only exists for these); hidden_modules is the legacy
 // opt-out list the module system answers through.
@@ -11,13 +11,14 @@ describe('sisModules', () => {
   it('an unconfigured SIS org hides only the opt-ins', () => {
     const hidden = getHiddenModules(orgWith(undefined))
     // Opt-out modules all show...
-    for (const key of ['billing', 'clp', 'tasks', 'classes', 'attendance']) {
+    for (const key of ['billing', 'tasks', 'classes', 'attendance']) {
       expect(hidden.has(key)).toBe(false)
     }
     // ...and the opt-ins are off until enabled -- that is what a tile filter
     // actually wants to know, which the old raw-array read couldn't say.
-    // (Prior Learning: off unless the school issues Optio Academy diplomas.)
-    for (const key of ['community', 'prior_learning', 'goals']) {
+    // (Prior Learning: off unless the school issues Optio Academy diplomas.
+    // CLP: iCreate's, opt-in on clp_enabled since 2026-10-08.)
+    for (const key of ['community', 'prior_learning', 'goals', 'clp']) {
       expect(hidden.has(key)).toBe(true)
     }
   })
@@ -176,5 +177,15 @@ describe('sisModules', () => {
       expect(isGoalsEnabled(orgWith([]))).toBe(false)
       expect(isGoalsEnabled(null)).toBe(false)
     })
+  })
+})
+
+describe('submissionsHome (2026-10-08)', () => {
+  const org = (mods) => ({ id: 'o1', effective_modules: ['sis', ...mods] })
+  it('is Classes at a school that teaches in classes', () => {
+    expect(submissionsHome(org(['classes', 'individual_work', 'submissions']))).toBe('/classes')
+  })
+  it('is Students at a school with classes off', () => {
+    expect(submissionsHome(org(['individual_work', 'submissions']))).toBe('/students')
   })
 })

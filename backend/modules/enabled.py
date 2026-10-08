@@ -23,7 +23,10 @@ utils/org_features.py semantics.
 
 from typing import Dict, FrozenSet, List, Optional
 
-from modules.registry import MODULES, STARTER_BASELINE, STARTER_OFF, ModuleDef
+from modules.registry import (
+    MICROSCHOOL_BASELINE, MICROSCHOOL_OFF, MICROSCHOOL_ON, MODULES, STARTER_BASELINE,
+    STARTER_OFF, ModuleDef,
+)
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -45,6 +48,13 @@ def _raw_value(entry: ModuleDef, flags: Dict) -> bool:
     # untouched.
     if flags.get('module_baseline') == STARTER_BASELINE and entry.key in STARTER_OFF:
         return False
+    # The microschool baseline (2026-10-08): smaller again, and it turns the
+    # coach's weekly goals on. Orgs created before it keep 'starter'.
+    if flags.get('module_baseline') == MICROSCHOOL_BASELINE:
+        if entry.key in MICROSCHOOL_OFF:
+            return False
+        if entry.key in MICROSCHOOL_ON:
+            return True
 
     sis_settings = flags.get('sis_settings') or {}
     legacy = entry.legacy
@@ -64,6 +74,10 @@ def _raw_value(entry: ModuleDef, flags: Dict) -> bool:
         return sis_settings.get('post_registration_flow') == 'goals'
     if legacy == 'oea_enabled':
         return bool(flags.get('oea_enabled'))
+    if legacy == 'clp_enabled':
+        hidden = sis_settings.get('hidden_modules')
+        return (sis_settings.get('clp_enabled') is True
+                and not (isinstance(hidden, list) and entry.key in hidden))
     return entry.default == 'on'
 
 

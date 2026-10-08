@@ -11,6 +11,14 @@ class_id None and class_name INDIVIDUAL_LABEL, and ?class_id=individual lists
 only them. Review state lives in sis_submission_reviews (completion_id
 UNIQUE); a completion with no row is "new".
 
+A school that runs individual students (module individual_work) reviews ALL
+of its students' work, 2026-10-08: every quest task any current student turns
+in, including quests they picked up themselves and synced work like Bloomy,
+for every staff member (the Students page's rule: at a microschool every coach
+works with every child). Without it a teacher reviewing one child at a time
+never saw most of what the child did. Those rows carry class_id and
+class_name None unless a class or a by-name assignment claims them first.
+
 NEW, additive (/api/sis), staff-gated, org-scoped. Advisors are limited to
 their own classes via sis_service.class_scope; org admins see the whole org.
 """
@@ -110,6 +118,15 @@ def _individual_pairs(user_id, org_id):
     return {(r['student_id'], r['quest_id']) for r in rows}
 
 
+def _school_students(org_id):
+    """Every current student of a school that runs individual students, or
+    None when the school does not (its inbox stays classes + by-name quests)."""
+    from modules.enabled import module_enabled
+    if not module_enabled(org_id, 'individual_work'):
+        return None
+    return sis_service.current_student_ids(org_id)
+
+
 def _match_class(completion, class_ids, enrolled, attached):
     """First class where the student is enrolled AND the quest is attached."""
     for cid in class_ids:
@@ -124,7 +141,8 @@ def _completion_in_scope(user_id, org_id, completion_id):
     inside one of the caller's classes; otherwise a scope-safe 404."""
     classes = _scope_classes(user_id, org_id)
     individual = _individual_pairs(user_id, org_id)
-    if not classes and not individual:
+    school = _school_students(org_id)
+    if not classes and not individual and not school:
         return None, (jsonify({'success': False, 'error': 'Submission not found'}), 404)
     # admin client justified: reads another student's quest_task_completions row, then verifies it sits inside one of the caller's scoped classes (404 otherwise)
     admin = get_supabase_admin_client()
@@ -138,11 +156,104 @@ def _completion_in_scope(user_id, org_id, completion_id):
     completion = rows[0]
     if (completion['user_id'], completion.get('quest_id')) in individual:
         return completion, None
+    if school and completion['user_id'] in school:
+        return completion, None
     class_ids = list(classes.keys())
     enrolled, attached = _class_maps(class_ids) if class_ids else ({}, {})
     if _match_class(completion, class_ids, enrolled, attached) is None:
         return None, (jsonify({'success': False, 'error': 'Submission not found'}), 404)
     return completion, None
+
+
+def _inbox(user_id, org_id, class_filter=None, student_filter=None):
+    """The caller's whole queue before paging: {matched, reviews, repo,
+    students, quests}, or None when nothing is in scope. Raises LookupError
+    for a class_id outside the caller's classes. Shared by the list and by
+    new_count (the School Dashboard's "Work to review"), so the two can never
+    count different things."""
+    classes = _scope_classes(user_id, org_id)
+    individual = _individual_pairs(user_id, org_id)
+    school = _school_students(org_id)
+    if class_filter == INDIVIDUAL:
+        classes = {}
+        school = None
+    elif class_filter:
+        if class_filter not in classes:
+            raise LookupError(class_filter)
+        classes = {class_filter: classes[class_filter]}
+        individual = set()
+        school = None
+    if not classes and not individual and not school:
+        return None
+
+    class_ids = list(classes.keys())
+    enrolled, attached = _class_maps(class_ids) if class_ids else ({}, {})
+    all_students = set().union(*enrolled.values()) if enrolled else set()
+    all_quests = set().union(*attached.values()) if attached else set()
+    all_students |= {s for s, _ in individual}
+    all_quests |= {q for _, q in individual}
+    if school:
+        all_students |= school
+    if student_filter:
+        all_students &= {student_filter}
+    if not all_students or not (all_quests or school):
+        return None
+
+    # admin client justified: cross-student inbox read (completions, evidence, profiles) gated by @require_role(STAFF_ROLES); rows filtered to the caller's scoped classes
+    admin = get_supabase_admin_client()
+    # Paged, because this read grows with every task a school's students ever
+    # hand in, and PostgREST cuts a response at 1,000 rows without a word.
+    # fetch_all_rows pages by id, so the queue order is set below in Python.
+    # Unpaged and ordered oldest-first, the cut fell on the NEWEST work: a
+    # busy school's latest submissions silently never reached the inbox.
+    submissions_repo = SisSubmissionRepository(admin)
+    if school:
+        # Every quest: the school reviews all of its students' work.
+        completions = submissions_repo.completions_by(all_students)
+        all_quests = {c['quest_id'] for c in completions if c.get('quest_id')}
+    else:
+        completions = submissions_repo.completions_for(all_students, all_quests)
+    # Oldest first, undated last (PostgREST's own default); id breaks ties so
+    # the order, and so each page, is stable between loads.
+    completions.sort(key=lambda c: (c.get('completed_at') is None,
+                                    c.get('completed_at') or '', c['id']))
+
+    # Keep only completions that land in one of the caller's classes
+    # (student enrolled AND quest attached to the same class), a quest given
+    # by name, or -- at a whole-school inbox -- any current student's work.
+    matched = []
+    for c in completions:
+        cid = _match_class(c, class_ids, enrolled, attached)
+        if cid:
+            c['class_id'] = cid
+            c['class_name'] = classes[cid]
+            matched.append(c)
+        elif (c['user_id'], c.get('quest_id')) in individual:
+            c['class_id'] = None
+            c['class_name'] = INDIVIDUAL_LABEL
+            matched.append(c)
+        elif school and c['user_id'] in school:
+            c['class_id'] = None
+            c['class_name'] = None
+            matched.append(c)
+    if not matched:
+        return None
+
+    # Review state (org-scoped; UNIQUE completion_id). One row per reviewed
+    # submission in the whole org, so it pages for the same reason.
+    review_rows = submissions_repo.org_reviews(org_id)
+    reviews = {r['completion_id']: r for r in review_rows}
+    return {'matched': matched, 'reviews': reviews, 'repo': submissions_repo,
+            'students': all_students, 'quests': all_quests}
+
+
+def new_count(user_id, org_id):
+    """How many submissions wait for this caller's review: the inbox's 'new'
+    count, for the School Dashboard."""
+    inbox = _inbox(user_id, org_id)
+    if inbox is None:
+        return 0
+    return sum(1 for c in inbox['matched'] if c['id'] not in inbox['reviews'])
 
 
 @bp.route('/submissions', methods=['GET'])
@@ -182,64 +293,17 @@ def list_submissions(user_id):
     # the caller's own scope; it never widens it.
     student_filter = (request.args.get('student_id') or '').strip() or None
 
-    classes = _scope_classes(user_id, org_id)
-    individual = _individual_pairs(user_id, org_id)
-    class_filter = request.args.get('class_id')
-    if class_filter == INDIVIDUAL:
-        classes = {}
-    elif class_filter:
-        if class_filter not in classes:
-            return jsonify({'success': False, 'error': 'Class not found'}), 404
-        classes = {class_filter: classes[class_filter]}
-        individual = set()
-    if not classes and not individual:
+    try:
+        inbox = _inbox(user_id, org_id, request.args.get('class_id'), student_filter)
+    except LookupError:
+        return jsonify({'success': False, 'error': 'Class not found'}), 404
+    if inbox is None:
         return empty()
-
-    class_ids = list(classes.keys())
-    enrolled, attached = _class_maps(class_ids) if class_ids else ({}, {})
-    all_students = set().union(*enrolled.values()) if enrolled else set()
-    all_quests = set().union(*attached.values()) if attached else set()
-    all_students |= {s for s, _ in individual}
-    all_quests |= {q for _, q in individual}
-    if student_filter:
-        all_students &= {student_filter}
-    if not all_students or not all_quests:
-        return empty()
-
-    # admin client justified: cross-student inbox read (completions, evidence, profiles) gated by @require_role(STAFF_ROLES); rows filtered to the caller's scoped classes
+    matched, reviews = inbox['matched'], inbox['reviews']
+    submissions_repo = inbox['repo']
+    all_students, all_quests = inbox['students'], inbox['quests']
+    # admin client justified: enriches the caller's own page of the inbox (profiles, quests, tasks, evidence) gated by @require_role(STAFF_ROLES); rows already limited by _inbox
     admin = get_supabase_admin_client()
-    # Paged, because this read grows with every task a school's students ever
-    # hand in, and PostgREST cuts a response at 1,000 rows without a word.
-    # fetch_all_rows pages by id, so the queue order is set below in Python.
-    # Unpaged and ordered oldest-first, the cut fell on the NEWEST work: a
-    # busy school's latest submissions silently never reached the inbox.
-    submissions_repo = SisSubmissionRepository(admin)
-    completions = submissions_repo.completions_for(all_students, all_quests)
-    # Oldest first, undated last (PostgREST's own default); id breaks ties so
-    # the order, and so each page, is stable between loads.
-    completions.sort(key=lambda c: (c.get('completed_at') is None,
-                                    c.get('completed_at') or '', c['id']))
-
-    # Keep only completions that land in one of the caller's classes
-    # (student enrolled AND quest attached to the same class).
-    matched = []
-    for c in completions:
-        cid = _match_class(c, class_ids, enrolled, attached)
-        if cid:
-            c['class_id'] = cid
-            c['class_name'] = classes[cid]
-            matched.append(c)
-        elif (c['user_id'], c.get('quest_id')) in individual:
-            c['class_id'] = None
-            c['class_name'] = INDIVIDUAL_LABEL
-            matched.append(c)
-    if not matched:
-        return empty()
-
-    # Review state (org-scoped; UNIQUE completion_id). One row per reviewed
-    # submission in the whole org, so it pages for the same reason.
-    review_rows = submissions_repo.org_reviews(org_id)
-    reviews = {r['completion_id']: r for r in review_rows}
 
     new_items = [c for c in matched if c['id'] not in reviews]           # oldest first
     reviewed_items = [c for c in matched if c['id'] in reviews][::-1]    # newest first

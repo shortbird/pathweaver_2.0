@@ -41,3 +41,16 @@ describe('family drawer tabs', () => {
     expect(admin.filter((k) => k !== 'billing')).toEqual(cc)
   })
 })
+
+describe('the family tabs follow the modules (SIS_SIMPLIFICATION rule 2)', () => {
+  const admin = { id: 'a1', role: 'org_managed', org_role: 'org_admin', org_roles: ['org_admin'] }
+  it('a school without billing or registration has neither tab', () => {
+    const tabs = familyTabsFor(admin, { id: 'o1', effective_modules: ['sis'] }).map((t) => t.key)
+    expect(tabs).not.toContain('billing')
+    expect(tabs).not.toContain('registration')
+  })
+  it('a school with both keeps them', () => {
+    const tabs = familyTabsFor(admin, { id: 'o1', effective_modules: ['sis', 'billing', 'registration'] }).map((t) => t.key)
+    expect(tabs).toEqual(expect.arrayContaining(['billing', 'registration']))
+  })
+})
