@@ -446,6 +446,8 @@ describe('editing and duplicating from the library row', () => {
     await screen.findByText('Bridge Building')
     rowAction(1, 'Edit')
     const dialog = await screen.findByRole('dialog')
+    // The finish line sits behind the quest's More options (MICROSCHOOL_FIRST_PLAN part 4).
+    fireEvent.click(await within(dialog).findByRole('button', { name: 'More options for this quest' }))
 
     fireEvent.change(await within(dialog).findByLabelText('Quest title'), { target: { value: 'Bridges' } })
     fireEvent.change(within(dialog).getByLabelText('Quest description'), { target: { value: 'Build one.' } })
@@ -465,6 +467,8 @@ describe('editing and duplicating from the library row', () => {
     await screen.findByText('Bridge Building')
     rowAction(1, 'Edit')
     const dialog = await screen.findByRole('dialog')
+    // The finish line sits behind the quest's More options (MICROSCHOOL_FIRST_PLAN part 4).
+    fireEvent.click(await within(dialog).findByRole('button', { name: 'More options for this quest' }))
 
     const box = await within(dialog).findByLabelText('Teachers may change the XP to finish')
     expect(box).toBeChecked()
@@ -483,6 +487,8 @@ describe('editing and duplicating from the library row', () => {
       await screen.findByText('Bridge Building')
       rowAction(1, 'Edit')
       const dialog = await screen.findByRole('dialog')
+      // The finish line sits behind the quest's More options (MICROSCHOOL_FIRST_PLAN part 4).
+      fireEvent.click(await within(dialog).findByRole('button', { name: 'More options for this quest' }))
       expect(await within(dialog).findByLabelText('Teachers may change the XP to finish')).not.toBeChecked()
     } finally {
       EDITOR.q2 = { ...EDITOR.q2, teachers_may_change_xp: true }
@@ -494,6 +500,8 @@ describe('editing and duplicating from the library row', () => {
     await screen.findByText('Bridge Building')
     rowAction(1, 'Edit')
     const dialog = await screen.findByRole('dialog')
+    // The finish line sits behind the quest's More options (MICROSCHOOL_FIRST_PLAN part 4).
+    fireEvent.click(await within(dialog).findByRole('button', { name: 'More options for this quest' }))
 
     const box = await within(dialog).findByLabelText(/XP required to finish/)
     fireEvent.change(box, { target: { value: '500' } })
@@ -521,6 +529,8 @@ describe('editing and duplicating from the library row', () => {
     await screen.findByText('Bridge Building')
     rowAction(1, 'Edit')
     const dialog = await screen.findByRole('dialog')
+    // The finish line sits behind the quest's More options (MICROSCHOOL_FIRST_PLAN part 4).
+    fireEvent.click(await within(dialog).findByRole('button', { name: 'More options for this quest' }))
     fireEvent.change(await within(dialog).findByLabelText(/XP required to finish/), { target: { value: '-5' } })
     fireEvent.click(within(dialog).getByRole('button', { name: 'Save' }))
     await new Promise((r) => setTimeout(r, 20))

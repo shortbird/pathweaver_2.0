@@ -138,7 +138,7 @@ def guard_org_flags_write(stored_flags, incoming_flags, sees_finance):
     - `modules` is superadmin-owned (the Blocks panel writes it via
       PATCH .../modules), so a stale org-admin tab must not clobber it: the
       stored value always replaces whatever the browser sent
-      (ARCHITECTURE_BLOCKS section 4.2);
+      (ARCHITECTURE_BLOCKS section 4.2). `module_baseline` likewise;
     - the finance paths merge rather than replace for non-finance writers,
       exactly as guarded_flags_for_front_office always did.
 
@@ -149,10 +149,14 @@ def guard_org_flags_write(stored_flags, incoming_flags, sees_finance):
     stored = stored_flags or {}
 
     out = dict(incoming_flags)
-    if 'modules' in stored:
-        out['modules'] = stored['modules']
-    else:
-        out.pop('modules', None)
+    # module_baseline rides with `modules`: dropping it from a round-tripped
+    # blob would turn the whole office side back on for a starter school
+    # (modules/registry.py STARTER_OFF).
+    for key in ('modules', 'module_baseline'):
+        if key in stored:
+            out[key] = stored[key]
+        else:
+            out.pop(key, None)
 
     if not sees_finance:
         return guarded_flags_for_front_office(stored, out)

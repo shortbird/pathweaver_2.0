@@ -30,7 +30,7 @@ describe('StudentChatCard', () => {
     render(<StudentChatCard orgId="org-1" />)
     const toggle = await screen.findByRole('switch', { name: 'Student chat' })
     expect(toggle).toHaveAttribute('aria-checked', 'true')
-    expect(screen.getByText(/When off, students cannot see or send messages in class student chats or to\s+friends\. Messages from teachers and the school still reach them\./)).toBeInTheDocument()
+    expect(screen.getByText(/When off, students cannot see or send messages in class or group chats or to\s+friends\. Messages from teachers and the school still reach them\./)).toBeInTheDocument()
 
     fireEvent.click(toggle)
     await waitFor(() => expect(api.put).toHaveBeenCalledTimes(1))

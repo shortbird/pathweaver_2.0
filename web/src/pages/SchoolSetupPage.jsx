@@ -44,9 +44,9 @@ const TUITION_MODELS = ['Annual tuition', 'Monthly tuition', 'Per class', 'Per t
 
 // What Optio can do, in the school's words. Keys match the module registry
 // (backend/modules/registry.py) so staff can switch on what was asked for.
+// Registration and tuition are not here: a new school starts with both off,
+// so the form asks about them plainly (YES_NO_QUESTIONS) instead.
 const FEATURES = [
-  { key: 'registration', label: 'Online registration and enrollment', hint: 'Families apply and enroll online, with waitlists and age limits.' },
-  { key: 'billing', label: 'Tuition billing and autopay', hint: 'Invoices, and monthly autopay by bank account or card.' },
   { key: 'classes', label: 'Classes and schedules', hint: 'Build class times and rooms, and let families pick a schedule.' },
   { key: 'attendance', label: 'Attendance', hint: 'Daily roll call, and absence requests from families.' },
   { key: 'calendar', label: 'School calendar', hint: 'Events and days off that families see on their phones.' },
@@ -57,6 +57,15 @@ const FEATURES = [
   { key: 'kiosk', label: 'Shared classroom computer', hint: 'Students without their own device sign in on a classroom computer to add evidence of their learning.' },
   { key: 'community', label: 'Family directory and community', hint: 'Families find and connect with each other.' },
   { key: 'reports', label: 'Reports and exports', hint: 'Rosters, attendance and billing as spreadsheets.' },
+]
+
+// Each yes turns on the features behind it (QUESTION_PICKS in
+// backend/services/school_onboarding_service.py).
+const YES_NO_QUESTIONS = [
+  { key: 'families_register', label: 'Do families register through Optio?',
+    hint: 'Families apply and enroll online, with waitlists and age limits, and browse your classes.' },
+  { key: 'collects_tuition', label: 'Do you collect tuition through Optio?',
+    hint: 'Invoices, and monthly autopay by bank account or card. Families register through Optio too.' },
 ]
 
 function totalStudents(counts) {
@@ -162,7 +171,7 @@ export default function SchoolSetupPage() {
       logo: '', website: '', mission: '',
       school_type: '', teaching_approach: '', days_per_week: '', term_structure: '',
       year_start: '', year_end: '', staff_count: '', students_next_year: '', current_tools: '',
-      features: [],
+      features: [], families_register: '', collects_tuition: '',
       accreditation: '', optio_credit_interest: '',
       tuition_model: '', funding_programs: '', has_stripe: '',
       billing_contact_name: '', billing_contact_email: '',
@@ -526,6 +535,14 @@ export default function SchoolSetupPage() {
 
         <Section title="What do you want Optio to do?"
           intro="Every school can use every feature. Pick the ones you want turned on. You can change them anytime.">
+          <div className="grid sm:grid-cols-2 gap-4">
+            {YES_NO_QUESTIONS.map((q) => (
+              <Field key={q.key} id={q.key} label={q.label} hint={q.hint}>
+                <Choice id={q.key} value={form[q.key]} onChange={set(q.key)}
+                  options={[['yes', 'Yes'], ['no', 'No']]} />
+              </Field>
+            ))}
+          </div>
           <div className="grid sm:grid-cols-2 gap-3">
             {FEATURES.map((f) => (
               <label key={f.key} className={`flex gap-3 p-3 rounded-lg border cursor-pointer ${form.features.includes(f.key)

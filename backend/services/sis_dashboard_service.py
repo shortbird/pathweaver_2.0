@@ -266,15 +266,19 @@ def _build_jobs(org_id: str, *, caller_id: str, hidden: set, settings: Dict[str,
         # Students in no family: a data-quality queue whose usual cause is a
         # duplicate registration. sis_service annotates each with its likely match.
         'students_no_family': (lambda: len(sis_service.unassigned_students(org_id)), None),
-        # The Registration page's enrollment queues (no module key — never hidden).
-        # In-flight sis_registrations are deliberately NOT counted: no console page
-        # lists them, so the tile would be a number with nowhere to go.
-        'age_exceptions': (lambda: _count('sis_age_exception_requests', org_id,
-                                          status='pending'), None),
-        'waitlist_waiting': (lambda: _count('sis_enrollment_waitlist', org_id,
-                                            status='waiting'), None),
         'prior_learning_pending': (lambda: _prior_learning_pending(org_id), None),
     }
+
+    # The Registration page's enrollment queues. They follow the registration
+    # module: a school that does not register through Optio has no waitlist
+    # and no age exceptions to work (docs/MICROSCHOOL_FIRST_PLAN.md part 2).
+    # In-flight sis_registrations are deliberately NOT counted: no console page
+    # lists them, so the tile would be a number with nowhere to go.
+    if 'registration' not in hidden:
+        jobs['age_exceptions'] = (lambda: _count('sis_age_exception_requests', org_id,
+                                                 status='pending'), None)
+        jobs['waitlist_waiting'] = (lambda: _count('sis_enrollment_waitlist', org_id,
+                                                   status='waiting'), None)
 
     if 'attendance' not in hidden:
         if today:
@@ -290,9 +294,11 @@ def _build_jobs(org_id: str, *, caller_id: str, hidden: set, settings: Dict[str,
         jobs['tasks'] = (lambda: _tasks(org_id, today), None)
         jobs['signatures_pending'] = (lambda: _signatures_pending(org_id, sees_hr), None)
 
-    # Goals replace schedule-building for goals-mode orgs only — the same
-    # condition the sidebar uses to show the Goals tab at all.
-    if settings.get('post_registration_flow') == 'goals':
+    # Goals replace schedule-building for goals-mode orgs only. The goals
+    # module derives from that same setting (post_registration_flow ==
+    # 'goals'), and asking the module also honours an explicit modules entry,
+    # which is what the sidebar reads.
+    if 'goals' not in hidden:
         jobs['goals_pending'] = (lambda: _count('sis_student_goals', org_id,
                                                 status='submitted'), None)
 
@@ -378,7 +384,11 @@ def get_admin_dashboard(org_id: str, caller_id: str) -> Dict[str, Any]:
             'post_registration_flow': settings.get('post_registration_flow'),
         },
     }
-    if sees_finance:
+    # Finance is present only for a caller who may see money AT a school that
+    # bills through Optio. With billing off the key is absent, not an empty
+    # block: the page rendered `{}` as a Money card saying "Billing figures are
+    # unavailable" to schools that never billed (MICROSCHOOL_FIRST_PLAN part 2).
+    if sees_finance and 'billing' not in hidden:
         payload['finance'] = ({'invoices': r['invoices'], 'tuition_queue': r['tuition_queue']}
                               if 'invoices' in r else {})
     return payload

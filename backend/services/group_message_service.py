@@ -697,7 +697,7 @@ class GroupMessageService(BaseService):
             from repositories.group_repository import GroupRepository
             rows = GroupRepository(client=self._get_client()).active_groups([group_id])
             group = rows[0] if rows else None
-        if student_chat_service.is_class_student_chat(group):
+        if student_chat_service.is_student_group(group):
             raise ValueError(student_chat_service.CLOSED_MESSAGE)
 
     def get_unread_total(self, user_id: str) -> int:
@@ -739,7 +739,7 @@ class GroupMessageService(BaseService):
 
             total = 0
             for group in repo.active_groups(list(last_read_by_group)):
-                if chat_closed and student_chat_service.is_class_student_chat(group):
+                if chat_closed and student_chat_service.is_student_group(group):
                     continue
                 last_read_at = last_read_by_group.get(group['id'])
                 last_message_at = group.get('last_message_at')
@@ -783,7 +783,7 @@ class GroupMessageService(BaseService):
             for group in repo.active_groups(list(last_read_by_group)):
                 if owned_by and group.get('created_by') != owned_by:
                     continue
-                if chat_closed and student_chat_service.is_class_student_chat(group):
+                if chat_closed and student_chat_service.is_student_group(group):
                     continue
                 last_read_at = last_read_by_group.get(group['id'])
                 last_message_at = group.get('last_message_at')
@@ -836,7 +836,7 @@ class GroupMessageService(BaseService):
             from services import student_chat_service
             if rows and student_chat_service.closed_for(user_id):
                 rows = [g for g in rows
-                        if not student_chat_service.is_class_student_chat(g)]
+                        if not student_chat_service.is_student_group(g)]
             if not rows:
                 return []
 

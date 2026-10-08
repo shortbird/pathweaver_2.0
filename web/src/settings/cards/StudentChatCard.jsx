@@ -81,7 +81,7 @@ export default function StudentChatCard({ orgId }) {
               </button>
             </div>
             <p className="text-xs text-gray-500">
-              When off, students cannot see or send messages in class student chats or to
+              When off, students cannot see or send messages in class or group chats or to
               friends. Messages from teachers and the school still reach them.
             </p>
           </div>

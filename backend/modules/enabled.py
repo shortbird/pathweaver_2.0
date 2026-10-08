@@ -4,7 +4,9 @@ Effective-module evaluation for an organization.
 The config is a veneer (docs/ARCHITECTURE_BLOCKS.md section 4.2): an explicit
 `feature_flags.modules[key]` wins; an absent key derives from the module's
 legacy gate (`sis_enabled`, `hidden_modules`, the opt-in booleans, goals mode);
-absent everywhere, the registry default decides. An org with no `modules` key
+absent everywhere, the registry default decides. An org whose
+`feature_flags.module_baseline` is 'starter' answers off for the STARTER_OFF
+modules before the legacy source is consulted. An org with neither key
 therefore behaves exactly as it did before the registry existed, and deleting
 the `modules` keys is the rollback for the whole program.
 
@@ -21,7 +23,7 @@ utils/org_features.py semantics.
 
 from typing import Dict, FrozenSet, List, Optional
 
-from modules.registry import MODULES, ModuleDef
+from modules.registry import MODULES, STARTER_BASELINE, STARTER_OFF, ModuleDef
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -36,6 +38,13 @@ def _raw_value(entry: ModuleDef, flags: Dict) -> bool:
     modules = flags.get('modules')
     if isinstance(modules, dict) and entry.key in modules:
         return bool(modules[entry.key])
+
+    # The starter baseline (docs/MICROSCHOOL_FIRST_PLAN.md, part 1): a school
+    # that starts small has the office side off until it is explicitly turned
+    # on, whatever the legacy flags would say. Orgs without the key are
+    # untouched.
+    if flags.get('module_baseline') == STARTER_BASELINE and entry.key in STARTER_OFF:
+        return False
 
     sis_settings = flags.get('sis_settings') or {}
     legacy = entry.legacy

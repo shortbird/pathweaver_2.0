@@ -64,6 +64,10 @@ const open = async (props = {}) => {
   await screen.findByRole('dialog')
   return { onClose, onDone }
 }
+// Pillar, Required, due date and credit sit behind each task's More options,
+// and the finish line and class extras behind theirs (MICROSCHOOL_FIRST_PLAN part 4).
+const openMore = async (which) => (await screen.findAllByRole('button', { name: which }))
+  .forEach((b) => fireEvent.click(b))
 const saveAndGetTasks = async (name = 'Save') => {
   fireEvent.click(screen.getByRole('button', { name }))
   await waitFor(() => expect(api.put).toHaveBeenCalled())
@@ -73,6 +77,7 @@ const saveAndGetTasks = async (name = 'Save') => {
 describe('the task list, saved whole and by id', () => {
   it('changes Required on an existing task without replacing it (ea9756e3)', async () => {
     await open()
+    await openMore(/^More options for task/)
     const boxes = await screen.findAllByRole('checkbox', { name: 'Required' })
     expect(boxes[0]).toBeChecked()
     fireEvent.click(boxes[0])
@@ -156,6 +161,7 @@ describe('a teacher on the office\'s quest (owner, 2026-09-23)', () => {
 
   it('may move the XP to finish when the office left it open', async () => {
     await open({ classLink: { due_date: null, publish_at: null, student_ids: null } })
+    await openMore('More options for this quest')
     fireEvent.change(await screen.findByLabelText(/XP required to finish/), { target: { value: '150' } })
     fireEvent.click(screen.getByRole('button', { name: 'Save class settings' }))
     await waitFor(() => expect(api.patch).toHaveBeenCalledWith(
@@ -165,6 +171,9 @@ describe('a teacher on the office\'s quest (owner, 2026-09-23)', () => {
   it('may not when the office locked it', async () => {
     current = { ...current, teachers_may_change_xp: false }
     await open({ classLink: { due_date: null, publish_at: null, student_ids: null } })
+    // The closed toggle says so, so the lock is not hidden behind it.
+    expect(await screen.findByText(/200 XP to finish · XP to finish set by your school office/)).toBeInTheDocument()
+    await openMore('More options for this quest')
     expect(await screen.findByLabelText(/XP required to finish/)).toBeDisabled()
     expect(screen.getByText('Set by your school office')).toBeInTheDocument()
   })
@@ -184,6 +193,7 @@ describe('publishing a draft on a class', () => {
       '/api/sis/quest-editor/drafts', { context: 'class', class_id: 'c1' }))
     fireEvent.change(await screen.findByLabelText('Quest title'), { target: { value: 'Rock cycle' } })
     fireEvent.change(screen.getByLabelText('Due date'), { target: { value: '2026-10-02' } })
+    await openMore('More options for this class')
     const who = screen.getByRole('group', { name: 'Who gets this quest' })
     fireEvent.click(within(who).getByLabelText('Ben'))
     fireEvent.click(screen.getByRole('button', { name: 'Publish to class' }))

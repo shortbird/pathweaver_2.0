@@ -49,6 +49,8 @@ const open = async (classQuests) => {
   render(<QuestEditor context="class" classId="c1" questId="q-copy" classQuests={classQuests}
     onClose={vi.fn()} onDone={vi.fn()} />)
   await screen.findByRole('dialog')
+  // "Replace the original" sits behind the class's More options (MICROSCHOOL_FIRST_PLAN part 4).
+  fireEvent.click(await screen.findByRole('button', { name: 'More options for this class' }))
 }
 const ON_CLASS = [{ quest_id: 'q-orig', title: 'Vocab Week 1' }]
 

@@ -9,8 +9,11 @@
 import React, { useEffect, useState } from 'react'
 import ClassFieldsEditor from './ClassFieldsEditor'
 import { toDraft, draftToPayload, numOrUndef } from './classFields'
+import { moduleKnownOff } from '../../modules/moduleEnabled'
 
-export default function ClassForm({ onCancel = null, onSubmit, initial = null, staff = [], timeBlocks = [], rooms = [], roomOccupancy = {}, inline = false }) {
+// `org` hides the fields of a module the school has off (ClassFieldsEditor's
+// header). The draft still carries them, so a save keeps their saved values.
+export default function ClassForm({ onCancel = null, onSubmit, initial = null, staff = [], timeBlocks = [], rooms = [], roomOccupancy = {}, inline = false, org = null }) {
   const isEdit = Boolean(initial)
 
   const [draft, setDraft] = useState(() => toDraft(initial || {}))
@@ -97,9 +100,12 @@ export default function ClassForm({ onCancel = null, onSubmit, initial = null, s
           onImageChange={pickImage}
           onImageRemove={removeImage}
           onTimeErrorChange={setTimeError}
+          org={org}
         />
 
-        {!isEdit && (
+        {/* Without the registration module there is nothing to open: the class
+            keeps today's default (open) and the choice is not offered. */}
+        {!isEdit && !moduleKnownOff(org, 'registration') && (
           <label className="flex items-start gap-2.5 cursor-pointer">
             <input type="checkbox" checked={registrationOpen}
               onChange={(e) => setRegistrationOpen(e.target.checked)}

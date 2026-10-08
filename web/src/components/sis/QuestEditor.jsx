@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import React, { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'react-hot-toast'
 import { EyeIcon } from '@heroicons/react/24/outline'
 import { Modal } from '../ui/Modal'
@@ -8,6 +8,7 @@ import QuestDraftForm, { blankTask, withPillarSubject } from './QuestDraftForm'
 import QuestAiDraftPanel from './QuestAiDraftPanel'
 import QuestPreviewModal from './QuestPreviewModal'
 import HeaderImageField from './questEditor/HeaderImageField'
+import MoreOptions from './questEditor/MoreOptions'
 import ClassSettingsSection, {
   classSettingsFrom, dueInputToIso, releaseInputToIso,
 } from './questEditor/ClassSettingsSection'
@@ -17,6 +18,8 @@ import TrainingSettingsFields, {
 import { useConfirm } from '../../contexts/ConfirmContext'
 import { REPLACE_COPY } from './classQuests/replaceOriginal'
 import { questEditorApi } from '../../hooks/api/useQuestEditor'
+import { OrganizationContext } from '../../contexts/OrganizationContext'
+import { moduleKnownOff } from '../../modules/moduleEnabled'
 
 /**
  * QuestEditor -- the one form for making or editing a quest, everywhere the
@@ -90,6 +93,23 @@ export default function QuestEditor({
   onClose, onDone,
 }) {
   const confirm = useConfirm()
+  // The AI draft panel shows only where AI is on for the org (the `ai`
+  // module; MICROSCHOOL_FIRST_PLAN part 4). The signed-in user's org payload
+  // (/api/auth/me, with the server's effective_modules) is the only copy the
+  // editor has, so it answers only when it is the org being edited: a
+  // superadmin working in another school still sees the panel, as before.
+  // Read with useContext, not useOrganization, so a test or screen without
+  // the provider degrades to today's behaviour instead of throwing.
+  const signedInOrg = useContext(OrganizationContext)?.organization
+  const aiOff = !!signedInOrg && signedInOrg.id === orgId && moduleKnownOff(signedInOrg, 'ai')
+  // Whether each task shows the "Counts toward credit" subject picker. One
+  // boolean, computed here, so the condition for showing it lives in one
+  // place. Every context but staff training. It is NOT hidden for a school
+  // with the credit modules off: every school picks subjects on nearly every
+  // task (iCreate 386 of 399 in 60 days, Gryffin and Horizon all), and a task
+  // with none credits the work as an elective (MICROSCHOOL_FIRST part 2,
+  // reverted 2026-10-07 before it shipped). It lives under More options.
+  const showCreditPicker = context !== 'training'
   const [questId, setQuestId] = useState(initialQuestId)
   const [trainingId, setTrainingId] = useState(initialTrainingId)
   const [quest, setQuest] = useState(null) // the server's copy
@@ -469,7 +489,7 @@ export default function QuestEditor({
             </p>
           )}
 
-          {editable && (
+          {editable && !aiOff && (
             <QuestAiDraftPanel
               startOpen={isDraft && !quest.title && !(quest.tasks || []).length}
               hasDraft={Boolean(title.trim() || description.trim() || tasks.some((t) => (t.title || '').trim()))}
@@ -492,7 +512,7 @@ export default function QuestEditor({
             description={description} setDescription={touch(setDescription)}
             tasks={tasks} setTasks={touch(setTasks)}
             questId={editable ? questId : null}
-            showSubjects={context !== 'training'}
+            showSubjects={showCreditPicker}
             onSaveForAttachments={saveForAttachments}
             taskDue={taskDue}
             minTaskXp={quest?.min_task_xp}
@@ -508,51 +528,59 @@ export default function QuestEditor({
               + 'a learner can mark it done.'}
           />
 
-          <section className="space-y-3 border-t border-gray-100 pt-4">
-            <div>
-              <label className="block text-xs font-medium text-neutral-600 mb-1" htmlFor="quest-editor-xp">
-                XP required to finish <span className="text-neutral-400">(optional)</span>
-              </label>
-              <div className="flex flex-wrap items-center gap-2">
-                <input id="quest-editor-xp" type="number" min="0" step="25"
-                  value={xpValue} disabled={xpLocked || (!editable && context !== 'class')}
-                  onChange={(e) => { setDirty(true); setXpFollowsTotal(false); setXp(e.target.value) }}
-                  placeholder="No requirement"
-                  className="w-40 rounded-lg border border-gray-300 px-3 py-2 text-sm disabled:bg-neutral-50 disabled:text-neutral-500" />
-                {xpLocked && <span className="text-xs text-neutral-400">Set by your school office</span>}
-                {editable && !xpFollowsTotal && taskXpTotal > 0 && Number(xpValue || 0) !== taskXpTotal && (
-                  <button type="button" onClick={() => { setDirty(true); setXp(String(taskXpTotal)) }}
-                    className="text-xs text-optio-purple hover:underline">
-                    Use all {taskXpTotal}
-                  </button>
+          {/* Essentials first (MICROSCHOOL_FIRST_PLAN part 4): the finish
+              line and "add their own tasks" sit behind More options, and the
+              closed toggle says what they hold when it is not the default. */}
+          <section className="border-t border-gray-100 pt-4">
+            <MoreOptions label="for this quest" summary={questOptionsSummary({
+              xpValue, xpLocked, lockOffered: !!quest.can_lock_xp, teachersMay,
+              customOffered: editable, allowCustom,
+            })}>
+              <div>
+                <label className="block text-xs font-medium text-neutral-600 mb-1" htmlFor="quest-editor-xp">
+                  XP required to finish <span className="text-neutral-400">(optional)</span>
+                </label>
+                <div className="flex flex-wrap items-center gap-2">
+                  <input id="quest-editor-xp" type="number" min="0" step="25"
+                    value={xpValue} disabled={xpLocked || (!editable && context !== 'class')}
+                    onChange={(e) => { setDirty(true); setXpFollowsTotal(false); setXp(e.target.value) }}
+                    placeholder="No requirement"
+                    className="w-40 rounded-lg border border-gray-300 px-3 py-2 text-sm disabled:bg-neutral-50 disabled:text-neutral-500" />
+                  {xpLocked && <span className="text-xs text-neutral-400">Set by your school office</span>}
+                  {editable && !xpFollowsTotal && taskXpTotal > 0 && Number(xpValue || 0) !== taskXpTotal && (
+                    <button type="button" onClick={() => { setDirty(true); setXp(String(taskXpTotal)) }}
+                      className="text-xs text-optio-purple hover:underline">
+                      Use all {taskXpTotal}
+                    </button>
+                  )}
+                </div>
+                <p className="mt-1 text-xs text-neutral-400">
+                  A learner cannot mark the quest finished below this. Leave it empty and any amount finishes it.
+                </p>
+                {quest.can_lock_xp && (
+                  <label className="mt-2 flex items-center gap-2 text-sm text-neutral-700">
+                    <input type="checkbox" checked={teachersMay}
+                      onChange={(e) => { setDirty(true); setTeachersMay(e.target.checked) }}
+                      className="rounded border-gray-300 text-optio-purple focus:ring-optio-purple" />
+                    Teachers may change the XP to finish
+                  </label>
                 )}
               </div>
-              <p className="mt-1 text-xs text-neutral-400">
-                A learner cannot mark the quest finished below this. Leave it empty and any amount finishes it.
-              </p>
-              {quest.can_lock_xp && (
-                <label className="mt-2 flex items-center gap-2 text-sm text-neutral-700">
-                  <input type="checkbox" checked={teachersMay}
-                    onChange={(e) => { setDirty(true); setTeachersMay(e.target.checked) }}
-                    className="rounded border-gray-300 text-optio-purple focus:ring-optio-purple" />
-                  Teachers may change the XP to finish
+              {editable && (
+                <label className="flex items-start gap-2 text-sm text-neutral-700">
+                  <input type="checkbox" className="mt-0.5" checked={allowCustom}
+                    onChange={(e) => { setDirty(true); setAllowCustom(e.target.checked) }} />
+                  <span>
+                    Let them add tasks of their own
+                    <span className="block text-xs text-neutral-500">
+                      {sourceMaterial
+                        ? 'They can generate extra tasks for themselves, written from the document you uploaded.'
+                        : 'Alongside the ones you set.'}
+                    </span>
+                  </span>
                 </label>
               )}
-            </div>
-            {editable && (
-              <label className="flex items-start gap-2 text-sm text-neutral-700">
-                <input type="checkbox" className="mt-0.5" checked={allowCustom}
-                  onChange={(e) => { setDirty(true); setAllowCustom(e.target.checked) }} />
-                <span>
-                  Let them add tasks of their own
-                  <span className="block text-xs text-neutral-500">
-                    {sourceMaterial
-                      ? 'They can generate extra tasks for themselves, written from the document you uploaded.'
-                      : 'Alongside the ones you set.'}
-                  </span>
-                </span>
-              </label>
-            )}
+            </MoreOptions>
           </section>
 
           {context === 'library' && isDraft && editable && curricula.length > 0 && (
@@ -574,19 +602,20 @@ export default function QuestEditor({
               <h3 className="text-sm font-semibold text-neutral-900 mb-2">On this class</h3>
               <ClassSettingsSection value={classSettings} students={students}
                 scheduledEnabled={scheduledEnabled}
-                onChange={(patch) => { setDirty(true); setClassSettings((s) => ({ ...s, ...patch })) }} />
-              {/* A teacher's copy of a quest still on the class: put it in the
-                  original's place instead of beside it (987218e0). */}
-              {isDraft && originalOnClass && (
-                <label className="mt-3 flex items-start gap-2 text-sm text-neutral-800">
-                  <input type="checkbox" checked={replacing} onChange={(e) => setReplacing(e.target.checked)}
-                    className="mt-0.5 rounded border-gray-300 text-optio-purple focus:ring-optio-purple" />
-                  <span>
-                    Replace the original on this class (“{originalOnClass.title}”)
-                    <span className="block text-xs text-neutral-500">{REPLACE_COPY}</span>
-                  </span>
-                </label>
-              )}
+                onChange={(patch) => { setDirty(true); setClassSettings((s) => ({ ...s, ...patch })) }}>
+                {/* A teacher's copy of a quest still on the class: put it in the
+                    original's place instead of beside it (987218e0). */}
+                {isDraft && originalOnClass && (
+                  <label className="flex items-start gap-2 text-sm text-neutral-800">
+                    <input type="checkbox" checked={replacing} onChange={(e) => setReplacing(e.target.checked)}
+                      className="mt-0.5 rounded border-gray-300 text-optio-purple focus:ring-optio-purple" />
+                    <span>
+                      Replace the original on this class (“{originalOnClass.title}”)
+                      <span className="block text-xs text-neutral-500">{REPLACE_COPY}</span>
+                    </span>
+                  </label>
+                )}
+              </ClassSettingsSection>
             </section>
           )}
 
@@ -611,6 +640,19 @@ export default function QuestEditor({
       />
     </Modal>
   )
+}
+
+/**
+ * The closed quest-level "More options" line: only what differs from a new
+ * quest's defaults (no finish line, teachers may change it, own tasks on).
+ */
+export function questOptionsSummary({ xpValue, xpLocked, lockOffered, teachersMay, customOffered, allowCustom }) {
+  const parts = []
+  if (xpValue !== '' && xpValue != null) parts.push(`${xpValue} XP to finish`)
+  if (xpLocked) parts.push('XP to finish set by your school office')
+  else if (lockOffered && !teachersMay) parts.push('Teachers may not change the XP')
+  if (customOffered && !allowCustom) parts.push('No tasks of their own')
+  return parts.join(' · ')
 }
 
 function publishedMessage(context, out, body) {

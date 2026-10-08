@@ -6,19 +6,18 @@ Owner decision: one school-level switch, on by default.
 
 Off, for a STUDENT of that school:
 
-  * class Student Chats (group_conversations with audience='student' and a
-    source_class_id -- class_group_sync_service makes one per class) leave
-    the student's Messages list and both unread counts, and reading or
-    sending in one is refused;
+  * student group chats (group_conversations with audience='student': each
+    class's Student Chat, which class_group_sync_service makes, and any group
+    a teacher made with students in it) leave the student's Messages list
+    and both unread counts, and reading or sending in one is refused;
   * friend DMs (two students, opened by the Friends rule in
     DirectMessageService.can_message_user) are refused both ways and leave
     the list.
 
 What it does NOT touch, because the point of the request is that teacher
 feedback still arrives: DMs with a teacher, an advisor, the office, a parent
-or the school inbox, and teacher-made groups that are not a class Student
-Chat. Staff are unaffected -- a teacher can still read a class's student chat
-history. Nothing is deleted: turning the switch back on brings every group
+or the school inbox. Staff are unaffected -- a teacher can still read a
+student group's history. Nothing is deleted: turning the switch back on brings every group
 and thread back as it was.
 
 The switch is stored as feature_flags.modules.student_chat (no legacy source,
@@ -121,13 +120,15 @@ def student_ids(user_ids: Iterable[str]) -> Set[str]:
         return set()
 
 
-def is_class_student_chat(group: Optional[Dict[str, Any]]) -> bool:
-    """A class's Student Chat: the student-audience group the class sync made.
-    A teacher's own group with students in it also carries audience='student'
-    but no source_class_id, and stays open -- it is the teacher's channel."""
+def is_student_group(group: Optional[Dict[str, Any]]) -> bool:
+    """A student-audience group chat: a class's Student Chat (made by the class
+    sync, with a source_class_id) or a group a teacher made with students in
+    it. Both close when the switch is off -- Tanner, 2026-10-07: "turning off
+    student chat should close groups" (the first cut left teacher-made groups
+    open as the teacher's channel). Parent and staff groups never close."""
     if not group:
         return False
-    return group.get('audience') == 'student' and bool(group.get('source_class_id'))
+    return group.get('audience') == 'student'
 
 
 def friend_thread_closed(user_id: str, other_id: str) -> bool:
@@ -172,6 +173,8 @@ def set_enabled(org_id: str, enabled: bool, *, actor_id: str) -> Dict[str, Any]:
         raise LookupError('Organization not found')
     flags = apply_changes(org, {MODULE_KEY: bool(enabled)})
     repo.update_organization(org_id, {'feature_flags': flags})
+    from services.school_features_service import audit_feature_change
+    audit_feature_change(org_id, actor_id, org, {MODULE_KEY: bool(enabled)}, source='settings_student_chat_card')
     # The per-request module cache read the old row; drop it so the answer
     # below is the stored one.
     try:

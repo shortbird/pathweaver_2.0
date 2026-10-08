@@ -331,6 +331,10 @@ def register_all(app):
     from routes import student_chat_settings
     app.register_blueprint(student_chat_settings.bp)
 
+    # ── The school's own feature switches (Settings "Features" card) ──────────
+    from routes import school_features
+    app.register_blueprint(school_features.bp)
+
     # ── School inbox (staff side of the "{School Name}" contact) ──────────────
     from routes import school_inbox
     app.register_blueprint(school_inbox.bp)

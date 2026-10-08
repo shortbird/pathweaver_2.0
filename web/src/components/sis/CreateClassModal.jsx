@@ -20,7 +20,7 @@ export {
   blockEndOptions, meetingsToForm,
 } from './classFields'
 
-export default function CreateClassModal({ onClose, onSubmit, initial = null, staff = [], timeBlocks = [], rooms = [], roomOccupancy = {} }) {
+export default function CreateClassModal({ onClose, onSubmit, initial = null, staff = [], timeBlocks = [], rooms = [], roomOccupancy = {}, org = null }) {
   const isEdit = Boolean(initial)
   return (
     <ModalOverlay onClose={onClose}>
@@ -38,7 +38,7 @@ export default function CreateClassModal({ onClose, onSubmit, initial = null, st
           </button>
         </div>
         <ClassForm onCancel={onClose} onSubmit={onSubmit} initial={initial} staff={staff}
-          timeBlocks={timeBlocks} rooms={rooms} roomOccupancy={roomOccupancy} />
+          timeBlocks={timeBlocks} rooms={rooms} roomOccupancy={roomOccupancy} org={org} />
       </div>
     </ModalOverlay>
   )

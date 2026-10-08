@@ -259,6 +259,45 @@ def _defs() -> Tuple[ModuleDef, ...]:
 MODULES: Dict[str, ModuleDef] = {m.key: m for m in _defs()}
 
 
+# ---------------------------------------------------------------------------
+# The starter baseline (docs/MICROSCHOOL_FIRST_PLAN.md, part 1)
+# ---------------------------------------------------------------------------
+# An org whose feature_flags.module_baseline is 'starter' has these modules
+# OFF unless feature_flags.modules[key] is explicitly true. Every new org gets
+# the baseline (services/organization_service.new_org_row); an org without the
+# key evaluates exactly as before.
+#
+# Why these: on 2026-10-07, 253 of 261 org-attributed feature tickets in the
+# last 90 days came from iCreate, and turning the console on switched on all of
+# its office side at once. Outside iCreate (and Optio Academy's own billing),
+# nobody used registration, billing, paperwork tasks, onboarding, secure
+# documents, learning plans, resources or training -- Horizon had every one on
+# and used none in 30 days. A new school gets the teaching side and opts into
+# the office side.
+STARTER_OFF = frozenset({
+    'registration', 'catalog', 'billing', 'tasks', 'onboarding',
+    'secure_documents', 'clp', 'resources', 'training',
+})
+
+# Every non-core module the baseline deliberately leaves alone: on-by-default
+# modules a new school keeps (the teaching side, messaging, friends, student
+# chat), and opt-in modules that are already off without the baseline. A new
+# non-core module must be placed in STARTER_OFF or here
+# (tests/unit/test_module_registry.py), so whoever adds one decides what a new
+# school sees.
+STARTER_KEEPS = frozenset({
+    # on by default, and a new school keeps them
+    'journal', 'courses', 'bounties', 'observer', 'friends', 'student_chat',
+    'classes', 'attendance', 'submissions', 'curriculum', 'calendar', 'reports',
+    'prior_learning',   # on only where the diploma is Optio Academy's anyway
+    # off by default already; the baseline has nothing to add
+    'course_builder', 'credits', 'transcripts', 'ai', 'sis', 'goals',
+    'weekly_goals', 'bounty_management', 'bloomy', 'community', 'kiosk',
+})
+
+STARTER_BASELINE = 'starter'
+
+
 def surface_keys(surface: str) -> frozenset:
     """Module keys declared on a surface ('family', 'console', ...). Family
     payloads intersect the effective set with surface_keys('family') so a page
@@ -288,6 +327,11 @@ def _validate() -> None:
         for s in m.surfaces:
             if s not in SURFACES:
                 raise ValueError(f'module {m.key}: bad surface {s!r}')
+    for key in STARTER_OFF | STARTER_KEEPS:
+        if key not in MODULES or MODULES[key].default == 'core':
+            raise ValueError(f'starter baseline names {key!r}, not a non-core module')
+    if STARTER_OFF & STARTER_KEEPS:
+        raise ValueError('a module is both off and kept in the starter baseline')
 
 
 _validate()

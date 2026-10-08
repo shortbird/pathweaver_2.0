@@ -5,7 +5,8 @@
     "legacy": null,
     "parent": null,
     "requires": [],
-    "requires_any": []
+    "requires_any": [],
+    "starter_off": false
   },
   "attendance": {
     "default": "on",
@@ -13,7 +14,8 @@
     "legacy": "hidden_modules",
     "parent": "sis",
     "requires": [],
-    "requires_any": []
+    "requires_any": [],
+    "starter_off": false
   },
   "billing": {
     "default": "on",
@@ -23,7 +25,8 @@
     "requires": [
       "registration"
     ],
-    "requires_any": []
+    "requires_any": [],
+    "starter_off": true
   },
   "bloomy": {
     "default": "off",
@@ -31,7 +34,8 @@
     "legacy": null,
     "parent": "sis",
     "requires": [],
-    "requires_any": []
+    "requires_any": [],
+    "starter_off": false
   },
   "bounties": {
     "default": "on",
@@ -39,7 +43,8 @@
     "legacy": null,
     "parent": null,
     "requires": [],
-    "requires_any": []
+    "requires_any": [],
+    "starter_off": false
   },
   "bounty_management": {
     "default": "off",
@@ -49,7 +54,8 @@
     "requires": [
       "bounties"
     ],
-    "requires_any": []
+    "requires_any": [],
+    "starter_off": false
   },
   "calendar": {
     "default": "on",
@@ -57,7 +63,8 @@
     "legacy": "hidden_modules",
     "parent": "sis",
     "requires": [],
-    "requires_any": []
+    "requires_any": [],
+    "starter_off": false
   },
   "catalog": {
     "default": "on",
@@ -67,7 +74,8 @@
     "requires": [
       "classes"
     ],
-    "requires_any": []
+    "requires_any": [],
+    "starter_off": true
   },
   "classes": {
     "default": "on",
@@ -75,7 +83,8 @@
     "legacy": "hidden_modules",
     "parent": "sis",
     "requires": [],
-    "requires_any": []
+    "requires_any": [],
+    "starter_off": false
   },
   "clp": {
     "default": "on",
@@ -83,7 +92,8 @@
     "legacy": "hidden_modules",
     "parent": "sis",
     "requires": [],
-    "requires_any": []
+    "requires_any": [],
+    "starter_off": true
   },
   "community": {
     "default": "off",
@@ -91,7 +101,8 @@
     "legacy": "community_enabled",
     "parent": "sis",
     "requires": [],
-    "requires_any": []
+    "requires_any": [],
+    "starter_off": false
   },
   "course_builder": {
     "default": "off",
@@ -99,7 +110,8 @@
     "legacy": null,
     "parent": null,
     "requires": [],
-    "requires_any": []
+    "requires_any": [],
+    "starter_off": false
   },
   "courses": {
     "default": "on",
@@ -107,7 +119,8 @@
     "legacy": null,
     "parent": null,
     "requires": [],
-    "requires_any": []
+    "requires_any": [],
+    "starter_off": false
   },
   "credits": {
     "default": "off",
@@ -115,7 +128,8 @@
     "legacy": "oea_enabled",
     "parent": null,
     "requires": [],
-    "requires_any": []
+    "requires_any": [],
+    "starter_off": false
   },
   "curriculum": {
     "default": "on",
@@ -123,7 +137,8 @@
     "legacy": "hidden_modules",
     "parent": "sis",
     "requires": [],
-    "requires_any": []
+    "requires_any": [],
+    "starter_off": false
   },
   "friends": {
     "default": "on",
@@ -131,7 +146,8 @@
     "legacy": null,
     "parent": null,
     "requires": [],
-    "requires_any": []
+    "requires_any": [],
+    "starter_off": false
   },
   "goals": {
     "default": "off",
@@ -139,7 +155,8 @@
     "legacy": "goals_mode",
     "parent": "sis",
     "requires": [],
-    "requires_any": []
+    "requires_any": [],
+    "starter_off": false
   },
   "journal": {
     "default": "on",
@@ -147,7 +164,8 @@
     "legacy": null,
     "parent": null,
     "requires": [],
-    "requires_any": []
+    "requires_any": [],
+    "starter_off": false
   },
   "kiosk": {
     "default": "off",
@@ -155,7 +173,8 @@
     "legacy": "kiosk_flag",
     "parent": null,
     "requires": [],
-    "requires_any": []
+    "requires_any": [],
+    "starter_off": false
   },
   "messaging": {
     "default": "core",
@@ -163,7 +182,8 @@
     "legacy": null,
     "parent": null,
     "requires": [],
-    "requires_any": []
+    "requires_any": [],
+    "starter_off": false
   },
   "observer": {
     "default": "on",
@@ -171,7 +191,8 @@
     "legacy": null,
     "parent": null,
     "requires": [],
-    "requires_any": []
+    "requires_any": [],
+    "starter_off": false
   },
   "onboarding": {
     "default": "on",
@@ -179,7 +200,8 @@
     "legacy": "hidden_modules",
     "parent": "sis",
     "requires": [],
-    "requires_any": []
+    "requires_any": [],
+    "starter_off": true
   },
   "portfolio": {
     "default": "core",
@@ -187,7 +209,8 @@
     "legacy": null,
     "parent": null,
     "requires": [],
-    "requires_any": []
+    "requires_any": [],
+    "starter_off": false
   },
   "prior_learning": {
     "default": "on",
@@ -195,7 +218,8 @@
     "legacy": "prior_learning_enabled",
     "parent": "sis",
     "requires": [],
-    "requires_any": []
+    "requires_any": [],
+    "starter_off": false
   },
   "quests": {
     "default": "core",
@@ -203,7 +227,8 @@
     "legacy": null,
     "parent": null,
     "requires": [],
-    "requires_any": []
+    "requires_any": [],
+    "starter_off": false
   },
   "registration": {
     "default": "on",
@@ -211,7 +236,8 @@
     "legacy": null,
     "parent": "sis",
     "requires": [],
-    "requires_any": []
+    "requires_any": [],
+    "starter_off": true
   },
   "reports": {
     "default": "on",
@@ -219,7 +245,8 @@
     "legacy": "hidden_modules",
     "parent": "sis",
     "requires": [],
-    "requires_any": []
+    "requires_any": [],
+    "starter_off": false
   },
   "resources": {
     "default": "on",
@@ -227,7 +254,8 @@
     "legacy": "hidden_modules",
     "parent": "sis",
     "requires": [],
-    "requires_any": []
+    "requires_any": [],
+    "starter_off": true
   },
   "secure_documents": {
     "default": "on",
@@ -235,7 +263,8 @@
     "legacy": "hidden_modules",
     "parent": "sis",
     "requires": [],
-    "requires_any": []
+    "requires_any": [],
+    "starter_off": true
   },
   "sis": {
     "default": "off",
@@ -243,7 +272,8 @@
     "legacy": "sis_enabled",
     "parent": null,
     "requires": [],
-    "requires_any": []
+    "requires_any": [],
+    "starter_off": false
   },
   "student_chat": {
     "default": "on",
@@ -251,7 +281,8 @@
     "legacy": null,
     "parent": null,
     "requires": [],
-    "requires_any": []
+    "requires_any": [],
+    "starter_off": false
   },
   "submissions": {
     "default": "on",
@@ -259,7 +290,8 @@
     "legacy": null,
     "parent": "sis",
     "requires": [],
-    "requires_any": []
+    "requires_any": [],
+    "starter_off": false
   },
   "tasks": {
     "default": "on",
@@ -267,7 +299,8 @@
     "legacy": "hidden_modules",
     "parent": "sis",
     "requires": [],
-    "requires_any": []
+    "requires_any": [],
+    "starter_off": true
   },
   "teaching": {
     "default": "core",
@@ -275,7 +308,8 @@
     "legacy": null,
     "parent": null,
     "requires": [],
-    "requires_any": []
+    "requires_any": [],
+    "starter_off": false
   },
   "training": {
     "default": "on",
@@ -283,7 +317,8 @@
     "legacy": "hidden_modules",
     "parent": "sis",
     "requires": [],
-    "requires_any": []
+    "requires_any": [],
+    "starter_off": true
   },
   "transcripts": {
     "default": "off",
@@ -293,7 +328,8 @@
     "requires": [
       "credits"
     ],
-    "requires_any": []
+    "requires_any": [],
+    "starter_off": false
   },
   "weekly_goals": {
     "default": "off",
@@ -301,7 +337,8 @@
     "legacy": null,
     "parent": "sis",
     "requires": [],
-    "requires_any": []
+    "requires_any": [],
+    "starter_off": false
   },
   "xp": {
     "default": "core",
@@ -309,6 +346,7 @@
     "legacy": null,
     "parent": null,
     "requires": [],
-    "requires_any": []
+    "requires_any": [],
+    "starter_off": false
   }
 }

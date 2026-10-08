@@ -38,6 +38,10 @@ vi.mock('../../hooks/api/useSisStaff', () => ({ useSisStaff: () => ({ data: [] }
 
 const CREDIT_BOX = /counts toward high school credit/i
 
+// The subject picker sits behind each task's More options (MICROSCHOOL_FIRST_PLAN part 4).
+const openTaskOptions = () => screen.getAllByRole('button', { name: /^More options for task/ })
+  .forEach((b) => fireEvent.click(b))
+
 const task = (over = {}) => ({
   title: 'Read the handbook', description: '', pillar: 'art', xp_value: 100, is_required: true,
   ...over,
@@ -55,6 +59,7 @@ const draft = (tasks, props = {}) => render(
 describe('the form has no quest-level credit switch (b7a5fc1e)', () => {
   it('shows no "counts toward high school credit" box, and a subject on every task', () => {
     draft([task(), task({ title: 'Visit the makerspace' })])
+    openTaskOptions()
     expect(screen.queryByLabelText(CREDIT_BOX)).toBeNull()
     expect(screen.queryByText(CREDIT_BOX)).toBeNull()
     expect(screen.getAllByText('Counts toward credit')).toHaveLength(2)
@@ -62,6 +67,7 @@ describe('the form has no quest-level credit switch (b7a5fc1e)', () => {
 
   it('hides the pickers where the caller says so (staff training), tasks still editable', () => {
     draft([task(), task()], { showSubjects: false })
+    openTaskOptions()
     expect(screen.queryByLabelText(CREDIT_BOX)).toBeNull()
     expect(screen.queryByText('Counts toward credit')).toBeNull()
     expect(screen.getByLabelText('Task 1 XP')).toBeInTheDocument()
@@ -71,6 +77,7 @@ describe('the form has no quest-level credit switch (b7a5fc1e)', () => {
     // A subject somebody picked must not be saved from behind a hidden control.
     draft([task({ pillar: 'civics', diploma_subjects: ['social_studies', 'language_arts'] })],
       { showSubjects: false })
+    openTaskOptions()
     expect(screen.getAllByText('Counts toward credit')).toHaveLength(1)
   })
 })
@@ -149,6 +156,7 @@ describe('QuestEditor, with no credit switch', () => {
     render(<QuestEditor context="library" onClose={vi.fn()} onDone={vi.fn()} />)
     fireEvent.change(await screen.findByLabelText('Quest title'), { target: { value: 'Watercolor' } })
     expect(screen.queryByLabelText(CREDIT_BOX)).toBeNull()
+    openTaskOptions()
     expect(screen.getByText('Counts toward credit')).toBeInTheDocument()
     fireEvent.change(screen.getByPlaceholderText(/Task 1 /), { target: { value: 'Mix a palette' } })
     const tasks = await saveAndGetTasks('Save draft')
@@ -203,6 +211,7 @@ describe('QuestEditor, with no credit switch', () => {
     current = { ...QUEST, tasks: NO_CREDIT_TASKS }
     render(<QuestEditor context="training" questId="q1" onClose={vi.fn()} onDone={vi.fn()} />)
     await screen.findByLabelText('Quest title')
+    openTaskOptions()
     expect(screen.queryByLabelText(CREDIT_BOX)).toBeNull()
     expect(screen.queryByText('Counts toward credit')).toBeNull()
     const tasks = await saveAndGetTasks()

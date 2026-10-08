@@ -172,3 +172,64 @@ def test_prior_learning_exists_only_where_the_diploma_is_optio_academys():
     assert not module_enabled_for_row(
         org({**sis, 'sis_settings': {'prior_learning_enabled': False}}, accreditation='optio'),
         'prior_learning')
+
+
+# ---------------------------------------------------------------------------
+# The starter baseline (docs/MICROSCHOOL_FIRST_PLAN.md, part 1)
+# ---------------------------------------------------------------------------
+
+STARTER_OFF_KEYS = {'registration', 'catalog', 'billing', 'tasks', 'onboarding',
+                    'secure_documents', 'clp', 'resources', 'training'}
+
+
+def test_the_starter_baseline_turns_the_office_side_off():
+    row = org({'sis_enabled': True, 'module_baseline': 'starter'})
+    got = effective_modules_for_row(row)
+    assert got == CORE | LMS_ON | {'ai', 'sis'} | (SIS_DEFAULT_ON - STARTER_OFF_KEYS)
+    # The teaching side stays.
+    assert {'classes', 'attendance', 'submissions', 'curriculum', 'calendar',
+            'reports'} <= got
+
+
+def test_under_the_baseline_an_explicit_entry_still_wins():
+    row = org({'sis_enabled': True, 'module_baseline': 'starter',
+               'modules': {'billing': True, 'registration': True, 'classes': False}})
+    assert module_enabled_for_row(row, 'billing')
+    assert module_enabled_for_row(row, 'registration')
+    assert not module_enabled_for_row(row, 'classes')
+    assert not module_enabled_for_row(row, 'tasks')
+
+
+def test_the_baseline_beats_the_legacy_hidden_modules_answer():
+    """hidden_modules is an opt-out list: a module absent from it reads on.
+    Under the baseline, absence from the list is not an opt-in."""
+    row = org({'sis_enabled': True, 'module_baseline': 'starter',
+               'sis_settings': {'hidden_modules': ['attendance']}})
+    assert not module_enabled_for_row(row, 'tasks')
+    assert not module_enabled_for_row(row, 'attendance')
+    assert module_enabled_for_row(row, 'calendar')
+
+
+def test_the_baseline_does_not_turn_on_the_console():
+    row = org({'module_baseline': 'starter'})
+    assert effective_modules_for_row(row) == CORE | LMS_ON | {'ai'}
+
+
+def test_an_unknown_baseline_value_changes_nothing():
+    row = org({'sis_enabled': True, 'module_baseline': 'everything'})
+    assert module_enabled_for_row(row, 'billing')
+
+
+def test_orgs_without_a_baseline_are_exactly_as_before():
+    """The rollout promise: no existing school moves. iCreate (console on,
+    nothing hidden) and Horizon (console on, every office module on, a
+    leftover icreate_registration config) carry no module_baseline key."""
+    icreate = org({'sis_enabled': True, 'sis_settings': {'community_enabled': True}})
+    assert effective_modules_for_row(icreate) == \
+        CORE | LMS_ON | {'ai', 'sis', 'community'} | SIS_DEFAULT_ON
+
+    horizon = org({'sis_enabled': True,
+                   'icreate_registration': {'enabled': True},
+                   'modules': {'student_chat': False}})
+    assert effective_modules_for_row(horizon) == \
+        CORE | (LMS_ON - {'student_chat'}) | {'ai', 'sis'} | SIS_DEFAULT_ON

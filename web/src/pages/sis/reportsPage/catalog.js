@@ -11,7 +11,14 @@
  * `autoRun`: a report with nothing to choose runs the moment it is picked.
  * The ones that need a choice (which classes, which question) wait for it.
  * `money`: finance tier only; the campus coordinator never sees it listed.
+ * `module`: the building block the report reads; it hides when the school has
+ * that block off (docs/MICROSCHOOL_FIRST_PLAN.md part 2). `modules` is a list
+ * of which any one suffices. A group left with no reports hides with them
+ * (ReportNav). Reports with neither read people and households, which every
+ * school has.
  */
+
+import { moduleKnownOff } from '../../../modules/moduleEnabled'
 
 export const GROUPS = [
   { key: 'overview', label: 'Overview' },
@@ -29,23 +36,23 @@ export const REPORTS = [
     description: 'How many students are in classes, how attendance is running, and what has been billed and collected.',
   },
   {
-    key: 'rosters', group: 'rosters', title: 'Class rosters', autoRun: false,
+    key: 'rosters', module: 'classes', group: 'rosters', title: 'Class rosters', autoRun: false,
     description: 'Students across as many classes as you like, in one sheet. Pick the classes, then the columns.',
   },
   {
-    key: 'day-rosters', group: 'rosters', title: 'Day rosters', autoRun: true,
+    key: 'day-rosters', module: 'classes', group: 'rosters', title: 'Day rosters', autoRun: true,
     description: 'One sheet per day: each block, the classes running in it, the room, and who should be in each. For the person who has to tell a child where to go.',
   },
   {
-    key: 'block-rosters', group: 'rosters', title: 'Block rosters', autoRun: true,
+    key: 'block-rosters', module: 'classes', group: 'rosters', title: 'Block rosters', autoRun: true,
     description: 'One page per block: every class running in it side by side, with its room and each student’s age. Pick a day, print a block, or download the grid.',
   },
   {
-    key: 'student-schedule', group: 'rosters', title: 'Student schedule', autoRun: true,
+    key: 'student-schedule', module: 'classes', group: 'rosters', title: 'Student schedule', autoRun: true,
     description: 'Every student with their age, which days they come, and which block they are in each day.',
   },
   {
-    key: 'classes', group: 'rosters', title: 'Class list', autoRun: true,
+    key: 'classes', module: 'classes', group: 'rosters', title: 'Class list', autoRun: true,
     description: 'One row per class: teacher, days and time, room, tuition, supply fee, curriculum, and more. Pick the columns after it runs.',
   },
   {
@@ -61,17 +68,18 @@ export const REPORTS = [
     description: 'Every student with the guardians in their household and the emergency contacts named for them, and a Missing column naming whoever is still not on file. Built to print.',
   },
   {
-    key: 'media-release', group: 'health', title: 'Media release', autoRun: true,
+    // Read only from registration answers, so it has nothing without them.
+    key: 'media-release', module: 'registration', group: 'health', title: 'Media release', autoRun: true,
     description: 'Which families have given photo and media consent, and which have not.',
   },
   {
-    key: 'daily-attendance', group: 'attendance', title: 'Daily attendance', autoRun: true,
+    key: 'daily-attendance', module: 'attendance', group: 'attendance', title: 'Daily attendance', autoRun: true,
     description: 'Who was present, absent, late or excused on one day, class by class.',
   },
   {
     // P7, iCreate 2026-09-23: "verify whether the assigned teacher taught a
     // class or a substitute did" -- for a pay period, not only today.
-    key: 'roll-call', group: 'attendance', title: 'Who took roll', autoRun: false,
+    key: 'roll-call', module: 'attendance', group: 'attendance', title: 'Who took roll', autoRun: false,
     description: 'Every class for a range of days: who took the roll and when, whether that was the class’s teacher, and any substitute. For checking a pay period.',
   },
   {
@@ -81,19 +89,28 @@ export const REPORTS = [
     description: 'Families counted by city, with who said they want to carpool. Open a city to see its families. Staff only.',
   },
   {
-    key: 'question', group: 'registration', title: 'Registration answers', autoRun: false,
+    key: 'question', module: 'registration', group: 'registration', title: 'Registration answers', autoRun: false,
     description: 'Every family’s (or student’s) answer to one registration question. Filter by the answer, city, form of payment, child age, or days per week, and sort by family, age, or city.',
   },
   {
-    key: 'checklist-completion', group: 'registration', title: 'Task completion', autoRun: true,
+    // The onboarding task roll-up; the endpoint is the tasks/onboarding pair's.
+    key: 'checklist-completion', modules: ['tasks', 'onboarding'], group: 'registration', title: 'Task completion', autoRun: true,
     description: 'Who has finished the tasks the school assigned, and who still has steps open.',
   },
   {
-    key: 'payments', group: 'money', title: 'Payments', autoRun: true, money: true,
+    key: 'payments', module: 'billing', group: 'money', title: 'Payments', autoRun: true, money: true,
     description: 'Every payment you have recorded, with the split by method: card, check, cash, scholarship.',
   },
 ]
 
 export const reportByKey = (key) => REPORTS.find((r) => r.key === key) || REPORTS[0]
 
-export const visibleReports = (seesMoney) => REPORTS.filter((r) => seesMoney || !r.money)
+// `org` is the active org; null (none in hand yet) hides nothing, the same
+// rule as the nav.
+const moduleOn = (org, key) => !moduleKnownOff(org, key)
+
+export const visibleReports = (seesMoney, org = null) => REPORTS.filter((r) => (
+  (seesMoney || !r.money)
+  && (!r.module || moduleOn(org, r.module))
+  && (!r.modules || r.modules.some((m) => moduleOn(org, m)))
+))

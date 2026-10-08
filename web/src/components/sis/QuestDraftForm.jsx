@@ -3,9 +3,10 @@ import { PlusIcon, TrashIcon, ChevronUpIcon, ChevronDownIcon, DocumentDuplicateI
 import { PILLARS as PILLAR_CONFIG } from '../../config/pillars'
 import TaskSubjectPicker from './TaskSubjectPicker'
 import QuestResourcesPanel from './QuestResourcesPanel'
-import { defaultSubjectForPillar, evenSplit } from '../../constants/diplomaSubjects'
+import { defaultSubjectForPillar, evenSplit, SUBJECT_LABEL } from '../../constants/diplomaSubjects'
 import { INPUT_CLASS } from '../ui/Input'
 import { isoToDateInput } from './questEditor/ClassSettingsSection'
+import MoreOptions from './questEditor/MoreOptions'
 
 /**
  * The form for building a school quest: a title, a description, and the preset
@@ -150,6 +151,27 @@ export function TaskDueInput({ task, index, taskDue }) {
   )
 }
 
+/**
+ * The one line a closed task "More options" shows, so a value saved behind
+ * the toggle is never hidden silently (MICROSCHOOL_FIRST_PLAN part 4): the
+ * pillar, "Optional" when the task is not required, its due date on this
+ * class, and the subjects it counts toward when the credit picker is shown.
+ */
+export function taskOptionsSummary(task, { showPillars = true, showSubjects = true, dueIso = null } = {}) {
+  const parts = []
+  if (showPillars) parts.push(PILLAR_LABEL[task.pillar] || task.pillar)
+  if (!task.is_required) parts.push('Optional')
+  if (dueIso) {
+    const dt = new Date(dueIso)
+    if (!Number.isNaN(dt.getTime())) {
+      parts.push(`Due ${dt.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}`)
+    }
+  }
+  const subjects = (task.diploma_subjects || []).map((s) => SUBJECT_LABEL[s] || s)
+  if (showSubjects && subjects.length) parts.push(`Counts toward ${subjects.join(' and ')}`)
+  return parts.join(' · ')
+}
+
 export function TaskRows({ tasks, setTasks, addLabel = 'Add a preset task', showPillars = true, showSubjects = true, questId = null, onSaveForAttachments = null, taskDue = null, minTaskXp = MIN_TASK_XP }) {
   const floor = taskXpFloor(minTaskXp)
   // The unsaved task whose "Links and files" button was pressed: after the
@@ -209,13 +231,6 @@ export function TaskRows({ tasks, setTasks, addLabel = 'Add a preset task', show
             rows={2} aria-label={`Task ${i + 1} instructions`}
             className={`${inputCls} resize-y text-neutral-600`} />
           <div className="flex flex-wrap items-center gap-2">
-            {showPillars && (
-              <select value={t.pillar} onChange={(e) => update(i, followPillar(t, e.target.value))}
-                aria-label={`Task ${i + 1} pillar`}
-                className="rounded-lg border border-gray-300 px-2 py-1.5 text-sm">
-                {PILLARS.map(([k, label]) => <option key={k} value={k}>{label}</option>)}
-              </select>
-            )}
             <label className="flex items-center gap-1 text-sm text-neutral-600">
               XP
               <input type="number" min={floor} step={floor >= MIN_TASK_XP ? MIN_TASK_XP : 1} value={t.xp_value}
@@ -224,12 +239,6 @@ export function TaskRows({ tasks, setTasks, addLabel = 'Add a preset task', show
                 title={`${floor} is the smallest a task can be worth`}
                 className="w-20 rounded-lg border border-gray-300 px-2 py-1.5 text-sm" />
             </label>
-            <label className="flex items-center gap-1.5 text-sm text-neutral-600">
-              <input type="checkbox" checked={t.is_required}
-                onChange={(e) => update(i, { is_required: e.target.checked })} />
-              Required
-            </label>
-            <TaskDueInput task={t} index={i} taskDue={taskDue} />
             <button type="button" onClick={() => duplicate(i)} disabled={!t.title.trim()}
               className="ml-auto p-1 text-gray-400 hover:text-optio-purple disabled:opacity-30"
               title="Make a copy of this task at the end of the list"
@@ -241,12 +250,38 @@ export function TaskRows({ tasks, setTasks, addLabel = 'Add a preset task', show
               <TrashIcon className="w-4 h-4" />
             </button>
           </div>
-          {showSubjects && (
-            <TaskSubjectPicker
-              subjects={t.diploma_subjects} distribution={t.subject_xp_distribution}
-              xpValue={t.xp_value} pillar={t.pillar} idPrefix={`draft-task-${i}`}
-              onChange={(patch) => update(i, patch)} />
-          )}
+          {/* Essentials first (MICROSCHOOL_FIRST_PLAN part 4): pillar,
+              Required, due date and credit sit behind this toggle. Its closed
+              line names what they hold, so nothing saved is out of sight. */}
+          <MoreOptions label={`for task ${i + 1}`}
+            summary={taskOptionsSummary(t, {
+              showPillars, showSubjects, dueIso: taskDue && t.id ? taskDue.dates?.[t.id] : null,
+            })}>
+            <div className="flex flex-wrap items-center gap-3">
+              {showPillars && (
+                <label className="flex items-center gap-1.5 text-sm text-neutral-600">
+                  Pillar
+                  <select value={t.pillar} onChange={(e) => update(i, followPillar(t, e.target.value))}
+                    aria-label={`Task ${i + 1} pillar`}
+                    className="rounded-lg border border-gray-300 px-2 py-1.5 text-sm">
+                    {PILLARS.map(([k, label]) => <option key={k} value={k}>{label}</option>)}
+                  </select>
+                </label>
+              )}
+              <label className="flex items-center gap-1.5 text-sm text-neutral-600">
+                <input type="checkbox" checked={t.is_required}
+                  onChange={(e) => update(i, { is_required: e.target.checked })} />
+                Required
+              </label>
+              <TaskDueInput task={t} index={i} taskDue={taskDue} />
+            </div>
+            {showSubjects && (
+              <TaskSubjectPicker
+                subjects={t.diploma_subjects} distribution={t.subject_xp_distribution}
+                xpValue={t.xp_value} pillar={t.pillar} idPrefix={`draft-task-${i}`}
+                onChange={(patch) => update(i, patch)} />
+            )}
+          </MoreOptions>
           {/* A saved task can carry its own video, link or file. Labelled and
               full size, like the quest-level block above, because the compact
               unlabeled version read as if links only worked on the quest

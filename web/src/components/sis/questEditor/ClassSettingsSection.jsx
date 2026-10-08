@@ -1,4 +1,5 @@
-import React from 'react'
+import React, { useState } from 'react'
+import MoreOptions from './MoreOptions'
 
 /**
  * The class half of the quest editor: when the class's students see the quest,
@@ -91,17 +92,52 @@ export function AudiencePicker({ value, onChange, students = [], label = 'Who ge
   )
 }
 
-export default function ClassSettingsSection({ value, onChange, students = [], scheduledEnabled = false }) {
+/**
+ * The closed class "More options" line: a release date and a narrowed
+ * audience, the two class settings that hide behind it.
+ */
+export function classOptionsSummary(value, students = []) {
+  const parts = []
+  if (value.release) {
+    const [y, m, d] = value.release.split('-').map(Number)
+    parts.push(`Released ${new Date(y, m - 1, d).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}`)
+  }
+  if (Array.isArray(value.studentIds)) {
+    parts.push(students.length
+      ? `${value.studentIds.length} of ${students.length} students`
+      : `${value.studentIds.length} chosen ${value.studentIds.length === 1 ? 'student' : 'students'}`)
+  }
+  return parts.join(' · ')
+}
+
+/**
+ * The due date stays in view; the release date, who gets the quest and
+ * anything the caller passes as children (the editor's "Replace the original
+ * on this class") sit behind More options (MICROSCHOOL_FIRST_PLAN part 4).
+ * The toggle starts open when one of them already holds something other than
+ * its default -- a release date or a narrowed audience -- so a teacher never
+ * publishes to five students without seeing that it is five.
+ */
+export default function ClassSettingsSection({ value, onChange, students = [], scheduledEnabled = false, children = null }) {
+  // Decided once, on open: a panel that snapped shut while somebody ticked
+  // the last student back on would be stranger than one that stays put.
+  const [startOpen] = useState(() => Boolean((scheduledEnabled && value.release) || Array.isArray(value.studentIds)))
   return (
     <div className="space-y-3">
-      <div className="flex flex-wrap items-center gap-4">
-        <label className="flex items-center gap-2 text-sm text-neutral-700">
-          Due
-          <input type="date" value={value.due} onChange={(e) => onChange({ due: e.target.value })}
-            aria-label="Due date"
-            title="Nothing locks after this date. It marks the quest overdue on your progress view and in reminders."
-            className="rounded-lg border border-gray-300 px-2 py-1 text-sm" />
-        </label>
+      <label className="flex items-center gap-2 text-sm text-neutral-700">
+        Due
+        <input type="date" value={value.due} onChange={(e) => onChange({ due: e.target.value })}
+          aria-label="Due date"
+          title="Nothing locks after this date. It marks the quest overdue on your progress view and in reminders."
+          className="rounded-lg border border-gray-300 px-2 py-1 text-sm" />
+      </label>
+      <p className="text-xs text-neutral-400">
+        {value.release
+          ? 'Students will not see the quest until the release date. You will.'
+          : 'Optional. A due date marks the quest overdue; it does not lock it.'}
+      </p>
+      <MoreOptions label="for this class" defaultOpen={startOpen}
+        summary={classOptionsSummary(scheduledEnabled ? value : { ...value, release: '' }, students)}>
         {scheduledEnabled && (
           <label className="flex items-center gap-2 text-sm text-neutral-700">
             Release on
@@ -110,14 +146,10 @@ export default function ClassSettingsSection({ value, onChange, students = [], s
               className="rounded-lg border border-gray-300 px-2 py-1 text-sm" />
           </label>
         )}
-      </div>
-      <p className="text-xs text-neutral-400">
-        {value.release
-          ? 'Students will not see the quest until the release date. You will.'
-          : 'Both are optional. A due date marks the quest overdue; it does not lock it.'}
-      </p>
-      <AudiencePicker value={value.studentIds} students={students}
-        onChange={(studentIds) => onChange({ studentIds })} />
+        <AudiencePicker value={value.studentIds} students={students}
+          onChange={(studentIds) => onChange({ studentIds })} />
+        {children}
+      </MoreOptions>
     </div>
   )
 }

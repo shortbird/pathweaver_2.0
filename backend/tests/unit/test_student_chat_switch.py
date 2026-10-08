@@ -13,7 +13,8 @@ What must stay true:
   * off, friend DMs are refused both ways and leave the student's list
   * off, a teacher's DM to a student still goes through -- teacher feedback
     is the thing the school asked to protect
-  * a teacher's own group with students in it is not a class Student Chat
+  * off, a teacher's own group with students in it closes too (Tanner,
+    2026-10-07); parent groups never do
 """
 
 from unittest.mock import Mock, patch
@@ -83,10 +84,10 @@ def test_closed_only_for_students_of_a_school_that_turned_it_off(school):
     assert chat.closed_for('teach') is False
 
 
-def test_a_teachers_own_group_is_not_a_class_student_chat():
-    assert chat.is_class_student_chat(CLASS_CHAT) is True
-    assert chat.is_class_student_chat(PARENT_CHAT) is False
-    assert chat.is_class_student_chat(TEACHER_GROUP) is False
+def test_a_teachers_own_student_group_closes_with_the_class_chats():
+    assert chat.is_student_group(CLASS_CHAT) is True
+    assert chat.is_student_group(PARENT_CHAT) is False
+    assert chat.is_student_group(TEACHER_GROUP) is True
 
 
 # ---------------------------------------------------------------------------
@@ -128,8 +129,10 @@ def _groups_for(user_id):
         return {g['id'] for g in svc.get_user_groups(user_id)}
 
 
-def test_off_hides_class_student_chats_from_the_students_list(school):
-    assert _groups_for('kid') == {'g-parent', 'g-teacher'}
+def test_off_hides_student_group_chats_from_the_students_list(school):
+    # The teacher's own student group closes too (Tanner, 2026-10-07); only
+    # the parent chat, which a student is not normally in, would remain.
+    assert _groups_for('kid') == {'g-parent'}
 
 
 def test_on_lists_class_student_chats_as_before(school):
@@ -154,9 +157,9 @@ def unread_everywhere():
         yield svc
 
 
-def test_off_drops_class_student_chats_from_both_unread_counts(school, unread_everywhere):
-    assert unread_everywhere.get_unread_total('kid') == 4
-    assert unread_everywhere.count_groups_with_unread('kid') == 2
+def test_off_drops_student_group_chats_from_both_unread_counts(school, unread_everywhere):
+    assert unread_everywhere.get_unread_total('kid') == 2
+    assert unread_everywhere.count_groups_with_unread('kid') == 1
 
 
 def test_on_and_staff_unread_counts_include_the_class_student_chat(school, unread_everywhere):
@@ -280,19 +283,27 @@ def test_off_the_list_drops_friend_threads_and_keeps_the_teacher(school):
 # ---------------------------------------------------------------------------
 
 def test_set_enabled_writes_only_the_student_chat_key():
+    audit = Mock()
     repo = Mock()
     repo.find_by_id.return_value = {
         'id': ORG_OFF,
         'feature_flags': {'modules': {'friends': True},
                           'sis_settings': {'hidden_modules': ['tasks']}},
     }
-    with patch('repositories.organization_repository.OrganizationRepository',
+    with patch('repositories.admin_audit_repository.AdminAuditRepository', return_value=audit), \
+         patch('services.school_features_service._admin', return_value=Mock()), \
+         patch('repositories.organization_repository.OrganizationRepository',
                return_value=repo):
         assert chat.set_enabled(ORG_OFF, False, actor_id='admin') == {'enabled': False}
     flags = repo.update_organization.call_args[0][1]['feature_flags']
     assert flags['modules'] == {'friends': True, 'student_chat': False}
     # No legacy source: the hidden list is left exactly as it was.
     assert flags['sis_settings'] == {'hidden_modules': ['tasks']}
+
+    # The switch leaves an audit row like the Features card does.
+    row = audit.create.call_args[0][0]
+    assert row['changes']['source'] == 'settings_student_chat_card'
+    assert row['changes']['features'] == {'student_chat': {'before': True, 'after': False}}
 
 
 def test_the_switch_routes_are_org_admin_only_and_owned_once():

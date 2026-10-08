@@ -139,7 +139,7 @@ describe('telling the teacher what the draft left out', () => {
 
   const generate = async ({ keep = true, alwaysOpen = true } = {}) => {
     render(<QuestAiDraftPanel alwaysOpen={alwaysOpen} onDrafted={() => {}} />)
-    if (!alwaysOpen) fireEvent.click(screen.getByText(/build it from something i already have/i))
+    if (!alwaysOpen) fireEvent.click(screen.getByRole('button', { name: /draft with ai/i }))
     if (keep) fireEvent.click(screen.getByLabelText(/enter my tasks as i wrote them/i))
     fireEvent.change(screen.getByLabelText('Source material'), { target: { value: 'Quest 1' } })
     fireEvent.click(screen.getByRole('button', { name: /generate draft/i }))
@@ -194,7 +194,7 @@ describe('telling the teacher what the draft left out', () => {
     })
     await generate({ alwaysOpen: false })
     const note = await screen.findByRole('status')
-    expect(screen.getByText(/build it from something i already have/i)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /draft with ai/i })).toBeInTheDocument()
     expect(note).toHaveTextContent('Your document had 42 tasks; the first 30 were kept.')
     expect(note).toHaveTextContent('no descriptions for 30 tasks')
   })

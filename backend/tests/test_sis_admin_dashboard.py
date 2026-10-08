@@ -50,7 +50,7 @@ def _table_mock(counts, rows):
 def _run(*, roles=('org_admin',), sees_pay=True, settings=None, counts=None, rows=None,
          alerts=None, tasks=None, batches=None,
          unassigned=None, prior_enabled=False, prior_counts=None,
-         invoices=None, invoices_error=None, tuition=0, overrides=None):
+         invoices=None, invoices_error=None, tuition=0, overrides=None, modules=None):
     """Build a dashboard with every subsystem stubbed.
 
     `overrides` is a dict of {attribute: patch} applied last, for the tests that
@@ -60,6 +60,10 @@ def _run(*, roles=('org_admin',), sees_pay=True, settings=None, counts=None, row
     # cascades from the 'sis' block, and this dashboard only renders for SIS orgs.
     org_row = {'id': ORG, 'name': 'Org', 'slug': 'org',
                'feature_flags': {'sis_enabled': True, 'sis_settings': settings or {}}}
+    if modules is not None:
+        # Explicit feature_flags.modules entries, the way the Blocks panel and
+        # the starter baseline write them.
+        org_row['feature_flags']['modules'] = modules
     rows = dict(rows or {})
     rows.setdefault('organizations', [org_row])
     admin = _table_mock(counts or {}, rows)
@@ -128,12 +132,15 @@ class TestTheMoneyStaysWithFinance:
         }
         assert data['finance']['tuition_queue'] == 3
 
-    def test_hiding_the_billing_module_empties_finance_without_removing_it(self):
-        """An org that doesn't bill through Optio still has an admin who could
-        see money — the block is empty because there is nothing to bill, not
-        because of who is asking."""
+    def test_a_school_without_billing_gets_no_finance_key(self):
+        """Absent, not empty. Until 2026-10-07 this asserted `finance == {}`,
+        and the page drew `{}` as a Money card reading "Billing figures are
+        unavailable" for every school that never billed through Optio
+        (MICROSCHOOL_FIRST_PLAN part 2). Billing off removes the section."""
         data = _run(settings={'hidden_modules': ['billing']}, tuition=3)
-        assert data['finance'] == {}
+        assert 'finance' not in data
+        data = _run(modules={'billing': False}, tuition=3)
+        assert 'finance' not in data
 
 
 @pytest.mark.unit
@@ -212,6 +219,14 @@ class TestOptInModulesStayOut:
         data = _run(settings={'post_registration_flow': 'goals'},
                     counts={'sis_student_goals': 3})
         assert data['attention']['goals_pending'] == 3
+
+    def test_goals_follow_the_goals_module(self):
+        """The tile asks the module, so an explicit entry decides either way."""
+        data = _run(modules={'goals': True}, counts={'sis_student_goals': 3})
+        assert data['attention']['goals_pending'] == 3
+        data = _run(settings={'post_registration_flow': 'goals'}, modules={'goals': False},
+                    counts={'sis_student_goals': 3})
+        assert 'goals_pending' not in data['attention']
 
     def test_a_hidden_module_is_never_queried(self):
         """Absent, not zero: an org with attendance turned off has no answer to
@@ -438,3 +453,36 @@ class TestLeavingSoonIsForStaff:
         assert resp.status_code == 200
         assert resolve.call_args.args[1] == 'other-org'
         assert build.call_args.args[0] == ORG
+
+
+@pytest.mark.unit
+class TestABlockSwitchesOffItsOwnSections:
+    """docs/MICROSCHOOL_FIRST_PLAN.md part 2 (Horizon, 2026-10-07): a school
+    with a module off gets none of that module's dashboard sections -- not a
+    zero, not an empty card, and not the query behind it."""
+
+    def test_registration_off_drops_the_waitlist_and_age_exception_tiles(self):
+        counts = {'sis_age_exception_requests': 2, 'sis_enrollment_waitlist': 11}
+        on = _run(counts=counts)
+        assert on['attention']['age_exceptions'] == 2
+        assert on['attention']['waitlist_waiting'] == 11
+        off = _run(counts=counts, modules={'registration': False})
+        assert 'age_exceptions' not in off['attention']
+        assert 'waitlist_waiting' not in off['attention']
+
+    def test_attendance_off_drops_the_roll_teachers_to_check_and_the_board(self):
+        with patch.object(dash, '_roll_call') as roll, \
+                patch.object(dash, '_attendance_board') as board:
+            data = _run(modules={'attendance': False})
+        roll.assert_not_called()
+        board.assert_not_called()
+        assert 'attendance' not in data['today']
+        assert 'teachers_to_check' not in data['today']
+        assert 'attendance_alerts' not in data['attention']
+
+    def test_the_snapshot_carries_no_money(self):
+        """Families and Enrolled stay for every school; nothing in the census
+        is money-shaped, so nothing there needs billing."""
+        data = _run(modules={'billing': False})
+        assert data['snapshot'] == SNAPSHOT
+        assert not any('cents' in k or 'invoice' in k for k in data['snapshot'])

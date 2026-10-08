@@ -66,7 +66,9 @@ const SisOrgSettings = ({ orgId, orgData, onUpdate, onLogoChange, canEditSlug = 
   // Which SIS-specific rows this org gets (blocks P3): each is chrome over a
   // module the Blocks panel controls; the backend gates the endpoints.
   const showCourseRows = moduleEnabled(org, 'classes')
-  const showAllowance = moduleEnabled(org, 'billing')
+  // Billing owns both money rows: the Optio course price and the materials
+  // allowance (MICROSCHOOL_FIRST_PLAN part 2).
+  const showBilling = moduleEnabled(org, 'billing')
   const showDirectoryRow = moduleEnabled(org, 'community')
   // At-home learning: whether Optio platform courses appear in the family Schedule Builder.
   const [optioCourses, setOptioCourses] = useState(org.feature_flags?.sis_settings?.optio_courses_enabled ?? true)
@@ -299,7 +301,7 @@ const SisOrgSettings = ({ orgId, orgData, onUpdate, onLogoChange, canEditSlug = 
             )}
           />
           )}
-          {showCourseRows && optioCourses && (
+          {showCourseRows && optioCourses && showBilling && (
             <div className="flex items-center justify-between pl-6 py-2">
               <div>
                 <p className="text-sm font-medium text-neutral-800">Optio course tuition</p>
@@ -318,7 +320,7 @@ const SisOrgSettings = ({ orgId, orgData, onUpdate, onLogoChange, canEditSlug = 
               </div>
             </div>
           )}
-          {showAllowance && (
+          {showBilling && (
           <div className="flex items-center justify-between py-2">
             <div>
               <p className="text-sm font-medium text-neutral-800">Materials allowance per student</p>

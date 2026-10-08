@@ -13,7 +13,10 @@ What the form decides and what it only records:
   - The features the school picks are turned on (FEATURE_MODULES), through
     the same toggle path as the Blocks panel (modules/toggle.py). Every
     school may use every feature; the picks only decide what is on at the
-    start. A console feature turns on the school console.
+    start. A console feature turns on the school console. The two yes/no
+    questions about tuition and registration count as picks (QUESTION_PICKS).
+    Every new org starts on the starter baseline (new_org_row), so the
+    office side stays off unless one of these turns it on.
   - Recorded only, in the link's `answers`: everything else.
     accreditation_source is never set here: 'optio' puts the accredited mark
     on transcripts, and a school does not grant itself that by filling a form.
@@ -61,6 +64,8 @@ OPTIONAL_TEXT = {
     'tuition_model': 40,
     'funding_programs': 200,
     'has_stripe': 20,
+    'collects_tuition': 10,
+    'families_register': 10,
     'ai_choice': 10,
     'library_choice': 20,
     'launch_date': 10,
@@ -262,7 +267,7 @@ def org_fields(answers: Dict[str, Any], logo: Optional[str]) -> Dict[str, Any]:
     }
     if logo:
         fields['branding_config'] = {'logo_url': logo}
-    changes = module_changes(answers.get('features') or [])
+    changes = module_changes(feature_picks(answers))
     if changes:
         from modules.toggle import apply_changes
         fields['feature_flags'] = apply_changes(new_org_row('', '', 'all_optio'), changes)
@@ -281,7 +286,8 @@ def org_fields(answers: Dict[str, Any], logo: Optional[str]) -> Dict[str, Any]:
 # Picks with no module (mobile_app) are recorded only: the app is there for
 # every school.
 FEATURE_MODULES: Dict[str, Tuple[str, ...]] = {
-    'registration': ('registration',),
+    # catalog requires classes: families pick classes from the catalog
+    'registration': ('registration', 'catalog', 'classes'),
     'billing': ('billing', 'registration'),   # billing requires registration
     'classes': ('classes', 'catalog'),        # catalog requires classes
     'attendance': ('attendance',),
@@ -294,6 +300,28 @@ FEATURE_MODULES: Dict[str, Tuple[str, ...]] = {
     'kiosk': ('kiosk',),
     'mobile_app': (),
 }
+
+
+# The two plain yes/no questions (docs/MICROSCHOOL_FIRST_PLAN.md, part 1) and
+# the FEATURE_MODULES pick a yes stands for. They replaced the registration and
+# billing checkboxes: a new school starts with both off (the starter baseline,
+# services/organization_service.new_org_row), so the form asks rather than
+# hoping the school spots two boxes among twelve. A 'features' list from a form
+# loaded before the change may still carry 'registration' or 'billing'; those
+# picks still count.
+QUESTION_PICKS: Dict[str, str] = {
+    'collects_tuition': 'billing',       # "Do you collect tuition through Optio?"
+    'families_register': 'registration',  # "Do families register through Optio?"
+}
+
+
+def feature_picks(answers: Dict[str, Any]) -> List[str]:
+    """The checkbox picks plus the pick each 'yes' answer stands for."""
+    picks = list(answers.get('features') or [])
+    for question, pick in QUESTION_PICKS.items():
+        if answers.get(question) == 'yes' and pick not in picks:
+            picks.append(pick)
+    return picks
 
 
 def module_changes(features: List[str]) -> Dict[str, bool]:
@@ -405,6 +433,8 @@ def _notify_staff(org: Dict[str, Any], answers: Dict[str, Any], user: Dict[str, 
             ('Students', f"{answers['student_count']} ("
                          + ', '.join(f'{g}: {n}' for g, n in answers['grade_counts'].items()) + ')'),
             ('Wants', ', '.join(answers.get('features') or []) or 'Not answered'),
+            ('Collects tuition through Optio', answers.get('collects_tuition') or 'Not answered'),
+            ('Families register through Optio', answers.get('families_register') or 'Not answered'),
         ]
         html = '<p>A school finished the setup form.</p><ul>' + ''.join(
             f'<li><strong>{escape(k)}:</strong> {escape(str(v))}</li>' for k, v in lines) + \

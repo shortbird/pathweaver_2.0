@@ -1246,3 +1246,44 @@ class TestGoingHomeOnTheBlockRosters:
         assert [(r['name'], r['leaves_at'], r['early']) for r in rows] == [
             ('Ada Lovelace', '11:30am', True), ('Bo Diddley', '2:00pm', False),
             ('Cy Twombly', '2:00pm', False)]
+
+
+@pytest.mark.unit
+class TestMoneyReportsFollowTheBillingBlock:
+    """docs/MICROSCHOOL_FIRST_PLAN.md part 2 (Horizon, 2026-10-07): a school
+    that does not bill through Optio gets no money in its reports -- no
+    revenue, no payments, and no tuition or supply-fee columns on the class
+    list -- whoever is asking."""
+
+    def test_revenue_and_payments_carry_the_billing_gate(self):
+        from routes.sis import reports as routes
+        assert 'billing' in routes.revenue._module_keys
+        assert 'billing' in routes.payments._module_keys
+
+    def test_payments_404_with_billing_off_when_enforced(self, client, auth_headers,
+                                                        mock_verify_token, monkeypatch):
+        monkeypatch.setenv('MODULE_ENFORCEMENT', 'enforce')
+
+        def billing_off(org_id, key):
+            return key != 'billing'
+
+        with staff(), \
+             patch('modules.gate.module_enabled', side_effect=billing_off), \
+             patch('routes.sis.reports.reports.payments_report') as report:
+            resp = client.get('/api/sis/reports/payments?organization_id=org-1',
+                              headers=auth_headers)
+        assert resp.status_code == 404
+        report.assert_not_called()
+
+    @pytest.mark.parametrize('billing_on', [True, False])
+    def test_the_class_list_drops_its_price_columns_with_billing_off(
+            self, client, auth_headers, mock_verify_token, billing_on):
+        with staff(sees_money=True), \
+             patch('routes.sis.reports.module_enabled',
+                   side_effect=lambda org_id, key: billing_on if key == 'billing' else True), \
+             patch('routes.sis.reports.reports.class_report',
+                   return_value={'fields': [], 'rows': []}) as report:
+            resp = client.get('/api/sis/reports/classes?organization_id=org-1',
+                              headers=auth_headers)
+        assert resp.status_code == 200
+        assert report.call_args.kwargs['sees_money'] is billing_on

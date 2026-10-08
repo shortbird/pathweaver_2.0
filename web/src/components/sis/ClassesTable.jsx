@@ -4,6 +4,7 @@ import { ChevronDownIcon } from '@heroicons/react/24/outline'
 import ClassFieldsEditor from './ClassFieldsEditor'
 import { toDraft, draftToPayload, hhmm, fmt12ap, DAY_LETTER } from './classFields'
 import SortHeader from '../ui/SortHeader'
+import { moduleKnownOff } from '../../modules/moduleEnabled'
 
 // Spreadsheet-style view of the org's classes. Rows stay scannable — name,
 // teacher, days, time, enrollment — and clicking a row expands an inline
@@ -18,6 +19,9 @@ import SortHeader from '../ui/SortHeader'
 //   onSave     async (cls, payload) -> bool — persists a row draft
 //   onToggleRegistration (cls)
 //   onOpen     (cls) — open the full card editor (image, waitlist, archive, preview)
+//   org        the active org: without the registration module the Ages column,
+//              the waitlist count, the Closed chip and the registration switch
+//              go (docs/MICROSCHOOL_FIRST_PLAN.md part 2). Null shows them all.
 
 const daysText = (meetings = []) => {
   const dows = [...new Set(meetings.map((m) => m.day_of_week).filter((d) => d != null))].sort()
@@ -63,7 +67,8 @@ const SORT_LABELS = {
 // you can freeze one column and keep sorting within it (day, then time, ...).
 // ui/SortHeader shows the level as a small number.
 
-const ClassesTable = ({ classes, staff, timeBlocks = [], rooms = [], roomOccupancy = {}, onSave, onToggleRegistration, onOpen, onDuplicate, onRoster, onArchive, onRestore, onOfferSeat }) => {
+const ClassesTable = ({ classes, staff, timeBlocks = [], rooms = [], roomOccupancy = {}, onSave, onToggleRegistration, onOpen, onDuplicate, onRoster, onArchive, onRestore, onOfferSeat, org = null }) => {
+  const showRegistration = !moduleKnownOff(org, 'registration')
   const [drafts, setDrafts] = useState({})   // class_id -> draft (kept when collapsed)
   // Picked-but-not-yet-uploaded images, by class. The file rides along with the
   // Save (the upload needs the class id, so it can't happen on pick), and the
@@ -180,9 +185,12 @@ const ClassesTable = ({ classes, staff, timeBlocks = [], rooms = [], roomOccupan
             {/* Assigning rooms meant opening every class in turn to see which
                 room it already had (iCreate, 2026-09-02). */}
             <SortHeader label="Room" col="room" sort={sort} onSort={onSort} className="py-2.5" />
-            <SortHeader label="Ages" col="ages" sort={sort} onSort={onSort} className="py-2.5" />
+            {showRegistration && <SortHeader label="Ages" col="ages" sort={sort} onSort={onSort} className="py-2.5" />}
             <SortHeader label="Enrolled" col="enrolled" sort={sort} onSort={onSort} className="py-2.5" />
-            <SortHeader label="Waitlist" col="waitlist" sort={sort} onSort={onSort} className="py-2.5" />
+            {/* The column stays without registration: it also holds Roster. */}
+            {showRegistration
+              ? <SortHeader label="Waitlist" col="waitlist" sort={sort} onSort={onSort} className="py-2.5" />
+              : <th className="px-4 py-2.5" />}
             <th className="px-4 py-2.5 w-8" />
           </tr>
         </thead>
@@ -201,7 +209,7 @@ const ClassesTable = ({ classes, staff, timeBlocks = [], rooms = [], roomOccupan
                   <td className="px-4 py-3 font-medium text-neutral-900">
                     {c.name}
                     {c.status === 'archived' && <span className="ml-2 px-1.5 py-0.5 text-[10px] font-semibold bg-gray-100 text-gray-600 rounded uppercase">Archived</span>}
-                    {!isOpen && c.status !== 'archived' && <span className="ml-2 px-1.5 py-0.5 text-[10px] font-semibold bg-amber-100 text-amber-700 rounded uppercase" title="Closed to registration — families can't see this class in the Schedule Builder">Closed</span>}
+                    {showRegistration && !isOpen && c.status !== 'archived' && <span className="ml-2 px-1.5 py-0.5 text-[10px] font-semibold bg-amber-100 text-amber-700 rounded uppercase" title="Closed to registration — families can't see this class in the Schedule Builder">Closed</span>}
                     {c.is_visible_to_parents === false && <span className="ml-2 px-1.5 py-0.5 text-[10px] font-semibold bg-purple-100 text-optio-purple rounded uppercase" title="Hidden from parents — staff only">Hidden from parents</span>}
                     {dirty && <span className="ml-2 text-[10px] font-semibold text-optio-purple uppercase">edited</span>}
                   </td>
@@ -226,7 +234,7 @@ const ClassesTable = ({ classes, staff, timeBlocks = [], rooms = [], roomOccupan
                   <td className="px-4 py-3 text-neutral-600 whitespace-nowrap">
                     {c.location || <span className="text-neutral-300">—</span>}
                   </td>
-                  <td className="px-4 py-3 text-neutral-600 whitespace-nowrap">{agesText(c)}</td>
+                  {showRegistration && <td className="px-4 py-3 text-neutral-600 whitespace-nowrap">{agesText(c)}</td>}
                   <td className="px-4 py-3 text-neutral-600 whitespace-nowrap">
                     {c.enrolled_count ?? 0}{c.capacity != null ? `/${c.capacity}` : ''}
                     {c.is_full && <span className="ml-1.5 text-[10px] font-semibold text-red-500">FULL</span>}
@@ -236,7 +244,7 @@ const ClassesTable = ({ classes, staff, timeBlocks = [], rooms = [], roomOccupan
                       {/* The count is the whole live queue; the parenthetical says
                           how much of it is already spoken for, so the number and
                           the button can't disagree. */}
-                      {c.waitlist_count > 0
+                      {!showRegistration ? null : c.waitlist_count > 0
                         ? (
                           <span className="text-amber-700 font-medium">
                             {c.waitlist_count}
@@ -257,7 +265,7 @@ const ClassesTable = ({ classes, staff, timeBlocks = [], rooms = [], roomOccupan
                           to (which read as a bug: "it says offer next seat ... but
                           it says no one is waiting"). Those go through the Waitlist
                           tab, where the entries can be re-offered or enrolled. */}
-                      {onOfferSeat && (c.waitlist_waiting ?? c.waitlist_count) > 0 && !c.is_full && c.status !== 'archived' && (
+                      {showRegistration && onOfferSeat && (c.waitlist_waiting ?? c.waitlist_count) > 0 && !c.is_full && c.status !== 'archived' && (
                         <button
                           type="button"
                           onClick={(e) => { e.stopPropagation(); offerSeat(c) }}
@@ -292,7 +300,7 @@ const ClassesTable = ({ classes, staff, timeBlocks = [], rooms = [], roomOccupan
                 </tr>
                 {open && (
                   <tr className="border-b border-gray-100 bg-optio-purple/[0.02]">
-                    <td colSpan={9} className="px-4 py-4" onClick={(e) => e.stopPropagation()}>
+                    <td colSpan={showRegistration ? 9 : 8} className="px-4 py-4" onClick={(e) => e.stopPropagation()}>
                       <ClassFieldsEditor
                         draft={d}
                         onChange={(patch) => edit(c, patch)}
@@ -304,7 +312,8 @@ const ClassesTable = ({ classes, staff, timeBlocks = [], rooms = [], roomOccupan
                         onImageChange={(file) => pickImage(c, file)}
                         onImageRemove={() => clearImage(c)}
                         onTimeErrorChange={(msg) => reportTimeError(c.id, msg)}
-                        headerAside={(
+                        org={org}
+                        headerAside={showRegistration && (
                           /* On the heading line, not a bar of its own. It still
                              says "saves now", because it is the one control here
                              that writes without pressing Save. */

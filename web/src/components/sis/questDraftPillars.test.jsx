@@ -9,7 +9,7 @@
  * this file checks the label against the shared config directly.
  */
 import { describe, it, expect } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, fireEvent } from '@testing-library/react'
 
 import QuestDraftForm, { PILLARS, PILLAR_LABEL } from './QuestDraftForm'
 import { PILLARS as PILLAR_CONFIG } from '../../config/pillars'
@@ -49,6 +49,8 @@ describe('SIS pillar names match the platform', () => {
         setTasks={() => {}}
       />
     )
+    // The pillar sits behind the task's More options (MICROSCHOOL_FIRST_PLAN part 4).
+    fireEvent.click(screen.getByRole('button', { name: 'More options for task 1' }))
     const options = Array.from(screen.getByLabelText('Task 1 pillar').options).map((o) => o.text)
     expect(options).toEqual(PILLARS.map(([, label]) => label))
     expect(options).toContain('Art')

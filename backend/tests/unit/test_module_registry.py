@@ -12,7 +12,9 @@ import os
 
 import pytest
 
-from modules.registry import CATEGORIES, DEFAULTS, GATES, MODULES, TIERS
+from modules.registry import (
+    CATEGORIES, DEFAULTS, GATES, MODULES, STARTER_KEEPS, STARTER_OFF, TIERS,
+)
 
 # The 12 opt-out keys are a promise already made: they are the values orgs
 # carry in sis_settings.hidden_modules today (mirrors sisModules.js). Renaming
@@ -102,3 +104,46 @@ def test_module_keys_json_mirrors_the_registry():
         assert entry['requires'] == list(m.requires), key
         assert entry['requires_any'] == list(m.requires_any), key
         assert entry['gate'] == m.gate, key
+        assert entry['starter_off'] == (key in STARTER_OFF), key
+
+
+# ---------------------------------------------------------------------------
+# The guard for new work (docs/MICROSCHOOL_FIRST_PLAN.md, part 5)
+# ---------------------------------------------------------------------------
+
+# The non-core modules that are on for a school that has not turned them off.
+# Seeded 2026-10-07 with every module that was on by default that day. Adding
+# a key here is a PRODUCT decision, not a code one: 97% of a quarter's feature
+# tickets came from one school, and features built from its tickets shipped on
+# for every other school. A new module defaults 'off' unless someone decides
+# every school should have it.
+ON_BY_DEFAULT_ALLOWLIST = {
+    'attendance', 'billing', 'bounties', 'calendar', 'catalog', 'classes',
+    'clp', 'courses', 'curriculum', 'friends', 'journal', 'observer',
+    'onboarding', 'prior_learning', 'registration', 'reports', 'resources',
+    'secure_documents', 'student_chat', 'submissions', 'tasks', 'training',
+}
+
+
+def test_a_new_module_defaults_off_unless_someone_decided_otherwise():
+    on = {k for k, m in MODULES.items() if m.default == 'on'}
+    unexpected = sorted(on - ON_BY_DEFAULT_ALLOWLIST)
+    assert not unexpected, (
+        f'{unexpected} default on for every school. Make them default=\'off\', '
+        'or add them to ON_BY_DEFAULT_ALLOWLIST if that is the product decision.')
+
+
+def test_every_non_core_module_is_classified_for_the_starter_baseline():
+    non_core = {k for k, m in MODULES.items() if m.default != 'core'}
+    unclassified = sorted(non_core - STARTER_OFF - STARTER_KEEPS)
+    assert not unclassified, (
+        f'{unclassified} are not in STARTER_OFF or STARTER_KEEPS '
+        '(modules/registry.py). Decide whether a new school starts with them.')
+    assert not STARTER_OFF & STARTER_KEEPS
+
+
+def test_the_starter_baseline_turns_off_the_planned_office_side():
+    assert STARTER_OFF == {
+        'registration', 'catalog', 'billing', 'tasks', 'onboarding',
+        'secure_documents', 'clp', 'resources', 'training',
+    }

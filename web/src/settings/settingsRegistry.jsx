@@ -12,6 +12,7 @@ import StepPrintingCard from './cards/StepPrintingCard'
 import IncidentReportsCard from './cards/IncidentReportsCard'
 import FriendsCard from './cards/FriendsCard'
 import StudentChatCard from './cards/StudentChatCard'
+import FeaturesCard from './cards/FeaturesCard'
 import TaskXpFloorCard from './cards/TaskXpFloorCard'
 import { moduleEnabled } from '../modules/moduleEnabled'
 
@@ -32,7 +33,8 @@ import { moduleEnabled } from '../modules/moduleEnabled'
  *
  * `module`: the card renders only when that building block is on for the org
  * (evaluated with moduleEnabled — server-computed effective_modules first,
- * legacy-flag derivation as the fallback). `minTier: 'finance'` hides the org
+ * legacy-flag derivation as the fallback); `modules` is a list of which any
+ * one suffices. `minTier: 'finance'` hides the org
  * identity/pricing card from campus coordinators, mirroring the backend's
  * org_finance_flags redaction — chrome only, the backend is the gate.
  */
@@ -42,13 +44,20 @@ const LoginLinkCard = ({ org }) => (org?.slug ? <SchoolLoginLinkCard slug={org.s
 export const SETTINGS_CARDS = [
   { key: 'org', minTier: 'finance', surfaces: ['console', 'learning'], Component: SisOrgSettings },
   { key: 'login-link', surfaces: ['console', 'learning'], Component: LoginLinkCard },
+  // The school's own feature switches (MICROSCHOOL_FIRST_PLAN part 3). No
+  // `module` gate: the card is how a school turns its features on. Console
+  // only, since nearly every feature on it lives in the console. Org admins
+  // only; the card renders nothing for anyone the API refuses.
+  { key: 'features', surfaces: ['console'], Component: FeaturesCard },
   { key: 'rooms', module: 'classes', surfaces: ['console'], Component: ClassroomsCard },
   { key: 'time-blocks', module: 'classes', surfaces: ['console'], Component: TimeBlocksCard },
   { key: 'calendar-categories', module: 'calendar', surfaces: ['console'], Component: CalendarCategoriesCard },
   { key: 'quick-links', surfaces: ['console'], Component: QuickLinksCard },
   // Who gets a staff member's incident report by default (ticket a26d9daf).
   // Console only: filing and working the reports both happen in the SIS.
-  { key: 'incident-reports', module: 'tasks', surfaces: ['console'], Component: IncidentReportsCard },
+  // `modules` (any of): a report lands as a task, and /api/sis/incident-reports
+  // answers when tasks OR onboarding is on (routes/sis/tasks.py TASK_MODULES).
+  { key: 'incident-reports', modules: ['tasks', 'onboarding'], surfaces: ['console'], Component: IncidentReportsCard },
   // Console only, deliberately (owner's call, 2026-09-08): the weekly digest
   // reports on class work with due dates, which is a school's business, and the
   // people who decide whether a school emails its families sit in the SIS.
@@ -75,6 +84,7 @@ export function settingsCardsFor({ surface, org, seesFinance }) {
   return SETTINGS_CARDS.filter((card) => {
     if (!card.surfaces.includes(surface)) return false
     if (card.module && !(org && moduleEnabled(org, card.module))) return false
+    if (card.modules && !(org && card.modules.some((m) => moduleEnabled(org, m)))) return false
     if (card.minTier === 'finance' && !seesFinance) return false
     return true
   })

@@ -6,6 +6,7 @@ import { useOrganization } from '../../contexts/OrganizationContext'
 import { isSisAdmin } from './sisRole'
 import { getPreviewTeacher } from './teacherPreview'
 import { isPathHidden } from './sisModules'
+import { moduleKnownOff } from '../../modules/moduleEnabled'
 import BackToDashboard from '../../components/sis/BackToDashboard'
 import GlassTabBar from '../../components/ui/GlassTabBar'
 import MyClassesPanel from './classesPage/MyClassesPanel'
@@ -42,6 +43,8 @@ export { ConflictBanner }
  * links and the progress tab's "back to submissions" still land on the tab.
  */
 
+// Each tab: [id, label, nav path or module key it follows]. A path ('/x')
+// follows sisModules' map; a bare key is a module with no nav path of its own.
 const OWN_TABS = [
   ['mine', 'My classes'],
   ['schedule', 'My schedule'],
@@ -50,7 +53,8 @@ const OWN_TABS = [
 
 const officeTabsFor = (orgName) => [
   ['all', `${orgName} classes`],
-  ['courses', 'Optio courses'],
+  // Optio's own courses are the `courses` block (MICROSCHOOL_FIRST_PLAN part 2).
+  ['courses', 'Optio courses', 'courses'],
   ['attendance', 'Attendance', '/attendance'],
 ]
 
@@ -65,7 +69,9 @@ const ClassesPage = () => {
   // A tab whose module the org turned off is not offered (sisModules): the
   // config is a promise already made.
   const TABS = [...OWN_TABS, ...(admin ? officeTabsFor(orgName) : [])]
-    .filter(([, , modulePath]) => !modulePath || !isPathHidden(modulePath, activeOrg))
+    .filter(([, , gate]) => !gate || (gate.startsWith('/')
+      ? !isPathHidden(gate, activeOrg)
+      : !moduleKnownOff(activeOrg, gate)))
   // An admin's daily page is the catalog; a teacher's is their own classes.
   // An unknown ?tab= (a bookmark, an office tab reached by a teacher) lands
   // on that default. A preview lands on the teacher's classes, which the

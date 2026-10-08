@@ -22,6 +22,7 @@ import { fmt12ap } from '../../../components/sis/classFields'
 import { useConfirm } from '../../../contexts/ConfirmContext'
 import { useAuth } from '../../../contexts/AuthContext'
 import { canSeeFinance, isSisAdmin } from '../sisRole'
+import { moduleKnownOff } from '../../../modules/moduleEnabled'
 
 // What Optio charges a school per student to enroll in an Optio course. Optio
 // invoices the school directly for each enrollment — there is no in-app billing.
@@ -184,7 +185,11 @@ export default function CatalogPanel({ section = 'classes', onCounts = null }) {
   // Not while previewing a teacher: the catalog's admin-only reads (staff,
   // course settings) are refused for the previewed role.
   const isAdmin = isSisAdmin(user) && !getPreviewTeacher()
-  const { orgId, orgs, isSuperadmin } = useSisOrg()
+  const { orgId, orgs, isSuperadmin, activeOrg } = useSisOrg()
+  // A school without the registration module has no open/closed classes to
+  // work, so the closed filter and "Open all" go with it (MICROSCHOOL_FIRST_PLAN
+  // part 2). The class editors take the org and hide their own fields.
+  const showRegistration = !moduleKnownOff(activeOrg, 'registration')
   const { organization } = useOrganization()
   const orgName = organization?.name || orgs.find((o) => o.id === orgId)?.name || 'Org'
   // showArchived is declared below but read here: both queries key on it.
@@ -669,7 +674,7 @@ export default function CatalogPanel({ section = 'classes', onCounts = null }) {
             Export CSV
           </button>
         )}
-        {tab === 'classes' && orgId && !loading && closedClasses.length > 0 && (
+        {tab === 'classes' && orgId && !loading && showRegistration && closedClasses.length > 0 && (
           <div className="inline-flex rounded-lg border border-amber-400 overflow-hidden">
             <button onClick={() => setClosedOnly((v) => !v)}
               aria-pressed={closedOnly}
@@ -759,6 +764,7 @@ export default function CatalogPanel({ section = 'classes', onCounts = null }) {
           onArchive={archiveClass}
           onRestore={restoreClass}
           onOfferSeat={offerNextSeat}
+          org={activeOrg}
         />
       )}
 
@@ -771,6 +777,7 @@ export default function CatalogPanel({ section = 'classes', onCounts = null }) {
                 key={`class-${item.id}`}
                 c={item}
                 onOpen={() => setEditing(item)}
+                showRegistration={showRegistration}
               />
             ) : (
               <CourseCard
@@ -801,7 +808,8 @@ export default function CatalogPanel({ section = 'classes', onCounts = null }) {
 
       {creating && (
         <CreateClassModal staff={staff} timeBlocks={timeBlocks} rooms={rooms}
-          roomOccupancy={roomOccupancy} onClose={() => setCreating(false)} onSubmit={handleCreate} />
+          roomOccupancy={roomOccupancy} onClose={() => setCreating(false)} onSubmit={handleCreate}
+          org={activeOrg} />
       )}
       {openClass && (
         <ClassDetailModal
@@ -817,6 +825,7 @@ export default function CatalogPanel({ section = 'classes', onCounts = null }) {
           onArchive={() => archiveClass(classes.find((c) => c.id === openClass.id) || openClass)}
           onRestore={() => restoreClass(classes.find((c) => c.id === openClass.id) || openClass)}
           onRosterChanged={() => reload()}
+          org={activeOrg}
         />
       )}
       {viewingCourse && (

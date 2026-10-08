@@ -60,9 +60,13 @@ const ATTENTION_TILES = [
     module: '/tasks' },
   { key: 'tasks_open', label: 'Tasks in progress', to: '/tasks?tab=assigned',
     module: '/tasks' },
-  { key: 'age_exceptions', label: 'Age exception requests', to: '/registration?tab=queues' },
-  { key: 'waitlist_waiting', label: 'Waiting for a place', to: '/registration?tab=queues' },
-  { key: 'goals_pending', label: 'Goals to review', to: '/goals' },
+  // Both queues are registration's; a school that does not register through
+  // Optio has neither (MICROSCHOOL_FIRST_PLAN part 2).
+  { key: 'age_exceptions', label: 'Age exception requests', to: '/registration?tab=queues',
+    module: '/registration' },
+  { key: 'waitlist_waiting', label: 'Waiting for a place', to: '/registration?tab=queues',
+    module: '/registration' },
+  { key: 'goals_pending', label: 'Goals to review', to: '/goals', module: '/goals' },
   { key: 'prior_learning_pending', label: 'Prior learning to review', to: '/prior-learning',
     module: '/prior-learning' },
   { key: 'students_no_family', label: 'Students not in a family', to: '/people?role=student&family=none' },
@@ -174,6 +178,12 @@ const SisDashboard = () => {
     .filter((t) => (attention[t.key] || 0) > 0)
     .filter((t) => !t.module || !isPathHidden(t.module, activeOrg))
   const actions = QUICK_ACTIONS.filter((a) => !a.module || !isPathHidden(a.module, activeOrg))
+  // The backend leaves these sections out when their module is off; this
+  // filters a second time, like the tiles, so a stale or cached response can
+  // never show money, a roll or a substitute to a school without the block
+  // (MICROSCHOOL_FIRST_PLAN part 2).
+  const attendanceOn = !isPathHidden('/attendance', activeOrg)
+  const billingOn = !isPathHidden('/billing', activeOrg)
 
   return (
     <div className="space-y-6">
@@ -237,7 +247,9 @@ const SisDashboard = () => {
 
           {/* The coordinator dashboard's "Teachers to check", the same
               component: an org admin is a superset of a coordinator (P7). */}
-          <TeachersToCheck data={today.teachers_to_check} orgId={orgId} onChanged={reload} />
+          {attendanceOn && (
+            <TeachersToCheck data={today.teachers_to_check} orgId={orgId} onChanged={reload} />
+          )}
 
           {/* The coordinator dashboard's "Leaving soon", the same component
               (ticket 31e93fbb). */}
@@ -278,9 +290,9 @@ const SisDashboard = () => {
                             {[m.teacher_name, m.location, `${m.enrolled_count} students`]
                               .filter(Boolean).join(' · ')}
                           </span>
-                          {'roll' in m && <RollStatus session={m.roll} />}
+                          {attendanceOn && 'roll' in m && <RollStatus session={m.roll} />}
                         </span>
-                        {'roll' in m && (
+                        {attendanceOn && 'roll' in m && (
                           <span className="ml-auto shrink-0">
                             <SubstituteControl classId={m.class_id} date={today.date} orgId={orgId}
                               session={m.roll} onSaved={reload} />
@@ -293,7 +305,7 @@ const SisDashboard = () => {
               </DashboardCard>
             )}
 
-            {board && (
+            {board && attendanceOn && (
               <DashboardCard title="Today's attendance" className={MASONRY_CARD}>
                 <div className="grid grid-cols-2 gap-3 text-center">
                   <div>
@@ -321,7 +333,7 @@ const SisDashboard = () => {
               </DashboardCard>
             )}
 
-            {finance && (
+            {finance && billingOn && (
               <DashboardCard title="Money" className={MASONRY_CARD}>
                 {!invoices ? (
                   <p className="text-sm text-neutral-500">Billing figures are unavailable.</p>

@@ -12,9 +12,14 @@ import ClassRoster from './ClassRoster'
 import ClassWaitlist from './ClassWaitlist'
 import CLASS_TABS from './CLASS_TABS'
 import GlassTabBar from '../../../components/ui/GlassTabBar'
+import { moduleKnownOff } from '../../../modules/moduleEnabled'
 
-const ClassDetailModal = ({ cls, staff, timeBlocks = [], rooms = [], roomOccupancy = {}, orgId, initialTab = 'details', onClose, onSubmit, onToggleRegistration, onArchive, onRestore, onRosterChanged }) => {
-  const [tab, setTab] = useState(initialTab)
+const ClassDetailModal = ({ cls, staff, timeBlocks = [], rooms = [], roomOccupancy = {}, orgId, initialTab = 'details', onClose, onSubmit, onToggleRegistration, onArchive, onRestore, onRosterChanged, org = null }) => {
+  // Without the registration module there is no open/closed switch and no
+  // waitlist to work (docs/MICROSCHOOL_FIRST_PLAN.md part 2).
+  const showRegistration = !moduleKnownOff(org, 'registration')
+  const tabs = CLASS_TABS.filter((t) => showRegistration || t.key !== 'waitlist')
+  const [tab, setTab] = useState(tabs.some((t) => t.key === initialTab) ? initialTab : 'details')
   const [previewing, setPreviewing] = useState(false)
   const isOpen = cls.registration_status === 'open'
   const isArchived = cls.status === 'archived'
@@ -54,7 +59,7 @@ const ClassDetailModal = ({ cls, staff, timeBlocks = [], rooms = [], roomOccupan
         <div className="px-4 mt-2 shrink-0">
           <GlassTabBar
             align="start" aria-label="Class sections"
-            tabs={CLASS_TABS.map((t) => ({ id: t.key, label: t.label }))}
+            tabs={tabs.map((t) => ({ id: t.key, label: t.label }))}
             active={tab} onSelect={setTab}
           />
         </div>
@@ -66,8 +71,13 @@ const ClassDetailModal = ({ cls, staff, timeBlocks = [], rooms = [], roomOccupan
                 <div className="text-sm text-neutral-700">
                   <span className="font-medium">{cls.enrolled_count ?? 0}</span>
                   {cls.capacity != null ? ` / ${cls.capacity}` : ''} enrolled
-                  {' · '}Registration <span className={isOpen ? 'text-green-600 font-medium' : 'text-neutral-400'}>{isOpen ? 'open' : 'closed'}</span>
+                  {showRegistration && (
+                    <>
+                      {' · '}Registration <span className={isOpen ? 'text-green-600 font-medium' : 'text-neutral-400'}>{isOpen ? 'open' : 'closed'}</span>
+                    </>
+                  )}
                 </div>
+                {showRegistration && (
                 <button
                   type="button" role="switch" aria-checked={isOpen} aria-label="Toggle registration"
                   onClick={() => onToggleRegistration(cls)}
@@ -75,10 +85,11 @@ const ClassDetailModal = ({ cls, staff, timeBlocks = [], rooms = [], roomOccupan
                 >
                   <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${isOpen ? 'translate-x-5' : 'translate-x-0.5'}`} />
                 </button>
+                )}
               </div>
 
               <ClassForm inline initial={cls} staff={staff} timeBlocks={timeBlocks} rooms={rooms}
-                roomOccupancy={roomOccupancy} onSubmit={onSubmit} />
+                roomOccupancy={roomOccupancy} onSubmit={onSubmit} org={org} />
 
               <div className="pt-1">
                 {isArchived ? (
@@ -91,7 +102,7 @@ const ClassDetailModal = ({ cls, staff, timeBlocks = [], rooms = [], roomOccupan
           )}
 
           {tab === 'roster' && <ClassRoster classId={cls.id} className={cls.name} orgId={orgId} onChanged={onRosterChanged} />}
-          {tab === 'waitlist' && <ClassWaitlist classId={cls.id} orgId={orgId} cls={cls} onChanged={onRosterChanged} />}
+          {showRegistration && tab === 'waitlist' && <ClassWaitlist classId={cls.id} orgId={orgId} cls={cls} onChanged={onRosterChanged} />}
         </div>
       </div>
     </ModalOverlay>

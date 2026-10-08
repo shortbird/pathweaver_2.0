@@ -200,7 +200,8 @@ def test_the_form_never_sets_accreditation_or_raw_flags():
                             feature_flags={'sis_enabled': True}))
     org = orgs.rows[0]
     assert 'accreditation_source' not in org
-    assert org['feature_flags'] == {'due_dates': True, 'scheduled_publish': True}
+    assert org['feature_flags'] == {'due_dates': True, 'scheduled_publish': True,
+                                    'module_baseline': 'starter'}
     assert repo.link['answers']['accreditation'] == 'Cognia'
     assert 'accreditation_source' not in repo.link['answers']
     assert 'feature_flags' not in repo.link['answers']
@@ -240,7 +241,60 @@ def test_no_console_pick_keeps_the_school_on_the_learning_platform():
 def test_no_picks_change_nothing():
     orgs = FakeOrgRepo()
     run(FakeRepo(), orgs, answers(features=['mobile_app']))
-    assert orgs.rows[0]['feature_flags'] == {'due_dates': True, 'scheduled_publish': True}
+    assert orgs.rows[0]['feature_flags'] == {'due_dates': True, 'scheduled_publish': True,
+                                             'module_baseline': 'starter'}
+
+
+def test_every_new_school_starts_on_the_starter_baseline():
+    from modules import module_enabled_for_row
+    orgs = FakeOrgRepo()
+    run(FakeRepo(), orgs, answers(features=['attendance']))
+    org = orgs.rows[0]
+    assert org['feature_flags']['module_baseline'] == 'starter'
+    assert module_enabled_for_row(org, 'attendance')
+    for key in ('registration', 'catalog', 'billing', 'tasks', 'onboarding', 'clp',
+                'resources', 'training'):
+        assert not module_enabled_for_row(org, key), key
+
+
+def test_collecting_tuition_turns_on_billing_and_the_registration_it_needs():
+    from modules import module_enabled_for_row
+    orgs, repo = FakeOrgRepo(), FakeRepo()
+    run(repo, orgs, answers(collects_tuition='yes', families_register='no'))
+    org = orgs.rows[0]
+    modules = org['feature_flags']['modules']
+    assert modules['billing'] is True and modules['registration'] is True
+    assert modules['sis'] is True
+    assert module_enabled_for_row(org, 'billing')
+    assert module_enabled_for_row(org, 'registration')
+    assert not module_enabled_for_row(org, 'catalog')
+    assert repo.link['answers']['collects_tuition'] == 'yes'
+
+
+def test_families_registering_turns_on_registration_and_the_catalog():
+    from modules import module_enabled_for_row
+    orgs = FakeOrgRepo()
+    run(FakeRepo(), orgs, answers(families_register='yes'))
+    org = orgs.rows[0]
+    modules = org['feature_flags']['modules']
+    # catalog requires classes, so a yes brings classes along
+    assert modules['registration'] is True and modules['catalog'] is True
+    assert modules['classes'] is True
+    assert not modules['billing']
+    assert {k for k in ('registration', 'catalog', 'classes', 'billing')
+            if module_enabled_for_row(org, k)} == {'registration', 'catalog', 'classes'}
+
+
+def test_no_to_both_questions_writes_no_modules():
+    orgs = FakeOrgRepo()
+    run(FakeRepo(), orgs, answers(collects_tuition='no', families_register='no'))
+    assert 'modules' not in orgs.rows[0]['feature_flags']
+
+
+def test_an_old_form_with_the_billing_checkbox_still_counts():
+    orgs = FakeOrgRepo()
+    run(FakeRepo(), orgs, answers(features=['billing']))
+    assert orgs.rows[0]['feature_flags']['modules']['billing'] is True
 
 
 @pytest.mark.parametrize('over,field', [

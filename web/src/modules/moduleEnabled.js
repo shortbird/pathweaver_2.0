@@ -19,6 +19,9 @@ function rawValue(def, key, flags) {
   if (modules && typeof modules === 'object' && key in modules) {
     return Boolean(modules[key])
   }
+  // The starter baseline (docs/MICROSCHOOL_FIRST_PLAN.md, part 1): a school
+  // that starts small has the office side off until it is explicitly on.
+  if (flags.module_baseline === 'starter' && def.starter_off) return false
   const ss = flags.sis_settings || {}
   switch (def.legacy) {
     case 'sis_enabled':

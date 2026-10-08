@@ -109,7 +109,9 @@ describe('SchoolSetupPage', () => {
     fireEvent.change(screen.getByLabelText('Students in grade 4'), { target: { value: '6' } })
     fireEvent.change(screen.getByLabelText('Students in K'), { target: { value: '5' } })
     expect(screen.getByText('11')).toBeInTheDocument()   // the running total
-    await userEvent.click(screen.getByLabelText(/Tuition billing and autopay/))
+    fireEvent.change(screen.getByLabelText('Do you collect tuition through Optio?'), { target: { value: 'yes' } })
+    fireEvent.change(screen.getByLabelText('Do families register through Optio?'), { target: { value: 'no' } })
+    await userEvent.click(screen.getByLabelText(/Attendance/))
     await userEvent.click(screen.getByRole('button', { name: 'Create my school' }))
 
     expect(await screen.findByText('Juniper Ridge is on Optio')).toBeInTheDocument()
@@ -117,7 +119,8 @@ describe('SchoolSetupPage', () => {
     expect(url).toBe('/api/school-setup/tok123')
     expect(body).toMatchObject({
       school_name: 'Juniper Ridge', contact_title: 'Founder', city: 'Provo', region: 'UT',
-      grade_counts: { 4: 6, K: 5 }, features: ['billing'], ai_choice: 'on', library_choice: 'all_optio',
+      grade_counts: { 4: 6, K: 5 }, features: ['attendance'],
+      collects_tuition: 'yes', families_register: 'no', ai_choice: 'on', library_choice: 'all_optio',
     })
     expect(localStorage.getItem(KEY)).toBeNull()
   })

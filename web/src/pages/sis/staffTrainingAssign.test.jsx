@@ -118,6 +118,12 @@ beforeEach(() => {
   api.post.mockResolvedValue({ data: { enrolled: 3, already: 1, failed: 0, audience: 'family' } })
 })
 
+
+// Pillar, the finish line and "add their own tasks" sit behind More options
+// toggles in the quest editor (docs/MICROSCHOOL_FIRST_PLAN.md, part 4).
+const openMoreOptions = async (name) => {
+  fireEvent.click(await screen.findByRole('button', { name }))
+}
 describe('assigning training to everyone', () => {
   it('puts the quest on every account when the admin presses assign', async () => {
     render(<TrainingPanel />)
@@ -239,6 +245,7 @@ describe('previewing the quest before committing to it', () => {
     // Catching an unfinishable quest here beats catching it when a parent
     // cannot close it.
     await openBuilder()
+    await openMoreOptions('More options for this quest')
     fireEvent.change(screen.getByPlaceholderText(/task 1 —/i), {
       target: { value: 'Read the handbook' },
     })
@@ -457,11 +464,13 @@ describe('reopening a quest for more editing', () => {
     // Reopening must not silently move it back to the task total. Matched
     // exactly: the list row carries its own "XP required to finish <title>".
     await openEditor()
+    await openMoreOptions('More options for this quest')
     expect(screen.getByLabelText('XP required to finish (optional)')).toHaveValue(300)
   })
 
   it('restores the catalog settings too', async () => {
     await openEditor()
+    await openMoreOptions('More options for this quest')
     await waitFor(() =>
       expect(screen.getByPlaceholderText(/category/i)).toHaveValue('Onboarding'))
     expect(screen.getByRole('checkbox', { name: /let them add tasks of their own/i })).toBeChecked()
@@ -650,6 +659,7 @@ describe('building a training quest', () => {
     // The learner's page hides the pillar chip on a training quest, but the
     // stored value decides where the XP lands, so the admin must reach it.
     await openBuilder()
+    await openMoreOptions('More options for task 1')
     expect(screen.getByLabelText(/task 1 pillar/i)).toBeInTheDocument()
   })
 
@@ -661,6 +671,7 @@ describe('building a training quest', () => {
   it('defaults the finish line to every task the quest is worth', async () => {
     // "Do all of it" is what training means.
     await openBuilder()
+    await openMoreOptions('More options for this quest')
     fireEvent.change(screen.getByPlaceholderText(/task 1 —/i), {
       target: { value: 'Read the handbook' },
     })
@@ -671,6 +682,7 @@ describe('building a training quest', () => {
 
   it('follows the tasks as they change, until an admin sets their own number', async () => {
     await openBuilder()
+    await openMoreOptions('More options for this quest')
     fireEvent.change(screen.getByPlaceholderText(/task 1 —/i), {
       target: { value: 'Read the handbook' },
     })
@@ -687,6 +699,7 @@ describe('building a training quest', () => {
 
   it('can be handed back to the tasks after an override', async () => {
     await openBuilder()
+    await openMoreOptions('More options for this quest')
     fireEvent.change(screen.getByPlaceholderText(/task 1 —/i), {
       target: { value: 'Read the handbook' },
     })
@@ -700,6 +713,7 @@ describe('building a training quest', () => {
 
   it('saves the XP finish line with the quest', async () => {
     await openBuilder()
+    await openMoreOptions('More options for this quest')
     fireEvent.change(screen.getByPlaceholderText(/quest title/i), {
       target: { value: 'Family orientation' },
     })
@@ -722,6 +736,7 @@ describe('building a training quest', () => {
   it('does not let people write their own tasks unless asked', async () => {
     // Training is a set list of things the school needs done.
     await openBuilder()
+    await openMoreOptions('More options for this quest')
     const box = screen.getByRole('checkbox', { name: /let them add tasks of their own/i })
     expect(box).not.toBeChecked()
     fireEvent.change(screen.getByPlaceholderText(/quest title/i), { target: { value: 'T' } })
@@ -731,6 +746,7 @@ describe('building a training quest', () => {
 
   it('lets learners write their own when turned on', async () => {
     await openBuilder()
+    await openMoreOptions('More options for this quest')
     fireEvent.click(screen.getByRole('checkbox', { name: /let them add tasks of their own/i }))
     fireEvent.change(screen.getByPlaceholderText(/quest title/i), { target: { value: 'T' } })
     await publish()

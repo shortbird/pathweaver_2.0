@@ -23,7 +23,12 @@ def new_org_row(name: str, slug: str, policy: str, **fields: Any) -> Dict[str, A
         # error. Superadmin can still turn these off per org.
         'feature_flags': {
             'due_dates': True,
-            'scheduled_publish': True
+            'scheduled_publish': True,
+            # New schools start small: the office side (registration,
+            # billing, paperwork tasks, onboarding ...) is off until the
+            # school or Optio turns it on. modules/registry.py STARTER_OFF;
+            # docs/MICROSCHOOL_FIRST_PLAN.md part 1.
+            'module_baseline': 'starter',
         }
     }
     row.update(fields)

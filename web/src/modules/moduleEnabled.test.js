@@ -116,6 +116,56 @@ describe('moduleEnabled', () => {
 })
 
 /**
+ * The starter baseline (docs/MICROSCHOOL_FIRST_PLAN.md, part 1). Same cases as
+ * backend/tests/unit/test_module_effective.py.
+ */
+describe('moduleEnabled: the starter baseline', () => {
+  const STARTER_OFF = ['registration', 'catalog', 'billing', 'tasks', 'onboarding',
+    'secure_documents', 'clp', 'resources', 'training']
+
+  it('turns the office side off and keeps the teaching side', () => {
+    const o = org({ sis_enabled: true, module_baseline: 'starter' })
+    for (const key of STARTER_OFF) expect(moduleEnabled(o, key)).toBe(false)
+    for (const key of ['classes', 'attendance', 'submissions', 'curriculum', 'calendar', 'reports',
+      'journal', 'friends', 'student_chat']) {
+      expect(moduleEnabled(o, key)).toBe(true)
+    }
+  })
+
+  it('lets an explicit modules entry win', () => {
+    const o = org({ sis_enabled: true, module_baseline: 'starter',
+      modules: { billing: true, registration: true, classes: false } })
+    expect(moduleEnabled(o, 'billing')).toBe(true)
+    expect(moduleEnabled(o, 'registration')).toBe(true)
+    expect(moduleEnabled(o, 'classes')).toBe(false)
+    expect(moduleEnabled(o, 'tasks')).toBe(false)
+  })
+
+  it('beats the legacy hidden_modules answer', () => {
+    const o = org({ sis_enabled: true, module_baseline: 'starter',
+      sis_settings: { hidden_modules: ['attendance'] } })
+    expect(moduleEnabled(o, 'tasks')).toBe(false)
+    expect(moduleEnabled(o, 'attendance')).toBe(false)
+    expect(moduleEnabled(o, 'calendar')).toBe(true)
+  })
+
+  it('does not turn on the console', () => {
+    expect(moduleEnabled(org({ module_baseline: 'starter' }), 'sis')).toBe(false)
+  })
+
+  it('leaves orgs without the key exactly as before (iCreate, Horizon)', () => {
+    const icreate = org({ sis_enabled: true, sis_settings: { community_enabled: true } })
+    const horizon = org({ sis_enabled: true, icreate_registration: { enabled: true },
+      modules: { student_chat: false } })
+    for (const key of STARTER_OFF) {
+      expect(moduleEnabled(icreate, key)).toBe(true)
+      expect(moduleEnabled(horizon, key)).toBe(true)
+    }
+    expect(moduleEnabled(org({ sis_enabled: true, module_baseline: 'everything' }), 'billing')).toBe(true)
+  })
+})
+
+/**
  * moduleKnownOff gates "skip a request that would 404 anyway", so its whole
  * job is to distinguish "the org says no" from "this payload cannot say".
  * Getting that backwards hides live features (Sentry OPTIO-BACKEND-81/85/89).

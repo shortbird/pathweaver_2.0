@@ -5,6 +5,7 @@ import api from '../../services/api'
 import { useSisOrg, withOrg } from './useSisOrg'
 import { useAuth } from '../../contexts/AuthContext'
 import { canSeeFinance } from './sisRole'
+import { moduleKnownOff } from '../../modules/moduleEnabled'
 import shapeReport from './reportsPage/shapeReport'
 import { printElement } from '../../utils/printView'
 import usePersistedChoice from '../../hooks/usePersistedChoice'
@@ -197,14 +198,17 @@ const RunButton = ({ onClick, disabled, ariaLabel, children = 'Run report' }) =>
 )
 
 const ReportsPage = () => {
-  const { orgId } = useSisOrg()
+  const { orgId, activeOrg } = useSisOrg()
   const { user } = useAuth()
   const [searchParams, setSearchParams] = useSearchParams()
   // Money is not the campus coordinator's -- the same subtraction the backend
   // makes on /reports/revenue. Asking for it as a coordinator would 403, so
   // this decides whether to ask at all, not just whether to render.
-  const seesMoney = canSeeFinance(user)
-  const reports = useMemo(() => visibleReports(seesMoney), [seesMoney])
+  // A school without the billing block has no money to report, whoever asks
+  // (MICROSCHOOL_FIRST_PLAN part 2); attendance likewise owns its overview row.
+  const seesMoney = canSeeFinance(user) && !moduleKnownOff(activeOrg, 'billing')
+  const seesAttendance = !moduleKnownOff(activeOrg, 'attendance')
+  const reports = useMemo(() => visibleReports(seesMoney, activeOrg), [seesMoney, activeOrg])
   const requested = searchParams.get('report')
   const active = reports.find((r) => r.key === requested) || reportByKey('overview')
   const pickReport = (key) => setSearchParams(key === 'overview' ? {} : { report: key }, { replace: true })
@@ -259,12 +263,12 @@ const ReportsPage = () => {
     Promise.all([
       api.get(withOrg('/api/sis/reports/enrollment', orgId)),
       seesMoney ? api.get(withOrg('/api/sis/reports/revenue', orgId)) : Promise.resolve(null),
-      api.get(withOrg('/api/sis/reports/attendance', orgId)),
+      seesAttendance ? api.get(withOrg('/api/sis/reports/attendance', orgId)) : Promise.resolve(null),
     ])
       .then(([e, r, a]) => {
         setEnrollment(e.data?.report || null)
         setRevenue(r?.data?.report || null)
-        setAttendance(a.data?.report || null)
+        setAttendance(a?.data?.report || null)
       })
       .catch(() => toast.error('Failed to load reports'))
       .finally(() => setLoading(false))
@@ -274,7 +278,7 @@ const ReportsPage = () => {
     api.get(withOrg(`/api/sis/classes?include_archived=${rosterArchived}`, orgId))
       .then((res) => setClassList(res.data?.classes || []))
       .catch(() => setClassList([]))
-  }, [orgId, seesMoney, rosterArchived])
+  }, [orgId, seesMoney, seesAttendance, rosterArchived])
 
   useEffect(() => { load() }, [load])
   useEffect(() => { setReport(null); setQuestionKey(''); setRosterClassIds([]) }, [orgId])
@@ -599,7 +603,7 @@ const ReportsPage = () => {
 
             {active.key === 'overview' ? (
               <OverviewStats enrollment={enrollment} revenue={revenue} attendance={attendance}
-                seesMoney={seesMoney} />
+                seesMoney={seesMoney} seesAttendance={seesAttendance} />
             ) : (
               <>
                 {options && (

@@ -28,6 +28,11 @@ from utils.sis_roles import ADMIN_ROLES
 # ...with one exception: the revenue summary is money, and money is not the
 # coordinator's (see the revenue route).
 from utils.sis_roles import FINANCE_ROLES
+# The money reports also need the billing block: a school that does not bill
+# through Optio has no revenue to report (docs/MICROSCHOOL_FIRST_PLAN.md
+# part 2). The gate follows MODULE_ENFORCEMENT like every other module gate.
+from modules.gate import require_module
+from modules.enabled import module_enabled
 
 logger = get_logger(__name__)
 
@@ -55,6 +60,7 @@ def enrollment(user_id):
 
 @bp.route('/reports/revenue', methods=['GET'])
 @require_role(*FINANCE_ROLES)
+@require_module('billing')
 def revenue(user_id):
     """Billed / collected / outstanding for the org.
 
@@ -73,6 +79,7 @@ def revenue(user_id):
 
 @bp.route('/reports/payments', methods=['GET'])
 @require_role(*FINANCE_ROLES)
+@require_module('billing')
 def payments(user_id):
     """Every recorded payment, and the split by method.
 
@@ -122,9 +129,13 @@ def classes_report(user_id):
 
     # A coordinator gets the class report without its price columns — see
     # CLASS_REPORT_MONEY_KEYS. Selection is intersected with what came back, so
-    # ?fields=tuition cannot pull a redacted column through the CSV path.
+    # ?fields=tuition cannot pull a redacted column through the CSV path. A
+    # school without the billing block loses them the same way: tuition and
+    # supply fee are billing's fields (MICROSCHOOL_FIRST_PLAN part 2).
+    sees_money = (sis_service.caller_sees_pay(user_id)
+                  and module_enabled(org_id, 'billing'))
     report = reports.class_report(org_id, include_archived=include_archived,
-                                  sees_money=sis_service.caller_sees_pay(user_id))
+                                  sees_money=sees_money)
     labels = {f['key']: f['label'] for f in report['fields']}
     keys = [k for k in keys if k in labels] or [f['key'] for f in report['fields'] if f['default']]
 

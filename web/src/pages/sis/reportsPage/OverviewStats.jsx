@@ -24,7 +24,7 @@ const Stat = ({ label, value, hint }) => (
  * number says what it counts, and the first one is the number people mean by
  * "how many students do we have".
  */
-export default function OverviewStats({ enrollment, revenue, attendance, seesMoney }) {
+export default function OverviewStats({ enrollment, revenue, attendance, seesMoney, seesAttendance = true }) {
   const withdrawn = enrollment?.by_status?.withdrawn
   const graduated = enrollment?.by_status?.graduated
   return (
@@ -53,6 +53,7 @@ export default function OverviewStats({ enrollment, revenue, attendance, seesMon
         ) : null}
       </section>
 
+      {seesAttendance && (
       <section>
         <h3 className="font-semibold text-neutral-900 mb-3">Attendance</h3>
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -62,6 +63,7 @@ export default function OverviewStats({ enrollment, revenue, attendance, seesMon
           <Stat label="Sessions" value={attendance?.overall?.total ?? 0} />
         </div>
       </section>
+      )}
 
       {seesMoney && (
         <section>

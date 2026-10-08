@@ -5,6 +5,7 @@ import {
   DAY_OPTIONS, hhmm, fmt12ap, blockMinutes, blockEndOptions, addMin, minutesBetween,
 } from './classFields'
 import { CELL_INPUT_CLASS as cell } from '../ui/Input'
+import { moduleKnownOff } from '../../modules/moduleEnabled'
 
 /**
  * Every editable attribute of a class, in one grid.
@@ -26,6 +27,15 @@ import { CELL_INPUT_CLASS as cell } from '../ui/Input'
  * attribute: it saves immediately while everything else is a draft, and putting
  * a live switch among the money fields invites publishing a class by accident.
  * Hosts render it beside the class, where it acts.
+ *
+ * A building block switches off its own fields (docs/MICROSCHOOL_FIRST_PLAN.md
+ * part 2; Horizon, 2026-10-07: a school that does not bill or register through
+ * Optio still saw tuition, supply fee, teacher pay, ages and capacity on every
+ * class). `org` decides: billing owns the money fields and teacher pay,
+ * registration owns capacity, ages and the full-day rule. A hidden field is
+ * only hidden -- it stays in the draft, so a save sends back the value the
+ * class already had rather than clearing it. A null org (no org in hand)
+ * shows everything, as before.
  */
 
 // py-2 so a plain input is the same height as a SearchSelect (which sets its
@@ -96,8 +106,12 @@ export default function ClassFieldsEditor({
   // refused time never reaches the draft, so a host cannot see it there; this
   // is how the host knows to hold its Save (4b38bb72).
   onTimeErrorChange = null,
+  // The org whose modules decide which fields show (see the header).
+  org = null,
 }) {
   const set = (patch) => onChange(patch)
+  const showBilling = !moduleKnownOff(org, 'billing')
+  const showRegistration = !moduleKnownOff(org, 'registration')
   const pickable = timeBlocks.filter((b) => !b.label)
 
   // Custom time: a class that meets outside the school's teaching blocks.
@@ -485,7 +499,8 @@ export default function ClassFieldsEditor({
         </Field>
 
         {/* A rule about which days a student must fill — a schedule constraint,
-            so it sits with the schedule. */}
+            so it sits with the schedule. Only registration enforces it. */}
+        {showRegistration && (
         <Field label="Full-day program">
           <label className="inline-flex items-center gap-2 cursor-pointer h-[38px]">
             <input type="checkbox" checked={d.requires_full_day}
@@ -495,6 +510,7 @@ export default function ClassFieldsEditor({
             <span className="text-xs text-neutral-500 leading-tight">Must fill its meeting days</span>
           </label>
         </Field>
+        )}
 
         <Field label="Parent visibility">
           <label className="inline-flex items-center gap-2 cursor-pointer h-[38px]">
@@ -507,22 +523,29 @@ export default function ClassFieldsEditor({
         </Field>
       </Band>
 
-      <Band title="Enrollment & money" cols={5}>
-        <Field label="Capacity">
-          <input type="number" min={1} className={cell} placeholder="Unlimited" value={d.capacity}
-            aria-label="Capacity" onChange={(e) => set({ capacity: e.target.value })} />
-        </Field>
+      {(showRegistration || showBilling) && (
+      <Band title={showRegistration && showBilling ? 'Enrollment & money' : showBilling ? 'Money' : 'Enrollment'} cols={5}>
+        {showRegistration && (
+          <>
+            <Field label="Capacity">
+              <input type="number" min={1} className={cell} placeholder="Unlimited" value={d.capacity}
+                aria-label="Capacity" onChange={(e) => set({ capacity: e.target.value })} />
+            </Field>
 
-        <Field label="Ages">
-          <div className="flex items-center gap-1">
-            <input type="number" min={0} className={cell} placeholder="Min" value={d.min_age}
-              aria-label="Minimum age" onChange={(e) => set({ min_age: e.target.value })} />
-            <span className="text-neutral-300">–</span>
-            <input type="number" min={0} className={cell} placeholder="Max" value={d.max_age}
-              aria-label="Maximum age" onChange={(e) => set({ max_age: e.target.value })} />
-          </div>
-        </Field>
+            <Field label="Ages">
+              <div className="flex items-center gap-1">
+                <input type="number" min={0} className={cell} placeholder="Min" value={d.min_age}
+                  aria-label="Minimum age" onChange={(e) => set({ min_age: e.target.value })} />
+                <span className="text-neutral-300">–</span>
+                <input type="number" min={0} className={cell} placeholder="Max" value={d.max_age}
+                  aria-label="Maximum age" onChange={(e) => set({ max_age: e.target.value })} />
+              </div>
+            </Field>
+          </>
+        )}
 
+        {showBilling && (
+        <>
         <Field label="Tuition">
           <Money value={d.tuition} label="Tuition" onChange={(v) => set({ tuition: v })} />
         </Field>
@@ -539,8 +562,10 @@ export default function ClassFieldsEditor({
             Per student/year. Blank = school default.
           </p>
         </Field>
-
+        </>
+        )}
       </Band>
+      )}
 
       <Band title="Internal notes">
         <Field label="Staff only — families never see these" className="sm:col-span-2 lg:col-span-3">
@@ -551,7 +576,9 @@ export default function ClassFieldsEditor({
         </Field>
 
         {/* iCreate, 2704bbd4: some classes exist only so a teacher has a
-            roster. The weekly teaching hours export leaves these out. */}
+            roster. The weekly teaching hours export leaves these out. Pay is
+            billing's, so it hides with it. */}
+        {showBilling && (
         <Field label="Teacher pay">
           <label className="inline-flex items-center gap-2 cursor-pointer h-[38px]">
             <input type="checkbox" checked={!!d.exclude_from_pay}
@@ -561,6 +588,7 @@ export default function ClassFieldsEditor({
             <span className="text-xs text-neutral-500 leading-tight">Roster only — not paid</span>
           </label>
         </Field>
+        )}
       </Band>
     </div>
   )

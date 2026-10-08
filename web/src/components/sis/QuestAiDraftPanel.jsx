@@ -164,9 +164,12 @@ export default function QuestAiDraftPanel({ onDrafted, hasDraft, alwaysOpen = fa
     return (
       <div className="space-y-2">
         {noticeBox}
-        <button type="button" onClick={() => setOpen(true)}
-          className="inline-flex items-center gap-1.5 text-sm font-medium text-optio-purple hover:underline">
-          <SparklesIcon className="w-4 h-4" /> Build it from something I already have
+        {/* One button while closed (MICROSCHOOL_FIRST_PLAN part 4): the quest
+            editor opens this only on a blank quest, so a quest with tasks
+            shows just this line above them. */}
+        <button type="button" onClick={() => setOpen(true)} aria-expanded="false"
+          className="inline-flex items-center gap-1.5 rounded-lg border border-optio-purple/40 bg-optio-purple/5 px-3 py-1.5 text-sm font-medium text-optio-purple hover:bg-optio-purple/10">
+          <SparklesIcon className="w-4 h-4" aria-hidden="true" /> Draft with AI
         </button>
       </div>
     )
@@ -178,7 +181,7 @@ export default function QuestAiDraftPanel({ onDrafted, hasDraft, alwaysOpen = fa
         <SparklesIcon className="w-4 h-4 text-optio-purple" />
         <h5 className="text-sm font-semibold text-neutral-800">Build from something you have</h5>
         {!alwaysOpen && (
-          <button type="button" onClick={() => setOpen(false)}
+          <button type="button" onClick={() => setOpen(false)} aria-expanded="true"
             className="ml-auto text-xs text-neutral-500 hover:underline">Close</button>
         )}
       </div>

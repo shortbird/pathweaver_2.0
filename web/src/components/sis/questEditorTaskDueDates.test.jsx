@@ -63,17 +63,22 @@ const open = async (props = {}) => {
     onClose={vi.fn()} onDone={vi.fn()} {...props} />)
   await screen.findByRole('dialog')
 }
+// Each task's due date sits behind its More options (MICROSCHOOL_FIRST_PLAN part 4).
+const openTaskOptions = async () => (await screen.findAllByRole('button', { name: /^More options for task/ }))
+  .forEach((b) => fireEvent.click(b))
 
 describe('a date on each task, for this class (26c91e25)', () => {
   it('shows each task\'s date from the class task list', async () => {
     await open()
     await waitFor(() => expect(api.get).toHaveBeenCalledWith(TASK_URL))
+    await openTaskOptions()
     expect(await screen.findByLabelText('Task 1 due date')).toHaveValue('')
     await waitFor(() => expect(screen.getByLabelText('Task 2 due date').value).toMatch(/^2026-10-(09|10)$/))
   })
 
   it('saves a date straight to the per-task route, end of that day', async () => {
     await open()
+    await openTaskOptions()
     fireEvent.change(await screen.findByLabelText('Task 1 due date'), { target: { value: '2026-10-02' } })
     await waitFor(() => expect(api.put).toHaveBeenCalledWith(
       '/api/sis/classes/c1/quests/q1/tasks/t1/due-date',
@@ -86,6 +91,7 @@ describe('a date on each task, for this class (26c91e25)', () => {
 
   it('clears a date with null', async () => {
     await open()
+    await openTaskOptions()
     const input = await screen.findByLabelText('Task 2 due date')
     await waitFor(() => expect(input.value).not.toBe(''))
     fireEvent.change(input, { target: { value: '' } })
@@ -106,6 +112,7 @@ describe('a date on each task, for this class (26c91e25)', () => {
   it('puts the old date back and says why when the school has due dates off', async () => {
     api.put.mockRejectedValueOnce({ response: { data: { error: 'Due dates are not enabled for this organization' } } })
     await open()
+    await openTaskOptions()
     const input = await screen.findByLabelText('Task 1 due date')
     fireEvent.change(input, { target: { value: '2026-10-02' } })
     await waitFor(() => expect(toast.error).toHaveBeenCalledWith('Due dates are not enabled for this organization'))
@@ -114,9 +121,11 @@ describe('a date on each task, for this class (26c91e25)', () => {
 
   it('a task typed in and not saved has no date input until it has an id', async () => {
     await open()
+    await openTaskOptions()
     await screen.findByLabelText('Task 3 due date')
     fireEvent.click(screen.getByRole('button', { name: /Add a preset task/ }))
     fireEvent.change(screen.getByPlaceholderText(/Task 4 /), { target: { value: 'Chapters 16-20' } })
+    fireEvent.click(screen.getByRole('button', { name: 'More options for task 4' }))
     expect(screen.queryByLabelText('Task 4 due date')).toBeNull()
   })
 

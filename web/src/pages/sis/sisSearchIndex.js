@@ -99,6 +99,8 @@ export const SUB_ENTRIES = [
   // anchored by its key. `path` carries the card's module where it has one.
   { under: '/settings', financeOnly: true, ...settingsCard('org', 'Organization', ['school name', 'logo', 'features', 'ai', 'entitlements', 'prices']) },
   { under: '/settings', ...settingsCard('login-link', 'School login link', ['login url', 'sign in link', 'share link']) },
+  // Org admins only, like the card's API (routes/school_features.py).
+  { under: '/settings', financeOnly: true, ...settingsCard('features', 'Features', ['features', 'turn on', 'turn off', 'registration', 'tuition', 'billing', 'attendance', 'what we use']) },
   { under: '/settings', path: '/classes', ...settingsCard('rooms', 'Classrooms and rooms', ['rooms', 'classrooms', 'spaces', 'locations']) },
   { under: '/settings', path: '/classes', ...settingsCard('time-blocks', 'Class time blocks', ['blocks', 'periods', 'bell schedule', 'time slots']) },
   { under: '/settings', path: '/calendar', ...settingsCard('calendar-categories', 'Calendar categories', ['event types', 'calendar colors']) },

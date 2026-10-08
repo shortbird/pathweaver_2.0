@@ -6,7 +6,9 @@
 import Chip from './Chip'
 import { seatState, seatText } from '../../../components/sis/ClassSummaryLine'
 
-const ClassCard = ({ c, onOpen }) => (
+// showRegistration: false for a school without the registration module, which
+// has no open/closed state to show.
+const ClassCard = ({ c, onOpen, showRegistration = true }) => (
   <button
     type="button"
     onClick={onOpen}
@@ -29,7 +31,7 @@ const ClassCard = ({ c, onOpen }) => (
     <div className="p-4">
       <div className="flex items-center gap-2">
         <h3 className="font-semibold text-neutral-900">{c.name}</h3>
-        {c.registration_status !== 'open' && c.status !== 'archived' && (
+        {showRegistration && c.registration_status !== 'open' && c.status !== 'archived' && (
           <Chip className="bg-amber-100 text-amber-700">Closed</Chip>
         )}
       </div>
