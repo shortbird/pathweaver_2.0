@@ -19,6 +19,16 @@ import { api } from './api';
 const DEFAULT_MAX_ATTEMPTS = 3;
 
 /** Native (expo-image-picker) emits files of this shape. Web uses File/Blob. */
+
+/**
+ * Finalize does the server's work on the file (video thumbnails, the upload
+ * screen) after the bytes are already in storage, so it can outrun the 15 s
+ * default. Two families' evidence saved after their app had already reported
+ * "timeout of 15000ms exceeded" and retried (tickets 61a2f727, 2026-10-06, and
+ * 79be84d9, 2026-10-07, a video from an iPad).
+ */
+export const FINALIZE_TIMEOUT_MS = 60000;
+
 export type UploadFile =
   | File
   | Blob
@@ -131,7 +141,7 @@ export async function uploadViaSignedUrl({
           bucket: upload.bucket,
           block_type: blockType || upload.media_type,
           ...(extraFinalizeBody || {}),
-        });
+        }, { timeout: FINALIZE_TIMEOUT_MS });
         return finalizeResp.data as SignedUploadResult;
       } catch (err) {
         lastError = err;

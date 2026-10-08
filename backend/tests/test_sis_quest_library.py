@@ -723,3 +723,99 @@ class TestWhoAlreadyHasTheQuest:
         src = inspect.getsource(library)
         get_block = src.split("def quest_students")[0].rsplit('@bp.route', 1)[1]
         assert '@require_role(*ADMIN_ROLES)' in get_block
+
+
+@pytest.mark.unit
+class TestDeletingFromTheLibrary:
+    """Molly, iCreate, 2026-10-08 (ticket a10c42f7): "Can't delete quests."
+
+    The class and curriculum screens could delete a quest; the Library >
+    Quests tab, which also lists quests on no curriculum and in no class,
+    could not. Same guardrails as the curriculum delete: the school's own
+    quest only, and never one a student has started.
+    """
+
+    def _delete(self, quest, started=0, delete_raises=None):
+        with patch.object(library.SisQuestLibraryRepository, 'started_count',
+                          return_value=started) as count, \
+             patch.object(library.SisQuestLibraryRepository, 'delete_quest',
+                          side_effect=delete_raises) as delete:
+            out, status, _log = _run(library.delete_library_quest, (quest['id'],),
+                                     tables={'quests': [quest]})
+        return out, status, count, delete
+
+    def test_the_schools_own_unstarted_quest_is_deleted(self):
+        out, status, count, delete = self._delete(OWN_QUEST)
+        assert status == 200 and out == {'success': True, 'title': 'Watercolor Basics'}
+        count.assert_called_once_with(Q1)
+        delete.assert_called_once_with(Q1)
+
+    def test_a_started_quest_is_refused_with_the_count_and_nothing_deleted(self):
+        out, status, _count, delete = self._delete(OWN_QUEST, started=3)
+        assert status == 409
+        assert out['started_count'] == 3
+        assert '3 students have already started' in out['error']
+        delete.assert_not_called()
+
+    def test_one_student_reads_as_one(self):
+        out, _status, _count, _delete = self._delete(OWN_QUEST, started=1)
+        assert '1 student has already started' in out['error']
+
+    def test_a_shared_optio_quest_is_refused(self):
+        _out, status, count, delete = self._delete(SHARED_QUEST)
+        assert status == 403
+        count.assert_not_called()
+        delete.assert_not_called()
+
+    def test_another_schools_quest_is_not_found(self):
+        _out, status, _count, delete = self._delete(OTHER_SCHOOLS_QUEST)
+        assert status == 404
+        delete.assert_not_called()
+
+    def test_a_database_refusal_is_a_409_not_a_500(self):
+        # partner_offerings.template_quest_id restricts the delete.
+        from postgrest.exceptions import APIError
+        err = APIError({'message': 'violates foreign key constraint', 'code': '23503'})
+        out, status, _count, _delete = self._delete(OWN_QUEST, delete_raises=err)
+        assert status == 409
+        assert 'partner program' in out['error']
+
+    def test_the_route_is_admin_only_and_owns_its_url(self):
+        import inspect
+        src = inspect.getsource(library)
+        block = src.split("def delete_library_quest")[0].rsplit('@bp.route', 1)[1]
+        assert "'/quests/<quest_id>', methods=['DELETE']" in block
+        assert '@require_role(*ADMIN_ROLES)' in block
+
+
+@pytest.mark.unit
+class TestTheDeleteQueries:
+    """The repository layer under the delete route, directly."""
+
+    def test_started_count_is_an_exact_count_of_user_quests(self):
+        from repositories.sis_quest_library_repository import SisQuestLibraryRepository
+        client = Mock()
+        chain = client.table.return_value
+        for name in ('select', 'eq', 'limit'):
+            getattr(chain, name).return_value = chain
+        chain.execute.return_value = Mock(data=[{'id': 'x'}], count=7)
+        assert SisQuestLibraryRepository(client=client).started_count(Q1) == 7
+        client.table.assert_called_with('user_quests')
+        chain.select.assert_called_with('id', count='exact')
+        chain.eq.assert_called_with('quest_id', Q1)
+
+    def test_started_count_with_none_is_zero(self):
+        from repositories.sis_quest_library_repository import SisQuestLibraryRepository
+        client = Mock()
+        chain = client.table.return_value
+        for name in ('select', 'eq', 'limit'):
+            getattr(chain, name).return_value = chain
+        chain.execute.return_value = Mock(data=[], count=None)
+        assert SisQuestLibraryRepository(client=client).started_count(Q1) == 0
+
+    def test_delete_quest_deletes_the_one_quest_row(self):
+        from repositories.sis_quest_library_repository import SisQuestLibraryRepository
+        client = Mock()
+        SisQuestLibraryRepository(client=client).delete_quest(Q1)
+        client.table.assert_called_with('quests')
+        client.table.return_value.delete.return_value.eq.assert_called_once_with('id', Q1)

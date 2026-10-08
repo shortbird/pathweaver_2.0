@@ -154,13 +154,12 @@ export function TaskDueInput({ task, index, taskDue }) {
 /**
  * The one line a closed task "More options" shows, so a value saved behind
  * the toggle is never hidden silently (MICROSCHOOL_FIRST_PLAN part 4): the
- * pillar, "Optional" when the task is not required, its due date on this
- * class, and the subjects it counts toward when the credit picker is shown.
+ * pillar, its due date on this class, and the subjects it counts toward when
+ * the credit picker is shown. Required sits beside XP, so it is not here.
  */
 export function taskOptionsSummary(task, { showPillars = true, showSubjects = true, dueIso = null } = {}) {
   const parts = []
   if (showPillars) parts.push(PILLAR_LABEL[task.pillar] || task.pillar)
-  if (!task.is_required) parts.push('Optional')
   if (dueIso) {
     const dt = new Date(dueIso)
     if (!Number.isNaN(dt.getTime())) {
@@ -239,6 +238,14 @@ export function TaskRows({ tasks, setTasks, addLabel = 'Add a preset task', show
                 title={`${floor} is the smallest a task can be worth`}
                 className="w-20 rounded-lg border border-gray-300 px-2 py-1.5 text-sm" />
             </label>
+            {/* Beside XP, not behind More options: iCreate could not find it
+                there the day it moved (ticket 88b58c3e, a regression of
+                ea9756e3). Whether a task must be done is an essential. */}
+            <label className="flex items-center gap-1.5 text-sm text-neutral-600">
+              <input type="checkbox" checked={t.is_required}
+                onChange={(e) => update(i, { is_required: e.target.checked })} />
+              Required
+            </label>
             <button type="button" onClick={() => duplicate(i)} disabled={!t.title.trim()}
               className="ml-auto p-1 text-gray-400 hover:text-optio-purple disabled:opacity-30"
               title="Make a copy of this task at the end of the list"
@@ -251,7 +258,7 @@ export function TaskRows({ tasks, setTasks, addLabel = 'Add a preset task', show
             </button>
           </div>
           {/* Essentials first (MICROSCHOOL_FIRST_PLAN part 4): pillar,
-              Required, due date and credit sit behind this toggle. Its closed
+              due date and credit sit behind this toggle. Its closed
               line names what they hold, so nothing saved is out of sight. */}
           <MoreOptions label={`for task ${i + 1}`}
             summary={taskOptionsSummary(t, {
@@ -268,11 +275,6 @@ export function TaskRows({ tasks, setTasks, addLabel = 'Add a preset task', show
                   </select>
                 </label>
               )}
-              <label className="flex items-center gap-1.5 text-sm text-neutral-600">
-                <input type="checkbox" checked={t.is_required}
-                  onChange={(e) => update(i, { is_required: e.target.checked })} />
-                Required
-              </label>
               <TaskDueInput task={t} index={i} taskDue={taskDue} />
             </div>
             {showSubjects && (

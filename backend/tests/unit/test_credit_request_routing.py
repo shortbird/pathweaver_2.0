@@ -61,21 +61,37 @@ class Chain:
         return _passthrough
 
 
-def _client(org_id, completion_updates):
-    """An admin client whose student sits in `org_id` (None = platform-direct)."""
+class _NoSingleChain(Chain):
+    """Like PostgREST: .single() on a read with no row raises PGRST116."""
+
+    def __getattr__(self, name):
+        if name == 'single' and not self._list:
+            def _raise():
+                raise Exception({'code': 'PGRST116', 'details': 'The result contains 0 rows'})
+            return _raise
+        return super().__getattr__(name)
+
+
+COMPLETION_ROW = {
+    'id': COMPLETION_ID,
+    'user_id': STUDENT_ID,
+    'quest_id': QUEST_ID,
+    'diploma_status': 'none',
+    'revision_number': 1,
+    'user_quest_task_id': TASK_ID,
+}
+
+
+def _client(org_id, completion_updates, completion_rows=None):
+    """An admin client whose student sits in `org_id` (None = platform-direct).
+
+    The completion is read as a list (limit 1), not .single(); see
+    test_no_completion_is_a_404_not_a_500."""
+    rows = [COMPLETION_ROW] if completion_rows is None else completion_rows
+
     def table(name):
         if name == 'quest_task_completions':
-            return Chain(
-                single_data={
-                    'id': COMPLETION_ID,
-                    'user_id': STUDENT_ID,
-                    'quest_id': QUEST_ID,
-                    'diploma_status': 'none',
-                    'revision_number': 1,
-                    'user_quest_task_id': TASK_ID,
-                },
-                record_updates_to=completion_updates,
-            )
+            return _NoSingleChain(list_data=rows, record_updates_to=completion_updates)
         if name == 'user_quest_tasks':
             return Chain(single_data={
                 'title': 'Build a ski ramp',
@@ -150,3 +166,22 @@ def test_platform_student_never_consults_the_org_flag(client):
     status, flag = _request_credit(client, None, flag_enabled=False)
     assert status == 'pending_review'
     flag.assert_not_called()
+
+
+def test_no_completion_is_a_404_not_a_500(client):
+    """Tickets 1e6cdbc2 / eba93e85 (Sentry, 2026-10-08): a student pressed
+    Request Credit 8 seconds before the task's completion row existed. The
+    read used .single(), which raises PGRST116 on zero rows, and the route's
+    catch-all answered 500 instead of the 404 it means to send."""
+    completion_updates = []
+    supabase = _client(None, completion_updates, completion_rows=[])
+
+    with patch('routes.tasks.credit.get_supabase_admin_client', return_value=supabase), \
+         patch('database.get_supabase_admin_client', return_value=supabase), \
+         patch('utils.session_manager.session_manager.get_effective_user_id',
+               return_value=STUDENT_ID):
+        resp = client.post(f'/api/tasks/{TASK_ID}/request-credit', json={})
+
+    assert resp.status_code == 404, resp.get_json()
+    assert 'Mark it done' in resp.get_json()['error']['message']
+    assert completion_updates == []

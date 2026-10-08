@@ -51,6 +51,19 @@ class SisQuestLibraryRepository(BaseRepository):
             logger.error(f"Error listing org quests for {org_id}: {e}")
             raise DatabaseError("Failed to list quests") from e
 
+    def started_count(self, quest_id: str) -> int:
+        """How many learners have this quest (user_quests rows). A count, not
+        a row read, so it is exact past the PostgREST cap."""
+        res = (self.client.table('user_quests').select('id', count='exact')
+               .eq('quest_id', quest_id).limit(1).execute())
+        return res.count or 0
+
+    def delete_quest(self, quest_id: str) -> None:
+        """Delete the quest row. Its curriculum and class links, template
+        tasks and attachments cascade. A partner offering built on it
+        restricts, and the APIError reaches the caller."""
+        self.client.table(self.table_name).delete().eq('id', quest_id).execute()
+
     def task_rows(self, quest_ids: List[str]) -> List[Dict[str, Any]]:
         """Every template task (id, quest_id, title, order_index) for these quests.
 

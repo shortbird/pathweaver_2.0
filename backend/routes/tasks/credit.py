@@ -107,22 +107,25 @@ def request_diploma_credit(user_id: str, task_id: str):
         # admin client justified: task CRUD writes scoped to caller (self) under @require_auth; cross-user only after parent/advisor relationship verification
         admin_supabase = get_supabase_admin_client()
 
-        # Get completion record
+        # Get completion record. Not .single(): with no row it raises PGRST116,
+        # which the catch-all below turned into a 500 instead of this 404
+        # (tickets 1e6cdbc2 / eba93e85, 2026-10-08: a student pressed Request
+        # Credit 8 seconds before the task's completion row existed).
         completion = admin_supabase.table('quest_task_completions')\
             .select('id, user_id, quest_id, diploma_status, revision_number, user_quest_task_id')\
             .eq('user_quest_task_id', task_id)\
             .eq('user_id', user_id)\
-            .single()\
+            .limit(1)\
             .execute()
 
         if not completion.data:
             return error_response(
                 code='NOT_FOUND',
-                message='No completion record found for this task. Complete the task first.',
+                message='This task is not marked done yet. Mark it done, then request credit.',
                 status=404
             )
 
-        completion_data = completion.data
+        completion_data = completion.data[0]
 
         # Verify eligible status
         if completion_data['diploma_status'] not in ('none', 'grow_this'):

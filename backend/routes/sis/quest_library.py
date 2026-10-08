@@ -54,6 +54,7 @@ Data access is repositories/sis_quest_library_repository.py.
 """
 
 from flask import Blueprint, request, jsonify
+from postgrest.exceptions import APIError
 
 from repositories.sis_quest_library_repository import SisQuestLibraryRepository
 from services import sis_service
@@ -488,6 +489,47 @@ def duplicate_library_quest(user_id, quest_id):
     except QuestAuthoringError as e:
         return jsonify({'success': False, 'error': str(e)}), e.status
     return jsonify({'success': True, **out})
+
+
+@bp.route('/quests/<quest_id>', methods=['DELETE'])
+@require_role(*ADMIN_ROLES)
+def delete_library_quest(user_id, quest_id):
+    """Delete one of the school's own quests from the Library > Quests tab.
+
+    Molly, iCreate, 2026-10-08 (ticket a10c42f7): "Can't delete quests." The
+    class and curriculum screens could delete; this tab, which lists quests on
+    no curriculum and in no class as well, could not.
+
+    Same guardrails as routes/sis/curriculum.py delete_curriculum_quest: only
+    a quest this school owns (_own_quest), and never one a student has
+    started, because the cascade would erase their tasks and XP. The refusal
+    names the count so the office knows why. One delete on the quest row:
+    its curriculum and class links, tasks and attachments cascade with it.
+    """
+    _org_id, quest, err = _own_quest(user_id, quest_id)
+    if err:
+        return err
+
+    repo = _repo()
+    started_count = repo.started_count(quest_id)
+    if started_count:
+        return jsonify({
+            'success': False,
+            'error': (f'{started_count} student{"s have" if started_count != 1 else " has"} '
+                      'already started this quest, so deleting it would erase their work. '
+                      'Take it off its classes and curricula instead.'),
+            'started_count': started_count,
+        }), 409
+
+    try:
+        repo.delete_quest(quest_id)
+    except APIError as e:  # a partner offering built on it holds it (FK restrict)
+        logger.warning(f"Library quest {quest_id[:8]} delete refused by the database: {e}")
+        return jsonify({
+            'success': False,
+            'error': 'This quest is in use elsewhere (a partner program is built on it), so it cannot be deleted.',
+        }), 409
+    return jsonify({'success': True, 'title': quest.get('title')})
 
 
 @bp.route('/quests/<quest_id>/tasks', methods=['GET'])

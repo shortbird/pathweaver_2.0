@@ -37,6 +37,8 @@ vi.mock('./useSisOrg', () => ({
 }))
 
 const { api } = vi.hoisted(() => ({ api: { get: vi.fn(), post: vi.fn(), patch: vi.fn(), delete: vi.fn(), put: vi.fn() } }))
+const { confirmMock } = vi.hoisted(() => ({ confirmMock: vi.fn() }))
+vi.mock('../../contexts/ConfirmContext', () => ({ useConfirm: () => confirmMock }))
 vi.mock('../../services/api', () => ({ default: api }))
 
 const render = (ui) => rtlRender(
@@ -331,7 +333,7 @@ describe('QuestsPanel (was QuestLibraryPage)', () => {
     expect(screen.queryByRole('button', { name: 'Edit' })).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: 'Actions for Watercolor Basics' }))
     expect(screen.getAllByRole('menuitem').map((b) => b.textContent))
-      .toEqual(['Edit', 'Assign', 'Attachments', 'Duplicate'])
+      .toEqual(['Edit', 'Assign', 'Attachments', 'Duplicate', 'Delete'])
   })
 
   it('opens any quest\'s attachments from its row, task by task', async () => {
@@ -720,5 +722,58 @@ describe('sorting the quest library', () => {
     fireEvent.click(header('Tasks'))
     expect(titlesIn('School library')).toEqual(['Pottery', 'Knitting', 'Archery'])
     expect(titlesIn('Teacher-made')).toEqual(['Baking', 'Zoology'])
+  })
+})
+
+describe('deleting from the library row (a10c42f7)', () => {
+  // Molly (iCreate, 2026-10-08): "Can't delete quests." The class and
+  // curriculum screens could; this tab, where she keeps every quest, could not.
+  const deleteCalls = () => api.delete.mock.calls.filter(([url]) => url.startsWith('/api/sis/quests/'))
+
+  it('asks first, then deletes through the library route and re-reads the list', async () => {
+    confirmMock.mockResolvedValue(true)
+    render(<QuestsPanel />)
+    await screen.findByText('Bridge Building')
+    const before = libraryLoads().length
+
+    rowAction(1, 'Delete')
+
+    await waitFor(() => expect(deleteCalls()).toEqual([['/api/sis/quests/q2?organization_id=org-1']]))
+    expect(confirmMock).toHaveBeenCalledWith(expect.objectContaining({
+      title: 'Delete "Bridge Building"?', confirmLabel: 'Delete quest',
+    }))
+    await waitFor(() => expect(libraryLoads().length).toBeGreaterThan(before))
+  })
+
+  it('warns that a quest in use comes off its curricula and classes', async () => {
+    confirmMock.mockResolvedValue(false)
+    render(<QuestsPanel />)
+    await screen.findByText('Watercolor Basics')
+    rowAction(0, 'Delete')
+    await waitFor(() => expect(confirmMock).toHaveBeenCalled())
+    expect(confirmMock.mock.calls[0][0].body).toMatch(/comes off every curriculum and class/)
+  })
+
+  it('does nothing when the office keeps it', async () => {
+    confirmMock.mockResolvedValue(false)
+    render(<QuestsPanel />)
+    await screen.findByText('Bridge Building')
+    rowAction(1, 'Delete')
+    await waitFor(() => expect(confirmMock).toHaveBeenCalled())
+    expect(deleteCalls()).toEqual([])
+  })
+
+  it('shows the server\'s reason when a student has already started it', async () => {
+    const { toast } = await import('react-hot-toast')
+    confirmMock.mockResolvedValue(true)
+    const reason = '3 students have already started this quest, so deleting it would erase their work. '
+      + 'Take it off its classes and curricula instead.'
+    api.delete.mockImplementation((url) => (url.startsWith('/api/sis/quests/')
+      ? Promise.reject({ response: { status: 409, data: { success: false, error: reason } } })
+      : Promise.resolve({ data: { success: true } })))
+    render(<QuestsPanel />)
+    await screen.findByText('Watercolor Basics')
+    rowAction(0, 'Delete')
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith(reason))
   })
 })

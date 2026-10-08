@@ -57,6 +57,22 @@ export const useDuplicateLibraryQuest = (orgId) => {
   })
 }
 
+/**
+ * Delete one of the school's own quests (ticket a10c42f7, Molly, iCreate,
+ * 2026-10-08: "Can't delete quests"). The server refuses a quest a student
+ * has started, and says how many have, so the caller shows its message.
+ */
+export const useDeleteLibraryQuest = (orgId) => {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ questId }) => {
+      const res = await api.delete(withOrg(`/api/sis/quests/${questId}`, orgId))
+      return res.data
+    },
+    onSuccess: () => invalidateLibrary(queryClient, orgId),
+  })
+}
+
 export const useAddQuestToCurriculum = (orgId) => {
   const queryClient = useQueryClient()
   return useMutation({

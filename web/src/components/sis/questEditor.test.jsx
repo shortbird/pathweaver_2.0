@@ -64,7 +64,8 @@ const open = async (props = {}) => {
   await screen.findByRole('dialog')
   return { onClose, onDone }
 }
-// Pillar, Required, due date and credit sit behind each task's More options,
+// Pillar, due date and credit sit behind each task's More options (Required
+// is beside XP since 88b58c3e),
 // and the finish line and class extras behind theirs (MICROSCHOOL_FIRST_PLAN part 4).
 const openMore = async (which) => (await screen.findAllByRole('button', { name: which }))
   .forEach((b) => fireEvent.click(b))
@@ -75,9 +76,9 @@ const saveAndGetTasks = async (name = 'Save') => {
 }
 
 describe('the task list, saved whole and by id', () => {
-  it('changes Required on an existing task without replacing it (ea9756e3)', async () => {
+  it('changes Required on an existing task without replacing it (ea9756e3, 88b58c3e)', async () => {
     await open()
-    await openMore(/^More options for task/)
+    // No More options click: Required is in view (88b58c3e).
     const boxes = await screen.findAllByRole('checkbox', { name: 'Required' })
     expect(boxes[0]).toBeChecked()
     fireEvent.click(boxes[0])

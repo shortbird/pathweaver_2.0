@@ -6,7 +6,7 @@
  */
 
 import { api } from '@/src/services/api';
-import { uploadViaSignedUrl } from '@/src/services/signedUpload';
+import { FINALIZE_TIMEOUT_MS, uploadViaSignedUrl } from '@/src/services/signedUpload';
 
 jest.mock('@/src/services/api', () => ({
   api: { post: jest.fn() },
@@ -107,6 +107,15 @@ describe('uploadViaSignedUrl (mobile)', () => {
 
     expect(result.url).toContain('supabase.invalid');
     expect(onProgress).toHaveBeenCalled();
+
+    // Tickets 61a2f727 / 79be84d9: finalize does server work on the file and
+    // outran the 15 s default, so it gets its own longer timeout. Init keeps
+    // the default.
+    const finalizeCall = apiPost.mock.calls.find((c) => (c[0] as string).endsWith('/upload-finalize'));
+    expect(finalizeCall?.[2]).toEqual({ timeout: FINALIZE_TIMEOUT_MS });
+    expect(FINALIZE_TIMEOUT_MS).toBe(60000);
+    const initCall = apiPost.mock.calls.find((c) => (c[0] as string).endsWith('/upload-init'));
+    expect(initCall?.[2]).toBeUndefined();
 
     const initBody = apiPost.mock.calls.find((c) => (c[0] as string).endsWith('/upload-init'))?.[1];
     expect(initBody).toMatchObject({

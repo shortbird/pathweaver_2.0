@@ -5,8 +5,9 @@ import { BookOpenIcon, EllipsisVerticalIcon, PlusIcon } from '@heroicons/react/2
 import { useSisOrg } from '../useSisOrg'
 import {
   useSisQuestLibrary, useAddQuestToCurriculum, useAssignQuestToClass,
-  useGiveQuestToStudents, useDuplicateLibraryQuest, useQuestHolders,
+  useGiveQuestToStudents, useDuplicateLibraryQuest, useDeleteLibraryQuest, useQuestHolders,
 } from '../../../hooks/api/useSisQuestLibrary'
+import { useConfirm } from '../../../contexts/ConfirmContext'
 import { useRefreshAfterQuestEdit } from '../../../hooks/api/useQuestEditor'
 import { useSisRoster } from '../../../hooks/api/useSisRoster'
 import QuestResourcesPanel from '../../../components/sis/QuestResourcesPanel'
@@ -353,7 +354,7 @@ export const sortQuests = (rows, sort) => {
   })
 }
 
-function QuestTable({ rows, sort, onSort, onAssign, onAttach, onEdit, onDuplicate, duplicatingId }) {
+function QuestTable({ rows, sort, onSort, onAssign, onAttach, onEdit, onDuplicate, duplicatingId, onDelete, deletingId }) {
   // Which row's actions menu is open. One kebab per row instead of four links:
   // the links wrapped into a ragged block on every row and read as clutter
   // (owner, 2026-09-22).
@@ -433,7 +434,7 @@ function QuestTable({ rows, sort, onSort, onAssign, onAttach, onEdit, onDuplicat
                       <button type="button" onClick={() => setMenuFor(menuFor === q.id ? null : q.id)}
                         aria-haspopup="menu" aria-expanded={menuFor === q.id}
                         aria-label={`Actions for ${q.title}`}
-                        disabled={duplicatingId === q.id}
+                        disabled={duplicatingId === q.id || deletingId === q.id}
                         className="p-1.5 rounded-md text-neutral-500 hover:bg-neutral-100 hover:text-neutral-800 disabled:opacity-50">
                         <EllipsisVerticalIcon className="w-5 h-5" />
                       </button>
@@ -444,6 +445,9 @@ function QuestTable({ rows, sort, onSort, onAssign, onAttach, onEdit, onDuplicat
                       { label: 'Attachments', onClick: () => onAttach(q.id) },
                       { label: duplicatingId === q.id ? 'Copying…' : 'Duplicate',
                         onClick: () => onDuplicate(q.id), disabled: duplicatingId === q.id },
+                      // Molly, iCreate, 2026-10-08 (a10c42f7): "Can't delete
+                      // quests." The server refuses one a student started.
+                      { label: 'Delete', danger: true, onClick: () => onDelete(q) },
                     ]} />
                 </div>
               </td>
@@ -491,6 +495,29 @@ export default function QuestsPanel() {
       setDuplicatingId(null)
     }
   }
+  const confirm = useConfirm()
+  const [deletingId, setDeletingId] = useState(null)
+  const remove = useDeleteLibraryQuest(orgId)
+  const onDelete = async (quest) => {
+    const inUse = (quest.curricula?.length || 0) + (quest.classes?.length || 0)
+    if (!(await confirm({
+      title: `Delete "${quest.title}"?`,
+      body: inUse
+        ? 'It comes off every curriculum and class it is on, with its tasks and attachments. This cannot be undone.'
+        : 'Its tasks and attachments go with it. This cannot be undone.',
+      confirmLabel: 'Delete quest',
+      cancelLabel: 'Keep it',
+    }))) return
+    setDeletingId(quest.id)
+    try {
+      await remove.mutateAsync({ questId: quest.id })
+      toast.success(`Deleted “${quest.title}”`)
+    } catch (e) {
+      toast.error(e?.response?.data?.error || 'Could not delete that quest')
+    } finally {
+      setDeletingId(null)
+    }
+  }
   const [adding, setAdding] = useState(false)
   // A draft being resumed: {id, context, target_id}.
   const [resuming, setResuming] = useState(null)
@@ -533,7 +560,7 @@ export default function QuestsPanel() {
         for next term, or assign it straight to a class. Edit changes anything about it: its
         picture, tasks, files and links, and the XP to finish.
         Duplicate copies the whole thing, which is how you change one without changing it for
-        everyone already on it.
+        everyone already on it. Delete removes a quest no student has started yet.
       </p>
 
       <div className="flex flex-wrap items-center gap-3 mb-4">
@@ -601,7 +628,8 @@ export default function QuestsPanel() {
                 </h2>
               )}
               <QuestTable rows={sectionRows} sort={sort} onSort={toggleSort} onAssign={setAssigning} onAttach={setAttaching}
-                onEdit={setEditing} onDuplicate={onDuplicate} duplicatingId={duplicatingId} />
+                onEdit={setEditing} onDuplicate={onDuplicate} duplicatingId={duplicatingId}
+                onDelete={onDelete} deletingId={deletingId} />
             </section>
           ))}
         </div>

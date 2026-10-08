@@ -74,15 +74,19 @@ const openEditor = async (props = {}, org = undefined) => {
 }
 
 describe('per task: essentials in view, the rest behind More options', () => {
-  it('shows title, instructions, XP and the links panel; hides pillar, Required and credit', async () => {
+  it('shows title, instructions, XP, Required and the links panel; hides pillar and credit', async () => {
     form([{ ...blankTask(), id: 'task-1', title: 'Sketch' }], { questId: 'quest-1' })
     expect(screen.getByDisplayValue('Sketch')).toBeInTheDocument()
     expect(screen.getByLabelText('Task 1 instructions')).toBeInTheDocument()
     expect(screen.getByLabelText('Task 1 XP')).toBeInTheDocument()
     expect(await screen.findByText(TASK_LINKS_LABEL)).toBeInTheDocument()
 
+    // Ticket 88b58c3e (iCreate, 2026-10-08): "I can't mark tasks as required
+    // in the quests." Behind More options she could not find it, so it is an
+    // essential now, in view with the toggle closed.
+    expect(screen.getByRole('checkbox', { name: 'Required' })).toBeChecked()
+
     expect(screen.queryByLabelText('Task 1 pillar')).toBeNull()
-    expect(screen.queryByRole('checkbox', { name: 'Required' })).toBeNull()
     expect(screen.queryByText('Counts toward credit')).toBeNull()
   })
 
@@ -98,7 +102,7 @@ describe('per task: essentials in view, the rest behind More options', () => {
     const panel = document.getElementById(toggle.getAttribute('aria-controls'))
     expect(panel).not.toBeNull()
     expect(within(panel).getByLabelText('Task 1 pillar')).toBeInTheDocument()
-    expect(within(panel).getByRole('checkbox', { name: 'Required' })).toBeChecked()
+    expect(within(panel).queryByRole('checkbox', { name: 'Required' })).toBeNull()
     expect(within(panel).getByText('Counts toward credit')).toBeInTheDocument()
 
     fireEvent.click(toggle)
@@ -123,7 +127,8 @@ describe('per task: essentials in view, the rest behind More options', () => {
     const toggle = screen.getByRole('button', { name: 'More options for task 1' })
     expect(toggle).toHaveAttribute('aria-expanded', 'false')
     const line = screen.getByTestId('more-options-summary')
-    expect(line).toHaveTextContent('Optional')
+    // Required is in view beside XP, so the closed line does not repeat it.
+    expect(line).not.toHaveTextContent('Optional')
     expect(line).toHaveTextContent(`Due ${shortDate(due)}`)
     expect(line).toHaveTextContent('Counts toward Science')
     expect(line).toHaveTextContent('STEM')
@@ -133,8 +138,7 @@ describe('per task: essentials in view, the rest behind More options', () => {
     const t = { ...blankTask(), title: 'Orientation' }
     expect(taskOptionsSummary(t, { showSubjects: false })).not.toMatch(/Counts toward/)
     expect(taskOptionsSummary(t, { showSubjects: true })).toMatch(/Counts toward/)
-    expect(taskOptionsSummary({ ...t, is_required: false })).toMatch(/Optional/)
-    expect(taskOptionsSummary(t)).not.toMatch(/Optional/)
+    expect(taskOptionsSummary({ ...t, is_required: false })).not.toMatch(/Optional/)
   })
 })
 
