@@ -528,6 +528,12 @@ describe('schoolTabsFor (the hub\'s tabs, 2026-09-18)', () => {
     expect(keys(org(), { board: false, documents: true })).toEqual(['feed', 'todo', 'schedule', 'documents']);
   });
 
+  it('the calendar follows its own module as well (SIS_SIMPLIFICATION rule 2)', () => {
+    expect(keys(org({ modules: ['community', 'tasks'] }))).not.toContain('calendar');
+    expect(keys(org({ modules: ['community', 'tasks'] }))).toContain('carpool');
+    expect(keys(org({ modules: ['community', 'calendar'] }))).toContain('calendar');
+  });
+
   it('feed is always first', () => {
     expect(keys(org({ is_guardian: false }), { board: false, documents: false })).toEqual(['feed']);
   });

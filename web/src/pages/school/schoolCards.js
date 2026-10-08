@@ -61,10 +61,13 @@ const SCHOOL_LIFE_CARDS = [
     optIn: true,
   },
   // Everyone's card, not guardian-only: students see the board too (it may
-  // explain their own ride) — the backend keeps posting adults-only.
+  // explain their own ride) — the backend keeps posting adults-only. The board
+  // is the community feed (/api/sis/community/feed, gated on `community`), so
+  // the card follows that module: without it the page could only fail
+  // (docs/sis/SIS_SIMPLIFICATION.md, rule 2, 2026-10-08).
   {
     name: 'Carpool', path: '/carpool', Icon: TruckIcon,
-    description: 'Offer or find rides with other families.',
+    description: 'Offer or find rides with other families.', module: 'community',
   },
 ]
 
@@ -162,8 +165,8 @@ export function cardGroupsFor(org, { viewerRole } = {}) {
   })
   // Blocks P3: the server names which family-surface modules this school runs
   // (school_context orgs[].modules); a card whose module is off disappears, and
-  // a group left with no cards goes with it. An older payload without the list,
-  // or a card the registry has no key for (Carpool), keeps showing.
+  // a group left with no cards goes with it. An older payload without the list
+  // keeps every card that is not opt-in.
   if (!Array.isArray(org.modules)) {
     return groups
       .map((g) => ({ ...g, cards: g.cards.filter((c) => !c.optIn) }))

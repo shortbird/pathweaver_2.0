@@ -266,18 +266,32 @@ Each phase is one sitting and ends with a localhost check by Tanner.
    pins and the staff library follow resources on every dashboard; All class
    chats follows classes.
 
-### Still to inventory (rule 2)
+### Inventory sweep (2026-10-08, after the release)
 
-- The Settings "School" card (SisOrgSettings): MICROSCHOOL_FIRST_PLAN part 2
-  gated its fields, but read it again with Apogee's module set.
-- The family side (learning app) school page and cards: checked only for the
-  new Points and Weekly Goals cards.
-- Mobile: no SIS console, but its school screens read the same modules.
-- Copy that names iCreate's process on pages a microschool can open: search
-  "CLP", "registering", "family meeting", "tuition", "UFA".
+Done:
+- Settings "School" card: its rows already followed classes, billing and
+  community; the "Public bounties" row now follows bounties too.
+- Family side (web): every school card names its module. Carpool had none and
+  is the community board (/api/sis/community/feed, gated on community), so it
+  failed at a school without community; it follows community now. Only
+  iCreate has ever posted a carpool.
+- Mobile school hub: Calendar follows the calendar module (it showed whenever
+  the school had a board). Carpool rides on the board, which is community.
+- Copy: "Welcome to iCreate" (quest editor placeholder) and "(iCreate style)"
+  (registration setup) are generic.
+
+Left on purpose:
+- UFA (Utah Fits All) wording on billing screens: a state funding program, not
+  iCreate's process, and shown only where billing is on.
+- CLP wording on billing screens: already behind isClpEnabled.
+
+Gaps that are features, not traces (not rule 2): mobile has no Weekly Goals
+or Points screens for families; they reach both on the web school page.
 
 ## Log
 
+- 2026-10-08: inventory sweep done (see above); uncommitted until Tanner's
+  localhost check.
 - 2026-10-08: **phases 2-8 built** (uncommitted until Tanner's localhost
   check), Apogee's modules turned off in production. See "What was built".
 - 2026-10-08: **phase 1 built** (uncommitted until Tanner's localhost check).

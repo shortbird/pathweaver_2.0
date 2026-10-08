@@ -70,6 +70,8 @@ const SisOrgSettings = ({ orgId, orgData, onUpdate, onLogoChange, canEditSlug = 
   // allowance (MICROSCHOOL_FIRST_PLAN part 2).
   const showBilling = moduleEnabled(org, 'billing')
   const showDirectoryRow = moduleEnabled(org, 'community')
+  // The public board row is the bounty board's (SIS_SIMPLIFICATION rule 2).
+  const showBountyRow = moduleEnabled(org, 'bounties')
   // At-home learning: whether Optio platform courses appear in the family Schedule Builder.
   const [optioCourses, setOptioCourses] = useState(org.feature_flags?.sis_settings?.optio_courses_enabled ?? true)
   const [savingToggle, setSavingToggle] = useState(false)
@@ -364,6 +366,7 @@ const SisOrgSettings = ({ orgId, orgData, onUpdate, onLogoChange, canEditSlug = 
             )}
           />
           )}
+          {showBountyRow && (
           <ToggleRow
             label="Public bounties"
             description="Students also see the platform-wide public bounty board. Bounties your organization posts always show."
@@ -373,6 +376,7 @@ const SisOrgSettings = ({ orgId, orgData, onUpdate, onLogoChange, canEditSlug = 
               () => setShowPublicJobs(!showPublicJobs),
             )}
           />
+          )}
           <ToggleRow
             label="Only teachers can set task XP"
             description="Students keep creating and editing their own tasks, but the XP value is set by the platform and can only be changed by teachers and org admins. Leave off to let students size their own work."

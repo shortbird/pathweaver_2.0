@@ -522,7 +522,7 @@ export default function QuestEditor({
             minTaskXp={quest?.min_task_xp}
             titlePlaceholder={context !== 'training' ? 'Quest title (e.g. Watercolor Basics)'
               : audience === 'family' ? 'Quest title (e.g. Back to school night)'
-                : audience === 'student' ? 'Quest title (e.g. Welcome to iCreate)'
+                : audience === 'student' ? 'Quest title (e.g. Welcome to our school)'
                   : 'Quest title (e.g. Classroom management)'}
             descriptionPlaceholder={context !== 'training' ? 'What is this quest about?'
               : audience === 'family' ? 'What are families doing?'

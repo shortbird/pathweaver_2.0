@@ -81,8 +81,11 @@ export function schoolTabsFor(
   }
   // The calendar and the carpool board wait for a board (feed === null means
   // no board for this user); documents wait for the school to have any.
+  // The calendar also follows its own module: a school with the calendar off
+  // has no events to show (docs/sis/SIS_SIMPLIFICATION.md, rule 2). The
+  // carpool board is the community feed itself.
   if (have.board) {
-    tabs.push({ key: 'calendar', label: 'Calendar' });
+    if (on('calendar')) tabs.push({ key: 'calendar', label: 'Calendar' });
     tabs.push({ key: 'carpool', label: 'Carpool' });
   }
   if (have.documents) tabs.push({ key: 'documents', label: 'Documents' });

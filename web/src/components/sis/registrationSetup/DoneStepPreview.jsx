@@ -13,7 +13,7 @@ const doneEditor = (
     <div>
       <label className="block text-xs font-medium text-neutral-500 mb-1">After registration, families are sent to…</label>
       <select className={field} value={flow} onChange={(e) => setFlow(e.target.value)}>
-        <option value="schedule">Schedule Builder + booking an appointment (iCreate style)</option>
+        <option value="schedule">Schedule Builder + booking an appointment</option>
         <option value="goals">The family goals page — set direction and goals together</option>
       </select>
       <p className="text-xs text-neutral-400 mt-1">
