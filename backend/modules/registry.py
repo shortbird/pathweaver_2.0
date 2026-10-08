@@ -197,6 +197,12 @@ def _defs() -> Tuple[ModuleDef, ...]:
         ModuleDef('weekly_goals', 'Weekly Goals', 'people', (),
                   default='off', parent='sis',
                   surfaces=('console', 'family')),
+        # School points: staff give them for jobs and take them for perks,
+        # and each student carries a balance (Apogee Cache Valley's ClassDojo,
+        # 2026-10-08). Apart from XP; opt-in.
+        ModuleDef('points', 'Points', 'people', (),
+                  default='off', parent='sis',
+                  surfaces=('console', 'family')),
         # The school's bounties in the console: every bounty posted to the
         # school and its claims, and any staff member may edit or review them
         # (bounty_service.can_manage). The student board stays 'bounties'.
@@ -300,7 +306,7 @@ STARTER_KEEPS = frozenset({
     'prior_learning',   # on only where the diploma is Optio Academy's anyway
     # off by default already; the baseline has nothing to add
     'course_builder', 'credits', 'transcripts', 'ai', 'sis', 'goals',
-    'weekly_goals', 'bounty_management', 'bloomy', 'community', 'kiosk',
+    'weekly_goals', 'points', 'bounty_management', 'bloomy', 'community', 'kiosk',
 })
 
 STARTER_BASELINE = 'starter'

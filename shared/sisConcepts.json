@@ -1037,6 +1037,38 @@
       "use_instead": "WeeklyGoalService (board, save, history, mine) and freedom_for; the one writer is PUT /api/sis/weekly-goals/students/<student_id>/weeks/<week_start>."
     },
     {
+      "id": "school_points",
+      "means": "A school's own points (Apogee Cache Valley's ClassDojo, 2026-10-08): staff give them for jobs and take them for perks, and a bounty may give them beside its XP (reward type 'points'). sis_point_entries is a signed ledger and a balance is its sum (the sis_point_balances view), never stored. Not XP and not the spendable-XP wallet (student_wallets), which every XP award credits.",
+      "owner": {
+        "backend": [
+          "repositories/sis_points_repository.py",
+          "services/sis_points_service.py",
+          "routes/sis/points.py"
+        ],
+        "web": [
+          "pages/sis/PointsPage.jsx",
+          "pages/FamilyPointsPage.jsx"
+        ]
+      },
+      "forbid": {
+        "backend": {
+          "pattern": "sis_point_(entries|balances|buttons)['\"]",
+          "dirs": [
+            "routes",
+            "services",
+            "utils",
+            "jobs"
+          ]
+        }
+      },
+      "baseline": {
+        "backend": 0
+      },
+      "measured": "2026-10-08",
+      "lowered_by": "new concept (Apogee Cache Valley, 2026-10-08)",
+      "use_instead": "PointsService (board, add, undo, save_buttons, history, mine, award_bounty); the one writer of entries is POST /api/sis/points/entries, and a bounty's points arrive through BountyService._award_bounty_rewards."
+    },
+    {
       "id": "external_learning_sync",
       "means": "Work a student did on an outside learning platform coming into Optio as quest tasks (Bloomy for Apogee Cache Valley, 2026-10-05): which platform student is which Optio student (lms_integrations), the days already read (external_learning_days), and the one task per student, subject and day a sync writes. Not the LTI/Canvas grade passback, which sends Optio's grades out.",
       "owner": {

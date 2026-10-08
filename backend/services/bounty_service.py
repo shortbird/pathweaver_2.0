@@ -30,6 +30,7 @@ MAX_XP_REWARD = 200
 # turns "three 200-XP rewards" into a readable 400 instead of a Postgres 500.
 MAX_TOTAL_XP = 500
 MAX_REWARD_ENTRIES = 10
+MAX_POINTS_REWARD = 1000
 MAX_PARTICIPANTS_CAP = 1000
 
 
@@ -139,6 +140,19 @@ class BountyService(BaseService):
                 text = str(r.get('text', '')).strip()
                 if text:
                     rewards.append({'id': str(uuid.uuid4()), 'type': 'custom', 'text': text[:500]})
+            elif r.get('type') == 'points':
+                # School points (sis_points_service), paid on approval at a
+                # school that runs them. `text` is what every reward renderer
+                # already prints for a reward that is not XP, so web and mobile
+                # show "50 points" without knowing the type.
+                try:
+                    pts = int(r.get('value', 0))
+                except (TypeError, ValueError) as _exc:
+                    raise ValidationError("Points reward value must be a number") from _exc
+                if pts < 1 or pts > MAX_POINTS_REWARD:
+                    raise ValidationError(f"Points reward must be between 1 and {MAX_POINTS_REWARD}")
+                rewards.append({'id': str(uuid.uuid4()), 'type': 'points', 'value': pts,
+                                'text': f"{pts} point{'' if pts == 1 else 's'}"})
 
         if total_xp > MAX_TOTAL_XP:
             raise ValidationError(f"Total XP across rewards cannot exceed {MAX_TOTAL_XP}")
@@ -1398,6 +1412,14 @@ class BountyService(BaseService):
             logger.info(f"Awarded {total_xp} XP to student {student_id[:8]} for bounty {bounty['id'][:8]}")
         except Exception as e:
             logger.error(f"Failed to award bounty XP: {e}")
+
+        # School points ride on their own try: a points failure must not undo
+        # or hide the XP above, and an XP failure must not stop the points.
+        try:
+            from services.sis_points_service import PointsService
+            PointsService().award_bounty(student_id, bounty)
+        except Exception as e:
+            logger.error(f"Failed to award bounty points: {e}")
 
     def _create_bounty_learning_event(self, student_id: str, bounty: Dict[str, Any], claim: Dict[str, Any]):
         """Create a learning event from bounty completion, with evidence blocks."""

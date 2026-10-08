@@ -92,6 +92,8 @@ export const NAV_SECTIONS = [
       { name: 'Goals', path: '/goals', goalsMode: true, d: ICONS.doc, keywords: ['direction', 'subject goals'] },
       // Monday goals and the Thursday check-in (Apogee Cache Valley); opt-in.
       { name: 'Weekly Goals', path: '/weekly-goals', d: ICONS.check, keywords: ['planner', 'freedom', 'check-in', 'complaints'] },
+      // Points for school jobs, spent on perks (Apogee Cache Valley's ClassDojo); opt-in.
+      { name: 'Points', path: '/points', d: ICONS.card, keywords: ['dojo', 'classdojo', 'daily job', 'perks', 'rewards', 'balance'] },
       // The school's bounties: chores, jobs and their rewards; opt-in.
       { name: 'Bounties', path: '/bounties', d: ICONS.clipboard, keywords: ['chores', 'school jobs', 'rewards', 'perks', 'points'] },
       // Bloomy Math and Reading coming in as quest tasks; opt-in, needs the school's key.

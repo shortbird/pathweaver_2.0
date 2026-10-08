@@ -2,6 +2,7 @@ import {
   CalendarDaysIcon, BookOpenIcon, UsersIcon, CreditCardIcon,
   DocumentTextIcon, CheckCircleIcon, CalendarIcon,
   TableCellsIcon, AcademicCapIcon, TruckIcon, BuildingLibraryIcon, ClipboardDocumentListIcon,
+  StarIcon,
 } from '@heroicons/react/24/outline'
 import { isFamilyFirstHubOrg } from '../../config/optioAcademy'
 
@@ -50,6 +51,13 @@ const SCHOOL_LIFE_CARDS = [
     description: "This week's goals, what got done, and freedom.", module: 'weekly_goals',
     // Opt-in: shown only when the server lists the module. An older payload
     // without the list keeps its legacy doors, and this was never one of them.
+    optIn: true,
+  },
+  // Everyone's card: a student reads their own points, a guardian each
+  // child's (the backend answers /mine by who is asking). Apogee Cache Valley.
+  {
+    name: 'Points', path: '/points', Icon: StarIcon,
+    description: 'Points from school jobs, and what they were spent on.', module: 'points',
     optIn: true,
   },
   // Everyone's card, not guardian-only: students see the board too (it may
@@ -193,7 +201,7 @@ export function familyNavItemsFor(org, { homepage = false } = {}) {
   const groups = cardGroupsFor(org)
   const family = groups.find((g) => g.id === 'family')?.cards || []
   const calendar = (groups.find((g) => g.id === 'school-life')?.cards || [])
-    .filter((c) => c.path === '/school-calendar' || c.path === '/weekly-goals')
+    .filter((c) => ['/school-calendar', '/weekly-goals', '/points'].includes(c.path))
   const items = []
   // No Feed at a family-first school (2026-09-28): Optio Academy had never
   // posted to it, so the first tab a parent landed on was an empty page.

@@ -212,6 +212,15 @@
     "requires_any": [],
     "starter_off": true
   },
+  "points": {
+    "default": "off",
+    "gate": "flags",
+    "legacy": null,
+    "parent": "sis",
+    "requires": [],
+    "requires_any": [],
+    "starter_off": false
+  },
   "portfolio": {
     "default": "core",
     "gate": "flags",

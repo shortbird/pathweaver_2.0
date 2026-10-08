@@ -24,7 +24,7 @@ const fullOrg = {
   feature_flags: {
     sis_enabled: true,
     sis_settings: { community_enabled: true, prior_learning_enabled: true, clp_enabled: true, post_registration_flow: 'goals' },
-    modules: { weekly_goals: true, bounty_management: true, bloomy: true },
+    modules: { weekly_goals: true, points: true, bounty_management: true, bloomy: true },
   },
 }
 

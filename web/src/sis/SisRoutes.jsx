@@ -177,6 +177,7 @@ const CommunityPage = lazy(() => import('../pages/sis/CommunityPage'))
 const SettingsPage = lazy(() => import('../pages/sis/SettingsPage'))
 const GoalsReviewPage = lazy(() => import('../pages/sis/GoalsReviewPage'))
 const WeeklyGoalsPage = lazy(() => import('../pages/sis/WeeklyGoalsPage'))
+const PointsPage = lazy(() => import('../pages/sis/PointsPage'))
 const SisBountiesPage = lazy(() => import('../pages/sis/SisBountiesPage'))
 const BloomyPage = lazy(() => import('../pages/sis/BloomyPage'))
 const BountyCreatePage = lazy(() => import('../pages/BountyCreatePage'))
@@ -236,6 +237,7 @@ const SisRoutes = () => (
       <Route path="attendance" element={<ClassesRedirect tab="attendance" />} />
       <Route path="goals" element={<ModuleGate path="/goals"><GoalsReviewPage /></ModuleGate>} />
       <Route path="weekly-goals" element={<ModuleGate path="/weekly-goals"><WeeklyGoalsPage /></ModuleGate>} />
+      <Route path="points" element={<ModuleGate path="/points"><PointsPage /></ModuleGate>} />
       <Route path="bloomy" element={<AdminRoute><ModuleGate path="/bloomy"><BloomyPage /></ModuleGate></AdminRoute>} />
       <Route path="bounties" element={<BountiesGate><SisBountiesPage /></BountiesGate>} />
       <Route path="bounties/create" element={<BountiesGate><BountyCreatePage /></BountiesGate>} />

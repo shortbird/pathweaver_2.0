@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useContext } from 'react'
 import { useNavigate, useParams, useLocation } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { useCreateBounty, useBountyDetail } from '../hooks/api/useBounties'
@@ -12,6 +12,8 @@ import { PageLoader } from '../components/ui/Spinner'
 import BountyAiDraftPanel from '../components/bounty/BountyAiDraftPanel'
 import useHidePillars from '../hooks/useHidePillars'
 import { getAppSurface } from '../utils/appSurface'
+import { OrganizationContext } from '../contexts/OrganizationContext'
+import { moduleEnabled } from '../modules/moduleEnabled'
 
 const PILLARS = [
   { key: 'stem', label: 'STEM' },
@@ -93,6 +95,10 @@ const OPTIO_USERS = ['tanner bowman']
 
 const BountyCreatePage = () => {
   const hidePillars = useHidePillars()
+  // School points (sis_points_service) are a reward only at a school that
+  // runs them. Read the context directly: the platform side has no provider.
+  const { organization } = useContext(OrganizationContext) || {}
+  const offerPoints = Boolean(organization) && moduleEnabled(organization, 'points')
   const navigate = useNavigate()
   const location = useLocation()
   // The bounty board passes its own URL as state.from -- it may be embedded in
@@ -289,6 +295,8 @@ const BountyCreatePage = () => {
   const addReward = (type) => {
     if (type === 'xp') {
       setRewards(prev => [...prev, { type: 'xp', value: 50, pillar: 'stem', text: '' }])
+    } else if (type === 'points') {
+      setRewards(prev => [...prev, { type: 'points', value: 10, pillar: '', text: '' }])
     } else {
       setRewards(prev => [...prev, { type: 'custom', value: 0, pillar: '', text: '' }])
     }
@@ -317,6 +325,8 @@ const BountyCreatePage = () => {
       newErrors.rewards = 'Each XP reward needs a pillar and a value between 25 and 200'
     } else if (rewards.some(r => r.type === 'custom' && !r.text.trim())) {
       newErrors.rewards = 'Describe the prize, or remove the empty one'
+    } else if (rewards.some(r => r.type === 'points' && (r.value < 1 || r.value > 1000))) {
+      newErrors.rewards = 'Points must be between 1 and 1000'
     }
 
     if (limitClaims && formData.max_participants < 1) {
@@ -341,7 +351,11 @@ const BountyCreatePage = () => {
     }
 
     const validRewards = rewards
-      .map(r => r.type === 'xp' ? { type: 'xp', value: r.value, pillar: r.pillar } : { type: 'custom', text: r.text.trim() })
+      .map(r => {
+        if (r.type === 'xp') return { type: 'xp', value: r.value, pillar: r.pillar }
+        if (r.type === 'points') return { type: 'points', value: r.value }
+        return { type: 'custom', text: r.text.trim() }
+      })
 
     const payload = {
       title: formData.title,
@@ -583,6 +597,20 @@ const BountyCreatePage = () => {
                     </div>
                   )}
                 </div>
+              ) : r.type === 'points' ? (
+                <div className="flex-1 flex flex-wrap items-center gap-2">
+                  <span className="text-xs font-semibold text-green-700 bg-green-50 px-2 py-0.5 rounded">Points</span>
+                  <input
+                    type="number"
+                    value={r.value}
+                    onChange={(e) => updateReward(i, 'value', parseInt(e.target.value) || 0)}
+                    min={1}
+                    max={1000}
+                    aria-label="Points amount"
+                    className="w-24 rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-optio-purple/20"
+                  />
+                  <span className="text-sm text-gray-500">school points, added when you approve it</span>
+                </div>
               ) : (
                 <div className="flex-1 flex items-center gap-2">
                   <span className="text-xs font-semibold text-amber-700 bg-amber-50 px-2 py-0.5 rounded">Prize</span>
@@ -596,7 +624,7 @@ const BountyCreatePage = () => {
                   />
                 </div>
               )}
-              <RemoveButton onClick={() => removeReward(i)} label={r.type === 'xp' ? 'Remove XP reward' : 'Remove prize'} />
+              <RemoveButton onClick={() => removeReward(i)} label={r.type === 'xp' ? 'Remove XP reward' : r.type === 'points' ? 'Remove points' : 'Remove prize'} />
             </div>
           ))}
           <div className="flex flex-wrap gap-2">
@@ -606,6 +634,11 @@ const BountyCreatePage = () => {
             <button type="button" onClick={() => addReward('custom')} className="btn-quiet">
               <PlusIcon /> Add a prize
             </button>
+            {offerPoints && (
+              <button type="button" onClick={() => addReward('points')} className="btn-quiet">
+                <PlusIcon /> Add points
+              </button>
+            )}
           </div>
           {errors.rewards && <p role="alert" className="text-sm text-red-600">{errors.rewards}</p>}
         </Section>

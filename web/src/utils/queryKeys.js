@@ -94,6 +94,11 @@ export const queryKeys = {
   sis: {
     all: ['sis'],
     roster: (orgId) => [...queryKeys.sis.all, 'roster', orgId],
+    // School points (Apogee Cache Valley, 2026-10-08): the board, one
+    // student's history, and a family's own.
+    points: (orgId) => [...queryKeys.sis.all, 'points', orgId],
+    pointsStudent: (orgId, studentId) => [...queryKeys.sis.all, 'points', orgId, 'student', studentId],
+    pointsMine: ['sis', 'points', 'mine'],
     staff: (orgId) => [...queryKeys.sis.all, 'staff', orgId],
     households: (orgId) => [...queryKeys.sis.all, 'households', orgId],
     teacherClassRoster: (orgId, classId) => [...queryKeys.sis.all, 'teacherClassRoster', orgId, classId],

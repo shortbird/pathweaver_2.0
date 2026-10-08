@@ -3,6 +3,7 @@ import { render as rtlRender, screen, fireEvent } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import BountyCreatePage from './BountyCreatePage'
+import { OrganizationContext } from '../contexts/OrganizationContext'
 
 const render = (ui) => {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
@@ -79,6 +80,24 @@ describe('BountyCreatePage', () => {
       rewards: [{ type: 'custom', text: 'Rent one library book' }],
       deliverables: [{ text: 'Photo of the clean shelf' }],
     })
+  })
+
+  it('offers no points at a school that does not run them', () => {
+    render(<BountyCreatePage />)
+    expect(screen.queryByText('Add points')).not.toBeInTheDocument()
+  })
+
+  it('posts a book report with XP and school points', () => {
+    const org = { id: 'org-1', effective_modules: ['points'] }
+    render(<OrganizationContext.Provider value={{ organization: org }}><BountyCreatePage /></OrganizationContext.Provider>)
+    fill('Name', 'Book report')
+    fill('Instructions', 'Read a session book and present it')
+    fill('Step 1', 'Present to the class')
+    fireEvent.click(screen.getByText('Add points'))
+    fill('Points amount', '50')
+    fireEvent.click(screen.getByText('Post bounty'))
+    expect(state.createMutate).toHaveBeenCalledTimes(1)
+    expect(state.createMutate.mock.calls[0][0].rewards).toEqual([{ type: 'points', value: 50 }])
   })
 
   it('a limit switched off sends no limit, whatever number was typed', () => {

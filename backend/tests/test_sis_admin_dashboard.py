@@ -301,7 +301,7 @@ class TestTheRestOfThePayload:
         # does not issue Optio Academy diplomas (2026-10-07).
         assert data['settings'] == {
             'hidden_modules': ['billing', 'bloomy', 'bounty_management', 'clp', 'community',
-                               'prior_learning', 'weekly_goals'],
+                               'points', 'prior_learning', 'weekly_goals'],
             'prior_learning_enabled': True,
             'post_registration_flow': 'goals',
         }

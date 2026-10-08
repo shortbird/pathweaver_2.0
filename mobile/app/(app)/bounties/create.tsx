@@ -75,6 +75,10 @@ export default function CreateBountyPage() {
   const [formError, setFormError] = useState<string | null>(null);
   const [loadingEdit, setLoadingEdit] = useState(isEditMode);
   const [aiModalOpen, setAiModalOpen] = useState(false);
+  // School points rewards (set on the web bounty form). This form has no
+  // control for them, so an edit carries them through unchanged instead of
+  // dropping them.
+  const [pointsRewards, setPointsRewards] = useState<{ type: 'points'; value: number }[]>([]);
   const aiAllowed = useAiBountyAccess();
 
   const user = useAuthStore((s) => s.user);
@@ -103,6 +107,9 @@ export default function CreateBountyPage() {
         setXpValue(xpReward?.value || 0);
         setPillar(bounty.pillar || xpReward?.pillar || 'stem');
         setCustomRewards(rewards.filter((r: any) => r.type === 'custom').map((r: any) => r.text).filter(Boolean));
+        setPointsRewards(rewards
+          .filter((r: { type?: string }) => r.type === 'points')
+          .map((r: { value?: number }) => ({ type: 'points' as const, value: Number(r.value) || 0 })));
         setVisibility(['family', 'organization'].includes(bounty.visibility) ? bounty.visibility : 'public');
         if (bounty.max_participants && bounty.max_participants > 0) {
           setLimitClaims(true);
@@ -223,6 +230,7 @@ export default function CreateBountyPage() {
       for (const t of customRewards) {
         if (t.trim()) rewards.push({ type: 'custom', value: 0, pillar: '', text: t.trim() });
       }
+      rewards.push(...pointsRewards);
       const payload = {
         title: title.trim(),
         description: description.trim(),

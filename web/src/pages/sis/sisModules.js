@@ -54,6 +54,7 @@ export const SIS_MODULE_BY_PATH = {
   '/prior-learning': 'prior_learning',
   '/goals': 'goals',
   '/weekly-goals': 'weekly_goals',
+  '/points': 'points',
   '/bounties': 'bounty_management',
   '/bloomy': 'bloomy',
 }
