@@ -63,6 +63,7 @@ GROUPS: Tuple[Tuple[str, str], ...] = (
 FEATURES: Dict[str, Tuple[str, str, str]] = {
     'classes': ('teaching', 'Classes', 'Build classes with times, rooms and rosters.'),
     'attendance': ('teaching', 'Attendance', 'Take roll each day and let families report absences.'),
+    'individual_work': ('teaching', 'Individual students', 'Teachers give quests to one student at a time, set due dates and add tasks just for them.'),
     'submissions': ('teaching', 'Work to review', 'One list of student work waiting for a teacher to review it.'),
     'curriculum': ('teaching', 'Curriculum library', "Keep your school's projects and lessons in one place to reuse in classes."),
     'courses': ('teaching', 'Courses', 'Students work through courses made of projects and lessons.'),

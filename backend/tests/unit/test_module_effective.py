@@ -25,6 +25,8 @@ SIS_DEFAULT_ON = {
     'onboarding', 'reports', 'resources', 'secure_documents',
     'tasks', 'training',
     'catalog', 'registration', 'submissions',
+    # A teacher working with one student outside any class (2026-10-07).
+    'individual_work',
 }
 
 
@@ -59,7 +61,7 @@ def test_optio_academy_shape_twelve_hidden_plus_optins():
               accreditation='optio')
     got = effective_modules_for_row(row)
     sis_part = {'sis', 'billing', 'tasks', 'goals', 'prior_learning',
-                'registration', 'submissions', 'catalog'}
+                'registration', 'submissions', 'catalog', 'individual_work'}
     assert got == CORE | LMS_ON | {'ai'} | sis_part
     # catalog stays on at read time even though classes is hidden: `requires`
     # is toggle-time validation only, by design (ARCHITECTURE_BLOCKS 4.3).

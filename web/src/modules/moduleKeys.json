@@ -158,6 +158,15 @@
     "requires_any": [],
     "starter_off": false
   },
+  "individual_work": {
+    "default": "on",
+    "gate": "flags",
+    "legacy": null,
+    "parent": "sis",
+    "requires": [],
+    "requires_any": [],
+    "starter_off": false
+  },
   "journal": {
     "default": "on",
     "gate": "flags",

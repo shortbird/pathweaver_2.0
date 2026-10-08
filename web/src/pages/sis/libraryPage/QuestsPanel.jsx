@@ -569,6 +569,7 @@ export default function QuestsPanel() {
           context={resuming.context || 'library'}
           classId={resuming.context === 'class' ? resuming.target_id : null}
           curriculumId={resuming.context === 'curriculum' ? resuming.target_id : null}
+          studentId={resuming.context === 'student' ? resuming.target_id : null}
           curricula={curricula}
           onDone={refresh} onClose={() => setResuming(null)} />
       )}

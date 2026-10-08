@@ -287,6 +287,45 @@ def _assign_one_quest(admin, quest_id, user_ids):
     return quest_title, counts['enrolled'], counts['already']
 
 
+# Enough for a whole caseload in one request; a runaway client cannot enroll
+# everyone in everything.
+MAX_INVITE_USERS = 200
+
+
+def _invite_refusal(admin, caller_id, quest_ids, user_ids):
+    """Why this caller may not put these students on these quests, or None.
+
+    Until 2026-10-07 the route checked only the caller's role, so any advisor
+    could enroll any account on the platform in any quest -- another school's
+    students, another school's private quest (utils/quest_assignment says the
+    caller owns this check; this one did not make it). Now every student must
+    be one the caller advises or a student of the caller's own school, and
+    every quest must be live and the caller's own, their school's, or the
+    public Optio library. Platform superadmins are not limited.
+    """
+    from utils.auth.org_scope import caller_roles_and_org
+    from utils.auth.relationships import RELATIONSHIPS
+
+    roles, org_id, is_super = caller_roles_and_org(admin, caller_id)
+    if is_super:
+        return None
+    for uid in user_ids:
+        if not (RELATIONSHIPS['advisor'](caller_id, uid)
+                or RELATIONSHIPS['org_staff'](caller_id, uid)):
+            return 'One of those students is not one of yours.'
+    rows = (admin.table('quests').select('id, organization_id, is_public, is_active, created_by')
+            .in_('id', quest_ids).execute()).data or []
+    by_id = {q['id']: q for q in rows}
+    for qid in quest_ids:
+        q = by_id.get(qid)
+        if not q or not q.get('is_active') or not (
+                q.get('created_by') == caller_id
+                or (org_id and q.get('organization_id') == org_id)
+                or (q.get('organization_id') is None and q.get('is_public'))):
+            return 'One of those quests is not available to assign.'
+    return None
+
+
 @advisor_bp.route('/invite-to-quest', methods=['POST'])
 @require_role('advisor', 'org_admin', 'superadmin')
 def assign_students_to_quest(user_id):
@@ -309,10 +348,16 @@ def assign_students_to_quest(user_id):
             raise ValidationError("Missing or invalid field: user_ids (must be array)")
         if len(data['user_ids']) == 0:
             raise ValidationError("user_ids array cannot be empty")
+        if len(data['user_ids']) > MAX_INVITE_USERS:
+            raise ValidationError(f"At most {MAX_INVITE_USERS} students at a time")
 
         from database import get_supabase_admin_client
-        # admin client justified: @require_role gate above; advisor writing user_quests rows for OTHER students requires cross-user write
+        # admin client justified: @require_role gate above plus _invite_refusal (each student advised by or at the caller's school, each quest available to it); advisor writing user_quests rows for OTHER students requires cross-user write
         admin = get_supabase_admin_client()
+
+        refusal = _invite_refusal(admin, user_id, quest_ids, data['user_ids'])
+        if refusal:
+            return jsonify({'success': False, 'error': refusal}), 403
 
         total_enrolled, total_skipped, titles = 0, 0, []
         for qid in quest_ids:

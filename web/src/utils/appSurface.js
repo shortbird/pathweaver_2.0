@@ -263,6 +263,8 @@ export const SIS_SURFACE_PATHS = [
   '/roster',
   '/secure-documents',
   '/settings',
+  // One student, from the Students tab on Classes (2026-10-07).
+  '/student-work',
   '/submissions',
   '/tasks',
   '/training',

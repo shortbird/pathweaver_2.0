@@ -210,6 +210,13 @@ def _defs() -> Tuple[ModuleDef, ...]:
         ModuleDef('bloomy', 'Bloomy', 'learning', (),
                   default='off', parent='sis', min_tier='admin',
                   surfaces=('console',)),
+        # A teacher working with one student outside any class: give them a
+        # quest by name, set its due date, write them a task, keep notes
+        # (2026-10-07: "we need a more individual option ... assign quests to
+        # individual students and work with them that way"). On by default:
+        # it is how a microschool teaches.
+        ModuleDef('individual_work', 'Individual Students', 'learning', (),
+                  parent='sis', surfaces=('console',)),
         # New key: /submissions had no module key at all before this registry.
         ModuleDef('submissions', 'Submissions Inbox', 'operations',
                   ('Submissions Inbox',),
@@ -289,6 +296,7 @@ STARTER_KEEPS = frozenset({
     # on by default, and a new school keeps them
     'journal', 'courses', 'bounties', 'observer', 'friends', 'student_chat',
     'classes', 'attendance', 'submissions', 'curriculum', 'calendar', 'reports',
+    'individual_work',
     'prior_learning',   # on only where the diploma is Optio Academy's anyway
     # off by default already; the baseline has nothing to add
     'course_builder', 'credits', 'transcripts', 'ai', 'sis', 'goals',

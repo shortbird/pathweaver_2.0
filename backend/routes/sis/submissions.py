@@ -4,8 +4,12 @@ students in a teacher's classes, with a review-and-advance flow.
 
 A "submission" is a quest_task_completions row whose student is actively
 enrolled in one of the caller's classes AND whose quest is attached to that
-class via class_quests. Review state lives in sis_submission_reviews
-(completion_id UNIQUE); a completion with no row is "new".
+class via class_quests -- or whose (student, quest) is one a teacher gave that
+student by name (student_quest_assignments, 2026-10-07): a teacher sees the
+ones they gave, an org admin every one in the school. Those carry
+class_id None and class_name INDIVIDUAL_LABEL, and ?class_id=individual lists
+only them. Review state lives in sis_submission_reviews (completion_id
+UNIQUE); a completion with no row is "new".
 
 NEW, additive (/api/sis), staff-gated, org-scoped. Advisors are limited to
 their own classes via sis_service.class_scope; org admins see the whole org.
@@ -82,6 +86,30 @@ def _class_maps(class_ids):
     return enrolled, attached
 
 
+# The class filter's value, and the label an item carries, for work on a quest
+# a teacher gave one student outside any class.
+INDIVIDUAL = 'individual'
+INDIVIDUAL_LABEL = 'Individual'
+
+
+def _individual_pairs(user_id, org_id):
+    """{(student_id, quest_id)} given to students by name that the caller reviews.
+
+    Org admins (class_scope None) see every one in the school; anyone else the
+    ones they gave. Any teacher MAY work with any student, but the inbox is the
+    work they are waiting on, and another teacher's assignment is not that.
+    """
+    from repositories.student_quest_assignment_repository import (
+        StudentQuestAssignmentRepository,
+    )
+    # admin client justified: deny-all student_quest_assignments, read for the
+    # caller's own assignments (or the org's, for an admin) behind STAFF_ROLES
+    admin = get_supabase_admin_client()
+    mine = None if sis_service.class_scope(user_id, org_id) is None else user_id
+    rows = StudentQuestAssignmentRepository(admin).org_pairs(org_id, assigned_by=mine)
+    return {(r['student_id'], r['quest_id']) for r in rows}
+
+
 def _match_class(completion, class_ids, enrolled, attached):
     """First class where the student is enrolled AND the quest is attached."""
     for cid in class_ids:
@@ -95,7 +123,8 @@ def _completion_in_scope(user_id, org_id, completion_id):
     """(completion, error_response). Verifies the completion's student+quest sit
     inside one of the caller's classes; otherwise a scope-safe 404."""
     classes = _scope_classes(user_id, org_id)
-    if not classes:
+    individual = _individual_pairs(user_id, org_id)
+    if not classes and not individual:
         return None, (jsonify({'success': False, 'error': 'Submission not found'}), 404)
     # admin client justified: reads another student's quest_task_completions row, then verifies it sits inside one of the caller's scoped classes (404 otherwise)
     admin = get_supabase_admin_client()
@@ -107,8 +136,10 @@ def _completion_in_scope(user_id, org_id, completion_id):
     if not rows:
         return None, (jsonify({'success': False, 'error': 'Submission not found'}), 404)
     completion = rows[0]
+    if (completion['user_id'], completion.get('quest_id')) in individual:
+        return completion, None
     class_ids = list(classes.keys())
-    enrolled, attached = _class_maps(class_ids)
+    enrolled, attached = _class_maps(class_ids) if class_ids else ({}, {})
     if _match_class(completion, class_ids, enrolled, attached) is None:
         return None, (jsonify({'success': False, 'error': 'Submission not found'}), 404)
     return completion, None
@@ -149,18 +180,24 @@ def list_submissions(user_id):
     search = (request.args.get('q') or '').strip().lower()[:100]
 
     classes = _scope_classes(user_id, org_id)
+    individual = _individual_pairs(user_id, org_id)
     class_filter = request.args.get('class_id')
-    if class_filter:
+    if class_filter == INDIVIDUAL:
+        classes = {}
+    elif class_filter:
         if class_filter not in classes:
             return jsonify({'success': False, 'error': 'Class not found'}), 404
         classes = {class_filter: classes[class_filter]}
-    if not classes:
+        individual = set()
+    if not classes and not individual:
         return empty()
 
     class_ids = list(classes.keys())
-    enrolled, attached = _class_maps(class_ids)
+    enrolled, attached = _class_maps(class_ids) if class_ids else ({}, {})
     all_students = set().union(*enrolled.values()) if enrolled else set()
     all_quests = set().union(*attached.values()) if attached else set()
+    all_students |= {s for s, _ in individual}
+    all_quests |= {q for _, q in individual}
     if not all_students or not all_quests:
         return empty()
 
@@ -186,6 +223,10 @@ def list_submissions(user_id):
         if cid:
             c['class_id'] = cid
             c['class_name'] = classes[cid]
+            matched.append(c)
+        elif (c['user_id'], c.get('quest_id')) in individual:
+            c['class_id'] = None
+            c['class_name'] = INDIVIDUAL_LABEL
             matched.append(c)
     if not matched:
         return empty()

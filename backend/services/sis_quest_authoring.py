@@ -233,7 +233,9 @@ def validate_draft(title, raw_tasks):
 # Where a draft will go when it is published. The editor opens from four
 # places and each one attaches the finished quest to something different
 # (services/sis_quest_editor.py, P6 of the 2026-09-23 plan).
-DRAFT_CONTEXTS = ('library', 'class', 'curriculum', 'training')
+# 'student': a quest a teacher writes for one student, published straight onto
+# them (routes/sis/student_work.py, 2026-10-07).
+DRAFT_CONTEXTS = ('library', 'class', 'curriculum', 'training', 'student')
 
 
 def is_draft(quest):

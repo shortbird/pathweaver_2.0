@@ -129,6 +129,7 @@ const SIS_ONLY_PREFIXES = [
   '/roster',
   '/secure-documents',
   '/sis',
+  '/student-work',
   '/submissions',
   '/tasks',
   '/training',
@@ -389,6 +390,7 @@ function labelForPrefix(prefix: string): string {
     case '/forms': return 'Your tasks';
     case '/goals': return 'Goals review';
     case '/submissions': return 'Submissions';
+    case '/student-work': return "A student's work";
     case '/registration': return 'Registration';
     case '/people': return 'People';
     case '/directory': return 'The staff directory';

@@ -76,6 +76,22 @@ def _teaches(user_id, class_id, org_id):
     return None, _err('Only the class teacher or an administrator can make quests for this class.', 403)
 
 
+def _student_at_school(student_id, org_id):
+    """None when the id is a student of this school; otherwise the error.
+
+    Any staff member may write a quest for any student of their school -- the
+    same reach as the one-student page it is published from
+    (routes/sis/student_work.py).
+    """
+    if _bad_uuid(student_id):
+        return _err('Invalid student id')
+    rows = (_admin().table('users').select('id, organization_id, role, org_role, org_roles')
+            .eq('id', student_id).limit(1).execute()).data or []
+    if not rows or rows[0].get('organization_id') != org_id or not sis_service.is_student(rows[0]):
+        return _err('Student not found', 404)
+    return None
+
+
 def _load(user_id, quest_id):
     """(org_id, quest, err). Any quest the caller's school may read."""
     org_id, err = sis_service.org_or_error(user_id)
@@ -113,8 +129,9 @@ def _run(fn, *args, **kwargs):
 def start_draft(user_id):
     """Start a quest. It exists from this moment, as an inactive draft.
 
-    Body: {context: library|class|curriculum|training, class_id? (class),
-    curriculum_id? (curriculum), audience? (training: staff|family|student)}.
+    Body: {context: library|class|curriculum|training|student, class_id? (class),
+    curriculum_id? (curriculum), audience? (training: staff|family|student),
+    student_id? (student)}.
     """
     org_id, err = sis_service.org_or_error(user_id)
     if err:
@@ -129,6 +146,11 @@ def start_draft(user_id):
     if context == 'class':
         target_id = (data.get('class_id') or '').strip()
         _row, err = _teaches(user_id, target_id, org_id)
+        if err:
+            return err
+    elif context == 'student':
+        target_id = (data.get('student_id') or '').strip()
+        err = _student_at_school(target_id, org_id)
         if err:
             return err
     elif not is_admin:
@@ -158,6 +180,8 @@ def list_drafts(user_id):
     ?context=class&class_id=  a class's drafts: the office sees all of them,
                               a teacher sees their own.
     ?context=curriculum&curriculum_id=  a curriculum's drafts (office).
+    ?context=student&student_id=  drafts written for one student: the office
+                              sees all of them, a teacher their own.
     ?context=library          drafts started in the library (office).
     ?context=all              every draft outside the training catalog
                               (office) -- the library's Drafts view, so a
@@ -175,6 +199,13 @@ def list_drafts(user_id):
     if context == 'class':
         target_id = (request.args.get('class_id') or '').strip()
         _row, err = _teaches(user_id, target_id, org_id)
+        if err:
+            return err
+        if not is_admin:
+            created_by = user_id
+    elif context == 'student':
+        target_id = (request.args.get('student_id') or '').strip()
+        err = _student_at_school(target_id, org_id)
         if err:
             return err
         if not is_admin:

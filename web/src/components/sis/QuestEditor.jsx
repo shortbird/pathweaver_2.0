@@ -59,6 +59,7 @@ const ENDPOINT_WORDS = {
   class: 'Publish to class',
   curriculum: 'Publish to curriculum',
   training: 'Publish',
+  student: 'Publish and assign',
 }
 
 const taskBody = (t) => ({
@@ -75,6 +76,9 @@ const taskBody = (t) => ({
 export default function QuestEditor({
   context, orgId, questId: initialQuestId = null,
   classId = null, curriculumId = null, trainingId: initialTrainingId = null, audience = 'staff',
+  // context 'student': the one student a teacher is writing this quest for
+  // (the one-student page, 2026-10-07). Publish gives it to them.
+  studentId = null,
   classLink = null, students = [], scheduledEnabled = false,
   curricula = [], orgLogo = null,
   // The categories already filed on the training tab, offered as a pick
@@ -169,7 +173,7 @@ export default function QuestEditor({
         let fresh = false
         if (!id) {
           const made = await questEditorApi.start(orgId, {
-            context, classId, curriculumId, audience: context === 'training' ? audience : null,
+            context, classId, curriculumId, studentId, audience: context === 'training' ? audience : null,
           })
           id = made.quest_id
           tid = made.training_id || tid
@@ -342,7 +346,7 @@ export default function QuestEditor({
       }
       if (context === 'training') await saveContextSection()
       const out = await questEditorApi.publish(orgId, questId, context,
-        { classId, curriculumId, trainingId, body })
+        { classId, curriculumId, trainingId, studentId, body })
       toast.success(out?.summary || publishedMessage(context, out, body))
       onDone?.({ published: true })
       onClose?.()
@@ -656,6 +660,7 @@ export function questOptionsSummary({ xpValue, xpLocked, lockOffered, teachersMa
 }
 
 function publishedMessage(context, out, body) {
+  if (context === 'student') return 'Published and assigned'
   if (context === 'class') {
     const n = out?.students_enrolled
     if (body.publish_at) return `Published. Students will see it on ${new Date(body.publish_at).toLocaleDateString()}.`

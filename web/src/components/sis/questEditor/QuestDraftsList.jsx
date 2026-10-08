@@ -16,13 +16,13 @@ import { useDiscardQuestDraft, useQuestDrafts } from '../../../hooks/api/useQues
  * draft was started; Discard deletes it, after asking.
  */
 
-const WHERE = { library: 'Library', class: 'Class', curriculum: 'Curriculum', training: 'Training' }
+const WHERE = { library: 'Library', class: 'Class', curriculum: 'Curriculum', training: 'Training', student: 'Student' }
 
 const when = (iso) => (iso ? new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '')
 
-export default function QuestDraftsList({ orgId, context, classId, curriculumId, showWhere = false, onResume }) {
+export default function QuestDraftsList({ orgId, context, classId, curriculumId, studentId, showWhere = false, onResume }) {
   const confirm = useConfirm()
-  const { data: drafts = [] } = useQuestDrafts(orgId, { context, classId, curriculumId })
+  const { data: drafts = [] } = useQuestDrafts(orgId, { context, classId, curriculumId, studentId })
   const discard = useDiscardQuestDraft(orgId)
 
   if (!drafts.length) return null

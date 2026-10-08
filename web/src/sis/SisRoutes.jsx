@@ -187,6 +187,7 @@ const LibraryPage = lazy(() => import('../pages/sis/LibraryPage'))
 
 // Teacher portal pages (advisors; admins can open them too)
 const TeacherClassPage = lazy(() => import('../pages/sis/TeacherClassPage'))
+const StudentWorkPage = lazy(() => import('../pages/sis/StudentWorkPage'))
 const MyProfilePage = lazy(() => import('../pages/sis/MyProfilePage'))
 const DirectoryPage = lazy(() => import('../pages/sis/DirectoryPage'))
 const TasksPage = lazy(() => import('../pages/sis/TasksPage'))
@@ -270,6 +271,7 @@ const SisRoutes = () => (
       {/* Teacher portal */}
       <Route path="my-classes" element={<ClassesRedirect tab="mine" />} />
       <Route path="my-classes/:classId" element={<ModuleGate path="/my-classes"><TeacherClassPage /></ModuleGate>} />
+      <Route path="student-work/:studentId" element={<ModuleGate path="/student-work"><StudentWorkPage /></ModuleGate>} />
       <Route path="my-schedule" element={<ClassesRedirect tab="schedule" />} />
       <Route path="my-profile" element={<MyProfilePage />} />
       <Route path="directory" element={<DirectoryPage />} />

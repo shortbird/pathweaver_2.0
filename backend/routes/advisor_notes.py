@@ -10,6 +10,7 @@ REPOSITORY MIGRATION: NO MIGRATION NEEDED
 
 from flask import Blueprint, request, jsonify
 from utils.auth.decorators import require_role
+from utils.sis_roles import STAFF_ROLES
 from repositories.advisor_notes_repository import AdvisorNotesRepository
 import logging
 
@@ -18,17 +19,24 @@ logger = logging.getLogger(__name__)
 notes_bp = Blueprint('advisor_notes', __name__)
 
 
-def _is_org_admin_over(supabase, caller_id, subject_id):
-    """Is the caller an org admin of the subject's school? Fails closed."""
-    from utils.auth.org_scope import caller_org_and_role, user_org
-    role, org_id, _is_super = caller_org_and_role(supabase, caller_id)
-    if role != 'org_admin' or not org_id:
+def _is_org_staff_over(supabase, caller_id, subject_id):
+    """Is the caller on staff (STAFF_ROLES) at the subject's school? Fails closed.
+
+    Until 2026-10-07 this was org admins only. At a microschool every teacher
+    works with every child, and the one-student page (routes/sis/student_work)
+    gives teachers private notes on any student of their school -- the same
+    reach as every other route on that page. The note stays the author's
+    alone: reads filter by advisor_id.
+    """
+    from utils.auth.org_scope import caller_roles_and_org, user_org
+    roles, org_id, _is_super = caller_roles_and_org(supabase, caller_id)
+    if not roles & set(STAFF_ROLES) or not org_id:
         return False
     return user_org(supabase, subject_id) == org_id
 
 
 @notes_bp.route('/api/advisor/notes/<subject_id>', methods=['GET', 'OPTIONS'])
-@require_role('advisor', 'org_admin', 'superadmin')
+@require_role(*STAFF_ROLES)
 def get_subject_notes(user_id, subject_id):
     """
     Get all notes for a specific subject (student or parent).
@@ -77,7 +85,7 @@ def get_subject_notes(user_id, subject_id):
 
 
 @notes_bp.route('/api/advisor/notes', methods=['POST', 'OPTIONS'])
-@require_role('advisor', 'org_admin', 'superadmin')
+@require_role(*STAFF_ROLES)
 def create_note(user_id):
     """
     Create a new advisor note.
@@ -113,12 +121,12 @@ def create_note(user_id):
 
         is_admin = user_response.data and user_response.data.get('role') == 'superadmin'
 
-        # If not admin, verify advisor-student relationship. An org admin over
-        # the subject's school counts as a relationship: they hold every
-        # capability a teacher holds and, at a microschool, ARE the teacher
-        # with no assignment rows at all (Horizon, 2026-09-11). The note stays
-        # theirs alone -- reads still filter by advisor_id.
-        if not is_admin and not _is_org_admin_over(supabase, user_id, data['subject_id']):
+        # If not admin, verify advisor-student relationship. Staff of the
+        # subject's school count as a relationship: at a microschool the
+        # teacher has no assignment rows at all (Horizon, 2026-09-11; widened
+        # from org admins to all staff 2026-10-07). The note stays theirs
+        # alone -- reads still filter by advisor_id.
+        if not is_admin and not _is_org_staff_over(supabase, user_id, data['subject_id']):
             # Check if subject is a student assigned to this advisor
             assignment_response = supabase.table('advisor_student_assignments')\
                 .select('id')\
@@ -172,7 +180,7 @@ def create_note(user_id):
 
 
 @notes_bp.route('/api/advisor/notes/<note_id>', methods=['PUT', 'OPTIONS'])
-@require_role('advisor', 'org_admin', 'superadmin')
+@require_role(*STAFF_ROLES)
 def update_note(user_id, note_id):
     """
     Update an advisor note.
@@ -226,7 +234,7 @@ def update_note(user_id, note_id):
 
 
 @notes_bp.route('/api/advisor/notes/<note_id>', methods=['DELETE', 'OPTIONS'])
-@require_role('advisor', 'org_admin', 'superadmin')
+@require_role(*STAFF_ROLES)
 def delete_note(user_id, note_id):
     """
     Delete an advisor note.

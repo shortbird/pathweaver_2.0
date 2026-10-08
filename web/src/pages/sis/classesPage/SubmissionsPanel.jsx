@@ -409,8 +409,10 @@ export default function SubmissionsPanel() {
       s.completion_id === completionId ? { ...s, task: { ...s.task, xp_value: xp } } : s))
   }
 
+  // 'individual' lists only work on quests a teacher gave one student by name,
+  // outside any class (2026-10-07); the server reads it as that filter.
   const classOptions = useMemo(
-    () => [{ id: '', name: 'All classes' }, ...classes],
+    () => [{ id: '', name: 'All classes' }, { id: 'individual', name: 'Individual students' }, ...classes],
     [classes],
   )
 

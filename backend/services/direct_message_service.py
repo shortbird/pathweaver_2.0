@@ -32,6 +32,18 @@ class DirectMessageService(BaseService):
 
     # ==================== Permission Checking ====================
 
+    @staticmethod
+    def _gave_quest_to(supabase, teacher_id: str, student_id: str) -> bool:
+        """Did this person give this student a quest by name? Fails closed."""
+        from repositories.student_quest_assignment_repository import (
+            StudentQuestAssignmentRepository,
+        )
+        try:
+            return StudentQuestAssignmentRepository(supabase).gave_quest_to(teacher_id, student_id)
+        except Exception as e:  # noqa: BLE001 -- a failed lookup grants nothing
+            logger.warning(f"[can_message_user] individual-assignment check failed: {e}")
+            return False
+
     def can_message_user(self, user_id: str, target_id: str) -> bool:
         """
         Check if user has permission to message target user
@@ -132,6 +144,15 @@ class DirectMessageService(BaseService):
             if class_membership.shares_class(user_id, target_id) or \
                class_membership.shares_class(target_id, user_id):
                 logger.debug("[can_message_user] ALLOWED: Shared class roster (teacher-student)")
+                return True
+
+            # Individual work (2026-10-07): a teacher who gave a student a quest
+            # by name works with them the way a class teacher does, so the two
+            # may message each other -- the class roster rule above, for the
+            # one-student assignment (student_quest_assignments).
+            if self._gave_quest_to(supabase, user_id, target_id) or \
+               self._gave_quest_to(supabase, target_id, user_id):
+                logger.debug("[can_message_user] ALLOWED: Teacher-student via individual assignment")
                 return True
 
             # Class families (2026-08-22): the class chat holds guardians and

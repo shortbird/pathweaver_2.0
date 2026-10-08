@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import api from '../../services/api'
 import { withOrg } from '../../pages/sis/useSisOrg'
 import { queryKeys } from '../../utils/queryKeys'
+import { studentQuestPublishPath } from './useStudentWork'
 
 /**
  * The one SIS quest form's API (P6, owner decision 2026-09-23).
@@ -21,9 +22,10 @@ export const questDraftsKey = (orgId, ...rest) => [...queryKeys.sis.all, 'questD
 
 export const questEditorApi = {
   /** Start a draft. Returns {quest_id, training_id?}. */
-  async start(orgId, { context, classId, curriculumId, audience }) {
+  async start(orgId, { context, classId, curriculumId, studentId, audience }) {
     const body = { context }
     if (classId) body.class_id = classId
+    if (studentId) body.student_id = studentId
     if (curriculumId) body.curriculum_id = curriculumId
     if (audience) body.audience = audience
     const res = await api.post(withOrg(`/api/sis/quest-editor/drafts`, orgId), body)
@@ -68,12 +70,14 @@ export const questEditorApi = {
    * curriculum appends it and pushes it to its classes, training takes it live
    * in the catalog (and enrols everyone if "Put it on their accounts" is on).
    */
-  async publish(orgId, questId, context, { classId, curriculumId, trainingId, body = {} }) {
+  async publish(orgId, questId, context, { classId, curriculumId, trainingId, studentId, body = {} }) {
     const url = {
       library: `/api/sis/quests/${questId}/publish`,
       class: `/api/sis/classes/${classId}/quests/${questId}/publish`,
       curriculum: `/api/sis/curriculum/${curriculumId}/quests/${questId}/publish`,
       training: `/api/sis/training/${trainingId}/publish`,
+      // A quest written for one student: published and given to them.
+      student: studentQuestPublishPath(studentId, questId),
     }[context]
     const res = await api.post(withOrg(url, orgId), body)
     return res.data
@@ -125,11 +129,12 @@ export const questEditorApi = {
  *   context 'class' + classId, 'curriculum' + curriculumId, or 'all' (the
  *   library's view: every draft outside training).
  */
-export const useQuestDrafts = (orgId, { context, classId, curriculumId, enabled = true }) => useQuery({
-  queryKey: questDraftsKey(orgId, context, classId || curriculumId || null),
+export const useQuestDrafts = (orgId, { context, classId, curriculumId, studentId, enabled = true }) => useQuery({
+  queryKey: questDraftsKey(orgId, context, classId || curriculumId || studentId || null),
   queryFn: async () => {
     const params = new URLSearchParams({ context })
     if (classId) params.set('class_id', classId)
+    if (studentId) params.set('student_id', studentId)
     if (curriculumId) params.set('curriculum_id', curriculumId)
     const res = await api.get(withOrg(`/api/sis/quest-editor/drafts?${params.toString()}`, orgId))
     return res.data?.drafts || []

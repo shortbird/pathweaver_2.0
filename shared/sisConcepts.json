@@ -985,6 +985,26 @@
       "use_instead": "backend: ClassTaskDueDateRepository (for_class_quest, for_classes, soonest_for_student_quest, set, clear); the one writer is PUT /api/sis/classes/<class_id>/quests/<quest_id>/tasks/<task_id>/due-date (routes/sis/class_quests.set_task_due_date), and students read the dates from GET /api/student/agenda (kind 'task' items) and the quest detail's quest_tasks[].due_date. web: questEditorApi.loadClassTasks / saveTaskDueDate."
     },
     {
+      "id": "student_quest_assignment",
+      "means": "A quest a teacher gave one student by name, outside any class (2026-10-07: microschools teach one child at a time). One row per (student, quest) in student_quest_assignments, carrying who gave it and its due date; the enrollment it causes is the ordinary user_quests row from class_quest_enrollment.enroll_students_in_quests, and taking it back is remove_quest_for_student. Not class_quests.student_ids (a class quest kept to some of its roster) and not the office's library Give (POST /api/sis/quests/<id>/students), which enrolls without recording an assignment.",
+      "owner": {
+        "backend": [
+          "repositories/student_quest_assignment_repository.py",
+          "services/student_quest_assignments.py",
+          "routes/sis/student_work.py"
+        ],
+        "web": ["hooks/api/useStudentWork.js"]
+      },
+      "forbid": {
+        "backend": { "pattern": "student_quest_assignments['\"]", "dirs": ["routes", "services", "repositories", "utils", "jobs"] },
+        "web": { "pattern": "/api/sis/student-work", "dirs": ["pages", "components", "hooks", "services"] }
+      },
+      "baseline": { "backend": 0, "web": 0 },
+      "measured": "2026-10-07",
+      "lowered_by": "individual students (2026-10-07)",
+      "use_instead": "backend: services/student_quest_assignments (assign, set_due_date, unassign, student_work, remove_teacher_task) behind /api/sis/student-work; the submissions inbox reads the pairs through StudentQuestAssignmentRepository.org_pairs. web: studentWorkApi in hooks/api/useStudentWork.js."
+    },
+    {
       "id": "weekly_goal",
       "means": "One student's goals for one school week and the Thursday check-in (Apogee Cache Valley's Master Planner, 2026-10-01): a goal per learning area (the org's sis_settings.goal_subjects, the same list as the annual goals in sis_student_goals), complaints, valid complaints, notes. Freedom is computed from the row by sis_weekly_goal_service.freedom_for and never stored. Not advisor_checkins (a free-form meeting record) and not student_weekly_xp_goals (one XP number).",
       "owner": {

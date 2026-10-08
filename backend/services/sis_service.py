@@ -2497,6 +2497,37 @@ def households_with_members(org_id: str) -> List[Dict[str, Any]]:
     return households
 
 
+def students_for_individual_work(org_id: str) -> List[Dict[str, Any]]:
+    """The school's current students for a teacher's "Students" list, each with
+    how many quests a teacher gave them by name (student_quest_assignments).
+
+    Withdrawn and graduated students are left out, the rule the People page
+    follows. Every staff member sees every student: at a microschool every
+    teacher works with every child (2026-10-07).
+    """
+    from repositories.student_quest_assignment_repository import (
+        StudentQuestAssignmentRepository,
+    )
+    admin = _admin()
+    enrollments = _enrollments_by_student(org_id)
+    counts = StudentQuestAssignmentRepository(admin).counts_by_student(org_id)
+    out = []
+    for u in _org_students(org_id):
+        status = (enrollments.get(u['id']) or {}).get('status')
+        if status in INACTIVE_ENROLLMENT_STATUSES:
+            continue
+        out.append({
+            'id': u['id'],
+            'name': _full_name(u),
+            'avatar_url': u.get('avatar_url'),
+            'last_active': u.get('last_active'),
+            'individual_quests': counts.get(u['id'], 0),
+        })
+    out.sort(key=lambda r: r['name'].lower())
+    sign_in_place(out, ['avatar_url'])
+    return out
+
+
 def unassigned_students(org_id: str) -> List[Dict[str, Any]]:
     """Org students not in any household — the "Students without a family" list.
 

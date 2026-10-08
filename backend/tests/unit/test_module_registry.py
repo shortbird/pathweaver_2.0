@@ -119,7 +119,7 @@ def test_module_keys_json_mirrors_the_registry():
 # every school should have it.
 ON_BY_DEFAULT_ALLOWLIST = {
     'attendance', 'billing', 'bounties', 'calendar', 'catalog', 'classes',
-    'clp', 'courses', 'curriculum', 'friends', 'journal', 'observer',
+    'clp', 'courses', 'curriculum', 'friends', 'individual_work', 'journal', 'observer',
     'onboarding', 'prior_learning', 'registration', 'reports', 'resources',
     'secure_documents', 'student_chat', 'submissions', 'tasks', 'training',
 }

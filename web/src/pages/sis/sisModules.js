@@ -47,6 +47,8 @@ export const SIS_MODULE_BY_PATH = {
   '/quest-library': 'curriculum',
   '/training': 'training',
   '/submissions': 'submissions',
+  // One student's page, from the Classes page's Students tab (2026-10-07).
+  '/student-work': 'individual_work',
   '/registration': 'registration',
   '/community': 'community',
   '/prior-learning': 'prior_learning',
