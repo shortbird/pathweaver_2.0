@@ -3,7 +3,8 @@ import { render as rtlRender, screen, fireEvent, waitFor, within } from '@testin
 import { MemoryRouter, Routes, Route } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import StudentWorkPage from './StudentWorkPage'
-import StudentsPanel from './classesPage/StudentsPanel'
+import StudentsPanel from './studentsPage/StudentsPanel'
+import StudentsPage from './StudentsPage'
 import GiveQuestModal from '../../components/sis/studentWork/GiveQuestModal'
 import { dueLabel } from '../../components/sis/studentWork/StudentQuestCard'
 
@@ -96,11 +97,26 @@ beforeEach(() => {
       ] } })
     }
     if (url.startsWith('/api/advisor/notes/')) return Promise.resolve({ data: { notes: [] } })
+    if (url.startsWith('/api/sis/submissions')) {
+      return Promise.resolve({ data: { total: 1, submissions: [
+        { completion_id: 'c7', task: { title: 'Draw a fraction wall' }, quest_title: 'Fractions',
+          completed_at: new Date().toISOString() },
+      ] } })
+    }
+    if (url.startsWith('/api/sis/weekly-goals/students/s1')) {
+      return Promise.resolve({ data: {
+        current_week_start: '2026-10-05',
+        year_goals: { Reading: 'Read 20 books', Math: '' },
+        weeks: [{ id: 'w1', week_start: '2026-10-05', checked_in_at: null,
+          goals: [{ subject: 'Reading', goal: 'Chapters 1-3', completed: null },
+            { subject: 'Math', goal: '', completed: null }] }],
+      } })
+    }
     return Promise.resolve({ data: {} })
   })
 })
 
-describe('the Students tab', () => {
+describe('the Students page', () => {
   it('lists every student, filters by name, and opens their page', async () => {
     render(<StudentsPanel />, { path: '/classes', entry: '/classes' })
     expect(await screen.findByText('Ada Lee')).toBeInTheDocument()
@@ -112,7 +128,36 @@ describe('the Students tab', () => {
   })
 })
 
+describe('the Students page tabs', () => {
+  it('opens on every student, with the submissions inbox beside it', async () => {
+    render(<StudentsPage />, { path: '/students', entry: '/students' })
+    expect(await screen.findByText('Ben Ortiz')).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: /Submissions/ })).toBeInTheDocument()
+  })
+})
+
 describe("one student's page", () => {
+  it('lists their work waiting for review, each opening the inbox on that submission', async () => {
+    render(<StudentWorkPage />)
+    const waiting = await screen.findByRole('region', { name: 'Waiting for review' })
+    const row = within(waiting).getByText('Draw a fraction wall').closest('a')
+    expect(row).toHaveAttribute('href', '/students?tab=submissions&completion_id=c7')
+    expect(api.get).toHaveBeenCalledWith(expect.stringContaining('/api/sis/submissions?scope=new&limit=10&student_id=s1'))
+  })
+
+  it("shows this week's goals and the year goals that are set", async () => {
+    render(<StudentWorkPage />)
+    const goals = await screen.findByRole('region', { name: 'Goals' })
+    expect(await within(goals).findByText('Chapters 1-3')).toBeInTheDocument()
+    expect(within(goals).getByText('Read 20 books')).toBeInTheDocument()
+    expect(within(goals).queryByText('Math:')).not.toBeInTheDocument()
+  })
+
+  it('goes back to the Students page', async () => {
+    render(<StudentWorkPage />)
+    expect(await screen.findByRole('link', { name: /All students/ })).toHaveAttribute('href', '/students')
+  })
+
   it('shows what they are working on and where each quest came from, finished ones tucked away', async () => {
     render(<StudentWorkPage />)
     expect(await screen.findByRole('heading', { name: 'Ada Lee' })).toBeInTheDocument()

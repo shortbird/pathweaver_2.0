@@ -33,6 +33,19 @@ const ClassesRedirect = ({ tab }) => {
   return <Navigate to={`/classes?${params.toString()}`} replace />
 }
 
+// The inbox is a tab on Classes and on Students (2026-10-08). A school with
+// classes off reaches it from Students, so a /submissions link (a credit
+// message, a notification) goes wherever the inbox is.
+const SubmissionsRedirect = () => {
+  const { search } = useLocation()
+  const { activeOrg } = useSisOrg()
+  const params = new URLSearchParams(search)
+  params.set('tab', 'submissions')
+  const home = isPathHidden('/classes', activeOrg) && !isPathHidden('/students', activeOrg)
+    ? '/students' : '/classes'
+  return <Navigate to={`${home}?${params.toString()}`} replace />
+}
+
 // The four library pages became one on 2026-09-18 (M22): /library holds
 // Documents (was /resources), Training, and for admins Curriculum and Quests
 // (was /quest-library), as tabs. Query strings ride along: the task inbox's
@@ -189,6 +202,7 @@ const LibraryPage = lazy(() => import('../pages/sis/LibraryPage'))
 // Teacher portal pages (advisors; admins can open them too)
 const TeacherClassPage = lazy(() => import('../pages/sis/TeacherClassPage'))
 const StudentWorkPage = lazy(() => import('../pages/sis/StudentWorkPage'))
+const StudentsPage = lazy(() => import('../pages/sis/StudentsPage'))
 const MyProfilePage = lazy(() => import('../pages/sis/MyProfilePage'))
 const DirectoryPage = lazy(() => import('../pages/sis/DirectoryPage'))
 const TasksPage = lazy(() => import('../pages/sis/TasksPage'))
@@ -243,7 +257,7 @@ const SisRoutes = () => (
       <Route path="bounties/create" element={<BountiesGate><BountyCreatePage /></BountiesGate>} />
       <Route path="bounties/:bountyId/edit" element={<BountiesGate><BountyCreatePage /></BountiesGate>} />
       <Route path="bounties/:bountyId" element={<BountiesGate><BountyDetailPage /></BountiesGate>} />
-      <Route path="submissions" element={<ClassesRedirect tab="submissions" />} />
+      <Route path="submissions" element={<SubmissionsRedirect />} />
       <Route path="prior-learning" element={<AdminRoute><ModuleGate path="/prior-learning"><PriorLearningPage /></ModuleGate></AdminRoute>} />
       <Route path="reports" element={<AdminRoute><ModuleGate path="/reports"><ReportsPage /></ModuleGate></AdminRoute>} />
       {/* The HR document store is a view of the Library's Documents area
@@ -273,6 +287,7 @@ const SisRoutes = () => (
       {/* Teacher portal */}
       <Route path="my-classes" element={<ClassesRedirect tab="mine" />} />
       <Route path="my-classes/:classId" element={<ModuleGate path="/my-classes"><TeacherClassPage /></ModuleGate>} />
+      <Route path="students" element={<ModuleGate path="/students"><StudentsPage /></ModuleGate>} />
       <Route path="student-work/:studentId" element={<ModuleGate path="/student-work"><StudentWorkPage /></ModuleGate>} />
       <Route path="my-schedule" element={<ClassesRedirect tab="schedule" />} />
       <Route path="my-profile" element={<MyProfilePage />} />

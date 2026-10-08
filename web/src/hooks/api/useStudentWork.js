@@ -7,7 +7,7 @@ import { queryKeys } from '../../utils/queryKeys'
 /**
  * A teacher working with one student, outside any class (2026-10-07).
  *
- * The API behind the Classes page's Students tab and the one-student page:
+ * The API behind the Students page and the one-student page:
  * the school's students, one student's quests task by task, giving and taking
  * back a quest, its due date, and tasks written for that student. The routes
  * are routes/sis/student_work.py; the rules are
@@ -22,6 +22,8 @@ export const studentWorkKeys = {
   list: (orgId) => [...queryKeys.sis.all, 'studentWork', 'list', orgId],
   student: (orgId, studentId) => [...queryKeys.sis.all, 'studentWork', 'student', orgId, studentId],
   notes: (studentId) => [...queryKeys.sis.all, 'studentWork', 'notes', studentId],
+  waiting: (orgId, studentId) => [...queryKeys.sis.all, 'studentWork', 'waiting', orgId, studentId],
+  goals: (orgId, studentId) => [...queryKeys.sis.all, 'studentWork', 'goals', orgId, studentId],
 }
 
 /** Where the quest editor publishes a quest started for one student. */
@@ -73,6 +75,20 @@ export const studentWorkApi = {
     return res.data
   },
 
+  /** The student's work waiting for review: the submissions inbox, narrowed
+   * to them (?student_id=). The total is the whole queue, not one page. */
+  async waiting(orgId, studentId) {
+    const res = await api.get(withOrg(
+      `/api/sis/submissions?scope=new&limit=10&student_id=${encodeURIComponent(studentId)}`, orgId))
+    return { submissions: res.data?.submissions || [], total: res.data?.total ?? 0 }
+  },
+
+  /** The student's weekly goals and year goals (routes/sis/weekly_goals.py). */
+  async goals(orgId, studentId) {
+    const res = await api.get(withOrg(`/api/sis/weekly-goals/students/${studentId}`, orgId))
+    return res.data
+  },
+
   async notes(studentId) {
     const res = await api.get(`/api/advisor/notes/${studentId}`)
     return res.data?.notes || []
@@ -100,6 +116,18 @@ export const useStudentWork = (orgId, studentId) => useQuery({
   queryKey: studentWorkKeys.student(orgId, studentId),
   queryFn: () => studentWorkApi.student(orgId, studentId),
   enabled: !!orgId && !!studentId,
+})
+
+export const useStudentWaiting = (orgId, studentId, { enabled = true } = {}) => useQuery({
+  queryKey: studentWorkKeys.waiting(orgId, studentId),
+  queryFn: () => studentWorkApi.waiting(orgId, studentId),
+  enabled: enabled && !!orgId && !!studentId,
+})
+
+export const useStudentGoals = (orgId, studentId, { enabled = true } = {}) => useQuery({
+  queryKey: studentWorkKeys.goals(orgId, studentId),
+  queryFn: () => studentWorkApi.goals(orgId, studentId),
+  enabled: enabled && !!orgId && !!studentId,
 })
 
 export const useStudentNotes = (studentId) => useQuery({

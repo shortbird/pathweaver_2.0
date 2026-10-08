@@ -229,6 +229,7 @@ class WeeklyGoalService:
         org = self.repository.org_row(org_id) if org_id else None
         rows = [r for r in rows if r.get('organization_id') == org_id]
         checked = [r for r in rows if freedom_for(r)]
+        year_goals = self._year_goals(org_id, [student_id]).get(student_id, {}) if org_id else {}
         return {
             'student_id': student_id,
             'name': person_name.full_name(student) if student else None,
@@ -236,6 +237,9 @@ class WeeklyGoalService:
             'current_week_start': week_start_of().isoformat(),
             # Freedom carries from the latest checked-in week.
             'freedom': freedom_for(checked[0]) if checked else None,
+            # The year each week serves, for the student's own page and the
+            # family view alike.
+            'year_goals': year_goals,
             'weeks': [_row_out(r) for r in rows],
         }
 

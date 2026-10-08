@@ -1,5 +1,5 @@
 import React, { useCallback, useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { Navigate, useSearchParams } from 'react-router-dom'
 import { useSisOrg } from './useSisOrg'
 import { useAuth } from '../../contexts/AuthContext'
 import { useOrganization } from '../../contexts/OrganizationContext'
@@ -14,7 +14,6 @@ import MySchedulePanel from './classesPage/MySchedulePanel'
 import CatalogPanel, { ConflictBanner } from './classesPage/CatalogPanel'
 import AttendancePanel from './classesPage/AttendancePanel'
 import SubmissionsPanel from './classesPage/SubmissionsPanel'
-import StudentsPanel from './classesPage/StudentsPanel'
 
 // Re-exported: the conflict banner is tested and reused by name from here.
 export { ConflictBanner }
@@ -24,9 +23,7 @@ export { ConflictBanner }
  *
  *   My classes     the ones I teach (cards, or my week as a grid)
  *   My schedule    my week as a list: classes and duties, plus what is coming up
- *   Students       every student, one at a time: quests given to just them,
- *                  tasks written for them, private notes (2026-10-07)
- *   Submissions    what my students have turned in
+ *   Submissions   what my students have turned in
  *   All classes    the org's catalog                                   admins
  *   Optio courses  the courses the org can enroll students into        admins
  *   Attendance     taking roll                                         admins
@@ -51,7 +48,6 @@ export { ConflictBanner }
 const OWN_TABS = [
   ['mine', 'My classes'],
   ['schedule', 'My schedule'],
-  ['students', 'Students', 'individual_work'],
   ['submissions', 'Submissions', '/submissions'],
 ]
 
@@ -97,6 +93,10 @@ const ClassesPage = () => {
     setSearchParams(params, { replace: true })
   }
 
+  // The Students tab became its own page (/students, 2026-10-08), so a school
+  // that works one child at a time needs no classes. Older links follow it.
+  if (rawTab === 'students') return <Navigate to="/students" replace />
+
   return (
     <div>
       <BackToDashboard className="mb-1" />
@@ -112,7 +112,6 @@ const ClassesPage = () => {
 
       {tab === 'mine' && <MyClassesPanel />}
       {tab === 'schedule' && <MySchedulePanel />}
-      {tab === 'students' && <StudentsPanel />}
       {tab === 'submissions' && <SubmissionsPanel />}
       {admin && (tab === 'all' || tab === 'courses') && (
         <CatalogPanel section={tab === 'courses' ? 'courses' : 'classes'} onCounts={onCounts} />

@@ -11,7 +11,10 @@ import QuestDraftsList from '../../components/sis/questEditor/QuestDraftsList'
 import GiveQuestModal from '../../components/sis/studentWork/GiveQuestModal'
 import StudentQuestCard from '../../components/sis/studentWork/StudentQuestCard'
 import StudentNotes from '../../components/sis/studentWork/StudentNotes'
+import StudentWaiting from '../../components/sis/studentWork/StudentWaiting'
+import StudentGoals from '../../components/sis/studentWork/StudentGoals'
 import { useRefreshStudentWork, useStudentWork } from '../../hooks/api/useStudentWork'
+import { isPathHidden } from './sisModules'
 import { useRefreshAfterQuestEdit } from '../../hooks/api/useQuestEditor'
 
 /**
@@ -26,12 +29,16 @@ import { useRefreshAfterQuestEdit } from '../../hooks/api/useQuestEditor'
  * From here a teacher assigns a quest (an existing one, or a new one written
  * for this student in the quest editor), sets its due date, writes a task
  * just for them on any quest they are working on, and keeps private notes.
+ *
+ * Since 2026-10-08 it also shows the student's work waiting for review (the
+ * submissions inbox narrowed to them) and their goals, each only when its
+ * module is on (docs/sis/SIS_SIMPLIFICATION.md, decisions 1 and 3).
  */
 
 export default function StudentWorkPage() {
   const { studentId } = useParams()
   const { user } = useAuth()
-  const { orgId } = useSisOrg()
+  const { orgId, activeOrg } = useSisOrg()
   const { data, isLoading, isError, error } = useStudentWork(orgId, studentId)
   const refresh = useRefreshStudentWork(orgId, studentId)
   const refreshQuests = useRefreshAfterQuestEdit(orgId)
@@ -96,6 +103,10 @@ export default function StudentWorkPage() {
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
         <div>
+          {!isPathHidden('/submissions', activeOrg) && (
+            <StudentWaiting orgId={orgId} studentId={student.id} first={first} />
+          )}
+
           <QuestDraftsList orgId={orgId} context="student" studentId={student.id}
             onResume={(d) => setWriting({ questId: d.id })} />
 
@@ -131,7 +142,10 @@ export default function StudentWorkPage() {
           )}
         </div>
 
-        <aside>
+        <aside className="space-y-6">
+          {!isPathHidden('/weekly-goals', activeOrg) && (
+            <StudentGoals orgId={orgId} studentId={student.id} />
+          )}
           <StudentNotes student={student} />
         </aside>
       </div>
@@ -151,7 +165,7 @@ export default function StudentWorkPage() {
 
 function BackLink() {
   return (
-    <Link to="/classes?tab=students"
+    <Link to="/students"
       className="inline-flex items-center gap-1 text-sm text-neutral-500 hover:text-optio-purple mb-2">
       <ArrowLeftIcon className="w-4 h-4" /> All students
     </Link>

@@ -7,6 +7,7 @@ import { safeHref } from '../../../utils/safeHref'
 import { blockItems, isImageUrl, itemLabel } from '../../../utils/evidenceItems'
 import { getPillarName } from '../../../utils/pillarMappings'
 import { useSisOrg, withOrg } from '../useSisOrg'
+import { isPathHidden } from '../sisModules'
 import SearchSelect from '../../../components/ui/SearchSelect'
 import { classLabel } from '../../../components/sis/classLabel'
 import CreditFeedbackThread from '../../../components/credit/CreditFeedbackThread'
@@ -204,7 +205,10 @@ const XpAdjust = ({ completionId, orgId, xpValue, onChanged }) => {
 }
 
 export default function SubmissionsPanel() {
-  const { orgId } = useSisOrg()
+  const { orgId, activeOrg } = useSisOrg()
+  // A school with classes off (one child at a time) has no class to filter
+  // by, and the class list would be a request to a module that is off.
+  const classesOn = !isPathHidden('/classes', activeOrg)
   const [searchParams] = useSearchParams()
   const [scope, setScope] = useState('new')
   // Pre-filtered when arrived at from a class's Student Progress tab, which is
@@ -241,11 +245,11 @@ export default function SubmissionsPanel() {
   }, [query])
 
   useEffect(() => {
-    if (!orgId) return
+    if (!orgId || !classesOn) return
     api.get(withOrg('/api/sis/classes', orgId))
       .then((r) => setClasses(r.data?.classes || []))
       .catch(() => { /* class filter stays empty */ })
-  }, [orgId])
+  }, [orgId, classesOn])
 
   // When the list (and the signed evidence URLs in it) last arrived.
   const loadedAt = useRef(0)
@@ -449,7 +453,7 @@ export default function SubmissionsPanel() {
       <div className="flex flex-wrap items-center gap-3 mb-4">
         {scopeTab('new', 'New')}
         {scopeTab('reviewed', 'Reviewed')}
-        <SearchSelect
+        {classesOn && <SearchSelect
           className="w-64"
           value={classId}
           onChange={setClassId}
@@ -457,7 +461,7 @@ export default function SubmissionsPanel() {
           getId={(c) => c.id}
           getLabel={classLabel}
           placeholder="Filter by class…"
-        />
+        />}
         <input
           type="search"
           value={query}

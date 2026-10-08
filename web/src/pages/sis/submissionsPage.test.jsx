@@ -66,7 +66,8 @@ import SubmissionsPanel from './classesPage/SubmissionsPanel'
 
 beforeEach(() => {
   authState = { user: { id: 'u1', role: 'org_admin' } }
-  orgState = { organization: { id: 'org-1', name: 'Org' } }
+  // An SIS school, so classes (default on, under sis) is on.
+  orgState = { organization: { id: 'org-1', name: 'Org', feature_flags: { sis_enabled: true } } }
   vi.clearAllMocks()
   api.get.mockImplementation((url) => Promise.resolve(apiData(url)))
   api.post.mockImplementation(() => Promise.resolve({ data: { success: true } }))
@@ -157,6 +158,15 @@ describe('SubmissionsPage', () => {
     await waitFor(() =>
       expect(api.get).toHaveBeenCalledWith(expect.stringContaining('class_id=cl2')),
     )
+  })
+
+  it('a school with classes off gets no class filter and no class list request', async () => {
+    orgState = { organization: { id: 'org-1', name: 'Org',
+      feature_flags: { sis_enabled: true, modules: { classes: false } } } }
+    render(<SubmissionsPanel />)
+    await screen.findByText('New (2)')
+    expect(screen.queryByPlaceholderText('Filter by class…')).not.toBeInTheDocument()
+    expect(api.get).not.toHaveBeenCalledWith(expect.stringMatching(/\/api\/sis\/classes(\?|$)/))
   })
 
   it('adjusts XP with a required reason via the gradebook endpoint', async () => {

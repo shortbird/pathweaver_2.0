@@ -10,9 +10,11 @@ import EmptyState from '../../../components/ui/EmptyState'
  * Students -- every current student in the school, for a teacher who works
  * with one child at a time (2026-10-07: "we need a more individual option
  * where school teachers can assign quests to individual students and work
- * with them that way"). Classes stay where they were; this is the other way
- * in. A name opens that student's page (/student-work/:id): their quests task
- * by task, quests given just to them, tasks written for them, private notes.
+ * with them that way"). The Students page's first tab (pages/sis/StudentsPage),
+ * the individual_work module's own way in since 2026-10-08, so a school that
+ * works one child at a time needs no classes. A name opens that student's
+ * page (/student-work/:id): their quests task by task, quests given just to
+ * them, tasks written for them, work waiting for review, goals, notes.
  *
  * Every staff member sees every student. At a microschool every teacher works
  * with every child, and that was the decision.

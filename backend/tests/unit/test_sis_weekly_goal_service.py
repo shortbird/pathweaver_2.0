@@ -132,3 +132,23 @@ class TestSave:
         with pytest.raises(LookupError):
             WeeklyGoalService(FakeRepo(role='advisor')).save(
                 ORG, STUDENT, '2026-09-28', {}, COACH)
+
+
+class TestHistory:
+    def test_carries_the_newest_year_goals_beside_the_weeks(self):
+        class Repo(FakeRepo):
+            def history(self, student_id, limit):
+                return [{'organization_id': ORG, 'week_start': '2026-10-05', 'goals': [],
+                         'checked_in_at': None}]
+
+            def annual_goal_rows(self, org_id, student_ids):
+                return [
+                    {'student_user_id': STUDENT, 'school_year': '2025-2026',
+                     'subjects': [{'subject': 'Reading', 'year_goal': 'Old goal'}]},
+                    {'student_user_id': STUDENT, 'school_year': '2026-2027',
+                     'subjects': [{'subject': 'Reading', 'year_goal': 'Read 20 books'}]},
+                ]
+
+        out = WeeklyGoalService(Repo()).history(STUDENT)
+        assert out['year_goals'] == {'Reading': 'Read 20 books'}
+        assert len(out['weeks']) == 1

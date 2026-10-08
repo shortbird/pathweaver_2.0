@@ -148,7 +148,7 @@ def _completion_in_scope(user_id, org_id, completion_id):
 @bp.route('/submissions', methods=['GET'])
 @require_role(*STAFF_ROLES)
 def list_submissions(user_id):
-    """Unified inbox. ?scope=new|reviewed&class_id=&q=&limit=&offset=
+    """Unified inbox. ?scope=new|reviewed&class_id=&student_id=&q=&limit=&offset=
 
     'new' is ordered oldest-first (teachers work the backlog in order);
     'reviewed' newest-first. Both totals are always returned for the badge;
@@ -178,6 +178,9 @@ def list_submissions(user_id):
                         'total': 0, 'limit': limit, 'offset': offset})
 
     search = (request.args.get('q') or '').strip().lower()[:100]
+    # One student's work, for their individual page (2026-10-08). It narrows
+    # the caller's own scope; it never widens it.
+    student_filter = (request.args.get('student_id') or '').strip() or None
 
     classes = _scope_classes(user_id, org_id)
     individual = _individual_pairs(user_id, org_id)
@@ -198,6 +201,8 @@ def list_submissions(user_id):
     all_quests = set().union(*attached.values()) if attached else set()
     all_students |= {s for s, _ in individual}
     all_quests |= {q for _, q in individual}
+    if student_filter:
+        all_students &= {student_filter}
     if not all_students or not all_quests:
         return empty()
 

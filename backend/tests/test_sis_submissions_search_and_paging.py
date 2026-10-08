@@ -245,3 +245,18 @@ class TestNoSilentTruncation:
         # The two reads that used to be unpaged, and the three search reads.
         assert {'quest_task_completions', 'sis_submission_reviews',
                 'users', 'quests', 'user_quest_tasks'} <= set(seen)
+
+
+@pytest.mark.unit
+class TestOneStudent:
+    """?student_id= narrows the inbox to one student, for their own page
+    (2026-10-08). It narrows the caller's scope and never widens it."""
+
+    def test_only_that_students_work(self):
+        body, _ = _list(_world(6), scope='new', student_id='s-ada')
+        assert {s['student']['id'] for s in body['submissions']} == {'s-ada'}
+        assert body['total'] == 3
+
+    def test_a_student_outside_the_callers_scope_gets_nothing(self):
+        body, _ = _list(_world(6), scope='new', student_id='s-stranger')
+        assert body['submissions'] == []

@@ -85,6 +85,10 @@ export const NAV_SECTIONS = [
       // capability a teacher holds, and at a microschool the admin teaches too
       // (Horizon, 2026-09-11) -- a teacher's own tabs are theirs as well.
       { name: 'Classes', path: '/classes', d: ICONS.classes, keywords: ['courses', 'sections', 'catalog'] },
+      // Students one at a time: quests given to just them, their submissions,
+      // goals and notes (individual_work). Its own item since 2026-10-08, for
+      // a school that works with each child rather than in classes.
+      { name: 'Students', path: '/students', d: ICONS.person, keywords: ['individual', 'one on one', 'submissions', 'assign quest', 'student work'] },
       { name: 'CLP', path: '/clp', adminOnly: true, clpMode: true, d: ICONS.doc, keywords: ['customized learning plan', 'learning plan'] },
       { name: 'Calendar', path: '/calendar', d: ICONS.calendar, keywords: ['events', 'schedule', 'dates', 'holidays'] },
       // Prior Learning — opt-in per org (Optio Academy today).

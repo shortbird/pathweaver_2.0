@@ -226,6 +226,20 @@ Each phase is one sitting and ends with a localhost check by Tanner.
 
 ## Log
 
+- 2026-10-08: **phase 1 built** (uncommitted until Tanner's localhost check).
+  Students is its own page (/students, sidebar item for `individual_work`)
+  with two tabs, Students and Submissions; Classes lost its Students tab
+  (/classes?tab=students redirects). The student page shows their work
+  waiting for review (GET /api/sis/submissions?student_id=, new, narrows the
+  caller's scope only) and their goals (this week, year goals; the weekly
+  goals history now returns `year_goals`). /submissions goes to Students when
+  classes is off. The inbox drops its class filter and class list request when
+  classes is off. Checked: every `individual_work` route works with
+  `classes` off (student_work.py, quest editor drafts, assignable quests).
+  **Open for Tanner:** the inbox lists only class work and quests given to a
+  student by name. Quests a student picked up on their own (and Bloomy tasks)
+  never reach it, which at Apogee is most of the work. Decide whether a
+  school with `individual_work` on reviews all of its students' quest work.
 - 2026-10-08: decisions 1-3 and the new-schools requirement recorded; plan
   rewritten into eight phases. Nothing built yet. The points work (uncommitted,
   waiting on Tanner's localhost check) touches SisSidebar.jsx, registry.py and
