@@ -212,21 +212,22 @@ describe('moduleEnabled: the microschool baseline (2026-10-08)', () => {
   // Mirrors backend/modules/enabled.py; the registry test holds the key sets.
   const micro = (extra = {}) => org({ sis_enabled: true, module_baseline: 'microschool', ...extra })
 
-  it('starts one child at a time: no classes, roll, timetable, curriculum or reports', () => {
-    for (const key of ['classes', 'attendance', 'calendar', 'curriculum', 'reports', 'registration', 'billing', 'tasks']) {
+  it('starts one child at a time: no classes, roll, timetable, curriculum, reports or weekly goals', () => {
+    for (const key of ['classes', 'attendance', 'calendar', 'curriculum', 'reports', 'registration', 'billing', 'tasks',
+      'weekly_goals']) {
       expect(moduleEnabled(micro(), key)).toBe(false)
     }
   })
 
-  it('starts with weekly goals, individual students and the inbox on', () => {
-    for (const key of ['weekly_goals', 'individual_work', 'submissions']) {
+  it('starts with individual students and the inbox on', () => {
+    for (const key of ['individual_work', 'submissions']) {
       expect(moduleEnabled(micro(), key)).toBe(true)
     }
   })
 
-  it('an explicit switch still wins either way', () => {
-    const o = micro({ modules: { classes: true, weekly_goals: false } })
+  it('an explicit switch still wins', () => {
+    const o = micro({ modules: { classes: true, weekly_goals: true } })
     expect(moduleEnabled(o, 'classes')).toBe(true)
-    expect(moduleEnabled(o, 'weekly_goals')).toBe(false)
+    expect(moduleEnabled(o, 'weekly_goals')).toBe(true)
   })
 })

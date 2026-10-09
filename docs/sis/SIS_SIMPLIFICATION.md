@@ -154,8 +154,9 @@ What changes:
 
 - The starter baseline becomes the Apogee shape (decision 2): off also
   classes, attendance, calendar, curriculum, reports, submissions-as-a-page
-  (see the individual students module). On: people, goals and weekly goals,
-  individual students, messaging, settings. Points, bounties and prior
+  (see the individual students module). On: people, goals, individual
+  students, messaging, settings. (Weekly goals started on and came off on
+  2026-10-09: new schools do not start with it.) Points, bounties and prior
   learning are listed but off.
 - The Features card lists every module, grouped, with one plain sentence
   each. A module the school can switch has a switch. A module only Optio
@@ -290,6 +291,13 @@ or Points screens for families; they reach both on the web school page.
 
 ## Log
 
+- 2026-10-09: weekly goals off in the microschool baseline (MICROSCHOOL_ON is
+  empty). The school setup form (/start-school/<token>) reworked to match:
+  every school it makes gets the console on the microschool baseline; only
+  the registration and tuition questions turn anything else on. The form
+  lists "What your school starts with" and "More you can add later" from the
+  Features card's own rows (school_onboarding_service.feature_tour); ticking
+  one records interest only. The done screen points to Add features.
 - 2026-10-08: inventory sweep done (see above); uncommitted until Tanner's
   localhost check.
 - 2026-10-08: **phases 2-8 built** (uncommitted until Tanner's localhost

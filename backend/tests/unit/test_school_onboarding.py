@@ -8,8 +8,9 @@ setup form, and the submit creates their organization. What these pin:
   - a link works once. A second submit, a revoked link and an expired one are
     refused, and an org that fails to insert gives the link back.
   - the superadmin and an account already in a school cannot submit.
-  - the form never grants what Optio sells or certifies: no SIS module and no
-    accreditation_source, whatever the answers say.
+  - the form never grants what Optio sells or certifies: no accreditation_source,
+    and no module beyond the console and what the two yes/no questions need,
+    whatever the answers say. The feature checkboxes record interest only.
 """
 
 from datetime import datetime, timedelta, timezone
@@ -197,64 +198,52 @@ def test_ai_off_and_own_library_only():
 def test_the_form_never_sets_accreditation_or_raw_flags():
     orgs, repo = FakeOrgRepo(), FakeRepo()
     run(repo, orgs, answers(accreditation='Cognia', accreditation_source='optio',
-                            feature_flags={'sis_enabled': True}))
+                            feature_flags={'kiosk': True, 'modules': {'billing': True}}))
     org = orgs.rows[0]
     assert 'accreditation_source' not in org
-    assert org['feature_flags'] == {'due_dates': True, 'scheduled_publish': True,
-                                    'module_baseline': 'microschool'}
+    flags = org['feature_flags']
+    assert 'kiosk' not in flags and flags['modules'] == {'sis': True}
     assert repo.link['answers']['accreditation'] == 'Cognia'
     assert 'accreditation_source' not in repo.link['answers']
     assert 'feature_flags' not in repo.link['answers']
 
 
-def test_a_console_pick_turns_the_console_on_with_only_the_picks():
+def test_every_school_gets_the_console_on_the_microschool_baseline():
+    """Tanner, 2026-10-09: a new admin lands on the short console sidebar,
+    which ends in "Add features", whatever they answered."""
     from modules import module_enabled_for_row
-    orgs, repo = FakeOrgRepo(), FakeRepo()
-    run(repo, orgs, answers(features=['billing', 'kiosk', 'mobile_app']))
+    orgs = FakeOrgRepo()
+    run(FakeRepo(), orgs, answers())
     org = orgs.rows[0]
     flags = org['feature_flags']
-    assert flags['sis_enabled'] is True and flags['kiosk'] is True
-    on = {k for k in ('sis', 'billing', 'registration', 'kiosk', 'attendance', 'classes',
-                      'calendar', 'reports', 'credits', 'community')
-          if module_enabled_for_row(org, k)}
-    # billing needs registration, so both; console modules not picked are off
-    assert on == {'sis', 'billing', 'registration', 'kiosk'}
-    # hidden_modules (what the console's settings edit) agrees with the map
-    hidden = flags['sis_settings']['hidden_modules']
-    assert {'attendance', 'classes', 'calendar', 'reports', 'secure_documents'} <= set(hidden)
-    assert 'billing' not in hidden
-    assert flags['due_dates'] is True   # the new-org defaults survive
-    assert repo.link['answers']['features'] == ['billing', 'kiosk', 'mobile_app']
-
-
-def test_no_console_pick_keeps_the_school_on_the_learning_platform():
-    from modules import module_enabled_for_row
-    orgs = FakeOrgRepo()
-    run(FakeRepo(), orgs, answers(features=['kiosk', 'credits']))
-    org = orgs.rows[0]
-    assert 'sis_enabled' not in org['feature_flags']
-    assert 'sis' not in org['feature_flags']['modules']
-    assert not module_enabled_for_row(org, 'sis')
-    assert module_enabled_for_row(org, 'kiosk') and module_enabled_for_row(org, 'credits')
-
-
-def test_no_picks_change_nothing():
-    orgs = FakeOrgRepo()
-    run(FakeRepo(), orgs, answers(features=['mobile_app']))
-    assert orgs.rows[0]['feature_flags'] == {'due_dates': True, 'scheduled_publish': True,
-                                             'module_baseline': 'microschool'}
-
-
-def test_every_new_school_starts_on_the_microschool_baseline():
-    from modules import module_enabled_for_row
-    orgs = FakeOrgRepo()
-    run(FakeRepo(), orgs, answers(features=['attendance']))
-    org = orgs.rows[0]
-    assert org['feature_flags']['module_baseline'] == 'microschool'
-    assert module_enabled_for_row(org, 'attendance')
+    assert flags['module_baseline'] == 'microschool'
+    assert flags['due_dates'] is True   # the shared new-org defaults survive
+    assert flags['modules'] == {'sis': True}
+    assert module_enabled_for_row(org, 'sis')
     for key in ('registration', 'catalog', 'billing', 'tasks', 'onboarding', 'clp',
-                'resources', 'training'):
+                'resources', 'training', 'classes', 'attendance', 'calendar',
+                'curriculum', 'reports', 'weekly_goals'):
         assert not module_enabled_for_row(org, key), key
+
+
+def test_the_unlisted_start_features_stay_on():
+    from modules import module_enabled_for_row
+    orgs = FakeOrgRepo()
+    run(FakeRepo(), orgs, answers())
+    for key in svc.NOT_SHOWN_AT_START:
+        assert module_enabled_for_row(orgs.rows[0], key), key
+
+
+def test_interest_picks_are_recorded_and_turn_nothing_on():
+    from modules import module_enabled_for_row
+    orgs, repo = FakeOrgRepo(), FakeRepo()
+    run(repo, orgs, answers(features=['attendance', 'weekly_goals', 'credits', 'kiosk']))
+    org = orgs.rows[0]
+    assert org['feature_flags']['modules'] == {'sis': True}
+    assert 'kiosk' not in org['feature_flags']
+    for key in ('attendance', 'weekly_goals', 'credits', 'kiosk'):
+        assert not module_enabled_for_row(org, key), key
+    assert repo.link['answers']['features'] == ['attendance', 'weekly_goals', 'credits', 'kiosk']
 
 
 def test_collecting_tuition_turns_on_billing_and_the_registration_it_needs():
@@ -276,25 +265,37 @@ def test_families_registering_turns_on_registration_and_the_catalog():
     orgs = FakeOrgRepo()
     run(FakeRepo(), orgs, answers(families_register='yes'))
     org = orgs.rows[0]
-    modules = org['feature_flags']['modules']
     # catalog requires classes, so a yes brings classes along
-    assert modules['registration'] is True and modules['catalog'] is True
-    assert modules['classes'] is True
-    assert not modules['billing']
     assert {k for k in ('registration', 'catalog', 'classes', 'billing')
             if module_enabled_for_row(org, k)} == {'registration', 'catalog', 'classes'}
-
-
-def test_no_to_both_questions_writes_no_modules():
-    orgs = FakeOrgRepo()
-    run(FakeRepo(), orgs, answers(collects_tuition='no', families_register='no'))
-    assert 'modules' not in orgs.rows[0]['feature_flags']
+    # hidden_modules (what the console's settings edit) agrees with the map
+    assert 'classes' not in (org['feature_flags'].get('sis_settings') or {}).get('hidden_modules', [])
 
 
 def test_an_old_form_with_the_billing_checkbox_still_counts():
     orgs = FakeOrgRepo()
     run(FakeRepo(), orgs, answers(features=['billing']))
     assert orgs.rows[0]['feature_flags']['modules']['billing'] is True
+
+
+def test_the_link_shows_what_a_school_starts_with_and_can_add():
+    """The list comes from the Settings Features card, so the form and the
+    card cannot disagree. What the form asks about in its own words is left
+    out, and weekly goals is something to add, not a start."""
+    view = svc.public_view(FakeRepo(), 'tok')
+    tour = view['features']
+    starts = {f['key'] for f in tour['starts_with']}
+    adds = {f['key']: f for f in tour['can_add']}
+    assert 'submissions' in starts
+    # on from the start, but the form does not list them (Tanner, 2026-10-09)
+    assert not starts & svc.NOT_SHOWN_AT_START
+    assert not set(adds) & svc.NOT_SHOWN_AT_START
+    assert not starts & set(adds)
+    assert {'classes', 'attendance', 'weekly_goals', 'tasks'} <= set(adds)
+    assert not (svc.ASKED_ELSEWHERE & (starts | set(adds)))
+    assert adds['credits']['optio_turns_on'] is True
+    assert adds['attendance']['optio_turns_on'] is False
+    assert {g['key'] for g in tour['groups']} >= {f['group'] for f in tour['can_add']}
 
 
 @pytest.mark.parametrize('over,field', [

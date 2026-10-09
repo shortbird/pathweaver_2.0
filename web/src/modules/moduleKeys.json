@@ -395,7 +395,7 @@
     "requires": [],
     "requires_any": [],
     "starter_off": false,
-    "microschool": "on"
+    "microschool": null
   },
   "xp": {
     "default": "core",

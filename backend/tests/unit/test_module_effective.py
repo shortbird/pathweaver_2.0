@@ -251,17 +251,18 @@ def test_orgs_without_a_baseline_are_exactly_as_before():
 
 def test_the_microschool_baseline_starts_one_child_at_a_time():
     """Orgs created from 2026-10-08 (docs/sis/SIS_SIMPLIFICATION.md, decision
-    2): no classes, timetable, roll, curriculum or reports, and the coach's
-    weekly goals on. An explicit modules entry still wins either way."""
+    2): no classes, timetable, roll, curriculum or reports, and no weekly
+    goals either since 2026-10-09. An explicit modules entry still wins."""
     from modules.registry import MICROSCHOOL_OFF
     row = org({'sis_enabled': True, 'module_baseline': 'microschool'})
     got = effective_modules_for_row(row)
     assert not (got & MICROSCHOOL_OFF)
-    assert {'weekly_goals', 'individual_work', 'submissions'} <= got
+    assert {'individual_work', 'submissions'} <= got
+    assert 'weekly_goals' not in got
     row = org({'sis_enabled': True, 'module_baseline': 'microschool',
-               'modules': {'classes': True, 'weekly_goals': False}})
+               'modules': {'classes': True, 'weekly_goals': True}})
     got = effective_modules_for_row(row)
-    assert 'classes' in got and 'weekly_goals' not in got
+    assert {'classes', 'weekly_goals'} <= got
 
 
 def test_starter_orgs_keep_what_they_had():

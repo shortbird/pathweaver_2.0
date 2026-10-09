@@ -41,8 +41,9 @@ without the key behave exactly as today, so no existing school changes.
   identically (the mirror test covers it).
 - Every new org gets the starter baseline: superadmin "Create Organization"
   (`organization_service.new_org_row`) and `/start-school/<token>`.
-- The start-school form asks two plain questions, "Do you collect tuition
-  through Optio?" and "Do families register through Optio?"; each yes writes
+- The start-school form asks two plain questions, "Would you like families
+  to pay tuition through Optio?" and "Would you like families to register
+  through Optio?" (reworded 2026-10-09); each yes writes
   the explicit `modules` entries for that group.
 
 ### 2. A block switches off its own fields

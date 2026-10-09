@@ -30,7 +30,7 @@ const ANSWER_LABELS = [
   ['school_type', 'Type'], ['teaching_approach', 'Approach'], ['days_per_week', 'Days per week'],
   ['term_structure', 'Terms'], ['year_start', 'Year starts'], ['year_end', 'Year ends'],
   ['staff_count', 'Staff'], ['students_next_year', 'Students next year'], ['current_tools', 'Tools now'],
-  ['features', 'Wants'], ['accreditation', 'Accreditation'],
+  ['features', 'Interested in'], ['accreditation', 'Accreditation'],
   ['optio_credit_interest', 'Optio credit'], ['tuition_model', 'Tuition'], ['funding_programs', 'Funding'],
   ['has_stripe', 'Has Stripe'], ['billing_contact_name', 'Billing contact'],
   ['billing_contact_email', 'Billing email'], ['ai_choice', 'AI'], ['library_choice', 'Library'],

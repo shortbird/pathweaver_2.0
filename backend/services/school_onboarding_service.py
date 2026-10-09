@@ -10,13 +10,16 @@ What the form decides and what it only records:
   - Applied to the new org: name, slug (from the name), time zone, logo, the
     library choice (quest and course visibility), and AI on or off. Each is a
     setting the school can already change itself in its settings.
-  - The features the school picks are turned on (FEATURE_MODULES), through
-    the same toggle path as the Blocks panel (modules/toggle.py). Every
-    school may use every feature; the picks only decide what is on at the
-    start. A console feature turns on the school console. The two yes/no
-    questions about tuition and registration count as picks (QUESTION_PICKS).
-    Every new org starts on the starter baseline (new_org_row), so the
-    office side stays off unless one of these turns it on.
+  - Every school gets the school console, on the microschool baseline
+    (new_org_row): a short sidebar that ends in "Add features". The two
+    yes/no questions about registration and tuition turn on what a yes needs
+    (QUESTION_MODULES), through the same toggle path as the Blocks panel
+    (modules/toggle.py). Nothing else is turned on here (Tanner, 2026-10-09:
+    do not overwhelm a new admin, but let them know what is there).
+  - The form shows what a school starts with and what it can add, from the
+    Settings Features card's own list (feature_tour), so the two never
+    disagree. The `features` a school ticks there are interest only: they
+    are recorded for Optio to follow up and turn nothing on.
   - Recorded only, in the link's `answers`: everything else.
     accreditation_source is never set here: 'optio' puts the accredited mark
     on transcripts, and a school does not grant itself that by filling a form.
@@ -141,7 +144,24 @@ def public_view(repo: SchoolOnboardingRepository, token: str) -> Dict[str, Any]:
     link = repo.by_token((token or '').strip())
     if not link:
         raise SchoolSetupError('This setup link is not valid.', status=404, code='not_found')
-    return {'status': link_status(link), 'school_name_hint': link.get('school_name_hint')}
+    return {'status': link_status(link), 'school_name_hint': link.get('school_name_hint'),
+            'features': feature_tour()}
+
+
+def feature_tour() -> Dict[str, Any]:
+    """The Settings Features card's list, as a school made by this form would
+    see it on its first day: `starts_with` is what is on, `can_add` is the
+    rest, grouped. A row the form asks about in its own words is left out
+    (ASKED_ELSEWHERE)."""
+    from services.school_features_service import features_for_row
+    card = features_for_row({'feature_flags': _new_school_flags({})})
+    asked = ASKED_ELSEWHERE
+    keep = ('key', 'group', 'name', 'description')
+    starts = [{k: f[k] for k in keep} for f in card['features']
+              if f['enabled'] and f['key'] not in NOT_SHOWN_AT_START]
+    add = [{**{k: f[k] for k in keep}, 'optio_turns_on': not f['switchable']}
+           for f in card['features'] if not f['enabled'] and f['key'] not in asked]
+    return {'groups': card['groups'], 'starts_with': starts, 'can_add': add}
 
 
 def revoke_link(repo: SchoolOnboardingRepository, link_id: str) -> None:
@@ -267,10 +287,7 @@ def org_fields(answers: Dict[str, Any], logo: Optional[str]) -> Dict[str, Any]:
     }
     if logo:
         fields['branding_config'] = {'logo_url': logo}
-    changes = module_changes(feature_picks(answers))
-    if changes:
-        from modules.toggle import apply_changes
-        fields['feature_flags'] = apply_changes(new_org_row('', '', 'all_optio'), changes)
+    fields['feature_flags'] = _new_school_flags(answers)
     if answers.get('ai_choice') == 'off':
         fields.update({
             'ai_features_enabled': False,
@@ -281,72 +298,51 @@ def org_fields(answers: Dict[str, Any], logo: Optional[str]) -> Dict[str, Any]:
     return fields
 
 
-# The form's feature checkboxes and the modules each one turns on. A pick
-# that lives under the school console (parent 'sis') turns the console on.
-# Picks with no module (mobile_app) are recorded only: the app is there for
-# every school.
-FEATURE_MODULES: Dict[str, Tuple[str, ...]] = {
-    # catalog requires classes: families pick classes from the catalog
-    'registration': ('registration', 'catalog', 'classes'),
-    'billing': ('billing', 'registration'),   # billing requires registration
-    'classes': ('classes', 'catalog'),        # catalog requires classes
-    'attendance': ('attendance',),
-    'calendar': ('calendar',),
-    'credits': ('credits', 'transcripts'),
-    'weekly_goals': ('weekly_goals',),
-    'secure_documents': ('secure_documents',),
-    'community': ('community',),
-    'reports': ('reports',),
-    'kiosk': ('kiosk',),
-    'mobile_app': (),
-}
-
-
 # The two plain yes/no questions (docs/MICROSCHOOL_FIRST_PLAN.md, part 1) and
-# the FEATURE_MODULES pick a yes stands for. They replaced the registration and
-# billing checkboxes: a new school starts with both off (the starter baseline,
-# services/organization_service.new_org_row), so the form asks rather than
-# hoping the school spots two boxes among twelve. A 'features' list from a form
-# loaded before the change may still carry 'registration' or 'billing'; those
-# picks still count.
-QUESTION_PICKS: Dict[str, str] = {
-    'collects_tuition': 'billing',       # "Do you collect tuition through Optio?"
-    'families_register': 'registration',  # "Do families register through Optio?"
+# the modules a yes turns on. A new school starts with both off (the microschool
+# baseline, services/organization_service.new_org_row), so the form asks rather
+# than hoping the school spots two boxes in a list.
+QUESTION_MODULES: Dict[str, Tuple[str, ...]] = {
+    # catalog requires classes: families pick classes from the catalog
+    'families_register': ('registration', 'catalog', 'classes'),
+    'collects_tuition': ('billing', 'registration'),   # billing requires registration
+}
+
+# Features the form asks about in its own words, so its list of what a school
+# can add leaves them out: registration, the catalog and billing (the yes/no
+# questions) and AI (the Settings section). Classes stays listed: a school can
+# want classes without families registering online.
+ASKED_ELSEWHERE = frozenset({'registration', 'catalog', 'billing', 'ai'})
+
+# On from the start but left out of the form's "What your school starts with"
+# list (Tanner, 2026-10-09). They stay on; the list is only shorter.
+NOT_SHOWN_AT_START = frozenset({'individual_work', 'courses'})
+
+# A form loaded before 2026-10-06 sent registration and billing as checkbox
+# picks in `features`; they still stand for a yes.
+OLD_FORM_PICKS: Dict[str, str] = {
+    'registration': 'families_register',
+    'billing': 'collects_tuition',
 }
 
 
-def feature_picks(answers: Dict[str, Any]) -> List[str]:
-    """The checkbox picks plus the pick each 'yes' answer stands for."""
-    picks = list(answers.get('features') or [])
-    for question, pick in QUESTION_PICKS.items():
-        if answers.get(question) == 'yes' and pick not in picks:
-            picks.append(pick)
-    return picks
-
-
-def module_changes(features: List[str]) -> Dict[str, bool]:
-    """The module toggles for a new school's picks.
-
-    Once the console is on, every console module a checkbox controls is set
-    explicitly, on or off, so one that defaults on (attendance, calendar) is
-    off unless picked. Modules outside the console default off and are
-    written only when picked. The console itself turns on only when a console module was
-    picked; a school that picked none stays on the learning platform, and
-    its console modules are left unset."""
-    from modules import MODULES
-    picked = {m for f in features for m in FEATURE_MODULES.get(f, ())}
-    controlled = {m for mods in FEATURE_MODULES.values() for m in mods}
-    console_on = any(MODULES[m].parent == 'sis' for m in picked)
-    changes: Dict[str, bool] = {}
-    for m in sorted(controlled):
-        if MODULES[m].parent == 'sis':
-            if console_on:
-                changes[m] = m in picked
-        elif m in picked:   # the rest default off, so only a pick is written
+def module_changes(answers: Dict[str, Any]) -> Dict[str, bool]:
+    """The module toggles for a new school: the console, plus what each yes
+    needs. Every other module keeps its microschool-baseline answer, so a new
+    admin sees a short sidebar and adds the rest from Settings > Features."""
+    yes = {q for q in QUESTION_MODULES if answers.get(q) == 'yes'}
+    yes |= {OLD_FORM_PICKS[f] for f in (answers.get('features') or []) if f in OLD_FORM_PICKS}
+    changes = {'sis': True}
+    for question in sorted(yes):
+        for m in QUESTION_MODULES[question]:
             changes[m] = True
-    if console_on:
-        changes['sis'] = True
     return changes
+
+
+def _new_school_flags(answers: Dict[str, Any]) -> Dict[str, Any]:
+    """feature_flags for a school made by this form."""
+    from modules.toggle import apply_changes
+    return apply_changes(new_org_row('', '', 'all_optio'), module_changes(answers))
 
 
 def _org_roles(user: Dict[str, Any]) -> List[str]:
@@ -432,7 +428,7 @@ def _notify_staff(org: Dict[str, Any], answers: Dict[str, Any], user: Dict[str, 
             ('Where', place),
             ('Students', f"{answers['student_count']} ("
                          + ', '.join(f'{g}: {n}' for g, n in answers['grade_counts'].items()) + ')'),
-            ('Wants', ', '.join(answers.get('features') or []) or 'Not answered'),
+            ('Interested in', ', '.join(answers.get('features') or []) or 'Not answered'),
             ('Collects tuition through Optio', answers.get('collects_tuition') or 'Not answered'),
             ('Families register through Optio', answers.get('families_register') or 'Not answered'),
         ]

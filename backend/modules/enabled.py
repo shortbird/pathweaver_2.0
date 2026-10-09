@@ -48,8 +48,8 @@ def _raw_value(entry: ModuleDef, flags: Dict) -> bool:
     # untouched.
     if flags.get('module_baseline') == STARTER_BASELINE and entry.key in STARTER_OFF:
         return False
-    # The microschool baseline (2026-10-08): smaller again, and it turns the
-    # coach's weekly goals on. Orgs created before it keep 'starter'.
+    # The microschool baseline (2026-10-08): smaller again. Orgs created
+    # before it keep 'starter'.
     if flags.get('module_baseline') == MICROSCHOOL_BASELINE:
         if entry.key in MICROSCHOOL_OFF:
             return False

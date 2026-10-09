@@ -31,6 +31,13 @@ import {
  * Submitting creates the school and makes this account its administrator
  * (services/school_onboarding_service.py). Only some answers become settings;
  * the rest go to Optio, who follows up.
+ *
+ * Features (Tanner, 2026-10-09: do not overwhelm a new admin, but let them
+ * know what is there): every school starts on the same short list, and only
+ * the two yes/no questions turn anything on. The list of what a school starts
+ * with and can add comes with the link, from the Settings Features card's own
+ * list, so the form and the card cannot disagree. Ticking one records
+ * interest for Optio to follow up; it turns nothing on.
  */
 
 const GRADES = ['PreK', 'K', '1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12', 'Adult']
@@ -42,29 +49,20 @@ const APPROACHES = ['Project-based', 'Self-directed', 'Classical', 'Montessori',
 const TERMS = ['Semesters', 'Trimesters', 'Quarters', 'Year-round', 'No set terms']
 const TUITION_MODELS = ['Annual tuition', 'Monthly tuition', 'Per class', 'Per term', 'Free or donation-based']
 
-// What Optio can do, in the school's words. Keys match the module registry
-// (backend/modules/registry.py) so staff can switch on what was asked for.
-// Registration and tuition are not here: a new school starts with both off,
-// so the form asks about them plainly (YES_NO_QUESTIONS) instead.
-const FEATURES = [
-  { key: 'classes', label: 'Classes and schedules', hint: 'Build class times and rooms, and let families pick a schedule.' },
-  { key: 'attendance', label: 'Attendance', hint: 'Daily roll call, and absence requests from families.' },
-  { key: 'calendar', label: 'School calendar', hint: 'Events and days off that families see on their phones.' },
-  { key: 'credits', label: 'Credits and transcripts', hint: 'Track credit toward graduation and print transcripts.' },
-  { key: 'weekly_goals', label: 'Weekly goals', hint: 'A weekly learning target for each student, with progress families can see.' },
-  { key: 'secure_documents', label: 'Secure staff documents', hint: 'Keep staff paperwork in one private place.' },
-  { key: 'mobile_app', label: 'Mobile app (iOS and Android)', hint: 'Students and families use Optio on their phones.' },
-  { key: 'kiosk', label: 'Shared classroom computer', hint: 'Students without their own device sign in on a classroom computer to add evidence of their learning.' },
-  { key: 'community', label: 'Family directory and community', hint: 'Families find and connect with each other.' },
-  { key: 'reports', label: 'Reports and exports', hint: 'Rosters, attendance and billing as spreadsheets.' },
+// Always there, so the Features card does not list them; the form names them
+// so a new admin sees the heart of Optio first.
+const ALWAYS = [
+  { key: 'quests', name: 'Projects and quests', description: 'Students take on projects, finish tasks and earn XP for their work.' },
+  { key: 'messaging', name: 'Messaging', description: 'Message families, students and staff, and send announcements.' },
+  { key: 'mobile_app', name: 'Mobile app', description: 'Students and families use Optio on iOS and Android.' },
 ]
 
-// Each yes turns on the features behind it (QUESTION_PICKS in
+// Each yes turns on the features behind it (QUESTION_MODULES in
 // backend/services/school_onboarding_service.py).
 const YES_NO_QUESTIONS = [
-  { key: 'families_register', label: 'Do families register through Optio?',
+  { key: 'families_register', label: 'Would you like families to register through Optio?',
     hint: 'Families apply and enroll online, with waitlists and age limits, and browse your classes.' },
-  { key: 'collects_tuition', label: 'Do you collect tuition through Optio?',
+  { key: 'collects_tuition', label: 'Would you like families to pay tuition through Optio?',
     hint: 'Invoices, and monthly autopay by bank account or card. Families register through Optio too.' },
 ]
 
@@ -95,16 +93,16 @@ function Shell({ children }) {
   )
 }
 
-function Section({ title, intro, required = false, children }) {
+function Section({ title, intro, required = false, badge = true, children }) {
   return (
     <section className="bg-white rounded-xl border border-gray-100 shadow-sm p-5 sm:p-6 space-y-4">
       <div>
         <div className="flex items-center gap-2">
           <h2 className="text-lg font-semibold text-gray-900">{title}</h2>
-          <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${required
+          {badge && <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${required
             ? 'bg-red-50 text-red-700' : 'bg-gray-100 text-gray-600'}`}>
             {required ? 'Required' : 'Optional'}
-          </span>
+          </span>}
         </div>
         {intro && <p className="mt-1 text-sm text-gray-600">{intro}</p>}
       </div>
@@ -299,6 +297,9 @@ export default function SchoolSetupPage() {
         <p className="text-gray-600">
           You are the school&apos;s administrator. We have your answers, and we will be in touch about the next steps.
         </p>
+        <p className="text-gray-600">
+          Your school starts simple. To turn on more features, choose Add features at the bottom of your menu.
+        </p>
         <p className="text-sm text-gray-600">
           Your school&apos;s sign-in page is{' '}
           <span className="font-medium text-gray-900">{window.location.origin}/login/{done.slug}</span>
@@ -343,6 +344,9 @@ export default function SchoolSetupPage() {
   }
 
   const inSchool = !!user?.organization_id || user?.role === 'superadmin'
+  const startsWith = link.features?.starts_with || []
+  const canAdd = link.features?.can_add || []
+  const groups = link.features?.groups || []
 
   return (
     <Shell>
@@ -533,8 +537,19 @@ export default function SchoolSetupPage() {
           </Field>
         </Section>
 
-        <Section title="What do you want Optio to do?"
-          intro="Every school can use every feature. Pick the ones you want turned on. You can change them anytime.">
+        <Section title="What your school starts with" badge={false}
+          intro="Optio starts simple, so you can learn it one piece at a time. Your school begins with these.">
+          <ul className="grid sm:grid-cols-2 gap-3">
+            {[...ALWAYS, ...startsWith].map((f) => (
+              <li key={f.key} className="p-3 rounded-lg border border-gray-200 bg-gray-50">
+                <span className="block text-sm font-medium text-gray-900">{f.name}</span>
+                <span className="block text-xs text-gray-600">{f.description}</span>
+              </li>
+            ))}
+          </ul>
+        </Section>
+
+        <Section title="Registration and tuition" intro="If you answer yes, we turn these on for you.">
           <div className="grid sm:grid-cols-2 gap-4">
             {YES_NO_QUESTIONS.map((q) => (
               <Field key={q.key} id={q.key} label={q.label} hint={q.hint}>
@@ -543,20 +558,38 @@ export default function SchoolSetupPage() {
               </Field>
             ))}
           </div>
-          <div className="grid sm:grid-cols-2 gap-3">
-            {FEATURES.map((f) => (
-              <label key={f.key} className={`flex gap-3 p-3 rounded-lg border cursor-pointer ${form.features.includes(f.key)
-                ? 'border-optio-purple bg-purple-50' : 'border-gray-200 hover:border-gray-300'}`}>
-                <input type="checkbox" className="mt-1 rounded border-gray-300"
-                  checked={form.features.includes(f.key)} onChange={() => toggleIn('features', f.key)} />
-                <span>
-                  <span className="block text-sm font-medium text-gray-900">{f.label}</span>
-                  <span className="block text-xs text-gray-600">{f.hint}</span>
-                </span>
-              </label>
-            ))}
-          </div>
         </Section>
+
+        {canAdd.length > 0 && (
+          <Section title="More you can add later"
+            intro="None of these are on yet. Tick the ones that interest you, and we will help you set them up. You can also turn most of them on yourself at any time: choose Add features at the bottom of your menu.">
+            {groups.map((g) => {
+              const items = canAdd.filter((f) => f.group === g.key)
+              if (!items.length) return null
+              return (
+                <fieldset key={g.key} className="space-y-2">
+                  <legend className="text-sm font-semibold text-gray-700 mb-2">{g.name}</legend>
+                  <div className="grid sm:grid-cols-2 gap-3">
+                    {items.map((f) => (
+                      <label key={f.key} className={`flex gap-3 p-3 rounded-lg border cursor-pointer ${form.features.includes(f.key)
+                        ? 'border-optio-purple bg-purple-50' : 'border-gray-200 hover:border-gray-300'}`}>
+                        <input type="checkbox" className="mt-1 rounded border-gray-300"
+                          checked={form.features.includes(f.key)} onChange={() => toggleIn('features', f.key)} />
+                        <span>
+                          <span className="block text-sm font-medium text-gray-900">{f.name}</span>
+                          <span className="block text-xs text-gray-600">{f.description}</span>
+                          {f.optio_turns_on && (
+                            <span className="block mt-1 text-xs text-gray-500">Optio turns this on for you.</span>
+                          )}
+                        </span>
+                      </label>
+                    ))}
+                  </div>
+                </fieldset>
+              )
+            })}
+          </Section>
+        )}
 
         <Section title="Credit and transcripts"
           intro="Optio tracks the work students do as credit. Students can also earn credit on an accredited Optio Academy transcript.">

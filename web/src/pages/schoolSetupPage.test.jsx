@@ -55,7 +55,17 @@ describe('SchoolSetupPage', () => {
     Element.prototype.scrollIntoView = vi.fn()
     Object.assign(auth, { isAuthenticated: false, user: null })
     phone = { verified: true, phone: '••• ••• 0123' }
-    link = { status: 'open', school_name_hint: 'Juniper Ridge' }
+    link = {
+      status: 'open', school_name_hint: 'Juniper Ridge',
+      features: {
+        groups: [{ key: 'teaching', name: 'Teaching' }, { key: 'credits', name: 'Credit and diplomas' }],
+        starts_with: [{ key: 'submissions', group: 'teaching', name: 'Work to review', description: 'One list.' }],
+        can_add: [
+          { key: 'attendance', group: 'teaching', name: 'Attendance', description: 'Take roll.', optio_turns_on: false },
+          { key: 'credits', group: 'credits', name: 'Credits', description: 'School credit.', optio_turns_on: true },
+        ],
+      },
+    }
     api.get.mockImplementation((url) => Promise.resolve({
       data: url.startsWith('/api/phone-verification') ? phone : { link },
     }))
@@ -67,6 +77,17 @@ describe('SchoolSetupPage', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Create an account' }))
     expect(screen.getByText('register page')).toBeInTheDocument()
     expect(localStorage.getItem(KEY)).toBe('tok123')
+  })
+
+  it('signed in: shows what the school starts with and what it can add later', async () => {
+    Object.assign(auth, { isAuthenticated: true, user: { id: 'u1', email: 'pat@school.org' } })
+    mount()
+    expect(await screen.findByText('What your school starts with')).toBeInTheDocument()
+    expect(screen.getByText('Projects and quests')).toBeInTheDocument()
+    expect(screen.getByText('Work to review')).toBeInTheDocument()
+    expect(screen.getByText('More you can add later')).toBeInTheDocument()
+    expect(screen.getByLabelText(/Attendance/)).not.toBeChecked()
+    expect(screen.getByText('Optio turns this on for you.')).toBeInTheDocument()
   })
 
   it('signed in: a missing required answer stops the submit', async () => {
@@ -109,8 +130,8 @@ describe('SchoolSetupPage', () => {
     fireEvent.change(screen.getByLabelText('Students in grade 4'), { target: { value: '6' } })
     fireEvent.change(screen.getByLabelText('Students in K'), { target: { value: '5' } })
     expect(screen.getByText('11')).toBeInTheDocument()   // the running total
-    fireEvent.change(screen.getByLabelText('Do you collect tuition through Optio?'), { target: { value: 'yes' } })
-    fireEvent.change(screen.getByLabelText('Do families register through Optio?'), { target: { value: 'no' } })
+    fireEvent.change(screen.getByLabelText('Would you like families to pay tuition through Optio?'), { target: { value: 'yes' } })
+    fireEvent.change(screen.getByLabelText('Would you like families to register through Optio?'), { target: { value: 'no' } })
     await userEvent.click(screen.getByLabelText(/Attendance/))
     await userEvent.click(screen.getByRole('button', { name: 'Create my school' }))
 

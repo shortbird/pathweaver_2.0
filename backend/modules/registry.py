@@ -321,14 +321,16 @@ STARTER_BASELINE = 'starter'
 # 2026-10-08): every org created from that day starts here, and the 'starter'
 # orgs before it keep what they had (Tanner: new schools only). Smaller again:
 # a school that works one child at a time has no classes, timetable, roll,
-# curriculum library or reports until it turns them on, and it starts with the
-# weekly goals a coach keeps with each student. Everything else is one switch
-# away on the Settings Features card, which lists every module.
+# curriculum library or reports until it turns them on. Everything else is one
+# switch away on the Settings Features card, which lists every module.
+# Weekly goals started on here and came off on 2026-10-09 (Tanner: new schools
+# do not start with weekly goals), so MICROSCHOOL_ON is empty; it stays as the
+# place to name a module the baseline turns on.
 MICROSCHOOL_BASELINE = 'microschool'
 MICROSCHOOL_OFF = STARTER_OFF | frozenset({
     'classes', 'attendance', 'calendar', 'curriculum', 'reports',
 })
-MICROSCHOOL_ON = frozenset({'weekly_goals'})
+MICROSCHOOL_ON: frozenset = frozenset()
 
 
 def surface_keys(surface: str) -> frozenset:
