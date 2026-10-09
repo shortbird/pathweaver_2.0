@@ -37,6 +37,7 @@ from typing import Any, Dict, List, Optional
 from utils.logger import get_logger
 from utils.school_subjects import SCHOOL_SUBJECTS
 from utils.storage_urls import parse_object_ref, sign_in_place
+from utils.validation.sanitizers import pgrst_uuid, pgrst_uuid_list
 
 logger = get_logger(__name__)
 
@@ -274,18 +275,28 @@ def _attach_names(records: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
 
 def list_for_guardian(org_id: str, guardian_id: str,
                       student_ids: Optional[List[str]] = None) -> List[Dict[str, Any]]:
-    """Every record this guardian filed in this org, newest first.
+    """Every record this guardian filed in this org, plus every record one of
+    their students filed for themselves, newest first.
+
+    `student_ids` is who the caller may act for (the route's guard): their
+    children, or just themselves when the caller is a student. None keeps the
+    older reading -- what the caller filed, and nothing else.
 
     Scoped by submitted_by, not by student: a household with two guardians each
     sees what they themselves filed. Widening that to the household is a real
     product question (co-parents in separate homes), not a detail to guess at.
+    A student's own filings are the exception, because students have had their
+    own door since 2026-10-09 and a parent should see what their child sent.
     """
     query = (_admin().table('prior_learning_records').select('*')
-             .eq('organization_id', org_id).eq('submitted_by', guardian_id))
-    if student_ids is not None:
-        if not student_ids:
-            return []
-        query = query.in_('student_user_id', student_ids)
+             .eq('organization_id', org_id))
+    if student_ids:
+        query = query.or_(
+            f'submitted_by.eq.{pgrst_uuid(guardian_id)},student_user_id.eq.{pgrst_uuid(guardian_id)},'
+            f'and(submitted_by.in.({pgrst_uuid_list(student_ids)}),'
+            f'student_user_id.in.({pgrst_uuid_list(student_ids)}))')
+    else:
+        query = query.eq('submitted_by', guardian_id)
     records = query.order('created_at', desc=True).limit(200).execute().data or []
     return _attach_evidence(records)
 
@@ -333,11 +344,26 @@ def get_record(record_id: str, org_id: str) -> Optional[Dict[str, Any]]:
     return _attach_evidence([record])[0]
 
 
-def get_own_record(record_id: str, org_id: str, guardian_id: str) -> Optional[Dict[str, Any]]:
+def family_may_act(record: Dict[str, Any], actor_id: str,
+                   student_ids: Optional[List[str]] = None) -> bool:
+    """May this family member act on this record? Whoever filed it may. With
+    `student_ids` (who the actor may act for), so may the student it is about,
+    and a guardian of a student who filed it themselves -- never a co-parent's
+    record, which list_for_guardian keeps apart too."""
+    if record.get('submitted_by') == actor_id:
+        return True
+    if not student_ids or record.get('student_user_id') not in student_ids:
+        return False
+    return (record.get('student_user_id') == actor_id
+            or record.get('submitted_by') == record.get('student_user_id'))
+
+
+def get_own_record(record_id: str, org_id: str, guardian_id: str,
+                   student_ids: Optional[List[str]] = None) -> Optional[Dict[str, Any]]:
     record = get_record(record_id, org_id)
     # The family acts only in the school they filed in, never through the
     # reviewer's door.
-    if (not record or record.get('submitted_by') != guardian_id
+    if (not record or not family_may_act(record, guardian_id, student_ids)
             or record.get('organization_id') != org_id):
         return None
     return record
@@ -410,8 +436,8 @@ def create_record(org_id: str, guardian_id: str, student_id: str,
 
 
 def update_record(record_id: str, org_id: str, guardian_id: str,
-                  data: Dict[str, Any]) -> Dict[str, Any]:
-    record = get_own_record(record_id, org_id, guardian_id)
+                  data: Dict[str, Any], student_ids: Optional[List[str]] = None) -> Dict[str, Any]:
+    record = get_own_record(record_id, org_id, guardian_id, student_ids)
     if not record:
         return {'error': 'Record not found', 'status': 404}
     if record['status'] not in FAMILY_EDITABLE:
@@ -426,8 +452,9 @@ def update_record(record_id: str, org_id: str, guardian_id: str,
     return {'record': {**updated[0], 'evidence': record.get('evidence', [])}}
 
 
-def submit_record(record_id: str, org_id: str, guardian_id: str) -> Dict[str, Any]:
-    record = get_own_record(record_id, org_id, guardian_id)
+def submit_record(record_id: str, org_id: str, guardian_id: str,
+                  student_ids: Optional[List[str]] = None) -> Dict[str, Any]:
+    record = get_own_record(record_id, org_id, guardian_id, student_ids)
     if not record:
         return {'error': 'Record not found', 'status': 404}
     if record['status'] != 'draft':
@@ -441,14 +468,15 @@ def submit_record(record_id: str, org_id: str, guardian_id: str) -> Dict[str, An
                        'evidence': record.get('evidence', [])}}
 
 
-def delete_record(record_id: str, org_id: str, guardian_id: str) -> Dict[str, Any]:
+def delete_record(record_id: str, org_id: str, guardian_id: str,
+                  student_ids: Optional[List[str]] = None) -> Dict[str, Any]:
     """Withdraw a record the office hasn't picked up yet.
 
     Evidence rows cascade. The blobs in quest-evidence are left alone, the same
     way deleting task evidence leaves them: they are keyed by a random path, and
     reaping storage on delete is a separate, whole-platform concern.
     """
-    record = get_own_record(record_id, org_id, guardian_id)
+    record = get_own_record(record_id, org_id, guardian_id, student_ids)
     if not record:
         return {'error': 'Record not found', 'status': 404}
     if record['status'] not in FAMILY_EDITABLE:
@@ -458,10 +486,10 @@ def delete_record(record_id: str, org_id: str, guardian_id: str) -> Dict[str, An
 
 
 def add_evidence(record_id: str, org_id: str, guardian_id: str,
-                 evidence: Dict[str, Any]) -> Dict[str, Any]:
+                 evidence: Dict[str, Any], student_ids: Optional[List[str]] = None) -> Dict[str, Any]:
     """Attach one piece of evidence. `evidence` is already-validated shape from
     the route (which owns the file upload); this owns ordering and the caps."""
-    record = get_own_record(record_id, org_id, guardian_id)
+    record = get_own_record(record_id, org_id, guardian_id, student_ids)
     if not record:
         return {'error': 'Record not found', 'status': 404}
     if record['status'] not in FAMILY_EDITABLE:
@@ -530,8 +558,8 @@ def _delete_evidence_row(evidence_id: str, record_id: str) -> Dict[str, Any]:
 
 
 def delete_evidence(evidence_id: str, record_id: str, org_id: str,
-                    guardian_id: str) -> Dict[str, Any]:
-    record = get_own_record(record_id, org_id, guardian_id)
+                    guardian_id: str, student_ids: Optional[List[str]] = None) -> Dict[str, Any]:
+    record = get_own_record(record_id, org_id, guardian_id, student_ids)
     if not record:
         return {'error': 'Record not found', 'status': 404}
     if record['status'] not in FAMILY_EDITABLE:

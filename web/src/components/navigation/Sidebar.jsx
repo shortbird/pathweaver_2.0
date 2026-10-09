@@ -395,9 +395,11 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, isPinned, onTogglePin, isHovere
   // program page), else a guardian's first family tab. Superadmins are in no
   // school but get the same door as "School Pages" -- /school shows them an
   // org and role picker to preview each school's page.
-  const schoolTabs = familyNavItemsFor(schoolOrg, { homepage: Boolean(school?.homepage) })
+  const schoolTabs = familyNavItemsFor(schoolOrg, { homepage: Boolean(school?.homepage), viewerRole: effectiveRole })
   // A family-first school (Optio Academy) has no feed (2026-09-28), so a
-  // member with no family tabs -- a student -- gets no door to an empty page.
+  // member with no family tabs gets no door to an empty page. Its students
+  // do have tabs since 2026-10-09 (Courses and Credits, Prior Learning), so
+  // they get the school's door the way their parents do.
   const feedDoor = school?.homepage && !inOptioAcademy({ user, school })
   const schoolDoor = schoolTabs[0]?.path
     || ((feedDoor || user?.role === 'superadmin') ? '/school' : null)

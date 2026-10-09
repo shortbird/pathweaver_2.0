@@ -20,6 +20,7 @@ vi.mock('../contexts/AuthContext', () => ({
 vi.mock('./navigation/Sidebar', () => ({ default: () => <nav>sidebar-stub</nav> }))
 vi.mock('./navigation/TopNavbar', () => ({ default: () => <header>navbar-stub</header> }))
 vi.mock('../hooks/useKioskIdleTimeout', () => ({ useKioskIdleTimeout: () => {} }))
+vi.mock('./registration/UnfinishedRegistrationBanner', () => ({ default: () => null }))
 
 
 const renderLayout = () => render(

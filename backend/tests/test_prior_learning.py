@@ -527,7 +527,7 @@ class TestStaffAttachDocumentsDuringReview:
                 'title': 'Transcript', 'file_name': 'scan.pdf'}
 
     def test_the_family_is_locked_out_of_a_record_in_review(self, monkeypatch):
-        monkeypatch.setattr(prior, 'get_own_record', lambda rid, oid, uid: dict(self.RECORD))
+        monkeypatch.setattr(prior, 'get_own_record', lambda rid, oid, uid, sids=None: dict(self.RECORD))
         result = prior.add_evidence('r1', 'o1', 'parent-1', dict(self.EVIDENCE))
         assert 'reviewing' in result['error']
 
@@ -740,3 +740,62 @@ class TestTheFamilyHearsTheOutcome:
                                        'status': 'accepted', 'organization_id': MICRO})
         assert sent[0]['user_id'] == 'mom'
         assert 'credit awarded' in sent[0]['title']
+
+
+@pytest.mark.unit
+class TestStudentsFileForThemselves:
+    """Students got the parents' level of access on 2026-10-09. A student acts
+    for their own record and nobody else's; a parent sees what their child
+    filed; a co-parent's records stay theirs alone, as before."""
+
+    def test_a_student_may_act_on_any_record_about_themselves(self):
+        assert prior.family_may_act({'student_user_id': 'kid', 'submitted_by': 'kid'}, 'kid', ['kid'])
+        assert prior.family_may_act({'student_user_id': 'kid', 'submitted_by': 'mom'}, 'kid', ['kid'])
+
+    def test_a_student_may_not_reach_a_sibling(self):
+        assert not prior.family_may_act({'student_user_id': 'sis', 'submitted_by': 'mom'}, 'kid', ['kid'])
+
+    def test_a_parent_may_act_on_what_their_child_filed(self):
+        assert prior.family_may_act({'student_user_id': 'kid', 'submitted_by': 'kid'}, 'mom', ['kid'])
+
+    def test_a_co_parents_record_stays_theirs(self):
+        assert not prior.family_may_act({'student_user_id': 'kid', 'submitted_by': 'dad'}, 'mom', ['kid'])
+
+    def test_without_the_guard_s_students_only_the_filer_may_act(self):
+        assert prior.family_may_act({'student_user_id': 'kid', 'submitted_by': 'mom'}, 'mom')
+        assert not prior.family_may_act({'student_user_id': 'kid', 'submitted_by': 'kid'}, 'mom')
+
+
+@pytest.mark.unit
+class TestSelfAsStudent:
+    """The fallback door in routes/sis/parent_prior_learning._guard."""
+
+    def _me(self, monkeypatch, row, sis=True):
+        from services import sis_parent_service as parent
+
+        class _Q:
+            def __getattr__(self, _name):
+                return lambda *a, **k: self
+
+            def execute(self):
+                return type('R', (), {'data': [row] if row else []})()
+
+        monkeypatch.setattr(parent, '_admin', lambda: type('A', (), {'table': lambda s, n: _Q()})())
+        monkeypatch.setattr(parent, 'org_has_feature', lambda oid, flag: sis)
+        return parent
+
+    def test_a_student_of_the_school_acts_for_themselves(self, monkeypatch):
+        parent = self._me(monkeypatch, {'id': 'kid', 'role': 'org_managed', 'org_role': 'student',
+                                        'organization_id': 'oa', 'first_name': 'Ada', 'last_name': 'B'})
+        got = parent.self_as_student('kid', 'oa')
+        assert [s['student_id'] for s in got] == ['kid']
+
+    def test_a_student_of_another_school_is_not_admitted(self, monkeypatch):
+        parent = self._me(monkeypatch, {'id': 'kid', 'role': 'org_managed', 'org_role': 'student',
+                                        'organization_id': 'elsewhere'})
+        assert parent.self_as_student('kid', 'oa') == []
+
+    def test_staff_are_not_admitted_as_students(self, monkeypatch):
+        parent = self._me(monkeypatch, {'id': 't', 'role': 'org_managed', 'org_role': 'advisor',
+                                        'organization_id': 'oa'})
+        assert parent.self_as_student('t', 'oa') == []

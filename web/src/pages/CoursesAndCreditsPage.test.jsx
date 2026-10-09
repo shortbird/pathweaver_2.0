@@ -18,14 +18,19 @@ vi.mock('../hooks/useStudentScope', () => ({
 }))
 
 const enterScope = vi.fn()
+// A parent unless a test says otherwise.
+let viewer = { guardian: true, user: { id: 'parent-1', role: 'parent' }, effectiveRole: 'parent' }
 vi.mock('../contexts/FamilyScopeContext', () => ({
   useFamilyScope: () => ({ enterScope }),
-  worksThroughFamily: () => true,
+  worksThroughFamily: () => viewer.guardian,
 }))
-vi.mock('../contexts/AuthContext', () => ({ useAuth: () => ({ user: { id: 'parent-1', role: 'parent' } }) }))
+vi.mock('../contexts/AuthContext', () => ({ useAuth: () => ({ user: viewer.user, effectiveRole: viewer.effectiveRole }) }))
 let schoolOrg = null
+// Where the viewer is a member (a student's own school).
+let memberOrgs = []
 vi.mock('../hooks/api/useSchoolContext', () => ({
   useFamilyOrgSelection: () => ({ students: [{ student_id: 'kid-1', name: 'Ada' }], org: schoolOrg, loading: false }),
+  useSchoolContext: () => ({ orgs: memberOrgs }),
 }))
 
 // The prior-learning uploader has its own tests (familyPriorLearning.test.jsx);
@@ -112,6 +117,8 @@ describe('CoursesAndCreditsPage', () => {
     vi.clearAllMocks()
     scope = { studentId: 'kid-1', studentName: 'Ada' }
     schoolOrg = null
+    memberOrgs = []
+    viewer = { guardian: true, user: { id: 'parent-1', role: 'parent' }, effectiveRole: 'parent' }
     apiGet.mockResolvedValue({ data: { data: PLAN } })
     apiPost.mockResolvedValue({ data: { data: { quest_id: 'q-new' } } })
   })
@@ -181,6 +188,15 @@ describe('CoursesAndCreditsPage', () => {
     expect(screen.getByRole('button', { name: /send records/i })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: /learning from before optio/i, level: 2 })).toBeInTheDocument()
     expect(screen.getByTestId('prior-learning-panel')).toHaveAttribute('data-student', 'kid-1')
+  })
+
+  it('gives a student the same prior learning section, for themselves (2026-10-09)', async () => {
+    viewer = { guardian: false, user: { id: 'me', role: 'org_managed', first_name: 'Ada' }, effectiveRole: 'student' }
+    scope = { studentId: null, studentName: null }
+    memberOrgs = [{ organization_id: 'org-1', prior_learning_enabled: true }]
+    renderPage()
+    expect(await screen.findByRole('heading', { name: /learning from before optio/i, level: 2 })).toBeInTheDocument()
+    expect(screen.getByTestId('prior-learning-panel')).toHaveAttribute('data-student', 'me')
   })
 
   it('offers no prior learning where the school does not take it', async () => {

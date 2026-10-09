@@ -3,7 +3,8 @@ import { Navigate } from 'react-router-dom'
 import { toast } from 'react-hot-toast'
 import { ArrowUpTrayIcon, DocumentIcon, XMarkIcon } from '@heroicons/react/24/outline'
 import api from '../services/api'
-import { useFamilyOrgSelection } from '../hooks/api/useSchoolContext'
+import { useFamilyOrgSelection, useSchoolContext } from '../hooks/api/useSchoolContext'
+import { useAuth } from '../contexts/AuthContext'
 import { isFamilyFirstHubOrg } from '../config/optioAcademy'
 // Shared with the SIS Prior Learning page, which uploads into the same pipeline.
 import {
@@ -80,7 +81,23 @@ const FamilyPriorLearningPage = ({ studentId: fixedStudentId = null, onChange = 
   // One shared read of where this person is a guardian (hooks/api/
   // useSchoolContext). The students themselves come from the prior-learning
   // read below (it carries eligibility the context does not).
-  const { orgs, org, orgId, setOrgId, scopedStudentId, loading, isError } = useFamilyOrgSelection()
+  const guardian = useFamilyOrgSelection()
+  // A student files for themselves (2026-10-09): they guard nobody, so their
+  // school comes from membership, and the endpoints admit them for their own
+  // record only. A guardian's schools win when a person is both.
+  const { effectiveRole } = useAuth()
+  const { orgs: memberOrgs } = useSchoolContext({ enabled: effectiveRole === 'student' })
+  const selfOrg = effectiveRole === 'student' && !guardian.orgs.length
+    ? (memberOrgs || []).find((o) => o.prior_learning_enabled) || null
+    : null
+  const forSelf = Boolean(selfOrg)
+  const { scopedStudentId, isError } = guardian
+  const orgs = forSelf ? [selfOrg] : guardian.orgs
+  const org = forSelf ? selfOrg : guardian.org
+  const orgId = forSelf ? selfOrg.organization_id : guardian.orgId
+  const { setOrgId } = guardian
+  const loading = guardian.loading
+    || (effectiveRole === 'student' && !guardian.orgs.length && memberOrgs === null)
   const [records, setRecords] = useState([])
   const [students, setStudents] = useState([])
   const [pickedStudentId, setStudentId] = useState('')
@@ -256,10 +273,15 @@ const FamilyPriorLearningPage = ({ studentId: fixedStudentId = null, onChange = 
     <div className={embedded ? 'space-y-6' : 'max-w-3xl mx-auto space-y-8'}>
       <div>
         <p className="text-gray-600 text-sm">
-          Upload records of learning your child did before joining, or outside of, Optio —
-          transcripts, report cards, certificates, course descriptions, samples of their work.
-          Send as many as you like at once. {schoolName} reviews them and can award
-          high-school credit toward their transcript.
+          {forSelf
+            ? <>Upload records of learning you did before joining, or outside of, Optio —
+              transcripts, report cards, certificates, course descriptions, samples of your work.
+              Send as many as you like at once. {schoolName} reviews them and can award
+              high-school credit toward your transcript.</>
+            : <>Upload records of learning your child did before joining, or outside of, Optio —
+              transcripts, report cards, certificates, course descriptions, samples of their work.
+              Send as many as you like at once. {schoolName} reviews them and can award
+              high-school credit toward their transcript.</>}
         </p>
       </div>
 

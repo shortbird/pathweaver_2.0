@@ -50,6 +50,32 @@ class RegistrationRepository(BaseRepository):
 
     # ------------------------------------------------- CRM recovery funnels
 
+    def orgs_for_slugs(self, slugs: List[str]) -> List[Dict[str, Any]]:
+        """The orgs (id, name) with these slugs."""
+        if not slugs:
+            return []
+        return (self.client.table('organizations').select('id, name')
+                .in_('slug', list(slugs)).execute()).data or []
+
+    def newest_started_by(self, parent_user_id: str, org_ids: List[str]) -> Optional[Dict[str, Any]]:
+        """This person's newest registration with any of these orgs."""
+        rows = (self.client.table(self.table_name)
+                .select('id, status, organization_id, parent_user_id')
+                .eq('parent_user_id', parent_user_id).in_('organization_id', org_ids)
+                .order('created_at', desc=True).limit(1).execute()).data or []
+        return rows[0] if rows else None
+
+    def newest_naming_child(self, child_user_id: str, org_ids: List[str]) -> Optional[Dict[str, Any]]:
+        """The newest registration with any of these orgs that lists this
+        person among its kids (kids[].user_id, a jsonb array)."""
+        import json
+        rows = (self.client.table(self.table_name)
+                .select('id, status, organization_id, parent_user_id')
+                .contains('kids', json.dumps([{'user_id': child_user_id}]))
+                .in_('organization_id', org_ids)
+                .order('created_at', desc=True).limit(1).execute()).data or []
+        return rows[0] if rows else None
+
     def org_id_for_slug(self, slug: str) -> Optional[str]:
         rows = (self.client.table('organizations').select('id')
                 .eq('slug', slug).limit(1).execute()).data

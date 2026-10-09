@@ -30,6 +30,10 @@ const { api } = vi.hoisted(() => ({
 }))
 vi.mock('../services/api', () => ({ default: api }))
 
+// A parent unless a test says otherwise; a student files for themselves.
+const { auth } = vi.hoisted(() => ({ auth: { effectiveRole: 'parent' } }))
+vi.mock('../contexts/AuthContext', () => ({ useAuth: () => auth }))
+
 import FamilyPriorLearningPage from './FamilyPriorLearningPage'
 import { cardsFor } from './SchoolPage'
 import { OPTIO_ACADEMY_ORG_ID } from '../config/optioAcademy'
@@ -74,7 +78,10 @@ const drop = async (...files) => {
 
 const evidencePosts = () => api.post.mock.calls.filter(([url]) => url.includes('/evidence'))
 
-beforeEach(() => vi.clearAllMocks())
+beforeEach(() => {
+  vi.clearAllMocks()
+  auth.effectiveRole = 'parent'
+})
 
 describe('uploading in bulk', () => {
   it('stages every file dropped in at once, not one at a time', async () => {
@@ -430,5 +437,44 @@ describe('the school hub card is opt-in', () => {
   it('never shows to a non-guardian member of the school', () => {
     const staff = { is_guardian: false, prior_learning_enabled: true, post_registration_flow: 'goals' }
     expect(names(staff)).not.toContain('Prior Learning')
+  })
+})
+
+describe('a student sending their own', () => {
+  const STUDENT = [{ student_id: 'me', name: 'Ada Byron' }]
+  const mockStudent = () => api.get.mockImplementation((url) => {
+    // A student guards nobody, so the guardian context is empty and the
+    // school comes from their own membership.
+    if (url.includes('/parent/context')) return Promise.resolve({ data: { orgs: [] } })
+    if (url.includes('/school/context')) {
+      return Promise.resolve({ data: { orgs: [{
+        organization_id: 'org-1', organization_name: 'Optio Academy',
+        is_guardian: false, prior_learning_enabled: true,
+      }] } })
+    }
+    if (url.includes('/parent/prior-learning')) return Promise.resolve({ data: { records: [], students: STUDENT } })
+    return Promise.resolve({ data: {} })
+  })
+
+  it('files against themselves at their own school, without being asked which child', async () => {
+    auth.effectiveRole = 'student'
+    mockStudent()
+    mockSendOk()
+    render(<FamilyPriorLearningPage studentId="me" />)
+    expect(await screen.findByText(/learning you did before joining/i)).toBeInTheDocument()
+    expect(screen.queryByLabelText(/who are these for/i)).toBeNull()
+    await stage(file('transcript.pdf'))
+    await userEvent.click(screen.getByRole('button', { name: /send/i }))
+    await waitFor(() => expect(api.post).toHaveBeenCalledWith(
+      '/api/sis/parent/prior-learning',
+      expect.objectContaining({ organization_id: 'org-1', student_user_id: 'me' }),
+    ))
+  })
+
+  it('is told it is not available when their school does not take prior learning', async () => {
+    auth.effectiveRole = 'student'
+    api.get.mockImplementation(() => Promise.resolve({ data: { orgs: [] } }))
+    render(<FamilyPriorLearningPage />)
+    expect(await screen.findByText(/aren’t available for your account/i)).toBeInTheDocument()
   })
 })

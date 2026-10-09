@@ -152,6 +152,24 @@ def registerable_students(guardian_user_id: str) -> List[Dict[str, Any]]:
     return out
 
 
+def self_as_student(user_id: str, org_id: str) -> List[Dict[str, Any]]:
+    """The caller as the one student they may act for, when they are a student
+    of this SIS-enabled org -- else []. The same shape as registerable_students,
+    so a family door can admit a student filing for themselves without a second
+    authorization path (Optio Academy, 2026-10-09: students get the parents'
+    level of access to Courses and Credits and Prior Learning). Membership is
+    the caller's own organization_id; a student is never a member by proxy."""
+    from repositories.user_repository import UserRepository
+    from utils.roles import get_effective_role
+    me = UserRepository(client=_admin()).find_by_id(user_id)
+    if (not me or me.get('organization_id') != org_id
+            or get_effective_role(me) != 'student'
+            or not org_has_feature(org_id, 'sis_enabled')):
+        return []
+    return [{'student_id': user_id, 'org_id': org_id, 'household_id': None,
+             'name': _student_name(me), 'date_of_birth': me.get('date_of_birth')}]
+
+
 def context(user_id: str) -> Dict[str, Any]:
     """Orgs (SIS-enabled) where the user is a guardian, each with its registerable students.
     Includes each person's avatar_url so family surfaces can prompt for missing photos."""

@@ -149,11 +149,15 @@ export function cardGroupsFor(org, { viewerRole } = {}) {
   // Courses and Credits on 2026-09-28 and came back as its own card on
   // 2026-10-07, so every school's families find the upload in the same place;
   // at a family-first school its address still lands on that section.
+  //
+  // A student gets the same two doors (2026-10-09: "they need the same level
+  // of access as parents"). Both pages act for the student themselves, and
+  // the backend admits a student of the school filing for their own record.
   if (isFamilyFirstHubOrg(org)) {
-    if (!org.is_guardian) return []
+    if (!org.is_guardian && viewerRole !== 'student') return []
     const cards = [coursesAndCreditsCard]
     if (org.prior_learning_enabled) cards.push(priorLearningCard)
-    return [{ id: 'family', title: 'My family', cards }]
+    return [{ id: 'family', title: org.is_guardian ? 'My family' : 'My credits', cards }]
   }
   const family = [flowCard(org.post_registration_flow), ...FAMILY_CARDS]
   if (org.prior_learning_enabled) family.push(priorLearningCard)
@@ -191,17 +195,20 @@ export function cardsFor(org, options) {
  * the calendar, plus the school's own page when the org front-doors families
  * through it. Everything else on /school (resources, directory, carpool)
  * stays a card there; a sidebar that lists every door is a sidebar nobody
- * reads. Empty for a member who is not a guardian, and for anyone whose
- * school has no family surfaces on.
+ * reads. Empty for a member who is not a guardian (except a student at a
+ * family-first school), and for anyone whose school has no family surfaces on.
  *
  * Until 2026-09-15 none of these pages was in the sidebar at all: a parent
  * reached Billing from the /school card grid, from the attention strip on
  * /family, or from a notification link, and not otherwise. iCreate's parent
  * training is where "where do I pay" gets asked.
  */
-export function familyNavItemsFor(org, { homepage = false } = {}) {
-  if (!org?.is_guardian) return []
-  const groups = cardGroupsFor(org)
+export function familyNavItemsFor(org, { homepage = false, viewerRole } = {}) {
+  // A student has no family doors, except at a family-first school, where the
+  // two diploma doors are theirs too (see cardGroupsFor).
+  const studentAtFamilyFirst = viewerRole === 'student' && isFamilyFirstHubOrg(org)
+  if (!org?.is_guardian && !studentAtFamilyFirst) return []
+  const groups = cardGroupsFor(org, { viewerRole })
   const family = groups.find((g) => g.id === 'family')?.cards || []
   const calendar = (groups.find((g) => g.id === 'school-life')?.cards || [])
     .filter((c) => ['/school-calendar', '/weekly-goals', '/points'].includes(c.path))

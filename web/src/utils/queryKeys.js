@@ -60,6 +60,9 @@ export const queryKeys = {
     // Where this person is a MEMBER (/api/sis/school/context): the school's
     // own surfaces, guardian or not. The sidebar and /school read this.
     schoolContext: () => [...queryKeys.family.all, 'schoolContext'],
+    // An unfinished Optio Academy registration naming this person
+    // (/api/registration/unfinished), for the reminder banner.
+    unfinishedRegistration: () => [...queryKeys.family.all, 'unfinishedRegistration'],
     // How this family is listed in one school's directory
     // (hooks/api/useDirectoryListing; Family Settings, Directory tab).
     directoryListing: (orgId) => [...queryKeys.family.all, 'directoryListing', orgId],

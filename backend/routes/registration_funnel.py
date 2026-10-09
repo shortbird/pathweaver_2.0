@@ -471,14 +471,61 @@ def my_registration(user_id):
     }), 200
 
 
+# Orgs whose unfinished registrations put a reminder banner in the app.
+# Optio Academy only (2026-10-09); widening it is adding a slug.
+UNFINISHED_BANNER_ORG_SLUGS = ('optio-academy',)
 
 
+@bp.route('/unfinished', methods=['GET'])
+@require_auth
+def unfinished_registration(user_id):
+    """The reminder banner's one read (web components/registration/
+    UnfinishedRegistrationBanner). Read-only, unlike /my-registration, which
+    settles legacy rows and skips the email code as it resumes."""
+    # admin client justified: reads only registrations naming the caller (as registrant or as a child on it), and the registrant's own email
+    return jsonify({'success': True, 'registration': unfinished_for(_admin(), user_id)}), 200
 
 
+def unfinished_for(admin, user_id):
+    """Is an Optio Academy registration that involves this person still
+    unfinished? None when there is nothing to finish.
 
+    Two ways to be involved, because students have started registering
+    themselves (2026-10-09) -- some under a second account with their own
+    email as the "parent":
+      - 'own': they started it, and /enroll/resume picks it up.
+      - 'student': they are a child on it. The funnel is the registrant's to
+        finish, so the banner names that account's email rather than offering
+        a door that would refuse them.
 
+    The newest registration decides: a finished one after an abandoned one
+    means there is nothing left to do.
+    """
+    from repositories.registration_repository import RegistrationRepository
+    from repositories.user_repository import UserRepository
+    from services.crm_registration_recovery import OPEN_STATUSES
 
+    repo = RegistrationRepository(client=admin)
+    org_names = {o['id']: o.get('name') for o in repo.orgs_for_slugs(list(UNFINISHED_BANNER_ORG_SLUGS))}
+    if not org_names:
+        return None
 
+    own = repo.newest_started_by(user_id, list(org_names))
+    if own and own.get('status') in OPEN_STATUSES:
+        return {'kind': 'own', 'status': own['status'],
+                'organization_name': org_names.get(own['organization_id'])}
+
+    child = repo.newest_naming_child(user_id, list(org_names))
+    if not child or child.get('status') not in OPEN_STATUSES \
+            or child.get('parent_user_id') == user_id:
+        return None
+    registrant = UserRepository(client=admin).find_by_id(child['parent_user_id']) or {}
+    return {
+        'kind': 'student', 'status': child['status'],
+        'organization_name': org_names.get(child['organization_id']),
+        'registrant_email': registrant.get('email'),
+        'registrant_first_name': registrant.get('first_name'),
+    }
 
 
 @bp.route('/registrations/<reg_id>/family', methods=['POST'])

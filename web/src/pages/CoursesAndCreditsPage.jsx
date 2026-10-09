@@ -4,7 +4,7 @@ import api from '../services/api'
 import { useAuth } from '../contexts/AuthContext'
 import { useFamilyScope, worksThroughFamily } from '../contexts/FamilyScopeContext'
 import { useStudentScope } from '../hooks/useStudentScope'
-import { useFamilyOrgSelection } from '../hooks/api/useSchoolContext'
+import { useFamilyOrgSelection, useSchoolContext } from '../hooks/api/useSchoolContext'
 import { InformationCircleIcon } from '@heroicons/react/24/outline'
 import { PageLoader } from '../components/ui/Spinner'
 import { Modal } from '../components/ui/Modal'
@@ -40,8 +40,9 @@ const WAYS = [
 ]
 
 // Prior Learning, folded in from its own school tab (2026-09-28). Offered only
-// where the school takes prior learning, and only to a guardian: sending
-// records is a family's job, and the endpoint answers to family relationship.
+// where the school takes prior learning, to a guardian or (since 2026-10-09)
+// to a student sending their own; the endpoint answers to family relationship
+// or to the student's own membership.
 const PRIOR_WAY = {
   key: 'prior',
   title: 'Learning from before Optio',
@@ -66,12 +67,19 @@ const PRIOR_WAY = {
  * bounced to /family.
  */
 const CoursesAndCreditsPage = () => {
-  const { user } = useAuth()
+  const { user, effectiveRole } = useAuth()
   const { enterScope } = useFamilyScope()
   const { params: scopeParams, studentId, scopeId, studentName } = useStudentScope()
   const { students, org, loading: studentsLoading } = useFamilyOrgSelection()
   const isGuardian = worksThroughFamily(user)
-  const offersPriorLearning = isGuardian && Boolean(org?.prior_learning_enabled)
+  // A student sends their own prior learning (2026-10-09), from their own
+  // school's membership rather than a guardian's.
+  const isSelfStudent = !isGuardian && effectiveRole === 'student'
+  const { orgs: memberOrgs } = useSchoolContext({ enabled: isSelfStudent })
+  const offersPriorLearning = isGuardian
+    ? Boolean(org?.prior_learning_enabled)
+    : isSelfStudent && (memberOrgs || []).some((o) => o.prior_learning_enabled)
+  const priorStudentId = isGuardian ? studentId : user?.id
   const ways = offersPriorLearning ? [...WAYS, PRIOR_WAY] : WAYS
   // A parent's own account has no courses; the page is always about a child.
   const waitingForChild = isGuardian && !studentId
@@ -231,12 +239,12 @@ const CoursesAndCreditsPage = () => {
             ))}
           </div>
 
-          {offersPriorLearning && studentId && (
+          {offersPriorLearning && priorStudentId && (
             <section id="prior-learning" className="card mt-6 scroll-mt-24">
               <h2 className="text-lg font-semibold text-gray-900 mb-2">Learning from before Optio</h2>
               {/* Accepted records come back as transfer credit in the
                   subjects above, so a send refreshes the page's numbers. */}
-              <FamilyPriorLearningPage studentId={studentId} onChange={load} />
+              <FamilyPriorLearningPage studentId={priorStudentId} onChange={load} />
             </section>
           )}
         </>

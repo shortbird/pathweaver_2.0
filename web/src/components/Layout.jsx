@@ -7,6 +7,7 @@ import { isFocusMode, setFocusMode, getFocusConfig, FOCUS_EVENT } from '../utils
 import { useKioskIdleTimeout } from '../hooks/useKioskIdleTimeout'
 import PendingOfferRedirect from './partner/PendingOfferRedirect'
 import PendingSchoolSetupRedirect from './schoolSetup/PendingSchoolSetupRedirect'
+import UnfinishedRegistrationBanner from './registration/UnfinishedRegistrationBanner'
 
 const SIDEBAR_PINNED_KEY = 'optio-sidebar-pinned'
 
@@ -191,6 +192,8 @@ const Layout = () => {
         ${shouldShowSidebar ? (isSidebarExpanded ? 'lg:ml-64' : 'lg:ml-16') : ''}
         min-h-[calc(100vh-4rem)]
       `}>
+        {/* An unfinished Optio Academy registration: a reminder on every page. */}
+        {isAuthenticated && <UnfinishedRegistrationBanner />}
         <Outlet />
       </main>
 

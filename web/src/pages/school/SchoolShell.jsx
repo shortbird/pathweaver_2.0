@@ -61,7 +61,7 @@ export default function SchoolShell() {
 
   if (effectiveRole === 'superadmin' && !school) return <Outlet />
 
-  const items = familyNavItemsFor(schoolOrg, { homepage: Boolean(school?.homepage) })
+  const items = familyNavItemsFor(schoolOrg, { homepage: Boolean(school?.homepage), viewerRole: effectiveRole })
   const tabs = items.map((item) => ({ id: item.path, label: item.tab || item.name }))
   const current = ALIASES[pathname] || pathname
   const active = tabs.some((t) => t.id === current) ? current : null
