@@ -30,6 +30,8 @@ name they typed, that they affirmed it, when, and from which address. See
 `_apply_signature`.
 """
 
+import hashlib
+import re
 import uuid as _uuid
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -122,6 +124,27 @@ def _set_item_documents(item: Dict[str, Any], docs: List[Dict[str, Any]]) -> Non
     item['document_url'] = next((d['path'] for d in docs if d.get('path')), None)
 
 
+# Federal hiring forms are never e-signed on Optio (Tanner, 2026-10-09). The I-9
+# and W-4 carry their own electronic-signature rules (an unalterable record and
+# access audit trail for the I-9, the penalties-of-perjury jurat and an IRS
+# hard-copy duty for the W-4) that a typed name on a task step does not meet.
+# Optio is where those forms are STORED: the person signs the official form
+# themselves and uploads the signed file, which is how iCreate has always done
+# it. So a step that names one is an upload step, and a send that names one
+# goes out as a blank form: they download it, fill it in, sign it on paper or
+# in their own PDF tool, and upload the signed copy.
+_FEDERAL_FORM = re.compile(r'(?<![a-z0-9])(?:i[\s_-]?9|w[\s_-]?4)(?![0-9])', re.IGNORECASE)
+FEDERAL_FORM_NO_ESIGN = ('I-9 and W-4 forms cannot be signed on Optio. Download the '
+                         'form, fill it in and sign it, then upload the signed copy.')
+FEDERAL_FORM_STEP = ('Download the blank form, fill it in and sign it, then upload '
+                     'the signed copy here.')
+
+
+def names_federal_form(*texts: Optional[str]) -> bool:
+    """Does any of these (a title, a filename) name an I-9 or a W-4?"""
+    return any(t and _FEDERAL_FORM.search(t) for t in texts)
+
+
 def _clean_items(items: Any) -> Optional[List[Dict[str, Any]]]:
     """Normalise a template's items, minting a stable key for anything new.
 
@@ -152,9 +175,13 @@ def _clean_items(items: Any) -> Optional[List[Dict[str, Any]]]:
             'title': title,
             'description': (item.get('description') or '').strip() or None,
             'required': bool(item.get('required', True)),
-            'needs_document': bool(item.get('needs_document', False)),
-            # Signed in place by typing a name — see _apply_signature.
-            'needs_signature': bool(item.get('needs_signature', False)),
+            'needs_document': (bool(item.get('needs_document', False))
+                               or (bool(item.get('needs_signature', False))
+                                   and names_federal_form(title))),
+            # Signed in place by typing a name — see _apply_signature. Never
+            # for an I-9 or W-4 (see _FEDERAL_FORM): that step is an upload.
+            'needs_signature': (bool(item.get('needs_signature', False))
+                                and not names_federal_form(title)),
             'needs_approval': bool(item.get('needs_approval', False)),
             'due_date': item.get('due_date') or None,
             # Optional external link surfaced next to the item (e.g. a form to
@@ -1170,6 +1197,32 @@ def _claimed_document_ids(org_id: str, user_id: str) -> set:
             if i.get('document_id')}
 
 
+def document_is_signed(org_id: str, owner_user_id: Optional[str], doc_id: str) -> bool:
+    """Has anybody signed against this document?
+
+    A signature records the document by id and fingerprint, not by a copy, so
+    deleting the file deletes the evidence of what was signed. The office may
+    still clear the signature first (a deliberate act, recorded on the item) and
+    then delete. Only the owner's own tasks can sign their copy, so the scan is
+    bounded by one person.
+    """
+    if not owner_user_id:
+        return False
+    rows = (_admin().table('sis_onboarding_assignments').select('items')
+            .eq('organization_id', org_id).eq('user_id', owner_user_id)
+            .execute()).data or []
+    for r in rows:
+        for i in (r.get('items') or []):
+            sig = i.get('signature')
+            if not sig:
+                continue
+            if i.get('document_id') == doc_id:
+                return True
+            if any(d.get('id') == doc_id for d in (sig.get('documents') or [])):
+                return True
+    return False
+
+
 def _org_asks_for_signatures(org_id: str) -> bool:
     """Has this school ever ticked "they must sign this" on a document?
 
@@ -1190,6 +1243,13 @@ def _attach_sign_docs(org_id: str, user_id: str, rows: List[Dict[str, Any]]) -> 
     the office-shared documents — so the UI can offer them to read and withhold
     the sign box while the list is empty. Without this, teachers and parents
     signed "Review & Sign Your Contract" before any contract existed (iCreate, 2026-08-12)."""
+    for r in rows:
+        for i in (r.get('items') or []):
+            # A blank form sent to fill in (an I-9 or W-4, see send_for_signature):
+            # their own copy, to download.
+            if (i.get('document_id') and i.get('needs_document')
+                    and not i.get('needs_signature')):
+                i['form_docs'] = office_documents(org_id, user_id, i['document_id'])
     wants = [i for r in rows if _clean_audience(r.get('audience')) in AUDIENCES
              for i in (r.get('items') or [])
              if i.get('needs_signature') and not i.get('link') and not i.get('signature')]
@@ -1258,6 +1318,9 @@ def send_for_signature(org_id: str, sent_by: str, blob: bytes, filename: str,
         return {'error': str(e), 'status': 403}
 
     doc_title = sis_secure_docs_service.clean_title(title, filename)
+    # An I-9 or W-4 is sent as a blank form to fill in and upload, never to
+    # e-sign (see _FEDERAL_FORM).
+    fill_in = names_federal_form(doc_title, filename)
     stored = sis_secure_docs_service.store_document(
         org_id, sent_by, blob, filename, ext, content_type, size_bytes,
         targets=[{'owner_user_id': r['id'], 'student_user_id': None} for r in unique],
@@ -1267,12 +1330,14 @@ def send_for_signature(org_id: str, sent_by: str, blob: bytes, filename: str,
         # by id, but the office's list should show what it is, and a person's
         # OTHER checklist items must not treat a contract sent this way as one
         # more paper in the pool.
-        shared_with_owner=True, requires_signature=True, sensitivity=sensitivity,
+        shared_with_owner=True, requires_signature=not fill_in,
+        sensitivity=sensitivity,
     )
     if stored.get('error'):
         return stored
 
     documents = stored['documents']
+    doc_sha256 = hashlib.sha256(blob).hexdigest()
     batch_id = str(_uuid.uuid4())
     rows = []
     for recipient, doc in zip(unique, documents, strict=False):
@@ -1286,19 +1351,23 @@ def send_for_signature(org_id: str, sent_by: str, blob: bytes, filename: str,
             'kind': 'signature_request',
             'batch_id': batch_id,
             'assigned_by': sent_by,
-            'blocks_access': bool(blocks_access) and is_family,
+            # The hold screen signs; it has no upload. A fill-in form never holds.
+            'blocks_access': bool(blocks_access) and is_family and not fill_in,
             'items': [{
                 'key': 'sign',
-                'title': f'Sign: {doc_title}',
-                'description': (message or '').strip() or None,
+                'title': (f'Fill in, sign and upload: {doc_title}' if fill_in
+                          else f'Sign: {doc_title}'),
+                'description': ((message or '').strip()
+                                or (FEDERAL_FORM_STEP if fill_in else None)),
                 'required': True,
-                'needs_document': False,
-                'needs_signature': True,
+                'needs_document': fill_in,
+                'needs_signature': not fill_in,
                 'needs_approval': False,
                 'due_date': due_date or None,
                 'link': None,
                 # Their own copy — not the pool. See office_documents.
                 'document_id': doc.get('id'),
+                'document_sha256': doc_sha256,
                 'status': 'pending',
                 'document_url': None,
                 'submitted_at': None,
@@ -1402,14 +1471,24 @@ def list_signature_batches(org_id: str, include_hr: bool = False) -> List[Dict[s
             'recipients': [],
         })
         signature = item.get('signature') or None
+        # A blank form to fill in is done when the signed copy is in.
+        uploaded = (not item.get('needs_signature')
+                    and item.get('status') in ('complete', 'approved'))
         batch['recipients'].append({
             'assignment_id': r['id'],
             'user_id': r['user_id'],
             'name': names.get(r['user_id']),
             'audience': r.get('audience'),
             'document_id': doc_id,
-            'signed': bool(signature),
-            'signed_at': (signature or {}).get('signed_at'),
+            'signed': bool(signature) or uploaded,
+            # A fill-in form's signed copy, for the office to open from the
+            # send (tasks doc-url, which checks the path against this task).
+            'uploaded': uploaded,
+            'documents': ([{'path': d.get('path'), 'filename': d.get('filename')}
+                           for d in item_documents(item) if d.get('path')]
+                          if not item.get('needs_signature') else []),
+            'signed_at': (signature or {}).get('signed_at') or (
+                item.get('submitted_at') if uploaded else None),
             'signed_name': (signature or {}).get('name'),
             # Still holding this person out of the platform? Drops to false the
             # moment the office releases the hold, so the tracking page shows
@@ -1476,7 +1555,8 @@ def remind_signature_recipient(org_id: str, assignment_id: str, *,
         return {'error': 'Not found', 'status': 404}
 
     item = (row.get('items') or [{}])[0]
-    if item.get('signature'):
+    if item.get('signature') or (not item.get('needs_signature')
+                                 and item.get('status') in ('complete', 'approved')):
         return {'error': 'They have already signed this', 'status': 400}
 
     title = row.get('template_name') or 'Document'
@@ -1594,6 +1674,9 @@ def _apply_signature(target: Dict[str, Any], fields: Dict[str, Any],
     """
     if not target.get('needs_signature'):
         return 'This item is not signed here'
+    if names_federal_form(target.get('title'),
+                          *[d.get('title') for d in (documents or [])]):
+        return FEDERAL_FORM_NO_ESIGN
     if documents is not None and not documents:
         return ("The office hasn't uploaded the document to sign yet — "
                 'it will appear on this item once it does')
@@ -1610,7 +1693,14 @@ def _apply_signature(target: Dict[str, Any], fields: Dict[str, Any],
         'signed_by': actor_id,
         'signed_at': _now(),
         'ip': (fields.get('signature_ip') or None),
+        'user_agent': (fields.get('signature_user_agent') or None),
     }
+    if target.get('document_sha256'):
+        # The fingerprint of the exact file this person was sent (taken at
+        # send time). If anyone later swaps or edits the file, its fingerprint
+        # no longer matches this one, which is what makes the record show WHAT
+        # was signed and not only that something was.
+        target['signature']['document_sha256'] = target['document_sha256']
     if documents:
         # What the signer had in front of them when they signed.
         target['signature']['documents'] = documents

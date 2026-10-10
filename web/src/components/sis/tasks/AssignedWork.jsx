@@ -281,7 +281,9 @@ export default function AssignedWork({ orgId, sigEndpoint, reloadKey = 0, onCoun
   const tasksQuery = useAssignedTasks(orgId)
   const schedulesQuery = useTaskSchedules(orgId)
   const [sigBatches, setSigBatches] = useState([])
-  const [view, setView] = useState('outstanding')
+  // Filters open on their least restrictive value (2026-10-09): a default that
+  // hides rows reads as missing data.
+  const [view, setView] = useState('')
   const [type, setType] = useState('')
   const [sort, setSort] = useState('newest')
   const [q, setQ] = useState('')
@@ -363,7 +365,7 @@ export default function AssignedWork({ orgId, sigEndpoint, reloadKey = 0, onCoun
 
       <div className="bg-white rounded-xl border border-gray-200 p-4 space-y-3">
         <div className="flex items-center gap-1 flex-wrap" role="group" aria-label="Filter assigned tasks">
-          {[['outstanding', `Outstanding (${outstanding.length})`], ['', `All (${entries.length})`]].map(([value, label]) => (
+          {[['', `All (${entries.length})`], ['outstanding', `Outstanding (${outstanding.length})`]].map(([value, label]) => (
             <button key={value || 'all'} type="button" onClick={() => setView(value)} aria-pressed={view === value}
               className={`px-3 py-1.5 rounded-lg text-sm ${view === value
                 ? 'bg-optio-purple/10 text-optio-purple font-semibold'

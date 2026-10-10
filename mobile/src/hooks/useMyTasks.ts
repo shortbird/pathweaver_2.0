@@ -49,6 +49,8 @@ export interface TaskStep {
    *  means the step never had one; an EMPTY array means it is meant to have
    *  one and it has not been attached yet, so there is nothing to sign. */
   sign_docs?: { id: string; title: string }[];
+  // A blank form to download, fill in and upload (an I-9 or W-4).
+  form_docs?: { id: string; title: string }[];
 }
 
 export interface Task {

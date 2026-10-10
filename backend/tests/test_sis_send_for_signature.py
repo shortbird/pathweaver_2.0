@@ -118,6 +118,12 @@ class TestSendingIt:
         assert item['description'] == 'Please read first.'
         assert item['due_date'] == '2026-09-01'
 
+    def test_each_task_carries_the_fingerprint_of_the_file_sent(self):
+        import hashlib
+        _res, rows, _s, _r, _n = _send()
+        want = hashlib.sha256(b'pdf-bytes').hexdigest()
+        assert [r['items'][0]['document_sha256'] for r in rows] == [want, want]
+
     def test_the_same_person_twice_is_sent_once(self):
         result, rows, _s, _r, _n = _send(
             recipients=[{'id': 'kate', 'audience': 'staff'},
@@ -233,6 +239,33 @@ class TestSigningIsBoundToTheDocumentThatWasSent:
         assert saved['items'][0]['signature']['documents'] == [
             {'id': 'doc-0', 'title': 'Handbook'}]
 
+    def test_the_signature_records_the_fingerprint_address_and_browser(self):
+        """A typed name is only as good as the record around it: which exact
+        file (its fingerprint from send time), from where, on what browser."""
+        item = {'key': 'sign', 'title': 'Sign: Handbook', 'needs_signature': True,
+                'document_id': 'doc-0', 'document_sha256': 'abc123',
+                'status': 'pending', 'signature': None}
+        assignment = {'id': 'a1', 'organization_id': ORG, 'user_id': 'kate',
+                      'audience': 'staff', 'template_name': 'Handbook', 'items': [item]}
+        saved = {}
+        with patch.object(onboarding, '_load_assignment', return_value=assignment), \
+             patch.object(onboarding, '_save_items',
+                          side_effect=lambda a, items: saved.update(items=items) or a), \
+             patch.object(onboarding, 'office_documents',
+                          side_effect=lambda o, u, d=None: self._office_docs(d)), \
+             patch.object(onboarding, '_admin', return_value=Mock()), \
+             patch('services.sis_notifications.notify'), \
+             patch.object(onboarding.sis_service, 'org_admin_ids', return_value=[]):
+            onboarding.update_item(
+                ORG, 'a1', 'sign',
+                {'signature_name': 'Kate Myers', 'signature_agreed': True,
+                 'signature_ip': '203.0.113.9', 'signature_user_agent': 'Safari'},
+                actor_id='kate', is_admin=False)
+        sig = saved['items'][0]['signature']
+        assert sig['document_sha256'] == 'abc123'
+        assert sig['ip'] == '203.0.113.9'
+        assert sig['user_agent'] == 'Safari'
+
     def test_signing_is_refused_while_the_named_document_is_missing(self):
         """A copy pulled back (or a bad id) must not fall through to signing
         against whatever else happens to be in the portal."""
@@ -298,6 +331,22 @@ class TestTrackingWhoSigned:
              'storage_path': 'p1'},
             {'id': 'doc-hr', 'sensitivity': 'hr', 'title': 'Contract',
              'storage_path': 'p2'}]
+
+    def test_an_uploaded_blank_form_counts_as_done_and_carries_the_file(self):
+        rows = [{'id': 'a9', 'batch_id': 'b9', 'user_id': 'kate', 'audience': 'staff',
+                 'template_name': 'W4', 'created_at': '2026-10-10T00:00:00Z',
+                 'assigned_by': SENDER,
+                 'items': [{'key': 'sign', 'document_id': 'doc-general',
+                            'needs_signature': False, 'needs_document': True,
+                            'status': 'complete', 'signature': None,
+                            'submitted_at': '2026-10-10T01:33:00Z',
+                            'documents': [{'path': 'org/kate/w4.pdf', 'filename': 'w4.pdf'}]}]}]
+        [batch] = self._batches(rows, self.DOCS, include_hr=False)
+        [person] = batch['recipients']
+        assert person['signed'] and person['uploaded']
+        assert person['signed_at'] == '2026-10-10T01:33:00Z'
+        assert person['documents'] == [{'path': 'org/kate/w4.pdf', 'filename': 'w4.pdf'}]
+        assert batch['signed_count'] == 1
 
     def test_a_send_is_one_row_with_progress(self):
         batches = self._batches(self.ROWS, self.DOCS, include_hr=True)
@@ -453,3 +502,97 @@ class TestRequiringItBeforeAccess:
         with patch.object(onboarding.sis_access_gate, 'clear_cache') as clear:
             _send(blocks_access=True)
         assert 'parent-1' in [c[0][0] for c in clear.call_args_list]
+
+
+@pytest.mark.unit
+class TestASignedDocumentIsKept:
+
+    def _rows(self, items):
+        t = Mock()
+        for chained in ('select', 'eq'):
+            getattr(t, chained).return_value = t
+        t.execute.return_value = Mock(data=[{'items': items}])
+        admin = Mock()
+        admin.table.return_value = t
+        return admin
+
+    def test_a_signed_send_is_kept(self):
+        admin = self._rows([{'document_id': 'doc-0', 'signature': {'name': 'Kate'}}])
+        with patch.object(onboarding, '_admin', return_value=admin):
+            assert onboarding.document_is_signed(ORG, 'kate', 'doc-0')
+
+    def test_a_portal_paper_signed_from_a_checklist_is_kept(self):
+        admin = self._rows([{'signature': {'documents': [{'id': 'doc-7'}]}}])
+        with patch.object(onboarding, '_admin', return_value=admin):
+            assert onboarding.document_is_signed(ORG, 'kate', 'doc-7')
+
+    def test_an_unsigned_copy_may_go(self):
+        admin = self._rows([{'document_id': 'doc-0', 'signature': None}])
+        with patch.object(onboarding, '_admin', return_value=admin):
+            assert not onboarding.document_is_signed(ORG, 'kate', 'doc-0')
+
+    def test_a_document_filed_against_nobody_may_go(self):
+        assert not onboarding.document_is_signed(ORG, None, 'doc-0')
+
+
+@pytest.mark.unit
+class TestFederalHiringFormsAreStoredNotSigned:
+    """I-9 and W-4: the person signs the official form and uploads it. Optio
+    stores it and never takes a typed signature for it (2026-10-09)."""
+
+    @pytest.mark.parametrize('text', [
+        'I-9', 'Form I9', 'Nicole_Camacho_I-9-signed (1).pdf', 'I9JanParker',
+        'w4', 'Aaron Harrison W-4', "Xavier's W4.pdf", 'w 4'])
+    def test_these_name_a_federal_form(self, text):
+        assert onboarding.names_federal_form(text)
+
+    @pytest.mark.parametrize('text', [
+        'Handbook', 'Offer letter', 'Wi-Fi policy', 'Room 49', 'W40 sheet',
+        'Mi9 notes', None, ''])
+    def test_these_do_not(self, text):
+        assert not onboarding.names_federal_form(text)
+
+    def test_sending_one_sends_a_blank_form_to_fill_in_and_upload(self):
+        result, rows, store, _r, _n = _send(title='W-4 for Kate')
+        assert result['sent'] == 2
+        assert store.call_args.kwargs['requires_signature'] is False
+        assert store.call_args.kwargs['shared_with_owner'] is True
+        item = rows[0]['items'][0]
+        assert item['needs_signature'] is False
+        assert item['needs_document'] is True
+        assert item['document_id'] == 'doc-0'
+        assert item['title'].startswith('Fill in, sign and upload')
+        assert item['description'] == onboarding.FEDERAL_FORM_STEP
+
+    def test_a_blank_form_never_holds_a_family(self):
+        _res, rows, _s, _r, _n = _send(title='I-9', blocks_access=True)
+        assert not any(r['blocks_access'] for r in rows)
+
+    def test_the_recipient_gets_the_blank_form_to_download(self):
+        rows = [{'audience': 'staff', 'items': [
+            {'key': 'sign', 'document_id': 'doc-0', 'needs_document': True,
+             'needs_signature': False}]}]
+        with patch.object(onboarding, 'office_documents',
+                          return_value=[{'id': 'doc-0', 'title': 'W-4'}]) as od:
+            onboarding._attach_sign_docs(ORG, 'kate', rows)
+        assert rows[0]['items'][0]['form_docs'] == [{'id': 'doc-0', 'title': 'W-4'}]
+        od.assert_called_once_with(ORG, 'kate', 'doc-0')
+
+    def test_a_template_signature_step_becomes_an_upload_step(self):
+        [item] = onboarding._clean_items([{'title': 'Sign your I-9',
+                                            'needs_signature': True}])
+        assert item['needs_signature'] is False
+        assert item['needs_document'] is True
+
+    def test_other_signature_steps_are_unchanged(self):
+        [item] = onboarding._clean_items([{'title': 'Sign the handbook',
+                                            'needs_signature': True}])
+        assert item['needs_signature'] is True
+        assert item['needs_document'] is False
+
+    def test_an_old_signature_step_on_an_i9_cannot_be_signed(self):
+        target = {'title': 'Sign: I-9', 'needs_signature': True}
+        err = onboarding._apply_signature(
+            target, {'signature_name': 'Kate', 'signature_agreed': True}, 'kate')
+        assert err == onboarding.FEDERAL_FORM_NO_ESIGN
+        assert 'signature' not in target

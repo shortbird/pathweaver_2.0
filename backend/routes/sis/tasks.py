@@ -25,6 +25,7 @@ from datetime import datetime, timezone
 
 from flask import Blueprint, request, jsonify
 
+from utils.storage_url import fix_storage_url
 from utils.auth.decorators import require_auth, require_role
 from modules.gate import require_module
 from utils.logger import get_logger
@@ -255,7 +256,7 @@ def task_document_url(user_id, task_id):
     try:
         # admin client justified: signed URL on a PRIVATE bucket for a path this task holds; the caller may see the task (_access)
         signed = get_supabase_admin_client().storage.from_(bucket).create_signed_url(path, 3600)
-        url = signed.get('signedURL') or signed.get('signedUrl')
+        url = fix_storage_url(signed.get('signedURL') or signed.get('signedUrl'))
     except Exception as e:  # noqa: BLE001
         logger.error(f'task doc-url failed for {task_id}: {e}')
         url = None

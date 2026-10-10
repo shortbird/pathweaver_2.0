@@ -18,6 +18,7 @@ that leaks.
 import uuid as _uuid
 from typing import Any, Dict, List, Optional, Tuple
 
+from utils.storage_url import fix_storage_url
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -157,7 +158,7 @@ def remove_blobs(paths: List[str]) -> None:
 def signed_url(storage_path: str, expires_in: int = 3600) -> Optional[str]:
     try:
         signed = _admin().storage.from_(BUCKET).create_signed_url(storage_path, expires_in)
-        return signed.get('signedURL') or signed.get('signedUrl')
+        return fix_storage_url(signed.get('signedURL') or signed.get('signedUrl'))
     except Exception as e:
         logger.error(f'Signed URL failed for {storage_path}: {e}')
         return None

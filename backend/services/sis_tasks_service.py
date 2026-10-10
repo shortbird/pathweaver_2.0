@@ -410,7 +410,7 @@ def list_batches(org_id: str) -> List[Dict[str, Any]]:
 
 
 _PROGRESS_FIELDS = ('status', 'document_url', 'documents', 'submitted_at',
-                    'approved_by', 'approved_at', 'admin_notes', 'signature', 'sign_docs')
+                    'approved_by', 'approved_at', 'admin_notes', 'signature', 'sign_docs', 'form_docs')
 
 
 def save_as_template(org_id: str, actor_id: str, task_id: str,
@@ -624,7 +624,7 @@ def reassign_task(org_id: str, actor_id: str, task_id: str,
     items = []
     for i in (row.get('items') or []):
         if isinstance(i, dict):
-            step = {k: v for k, v in i.items() if k != 'sign_docs'}
+            step = {k: v for k, v in i.items() if k not in ('sign_docs', 'form_docs')}
             # A bound document is the old person's own copy (a contract with
             # their name on it); the new person must not sign it.
             step['document_id'] = None

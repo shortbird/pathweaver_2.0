@@ -134,14 +134,15 @@ describe('the inbox gathers every kind of task', () => {
     expect(await screen.findByText(/Nothing is waiting on you/i)).toBeInTheDocument()
   })
 
-  it('asks for finished tasks only when they are wanted', async () => {
+  it('asks for finished tasks by default, and stops when they are hidden', async () => {
+    // Filters open least restrictive (2026-10-09).
     respond([])
     renderPage()
     await waitFor(() => expect(api.get).toHaveBeenCalled())
-    expect(api.get.mock.calls[0][0]).not.toContain('include_done')
+    expect(api.get.mock.calls[0][0]).toContain('include_done=1')
     fireEvent.click(screen.getByLabelText(/Show finished/i))
     await waitFor(() => expect(
-      api.get.mock.calls.some(([u]) => u.includes('include_done=1'))).toBe(true))
+      api.get.mock.calls.some(([u]) => !u.includes('include_done'))).toBe(true))
   })
 
   it('does a step in place: ticking it completes it', async () => {
@@ -231,15 +232,15 @@ describe('the finished half is still reachable', () => {
   // and reads as "your onboarding is gone" -- which is how iCreate's teachers
   // reported it on 2026-09-10. Finished tasks, ticks and all, are one toggle
   // away (they were a separate "By checklist" view until 2026-09-24).
-  it('shows finished tasks under their own heading when asked', async () => {
+  it('shows finished tasks under their own heading, and hides them on request', async () => {
     respond([DONE_TASK])
     renderPage()
-    expect(await screen.findByText(/Nothing is waiting on you/i)).toBeInTheDocument()
-    expect(screen.queryByRole('heading', { name: 'Turn in your roster' })).not.toBeInTheDocument()
-    fireEvent.click(screen.getByLabelText(/Show finished/i))
     expect(await screen.findByRole('heading', { name: 'Finished' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Turn in your roster' })).toBeInTheDocument()
     expect(screen.getByRole('checkbox', { name: 'Done: Turn in your roster' })).toBeChecked()
+    fireEvent.click(screen.getByLabelText(/Show finished/i))
+    await waitFor(() => expect(
+      screen.queryByRole('heading', { name: 'Turn in your roster' })).not.toBeInTheDocument())
   })
 
   it('opens on the task a notification named', async () => {

@@ -36,6 +36,10 @@ const DAYS = [['Mon', 0], ['Tue', 1], ['Wed', 2], ['Thu', 3], ['Fri', 4], ['Sat'
 const AUDIENCES = [['staff', 'Staff'], ['family', 'Families'], ['student', 'Students']]
 const PRIORITIES = [['', 'Normal'], ['low', 'Low'], ['high', 'High'], ['urgent', 'Urgent']]
 
+// Mirrors the backend's _FEDERAL_FORM (services/sis_onboarding_service.py),
+// which is the rule: an I-9 or W-4 is filled in and uploaded, never e-signed.
+const FEDERAL_FORM = /(?<![a-z0-9])(?:i[\s_-]?9|w[\s_-]?4)(?![0-9])/i
+
 export const emptyStep = () => ({ title: '', needs_document: false, needs_signature: false,
   needs_approval: false, required: true })
 
@@ -82,6 +86,12 @@ export function StepList({ steps, setStep, onRemove, onAdd }) {
               Optional
             </label>
           </div>
+          {s.needs_signature && FEDERAL_FORM.test(s.title) && (
+            <p className="text-xs text-amber-700">
+              I-9 and W-4 forms cannot be signed on Optio. This step will ask them to
+              upload the form they signed.
+            </p>
+          )}
           {s.needs_signature && (
             <input value={s.link || ''} onChange={(e) => setStep(i, { link: e.target.value })}
               placeholder="Link to what they are signing (optional)"
@@ -387,6 +397,12 @@ export default function AssignComposer({ orgId, sigEndpoint, allowHr = false, on
               </>
             )}
           </div>
+          {signing && (FEDERAL_FORM.test(signFile.name) || FEDERAL_FORM.test(title)) && (
+            <p className="text-xs text-amber-700">
+              I-9 and W-4 forms cannot be signed on Optio. They will get this as a
+              blank form to download, fill in and sign, then upload the signed copy.
+            </p>
+          )}
 
           {signing && (
             <>

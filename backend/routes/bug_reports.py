@@ -38,6 +38,7 @@ from flask import Blueprint, request, jsonify
 from database import get_supabase_admin_client
 from middleware.rate_limiter import rate_limit
 from repositories.bug_report_repository import ALL_STATUSES, OPEN_STATUSES, BugReportRepository
+from utils.storage_url import fix_storage_url
 from utils.auth.decorators import require_auth, require_role
 from utils.logger import get_logger
 from utils.roles import get_effective_role
@@ -420,7 +421,7 @@ def get_bug_report(user_id, report_id):
             signed = supabase.storage.from_(
                 report.get('screenshot_bucket') or SCREENSHOT_BUCKET
             ).create_signed_url(report['screenshot_path'], 3600)
-            screenshot_url = signed.get('signedURL') or signed.get('signedUrl')
+            screenshot_url = fix_storage_url(signed.get('signedURL') or signed.get('signedUrl'))
         except Exception as e:
             logger.warning(f"[BugReport] could not sign screenshot for {report_id}: {e}")
 

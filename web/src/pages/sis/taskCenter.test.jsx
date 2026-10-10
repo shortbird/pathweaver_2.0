@@ -290,17 +290,17 @@ describe('the assigned list carries every kind of work', () => {
     expect(screen.queryByText('Everything assigned is done.')).not.toBeInTheDocument()
   })
 
-  it('defaults to outstanding and can show everything', async () => {
+  it('defaults to everything and can narrow to outstanding', async () => {
+    // Filters open least restrictive (2026-10-09): a finished send is still
+    // there until the office narrows the list.
     const done = { ...SIG_BATCH, batch_id: 'b2', title: 'Fire drill policy', signed_count: 2, total_count: 2,
       recipients: SIG_BATCH.recipients.map((p) => ({ ...p, signed: true })) }
     mockGets({ sigBatches: [SIG_BATCH, done] })
     renderPage()
     expect(await screen.findByText('Employee handbook')).toBeInTheDocument()
-    // A fully-signed send is finished business and would otherwise sit at the
-    // top of the list forever, burying the one that still needs chasing.
-    expect(screen.queryByText('Fire drill policy')).not.toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: /^All/ }))
-    expect(await screen.findByText('Fire drill policy')).toBeInTheDocument()
+    expect(screen.getByText('Fire drill policy')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: /^Outstanding/ }))
+    await waitFor(() => expect(screen.queryByText('Fire drill policy')).not.toBeInTheDocument())
   })
 
   it('says so when nothing has been assigned', async () => {

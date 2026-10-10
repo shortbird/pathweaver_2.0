@@ -39,6 +39,16 @@ export const SignatureBatchCard = ({ orgId, endpoint, batch: b, onChanged, badge
     }
   }
 
+  const openUpload = async (person, doc) => {
+    try {
+      const r = await api.get(`/api/sis/tasks/${person.assignment_id}/doc-url?path=${encodeURIComponent(doc.path)}`)
+      if (r.data?.url) window.open(r.data.url, '_blank', 'noopener')
+      else toast.error('Could not open the document')
+    } catch {
+      toast.error('Could not open the document')
+    }
+  }
+
   // Lift the hold on one family without them signing. The office needs this for
   // the family who cannot sign at all — see release_signature_hold on the
   // backend. The paperwork stays outstanding; only the lock-out comes off, so
@@ -86,9 +96,18 @@ export const SignatureBatchCard = ({ orgId, endpoint, batch: b, onChanged, badge
               <span className="text-xs px-2 py-0.5 rounded-full bg-optio-pink/10 text-optio-pink">Family</span>
             )}
             {p.signed ? (
-              <span className="ml-auto text-xs text-green-700">
-                Signed{p.signed_name ? ` by ${p.signed_name}` : ''}
-                {p.signed_at ? ` on ${fmtDate(p.signed_at)}` : ''}
+              <span className="ml-auto flex items-center gap-3">
+                {(p.documents || []).map((d) => (
+                  // The signed copy of a fill-in form (an I-9 or W-4).
+                  <button key={d.path} type="button" onClick={() => openUpload(p, d)}
+                    className="text-xs text-optio-purple font-medium hover:underline">
+                    View {d.filename || 'file'}
+                  </button>
+                ))}
+                <span className="text-xs text-green-700">
+                  {p.uploaded ? 'Uploaded' : `Signed${p.signed_name ? ` by ${p.signed_name}` : ''}`}
+                  {p.signed_at ? ` on ${fmtDate(p.signed_at)}` : ''}
+                </span>
               </span>
             ) : (
               <span className="ml-auto flex items-center gap-3">

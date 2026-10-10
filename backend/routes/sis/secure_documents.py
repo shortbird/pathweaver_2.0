@@ -472,9 +472,13 @@ def secure_document_url(user_id, doc_id):
 @require_role(*HR_ROLES)
 def delete_secure_document(user_id, doc_id):
     """Remove the blob and delete the metadata row."""
-    doc, _org_id, err = _doc_or_error(user_id, doc_id)
+    doc, org_id, err = _doc_or_error(user_id, doc_id)
     if err:
         return err
+    if sis_onboarding_service.document_is_signed(org_id, doc.get('owner_user_id'), doc_id):
+        return jsonify({'success': False, 'error': (
+            'Someone has signed this document, so it is kept as the record of '
+            'what they signed. Clear their signature first if it must go.')}), 409
     # admin client justified: blob removal + row delete on the service-role-only secure store; gated by @require_role(HR_ROLES) + _doc_or_error org check above
     supabase = get_supabase_admin_client()
     try:

@@ -25,6 +25,8 @@ from database import get_supabase_admin_client
 from services import sis_onboarding_service as onboarding
 from services import sis_secure_docs_service
 from services import sis_tasks_service
+from utils.storage_url import fix_storage_url
+from utils.client_ip import get_real_ip
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -48,10 +50,14 @@ def list_onboarding(org_id, target_user_id, audience):
 
 def update_onboarding_item(org_id, user_id, assignment_id, item_key, *, is_admin):
     """Tick, sign or attach a document to one checklist item. The signing
-    address is corroboration for a typed signature, so it comes from the
-    request rather than from anything the client can set. A guardian can mark
+    address and browser are corroboration for a typed signature, so they come
+    from the request rather than from anything the client can set. The address
+    is the client's, not Render's proxy: request.remote_addr behind the proxy
+    recorded the same internal address for every signer. A guardian can mark
     their own items done, never approve (is_admin=False)."""
-    fields = {**(request.get_json() or {}), 'signature_ip': request.remote_addr}
+    fields = {**(request.get_json() or {}),
+              'signature_ip': get_real_ip(),
+              'signature_user_agent': (request.headers.get('User-Agent') or '')[:300] or None}
     result = onboarding.update_item(org_id, assignment_id, item_key, fields,
                                     actor_id=user_id, is_admin=is_admin)
     if result.get('error'):
@@ -113,7 +119,7 @@ def doc_url(org_id, user_id, bucket, *, any_in_org=False):
         # admin client justified: signed URL on a private bucket; the path prefix was verified above
         signed = (get_supabase_admin_client().storage.from_(bucket)
                   .create_signed_url(path, 3600))
-        url = signed.get('signedURL') or signed.get('signedUrl')
+        url = fix_storage_url(signed.get('signedURL') or signed.get('signedUrl'))
     except Exception as e:  # noqa: BLE001
         logger.error(f'portal doc-url failed ({bucket}): {e}')
         url = None
@@ -164,7 +170,7 @@ def checklist_document_url(org_id, owner_user_id, doc_id):
         # admin client justified: signed URL on a PRIVATE checklist bucket; the file was found among the owner's own checklists in this org
         signed = (get_supabase_admin_client().storage.from_(bucket)
                   .create_signed_url(doc['storage_path'], 3600))
-        url = signed.get('signedURL') or signed.get('signedUrl')
+        url = fix_storage_url(signed.get('signedURL') or signed.get('signedUrl'))
     except Exception as e:  # noqa: BLE001
         logger.error(f'checklist document url failed for {doc_id}: {e}')
         url = None

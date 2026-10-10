@@ -228,6 +228,15 @@ function StepRow({ task, step, readOnly, statement, tasks }: {
             </VStack>
           )}
 
+          {/* A blank form the office sent to fill in (an I-9 or W-4): download,
+              fill in, sign, then upload the signed copy below. */}
+          {step.needs_document && (step.form_docs || []).map((d) => (
+            <Pressable key={d.id} onPress={() => openSignDoc(d.id)} accessibilityRole="link" className="flex-row items-center gap-1 mt-1.5 active:opacity-60" testID={`todo-step-form-${id}`}>
+              <Ionicons name="download-outline" size={14} color={c.brand} />
+              <UIText size="xs" className="text-optio-purple font-poppins-semibold">Download {d.title}</UIText>
+            </Pressable>
+          ))}
+
           {/* A step that asks for a file: upload is the only way to finish it. */}
           {step.needs_document && !readOnly && !approved && (
             <HStack className="gap-2 mt-2 flex-wrap">
@@ -282,7 +291,9 @@ function StepRow({ task, step, readOnly, statement, tasks }: {
                 >
                   <Ionicons name={agreed ? 'checkbox' : 'square-outline'} size={18} color={agreed ? c.brand : c.iconMuted} />
                   <UIText size="xs" className="flex-1 text-typo-500 dark:text-dark-typo-500">
-                    {statement || 'I agree that typing my name is my signature.'}
+                    {/* Same words the server records (SIGNATURE_STATEMENT), so the signer
+                        never agrees to one sentence while another is stored. */}
+                    {statement || 'I am typing my own name below, and I intend it to count as my official signature.'}
                   </UIText>
                 </Pressable>
                 <Button

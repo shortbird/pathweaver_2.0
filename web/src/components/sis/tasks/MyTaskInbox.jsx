@@ -61,7 +61,8 @@ function AckRow({ task, orgId, onChanged }) {
 
 export default function MyTaskInbox({ orgId, preview = null, openTaskId = null }) {
   const [data, setData] = useState({ tasks: [], counts: {} })
-  const [showDone, setShowDone] = useState(false)
+  // Least restrictive by default (2026-10-09): done tasks show until hidden.
+  const [showDone, setShowDone] = useState(true)
   const [loading, setLoading] = useState(true)
 
   const load = useCallback(() => {

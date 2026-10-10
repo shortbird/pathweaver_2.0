@@ -127,6 +127,14 @@ function TaskStep({ task, item, api, statement, busy, onPatch, readOnly }) {
             onSign={(fields) => onPatch(item.key, fields)}
             onOpenDoc={(doc) => open(() => api.signDocUrl(task, doc.id))} />
         )}
+        {item.needs_document && (item.form_docs || []).map((doc) => (
+          // A blank form the office sent to fill in (an I-9 or W-4): download,
+          // fill in, sign, then upload the signed copy below.
+          <button key={doc.id} type="button" onClick={() => open(() => api.signDocUrl(task, doc.id))}
+            className="mt-1 block text-sm text-optio-purple hover:underline">
+            Download {doc.title}
+          </button>
+        ))}
         {item.needs_document && (
           <div className="mt-1.5 space-y-1">
             {docs.map((doc) => (

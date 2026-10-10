@@ -81,7 +81,7 @@ FEATURES: Dict[str, Tuple[str, str, str]] = {
     'observer': ('families', 'Observers', "Relatives and mentors can follow a student's work."),
     'friends': ('families', 'Friends', 'Students connect with classmates when their family allows it.'),
     'billing': ('money', 'Tuition and invoices', 'Bill families and run monthly autopay by bank account or card.'),
-    'tasks': ('office', 'Tasks', 'Give staff and families tasks and follow them to done.'),
+    'tasks': ('office', 'Tasks, forms and signatures', 'Send documents to sign, collect filled-out forms, and follow staff and family tasks to done.'),
     'secure_documents': ('office', 'Private staff documents', 'Keep staff paperwork in one private place.'),
     'resources': ('office', 'Resources', 'Share links and files with staff and families.'),
     'training': ('office', 'Training', 'Give staff and families short trainings to finish.'),

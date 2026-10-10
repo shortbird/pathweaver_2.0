@@ -15,6 +15,7 @@ were FINANCE_ROLES here were removed on 2026-09-18 with the time clock.)
 
 from flask import Blueprint, request, jsonify
 
+from utils.storage_url import fix_storage_url
 from utils.auth.decorators import require_role
 from utils.auth.relationships import require_relationship_to
 from modules.gate import require_module
@@ -297,7 +298,7 @@ def onboarding_admin_doc_url(user_id):
         # admin client justified: signed URL on a PRIVATE checklist bucket; org prefix checked above, caller is ADMIN_ROLES for that org
         signed = get_supabase_admin_client().storage.from_(bucket) \
             .create_signed_url(path, 3600)
-        url = signed.get('signedURL') or signed.get('signedUrl')
+        url = fix_storage_url(signed.get('signedURL') or signed.get('signedUrl'))
     except Exception as e:
         logger.error(f'Admin checklist doc-url failed for {path}: {e}')
         return jsonify({'success': False, 'error': 'Could not open the document'}), 500
@@ -337,7 +338,10 @@ def onboarding_recipients(user_id):
 
 @bp.route('/signature-requests', methods=['POST'])
 @require_role(*ADMIN_ROLES)
-@require_module('tasks')
+# Either block: the signer works the request through the task routes, which
+# accept either, so a school with only the new-family checklist on could sign
+# but never be asked to.
+@require_module('tasks', 'onboarding', any_of=True)
 def send_signature_request(user_id):
     org_id, err = sis_service.org_or_error(user_id)
     if err:
@@ -347,7 +351,7 @@ def send_signature_request(user_id):
 
 @bp.route('/signature-requests', methods=['GET'])
 @require_role(*ADMIN_ROLES)
-@require_module('tasks')
+@require_module('tasks', 'onboarding', any_of=True)
 def list_signature_requests(user_id):
     """Campus paperwork sends only — HR sends stay invisible here even to an
     org_admin, who has the HR view for those."""
@@ -359,7 +363,7 @@ def list_signature_requests(user_id):
 
 @bp.route('/signature-requests/<assignment_id>/remind', methods=['POST'])
 @require_role(*ADMIN_ROLES)
-@require_module('tasks')
+@require_module('tasks', 'onboarding', any_of=True)
 def remind_signature_request(user_id, assignment_id):
     """Chase one person who has not signed. HR sends 404 here."""
     org_id, err = sis_service.org_or_error(user_id)
@@ -371,7 +375,7 @@ def remind_signature_request(user_id, assignment_id):
 
 @bp.route('/signature-requests/<assignment_id>/release', methods=['POST'])
 @require_role(*ADMIN_ROLES)
-@require_module('tasks')
+@require_module('tasks', 'onboarding', any_of=True)
 def release_signature_hold(user_id, assignment_id):
     """Let a family back into the platform without signing. HR sends 404 here."""
     org_id, err = sis_service.org_or_error(user_id)
