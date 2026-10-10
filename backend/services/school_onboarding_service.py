@@ -147,7 +147,7 @@ def clean_start_modules(value: Any) -> List[str]:
     try:
         apply_changes({'feature_flags': _new_school_flags({})}, {k: True for k in keys})
     except Exception as e:  # noqa: BLE001 -- ModuleChangeError names the dependency
-        raise SchoolSetupError(str(e))
+        raise SchoolSetupError(str(e)) from e
     return keys
 
 
@@ -162,7 +162,7 @@ def create_link(repo: SchoolOnboardingRepository, created_by: str, school_name_h
                 contact_email: str = '', note: str = '',
                 start_modules: Any = None) -> Dict[str, Any]:
     modules = clean_start_modules(start_modules)
-    row = {
+    row: Dict[str, Any] = {
         'token': secrets.token_urlsafe(24),
         'school_name_hint': (school_name_hint or '').strip()[:120] or None,
         'contact_email': (contact_email or '').strip().lower()[:200] or None,
