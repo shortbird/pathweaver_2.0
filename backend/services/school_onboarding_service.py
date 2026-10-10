@@ -123,8 +123,45 @@ def link_status(link: Dict[str, Any]) -> str:
     return 'open'
 
 
+def start_module_options() -> List[Dict[str, str]]:
+    """What a link may turn on from day one: the features a school could
+    switch on itself (the Features card's switchable rows), minus the ones the
+    form asks about in its own words."""
+    from services.school_features_service import FEATURES
+    return [{'key': k, 'name': name} for k, (_group, name, _desc) in FEATURES.items()
+            if k not in ASKED_ELSEWHERE]
+
+
+def clean_start_modules(value: Any) -> List[str]:
+    """Validate a link's start modules. Refused here, at link creation,
+    rather than at submit: a school operator must never hit a dependency error
+    on a choice Optio made for them."""
+    if not value:
+        return []
+    allowed = {o['key'] for o in start_module_options()}
+    keys = sorted({str(k) for k in value} if isinstance(value, (list, tuple)) else set())
+    bad = [k for k in keys if k not in allowed]
+    if bad or not isinstance(value, (list, tuple)):
+        raise SchoolSetupError(f"Not a feature a link can turn on: {', '.join(bad) or value}")
+    from modules.toggle import apply_changes
+    try:
+        apply_changes({'feature_flags': _new_school_flags({})}, {k: True for k in keys})
+    except Exception as e:  # noqa: BLE001 -- ModuleChangeError names the dependency
+        raise SchoolSetupError(str(e))
+    return keys
+
+
+def link_start_modules(link: Dict[str, Any]) -> List[str]:
+    """The modules a link turns on. Kept in the link's `answers` until it is
+    used (answers is empty until then, so no new column): the operator's own
+    answers are merged over it at finish, keeping start_modules."""
+    return list((link.get('answers') or {}).get('start_modules') or [])
+
+
 def create_link(repo: SchoolOnboardingRepository, created_by: str, school_name_hint: str = '',
-                contact_email: str = '', note: str = '') -> Dict[str, Any]:
+                contact_email: str = '', note: str = '',
+                start_modules: Any = None) -> Dict[str, Any]:
+    modules = clean_start_modules(start_modules)
     row = {
         'token': secrets.token_urlsafe(24),
         'school_name_hint': (school_name_hint or '').strip()[:120] or None,
@@ -132,6 +169,8 @@ def create_link(repo: SchoolOnboardingRepository, created_by: str, school_name_h
         'note': (note or '').strip()[:500] or None,
         'created_by': created_by,
     }
+    if modules:
+        row['answers'] = {'start_modules': modules}
     return repo.create_link(row)
 
 
@@ -145,16 +184,16 @@ def public_view(repo: SchoolOnboardingRepository, token: str) -> Dict[str, Any]:
     if not link:
         raise SchoolSetupError('This setup link is not valid.', status=404, code='not_found')
     return {'status': link_status(link), 'school_name_hint': link.get('school_name_hint'),
-            'features': feature_tour()}
+            'features': feature_tour(link_start_modules(link))}
 
 
-def feature_tour() -> Dict[str, Any]:
+def feature_tour(start_modules: Optional[List[str]] = None) -> Dict[str, Any]:
     """The Settings Features card's list, as a school made by this form would
     see it on its first day: `starts_with` is what is on, `can_add` is the
     rest, grouped. A row the form asks about in its own words is left out
     (ASKED_ELSEWHERE)."""
     from services.school_features_service import features_for_row
-    card = features_for_row({'feature_flags': _new_school_flags({})})
+    card = features_for_row({'feature_flags': _new_school_flags({}, start_modules)})
     asked = ASKED_ELSEWHERE
     keep = ('key', 'group', 'name', 'description')
     starts = [{k: f[k] for k in keep} for f in card['features']
@@ -279,7 +318,8 @@ def library_policy(answers: Dict[str, Any]) -> str:
     return LIBRARY_POLICIES.get(str(answers.get('library_choice') or ''), 'all_optio')
 
 
-def org_fields(answers: Dict[str, Any], logo: Optional[str]) -> Dict[str, Any]:
+def org_fields(answers: Dict[str, Any], logo: Optional[str],
+               start_modules: Optional[List[str]] = None) -> Dict[str, Any]:
     """The organizations columns the answers set, beyond name/slug/policy."""
     fields: Dict[str, Any] = {
         'timezone': answers['timezone'],
@@ -287,7 +327,7 @@ def org_fields(answers: Dict[str, Any], logo: Optional[str]) -> Dict[str, Any]:
     }
     if logo:
         fields['branding_config'] = {'logo_url': logo}
-    fields['feature_flags'] = _new_school_flags(answers)
+    fields['feature_flags'] = _new_school_flags(answers, start_modules)
     if answers.get('ai_choice') == 'off':
         fields.update({
             'ai_features_enabled': False,
@@ -326,23 +366,29 @@ OLD_FORM_PICKS: Dict[str, str] = {
 }
 
 
-def module_changes(answers: Dict[str, Any]) -> Dict[str, bool]:
+def module_changes(answers: Dict[str, Any],
+                   start_modules: Optional[List[str]] = None) -> Dict[str, bool]:
     """The module toggles for a new school: the console, plus what each yes
     needs. Every other module keeps its microschool-baseline answer, so a new
     admin sees a short sidebar and adds the rest from Settings > Features."""
     yes = {q for q in QUESTION_MODULES if answers.get(q) == 'yes'}
     yes |= {OLD_FORM_PICKS[f] for f in (answers.get('features') or []) if f in OLD_FORM_PICKS}
     changes = {'sis': True}
+    # What Optio turned on for this school when it made the link.
+    for m in (start_modules or []):
+        changes[m] = True
     for question in sorted(yes):
         for m in QUESTION_MODULES[question]:
             changes[m] = True
     return changes
 
 
-def _new_school_flags(answers: Dict[str, Any]) -> Dict[str, Any]:
+def _new_school_flags(answers: Dict[str, Any],
+                      start_modules: Optional[List[str]] = None) -> Dict[str, Any]:
     """feature_flags for a school made by this form."""
     from modules.toggle import apply_changes
-    return apply_changes(new_org_row('', '', 'all_optio'), module_changes(answers))
+    return apply_changes(new_org_row('', '', 'all_optio'),
+                         module_changes(answers, start_modules))
 
 
 def _org_roles(user: Dict[str, Any]) -> List[str]:
@@ -380,6 +426,7 @@ def submit(repo: SchoolOnboardingRepository, org_repo: OrganizationRepository,
             'or ask Optio to move this one.', status=409, code='already_in_school')
 
     answers = clean_answers(data)
+    start_modules = link_start_modules(link)
     logo = clean_logo((data or {}).get('logo'))
     # The number comes from the account, where the SMS check put it
     # (services/phone_verification_service.py), never from the form body.
@@ -394,14 +441,16 @@ def submit(repo: SchoolOnboardingRepository, org_repo: OrganizationRepository,
         slug = free_slug(repo, answers['school_name'])
         policy = library_policy(answers)
         org = org_repo.create_organization(
-            new_org_row(answers['school_name'], slug, policy, **org_fields(answers, logo)))
+            new_org_row(answers['school_name'], slug, policy,
+                        **org_fields(answers, logo, start_modules)))
     except Exception:
         repo.release(link['id'])
         raise
 
     # The link records the org before the account changes, so a failure below
     # leaves a used link that names its org rather than an org nobody can find.
-    repo.finish(link['id'], org['id'], {**answers, 'has_logo': bool(logo)})
+    repo.finish(link['id'], org['id'], {**answers, 'has_logo': bool(logo),
+                                        'start_modules': start_modules})
     repo.make_org_admin(user_id, org['id'], _org_roles(user))
     logger.info(f"School setup: org {org['id']} ({slug}) created by user {user_id} from link {link['id']}")
 

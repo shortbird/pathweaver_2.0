@@ -325,3 +325,62 @@ def test_an_online_school_needs_no_city():
 def test_slugify():
     assert svc.slugify("St. Mary's  Co-op!") == 'st-mary-s-co-op'
     assert svc.slugify('???') == 'school'
+
+
+# ── what a link turns on ──────────────────────────────────────────────────────
+# Apogee NoCo, 2026-10-09: Summer wanted to send hiring paperwork the day she
+# set her school up, and a new school starts with Tasks off. The link Optio
+# sends can carry the features to turn on, so nobody waits on a second step.
+
+def _link_with(modules):
+    repo = FakeRepo()
+    repo.link['answers'] = {'start_modules': modules}
+    return repo
+
+
+def test_a_link_turns_its_features_on_at_submit():
+    from modules import module_enabled_for_row
+    orgs, repo = FakeOrgRepo(), _link_with(['tasks'])
+    run(repo, orgs, answers())
+    assert module_enabled_for_row(orgs.rows[0], 'tasks')
+    assert not module_enabled_for_row(orgs.rows[0], 'onboarding')
+    # The operator's answers replace the placeholder; the choice is kept.
+    assert repo.link['answers']['start_modules'] == ['tasks']
+    assert repo.link['answers']['school_name'] == 'Juniper Ridge Microschool'
+
+
+def test_the_link_page_shows_them_as_starting_on():
+    tour = svc.public_view(_link_with(['tasks']), 'tok')['features']
+    assert 'tasks' in {f['key'] for f in tour['starts_with']}
+    assert 'tasks' not in {f['key'] for f in tour['can_add']}
+
+
+def test_making_a_link_stores_valid_features():
+    made = {}
+
+    class Repo:
+        def create_link(self, row):
+            made.update(row)
+            return row
+
+    svc.create_link(Repo(), USER, start_modules=['tasks', 'secure_documents', 'tasks'])
+    assert made['answers'] == {'start_modules': ['secure_documents', 'tasks']}
+
+
+def test_a_link_without_features_stores_no_answers():
+    made = {}
+
+    class Repo:
+        def create_link(self, row):
+            made.update(row)
+            return row
+
+    svc.create_link(Repo(), USER)
+    assert 'answers' not in made
+
+
+@pytest.mark.parametrize('bad', [['billing'], ['not_a_feature'], ['credits'], 'tasks'])
+def test_a_link_cannot_turn_on_what_it_may_not(bad):
+    """Billing is the form's own question; credits is Optio's to turn on."""
+    with pytest.raises(svc.SchoolSetupError):
+        svc.clean_start_modules(bad)

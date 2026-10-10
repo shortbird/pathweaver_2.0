@@ -65,14 +65,24 @@ function Answers({ answers }) {
 export default function SchoolSetupLinksModal({ onClose }) {
   const queryClient = useQueryClient()
   const confirm = useConfirm()
-  const [draft, setDraft] = useState({ school_name_hint: '', contact_email: '', note: '' })
+  const EMPTY = { school_name_hint: '', contact_email: '', note: '', start_modules: [] }
+  const [draft, setDraft] = useState(EMPTY)
   const [creating, setCreating] = useState(false)
   const [openId, setOpenId] = useState(null)
 
-  const { data: links = [], isLoading } = useQuery({
+  const { data, isLoading } = useQuery({
     queryKey: queryKeys.schoolSetupLinks(),
-    queryFn: async () => (await api.get('/api/admin/school-setup-links')).data.links,
+    queryFn: async () => (await api.get('/api/admin/school-setup-links')).data,
   })
+  const links = data?.links || []
+  // Features the link turns on when the school is created (a new school
+  // otherwise starts with only the basics).
+  const startOptions = data?.start_module_options || []
+  const toggleStart = (key) => setDraft((d) => ({
+    ...d,
+    start_modules: d.start_modules.includes(key)
+      ? d.start_modules.filter((k) => k !== key) : [...d.start_modules, key],
+  }))
   const refresh = () => queryClient.invalidateQueries({ queryKey: queryKeys.schoolSetupLinks() })
 
   const copy = async (url) => {
@@ -89,7 +99,7 @@ export default function SchoolSetupLinksModal({ onClose }) {
     setCreating(true)
     try {
       const { data } = await api.post('/api/admin/school-setup-links', draft)
-      setDraft({ school_name_hint: '', contact_email: '', note: '' })
+      setDraft(EMPTY)
       await copy(data.link.url)
       refresh()
     } catch (err) {
@@ -123,6 +133,20 @@ export default function SchoolSetupLinksModal({ onClose }) {
           value={draft.contact_email} onChange={(e) => setDraft({ ...draft, contact_email: e.target.value })} />
         <input className={`${INPUT_CLASS} sm:col-span-2`} placeholder="Note (only you see it)"
           value={draft.note} onChange={(e) => setDraft({ ...draft, note: e.target.value })} />
+        {startOptions.length > 0 && (
+          <fieldset className="sm:col-span-2">
+            <legend className="text-sm text-gray-600 mb-1">Turn on when the school is created (optional)</legend>
+            <div className="flex flex-wrap gap-x-4 gap-y-1">
+              {startOptions.map((o) => (
+                <label key={o.key} className="flex items-center gap-1.5 text-sm text-gray-800 cursor-pointer">
+                  <input type="checkbox" checked={draft.start_modules.includes(o.key)}
+                    onChange={() => toggleStart(o.key)} className="h-4 w-4 accent-purple-700" />
+                  {o.name}
+                </label>
+              ))}
+            </div>
+          </fieldset>
+        )}
         <div className="sm:col-span-2">
           <button type="submit" disabled={creating} className="btn-primary">
             {creating ? 'Making the link...' : 'Make a link and copy it'}
@@ -170,6 +194,12 @@ export default function SchoolSetupLinksModal({ onClose }) {
                 </div>
               </div>
               {link.note && <p className="mt-1 text-xs text-gray-500">{link.note}</p>}
+              {link.answers?.start_modules?.length > 0 && (
+                <p className="mt-1 text-xs text-gray-500">
+                  Turns on: {link.answers.start_modules
+                    .map((k) => startOptions.find((o) => o.key === k)?.name || k).join(', ')}
+                </p>
+              )}
               {openId === link.id && <Answers answers={link.answers} />}
             </li>
           ))}

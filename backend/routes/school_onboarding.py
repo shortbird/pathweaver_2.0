@@ -75,17 +75,22 @@ def submit_setup(user_id, token):
 @require_superadmin
 def list_setup_links(superadmin_user_id):
     links = [setup.staff_view(link, _app_url()) for link in _repo().recent()]
-    return jsonify({'success': True, 'links': links})
+    return jsonify({'success': True, 'links': links,
+                    'start_module_options': setup.start_module_options()})
 
 
 @admin_bp.route('', methods=['POST'])
 @require_superadmin
 def create_setup_link(superadmin_user_id):
     data = request.get_json(silent=True) or {}
-    link = setup.create_link(_repo(), superadmin_user_id,
-                             school_name_hint=data.get('school_name_hint', ''),
-                             contact_email=data.get('contact_email', ''),
-                             note=data.get('note', ''))
+    try:
+        link = setup.create_link(_repo(), superadmin_user_id,
+                                 school_name_hint=data.get('school_name_hint', ''),
+                                 contact_email=data.get('contact_email', ''),
+                                 note=data.get('note', ''),
+                                 start_modules=data.get('start_modules'))
+    except setup.SchoolSetupError as err:
+        return _refusal(err)
     return jsonify({'success': True, 'link': setup.staff_view(link, _app_url())}), 201
 
 
