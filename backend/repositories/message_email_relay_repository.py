@@ -30,12 +30,17 @@ class MessageEmailRelayRepository(BaseRepository):
 
     # ── Relays ────────────────────────────────────────────────────────────
 
-    def find_for_pair(self, owner_id: str, recipient_id: str) -> Optional[Dict[str, Any]]:
-        rows = (self.client.table('message_email_relays')
-                .select('*')
-                .eq('owner_id', owner_id)
-                .eq('recipient_id', recipient_id)
-                .limit(1).execute()).data
+    def find_for_pair(self, owner_id: str, recipient_id: str,
+                      organization_id: Optional[str] = None) -> Optional[Dict[str, Any]]:
+        """The relay for this pair. `organization_id` set is the school inbox
+        relay that speaks for that school; None is the personal one."""
+        query = (self.client.table('message_email_relays')
+                 .select('*')
+                 .eq('owner_id', owner_id)
+                 .eq('recipient_id', recipient_id))
+        query = (query.eq('organization_id', organization_id) if organization_id
+                 else query.is_('organization_id', 'null'))
+        rows = query.limit(1).execute().data
         return rows[0] if rows else None
 
     def find_by_token(self, token: str) -> Optional[Dict[str, Any]]:
@@ -71,3 +76,12 @@ class MessageEmailRelayRepository(BaseRepository):
                 .select('id, display_name, first_name, last_name')
                 .eq('id', user_id).limit(1).execute()).data
         return rows[0] if rows else None
+
+    def get_people_with_email(self, user_ids) -> list:
+        """Names and email of each id, for the school inbox alert emails."""
+        ids = [i for i in dict.fromkeys(user_ids) if i]
+        if not ids:
+            return []
+        return (self.client.table('users')
+                .select('id, email, display_name, first_name, last_name')
+                .in_('id', ids).execute()).data or []

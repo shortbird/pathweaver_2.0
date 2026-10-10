@@ -223,7 +223,9 @@ class TestRouteGate:
 @pytest.mark.unit
 class TestAccessEndpoint:
     def test_a_member_sees_every_field(self, client, auth_headers, mock_verify_token, as_caller):
-        with _Stack(as_caller(ON_LIST, [ON_LIST])):
+        with _Stack(as_caller(ON_LIST, [ON_LIST])), \
+             patch('routes.school_inbox._email_me_on', return_value=True), \
+             patch('routes.school_inbox._email_replies_on', return_value=True):
             resp = client.get('/api/school-inbox/access', headers=auth_headers)
         assert resp.status_code == 200
         assert {k: v for k, v in _data(resp).items()} == {
@@ -233,6 +235,10 @@ class TestAccessEndpoint:
             'member_ids': [ME],
             'everyone': False,
             'office_ids': [ADMIN, ME],
+            # "Email me every message" (2026-10-09), and whether a reply to
+            # that email comes back in.
+            'email_me': True,
+            'email_replies': True,
         }
 
     def test_the_default_is_everyone(self, client, auth_headers, mock_verify_token, as_caller):

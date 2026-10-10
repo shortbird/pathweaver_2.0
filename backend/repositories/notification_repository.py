@@ -38,6 +38,16 @@ def chat_muted_key(group_id: str) -> str:
     return f'{CHAT_MUTED_PREFIX}{group_id}'
 
 
+#: The notification_preferences key of "email me every message this school's
+#: inbox gets" is this plus the org id. Opt-in, so the row exists with
+#: enabled = true only while it is on (2026-10-09).
+SCHOOL_INBOX_EMAIL_PREFIX = 'school_inbox_email:'
+
+
+def school_inbox_email_key(org_id: str) -> str:
+    return f'{SCHOOL_INBOX_EMAIL_PREFIX}{org_id}'
+
+
 def _chunks(items: Iterable[str], size: int = _CHUNK):
     # Deduplicated, order kept: a person listed twice is still one filter value.
     ids = [i for i in dict.fromkeys(items) if i]
@@ -205,6 +215,41 @@ class NotificationRepository(BaseRepository):
          .eq('notification_type', chat_muted_key(group_id))
          .execute())
 
+
+    # ── School inbox: email me every message ────────────────────────────────
+
+    def school_inbox_email_ids(self, org_id: str) -> List[str]:
+        """Who asked to be emailed every message this school's inbox gets."""
+        rows = (self.client.table('notification_preferences')
+                .select('user_id')
+                .eq('notification_type', school_inbox_email_key(org_id))
+                .eq('enabled', True)
+                .execute()).data or []
+        return [r['user_id'] for r in rows if r.get('user_id')]
+
+    def is_school_inbox_email_on(self, user_id: str, org_id: str) -> bool:
+        rows = (self.client.table('notification_preferences')
+                .select('enabled')
+                .eq('user_id', user_id)
+                .eq('notification_type', school_inbox_email_key(org_id))
+                .limit(1)
+                .execute()).data or []
+        return bool(rows) and rows[0].get('enabled') is True
+
+    def set_school_inbox_email(self, user_id: str, org_id: str, on: bool) -> None:
+        """Turn the emails on or off. Off deletes the row, as an unmute does."""
+        if on:
+            (self.client.table('notification_preferences').upsert(
+                {'user_id': user_id,
+                 'notification_type': school_inbox_email_key(org_id),
+                 'enabled': True,
+                 'updated_at': datetime.now(timezone.utc).isoformat()},
+                on_conflict='user_id,notification_type').execute())
+            return
+        (self.client.table('notification_preferences').delete()
+         .eq('user_id', user_id)
+         .eq('notification_type', school_inbox_email_key(org_id))
+         .execute())
 
 def _as_count(value: Any) -> int:
     """`metadata.count` as a whole number of at least 1."""

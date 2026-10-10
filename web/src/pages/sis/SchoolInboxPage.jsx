@@ -33,6 +33,7 @@ import { useGroups, groupsQueryKey } from '../../hooks/api/useGroupMessages'
 import ComposeMessageModal from '../../components/sis/ComposeMessageModal'
 import MakeTaskModal from '../../components/sis/MakeTaskModal'
 import SchoolInboxMembersModal from '../../components/sis/SchoolInboxMembersModal'
+import SchoolInboxEmailToggle from '../../components/sis/SchoolInboxEmailToggle'
 import { useSchoolInboxAccess } from '../../hooks/api/useSisMessaging'
 import SentMessagesPanel from '../../components/sis/SentMessagesPanel'
 import AllClassChatsPanel from '../../components/sis/AllClassChatsPanel'
@@ -670,12 +671,9 @@ const SchoolInboxPage = () => {
             {isMessages && listReady && unreadCount > 0 && ` ${unreadCount} unread.`}
           </p>
         </div>
-        {/* Org admins choose who opens the school inbox (19047fd0). */}
-        {viewingSchool && canManageInbox && (
-          <button type="button" onClick={() => setMembersOpen(true)}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-gray-300 text-sm text-neutral-700 hover:border-optio-purple hover:text-optio-purple">
-            Inbox access
-          </button>
+        {viewingSchool && (
+          <SchoolInboxEmailToggle orgId={isSuperadmin ? orgId : null} orgName={orgName}
+            access={accessQuery.data} onManageAccess={canManageInbox ? () => setMembersOpen(true) : null} />
         )}
       </div>
 

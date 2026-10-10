@@ -88,6 +88,8 @@ def get_inbox_access(user_id: str):
             'member_ids': members,
             'everyone': not members,
             'office_ids': school_inbox_service.admin_recipient_ids(org_id),
+            'email_me': _email_me_on(user_id, org_id),
+            'email_replies': _email_replies_on(),
         })
     except Exception as e:
         logger.error(f"Error loading school inbox access: {str(e)}")
@@ -143,6 +145,54 @@ def set_inbox_access(user_id: str):
     except Exception as e:
         logger.error(f"Error saving school inbox access: {str(e)}")
         return error_response('Failed to save inbox access', status_code=500,
+                              error_code='internal_error')
+
+
+def _notification_repo():
+    from database import get_supabase_admin_client
+    from repositories.notification_repository import NotificationRepository
+    # admin client justified: only the caller's own preference rows, after _resolve_inbox
+    return NotificationRepository(client=get_supabase_admin_client())
+
+
+def _email_me_on(user_id: str, org_id: str) -> bool:
+    try:
+        return _notification_repo().is_school_inbox_email_on(user_id, org_id)
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f"school inbox: email-me read failed: {e}")
+        return False
+
+
+def _email_replies_on() -> bool:
+    from services import message_email_relay_service
+    return message_email_relay_service.replies_enabled()
+
+
+@bp.route('/email-me', methods=['PUT'])
+@require_role(*ADMIN_ROLES)
+def set_email_me(user_id: str):
+    """Email me every message this school's inbox gets, or stop.
+
+    Body: {on: bool}. Per person and per school. Each email can be answered by
+    replying to it, and the reply goes out as the school
+    (message_email_relay_service). Built 2026-10-09 because Optio Academy's
+    inbox has no office of its own, so its messages rang nobody's bell."""
+    try:
+        ctx, err = _resolve_inbox(user_id)
+        if err:
+            return err
+        data = request.get_json(silent=True) or {}
+        on = data.get('on')
+        if not isinstance(on, bool):
+            return error_response('on must be true or false', status_code=400,
+                                  error_code='validation_error')
+        org_id = ctx['org']['id']
+        _notification_repo().set_school_inbox_email(user_id, org_id, on)
+        return success_response({'organization_id': org_id, 'email_me': on,
+                                 'email_replies': _email_replies_on()})
+    except Exception as e:
+        logger.error(f"Error saving school inbox email setting: {str(e)}")
+        return error_response('Failed to save the email setting', status_code=500,
                               error_code='internal_error')
 
 

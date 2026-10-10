@@ -88,6 +88,24 @@ export const useSchoolInboxAccess = (orgId, { enabled = true } = {}) => useQuery
   staleTime: 60000,
 })
 
+/**
+ * Email me every message the school inbox gets, or stop (2026-10-09). Per
+ * person and per school; each email can be answered by replying to it, and
+ * the reply goes out as the school. `email_me` comes back on the access query.
+ */
+export const useSetSchoolInboxEmailMe = (orgId) => {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (on) => {
+      const res = await api.put(withOrg('/api/school-inbox/email-me', orgId), { on })
+      return res?.data?.data ?? res?.data ?? {}
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['sis-messaging', 'inboxAccess'] })
+    },
+  })
+}
+
 /** Save the inbox list. `memberIds` [] means every coordinator. */
 export const useSetSchoolInboxMembers = (orgId) => {
   const queryClient = useQueryClient()

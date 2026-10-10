@@ -1110,6 +1110,33 @@ describe('SchoolInboxPage — who can open the school inbox (19047fd0, Molly)', 
       '/api/school-inbox/access', { member_ids: ['kate'] }))
   })
 
+  // Tanner, 2026-10-09: Optio Academy has no office of its own, so nobody
+  // heard about its messages. Each reader can have every one emailed.
+  it('turns on email for every message to the school inbox', async () => {
+    state.inboxAccess = { inbox_access: true, can_manage: false, member_ids: [], everyone: true,
+      email_me: false, email_replies: true }
+    render(<SchoolInboxPage />, { route: '/inbox?tab=school' })
+    // By text, not by role: a role query walks the whole inbox and is slow.
+    const toggle = await screen.findByText('Email me every message')
+    // Disabled until the access answer arrives, which is what says it is off.
+    await waitFor(() => expect(toggle).not.toBeDisabled())
+    expect(toggle).toHaveAttribute('aria-checked', 'false')
+    fireEvent.click(toggle)
+    await waitFor(() => expect(api.put).toHaveBeenCalledWith(
+      '/api/school-inbox/email-me', { on: true }))
+  })
+
+  it('shows the email switch as on, and turns it off', async () => {
+    state.inboxAccess = { inbox_access: true, can_manage: false, member_ids: [], everyone: true,
+      email_me: true, email_replies: true }
+    render(<SchoolInboxPage />, { route: '/inbox?tab=school' })
+    const toggle = await screen.findByText('Emailing me every message')
+    expect(toggle).toHaveAttribute('aria-checked', 'true')
+    fireEvent.click(toggle)
+    await waitFor(() => expect(api.put).toHaveBeenCalledWith(
+      '/api/school-inbox/email-me', { on: false }))
+  })
+
   it('offers inbox tasks only to the people on the inbox', async () => {
     state.inboxAccess = { inbox_access: true, can_manage: true, member_ids: ['tam'], everyone: false,
       office_ids: ['me-1', 'tam'] }

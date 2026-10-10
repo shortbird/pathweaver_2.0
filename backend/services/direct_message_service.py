@@ -626,6 +626,7 @@ class DirectMessageService(BaseService):
             # Send notification to recipient
             self._notify_recipient(sender_id, recipient_id, content or 'Sent an attachment',
                                    conversation_id=conversation['id'],
+                                   message_row=result.data[0] if result.data else None,
                                    **({} if push else {'push': False}))
 
             row = result.data[0]
@@ -646,7 +647,8 @@ class DirectMessageService(BaseService):
 
     def _notify_recipient(self, sender_id: str, recipient_id: str, content: str,
                           conversation_id: Optional[str] = None,
-                          push: bool = True) -> None:
+                          push: bool = True,
+                          message_row: Optional[Dict[str, Any]] = None) -> None:
         """
         Send a notification to the message recipient.
 
@@ -657,6 +659,8 @@ class DirectMessageService(BaseService):
             conversation_id: The thread the message landed in. A school-inbox
                 notification links to it, so the bell opens that thread rather
                 than the inbox page the reader is already on (11f6ad24).
+            message_row: The stored message. A school-inbox message is also
+                emailed to the readers who asked for every one (2026-10-09).
         """
         try:
             # Get sender info for notification
@@ -678,6 +682,9 @@ class DirectMessageService(BaseService):
                     inbox_org, sender_id, sender_name, preview,
                     conversation_id=conversation_id,
                 )
+                if message_row:
+                    school_inbox_service.email_watchers_of_member_message(
+                        inbox_org, message_row, sender_id)
                 return
 
             # Get recipient's organization for notification

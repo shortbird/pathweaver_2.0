@@ -157,7 +157,8 @@ def send_as_school(org, recipient_id: str, content: str, *, sent_by: Optional[st
                    attachments: Optional[List[Dict[str, Any]]] = None,
                    fallback_sender: Optional[str] = None,
                    push: bool = True,
-                   in_thread: bool = False) -> Dict[str, Any]:
+                   in_thread: bool = False,
+                   sent_from: Optional[str] = None) -> Dict[str, Any]:
     """Send one direct message from the school to a member.
 
     The recipient sees the school's name; `sent_by` records the staff member
@@ -183,6 +184,9 @@ def send_as_school(org, recipient_id: str, content: str, *, sent_by: Optional[st
     ("I would like it if you signed your name", iCreate, 2026-09-25). The
     front office has no such thread -- it reads that inbox as the school
     (office_inbox_id) -- so a message to one of them is always personal.
+
+    `sent_from` names the surface when the request is not the author's own
+    client: the email relay passes 'email' (message_email_relay_service).
     """
     from services.direct_message_service import DirectMessageService
     row: Optional[Dict[str, Any]] = None
@@ -200,6 +204,8 @@ def send_as_school(org, recipient_id: str, content: str, *, sent_by: Optional[st
     extra: Dict[str, Any] = {}
     if not push:
         extra['push'] = False
+    if sent_from:
+        extra['sent_from'] = sent_from
     if author and is_org_staff((row or {}).get('id'), recipient_id):
         if not in_thread or office_inbox_id(recipient_id) == inbox_user_id:
             # Somebody in the office writing to themselves as the school
@@ -511,6 +517,75 @@ def inbox_access(user_id: str, org_id: str) -> bool:
     return can_manage_inbox_members(user_id)
 
 
+def reads_inbox_of(user_id: str, org_id: str) -> bool:
+    """Whether `user_id` may read THIS school's inbox right now.
+
+    inbox_access asks about the role tier and the list, and leaves which org
+    to resolve_org_id, because a route resolves the org first. The email
+    alerts and the reply relay have no route in front of them, so they ask
+    both: an org admin who moved schools must not keep getting, or answering,
+    the old school's mail."""
+    if not user_id or not org_id:
+        return False
+    from services import sis_service
+    try:
+        if sis_service.resolve_org_id(user_id, org_id) != org_id:
+            return False
+        return inbox_access(user_id, org_id)
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f"school inbox: reader check failed for org {org_id}: {e}")
+        return False
+
+
+def email_watcher_ids(org_id: str) -> List[str]:
+    """Who asked to be emailed every message this inbox gets, and still reads
+    it. Never raises: a failed read means no emails, never a failed send."""
+    try:
+        from repositories.notification_repository import NotificationRepository
+        ids = NotificationRepository(client=_admin()).school_inbox_email_ids(org_id)
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f"school inbox: email watcher lookup failed for org {org_id}: {e}")
+        return []
+    return [i for i in ids if reads_inbox_of(i, org_id)]
+
+
+def email_watchers_of_member_message(org: Dict[str, Any], message: Dict[str, Any],
+                                     sender_id: str) -> int:
+    """Email a message the school inbox just got to every reader who asked.
+    Returns how many went out. Best-effort; never raises, because the message
+    is already in the inbox and a mail problem must not undo that.
+
+    Why (2026-10-09): Optio Academy's inbox has no org admin or coordinator,
+    so nobody's bell rang for its families. Each email can be answered by
+    replying to it; see message_email_relay_service."""
+    watcher_ids = [i for i in email_watcher_ids(org['id']) if i != sender_id]
+    if not watcher_ids:
+        return 0
+    from services import message_email_relay_service as relay_service
+    sent = 0
+    try:
+        from repositories.message_email_relay_repository import MessageEmailRelayRepository
+        rows = MessageEmailRelayRepository(client=_admin()).get_people_with_email(
+            watcher_ids + [sender_id])
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f"school inbox: email watcher read failed for org {org.get('id')}: {e}")
+        return 0
+    from services.sis_service import is_placeholder_staff_email
+    by_id = {r['id']: {**r, 'is_placeholder': is_placeholder_staff_email(r.get('email'))}
+             for r in rows}
+    member = by_id.get(sender_id) or {'id': sender_id}
+    for watcher_id in watcher_ids:
+        watcher = by_id.get(watcher_id)
+        if not watcher:
+            continue
+        try:
+            if relay_service.email_school_message_to_watcher(watcher, org, message, member):
+                sent += 1
+        except Exception as e:  # noqa: BLE001
+            logger.warning(f"school inbox: alert email to {watcher_id} failed: {e}")
+    return sent
+
+
 def can_manage_inbox_members(user_id: str) -> bool:
     """Org admins (and a superadmin) pick the list; a coordinator may not."""
     from services import sis_service
@@ -588,7 +663,12 @@ def notify_admins_of_member_message(org: Dict[str, Any], sender_id: str,
                     'school_inbox': True, 'organization_id': org['id']}
         if conversation_id:
             metadata['conversation_id'] = conversation_id
-        for admin_id in admin_recipient_ids(org['id']):
+        # A reader who asked for email alerts gets the bell too. That is how a
+        # superadmin covering a school with no office of its own (Optio
+        # Academy) hears about a message at all (2026-10-09).
+        recipient_ids = list(dict.fromkeys(
+            admin_recipient_ids(org['id']) + email_watcher_ids(org['id'])))
+        for admin_id in recipient_ids:
             if admin_id == sender_id:
                 continue
             notification_service.create_notification(

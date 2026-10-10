@@ -35,6 +35,15 @@ notes address first, so only reply+ mail reaches handle_inbound here.
 A reply is posted as the relay owner (the superadmin behind Optio Support).
 The one-sender rule (school_inbox_service.office_family_route) does not move
 it: a superadmin has no school, so it is never the front office of one.
+
+School inbox alerts (2026-10-09). Optio Academy's inbox has no org admin or
+campus coordinator, so its family messages rang nobody's bell. A reader of a
+school inbox can now turn on "Email me every message"; each message arrives
+as an email whose Reply-To is a school relay (organization_id set). A reply
+to that goes out as the school, signed by the relay owner, through the same
+school_inbox_service.send_as_school a console reply uses, so the family sees
+it exactly as if it had been typed in the inbox. The owner must still be
+able to open that inbox when the reply arrives.
 """
 
 import re
@@ -93,17 +102,22 @@ def reply_address(token: str) -> str:
 
 def get_or_create_relay(owner_id: str, owner_email: str, recipient_id: str,
                         conversation_id: Optional[str] = None,
-                        source_message_id: Optional[str] = None) -> Dict[str, Any]:
+                        source_message_id: Optional[str] = None,
+                        organization_id: Optional[str] = None) -> Dict[str, Any]:
     """The relay for this (superadmin, recipient) pair, minting one if needed.
 
     One relay per pair rather than per message, so the reply address for a
     person is stable — replying to last week's copy still lands in today's
     thread. Every send refreshes the expiry and un-revokes, since sending is an
     explicit act by the owner.
+
+    `organization_id` makes it a school inbox relay: a reply speaks as that
+    school. It is part of the key, so a personal relay and a school relay to
+    the same person never share a token.
     """
     repo = _repo()
     now = datetime.now(timezone.utc)
-    existing = repo.find_for_pair(owner_id, recipient_id)
+    existing = repo.find_for_pair(owner_id, recipient_id, organization_id)
 
     fields = {
         'owner_email': (owner_email or '').strip().lower(),
@@ -123,6 +137,8 @@ def get_or_create_relay(owner_id: str, owner_email: str, recipient_id: str,
         'owner_id': owner_id,
         'recipient_id': recipient_id,
     })
+    if organization_id:
+        fields['organization_id'] = organization_id
     return repo.insert_relay(fields)
 
 
@@ -235,6 +251,86 @@ def email_message_to_owner(owner: Dict[str, Any], message: Dict[str, Any],
     return {'sent': bool(sent), 'reply_address': reply_to, 'to': to_email}
 
 
+def email_school_message_to_watcher(watcher: Dict[str, Any], org: Dict[str, Any],
+                                    message: Dict[str, Any],
+                                    member: Dict[str, Any]) -> bool:
+    """Mail one message a school inbox just got to a reader who asked for it.
+
+    The email is the message and little else: the member's words, who wrote
+    them, and a link to the thread. Its Reply-To is a school relay, so the
+    answer goes back into the inbox as the school (see the module docstring).
+    One relay per (reader, member, school), so every alert from one family
+    carries the same Reply-To, and the subject stays fixed per family so
+    Gmail keeps them in one conversation.
+
+    Returns whether the mail went out. Never raises for a missing address:
+    an unclaimed placeholder account simply gets nothing.
+    """
+    from services.email_service import EmailService
+
+    to_email = (watcher.get('email') or '').strip()
+    if not to_email or watcher.get('is_placeholder'):
+        return False
+
+    member_name = _display_name(member)
+    org_name = org.get('name') or 'School'
+    body = (message.get('message_content') or '').strip()
+    attachments = message.get('attachments') or []
+    from services.school_inbox_service import SIS_INBOX_URL
+    thread_url = SIS_INBOX_URL + '?tab=school'
+    if message.get('conversation_id'):
+        thread_url += f"&conversation={message['conversation_id']}"
+
+    reply_to = None
+    if replies_enabled():
+        relay = get_or_create_relay(
+            owner_id=watcher['id'],
+            owner_email=to_email,
+            recipient_id=member['id'],
+            conversation_id=message.get('conversation_id'),
+            source_message_id=message.get('id'),
+            organization_id=org['id'],
+        )
+        reply_to = reply_address(relay['token'])
+
+    body_html = (
+        '<br>'.join(escape(line) for line in body.splitlines())
+        if body else '<em>(no text)</em>'
+    )
+    attach_note = (f'{len(attachments)} attachment(s). Open the thread to see them.'
+                   if attachments else '')
+    footer = (f'Reply to this email to answer {member_name} as {org_name}.'
+              if reply_to else 'Open the thread to answer.')
+    html = (
+        '<div style="font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',sans-serif;'
+        'font-size:15px;line-height:1.5;color:#111827;">'
+        f'<p style="margin:0 0 12px;">{body_html}</p>'
+        + (f'<p style="margin:0 0 12px;color:#6b7280;">{escape(attach_note)}</p>' if attach_note else '')
+        + '<p style="margin:16px 0 0;font-size:12px;color:#6b7280;">'
+        f'{escape(member_name)} wrote to the {escape(org_name)} inbox. {escape(footer)} '
+        f'<a href="{escape(thread_url)}" style="color:#6D469B;">Open the thread</a></p>'
+        '</div>'
+    )
+    text_parts = [body or '(no text)']
+    if attach_note:
+        text_parts += ['', attach_note]
+    text_parts += ['', f'{member_name} wrote to the {org_name} inbox. {footer}', thread_url]
+
+    sent = EmailService().send_email(
+        to_email=to_email,
+        subject=f"{org_name} inbox: {member_name}",
+        html_body=html,
+        text_body='\n'.join(text_parts),
+        reply_to=reply_to,
+        # A family's words mailed to one staff member's own inbox, on that
+        # person's request; no support copy, and treated as a student record.
+        support_copy=False,
+        contains_student_records=True,
+        categories=['school_inbox_alert'],
+    )
+    return bool(sent)
+
+
 def _render_email(author_name: str, reply_to_name: str, org_name: Optional[str],
                   sent_at: str, body: str, attachments: list, thread_url: str,
                   reply_to: Optional[str]) -> str:
@@ -345,6 +441,29 @@ def extract_sender_email(from_header: Optional[str]) -> Optional[str]:
     return (found.group(1) or found.group(2) or '').strip().lower() or None
 
 
+def _reply_as_school(relay: Dict[str, Any], body: str) -> Optional[Dict[str, Any]]:
+    """Send an emailed reply from a school relay, as a console reply would go.
+
+    The same call routes/school_inbox.send_as_school makes: the school is the
+    sender, the relay owner is sent_by, and the reply stays in the existing
+    thread. The owner's access is checked now, not when the alert was sent,
+    so somebody taken off the inbox cannot keep answering as the school.
+    Returns None when they no longer may.
+    """
+    from services import school_inbox_service
+    org_id = relay['organization_id']
+    if not school_inbox_service.inbox_access(relay['owner_id'], org_id):
+        logger.warning("Inbound school relay rejected: owner has no inbox access")
+        return None
+    org = school_inbox_service.get_org(org_id)
+    if not org or not org.get('is_active'):
+        return None
+    return school_inbox_service.send_as_school(
+        org, relay['recipient_id'], body, sent_by=relay['owner_id'],
+        in_thread=True, sent_from='email',
+    )
+
+
 # Everything from the first of these onward is the quoted original, not the
 # reply. Gmail on both web and Android produces the "On ... wrote:" form; the
 # rest cover Outlook, Apple Mail and forwarded chains, which reach this inbox
@@ -428,11 +547,17 @@ def handle_inbound(*, to_header: Optional[str], envelope_to: Optional[str],
     if not body:
         return 'empty', 'reply had no text'
 
-    # The request here is the mail provider's webhook, not the owner's client,
-    # so the surface is named explicitly rather than read off the request.
-    message = DirectMessageService().send_message(
-        relay['owner_id'], relay['recipient_id'], body, sent_from='email',
-    )
+    if relay.get('organization_id'):
+        message = _reply_as_school(relay, body)
+        if message is None:
+            return 'ignored', 'relay owner can no longer open this school inbox'
+    else:
+        # The request here is the mail provider's webhook, not the owner's
+        # client, so the surface is named explicitly rather than read off the
+        # request.
+        message = DirectMessageService().send_message(
+            relay['owner_id'], relay['recipient_id'], body, sent_from='email',
+        )
 
     now = datetime.now(timezone.utc).isoformat()
     try:
