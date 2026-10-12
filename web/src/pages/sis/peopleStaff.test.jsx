@@ -22,7 +22,10 @@ const render = (ui) => {
 let authState = { user: { id: 'u1', role: 'org_admin' } }
 let orgState = { organization: { id: 'org-1', name: 'Org' } }
 
-vi.mock('../../contexts/AuthContext', () => ({ useAuth: () => authState }))
+vi.mock('../../contexts/AuthContext', async () => {
+  const React = await import('react')
+  return { useAuth: () => authState, AuthContext: React.createContext(null) }
+})
 vi.mock('../../contexts/OrganizationContext', () => ({ useOrganization: () => orgState }))
 vi.mock('react-hot-toast', () => ({
   toast: { success: vi.fn(), error: vi.fn() },
@@ -89,7 +92,7 @@ const openStaffRecord = async (name) => {
 
 const addTeacher = () => {
   fireEvent.click(screen.getByRole('button', { name: '+ Add' }))
-  fireEvent.click(screen.getByRole('menuitem', { name: 'Teacher' }))
+  fireEvent.click(screen.getByRole('button', { name: /A staff member/ }))
 }
 
 describe('Staff on the People table', () => {

@@ -282,8 +282,8 @@ def register_all(app):
     from routes.admin import lti_registrations as admin_lti_registrations
     app.register_blueprint(admin_lti_registrations.bp)
 
-    from routes.admin import roster_import as admin_roster_import
-    app.register_blueprint(admin_roster_import.bp)
+    # Roster import moved to the SIS console (routes/sis/people_add.py,
+    # 2026-10-12); /api/admin/roster-import is gone.
 
     from routes import observer
     app.register_blueprint(observer.bp)

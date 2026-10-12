@@ -1,16 +1,22 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react'
-import api from '../../services/api'
+import React, { useMemo, useRef, useState } from 'react'
+import api from '../../../services/api'
+import { downloadCsv, toCsv } from '../../../utils/csv'
 
-// Schools that enroll offline send a finished roster instead of using the
-// signup links. Pasting it here creates both accounts per row, links them, and
-// emails each new account a set-your-password link.
+// "Many people from a spreadsheet" in the People page's + Add wizard. A school
+// that has its families in a sheet pastes it here: each row makes a student and
+// a parent, links them, and puts the parent and their children in one family.
+//
+// This was the superadmin dashboard's Roster Import page until 2026-10-12,
+// when it moved to the school's own console (routes/sis/people_add.py says what
+// guards came with the move). Setup emails start OFF here: a bulk add is the
+// case where fifty families get an email before the school is ready.
 //
 // The roster is a grid rather than a paste box because the thing being edited
 // is a spreadsheet: paste into any cell and the whole sheet lands, then fix the
 // one typo in place instead of going back to Excel and re-pasting.
 //
 // Preview is not optional on the way to importing: this creates accounts for
-// real families and emails all of them, so the superadmin reads what it is
+// real families and can email all of them, so the admin reads what it is
 // about to do first. Any edit drops the preview, because a plan built from
 // different rows is not a plan for what's in the grid now.
 //
@@ -112,7 +118,7 @@ export const parseRoster = (text, order = DEFAULT_ORDER) => {
 // The grid goes back to the backend as the tab-separated sheet it came from, so
 // there is exactly one parser and one validator of record -- the server's. It
 // always goes in the canonical column order carrying the canonical headers:
-// dragging a column is how the superadmin tells the grid what a cell means, and
+// dragging a column is how the admin tells the grid what a cell means, and
 // by the time a row is sent it means the same thing whatever order it is shown
 // in.
 const toRosterText = (rows) => [
@@ -140,6 +146,20 @@ const StatusPill = ({ status }) => {
   )
 }
 
+// A blank sheet with the headers the import reads, for a school starting from
+// nothing rather than from an export.
+const downloadTemplate = () => downloadCsv(
+  toCsv(COLUMNS.map(c => c.header), [['Ava', 'Watson', '', 'Shelby', 'Watson', 'shelby@example.com']]),
+  'roster-template.csv',
+)
+
+// A .csv file read into the grid exactly as a paste would be.
+const readFile = (file, order, onRows) => {
+  const reader = new FileReader()
+  reader.onload = () => onRows(parseRoster(String(reader.result || ''), order))
+  reader.readAsText(file)
+}
+
 const Count = ({ label, value, tone = 'default' }) => (
   <div className="rounded-lg border border-gray-200 px-4 py-3">
     <div className={`text-2xl font-semibold ${tone === 'warn' ? 'text-red-600' : 'text-gray-900'}`}>{value}</div>
@@ -147,14 +167,12 @@ const Count = ({ label, value, tone = 'default' }) => (
   </div>
 )
 
-export default function RosterImportPage() {
-  const [organizations, setOrganizations] = useState([])
-  const [orgId, setOrgId] = useState('')
+export default function RosterImport({ orgId, orgName = 'your school', onImported }) {
   const [rows, setRows] = useState(() => [blankRow(), blankRow(), blankRow()])
   const [order, setOrder] = useState(DEFAULT_ORDER)
   const [dragging, setDragging] = useState(null)
   const [dropTarget, setDropTarget] = useState(null)
-  const [sendEmails, setSendEmails] = useState(true)
+  const [sendEmails, setSendEmails] = useState(false)
   const [preview, setPreview] = useState(null)
   const [outcome, setOutcome] = useState(null)
   const [error, setError] = useState(null)
@@ -162,23 +180,6 @@ export default function RosterImportPage() {
   // Which grid rows the preview was built from, so the server's row numbers
   // point back at the right cells.
   const previewedKeys = useRef([])
-
-  useEffect(() => {
-    api.get('/api/admin/organizations')
-      .then(({ data }) => {
-        const orgs = data?.organizations || []
-        // No default school: the import creates accounts and emails every
-        // family, so the superadmin picks the organization on purpose. (It
-        // used to preselect Hearthwood, retired on 2026-10-02.)
-        setOrganizations(orgs)
-      })
-      .catch(() => setError('Could not load the organization list'))
-  }, [])
-
-  const orgName = useMemo(
-    () => organizations.find(o => o.id === orgId)?.name || 'this organization',
-    [organizations, orgId]
-  )
 
   const filledRows = useMemo(() => rows.filter(hasContent), [rows])
   const columns = useMemo(() => order.map(field => COLUMN_BY_FIELD[field]), [order])
@@ -244,18 +245,32 @@ export default function RosterImportPage() {
   }
   const removeRow = key => removeRows([key])
   const clearGrid = () => { setRows([blankRow(), blankRow(), blankRow()]); clearPlan() }
+  const loadFile = (event) => {
+    const file = event.target.files?.[0]
+    event.target.value = ''
+    if (!file) return
+    readFile(file, order, (parsed) => {
+      if (!parsed.length) { setError('That file has no rows we can read'); return }
+      setRows([...parsed, blankRow()])
+      clearPlan()
+    })
+  }
 
   const run = async (step) => {
     setBusy(step)
     setError(null)
     if (step === 'preview') previewedKeys.current = filledRows.map(row => row.key)
     try {
-      const { data } = await api.post(`/api/admin/roster-import/${step}`, {
+      // Two literal paths, not one template: the client-path test reads them.
+      const path = step === 'preview'
+        ? '/api/sis/roster-import/preview'
+        : '/api/sis/roster-import/commit'
+      const { data } = await api.post(path, {
         csv: toRosterText(filledRows),
         organization_id: orgId,
         ...(step === 'commit' ? { send_emails: sendEmails } : {}),
       })
-      if (step === 'preview') { setPreview(data); setOutcome(null) } else { setOutcome(data) }
+      if (step === 'preview') { setPreview(data); setOutcome(null) } else { setOutcome(data); onImported?.() }
     } catch (e) {
       const body = e?.response?.data
       setError(body?.error || 'Something went wrong')
@@ -284,32 +299,21 @@ export default function RosterImportPage() {
   const totalAccounts = counts ? counts.students_new + counts.parents_new : 0
 
   return (
-    <div className="container mx-auto p-8 max-w-6xl">
-      <h1 className="text-3xl font-bold">Roster Import</h1>
-      <p className="text-gray-600 mt-2 mb-8">
-        For schools that enroll families offline and send a roster instead of using the signup
-        links. Each row creates a student account and a parent account, links them together, and
-        emails each new account a link to set their own password. Anyone who already has an Optio
-        account is linked, not recreated, and is not emailed. A student with no email of their own
-        is created as a parent-managed profile instead: the parent signs in and manages them, and
-        no invite is sent for the student.
+    <div>
+      <p className="text-sm text-gray-600">
+        One row per student, with their parent. Siblings share one family.
       </p>
-
-      <div>
-        <label htmlFor="roster-org" className="block text-sm font-medium text-gray-700 mb-1">
-          Organization
+      <div className="mt-3 flex flex-wrap items-center gap-2 text-sm">
+        <button type="button" onClick={downloadTemplate}
+          className="px-3 py-1.5 border border-gray-300 rounded-lg hover:bg-gray-50">
+          Download a blank template
+        </button>
+        <label className="px-3 py-1.5 border border-gray-300 rounded-lg hover:bg-gray-50 cursor-pointer">
+          Upload a .csv file
+          <input type="file" accept=".csv,.tsv,.txt" onChange={loadFile} className="hidden"
+            aria-label="Upload a roster file" />
         </label>
-        <select
-          id="roster-org"
-          value={orgId}
-          onChange={e => { setOrgId(e.target.value); clearPlan() }}
-          className="w-full max-w-md border border-gray-300 rounded-lg px-3 py-2"
-        >
-          <option value="">Select an organization</option>
-          {organizations.map(org => (
-            <option key={org.id} value={org.id}>{org.name}</option>
-          ))}
-        </select>
+        <span className="text-xs text-gray-500">or paste into the first cell below.</span>
       </div>
 
       <div className="mt-6">
@@ -317,16 +321,7 @@ export default function RosterImportPage() {
           <div>
             <h2 className="text-sm font-medium text-gray-700">Roster</h2>
             <p className="text-xs text-gray-500 mt-0.5">
-              Paste straight from the spreadsheet into any cell and the whole roster fills in.
-              Header rows and extra columns such as User ID are handled. Cells stay editable, so a
-              typo gets fixed here rather than back in the sheet. Student email may be left blank
-              when the row has a parent email — that student becomes a parent-managed profile.
-            </p>
-            <p className="text-xs text-gray-500 mt-1">
-              Sheet in the wrong order? Drag a column heading sideways (or focus it and press the
-              left and right arrow keys) to say what each column really holds. The cells stay put
-              and take the heading they end up under, so a Last, First roster becomes First, Last
-              in one drag.
+              Columns in the wrong order? Drag a heading to fix it.
             </p>
           </div>
           <div className="flex gap-2 shrink-0">
@@ -474,7 +469,7 @@ export default function RosterImportPage() {
 
         <button
           onClick={() => run('preview')}
-          disabled={!orgId || !filledRows.length || busy}
+          disabled={!orgId || !filledRows.length || Boolean(busy)}
           className="btn-primary mt-4 disabled:opacity-50"
         >
           {busy === 'preview' ? 'Checking...' : 'Preview import'}
@@ -493,12 +488,12 @@ export default function RosterImportPage() {
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
             <Count label="New students" value={counts.students_new} />
             <Count label="New parents" value={counts.parents_new} />
+            <Count label="Families" value={counts.families} />
             {counts.dependents_new > 0 && (
               <Count label="Managed profiles" value={counts.dependents_new} />
             )}
             <Count label="Already exist" value={counts.students_existing + counts.parents_existing} />
-            <Count label="Joining this org" value={counts.adopted} />
-            <Count label="Parent links" value={counts.links} />
+            {counts.adopted > 0 && <Count label="Joining this school" value={counts.adopted} />}
             <Count label="Invalid rows" value={counts.invalid_rows} tone={counts.invalid_rows ? 'warn' : 'default'} />
           </div>
 
@@ -533,16 +528,22 @@ export default function RosterImportPage() {
                   checked={sendEmails}
                   onChange={e => setSendEmails(e.target.checked)}
                 />
-                Email each new account a link to set their password
+                Email each new account a link to set their password now
               </label>
+              {!sendEmails && (
+                <p className="text-xs text-gray-500 mt-1 ml-6">
+                  Leave this off to set the school up first. Each new person shows on People
+                  with a &ldquo;Send setup email&rdquo; button for when you are ready.
+                </p>
+              )}
               <button
                 onClick={() => run('commit')}
-                disabled={busy}
+                disabled={Boolean(busy)}
                 className="btn-primary mt-4 disabled:opacity-50"
               >
                 {busy === 'commit'
                   ? 'Importing...'
-                  : `Create ${totalAccounts} account${totalAccounts === 1 ? '' : 's'} in ${orgName}`}
+                  : `Create ${totalAccounts} account${totalAccounts === 1 ? '' : 's'} at ${orgName}`}
               </button>
             </div>
           )}
@@ -551,25 +552,26 @@ export default function RosterImportPage() {
 
       {outcome && (
         <div className="mt-8 border-t pt-8">
-          {/* Naming the org here rather than just in the button: the accounts are
-              only findable in that org's SIS People tab, and the org selector is
-              easy to skip past on the way to pasting. */}
-          <h2 className="text-xl font-semibold">
-            Import complete &mdash; {outcome.organization?.name || orgName}
-          </h2>
-          <p className="text-sm text-gray-600 mt-1 mb-4">
-            These accounts are in {outcome.organization?.name || orgName}. Switch the SIS
-            console to that organization to see them under People.
-          </p>
+          <h2 className="text-xl font-semibold mb-4">Import complete</h2>
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
             <Count label="Created" value={outcome.counts.created} />
             <Count label="Already existed" value={outcome.counts.existing} />
-            <Count label="Joined this org" value={outcome.counts.adopted} />
+            {outcome.counts.adopted > 0 && <Count label="Joined this school" value={outcome.counts.adopted} />}
+            <Count label="New families" value={outcome.counts.families_created} />
             <Count label="Linked" value={outcome.counts.linked} />
             <Count label="Emails sent" value={outcome.counts.invited}
                    tone={sendEmails && outcome.counts.created > outcome.counts.invited ? 'warn' : 'default'} />
             <Count label="Failed" value={outcome.counts.failed} tone={outcome.counts.failed ? 'warn' : 'default'} />
           </div>
+
+          {outcome.family_errors?.length > 0 && (
+            <div className="mt-4 rounded-lg bg-yellow-50 border border-yellow-200 px-4 py-3 text-yellow-900 text-sm">
+              {outcome.family_errors.length} parent
+              {outcome.family_errors.length === 1 ? ' was' : 's were'} not put in a family:{' '}
+              {outcome.family_errors.map(e => e.email).join(', ')}. Their accounts and links exist.
+              Find their children under &ldquo;not in a family yet&rdquo; on People.
+            </div>
+          )}
 
           {sendEmails && outcome.counts.invited < outcome.counts.created && (
             // A silent 0 here is what a missing BREVO_API_KEY looks like, and

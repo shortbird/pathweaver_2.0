@@ -77,7 +77,6 @@ _INTERP = re.compile(r'\$\{[^}]*\}')
 #   web parentAPI (tutor monitoring, connection requests). Nothing pointed
 #   anywhere new; the buttons had no page to live on.
 KNOWN_DEAD = {
-    '/api/admin/roster-import/__param__',
     '/api/advisor/student-overview',
     '/api/bounties/__param__/claims/__param__/evidence/__param__/__param__',
     '/api/evidence__param__',

@@ -8,10 +8,8 @@ import { sisPeopleApi } from '../../hooks/api/useSisPeople'
 import { queryKeys } from '../../utils/queryKeys'
 import Button from '../../components/ui/Button'
 import { useSisOrg } from './useSisOrg'
-import SisNewUserModal from '../../components/sis/SisNewUserModal'
 import PeopleExportModal from '../../components/sis/PeopleExportModal'
 import InviteSecondParentsModal from '../../components/sis/InviteSecondParentsModal'
-import TeacherModal from '../../components/sis/TeacherModal'
 import { startMasquerade } from '../../services/masqueradeService'
 import { learningSurfaceHref } from '../../utils/appSurface'
 import { setPreviewTeacher } from './teacherPreview'
@@ -19,13 +17,13 @@ import PeopleFilterBar from './people/PeopleFilterBar'
 import PeopleTable from './people/PeopleTable'
 import { RemovePersonModal } from './people/RemovePersonModal'
 import PersonActionsModal from './people/PersonActionsModal'
+import AddPeopleWizard from './people/AddPeopleWizard'
 import StaffDuplicatesBanner from './people/StaffDuplicatesBanner'
 import {
   EMPTY_FILTERS, applyFilters, sortRows, isStaff, asStaffRow,
   QUICK_VIEWS, quickViewOf, applyQuickView, withTodaysAge,
 } from './people/peopleFilters'
 import GlassTabBar from '../../components/ui/GlassTabBar'
-import PopMenu from '../../components/sis/ui/PopMenu'
 import { useRecordDoors } from '../../components/sis/RecordDoors'
 
 /**
@@ -75,7 +73,7 @@ const writeFilters = (params, f) => {
 }
 
 const PeoplePage = () => {
-  const { orgId, canViewAs, isAdmin } = useSisOrg()
+  const { orgId, canViewAs, isAdmin, activeOrg } = useSisOrg()
   const { openStudent, openFamily, openStaff } = useRecordDoors()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
@@ -135,9 +133,9 @@ const PeoplePage = () => {
   // want and Manage is the first answer (2026-09-22).
   const [acting, setActing] = useState(null)
   const [removing, setRemoving] = useState(null)
-  const [adding, setAdding] = useState(null)            // 'person' | 'teacher' | 'family' | null
-  const [addMenu, setAddMenu] = useState(false)
-  const [newFamily, setNewFamily] = useState('')
+  // The add wizard: false closed, true at its first question, or the job it
+  // opens straight onto ('family' from the dashboard's "Add a family").
+  const [adding, setAdding] = useState(false)
   const [showExport, setShowExport] = useState(false)
   // Ticket d11e5168: second parents who are only an emergency contact.
   const [showSecondParents, setShowSecondParents] = useState(false)
@@ -149,7 +147,7 @@ const PeoplePage = () => {
     queryClient.invalidateQueries({ queryKey: queryKeys.sis.staff(orgId) })
   }
 
-  // A link can open the new-family form (the dashboard's "Add a family"),
+  // A link can open the add wizard on its family form (the dashboard's "Add a family"),
   // one family's record on a tab (?open=<household id>&tab=billing, the
   // deep link the dashboard and notifications use), or one person's record
   // (?student=<user id>, from the learning app's student page). The records
@@ -241,17 +239,6 @@ const PeoplePage = () => {
     { label: 'Remove from school…', danger: true, onClick: () => setRemoving(s) },
   ].filter(Boolean)
 
-  const createFamily = async () => {
-    if (!newFamily.trim()) return
-    try {
-      await sisPeopleApi.createHousehold(orgId, newFamily.trim())
-      setNewFamily('')
-      setAdding(null)
-      toast.success('Family created')
-      refresh()
-    } catch { toast.error('Could not create family') }
-  }
-
   const placeholders = useMemo(() => roster.filter((r) => r.is_placeholder).map(asStaffRow), [roster])
 
   return (
@@ -265,34 +252,10 @@ const PeoplePage = () => {
           )}
           <Button variant="outline" size="sm" onClick={() => setShowExport(true)} disabled={!visible.length}
             title="Exports the rows shown, with your filters and sort applied">Export CSV</Button>
-          <PopMenu open={addMenu} onClose={() => setAddMenu(false)} width="w-44"
-            trigger={(
-              <Button size="sm" onClick={() => setAddMenu((v) => !v)} disabled={!orgId}
-                aria-haspopup="menu" aria-expanded={addMenu}>+ Add</Button>
-            )}
-            items={[
-              { label: 'Person', onClick: () => setAdding('person') },
-              { label: 'Teacher', onClick: () => setAdding('teacher') },
-              { label: 'Family', onClick: () => setAdding('family') },
-            ]} />
+          <Button size="sm" onClick={() => setAdding(true)} disabled={!orgId}
+            aria-haspopup="dialog">+ Add</Button>
         </div>
       </div>
-
-      {adding === 'family' && (
-        <div className="mb-4 flex flex-wrap items-center gap-2">
-          <input
-            value={newFamily}
-            onChange={(e) => setNewFamily(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && createFamily()}
-            className="flex-1 min-w-[240px] rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-optio-purple"
-            placeholder="New family / household name"
-            autoFocus
-          />
-          <Button size="sm" onClick={createFamily}>Create</Button>
-          <Button size="sm" variant="outline" onClick={() => { setAdding(null); setNewFamily('') }}>Cancel</Button>
-          <span className="text-xs text-neutral-400">Most families are created when they register.</span>
-        </div>
-      )}
 
       {!loading && roster.length > 0 && (
         <>
@@ -346,17 +309,16 @@ const PeoplePage = () => {
         </p>
       )}
 
-      {adding === 'teacher' && (
-        <TeacherModal
+      {adding && (
+        <AddPeopleWizard
           orgId={orgId}
+          orgName={activeOrg?.name}
           placeholders={placeholders}
-          onClose={() => setAdding(null)}
-          onSaved={() => { setAdding(null); refresh() }}
+          initialPath={adding === true ? null : adding}
+          onClose={() => setAdding(false)}
+          onChanged={refresh}
+          onOpenFamily={(id) => openFamily(id, { onSaved: refresh })}
         />
-      )}
-
-      {adding === 'person' && (
-        <SisNewUserModal orgId={orgId} onClose={() => setAdding(null)} onCreated={refresh} />
       )}
 
       {showExport && (

@@ -38,7 +38,10 @@ const render = (ui) => {
 let authState = { user: { id: 'u1', role: 'org_admin' } }
 let orgState = { organization: { id: 'org-1', name: 'Org' } }
 
-vi.mock('../../contexts/AuthContext', () => ({ useAuth: () => authState }))
+vi.mock('../../contexts/AuthContext', async () => {
+  const React = await import('react')
+  return { useAuth: () => authState, AuthContext: React.createContext(null) }
+})
 vi.mock('../../contexts/OrganizationContext', () => ({ useOrganization: () => orgState }))
 vi.mock('./SisOrgPicker', () => ({ default: () => null }))
 vi.mock('./useSisOrg', () => ({
@@ -216,7 +219,7 @@ describe('adding a teacher who is already on the list', () => {
     render(<PeoplePage />)
     await screen.findByText('Nate Vance')
     fireEvent.click(screen.getByRole('button', { name: '+ Add' }))
-    fireEvent.click(screen.getByRole('menuitem', { name: 'Teacher' }))
+    fireEvent.click(screen.getByRole('button', { name: /A staff member/ }))
     fireEvent.change(screen.getByLabelText(/Email/), { target: { value: 'juliaconnor03@gmail.com' } })
     // The placeholder is offered by name, with the classes at stake.
     fireEvent.change(screen.getByLabelText(/already on the staff list/), { target: { value: 'ph1' } })
@@ -232,7 +235,7 @@ describe('adding a teacher who is already on the list', () => {
     render(<PeoplePage />)
     await screen.findByText('Nate Vance')
     fireEvent.click(screen.getByRole('button', { name: '+ Add' }))
-    fireEvent.click(screen.getByRole('menuitem', { name: 'Teacher' }))
+    fireEvent.click(screen.getByRole('button', { name: /A staff member/ }))
     fireEvent.change(screen.getByLabelText(/Email/), { target: { value: 'sam@icreate.org' } })
     fireEvent.click(screen.getByRole('button', { name: 'Add Teacher' }))
     await waitFor(() => expect(api.post).toHaveBeenCalledWith('/api/sis/staff',

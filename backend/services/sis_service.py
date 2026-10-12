@@ -1375,6 +1375,12 @@ def create_org_teacher(org_id: str, fields: Dict[str, Any],
 
     Returns {'error': ...} on bad input or an email that can never be staff."""
     import secrets
+    `org_role` picks the staff role the account starts with: 'advisor'
+    (default), 'campus_coordinator' or 'org_admin'. The People page's add
+    wizard offers all three (2026-10-12); the caller checks caller_may_grant.
+    Placeholder matching and the existing-account offer are teacher things
+    and only run for 'advisor'.
+
 
     first = (fields.get('first_name') or '').strip()
     last = (fields.get('last_name') or '').strip()
@@ -1383,12 +1389,15 @@ def create_org_teacher(org_id: str, fields: Dict[str, Any],
         return {'error': 'A valid email is required'}
     # Name is OPTIONAL (2026-07-29). An admin adding staff only knows their
     # email; the teacher fills in their own name and bio when they set their
+    org_role = (fields.get('org_role') or 'advisor').strip()
+    if org_role not in STAFF_ORG_ROLES:
+        return {'error': 'Not a staff role'}
     # password. Until then the account carries a provisional label derived from
     # the address so it is recognizable in the staff list.
     provisional_name = not (first and last)
     # Placeholder matching is name-based, so it only runs when a name was given
     # (the "link their account" flow on the placeholder itself covers the rest).
-    if first and last and not fields.get('force_new'):
+    if org_role == 'advisor' and first and last and not fields.get('force_new'):
         match = find_placeholder_match(org_id, first, last)
         if match:
             return {'placeholder_match': match}
@@ -1401,6 +1410,11 @@ def create_org_teacher(org_id: str, fields: Dict[str, Any],
     ).data
     if existing:
         # A parent who also teaches is one person with one login, not a blocked
+    if existing and org_role != 'advisor':
+        # Granting admin or coordinator to an account that already exists is
+        # the role editor on their record, not a second door here.
+        return {'error': 'This email already has an Optio account. Add them as a teacher, '
+                         'then change their role on their staff record.'}
         # duplicate. Report who the address belongs to so the caller can offer
         # to add the teacher role to that account (reported 2026-08-05:
         # "it just says a user with this email already exists but it won't let
@@ -1432,8 +1446,8 @@ def create_org_teacher(org_id: str, fields: Dict[str, Any],
         'phone_number': phone_norm or phone_raw or None,
         'display_name': (f'{first} {last}'.strip() or email.split('@')[0]),
         'role': 'org_managed',
-        'org_role': 'advisor',
-        'org_roles': ['advisor'],
+        'org_role': org_role,
+        'org_roles': [org_role],
         'organization_id': org_id,
         'bio': (fields.get('bio') or '').strip() or None,
     }

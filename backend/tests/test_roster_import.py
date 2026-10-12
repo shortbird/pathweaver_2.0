@@ -161,7 +161,8 @@ def test_siblings_collapse_to_one_parent_with_two_links():
     plan = plan_for(ROSTER)
     assert plan['counts'] == {'rows': 3, 'students_new': 3, 'students_existing': 0,
                               'parents_new': 2, 'parents_existing': 0, 'dependents_new': 0,
-                              'adopted': 0, 'links': 3, 'invalid_rows': 0}
+                              'adopted': 0, 'links': 3, 'families': 2, 'families_new': 2,
+                              'invalid_rows': 0}
     megan = next(p for p in plan['parents'] if p['email'] == 'mhennessy@opened.co')
     assert megan['student_emails'] == ['27nhennessy@dsdmail.net', '29ahennessy@dsdmail.net']
 
@@ -254,8 +255,10 @@ def test_planning_writes_nothing():
 
 # ── Execution ──
 
-def _execute(admin, plan, send_emails=True):
-    with patch.object(ris, '_send_invite', return_value=True) as invite:
+def _execute(admin, plan, send_emails=True, place=None):
+    place = place or (lambda org, parent_id, students, last: {'created': True, 'refused': {}})
+    with patch.object(ris, '_send_invite', return_value=True) as invite, \
+         patch.object(ris, '_place_family', side_effect=place):
         outcome = ris.execute_plan(plan, ORG, 'Hearthwood Academy', admin,
                                    send_emails=send_emails)
     return outcome, invite
@@ -266,7 +269,8 @@ def test_import_creates_org_accounts_links_siblings_and_invites_everyone_new():
     outcome, invite = _execute(admin, plan_for(ROSTER, admin))
 
     assert outcome['counts'] == {'created': 5, 'existing': 0, 'adopted': 0,
-                                 'failed': 0, 'invited': 5, 'linked': 3}
+                                 'failed': 0, 'invited': 5, 'linked': 3,
+                                 'families_created': 2, 'families_joined': 0}
 
     profiles = {p['email']: p for p in admin.written('users')}
     assert profiles['27nhennessy@dsdmail.net']['org_role'] == 'student'
@@ -457,7 +461,8 @@ def test_import_creates_a_dependent_profile_under_the_parent():
     assert len(links) == 1 and links[0]['student_user_id'] != noah['id']
 
     assert outcome['counts'] == {'created': 4, 'existing': 0, 'adopted': 0,
-                                 'failed': 0, 'invited': 3, 'linked': 2}
+                                 'failed': 0, 'invited': 3, 'linked': 2,
+                                 'families_created': 2, 'families_joined': 0}
     noah_result = next(r for r in outcome['results'] if r['name'] == 'Noah Hennessy')
     assert noah_result['dependent'] is True
     assert noah_result['linked_to'] == 'mhennessy@opened.co'
@@ -509,3 +514,93 @@ def test_a_failed_link_is_reported_without_losing_the_created_accounts():
     assert outcome['counts']['created'] == 5
     assert outcome['counts']['linked'] == 0
     assert all(r.get('link_error') for r in outcome['results'] if r['kind'] == 'student')
+
+
+# ── The SIS console's import (2026-10-12) ──
+#
+# A school imports its own roster now, not a superadmin. It must never learn
+# another school's name, never pull a platform account into itself, and every
+# parent and their children land in one family.
+
+def school_plan_for(text, admin):
+    rows, error = ris.parse_roster_csv(text)
+    assert error is None, error
+    return ris.build_plan(rows, ORG, admin, superadmin=False)
+
+
+def test_a_school_is_never_told_another_schools_name():
+    admin = FakeAdmin({
+        'users': [{'id': 'elsewhere', 'email': 'lokafor@dsdmail.net',
+                   'organization_id': 'org-arete'}],
+        'organizations': [{'id': 'org-arete', 'name': 'Arete Academy'}],
+    })
+    plan = school_plan_for(ROSTER, admin)
+    error = next(e for e in plan['row_errors'] if e['student_email'] == 'lokafor@dsdmail.net')
+    assert 'Arete Academy' not in ' '.join(error['errors'])
+    assert 'another school' in error['errors'][0]
+
+
+def test_a_school_cannot_adopt_a_platform_account():
+    admin = FakeAdmin({'users': [
+        {'id': 'platform-kid', 'email': 'lokafor@dsdmail.net', 'organization_id': None},
+        {'id': 'platform-mum', 'email': 'mhennessy@opened.co', 'organization_id': None},
+    ]})
+    plan = school_plan_for(ROSTER, admin)
+    assert plan['counts']['adopted'] == 0
+    refused = {e['row'] for e in plan['row_errors']}
+    # Lena (row 4) by her own email; both Hennessy rows by their parent's.
+    assert refused == {2, 3, 4}
+    assert all('support@optioeducation.com' in ' '.join(e['errors']) for e in plan['row_errors'])
+
+
+def test_a_superadmin_through_the_console_still_adopts():
+    admin = FakeAdmin({'users': [
+        {'id': 'platform-kid', 'email': 'lokafor@dsdmail.net', 'organization_id': None},
+    ]})
+    rows, _ = ris.parse_roster_csv(ROSTER)
+    plan = ris.build_plan(rows, ORG, admin, superadmin=True)
+    assert plan['counts']['adopted'] == 1 and not plan['row_errors']
+
+
+def test_each_parent_and_their_children_land_in_one_family():
+    admin = FakeAdmin()
+    calls = []
+
+    def place(org, parent_id, students, last):
+        calls.append((org, parent_id, sorted(students), last))
+        return {'created': True, 'refused': {}}
+
+    outcome, _ = _execute(admin, plan_for(ROSTER, admin), place=place)
+    profiles = {p['email']: p['id'] for p in admin.written('users')}
+    assert sorted(calls) == sorted([
+        (ORG, profiles['mhennessy@opened.co'],
+         sorted([profiles['27nhennessy@dsdmail.net'], profiles['29ahennessy@dsdmail.net']]),
+         'Hennessy'),
+        (ORG, profiles['tokafor@opened.co'], [profiles['lokafor@dsdmail.net']], 'Okafor'),
+    ])
+    assert outcome['counts']['families_created'] == 2
+
+
+def test_a_parent_with_a_family_here_joins_it_and_a_failure_is_reported():
+    admin = FakeAdmin()
+
+    def place(org, parent_id, students, last):
+        if last == 'Okafor':
+            raise RuntimeError('household insert failed')
+        return {'created': False, 'refused': {}}
+
+    outcome, _ = _execute(admin, plan_for(ROSTER, admin), place=place)
+    assert outcome['counts']['families_joined'] == 1
+    assert outcome['counts']['families_created'] == 0
+    assert [e['email'] for e in outcome['family_errors']] == ['tokafor@opened.co']
+    # The accounts are the import's real work and stay made.
+    assert outcome['counts']['created'] == 5
+
+
+def test_place_family_names_the_family_after_the_parent():
+    with patch('services.sis_attach_service.attach_family',
+               return_value={'created': True}) as attach:
+        ris._place_family(ORG, 'mum-1', ['kid-1'], 'Hennessy')
+    attach.assert_called_once_with(ORG, 'mum-1', ['kid-1'],
+                                   household_fields={'name': 'Hennessy Family'},
+                                   source='roster_import')

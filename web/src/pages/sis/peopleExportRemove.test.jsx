@@ -42,7 +42,6 @@ vi.mock('./StudentDetailModal', () => ({ default: () => <div /> }))
 vi.mock('./FamilyDetailModal', () => ({ default: () => <div /> }))
 vi.mock('./teacherPreview', () => ({ setPreviewTeacher: vi.fn(), getPreviewTeacher: () => null }))
 vi.mock('../../contexts/ConfirmContext', () => ({ useConfirm: () => () => Promise.resolve(true) }))
-vi.mock('../../components/sis/SisNewUserModal', () => ({ default: () => <div /> }))
 vi.mock('../../services/masqueradeService', () => ({ startMasquerade: vi.fn() }))
 
 const ROSTER = [
