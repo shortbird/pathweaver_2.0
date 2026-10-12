@@ -17,12 +17,27 @@ permissions:
   contents: read
 
 jobs:
+  # Three shards and a merge, since 2026-10-12. The suite is 551 files and no
+  # one of them is slow: about three quarters of its ~900 CPU-seconds is the
+  # jsdom environment, imports and setup that every file pays for itself. On
+  # one four-core runner that was 632s, the longest step of a release, and the
+  # job sat within four minutes of its timeout. More runners is the one change
+  # that removes that time without removing a test. Each shard writes a blob
+  # report with its coverage; `merge` recombines them and applies the floor to
+  # the whole-suite number, measured 67.22% merged against 67.27% unsharded.
   web:
-    name: Web Tests
+    name: Web Tests (${{ matrix.shard }}/3)
     runs-on: ubuntu-latest
     # 10 until 2026-09-30: release 36758955533 passed all 484 files and was
     # cancelled while writing coverage at 10m15s; green runs had been 6-9m.
+    # A shard is a third of that.
     timeout-minutes: 15
+    strategy:
+      # One shard failing must not cancel the others: their logs are where
+      # the rest of the failures are.
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -33,6 +48,7 @@ jobs:
           cache: 'npm'
           cache-dependency-path: web/package-lock.json
       - name: Generated constants match shared/data (no drift)
+        if: matrix.shard == 1
         # shared/data/*.json is the one definition of the pillar and subject
         # vocabularies, and the generator emits it into BOTH languages:
         # shared/generated/*.ts for the two apps, backend/generated/*.py for
@@ -43,7 +59,7 @@ jobs:
         #
         # It lives in the WEB job because this job already has Node and the
         # backend job does not. The script has no dependencies, so it runs
-        # before any install.
+        # before any install. Shard 1 only: the check is the same on all three.
         run: node shared/scripts/generate-constants.mjs --check
       - name: Install dependencies
         working-directory: web
@@ -57,6 +73,7 @@ jobs:
           done
           exit 1
       - name: typecheck
+        if: matrix.shard == 1
         working-directory: web
         # tsc over the API boundary (src/services/api.ts, src/types/) and
         # over shared/. `checkJs` is off, so this does NOT type-check the
@@ -66,6 +83,7 @@ jobs:
         # invokes tsc.
         run: npm run typecheck
       - name: npm audit (high/critical only)
+        if: matrix.shard == 1
         # Through the same gate the mobile job uses, and WITHOUT
         # --omit=dev. That flag is why five high advisories -- postcss
         # path traversal, browserslist OOM, nanoid, brace-expansion,
@@ -79,10 +97,57 @@ jobs:
         # every high. audit-gate.mjs takes them one at a time, each with a
         # reason and an expiry date. See scripts/audit-gate.mjs.
         run: node scripts/audit-gate.mjs --dir web
-      - name: Run tests + coverage gate
+      - name: Run tests (shard ${{ matrix.shard }}/3)
         working-directory: web
-        # Single run is both the pass/fail gate (pipefail) and the coverage gate.
-        #
+        # Pass/fail is decided here, per shard. Coverage is only collected
+        # here; the floor is applied in `merge`, because a third of the suite
+        # covers about half of what the whole does.
+        run: |
+          npx vitest run --shard=${{ matrix.shard }}/3 \
+            --reporter=default --reporter=blob \
+            --coverage --coverage.reporter=text-summary
+      - name: Upload blob report
+        uses: actions/upload-artifact@v4
+        with:
+          name: web-blob-${{ matrix.shard }}
+          path: web/.vitest-reports/*
+          include-hidden-files: true
+          retention-days: 1
+          if-no-files-found: error
+
+  merge:
+    name: Web coverage gate
+    needs: [web]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: web/package-lock.json
+      - name: Install dependencies
+        working-directory: web
+        run: |
+          npm config set fetch-retries 5
+          npm config set fetch-retry-mintimeout 20000
+          npm config set fetch-retry-maxtimeout 120000
+          for i in 1 2 3; do
+            if npm ci; then exit 0; fi
+            echo "npm ci attempt $i failed; retrying..."; sleep 10
+          done
+          exit 1
+      - name: Download blob reports
+        uses: actions/download-artifact@v4
+        with:
+          pattern: web-blob-*
+          path: web/.vitest-reports
+          merge-multiple: true
+      - name: Coverage gate
+        working-directory: web
         # The floor was 44 while actual coverage was 54.44 -- ten points of slack,
         # which meant more than a fifth of the tested surface could be deleted
         # without the gate noticing. A floor below actual coverage does not
@@ -95,11 +160,20 @@ jobs:
         # % Lines -- lines measured 63.65% in the same run. The name in this
         # step is wrong and the gate is not; statements is the stricter of the
         # two here, so leaving it alone is the safe half of the discrepancy.
+        #
+        # The merge also re-checks the file count: three shards that each
+        # passed but together ran fewer files than exist would read as green.
         env:
           MIN_COVERAGE: ${{ inputs.coverage-floor }}
         run: |
           set -o pipefail
-          npm run test:coverage 2>&1 | tee /tmp/cov.log
+          npx vitest --merge-reports --coverage --coverage.reporter=text 2>&1 | tee /tmp/cov.log
+          EXPECTED=$(find src -name '*.test.js' -o -name '*.test.jsx' -o -name '*.spec.js' -o -name '*.spec.jsx' | wc -l | tr -d ' ')
+          RAN=$(grep -E 'Test Files' /tmp/cov.log | grep -oE '[0-9]+ passed' | head -1 | grep -oE '[0-9]+')
+          echo "Test files: ${RAN:-0} passed of ${EXPECTED} on disk"
+          if [ "${RAN:-0}" -lt "${EXPECTED}" ]; then
+            echo "FAILED: the shards ran ${RAN:-0} test files; ${EXPECTED} exist"; exit 1
+          fi
           LINE_PCT=$(grep -E '^All files' /tmp/cov.log | awk -F'|' '{gsub(/ /, "", $2); print $2}' | head -1)
           LINE_INT=${LINE_PCT%.*}
           echo "Line coverage: ${LINE_PCT:-0}% (required: ${MIN_COVERAGE}%)"

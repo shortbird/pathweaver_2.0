@@ -32,4 +32,4 @@ lerna-debug.log*
 *~
 
 # OS
-Thumbs.db
+Thumbs.db/.vitest-reports
