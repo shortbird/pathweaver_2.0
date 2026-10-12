@@ -991,3 +991,27 @@ emails:
       text: "Log in to Optio"
       url: "{{ login_url }}"
     signature: "team"
+
+  # Sent when an Optio Academy registration completes and the family ticked
+  # "interested in an Optio teacher" for a student who does not already have
+  # the paid add-on (services/registration_teacher_interest.py). price_line
+  # is built from the registration config so it matches the payment step.
+  academy_teacher_interest:
+    subject: "About an Optio teacher for {{ students }}"
+    title: "About an Optio teacher"
+    greeting: "Hi {{ parent_first_name }},"
+    paragraphs:
+      - "This is Dr. Bowman, Head of School at Optio Academy. On your registration you said you are interested in an Optio teacher for {{ students }}. Here is how it works."
+    highlight_box:
+      title: "How an Optio teacher works"
+      bullet_points:
+        - "<strong>A weekly video call.</strong> Once a week, {{ students }} meets with their Optio teacher over video to check in, plan the week, and get feedback on their work."
+        - "<strong>Messages any time.</strong> Between calls, your student can message their teacher whenever they need help or get stuck. They do not have to wait for the next call."
+        - "{% if price_line %}<strong>Cost.</strong> {{ price_line }}{% endif %}"
+    closing_paragraphs:
+      - "If you would like to talk about whether a teacher is a good fit, book a video call with me. Pick any open time that works for your family."
+      - "If you would rather write, reply to this email. It comes straight to me."
+    cta:
+      text: "Book a video call"
+      url: "{{ booking_url }}"
+    signature: "tanner"

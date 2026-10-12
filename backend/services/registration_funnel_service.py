@@ -18,6 +18,7 @@ from datetime import datetime
 
 from repositories.registration_repository import REGISTRATIONS_TABLE
 from services import academy_enrollment_service as academy_enrollment
+from services import registration_teacher_interest
 from services.email_service import email_service
 from services.registration_alerts import notify_registration_completed
 from utils.registration_config import get_registration_config
@@ -66,7 +67,7 @@ def finish_fee_step(admin, reg, cfg, extra_fields=None):
 
     emailed_at = None
     parent = _parent_row(admin, reg['parent_user_id'])
-    org = admin.table('organizations').select('name, feature_flags') \
+    org = admin.table('organizations').select('name, slug, feature_flags') \
         .eq('id', reg['organization_id']).single().execute().data
     flow = ((((org or {}).get('feature_flags') or {}).get('sis_settings') or {})
             .get('post_registration_flow') or 'schedule')
@@ -119,6 +120,10 @@ def finish_fee_step(admin, reg, cfg, extra_fields=None):
     # The school hears about it too (org admins, or ADMIN_EMAIL for a school
     # without any). Best-effort inside; the registration is already complete.
     notify_registration_completed(reg, cfg, org or {}, parent, extra_fields)
+
+    # A family that ticked "interested in an Optio teacher" hears how one
+    # works and what it costs. Best-effort inside, like the alert above.
+    registration_teacher_interest.send_if_interested(reg, cfg, org or {}, parent)
 
     academy_enrollment.enroll_registration_kids(reg, cfg, client=admin)
 
