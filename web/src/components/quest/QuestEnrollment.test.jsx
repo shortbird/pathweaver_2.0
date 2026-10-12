@@ -178,13 +178,13 @@ describe('QuestEnrollment start prompt (no authored tasks)', () => {
     expect(screen.queryByRole('button', { name: /start/i })).not.toBeInTheDocument()
   })
 
-  it('tells staff what the button does for students', () => {
+  it('shows staff no note about what students click (Tanner, 2026-10-12: remove it)', () => {
     auth.hasAnyRole.mockImplementation((roles) => roles.includes('org_admin'))
     render(<QuestEnrollment {...baseProps} quest={unauthored()} />)
 
-    expect(
-      screen.getByText('Students click Start Personalizing to add this quest to their account and build their own tasks.'),
-    ).toBeInTheDocument()
+    expect(screen.queryByText(/Students click Start/)).not.toBeInTheDocument()
+    // The button itself stays.
+    expect(screen.getByRole('button', { name: /start personalizing/i })).toBeInTheDocument()
   })
 
   it('still offers a plain Start Quest to a simplified-view program (Treehouse)', () => {
