@@ -29,7 +29,7 @@ PyJWT==2.15.1
 PyYAML>=6.0.3
 cryptography==50.0.2
 google-generativeai>=0.8.6
-openai>=1.0.0
+openai>=3.28.0
 redis>=5.0.0
 stripe>=9.0.0
 beautifulsoup4>=4.15.0
