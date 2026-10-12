@@ -307,8 +307,20 @@ function StudentClassDetail({ classData: initialClassData, classId: propClassId,
         classService.getClassQuests(orgId, classId, scope).catch(() => ({ success: false })),
         classService.getClassAdvisors(orgId, classId, scope).catch(() => ({ success: false })),
         classService.getClassCourses(orgId, classId, scope).catch(() => ({ success: false })),
-        api.get(`/api/sis/classes/${classId}/materials`)
-          .then((r) => r.data).catch(() => ({ success: false })),
+        // Family scope reads the CHILD's handouts through the guardian route.
+        // The class-id route answers "are you in this class?", which a parent
+        // never is, so it 403'd and the handouts were hidden from every parent
+        // working for a child (ticket fcac4a83, Sentry 7788402508). The
+        // guardian route groups by class; keep this class's group.
+        studentId
+          ? api.get(`/api/sis/parent/students/${studentId}/materials`, { expect403: true })
+            .then((r) => {
+              const group = (r.data?.classes || []).find((g) => g.class_id === classId)
+              return { success: Boolean(r.data?.success), materials: group?.materials || [] }
+            })
+            .catch(() => ({ success: false }))
+          : api.get(`/api/sis/classes/${classId}/materials`)
+            .then((r) => r.data).catch(() => ({ success: false })),
       ]
 
       // If we don't have classData yet, fetch student classes to get progress
