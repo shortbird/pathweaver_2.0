@@ -38,6 +38,13 @@ class WeeklyGoalError(ValueError):
     """A request the caller can fix; the route turns it into a 400."""
 
 
+class WeeklyGoalLocked(WeeklyGoalError):
+    """A student wrote to a week the Thursday check-in has closed (409)."""
+
+
+LOCKED_MESSAGE = 'Goals lock after Thursday check-in'
+
+
 def week_start_of(value: Optional[Any] = None) -> date:
     """The Monday of the week holding `value` (a date, an ISO string, or today)."""
     if value is None:
@@ -106,6 +113,33 @@ def _clean_goals(raw: Any, subjects: List[str], check_in: bool) -> List[Dict[str
         elif check_in and completed is None:
             completed = False
         out.append({'subject': subject, 'goal': goal, 'completed': completed})
+    return out
+
+
+def _merge_unchanged(sent: Any, base: Any, existing: Optional[Dict[str, Any]]) -> Any:
+    """Keep the stored goal text wherever the coach's form did not change it.
+
+    Ticket 910668d8: students now type their own goals, so the row can change
+    under a coach's open editor or board. The form sends the text it loaded
+    (`base_goals`) beside what it is saving; a subject whose text the coach
+    left as loaded takes the stored text instead, so a student's edit made
+    after the page loaded survives the coach's save. A subject the coach did
+    change wins. A form that sends no base_goals (an older client) keeps the
+    old replace-the-week behaviour."""
+    if not isinstance(sent, list) or not isinstance(base, list) or not existing:
+        return sent
+    base_text = {b.get('subject'): (b.get('goal') or '') for b in base if isinstance(b, dict)}
+    stored = {g.get('subject'): (g.get('goal') or '') for g in (existing.get('goals') or [])
+              if isinstance(g, dict)}
+    out = []
+    for entry in sent:
+        if not isinstance(entry, dict):
+            continue
+        subject = entry.get('subject')
+        if subject in base_text and (entry.get('goal') or '') == base_text[subject] \
+                and subject in stored and stored[subject] != base_text[subject]:
+            entry = {**entry, 'goal': stored[subject]}
+        out.append(entry)
     return out
 
 
@@ -201,7 +235,13 @@ class WeeklyGoalService:
         subjects = goal_subjects(self.repository.org_row(org_id))
         check_in = bool(data.get('check_in'))
         existing = self.repository.get(org_id, student_id, week.isoformat()) or {}
-        goals = _clean_goals(data.get('goals'), subjects, check_in)
+        # Coaches keep full edit of the whole week (ticket 910668d8), but the
+        # goal text may have been typed by the student since the coach's page
+        # loaded; _merge_unchanged keeps that text unless the coach changed
+        # the same subject. Complaints, notes and ticks are staff-only fields,
+        # so between two staff members the last save still wins.
+        goals = _clean_goals(_merge_unchanged(data.get('goals'), data.get('base_goals'), existing),
+                             subjects, check_in)
         complaints = _count(data.get('complaints'), 'Complaints')
         valid = _count(data.get('valid_complaints'), 'Valid complaints')
         if valid > complaints:
@@ -231,6 +271,78 @@ class WeeklyGoalService:
             payload['checked_in_at'] = now
         saved = self.repository.upsert(payload)
         return {**saved, 'freedom': freedom_for(saved)}
+
+    def save_own_goals(self, student_id: str, data: Dict[str, Any]) -> Dict[str, Any]:
+        """A student types their own goal text for the current week.
+
+        Ticket 910668d8 (David Nilson, Apogee Cache Valley): "We would like
+        the Adventurers to be able to type in their own goals, and us Coaches
+        to be able to edit the fields as well." Owner's rules (2026-10-12):
+
+        - the caller IS the student, at a school with weekly_goals on;
+        - this week only, and only until the Thursday check-in is recorded
+          (checked_in_at set), after which the week is the coach's record;
+        - goal text only. Done ticks, complaints, valid complaints, notes and
+          the check-in are never read from the body.
+
+        Read-modify-write of the goal text: the upsert carries only the goals
+        and who set them, so the staff columns are left as they are. The
+        remaining race is last-write-wins on the goals array itself: a coach
+        save landing between this read and this write is overwritten for the
+        subjects the student's array carries. The window is one request long,
+        and the coach's side of the race is covered by _merge_unchanged.
+        """
+        from modules.enabled import module_enabled
+
+        student = self.repository.user_row(student_id)
+        org_id = (student or {}).get('organization_id')
+        if not student or not org_id or not sis_service.is_student(student):
+            raise PermissionError('Only a student can write their own goals')
+        if not module_enabled(org_id, 'weekly_goals'):
+            raise PermissionError('Weekly goals are off at this school')
+
+        current = week_start_of()
+        week = week_start_of(data.get('week_start')) if data.get('week_start') else current
+        if week != current:
+            raise WeeklyGoalError("You can only write this week's goals")
+
+        existing = self.repository.get(org_id, student_id, week.isoformat()) or {}
+        if existing.get('checked_in_at'):
+            raise WeeklyGoalLocked(LOCKED_MESSAGE)
+
+        subjects = goal_subjects(self.repository.org_row(org_id))
+        sent = {}
+        for entry in data.get('goals') or []:
+            if isinstance(entry, dict) and entry.get('subject') in subjects:
+                sent[entry['subject']] = entry.get('goal')
+        if not sent:
+            raise WeeklyGoalError('Send at least one goal')
+
+        stored = {g.get('subject'): g for g in (existing.get('goals') or []) if isinstance(g, dict)}
+        merged = []
+        for subject in subjects:
+            old = stored.get(subject) or {}
+            text = sent[subject] if subject in sent else old.get('goal')
+            # The tick stays the coach's: carried over as stored, never sent.
+            merged.append({'subject': subject, 'goal': text, 'completed': old.get('completed')})
+        goals = _clean_goals(merged, subjects, check_in=False)
+
+        now = now_iso()
+        payload = {
+            'organization_id': org_id,
+            'student_user_id': student_id,
+            'week_start': week.isoformat(),
+            'goals': goals,
+            'updated_at': now,
+            'goals_set_by': existing.get('goals_set_by'),
+            'goals_set_at': existing.get('goals_set_at'),
+        }
+        old_goals = [(stored.get(s) or {}).get('goal') or '' for s in subjects]
+        if [g['goal'] for g in goals] != old_goals and any(g['goal'] for g in goals):
+            payload['goals_set_by'] = student_id
+            payload['goals_set_at'] = now
+        saved = self.repository.upsert(payload)
+        return {**existing, **saved, 'freedom': freedom_for({**existing, **saved})}
 
     def history(self, student_id: str) -> Dict[str, Any]:
         """A student's weeks, newest first, with the subjects of their school."""
@@ -270,5 +382,13 @@ class WeeklyGoalService:
             student = caller if sid == user_id else self.repository.user_row(sid)
             org_id = (student or {}).get('organization_id')
             if org_id and module_enabled(org_id, 'weekly_goals'):
-                out.append(self.history(sid))
+                data = self.history(sid)
+                # Only the student types their own goals (ticket 910668d8); a
+                # parent reading a child's weeks stays read-only.
+                current = next((w for w in data['weeks']
+                                if w.get('week_start') == data['current_week_start']), None)
+                data['is_self'] = sid == user_id
+                data['goals_locked'] = bool(current and current.get('checked_in_at'))
+                data['can_edit_goals'] = data['is_self'] and not data['goals_locked']
+                out.append(data)
         return out

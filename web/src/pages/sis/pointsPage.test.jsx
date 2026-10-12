@@ -30,6 +30,9 @@ const { api, board } = vi.hoisted(() => {
     recent: [
       { id: 'e1', student_id: 's1', student_name: 'Ada Kid', amount: 5, reason: 'Daily job',
         source: 'staff', created_by_name: 'Mandie G', created_at: '2026-10-08T15:00:00Z' },
+      { id: 'e2', student_id: 's2', student_name: 'Ben Kid', amount: 3, reason: 'Fed the chickens',
+        source: 'student', added_by_student: true, created_by_name: 'Ben Kid',
+        created_at: '2026-10-08T16:00:00Z' },
     ],
   } })
   return {
@@ -87,8 +90,20 @@ describe('PointsPage', () => {
 
   it('undoes a recent entry by deleting it', async () => {
     render(<PointsPage />)
-    fireEvent.click(await screen.findByRole('button', { name: 'Undo' }))
+    fireEvent.click((await screen.findAllByRole('button', { name: 'Undo' }))[0])
     await waitFor(() => expect(api.delete).toHaveBeenCalledTimes(1))
     expect(api.delete.mock.calls[0][0]).toContain('/api/sis/points/entries/e1')
+  })
+
+  it('marks points a student added for themselves, and they undo like any entry', async () => {
+    // Ticket 910668d8, David Nilson: "where we Coaches can take them away if
+    // upon inspection they shouldn't have been received."
+    render(<PointsPage />)
+    const row = (await screen.findByText('Fed the chickens')).closest('li')
+    expect(row).toHaveTextContent('Added by student')
+    expect(screen.getAllByText('Added by student')).toHaveLength(1)
+    fireEvent.click(row.querySelector('button'))
+    await waitFor(() => expect(api.delete).toHaveBeenCalledTimes(1))
+    expect(api.delete.mock.calls[0][0]).toContain('/api/sis/points/entries/e2')
   })
 })

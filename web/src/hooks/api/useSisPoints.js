@@ -33,6 +33,16 @@ export const useMyPoints = () => useQuery({
   queryFn: async () => (await api.get('/api/sis/points/mine')).data?.students || [],
 })
 
+/** {amount, reason}: a student gives themselves points (ticket 910668d8).
+ * Positive only and capped per day by the server; staff can undo it. */
+export const useAddMyPoints = () => {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (body) => (await api.post('/api/sis/points/mine', body)).data,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.sis.pointsMine }),
+  })
+}
+
 const useInvalidatePoints = (orgId) => {
   const queryClient = useQueryClient()
   return () => queryClient.invalidateQueries({ queryKey: queryKeys.sis.points(orgId) })
