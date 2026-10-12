@@ -25,6 +25,27 @@ updates:
       interval: "weekly"
       day: "monday"
     open-pull-requests-limit: 2
+    # The Google stack is held where google-generativeai can install it.
+    # google-generativeai needs protobuf below 6 and pins
+    # google-ai-generativelanguage to 0.6.15; newer google-api-core needs
+    # protobuf 6.33+, and google-auth 2.40 needs cachetools below 6. On
+    # 2026-10-12 a group PR bumped these together and pip could not resolve
+    # it (#169), then a cachetools 7 PR failed the same way (#176). Lift
+    # these when the AI services move to google-genai.
+    ignore:
+      - dependency-name: "protobuf"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "cachetools"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "google-ai-generativelanguage"
+      - dependency-name: "google-api-core"
+      - dependency-name: "google-api-python-client"
+      - dependency-name: "google-auth"
+      - dependency-name: "google-auth-httplib2"
+      - dependency-name: "googleapis-common-protos"
+      - dependency-name: "grpcio"
+      - dependency-name: "grpcio-status"
+      - dependency-name: "proto-plus"
     groups:
       python-minor-patch:
         update-types: ["minor", "patch"]
@@ -45,6 +66,13 @@ updates:
       interval: "weekly"
       day: "monday"
     open-pull-requests-limit: 2
+    # 8.71.x reports plain JavaScript values as "only used as a type" through
+    # unused-imports/no-unused-vars: 29016 warnings against a baseline of
+    # 1819, which fails the eslint ratchet (#170, #174). Only that line is
+    # skipped, so a fixed 8.72 still arrives.
+    ignore:
+      - dependency-name: "@typescript-eslint/*"
+        versions: ["8.71.x"]
     groups:
       web-minor-patch:
         update-types: ["minor", "patch"]
