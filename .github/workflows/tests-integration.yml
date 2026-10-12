@@ -57,7 +57,10 @@ jobs:
       - name: Set up Supabase CLI
         uses: supabase/setup-cli@v1
         with:
-          version: latest
+          # Pinned, not `latest` (2026-10-12): resolving `latest` calls the GitHub
+          # API without a token, and runners share that rate limit, so this step
+          # failed at random with "rate limit exceeded". Raise it on purpose.
+          version: 2.120.0
 
       - name: Start local Supabase stack
         # Boots Postgres + PostgREST + GoTrue + Storage in Docker (~60-90s) and
