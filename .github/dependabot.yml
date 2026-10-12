@@ -55,6 +55,28 @@ updates:
       interval: "weekly"
       day: "monday"
     open-pull-requests-limit: 2
+    # The native layer moves with the Expo SDK, never with dependabot. The app
+    # matches an OTA by app version (runtimeVersion policy "appVersion"), so a
+    # bump here ships JS built against a native version the phones in the field
+    # do not have. On 2026-10-12 a "minor-patch" group carried react-native
+    # 0.83.6 -> 0.87.1, react 19.3, reanimated 4.7 and worklets 0.13 together.
+    # Upgrade these with `npx expo install --fix` during an SDK upgrade and a
+    # new store build.
+    ignore:
+      - dependency-name: "react"
+      - dependency-name: "react-dom"
+      - dependency-name: "react-test-renderer"
+      - dependency-name: "@types/react"
+      - dependency-name: "react-native"
+      - dependency-name: "react-native-reanimated"
+      - dependency-name: "react-native-worklets"
+      - dependency-name: "react-native-safe-area-context"
+      - dependency-name: "react-native-screens"
+      - dependency-name: "react-native-svg"
+      - dependency-name: "@react-navigation/*"
+      - dependency-name: "expo"
+      - dependency-name: "expo-*"
+      - dependency-name: "jest-expo"
     groups:
       mobile-minor-patch:
         update-types: ["minor", "patch"]
