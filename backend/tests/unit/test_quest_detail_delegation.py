@@ -20,7 +20,8 @@ from utils.guardian_scope import GuardianAccessError
 
 PARENT = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
 KID = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc'
-QUEST = 'qqqqqqqq-qqqq-4qqq-8qqq-qqqqqqqqqqqq'
+# A real uuid: the route 404s anything else (tickets 5cd18ed1 / ee024803).
+QUEST = 'a0a0a0a0-a0a0-4a0a-8a0a-a0a0a0a0a0a0'
 
 
 class _Query:

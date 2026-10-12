@@ -2,7 +2,7 @@ import React, { lazy, Suspense, useState } from 'react';
 import { flushSync } from 'react-dom';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { useQuestDetailData } from '../hooks/useQuestDetailData';
+import { useQuestDetailData, useCleanQuestId } from '../hooks/useQuestDetailData';
 import { useStudentScope } from '../hooks/useStudentScope';
 import { queryKeys } from '../utils/queryKeys';
 import api from '../services/api';
@@ -66,7 +66,7 @@ const preloadWizard = () => {
 
 const QuestDetail = () => {
   const confirm = useConfirm()
-  const { id } = useParams();
+  const id = useCleanQuestId(useParams().id);
   const navigate = useNavigate();
   const { user, effectiveRole } = useAuth();
   // Read the context directly rather than through useOrganization(), which

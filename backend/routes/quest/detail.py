@@ -5,6 +5,8 @@ Handles quest detail views and enrollment status checking.
 Part of the quests.py refactoring (P2-ARCH-1).
 """
 
+import uuid
+
 from flask import Blueprint, jsonify, request
 from database import get_supabase_admin_client
 from utils.auth.decorators import require_auth
@@ -142,6 +144,16 @@ def get_quest_detail(user_id: str, quest_id: str):
     how a parent sees the quest screen their kid sees rather than a thinner
     parent-shaped version of it. Guardians only — see utils/guardian_scope.
     """
+    # A link copied out of Gmail's redirect arrives as
+    # /quests/<uuid>&source=gmail&ust=...&sa=E. PostgREST refuses a non-uuid
+    # for quests.id and the client reports it as a 204 "Missing response",
+    # which surfaced as a 500 (tickets 5cd18ed1 / ee024803). Not a uuid, not a
+    # quest: answer like any other quest that does not exist.
+    try:
+        uuid.UUID(str(quest_id))
+    except ValueError:
+        return jsonify({'success': False, 'error': 'Quest not found'}), 404
+
     try:
         # Everything below reads `user_id`'s rows; resolving here is what makes
         # the delegated response identical to the student's own.

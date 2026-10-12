@@ -220,3 +220,21 @@ export const useQuestDetailData = (questId) => {
     queryClient
   };
 };
+
+// A quest link copied out of Gmail's redirect arrives as
+// /quests/<uuid>&source=gmail&ust=...&sa=E, and the whole tail used to be sent
+// to the API as the id (tickets 5cd18ed1 / ee024803). The id is the leading
+// uuid; the URL is replaced with the clean one.
+const LEADING_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i
+
+export function useCleanQuestId(rawId) {
+  const id = rawId?.match(LEADING_UUID)?.[0] || rawId
+  const navigate = useNavigate()
+  const location = useLocation()
+  useEffect(() => {
+    if (rawId && id !== rawId) {
+      navigate(`/quests/${id}${location.search}${location.hash}`, { replace: true })
+    }
+  }, [rawId, id, navigate, location.search, location.hash])
+  return id
+}
