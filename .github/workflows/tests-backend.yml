@@ -22,11 +22,16 @@ on:
 permissions:
   contents: read
 
+# Two jobs since 2026-10-12, run side by side: `lint` holds the static gates
+# and the audit (about 75s), `backend` holds the suite. They used to run one
+# after the other in a single job, which put the lint time on the critical
+# path of every release. A caller's `needs: [backend]` names this whole
+# workflow, so it still waits for both.
 jobs:
-  backend:
-    name: Backend Tests
+  lint:
+    name: Backend lint + audit
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 10
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -36,6 +41,8 @@ jobs:
           python-version: '3.11'
           cache: 'pip'
       - name: Install dependencies
+        # requirements.txt as well as the tools: mypy follows imports into the
+        # installed packages.
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
@@ -143,6 +150,22 @@ jobs:
             --tb=short -v --no-header -p no:cacheprovider \
             || { echo "::error::Secret-exposure guard failed -- see AUDIT.md"; exit 1; }
 
+  backend:
+    name: Backend Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
       - name: Run pytest (ENFORCING)
         working-directory: backend
         # `|| true` removed 2026-08-01. It had made the whole backend suite
@@ -177,6 +200,12 @@ jobs:
           # WITHOUT the requires_db tests (they run in tests-integration.yml).
           # Raise this by adding coverage to THIS run, never by folding database
           # tests back in.
-          python -m pytest tests/ --tb=short -v -p no:cacheprovider \
+          #
+          # -n auto (pytest-xdist, 2026-10-12): one worker per core. The suite
+          # ran on one core of a four-core runner, 442s in release
+          # 38300660819; locally four workers cut it from 248s to 83s with all
+          # 10400 tests passing. pytest-cov combines the workers' data, so the
+          # floor below reads the same whole-suite number.
+          python -m pytest tests/ -n auto --tb=short -v -p no:cacheprovider \
             --cov=. --cov-report=term-missing --cov-report=xml \
             --cov-fail-under=${{ inputs.coverage-floor }}
