@@ -84,7 +84,9 @@ describe('the courses a class inherits from its curriculum', () => {
   it('asks for the courses of the class being viewed', async () => {
     await openTheClass()
     await waitFor(() => expect(classService.getClassCourses)
-      .toHaveBeenCalledWith('org-1', 'c1'))
+      // Third argument: the family scope (empty for the student themself;
+      // { studentId } when a guardian works for a child, ticket 8700c16d).
+      .toHaveBeenCalledWith('org-1', 'c1', {}))
   })
 
   it('grows no empty heading on a class with no courses', async () => {

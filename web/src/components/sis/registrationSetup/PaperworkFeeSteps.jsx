@@ -189,14 +189,14 @@ const paperworkEditor = (it, i) => {
             <a href={absUrl(it.doc_url)} target="_blank" rel="noreferrer" className="text-optio-purple font-medium hover:underline">View document</a>
           )}
           <span className={it.doc_url ? 'ml-3 text-neutral-400' : 'text-neutral-400'}>
-            In your Resources library — replace or remove this document in the Resources tab, and the form updates too.
+            In your Library — replace or remove this document under Library, Documents, and the form updates too.
           </span>
         </p>
       ) : it.doc_url ? (
         <p className="text-xs text-neutral-500">
           <a href={absUrl(it.doc_url)} target="_blank" rel="noreferrer" className="text-optio-purple font-medium hover:underline">View document</a>
           <button onClick={() => setItem(i, { doc_url: '' })} className="ml-3 text-red-500 hover:underline">Remove document</button>
-          <span className="ml-2 text-neutral-400">Saving adds this to your Resources library as the source of truth.</span>
+          <span className="ml-2 text-neutral-400">Saving adds this to your Library as the source of truth.</span>
         </p>
       ) : (
         <p className="text-xs text-neutral-400">No document yet — upload the waiver/agreement PDF, paste a link, or rely on the text above.</p>

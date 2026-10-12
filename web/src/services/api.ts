@@ -3,6 +3,7 @@ import type { AxiosError } from 'axios'
 import { shouldUseAuthHeaders } from '../utils/browserDetection'
 import logger from '../utils/logger'
 import { isPublicPath } from '../utils/publicPaths'
+import { isAIDisabledRefusal } from '../utils/aiAccessErrors'
 import { captureException } from './sentry'
 import { isMasqueradeActiveOrPending } from './masqueradeGate'
 import { postRefreshWithRetry, isUnrecoverableAuthFailure } from './sessionRecovery'
@@ -485,6 +486,10 @@ const REPORTABLE = (error: AxiosError<ApiErrorBody>) => {
       && error.response?.data?.code !== 'phone_verification_required'
       // A probe that treats the refusal as its answer (see above).
       && !error.config?.expect403
+      // AI switched off for the learner by a parent or the school: a choice,
+      // not a fault. The page shows the server's sentence (Sentry 64448412 /
+      // e7429a56 were a parent acting for a child with AI off).
+      && !isAIDisabledRefusal(error)
       // Masquerading: the session is the target's, so a page the admin
       // opened (the SIS People page after "View as student", 07b05221) is
       // refused as it should be on its way out.

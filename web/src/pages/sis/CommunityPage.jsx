@@ -27,7 +27,8 @@ const TABS = [
   { key: 'lost-found', label: 'Lost & Found' },
   { key: 'recognition', label: 'Recognition' },
   { key: 'events', label: 'Events' },
-  { key: 'resources', label: 'Resources' },
+  // Same list as the Library (ticket 5574dd28); the key stays for old links.
+  { key: 'resources', label: 'Library' },
 ]
 
 const REC_TYPES = [
@@ -657,10 +658,10 @@ const EventsTab = ({ orgId }) => {
 const ResourcesTab = () => (
   <div className="bg-white rounded-xl border border-gray-200 p-6 text-center">
     <p className="text-sm text-neutral-600 mb-4 max-w-md mx-auto">
-      Guidebooks, forms, and links for your community live in the Resources library. Manage them there and families see them in their app.
+      Guidebooks, forms, and links for your community live in the Library. Manage them there and families see them in their app.
     </p>
     <Link to="/library">
-      <Button size="sm">Open Resources</Button>
+      <Button size="sm">Open Library</Button>
     </Link>
   </div>
 )

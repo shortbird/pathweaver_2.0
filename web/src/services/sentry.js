@@ -11,6 +11,23 @@ import * as Sentry from '@sentry/react';
 
 let initialized = false;
 
+/**
+ * Errors Sentry drops before sending.
+ *
+ * Browser page translation (Google Translate, Chrome's built-in translator)
+ * replaces the text nodes React rendered with its own <font> wrappers. When
+ * React later commits a change it calls insertBefore/removeChild on nodes the
+ * translator already moved, and the browser throws a NotFoundError
+ * (Sentry 90aa8c18: "Failed to execute 'insertBefore' on 'Node'" at
+ * /auth/callback, an anonymous user in Vietnam, React commit phase). The
+ * owner chose to keep translation available rather than mark the app
+ * translate="no", so the error is expected noise; nothing in our code is
+ * wrong when it fires.
+ */
+export const IGNORE_ERRORS = [
+  /Failed to execute '(insertBefore|removeChild)' on 'Node'/,
+];
+
 function dsn() {
   return import.meta.env.VITE_SENTRY_DSN;
 }
@@ -42,6 +59,7 @@ export function initSentry() {
     // valuable ones — which stays well under the cap at current scale.
     replaysSessionSampleRate: 0,
     replaysOnErrorSampleRate: 1.0,
+    ignoreErrors: IGNORE_ERRORS,
   });
 }
 

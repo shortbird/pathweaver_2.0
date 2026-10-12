@@ -9,13 +9,14 @@
  *            reviewed by a human before it can reach a kid.
  */
 
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { View, ScrollView, Pressable, TextInput, Modal, KeyboardAvoidingView, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { VStack, HStack, UIText, Heading, Button, ButtonText, PillarBadge } from '../ui';
 import { useThemeColors } from '@/src/hooks/useThemeColors';
-import api, { bountyAPI } from '@/src/services/api';
+import { bountyAPI } from '@/src/services/api';
+import { useAiAccess } from '@/src/hooks/useAiAccess';
 import { extractApiError } from '@/src/services/apiError';
 
 export interface BountyIdea {
@@ -37,23 +38,11 @@ interface Props {
 /**
  * Whether this account may use AI task generation. Mirrors the web platform's
  * AIAccessContext rule: when access is off (org toggle, dependent settings),
- * the AI surface renders nothing rather than a disabled button.
+ * the AI surface renders nothing rather than a disabled button. The poster
+ * drafts the bounty, so this asks about the signed-in user (no child scope).
  */
 export function useAiBountyAccess(): boolean {
-  const [allowed, setAllowed] = useState(false);
-  useEffect(() => {
-    let alive = true;
-    api.get('/api/ai-access/status')
-      .then(({ data }) => {
-        if (!alive) return;
-        const hasAccess = data?.has_access ?? data?.hasAccess ?? false;
-        const feature = data?.features?.task_generation ?? true;
-        setAllowed(!!hasAccess && !!feature);
-      })
-      .catch(() => { /* stays hidden */ });
-    return () => { alive = false; };
-  }, []);
-  return allowed;
+  return useAiAccess().canGenerateTasks;
 }
 
 export function GenerateBountyModal({ visible, kids, childNoun, onClose, onUse }: Props) {

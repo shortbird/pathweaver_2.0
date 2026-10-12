@@ -31,6 +31,21 @@ export interface SchoolOrg {
   modules?: string[] | null;
   prior_learning_enabled?: boolean;
   family_first_home?: boolean;
+  /** Who to contact (ticket c58b7c0b): the school's "for this, ask that
+   *  person" list, guardians only; [] when the school has none. */
+  family_contacts?: FamilyContact[];
+}
+
+/** One row of the school's Who to contact list. `message_user_id` is who
+ *  Message opens a thread with (a staff member, or the school's own account
+ *  when the family writes to the front office); null means no Message. */
+export interface FamilyContact {
+  topic: string;
+  name: string | null;
+  phone: string | null;
+  email: string | null;
+  staff_user_id: string | null;
+  message_user_id: string | null;
 }
 
 /**
@@ -88,7 +103,10 @@ export function schoolTabsFor(
     if (on('calendar')) tabs.push({ key: 'calendar', label: 'Calendar' });
     tabs.push({ key: 'carpool', label: 'Carpool' });
   }
-  if (have.documents) tabs.push({ key: 'documents', label: 'Documents' });
+  // "Library" (ticket 5574dd28, owner's call): the staff call this list the
+  // Library in the SIS, and the family's word now matches theirs. The key
+  // stays 'documents' so ?tab=documents links keep landing.
+  if (have.documents) tabs.push({ key: 'documents', label: 'Library' });
   return tabs;
 }
 

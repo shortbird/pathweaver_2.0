@@ -124,3 +124,30 @@ describe('AttendancePage', () => {
     )
   })
 })
+
+describe('AttendancePage: classes that take no roll (ticket 29dff954)', () => {
+  it('does not offer a class marked "Attendance not taken"', async () => {
+    // iCreate: "Can we have some classes not require attendance? Like this
+    // would be useful for our At Home days and independent study." The class
+    // editor switch took the class out of every missing-roll check, but this
+    // page still listed it, so the office could still be asked to take roll.
+    state.classes = [
+      { id: 'c1', name: 'Pottery' },
+      { id: 'c2', name: 'At Home Day', attendance_optional: true },
+    ]
+    render(<AttendancePanel />)
+    fireEvent.focus(screen.getByPlaceholderText('Search classes…'))
+    expect(await screen.findByRole('button', { name: 'Pottery' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'At Home Day' })).not.toBeInTheDocument()
+  })
+
+  it('leaves a teacher\'s optional class out of My classes too', async () => {
+    state.classes = [
+      { id: 'c1', name: 'Pottery', primary_instructor_id: 'u1' },
+      { id: 'c2', name: 'Independent Study', primary_instructor_id: 'u1', attendance_optional: true },
+    ]
+    render(<AttendancePanel />)
+    expect(await screen.findByText('My classes')).toBeInTheDocument()
+    expect(screen.queryByText('Independent Study')).not.toBeInTheDocument()
+  })
+})

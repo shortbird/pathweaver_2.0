@@ -7,6 +7,8 @@ one is in use and a way to put it somewhere from there.
   POST /api/sis/quests                          author a new one (optionally
                                                 straight onto a curriculum)
   POST /api/sis/quests/<quest_id>/curricula     put one on a curriculum
+  DELETE /api/sis/quests/<quest_id>/curricula/<curriculum_id>
+                                                take it off one (classes keep it)
   POST /api/sis/quests/<quest_id>/students      give one to named students
   PATCH/GET/POST/PUT/DELETE
        /api/sis/quests/<quest_id>[/tasks...]    edit the quest and its tasks
@@ -321,6 +323,38 @@ def put_quest_on_curriculum(user_id, quest_id):
                                         push=False)
     return jsonify({'success': True, 'curriculum': {'id': curriculum['id'], 'title': curriculum['title']},
                     **result})
+
+
+@bp.route('/quests/<quest_id>/curricula/<curriculum_id>', methods=['DELETE'])
+@require_role(*ADMIN_ROLES)
+def take_quest_off_curriculum(user_id, quest_id, curriculum_id):
+    """Take a quest off one of the school's curricula, from the library's
+    Assign dialog (iCreate, 79a54ac2, 2026-10-12: "Can't unassign on
+    curriculum or classes from here.").
+
+    Exactly what removing it from the curriculum's own quest list does
+    (routes/sis/curriculum.py set_curriculum_quests): the sis_curriculum_quests
+    row goes, and nothing else. Classes that already have the quest keep it --
+    a curriculum edit never pulls work off a section (services/sis_curriculum_sync).
+    Taking it off a class is the class's own DELETE.
+    """
+    org_id, err = sis_service.org_or_error(user_id)
+    if err:
+        return err
+    if _bad_uuid(quest_id) or _bad_uuid(curriculum_id):
+        return jsonify({'success': False, 'error': 'Invalid id'}), 400
+    repo = _repo()
+    curriculum = repo.find_curriculum(curriculum_id)
+    if not curriculum or curriculum.get('organization_id') != org_id:
+        return jsonify({'success': False, 'error': 'Curriculum not found'}), 404
+    quest = repo.find_quest_for_assign(quest_id)
+    if not quest or not (quest.get('organization_id') == org_id
+                         or (quest.get('organization_id') is None and quest.get('is_public'))):
+        return jsonify({'success': False, 'error': 'Quest not found'}), 404
+    if not repo.curriculum_has_quest(curriculum_id, quest_id):
+        return jsonify({'success': True, 'removed': False})
+    repo.remove_curriculum_quest(curriculum_id, quest_id)
+    return jsonify({'success': True, 'removed': True})
 
 
 # Enough for a whole school's students in one request, small enough that a

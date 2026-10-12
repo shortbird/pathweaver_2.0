@@ -71,6 +71,10 @@ class ClassQuestAudienceRepository:
         self.client.table('class_quests').update({'student_ids': student_ids}) \
             .eq('id', link_id).execute()
 
+    def delete_link(self, link_id: str) -> None:
+        """Take one quest off one class. Other classes' links are not touched."""
+        self.client.table('class_quests').delete().eq('id', link_id).execute()
+
     # ── the students ─────────────────────────────────────────────────────────
 
     def named_users(self, user_ids: List[str]) -> List[Dict[str, Any]]:

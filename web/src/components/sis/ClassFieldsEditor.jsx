@@ -568,7 +568,9 @@ export default function ClassFieldsEditor({
       )}
 
       <Band title="Internal notes">
-        <Field label="Staff only — families never see these" className="sm:col-span-2 lg:col-span-3">
+        {/* Notes take what the two checkboxes leave of the four columns. */}
+        <Field label="Staff only — families never see these"
+          className={`sm:col-span-2 ${showBilling ? 'lg:col-span-2' : 'lg:col-span-3'}`}>
           <textarea className={`${cell} resize-y min-h-[56px]`} value={d.internal_notes}
             aria-label="Internal notes"
             placeholder="Room setup, supplies, reminders for the office…"
@@ -589,6 +591,22 @@ export default function ClassFieldsEditor({
           </label>
         </Field>
         )}
+
+        {/* iCreate, 29dff954: "Can we have some classes not require
+            attendance? Like this would be useful for our At Home days and
+            independent study." Nobody is chased for a roll in these. */}
+        <Field label="Attendance">
+          <label className="inline-flex items-center gap-2 cursor-pointer h-[38px]">
+            <input type="checkbox" checked={!!d.attendance_optional}
+              aria-label="Attendance not taken"
+              onChange={(e) => set({ attendance_optional: e.target.checked })}
+              className="h-4 w-4 rounded border-gray-300 text-optio-purple focus:ring-optio-purple" />
+            <span className="text-xs text-neutral-500 leading-tight">
+              Attendance not taken
+              <span className="block text-neutral-400">For at-home days and independent study. No roll reminders.</span>
+            </span>
+          </label>
+        </Field>
       </Band>
     </div>
   )

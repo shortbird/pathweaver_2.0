@@ -126,11 +126,19 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, isPinned, onTogglePin, isHovere
 
   const hasEnrolledCourses = coursesData === true
 
-  // Check if user is enrolled in any classes (for conditional Classes nav item)
+  // Check if user is enrolled in any classes (for conditional Classes nav item).
+  // In family scope it asks about the CHILD: iCreate, ticket 8700c16d, an org
+  // admin who is also a parent -- "When I am working with brady I don't
+  // actually see his classes." The query asked about the signed-in parent,
+  // who is in no class, so the child's Classes item never appeared. The
+  // child's id is in the key too, so switching child re-asks.
+  const scopedChildId = inFamilyScope ? selectedChild?.id : null
   const { data: classesData } = useQuery({
-    queryKey: ['classes-sidebar-check', user?.id],
+    queryKey: ['classes-sidebar-check', user?.id, scopedChildId || null],
     queryFn: async () => {
-      const response = await api.get('/api/student/classes')
+      const response = await api.get('/api/student/classes', {
+        params: scopedChildId ? { student_id: scopedChildId } : {},
+      })
       const classes = response.data?.classes || []
       return classes.length > 0
     },
@@ -333,10 +341,12 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, isPinned, onTogglePin, isHovere
     })
   }
 
-  // Classes: for students enrolled in at least one org class
+  // Classes: for students enrolled in at least one org class, and in family
+  // scope for the child's classes, named for the child so a teacher-parent
+  // can tell it from their own "My Classes" (ticket 8700c16d).
   if (hasEnrolledClasses) {
     learningItems.push({
-      name: 'Classes',
+      name: scopedChildId ? `${selectedChild?.firstName || 'Child'}'s classes` : 'Classes',
       path: '/org-classes',
       icon: (
         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

@@ -20,6 +20,7 @@ from services import sis_staff_service as staff
 from services import sis_onboarding_service
 from routes.sis import portal_views
 from services import sis_supply_budget_service as supply_budget
+from services import sis_supply_expense_service as supply_expenses
 from database import get_supabase_admin_client
 from utils.sis_roles import STAFF_ROLES
 from utils.storage_urls import sign_in_place
@@ -104,7 +105,8 @@ def class_roster(user_id, class_id):
     covering = scope is not None and class_id not in (sis_service.class_scope(user_id, org_id) or [])
     # admin client justified: org_classes ownership check for a roster read; gated by @require_role(STAFF_ROLES) + class_scope filter above, views access-logged
     cls = (get_supabase_admin_client().table('org_classes')
-           .select('id, name, organization_id, supply_fee, supply_budget_per_student')
+           .select('id, name, organization_id, supply_fee, supply_budget_per_student, '
+                   'attendance_optional')
            .eq('id', class_id).limit(1).execute()).data
     if not cls or cls[0].get('organization_id') != org_id:
         return jsonify({'success': False, 'error': 'Class not found'}), 404
@@ -117,12 +119,94 @@ def class_roster(user_id, class_id):
     # Teachers plan materials against this; it rides along with the roster so the
     # class page doesn't need a second round trip.
     budget = supply_budget.budget_for_class(org_id, cls[0])
+    # Which expense lines this caller may change (e7a50b4b): the office any,
+    # a teacher their own.
+    for e in (budget or {}).get('expenses') or []:
+        e['can_edit'] = supply_expenses.may_change(e, user_id, scope is None)
     return jsonify({'success': True,
-                    'class': {'id': cls[0]['id'], 'name': cls[0]['name']},
+                    # attendance_optional: the page offers no roll for a class
+                    # that takes none (29dff954).
+                    'class': {'id': cls[0]['id'], 'name': cls[0]['name'],
+                              'attendance_optional': bool(cls[0].get('attendance_optional'))},
                     'supply_budget': budget or None,
                     'my_role': 'substitute' if covering else None,
                     'today': today,
                     **data})
+
+
+# ── Supply expense log (ticket e7a50b4b) ─────────────────────────────────────
+# iCreate advisor: "I would like to see what I have spent on each class supply
+# budget already/how much I have left." A class's teachers write down what they
+# bought; the front office (ADMIN_ROLES, via class_scope None) sees and edits
+# every entry. A teacher changes only the entries they added. A substitute's
+# one-day grant does not reach this: the everyday class scope is used.
+
+def _expense_gate(user_id, class_id):
+    """(org_id, is_office, error_response)."""
+    org_id, err = sis_service.org_or_error(user_id)
+    if err:
+        return None, False, err
+    scope = sis_service.class_scope(user_id, org_id)
+    if scope is not None and class_id not in scope:
+        return None, False, (jsonify({'success': False, 'error': 'Class not found'}), 404)
+    from repositories.sis_class_repository import SisClassRepository
+    # admin client justified: org_classes ownership check for the expense log; gated by @require_role(STAFF_ROLES) + class_scope above
+    cls = SisClassRepository(client=get_supabase_admin_client()).find_by_id(class_id)
+    if not cls or cls.get('organization_id') != org_id:
+        return None, False, (jsonify({'success': False, 'error': 'Class not found'}), 404)
+    return org_id, scope is None, None
+
+
+def _expense_result(result, ok_status=200):
+    if result.get('error'):
+        return jsonify({'success': False, 'error': result['error']}), result.get('status', 400)
+    return jsonify({'success': True, **result}), ok_status
+
+
+@bp.route('/classes/<class_id>/supply-expenses', methods=['GET'])
+@require_role(*STAFF_ROLES)
+@require_module('classes')
+def list_supply_expenses(user_id, class_id):
+    org_id, is_office, err = _expense_gate(user_id, class_id)
+    if err:
+        return err
+    log = supply_expenses.for_classes(org_id, [class_id]).get(class_id) \
+        or {'spent': 0.0, 'items': []}
+    for e in log['items']:
+        e['can_edit'] = supply_expenses.may_change(e, user_id, is_office)
+    return jsonify({'success': True, 'spent': log['spent'], 'expenses': log['items']})
+
+
+@bp.route('/classes/<class_id>/supply-expenses', methods=['POST'])
+@require_role(*STAFF_ROLES)
+@require_module('classes')
+def add_supply_expense(user_id, class_id):
+    org_id, _, err = _expense_gate(user_id, class_id)
+    if err:
+        return err
+    return _expense_result(supply_expenses.add(org_id, class_id, user_id,
+                                               request.get_json(silent=True) or {}), 201)
+
+
+@bp.route('/classes/<class_id>/supply-expenses/<expense_id>', methods=['PATCH'])
+@require_role(*STAFF_ROLES)
+@require_module('classes')
+def edit_supply_expense(user_id, class_id, expense_id):
+    org_id, is_office, err = _expense_gate(user_id, class_id)
+    if err:
+        return err
+    return _expense_result(supply_expenses.edit(org_id, class_id, expense_id, user_id, is_office,
+                                                request.get_json(silent=True) or {}))
+
+
+@bp.route('/classes/<class_id>/supply-expenses/<expense_id>', methods=['DELETE'])
+@require_role(*STAFF_ROLES)
+@require_module('classes')
+def delete_supply_expense(user_id, class_id, expense_id):
+    org_id, is_office, err = _expense_gate(user_id, class_id)
+    if err:
+        return err
+    return _expense_result(supply_expenses.remove(org_id, class_id, expense_id, user_id, is_office))
 
 
 @bp.route('/classes/<class_id>/messaging', methods=['GET'])

@@ -93,7 +93,7 @@ def today_schedule(org_id: str, today: str, dow: Optional[int] = None,
         dow = _date.fromisoformat(today).weekday()
         dow = (dow + 1) % 7  # class_meetings.day_of_week is Sunday-based
     classes = (_admin().table('org_classes')
-               .select('id, name, location, primary_instructor_id')
+               .select('id, name, location, primary_instructor_id, attendance_optional')
                .eq('organization_id', org_id).execute()).data or []
     if class_scope is not None:
         allowed = set(class_scope)
@@ -132,6 +132,8 @@ def today_schedule(org_id: str, today: str, dow: Optional[int] = None,
             'location': m.get('location') or cls.get('location'),
             'teacher_name': teachers.get(cls.get('primary_instructor_id')),
             'enrolled_count': counts.get(m['class_id'], 0),
+            # Takes no roll (29dff954): never "No roll yet", never overdue.
+            'attendance_optional': bool(cls.get('attendance_optional')),
         })
     out.sort(key=lambda i: (i.get('start_time') or '99:99', i.get('class_name') or ''))
     return out

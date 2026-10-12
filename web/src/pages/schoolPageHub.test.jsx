@@ -115,7 +115,9 @@ describe('what a guardian gets', () => {
   // school-life cards only, so the same door is not offered twice on one screen.
   it('offers the school-life doors, and leaves the family doors and the calendar to the tabs', async () => {
     const names = await cardNames()
-    expect(names).toEqual(expect.arrayContaining(['Resources', 'Directory', 'Carpool']))
+    // Library, not Resources: the staff's word for the list (ticket 5574dd28).
+    expect(names).toEqual(expect.arrayContaining(['Library', 'Directory', 'Carpool']))
+    expect(names).not.toContain('Resources')
     // A guardian has a Calendar tab above this page (SchoolShell), so the
     // rail does not offer the same door a second time.
     expect(names).not.toContain('Calendar')
@@ -134,7 +136,7 @@ describe('what a guardian gets', () => {
     const rail = await cardRail()
     const href = (name) =>
       within(rail).getByRole('heading', { name }).closest('a').getAttribute('href')
-    expect(href('Resources')).toBe('/resources')
+    expect(href('Library')).toBe('/resources')
     expect(href('Directory')).toBe('/family-directory')
     expect(href('Carpool')).toBe('/carpool')
   })
@@ -204,7 +206,7 @@ describe('what a student or teacher gets', () => {
   // only. A teacher keeps it; a student does not.
   it('offers the school-wide surfaces', async () => {
     expect(await cardNames()).toEqual(expect.arrayContaining([
-      'Calendar', 'Resources',
+      'Calendar', 'Library',
     ]))
   })
 

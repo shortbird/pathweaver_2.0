@@ -238,3 +238,26 @@ describe('QuestPersonalizationWizard - complexity dial', () => {
     expect(screen.getByText('100 XP')).toBeInTheDocument()
   })
 })
+
+describe('QuestPersonalizationWizard - AI switched off', () => {
+  it("shows the server's sentence, not the raw 'ai_disabled' code", async () => {
+    // Sentry 64448412: a parent acting for a child whose AI is off got a 403
+    // on generate-tasks, and the wizard printed "ai_disabled".
+    render(<QuestPersonalizationWizard {...baseProps} />)
+    await openInterestsStep()
+    api.post.mockRejectedValueOnce({
+      response: {
+        status: 403,
+        data: {
+          error: 'ai_disabled',
+          code: 'DEPENDENT_AI_DISABLED',
+          message: 'AI features are not enabled for your account. Ask your parent to enable them in their dashboard.',
+        },
+      },
+    })
+    fireEvent.click(screen.getByText('Generate Tasks'))
+
+    expect(await screen.findByText(/Ask your parent to enable them in their dashboard/)).toBeInTheDocument()
+    expect(screen.queryByText('ai_disabled')).not.toBeInTheDocument()
+  })
+})

@@ -34,6 +34,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useQuestDetail, subjectNames } from '@/src/hooks/useQuestDetail';
+import { useAiAccess } from '@/src/hooks/useAiAccess';
 import { extractApiError } from '@/src/services/apiError';
 import type { QuestViewerContext, QuestResource } from '@/src/hooks/useQuestDetail';
 import { useQuestEngagement } from '@/src/hooks/useDashboard';
@@ -867,6 +868,10 @@ export function QuestDetailView({ questId: id, studentId = null, autoOpenTaskWiz
     refetch, enroll, completeTask, generateTasks, acceptTask, adjustTask, deleteTask,
     addManualTask, analyzeManualTask,
   } = useQuestDetail(id || null, { studentId });
+  // AI task generation for the learner this screen is about: the child in
+  // parent mode, else the signed-in user. Hidden until the answer is in
+  // (Sentry 64448412 / e7429a56: the button showed, the call 403'd).
+  const { canGenerateTasks: aiAllowed, loading: aiLoading } = useAiAccess({ studentId });
   const preferredChallengeLevel = useAuthStore((s) => s.user?.preferred_challenge_level ?? null);
   const authUser = useAuthStore((s) => s.user);
   // A parent's OWN quest has no Saved for Later list on mobile (the parent
@@ -944,10 +949,12 @@ export function QuestDetailView({ questId: id, studentId = null, autoOpenTaskWiz
     if (!autoOpenTaskWizard || autoOpenedRef.current) return;
     if (!quest || !quest.user_enrollment) return;
     if ((quest.quest_tasks || []).length > 0) return;
+    if (aiLoading) return;
     autoOpenedRef.current = true;
-    setWizardStep('ai-personalize');
+    // AI off for this learner: open on the chooser (Write My Own) instead.
+    setWizardStep(aiAllowed ? 'ai-personalize' : 'choose');
     setAddTaskOpen(true);
-  }, [autoOpenTaskWizard, quest]);
+  }, [autoOpenTaskWizard, quest, aiLoading, aiAllowed]);
 
   const handleEnroll = async () => {
     setEnrolling(true);
@@ -1333,7 +1340,11 @@ export function QuestDetailView({ questId: id, studentId = null, autoOpenTaskWiz
                     <VStack space="md" className="items-center">
                       <Ionicons name="sparkles-outline" size={28} color={c.brand} />
                       <UIText size="sm" className="text-typo-500 dark:text-dark-typo-500 text-center">
-                        {studentId
+                        {!aiAllowed
+                          ? (studentId
+                            ? `No tasks yet. Write one for ${childName || 'them'} and it lands on ${childName ? `${childName}'s` : 'their'} account.`
+                            : 'No tasks yet. Write your own to get started.')
+                          : studentId
                           ? `No tasks yet. Generate a few ideas for ${childName || 'them'}, or write your own — either way they land on ${childName ? `${childName}'s` : 'their'} account.`
                           : 'No tasks yet. Generate a few ideas built around this quest, or write your own.'}
                       </UIText>
@@ -1342,14 +1353,16 @@ export function QuestDetailView({ questId: id, studentId = null, autoOpenTaskWiz
                           their own tasks" gets the message and no buttons. */}
                       {canAddTasks && quest.allow_custom_tasks !== false && (
                         <VStack space="sm" className="w-full">
-                          <Button
-                            size="lg"
-                            className="w-full"
-                            testID="empty-generate-tasks-btn"
-                            onPress={() => { setWizardStep('ai-personalize'); setAddTaskOpen(true); }}
-                          >
-                            <ButtonText>Generate task ideas</ButtonText>
-                          </Button>
+                          {aiAllowed && (
+                            <Button
+                              size="lg"
+                              className="w-full"
+                              testID="empty-generate-tasks-btn"
+                              onPress={() => { setWizardStep('ai-personalize'); setAddTaskOpen(true); }}
+                            >
+                              <ButtonText>Generate task ideas</ButtonText>
+                            </Button>
+                          )}
                           <Button
                             size="lg"
                             variant="outline"
@@ -1381,6 +1394,7 @@ export function QuestDetailView({ questId: id, studentId = null, autoOpenTaskWiz
                   onAddManualTask={addManualTask}
                   onAnalyzeManualTask={analyzeManualTask}
                   studentId={studentId}
+                  aiAllowed={aiLoading ? false : aiAllowed}
                   onAdjustTask={adjustTask}
                   // The signed-in user's remembered level, and only theirs. In
                   // parent mode that would preselect the PARENT's preference

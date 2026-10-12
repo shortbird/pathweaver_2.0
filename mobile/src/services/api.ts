@@ -12,6 +12,7 @@ import { tokenStore } from './tokenStore';
 import { postRefreshWithRetry } from './refreshRetry';
 import { recordApiCall } from './diagnostics';
 import { captureException, captureMessage } from './sentry';
+import { isAIDisabledRefusal } from '../utils/aiAccessErrors';
 
 // In dev (no EXPO_PUBLIC_API_URL set), web hits localhost and native hits a
 // platform-appropriate host loopback / LAN IP:
@@ -334,6 +335,11 @@ export function reportApiError(error: AxiosError, status: number | null) {
     reportedErrors.add(error);
   }
   if (status !== null && SILENCED_API_STATUSES.has(status)) return;
+  // AI switched off for the learner by a parent or a school: a product state,
+  // not a defect. 403 is silenced above already; this keeps these refusals
+  // out of Sentry even if 403 is ever un-silenced (Sentry 64448412 / e7429a56
+  // were these on web).
+  if (isAIDisabledRefusal(error)) return;
   const cfg = error.config;
   // No config means this isn't a failed request at all — it's a rejection that
   // re-entered the chain from an inner request. The transient-retry interceptor

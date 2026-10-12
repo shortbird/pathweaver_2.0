@@ -27,9 +27,16 @@ import { messageDraftKey, readDraft, writeDraft, clearDraft } from '../communica
  *     families picker learned on 2026-09-22, 77efe09b).
  *   - A class splits into its teacher, its aides, its students and its
  *     families, each one click.
- *   - Separately (the default) is a private thread each: no family sees
- *     another's reply. One group thread is for when everyone should see the
- *     answers.
+ *   - Separately is a private thread each: no family sees another's reply.
+ *     One group thread is for when everyone should see the answers. Which one
+ *     is picked to start with follows who is chosen (owner decision
+ *     2026-10-12, ticket 80afc28d: "can you make 'one group thread' the
+ *     default instead of separately?"): all staff starts on One group thread,
+ *     and anyone else in it -- a parent or a student -- starts on Separately,
+ *     because a group shows every family to every other. Once the sender
+ *     clicks either option, that choice stands while the picks change
+ *     (defaultModeFor). The mode is always sent; the server's own default
+ *     (message_compose_service.compose, 'separate') never decides.
  *   - The Optio message is always sent. Push and email are per-send toggles.
  *
  * Families and students always hear from the school, whichever tab this was
@@ -56,6 +63,14 @@ export const ROLE_FILTERS = [
 const KIND_WORDS = { staff: ['staff member', 'staff'], family: ['parent', 'parents'], student: ['student', 'students'] }
 
 const plural = (n, [one, many]) => `${n} ${n === 1 ? one : many}`
+
+/**
+ * How a send goes out before the sender picks (ticket 80afc28d): one group
+ * thread when every chosen person is staff, separately as soon as a parent or
+ * a student is in it. `counts` is {staff, family, student}.
+ */
+export const defaultModeFor = (counts) =>
+  counts.staff > 0 && counts.family === 0 && counts.student === 0 ? 'group' : 'separate'
 
 /** The server's answer for one person, with the same rule as a fallback. */
 export const voiceOf = (p) => p.voice || (p.kinds.includes('staff') ? 'you' : 'school')
@@ -181,7 +196,9 @@ function ComposeDialog({ orgId, orgName = '', asSchool = false, asTeacher = fals
   const [ageMin, setAgeMin] = useState('')
   const [ageMax, setAgeMax] = useState('')
   const [chosen, setChosen] = useState(() => new Set())
-  const [mode, setMode] = useState('separate')
+  // null until the sender clicks an option; until then the mode follows the
+  // picks (defaultModeFor), after that it is theirs.
+  const [pickedMode, setPickedMode] = useState(null)
   const [name, setName] = useState('')
   const [subject, setSubject] = useState(draft.subject)
   const [body, setBody] = useState(draft.body)
@@ -235,6 +252,7 @@ function ComposeDialog({ orgId, orgName = '', asSchool = false, asTeacher = fals
   const summary = Object.entries(counts).filter(([, n]) => n)
     .map(([k, n]) => plural(n, KIND_WORDS[k])).join(', ')
   const hasFamily = voices.school > 0
+  const mode = pickedMode || defaultModeFor(counts)
   const willBeGroup = mode === 'group' && chosen.size > 1
   const school = orgName || 'the school'
   const from = senderFor({ asSchool: asSchool && !asTeacher, group: willBeGroup, voices })
@@ -448,7 +466,7 @@ function ComposeDialog({ orgId, orgName = '', asSchool = false, asTeacher = fals
               <div className="space-y-1.5 text-sm text-neutral-700">
                 <label className="flex items-start gap-2">
                   <input type="radio" name="compose-mode" className="mt-0.5"
-                    checked={mode === 'separate'} onChange={() => setMode('separate')} />
+                    checked={mode === 'separate'} onChange={() => setPickedMode('separate')} />
                   <span>
                     Separately
                     <span className="block text-xs text-neutral-500">A private thread each. Nobody sees anyone else&apos;s reply.</span>
@@ -456,7 +474,7 @@ function ComposeDialog({ orgId, orgName = '', asSchool = false, asTeacher = fals
                 </label>
                 <label className="flex items-start gap-2">
                   <input type="radio" name="compose-mode" className="mt-0.5"
-                    checked={mode === 'group'} onChange={() => setMode('group')} />
+                    checked={mode === 'group'} onChange={() => setPickedMode('group')} />
                   <span>
                     One group thread
                     <span className="block text-xs text-neutral-500">

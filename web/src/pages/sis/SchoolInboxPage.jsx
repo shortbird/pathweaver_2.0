@@ -6,7 +6,6 @@ import {
   ArrowLeftIcon,
   ChatBubbleLeftRightIcon,
   CheckCircleIcon,
-  ChevronRightIcon,
   ClipboardDocumentCheckIcon,
   InboxIcon,
   MagnifyingGlassIcon,
@@ -37,6 +36,7 @@ import SchoolInboxEmailToggle from '../../components/sis/SchoolInboxEmailToggle'
 import { useSchoolInboxAccess } from '../../hooks/api/useSisMessaging'
 import SentMessagesPanel from '../../components/sis/SentMessagesPanel'
 import AllClassChatsPanel from '../../components/sis/AllClassChatsPanel'
+import InboxGroupSection, { SECTION_PREVIEW } from '../../components/sis/InboxGroupSection'
 import { formatMessageTime } from '../../components/communication/MessageParts'
 import { useAuth } from '../../contexts/AuthContext'
 import { isSisAdmin } from './sisRole'
@@ -125,13 +125,18 @@ const isClassChat = (g) => Boolean(g.source_class_id && CLASS_CHAT_TAG[g.audienc
 // (iCreate, ticket efa9bbed, 2026-10-01: "Group threads and Class chats could
 // be drop down buttons").
 //
-// The sections sit ABOVE the 1:1 threads. efa9bbed put them below, people
-// first, and then a coordinator who was a member of groups could not find
-// them: under a long list of threads the two collapsed headers were off the
-// bottom of the pane, and only a search turned them up (iCreate, tickets
-// c8e2946d + af47046f). Two one-line collapsed headers on top cost the 1:1
-// list almost nothing and cannot be lost (owner decision, 2026-10-05).
+// The order is Group threads, then the 1:1 threads, then Class chats (owner
+// decision 2026-10-12, tickets 828cea34 + 15d9eb42). efa9bbed put both group
+// sections below the people and a coordinator could not find her groups
+// (c8e2946d + af47046f), so 2026-10-05 put both on top. Then the class chats
+// sat between the office and its single and small-group threads: "Right now
+// they're below all of the class chats" (828cea34). Group threads stay on top;
+// class chats, which a teacher-heavy school has dozens of, go last.
+//
+// Each section shows its 5 newest and a "Show N more" toggle; see
+// InboxGroupSection.
 const SECTIONS_KEY = 'sis_inbox_open_sections'
+export { SECTION_PREVIEW }
 const validSections = (v) => (v && typeof v === 'object' && !Array.isArray(v) ? v : null)
 
 // Unread threads, per tab -- the same two numbers the sidebar badge
@@ -605,28 +610,13 @@ const SchoolInboxPage = () => {
     : shownClassChats.some((g) => g.id === selectedGroup.id) ? 'classChats'
       : shownGroups.some((g) => g.id === selectedGroup.id) ? 'groups' : null
   const renderGroupSection = (key, label, groups) => {
-    if (!groups.length) return null
-    const unread = groups.reduce((n, g) => n + (g.unread_count || 0), 0)
     const chosen = openSections[key] ?? (selectedGroupSection === key)
-    // A search looks inside both sections, so it opens them.
-    const open = Boolean(query) || Boolean(chosen)
     return (
-      <div className="border-t border-gray-100">
-        <button type="button" onClick={() => setOpenSections((prev) => ({ ...prev, [key]: !chosen }))}
-          aria-expanded={open}
-          className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-gray-50">
-          <ChevronRightIcon className={`w-3.5 h-3.5 flex-shrink-0 text-neutral-400 transition-transform ${open ? 'rotate-90' : ''}`} />
-          <span className="flex-1 text-[11px] font-semibold uppercase tracking-wide text-neutral-500">{label}</span>
-          <span className="text-xs text-neutral-400">{groups.length}</span>
-          {unread > 0 && (
-            <span className="flex-shrink-0 rounded-full bg-optio-purple px-1.5 py-0.5 text-[11px] font-semibold text-white"
-              aria-label={`${unread} unread in ${label}`}>
-              {unread}
-            </span>
-          )}
-        </button>
-        {open && <div className="pb-1">{groups.map(renderGroupRow)}</div>}
-      </div>
+      <InboxGroupSection key={key} label={label} groups={groups}
+        // A search looks inside both sections, so it opens them.
+        open={Boolean(query) || Boolean(chosen)} query={query} selectedId={selectedGroup?.id}
+        onToggle={() => setOpenSections((prev) => ({ ...prev, [key]: !chosen }))}
+        renderRow={renderGroupRow} />
     )
   }
 
@@ -775,20 +765,9 @@ const SchoolInboxPage = () => {
             ))}
           </div>
           <div className="flex-1 overflow-y-auto">
-            {/* The two group sections first, as drop-downs, then people
-                (c8e2946d + af47046f; see SECTIONS_KEY). */}
+            {/* Group threads, then people, then class chats (828cea34 +
+                15d9eb42; see SECTIONS_KEY). */}
             {renderGroupSection('groups', 'Group threads', shownGroups)}
-            {renderGroupSection('classChats', 'Class chats', shownClassChats)}
-            {/* Class chats are not on this tab; say where they are (bbb477db). */}
-            {schoolSide && classesOn && (
-              <p className="border-t border-gray-100 px-3 py-2 text-xs text-neutral-500">
-                Class chats are on{' '}
-                <button type="button" onClick={() => setTab(admin ? 'classes' : 'mine')}
-                  className="font-medium text-optio-purple underline hover:no-underline">
-                  {admin ? 'All class chats' : 'My messages'}
-                </button>.
-              </p>
-            )}
             {loading ? (
               <div className="flex items-center justify-center h-40">
                 <Spinner />
@@ -842,6 +821,17 @@ const SchoolInboxPage = () => {
                   tag={hasTraffic(convo) && lastWordWasOurs(convo) ? 'Their turn' : null}
                 />
               ))
+            )}
+            {renderGroupSection('classChats', 'Class chats', shownClassChats)}
+            {/* Class chats are not on this tab; say where they are (bbb477db). */}
+            {schoolSide && classesOn && (
+              <p className="border-t border-gray-100 px-3 py-2 text-xs text-neutral-500">
+                Class chats are on{' '}
+                <button type="button" onClick={() => setTab(admin ? 'classes' : 'mine')}
+                  className="font-medium text-optio-purple underline hover:no-underline">
+                  {admin ? 'All class chats' : 'My messages'}
+                </button>.
+              </p>
             )}
           </div>
         </div>

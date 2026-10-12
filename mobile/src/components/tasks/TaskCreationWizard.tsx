@@ -14,6 +14,7 @@ import {
 } from '@/src/components/ui';
 import { useThemeColors } from '@/src/hooks/useThemeColors';
 import { useTaskAuthoringRules } from '@/src/hooks/useTaskAuthoringRules';
+import { useAiAccess } from '@/src/hooks/useAiAccess';
 import { extractApiError } from '@/src/services/apiError';
 import {
   DefinitionOfDoneEditor, cleanCriteria, apiErrorCode,
@@ -83,6 +84,10 @@ interface TaskCreationWizardProps {
    *  brand-new quest" — skip straight to 'ai-personalize'. Closing the wizard
    *  resets back to this step, not to 'choose'. */
   initialStep?: 'choose' | 'ai-personalize';
+  /** Whether AI task generation is allowed for the learner, when the caller
+   *  already knows. Omitted, the wizard asks /api/ai-access/status itself
+   *  (scoped to `studentId` in parent mode). */
+  aiAllowed?: boolean;
 }
 
 // Mirrors INTEREST_OPTIONS in web/src/components/quests/QuestPersonalizationWizard.jsx
@@ -115,9 +120,16 @@ export function TaskCreationWizard({
   isClassQuest = false,
   classSubject = null,
   initialStep = 'choose',
+  aiAllowed,
 }: TaskCreationWizardProps) {
   const c = useThemeColors();
   const { rules } = useTaskAuthoringRules({ studentId, enabled: open });
+  // AI switched off for the learner (a parent's or a school's switch): no "AI
+  // Generate" choice and no "Help me finish this" -- both call endpoints that
+  // 403 ai_disabled (Sentry 64448412 / e7429a56). In parent mode the answer is
+  // the CHILD's, which is whose switches the backend checks.
+  const aiAccess = useAiAccess({ studentId, enabled: open && aiAllowed === undefined });
+  const canUseAi = aiAllowed ?? aiAccess.canGenerateTasks;
   const canEditXp = rules.canEditXp;
   const criteriaRequired = rules.requiresSuccessCriteria;
   // 13+ (or a school with the pillars off): the family picks the diploma
@@ -210,6 +222,14 @@ export function TaskCreationWizard({
     if (open && !wasOpen.current) setStep(initialStep);
     wasOpen.current = open;
   }, [open, initialStep]);
+
+  // Opened straight onto the AI step for a learner whose AI is off: fall back
+  // to the chooser (Write My Own) once the answer is in, rather than a form
+  // whose Generate button can only be refused.
+  const aiKnownOff = aiAllowed === false || (aiAllowed === undefined && !aiAccess.loading && !aiAccess.canGenerateTasks);
+  useEffect(() => {
+    if (open && aiKnownOff && (step === 'ai-personalize' || step === 'ai-review')) setStep('choose');
+  }, [open, aiKnownOff, step]);
 
   const handleManualSubmit = async () => {
     if (!manualTitle.trim()) { setError('Task title is required'); return; }
@@ -478,7 +498,9 @@ export function TaskCreationWizard({
                       </Pressable>
                     )}
 
+                    {canUseAi && (
                     <Pressable
+                      testID="wizard-ai-generate"
                       onPress={() => { setError(null); setStep('ai-personalize'); }}
                       className="flex-1 p-5 border-2 border-surface-200 dark:border-dark-surface-300 rounded-xl"
                       style={{ cursor: 'pointer' } as any}
@@ -491,6 +513,7 @@ export function TaskCreationWizard({
                         <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400 text-center">Get personalized suggestions</UIText>
                       </VStack>
                     </Pressable>
+                    )}
 
                     <Pressable
                       onPress={() => { setError(null); setStep('manual'); }}
@@ -609,7 +632,7 @@ export function TaskCreationWizard({
                     error={criteriaError}
                   />
 
-                  {onAnalyzeManualTask && (
+                  {onAnalyzeManualTask && canUseAi && (
                     <VStack space="xs">
                       <Button
                         variant="outline"

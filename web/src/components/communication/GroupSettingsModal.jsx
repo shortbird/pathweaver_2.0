@@ -258,47 +258,11 @@ const GroupSettingsModal = ({ isOpen, onClose, group }) => {
                     </button>
                   </div>
 
-                  {filteredAvailable.length > 0 ? (
-                    <div className="border border-gray-200 rounded-lg divide-y">
-                      {filteredAvailable.map(member => {
-                        const name = `${member.first_name || ''} ${member.last_name || ''}`.trim() ||
-                          member.display_name || 'Unknown'
-                        return (
-                          <div
-                            key={member.id}
-                            className="flex items-center justify-between p-3"
-                          >
-                            <div className="flex items-center gap-3">
-                              {member.avatar_url ? (
-                                <img
-                                  src={member.avatar_url}
-                                  alt={name}
-                                  className="w-8 h-8 rounded-full object-cover"
-                                />
-                              ) : (
-                                <div className="w-8 h-8 bg-optio-purple/10 rounded-full flex items-center justify-center text-optio-purple font-medium text-sm">
-                                  {name.charAt(0).toUpperCase()}
-                                </div>
-                              )}
-                              <span className="text-sm text-gray-900">{name}</span>
-                            </div>
-
-                            <button
-                              onClick={() => handleAddMember(member.id)}
-                              disabled={addMemberMutation.isPending}
-                              className="p-2 text-optio-purple hover:bg-optio-purple/10 rounded-full transition-colors disabled:opacity-50"
-                            >
-                              <UserPlusIcon className="w-4 h-4" />
-                            </button>
-                          </div>
-                        )
-                      })}
-                    </div>
-                  ) : (
-                    <p className="text-sm text-gray-500 text-center py-4">
-                      No more users available to add
-                    </p>
-                  )}
+                  <AvailableMembersList
+                    members={filteredAvailable}
+                    onAdd={handleAddMember}
+                    busy={addMemberMutation.isPending}
+                  />
                 </div>
               )}
 
@@ -523,6 +487,52 @@ const GroupSettingsModal = ({ isOpen, onClose, group }) => {
           )}
         </div>
       </div>
+    </div>
+  )
+}
+
+/**
+ * The member picker: people who can be added, each with an add button. Shared
+ * by Group Settings (a member who administers the group) and AddPeopleModal
+ * (the school adding to a group it owns, ticket 0b85c3f1).
+ */
+export const AvailableMembersList = ({ members, onAdd, busy }) => {
+  if (!members.length) {
+    return (
+      <p className="text-sm text-gray-500 text-center py-4">
+        No more users available to add
+      </p>
+    )
+  }
+  return (
+    <div className="border border-gray-200 rounded-lg divide-y">
+      {members.map(member => {
+        const name = `${member.first_name || ''} ${member.last_name || ''}`.trim() ||
+          member.display_name || 'Unknown'
+        return (
+          <div key={member.id} className="flex items-center justify-between p-3">
+            <div className="flex items-center gap-3">
+              {member.avatar_url ? (
+                <img src={member.avatar_url} alt={name} className="w-8 h-8 rounded-full object-cover" />
+              ) : (
+                <div className="w-8 h-8 bg-optio-purple/10 rounded-full flex items-center justify-center text-optio-purple font-medium text-sm">
+                  {name.charAt(0).toUpperCase()}
+                </div>
+              )}
+              <span className="text-sm text-gray-900">{name}</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => onAdd(member.id)}
+              disabled={busy}
+              aria-label={`Add ${name}`}
+              className="p-2 text-optio-purple hover:bg-optio-purple/10 rounded-full transition-colors disabled:opacity-50"
+            >
+              <UserPlusIcon className="w-4 h-4" />
+            </button>
+          </div>
+        )
+      })}
     </div>
   )
 }

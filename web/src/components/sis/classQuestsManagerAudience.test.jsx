@@ -86,8 +86,9 @@ describe('who a class quest is for', () => {
 
     await waitFor(() => expect(api.put).toHaveBeenCalledWith(
       '/api/sis/classes/c1/quests/q1/students', { student_ids: ['s1'] }))
-    // The chip now says so, from the server's answer.
-    expect(await screen.findByRole('button', { name: /1 of 2 students/ })).toBeInTheDocument()
+    // The chip now says so, from the server's answer -- by first name since
+    // 59a884f5, where it used to read "1 of 2 students".
+    expect(await screen.findByRole('button', { name: /Rock Cycle.*Ada/ })).toBeInTheDocument()
   })
 
   it('checking everyone back sends null, so newcomers keep picking it up', async () => {
@@ -95,7 +96,7 @@ describe('who a class quest is for', () => {
     api.put.mockResolvedValue({ data: { success: true, student_ids: null, summary: 'Added for 1 student.' } })
     render(withConfirm(<ClassQuestsManager classId="c1" />))
 
-    fireEvent.click(await screen.findByRole('button', { name: /1 of 2 students/ }))
+    fireEvent.click(await screen.findByRole('button', { name: /Rock Cycle.*Ada/ }))
     const picker = screen.getByRole('group', { name: 'Who gets Rock Cycle' })
     expect(within(picker).getByLabelText('Ada Lovelace')).toBeChecked()
     expect(within(picker).getByLabelText('Ben Okri')).not.toBeChecked()
@@ -104,6 +105,26 @@ describe('who a class quest is for', () => {
 
     await waitFor(() => expect(api.put).toHaveBeenCalledWith(
       '/api/sis/classes/c1/quests/q1/students', { student_ids: null }))
+  })
+
+  // iCreate, 59a884f5 (2026-10-12): "Can't see who the quests are assigned
+  // to." The row said "1 of 2 students" and never who.
+  it('names up to three students by first name', async () => {
+    mockServer({ quests: [quest({ student_ids: ['s2', 's1'] })] })
+    render(withConfirm(<ClassQuestsManager classId="c1" />))
+    expect(await screen.findByText('Ben, Ada')).toBeInTheDocument()
+  })
+
+  it('counts when more than three are picked', async () => {
+    const many = [...STUDENTS, { student_id: 's3', name: 'Cami Ray' },
+      { student_id: 's4', name: 'Brady Ray' }, { student_id: 's5', name: 'Dee Ray' }]
+    api.get.mockImplementation((url) => {
+      if (url.includes('assignable')) return Promise.resolve({ data: { quests: [] } })
+      if (url.includes('curriculum-quests')) return Promise.resolve({ data: { curricula: [] } })
+      return Promise.resolve({ data: { quests: [quest({ student_ids: ['s1', 's2', 's3', 's4'] })], students: many } })
+    })
+    render(withConfirm(<ClassQuestsManager classId="c1" />))
+    expect(await screen.findByText('4 of 5 students')).toBeInTheDocument()
   })
 
   it('will not save a quest for nobody', async () => {

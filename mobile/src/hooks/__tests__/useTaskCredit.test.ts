@@ -95,7 +95,8 @@ describe('useTaskCredit', () => {
     await waitFor(() => expect(result.current.status).toBe('none'));
 
     await act(async () => { await result.current.requestCredit(); });
-    expect(api.post).toHaveBeenCalledWith('/api/tasks/t1/credit-precheck', {});
+    // The timeout argument is new (Sentry 7541a68a); see the test below.
+    expect(api.post).toHaveBeenCalledWith('/api/tasks/t1/credit-precheck', {}, expect.anything());
     expect(result.current.precheckOpen).toBe(true);
     expect(result.current.precheck).toEqual(answer);
     // Nothing is requested until the student chooses to submit.
@@ -108,6 +109,17 @@ describe('useTaskCredit', () => {
     expect(api.post).toHaveBeenLastCalledWith('/api/tasks/t1/request-credit', {});
     expect(result.current.status).toBe('pending_review');
     expect(result.current.precheckOpen).toBe(false);
+  });
+
+  it('gives the AI precheck 90s, not the global 15s axios timeout', async () => {
+    // Sentry 7541a68a: six foreground "timeout of 15000ms exceeded" on
+    // POST /api/tasks/<id>/credit-precheck. The backend allows ~25s for
+    // evidence, 60s for the model and a slot wait, so 15s always lost.
+    (api.post as jest.Mock).mockResolvedValueOnce({ data: { data: { available: true, criteria: [] } } });
+    const { result } = renderHook(() => useTaskCredit('t1'));
+    await waitFor(() => expect(result.current.status).toBe('none'));
+    await act(async () => { await result.current.requestCredit(); });
+    expect(api.post).toHaveBeenCalledWith('/api/tasks/t1/credit-precheck', {}, { timeout: 90000 });
   });
 
   it('submits straight away when AI is off for the student', async () => {
@@ -133,7 +145,8 @@ describe('useTaskCredit', () => {
     await waitFor(() => expect(result.current.status).toBe('none'));
 
     await act(async () => { await result.current.requestCredit(); });
-    expect(api.post).toHaveBeenCalledWith('/api/tasks/t1/credit-precheck', { student_id: 'kid-1' });
+    expect(api.post).toHaveBeenCalledWith(
+      '/api/tasks/t1/credit-precheck', { student_id: 'kid-1' }, expect.anything());
     expect(api.post).toHaveBeenLastCalledWith('/api/tasks/t1/request-credit', { student_id: 'kid-1' });
   });
 

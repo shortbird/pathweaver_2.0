@@ -63,3 +63,58 @@ def quest_source_classes(client, student_id: str, quest_ids: List[str],
         out.setdefault(r['quest_id'], {'id': r['class_id'], 'name': names.get(r['class_id']),
                                        'enrolled': r['class_id'] in still_in})
     return out
+
+
+def attach_curriculum_order(client, enrollments: List[Dict[str, Any]]) -> None:
+    """Add the curriculum heading and the class's order to each enrollment's
+    `source_class`, in place.
+
+    iCreate, ticket 4cc854cd (2026-10-12, approved by the owner): "Is there a
+    way to see the quests by class as a student? ... We still wanted to have
+    these be able to be sorted. By date, order of quest, class, priority." The
+    home page groups Current quests by class, then by the curriculum inside the
+    class, and its "Class order" sort walks the work in the order the school
+    laid it out. Adds to each source_class:
+
+      curriculum_id / curriculum_title  the heading (null: under the class)
+      curriculum_rank                   the curriculum's place on the class
+      curriculum_position               the quest's place in the curriculum
+      class_position                    class_quests.sequence_order
+
+    Kept apart from quest_source_classes, whose {id, name, enrolled} three
+    overviews read as is. Two reads per class plus one for the class order;
+    a student has a handful of classes. A failed read leaves the fields null:
+    an ordering hint must not cost the page.
+    """
+    by_class: Dict[str, List[Dict[str, Any]]] = {}
+    for e in enrollments or []:
+        src = e.get('source_class')
+        if src and src.get('id'):
+            for key in ('curriculum_id', 'curriculum_title', 'curriculum_rank',
+                        'curriculum_position', 'class_position'):
+                src.setdefault(key, None)
+            by_class.setdefault(src['id'], []).append(e)
+    if not by_class:
+        return
+    # Deferred: class_curriculum_assign imports the enrollment services, which
+    # import this module's neighbours.
+    from repositories.class_curriculum_repository import ClassCurriculumRepository
+    from services.class_curriculum_assign import curriculum_placement
+    try:
+        quest_ids = sorted({str(en['quest_id']) for es in by_class.values()
+                            for en in es if en.get('quest_id')})
+        rows = ClassCurriculumRepository(client).quest_positions(sorted(by_class), quest_ids)
+        position = {(r['class_id'], r['quest_id']): r.get('sequence_order') for r in rows}
+    except Exception as err:  # noqa: BLE001
+        logger.warning(f'Could not read class quest order: {err}')
+        position = {}
+    for class_id, es in by_class.items():
+        try:
+            placement = curriculum_placement(client, class_id)
+        except Exception as ex:  # noqa: BLE001
+            logger.warning(f'Could not resolve curricula for class {class_id}: {ex}')
+            placement = {}
+        for en in es:
+            src = en['source_class']
+            src.update(placement.get(str(en.get('quest_id'))) or {})
+            src['class_position'] = position.get((class_id, en.get('quest_id')))

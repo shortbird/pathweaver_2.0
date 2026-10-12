@@ -27,6 +27,8 @@ export const clockTime = (iso) => {
 
 /** The one sentence: "Roll taken by X at 9:04 AM" or "No roll yet". */
 export const rollText = (session) => {
+  // A class that takes no roll (29dff954): nobody is waiting on one.
+  if (!session?.taken_by && session?.attendance_optional) return 'No roll for this class'
   if (!session?.taken_by) return 'No roll yet'
   const at = clockTime(session.taken_at)
   return `Roll taken by ${session.taken_by_name || 'someone'}${at ? ` at ${at}` : ''}`

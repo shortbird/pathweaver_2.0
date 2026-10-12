@@ -83,8 +83,14 @@ const linkedContext = { ...dependentContext, is_dependent: false, can_complete_t
  *  her son is 12 and has his own login; she may finish his tasks). */
 const linkedContextNow = { ...dependentContext, is_dependent: false };
 
+/** /api/ai-access/status as the backend answers for the scoped child. */
+let aiStatus: any = { has_access: true, features: { task_generation: true } };
+
 function mockQuestRead(viewer_context: typeof dependentContext, quest: any = baseQuest) {
   (api.get as jest.Mock).mockImplementation((url: string) => {
+    if (url === '/api/ai-access/status') {
+      return Promise.resolve({ data: aiStatus });
+    }
     if (url.startsWith('/api/quests/quest-1/engagement')) {
       return Promise.resolve({ data: { engagement: null } });
     }
@@ -96,6 +102,7 @@ function mockQuestRead(viewer_context: typeof dependentContext, quest: any = bas
 }
 
 beforeEach(() => {
+  aiStatus = { has_access: true, features: { task_generation: true } };
   setAuthAsParent();
   jest.clearAllMocks();
   (useLocalSearchParams as jest.Mock).mockReturnValue({ id: 'quest-1' });
@@ -239,6 +246,41 @@ describe('QuestDetailScreen in family scope', () => {
 
     await waitFor(() => expect(result.getByTestId('empty-generate-tasks-btn')).toBeTruthy());
     expect(result.getByText('Write my own')).toBeTruthy();
+  });
+
+  // Sentry 64448412 / e7429a56: the parent saw "Generate task ideas" for a
+  // child whose AI was off, and the child-scoped generate call came back 403
+  // ai_disabled. The gate must ask about the CHILD.
+  it('asks AI access for the scoped child (Sentry 64448412 / e7429a56)', async () => {
+    mockQuestRead(linkedContext, { ...baseQuest, quest_tasks: [] });
+    renderScreen();
+    await waitFor(() => expect(api.get).toHaveBeenCalledWith('/api/ai-access/status', {
+      params: { student_id: 'kid-1' },
+    }));
+  });
+
+  it("hides Generate task ideas when the child's AI is off (Sentry 64448412 / e7429a56)", async () => {
+    aiStatus = { has_access: false, code: 'DEPENDENT_AI_DISABLED', features: { task_generation: false } };
+    mockQuestRead(linkedContext, { ...baseQuest, quest_tasks: [] });
+    const result = renderScreen();
+
+    await waitFor(() => expect(result.getByText('Write my own')).toBeTruthy());
+    await waitFor(() => expect(api.get).toHaveBeenCalledWith('/api/ai-access/status', {
+      params: { student_id: 'kid-1' },
+    }));
+    expect(result.queryByTestId('empty-generate-tasks-btn')).toBeNull();
+  });
+
+  it("opens a just-created quest on the chooser, not the AI step, when the child's AI is off (Sentry 64448412 / e7429a56)", async () => {
+    aiStatus = { has_access: false, code: 'DEPENDENT_AI_DISABLED', features: { task_generation: false } };
+    (useLocalSearchParams as jest.Mock).mockReturnValue({ id: 'quest-1', new: '1' });
+    mockQuestRead(linkedContext, { ...baseQuest, quest_tasks: [] });
+    const result = renderScreen();
+
+    // 'Write My Own' (capitalized) is the wizard chooser's tile.
+    await waitFor(() => expect(result.getByText('Write My Own')).toBeTruthy());
+    expect(result.queryByText('Personalize')).toBeNull();
+    expect(result.queryByText('AI Generate')).toBeNull();
   });
 
   it('opens the wizard on its AI step for a quest the parent just created', async () => {

@@ -8,6 +8,7 @@ from flask import request, jsonify
 from . import bp
 from services.class_service import ClassService
 from utils.auth.decorators import require_role
+from utils.auth.relationships import student_scope
 from utils.sis_roles import STAFF_ROLES, ADMIN_ROLES
 from utils.roles import get_effective_roles
 from ._caller import get_caller, is_superadmin
@@ -18,7 +19,9 @@ logger = get_logger(__name__)
 
 
 @bp.route('/organizations/<org_id>/classes/<class_id>/advisors', methods=['GET'])
-@require_role('student', *STAFF_ROLES)
+@require_role('student', 'parent', *STAFF_ROLES)
+# Family scope: a guardian reads the class as the child does (ticket 8700c16d).
+@student_scope('schedule')
 def get_class_advisors(user_id, org_id, class_id):
     """
     Get all advisors assigned to a class.

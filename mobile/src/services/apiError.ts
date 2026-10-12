@@ -11,6 +11,8 @@
 // Expo runtime. Duck-typing the shape is sufficient; any caller that hands us
 // a real AxiosError will match.
 
+import { aiDisabledMessage } from '../utils/aiAccessErrors';
+
 export interface ApiErrorBody {
   error?: string | { message?: string; code?: string };
   message?: string;
@@ -51,6 +53,21 @@ export function extractApiError(err: unknown, fallback: string = SAFE_FALLBACK):
     const body = err.response?.data as ApiErrorBody | undefined;
     let message = fallback;
     let code: string | undefined;
+
+    // AI switched off for the learner: the body is
+    // { error: 'ai_disabled', message: <a sentence>, code: 'DEPENDENT_AI_DISABLED' }.
+    // The `error` field is a token, not words; show the sentence (Sentry
+    // 64448412 / e7429a56 -- the person saw "ai_disabled").
+    const aiOff = aiDisabledMessage(err);
+    if (aiOff) {
+      return {
+        status,
+        code: (body as { code?: string } | undefined)?.code,
+        message: sanitizeMessage(aiOff, fallback),
+        isNetworkError: false,
+        isAuthError: false,
+      };
+    }
 
     if (body && typeof body === 'object') {
       const raw = body.error;

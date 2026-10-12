@@ -20,10 +20,22 @@ logger = get_logger(__name__)
 
 
 @bp.route('/organizations/<org_id>/classes/<class_id>/quests', methods=['GET'])
-@require_role('student', *STAFF_ROLES)
+@require_role('student', 'parent', *STAFF_ROLES)
+@student_scope('schedule')
 def get_class_quests(user_id, org_id, class_id):
     """
     Get all quests assigned to a class.
+
+    Family scope (iCreate, ticket 8700c16d, an org admin who is also a parent:
+    "When I am working with brady I don't actually see his classes"): with a
+    `student_id` the guardian gate swaps `user_id` for the child, so the
+    access check and the audience filter below are the CHILD's -- the parent
+    sees the class as Brady sees it, not the whole class as its org admin.
+
+    Each row carries `curriculum_title` (null for a quest on none of the
+    class's curricula), so the student's class page can put the quests under
+    their curriculum headings instead of one flat run (same ticket: "they
+    aren't organized by class (or in any way for that matter)").
 
     Returns:
     {
@@ -68,6 +80,7 @@ def get_class_quests(user_id, org_id, class_id):
             student_id=None if is_staff(effective_roles) else user_id)
         if is_staff(effective_roles):
             _mark_editable(user_id, quests)
+        _attach_curriculum(class_id, quests)
 
         return jsonify({
             'success': True,
@@ -80,6 +93,26 @@ def get_class_quests(user_id, org_id, class_id):
             'success': False,
             'error': 'Failed to get quests'
         }), 500
+
+
+def _attach_curriculum(class_id, rows):
+    """Stamp curriculum_title (and its order) on each class quest row. A
+    heading must not cost the page: on a failed read every row says null and
+    the page lists them under the class, as before."""
+    from services.class_curriculum_assign import curriculum_placement
+    try:
+        # admin client justified: the caller passed can_access_class above;
+        # reads only this class's curriculum links and their saved quest sets.
+        placement = curriculum_placement(get_supabase_admin_client(), class_id)
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f"Could not resolve curricula for class {class_id}: {e}")
+        placement = {}
+    for row in rows:
+        p = placement.get(row.get('quest_id') or (row.get('quests') or {}).get('id')) or {}
+        row['curriculum_id'] = p.get('curriculum_id')
+        row['curriculum_title'] = p.get('curriculum_title')
+        row['curriculum_rank'] = p.get('curriculum_rank')
+        row['curriculum_position'] = p.get('curriculum_position')
 
 
 def _mark_editable(user_id, rows):
@@ -613,7 +646,9 @@ def get_available_quests(user_id, org_id):
 
 
 @bp.route('/organizations/<org_id>/classes/<class_id>/courses', methods=['GET'])
-@require_role('student', *STAFF_ROLES)
+@require_role('student', 'parent', *STAFF_ROLES)
+# Family scope: a guardian reads the class as the child does (ticket 8700c16d).
+@student_scope('schedule')
 def get_class_courses(user_id, org_id, class_id):
     """The courses this class inherits from its curriculum.
 

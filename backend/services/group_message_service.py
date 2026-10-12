@@ -15,6 +15,19 @@ from utils.logger import get_logger
 logger = get_logger(__name__)
 
 
+def _without_archived_class_chats(rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """`rows` minus the chats of archived classes (ticket 3bdf06bb: an
+    archived class kept its chats in everyone's list for good)."""
+    class_ids = [g.get('source_class_id') for g in rows or [] if g.get('source_class_id')]
+    if not class_ids:
+        return rows
+    from services.class_group_sync_service import archived_class_ids
+    archived = archived_class_ids(class_ids)
+    if not archived:
+        return rows
+    return [g for g in rows if g.get('source_class_id') not in archived]
+
+
 class GroupMessageService(BaseService):
     """Service for group messaging operations"""
 
@@ -267,7 +280,7 @@ class GroupMessageService(BaseService):
     def create_group(
         self,
         user_id: str,
-        name: str,
+        name: Optional[str],
         description: Optional[str] = None,
         member_ids: Optional[List[str]] = None,
         organization_id: Optional[str] = None,
@@ -278,7 +291,8 @@ class GroupMessageService(BaseService):
 
         Args:
             user_id: UUID of the creator
-            name: Group name
+            name: Group name. Blank is allowed: the group is then named from
+                its members' first names (message_compose_service.default_group_name).
             description: Optional group description
             member_ids: Optional list of member UUIDs to add
             organization_id: Org the group belongs to. Defaults to the creator's.
@@ -310,6 +324,17 @@ class GroupMessageService(BaseService):
                 if not creator.data or creator.data.get('role') != 'superadmin':
                     raise ValueError("You cannot create a group in another organization")
             organization_id = organization_id or creator_org
+
+            # A group can go without a name (ticket 9c774b30: "is there a way
+            # we can have a group chat without making a whole GROUP thread? I
+            # would like to just send a message to two other people."). It is
+            # then named from its people the way Compose names one --
+            # "Ada, Sam and 1 other" -- by the one helper that does that.
+            name = (name or '').strip()
+            if not name:
+                from services.message_compose_service import default_group_name
+                name = default_group_name(
+                    [m for m in dict.fromkeys(member_ids or []) if m and m != user_id])
 
             # Create group
             group_id = str(uuid.uuid4())
@@ -467,6 +492,73 @@ class GroupMessageService(BaseService):
         reading a thread reads it for the office, as with school DMs)."""
         return [g for g in self.get_user_groups(inbox_user_id)
                 if g.get('created_by') == inbox_user_id]
+
+    # ── "Add people" on a group the school owns (ticket 0b85c3f1) ────────────
+    #
+    # "We need a way to add someone to a group thread who is not already on
+    # it." POST /api/groups/<id>/members needs a group ADMIN, and a school
+    # group's admin is the inbox account nobody signs in as, so the office
+    # could not add anybody. The route (routes/school_inbox.py) has already
+    # checked school_group_access + inbox_access; these hold the WHO rule.
+    #
+    # Who may be added is who the console's Compose may put in a school group
+    # in the first place: message_compose_service.people_kinds -- the school's
+    # staff, its current students and their guardians. can_add_member is not
+    # the rule here for the reason create_school_group gives: it compares the
+    # ADDER's org with the target's, and the inbox account has none (and a
+    # guardian has none either).
+
+    def school_available_members(self, org_id: str, group_id: str) -> List[Dict[str, Any]]:
+        """The people the school may add to its group: the school's people,
+        minus the group's members, with names (for the member picker)."""
+        from repositories.group_repository import GroupRepository
+        from repositories.school_thread_repository import SchoolThreadRepository
+        from services import message_compose_service
+        kinds = message_compose_service.people_kinds(org_id)
+        have = set(GroupRepository(client=self._get_client()).member_ids(group_id))
+        ids = [u for u in kinds if u not in have]
+        names = SchoolThreadRepository(client=self._get_client()).user_names(ids)
+        out = []
+        for uid in ids:
+            row = names.get(uid) or {}
+            out.append({
+                'id': uid,
+                'first_name': row.get('preferred_name') or row.get('first_name'),
+                'last_name': row.get('last_name'),
+                'display_name': row.get('display_name'),
+                'kind': kinds[uid],
+            })
+        out.sort(key=lambda r: ((r.get('first_name') or r.get('display_name') or '').lower(),
+                                (r.get('last_name') or '').lower()))
+        return out
+
+    def add_school_member(self, org_id: str, group_id: str, actor_id: str,
+                          target_user_id: str,
+                          group_audience: Optional[str] = None) -> Dict[str, Any]:
+        """Add one person to a school-owned group. Raises ValueError (nothing
+        written) when they are not one of the school's people or are already
+        in it. The room's audience follows the people in it, the way Compose
+        files a mixed room (message_compose_service._group_audience): adding a
+        student to a staff room makes it a student room, whose adults' words
+        are screened like a class chat's. It never steps back down."""
+        from repositories.group_repository import GroupRepository
+        from services import message_compose_service
+        if not target_user_id:
+            raise ValueError('Choose someone to add')
+        kinds = message_compose_service.people_kinds(org_id)
+        kind = kinds.get(target_user_id)
+        if not kind:
+            raise ValueError('Only staff, students and parents at this school can be added')
+        repo = GroupRepository(client=self._get_client())
+        if target_user_id in set(repo.member_ids(group_id)):
+            raise ValueError('They are already in this group')
+        row = repo.insert_member(self._member_row(group_id, target_user_id, 'member',
+                                                  added_by=actor_id))
+        current = group_audience or 'staff'
+        widened = message_compose_service._group_audience([current, kind])
+        if widened != current:
+            repo.set_audience(group_id, widened)
+        return row
 
     def get_group(self, user_id: str, group_id: str) -> Dict[str, Any]:
         """
@@ -780,7 +872,10 @@ class GroupMessageService(BaseService):
             from services import student_chat_service
             chat_closed = student_chat_service.closed_for(user_id)
             count = 0
-            for group in repo.active_groups(list(last_read_by_group)):
+            # Same rule as get_user_groups: a hidden archived-class chat must
+            # not light the badge (ticket 3bdf06bb).
+            for group in _without_archived_class_chats(
+                    repo.active_groups(list(last_read_by_group))):
                 if owned_by and group.get('created_by') != owned_by:
                     continue
                 if chat_closed and student_chat_service.is_student_group(group):
@@ -837,6 +932,9 @@ class GroupMessageService(BaseService):
             if rows and student_chat_service.closed_for(user_id):
                 rows = [g for g in rows
                         if not student_chat_service.is_student_group(g)]
+            # An archived class's chats leave the list (ticket 3bdf06bb). The
+            # group and its history stay; un-archiving the class brings it back.
+            rows = _without_archived_class_chats(rows)
             if not rows:
                 return []
 

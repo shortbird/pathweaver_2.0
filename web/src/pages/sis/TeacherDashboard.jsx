@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react'
+import React, { useCallback, useDeferredValue, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { toast } from 'react-hot-toast'
 import { ClipboardDocumentCheckIcon, ChatBubbleLeftRightIcon } from '@heroicons/react/24/outline'
@@ -60,6 +60,9 @@ const TeacherDashboard = ({ orgId, userName, preview = null }) => {
   // we have a search function, and a checkbox so teachers can resolve
   // multiple things at a time?").
   const [alertQuery, setAlertQuery] = useState('')
+  // The list filters on a deferred copy so the box never waits on it
+  // (ticket a8049dcb: characters dropped while typing in a console search).
+  const deferredAlertQuery = useDeferredValue(alertQuery)
   const [selectedAlerts, setSelectedAlerts] = useState(() => new Set())
   const [bulkResolving, setBulkResolving] = useState(false)
 
@@ -147,12 +150,12 @@ const TeacherDashboard = ({ orgId, userName, preview = null }) => {
   // happened. Hidden rows stay selected but are never resolved -- only what is
   // on screen goes in the bulk request.
   const visibleAlerts = useMemo(() => {
-    const q = alertQuery.trim().toLowerCase()
+    const q = deferredAlertQuery.trim().toLowerCase()
     if (!q) return alerts
     return alerts.filter((a) =>
       [a.student_name, a.class_name, alertMessage(a)]
         .some((v) => (v || '').toLowerCase().includes(q)))
-  }, [alerts, alertQuery])
+  }, [alerts, deferredAlertQuery])
   const selectedVisibleIds = visibleAlerts.filter((a) => selectedAlerts.has(a.id)).map((a) => a.id)
   const allVisibleSelected = visibleAlerts.length > 0 && selectedVisibleIds.length === visibleAlerts.length
 

@@ -129,6 +129,9 @@ def overdue_rolls(schedule: List[Dict[str, Any]], taken_class_ids: Set[str],
         start = _minutes(m.get('start_time'))
         if start is None or m.get('class_id') in taken_class_ids:
             continue
+        # A class that takes no roll is never late with one (29dff954).
+        if m.get('attendance_optional'):
+            continue
         if not m.get('enrolled_count'):
             continue
         if now_minutes - start > grace:
@@ -445,9 +448,15 @@ def teachers_to_check(org_id: str, now: datetime, schedule: List[Dict[str, Any]]
 def annotate_schedule(schedule: List[Dict[str, Any]],
                       sessions: Dict[str, Dict[str, Any]]) -> List[Dict[str, Any]]:
     """Put each class's session on its Today's schedule row, so the row can say
-    "Roll taken by X at 9:04" or "No roll yet"."""
+    "Roll taken by X at 9:04" or "No roll yet".
+
+    A class that takes no roll (29dff954) carries attendance_optional on its
+    roll, so the row says so instead of "No roll yet"."""
     for m in schedule or []:
-        m['roll'] = sessions.get(m.get('class_id') or '')
+        roll = sessions.get(m.get('class_id') or '')
+        if m.get('attendance_optional'):
+            roll = {**(roll or {}), 'attendance_optional': True}
+        m['roll'] = roll
     return schedule
 
 
@@ -494,6 +503,9 @@ def history(org_id: str, date_from: str, date_to: str, tz=None) -> Dict[str, Any
         return {'error': 'from must be on or before to'}
     rows = _repo().in_range(org_id, date_from, date_to)
     classes = _class_names(r['class_id'] for r in rows)
+    # A class that takes no roll has nothing to review (29dff954).
+    rows = [r for r in rows
+            if not (classes.get(r['class_id']) or {}).get('attendance_optional')]
     described = _describe_all(rows)
     teacher_names = _names(c.get('primary_instructor_id') for c in classes.values())
     # Whether the taker was an assigned teacher, answered today: one query per

@@ -527,6 +527,13 @@ def _default_name(recipients: List[str]) -> str:
     return label[:MAX_NAME]
 
 
+def default_group_name(recipients: List[str]) -> str:
+    """The public name of _default_name, for a group made without one outside
+    Compose (GroupMessageService.create_group, ticket 9c774b30). One rule for
+    every unnamed group, so the two lists read alike."""
+    return _default_name(list(recipients or []))
+
+
 # ── Reading sends back ────────────────────────────────────────────────────────
 
 def list_sends(org_id: str, *, limit: int = 30, offset: int = 0) -> List[Dict[str, Any]]:

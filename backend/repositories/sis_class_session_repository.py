@@ -106,12 +106,14 @@ class SisClassSessionRepository(BaseRepository):
     # assigned teachers, and "which classes have attendance on this date".
 
     def classes_by_ids(self, class_ids: List[str]) -> Dict[str, Dict[str, Any]]:
-        """class_id -> {id, name, primary_instructor_id, assistant_instructor_ids}."""
+        """class_id -> {id, name, primary_instructor_id, assistant_instructor_ids,
+        attendance_optional}."""
         ids = sorted({c for c in class_ids if c})
         out: Dict[str, Dict[str, Any]] = {}
         for i in range(0, len(ids), 100):
             for c in (self.client.table('org_classes')
-                      .select('id, name, primary_instructor_id, assistant_instructor_ids')
+                      .select('id, name, primary_instructor_id, assistant_instructor_ids, '
+                              'attendance_optional')
                       .in_('id', ids[i:i + 100]).execute()).data or []:
                 out[c['id']] = c
         return out

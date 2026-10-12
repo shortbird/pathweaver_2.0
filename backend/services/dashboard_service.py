@@ -13,7 +13,7 @@ import logging
 
 from database import get_supabase_admin_client
 from utils.class_assignments import student_class_assignments
-from services.student_quest_sources import quest_source_classes
+from services.student_quest_sources import attach_curriculum_order, quest_source_classes
 from utils.quest_status import is_enrollment_complete
 from utils.validation.sanitizers import pgrst_timestamp
 
@@ -395,6 +395,12 @@ class DashboardService:
             sources = {}
         for enrollment in quests:
             enrollment['source_class'] = sources.get(enrollment.get('quest_id'))
+        # The curriculum heading and the school's order inside each class: the
+        # home page groups and sorts Current quests by them (ticket 4cc854cd).
+        try:
+            attach_curriculum_order(self.client, quests)
+        except Exception as e:  # noqa: BLE001 — an ordering hint must not cost the page
+            logger.warning(f"Could not attach curriculum order for {user_id}: {e}")
         return quests
 
     def _filter_stale_quests(self, quests: List[Dict]) -> List[Dict]:

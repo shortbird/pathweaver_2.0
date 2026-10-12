@@ -132,4 +132,33 @@ export const useGiveQuestToStudents = (orgId) => {
   })
 }
 
+// Take a quest off one curriculum (iCreate, 79a54ac2, 2026-10-12: "Can't
+// unassign on curriculum or classes from here."). Only the curriculum link
+// goes: classes that already have the quest keep it, the same as removing it
+// in the curriculum's own quest list.
+export const useRemoveQuestFromCurriculum = (orgId) => {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ questId, curriculumId }) => {
+      const res = await api.delete(withOrg(`/api/sis/quests/${questId}/curricula/${curriculumId}`, orgId))
+      return res.data
+    },
+    onSuccess: () => invalidateLibrary(queryClient, orgId),
+  })
+}
+
+// Take a quest off one class, through the class page's own unassign. The
+// server also takes it out of the accounts of the students the class gave it
+// to: untouched ones lose it, started ones keep their work (b38c5085).
+export const useUnassignQuestFromClass = (orgId) => {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ questId, classId }) => {
+      const res = await api.delete(withOrg(`/api/sis/classes/${classId}/quests/${questId}`, orgId))
+      return res.data
+    },
+    onSuccess: () => invalidateLibrary(queryClient, orgId),
+  })
+}
+
 export default useSisQuestLibrary

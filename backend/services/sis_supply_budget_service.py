@@ -157,6 +157,18 @@ def _spend_by_class(org_id: str, class_ids: List[str]) -> Dict[str, Dict[str, An
     return out
 
 
+def _logged_by_class(org_id: str, class_ids: List[str]) -> Dict[str, Dict[str, Any]]:
+    """{class_id: {spent, items}} from the class's own expense log (ticket
+    e7a50b4b). Best-effort like the request history: a failed read leaves the
+    ceiling standing."""
+    from services import sis_supply_expense_service as expenses
+    try:
+        return expenses.for_classes(org_id, class_ids)
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f'Supply expense log unavailable for {org_id}: {e}')
+        return {}
+
+
 def budget_for_classes(org_id: str, classes: List[Dict[str, Any]]) -> Dict[str, Dict[str, Any]]:
     """{class_id: budget breakdown} for the given org_classes rows."""
     settings = _org_settings(org_id)
@@ -166,6 +178,7 @@ def budget_for_classes(org_id: str, classes: List[Dict[str, Any]]) -> Dict[str, 
 
     counts = _enrolled_counts([c['id'] for c in classes])
     spend = _spend_by_class(org_id, [c['id'] for c in classes])
+    logged = _logged_by_class(org_id, [c['id'] for c in classes])
     out = {}
     for c in classes:
         students = counts.get(c['id'], 0)
@@ -184,15 +197,20 @@ def budget_for_classes(org_id: str, classes: List[Dict[str, Any]]) -> Dict[str, 
         }
         # What is left, and what it went on.
         s = spend.get(c['id']) or {'spent': 0.0, 'committed': 0.0, 'items': []}
+        # The expense log (e7a50b4b) is money already gone, so it is both
+        # spent and committed. The retired requests keep their own split.
+        log = logged.get(c['id']) or {'spent': 0.0, 'items': []}
         out[c['id']].update({
-            'spent': s['spent'],
-            'committed': s['committed'],
+            'spent': round(s['spent'] + log['spent'], 2),
+            'committed': round(s['committed'] + log['spent'], 2),
+            'logged': log['spent'],
+            'expenses': log['items'],
             # Against COMMITTED, not spent: a teacher planning the next purchase
             # needs the request they filed on Tuesday to already be gone from
             # what they have left. Can go negative, and says so rather than
             # clamping — an over-committed class is a thing the office wants to
             # see, not a zero.
-            'remaining': round(out[c['id']]['total'] - s['committed'], 2),
+            'remaining': round(out[c['id']]['total'] - s['committed'] - log['spent'], 2),
             'transactions': s['items'],
         })
     return out

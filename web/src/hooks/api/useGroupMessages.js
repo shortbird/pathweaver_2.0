@@ -137,18 +137,24 @@ export const useUpdateGroup = () => {
 }
 
 // Add member to group
+// With a school `source` it adds through the office's own route,
+// /api/school-inbox/groups/<id>/members (ticket 0b85c3f1): a school group's
+// admin is the inbox account, so /api/groups/<id>/members refuses the office.
 export const useAddMember = () => {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: async ({ groupId, userId }) => {
-      const response = await api.post(`/api/groups/${groupId}/members`, {
+    mutationFn: async ({ groupId, userId, source }) => {
+      const response = await api.post(groupSourcePath(source, `/${groupId}/members`), {
         user_id: userId
       })
       return response.data.data || response.data
     },
     onSuccess: (data, variables) => {
+      // Prefix keys: the member's view and the school's view of the group.
       queryClient.invalidateQueries({ queryKey: ['group', variables.groupId] })
+      queryClient.invalidateQueries({ queryKey: ['available-members', variables.groupId] })
+      queryClient.invalidateQueries({ queryKey: ['groups'] })
       toast.success('Member added successfully')
     },
     onError: (error) => {
@@ -507,11 +513,11 @@ export const useMarkGroupAsRead = () => {
 }
 
 // Get available members to add
-export const useAvailableMembers = (groupId, options = {}) => {
+export const useAvailableMembers = (groupId, { source, ...options } = {}) => {
   return useQuery({
-    queryKey: ['available-members', groupId],
+    queryKey: ['available-members', groupId, ...sourceKey(source)],
     queryFn: async () => {
-      const response = await api.get(`/api/groups/${groupId}/available-members`)
+      const response = await api.get(groupSourcePath(source, `/${groupId}/available-members`))
       return response.data.data || response.data
     },
     enabled: !!groupId,

@@ -22,6 +22,9 @@ import { moduleEnabled } from '../../modules/moduleEnabled'
 import { useFamilyAttention } from './FamilyHomeData'
 import { useSisParentContext } from '../../hooks/api/useSchoolContext'
 import { isFamilyFirstHubOrg } from '../../config/optioAcademy'
+import useFamilyVolunteerHours from '../../hooks/api/useFamilyVolunteerHours'
+import VolunteerHoursLine from '../../components/school/VolunteerHoursLine'
+import WhoToContactCard from '../../components/parent/WhoToContactCard'
 
 /**
  * Family Home — the ONE parent dashboard, at /family (2026-09-15).
@@ -100,6 +103,27 @@ function AttentionStrip({ items }) {
         })}
       </div>
     </section>
+  )
+}
+
+/** One school's volunteer hours for this family, when the school keeps them.
+ *
+ * iCreate 2fab910a/9db5bde3: "I know you just added a tracker to track hours
+ * and also comments for it... I'm not seeing it from the parent side." The
+ * line lived only on the school pages (SchoolShell), and parents land here.
+ * The server's `shown` decides: a school that never uses the field shows
+ * nothing. */
+function SchoolVolunteerHours({ org, named }) {
+  const volunteer = useFamilyVolunteerHours(org.organization_id)
+  if (!volunteer.shown) return null
+  return (
+    <VolunteerHoursLine
+      hours={volunteer.hours}
+      updatedAt={volunteer.updatedAt}
+      note={volunteer.note}
+      align="start"
+      label={named && org.organization_name ? `Volunteer hours at ${org.organization_name}` : 'Volunteer hours'}
+    />
   )
 }
 
@@ -227,7 +251,23 @@ export default function FamilyHome() {
         </button>
       </div>
 
+      {/* Every school this person is a guardian at; a family at two schools
+          sees each one named. */}
+      {(parentOrgs || []).map((o) => (
+        <SchoolVolunteerHours key={o.organization_id} org={o} named={parentOrgs.length > 1} />
+      ))}
+
       <AttentionStrip items={attentionItems} />
+
+      {/* Who to contact (ticket c58b7c0b): the school's "for this, ask that
+          person" list, kept in SIS Settings. Nothing when the list is empty. */}
+      {(parentOrgs || []).map((o) => (
+        <WhoToContactCard
+          key={o.organization_id}
+          contacts={o.family_contacts}
+          schoolName={parentOrgs.length > 1 ? o.organization_name : null}
+        />
+      ))}
 
       {/* FERPA: a child's portfolio goes public only with a guardian's yes. */}
       <VisibilityApprovalSection />

@@ -54,7 +54,12 @@ export function CreateGroupModal({ visible, onClose, onCreated }: Props) {
 
   const handleCreate = async () => {
     setError('');
-    if (!name.trim()) { setError('Group name is required'); return; }
+    // The name is optional (ticket 9c774b30, same rule as the web form): left
+    // blank, the server names the group from its members' first names.
+    if (!name.trim() && selected.length === 0) {
+      setError('Add at least one person, or give the group a name');
+      return;
+    }
     if (name.length > 100) { setError('Group name must be 100 characters or less'); return; }
 
     try {
@@ -118,12 +123,12 @@ export function CreateGroupModal({ visible, onClose, onCreated }: Props) {
             {/* Group Name */}
             <View>
               <UIText size="sm" className="font-poppins-medium text-typo-700 dark:text-dark-typo-700 mb-1">
-                Group Name *
+                Group Name (optional)
               </UIText>
               <TextInput
                 value={name}
                 onChangeText={setName}
-                placeholder="Enter group name"
+                placeholder="Leave blank to use their first names"
                 placeholderTextColor={c.textFaint}
                 maxLength={100}
                 className="border border-surface-200 dark:border-dark-surface-300 rounded-lg px-3 py-2.5 font-poppins text-sm text-typo dark:text-dark-typo"
@@ -238,7 +243,9 @@ export function CreateGroupModal({ visible, onClose, onCreated }: Props) {
             <Button
               size="md"
               onPress={handleCreate}
-              isDisabled={creating || !name.trim()}
+              // A name OR at least one member (ticket 9c774b30). Gating on the
+              // name alone kept the button off for a nameless chat with people.
+              isDisabled={creating || (!name.trim() && selected.length === 0)}
             >
               <ButtonText>{creating ? 'Creating...' : 'Create Group'}</ButtonText>
             </Button>

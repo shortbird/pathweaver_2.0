@@ -10,6 +10,7 @@ import ParentDigestCard from './cards/ParentDigestCard'
 import PillarsCard from './cards/PillarsCard'
 import StepPrintingCard from './cards/StepPrintingCard'
 import IncidentReportsCard from './cards/IncidentReportsCard'
+import FamilyContactsCard from './cards/FamilyContactsCard'
 import FriendsCard from './cards/FriendsCard'
 import StudentChatCard from './cards/StudentChatCard'
 import FeaturesCard from './cards/FeaturesCard'
@@ -53,6 +54,10 @@ export const SETTINGS_CARDS = [
   { key: 'time-blocks', module: 'classes', surfaces: ['console'], Component: TimeBlocksCard },
   { key: 'calendar-categories', module: 'calendar', surfaces: ['console'], Component: CalendarCategoriesCard },
   { key: 'quick-links', surfaces: ['console'], Component: QuickLinksCard },
+  // Who to contact (ticket c58b7c0b): the "for this, ask that person" list
+  // families see on their home. Console only: the office keeps it, and only
+  // an SIS school has the staff and families it names.
+  { key: 'family-contacts', surfaces: ['console'], Component: FamilyContactsCard },
   // Who gets a staff member's incident report by default (ticket a26d9daf).
   // Console only: filing and working the reports both happen in the SIS.
   // `modules` (any of): a report lands as a task, and /api/sis/incident-reports

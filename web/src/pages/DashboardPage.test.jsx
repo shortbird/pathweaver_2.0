@@ -807,6 +807,38 @@ describe('DashboardPage current quests grouped by class (ticket a4c5d2e2)', () =
     expect(order).toEqual(['Biology', 'Personal', 'Art'])
   })
 
+  it('puts a class\'s quests under their curriculum (ticket 4cc854cd)', () => {
+    // "Is there a way to see the quests by class as a student? Or to see them
+    // grouped here by class?"
+    const indep = (curriculum_title, curriculum_rank) => ({
+      id: 'c-ind', name: 'Independent study', enrolled: true,
+      curriculum_id: curriculum_title ? `cur-${curriculum_rank}` : null,
+      curriculum_title, curriculum_rank,
+    })
+    show([
+      enrollment('q-phys', 'Forces', indep('Applied Physics', 1)),
+      enrollment('q-hist', 'Colonies', indep('U.S. History 1', 0)),
+      enrollment('q-loose', 'Reading log', indep(null, null)),
+    ])
+    const cls = screen.getByRole('region', { name: 'Independent study' })
+    const hist = within(cls).getByText('U.S. History 1')
+    const phys = within(cls).getByText('Applied Physics')
+    expect(hist.compareDocumentPosition(phys)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
+    expect(within(cls).getByTestId('quest-card-q-loose')).toBeInTheDocument()
+  })
+
+  it('sorts Current Quests by due date and remembers the choice (ticket 4cc854cd)', () => {
+    localStorage.clear()
+    const late = { ...enrollment('q-late', 'Late'), class_assignment: { due_date: '2026-12-01T00:00:00Z' } }
+    const soon = { ...enrollment('q-soon', 'Soon'), class_assignment: { due_date: '2026-10-20T00:00:00Z' } }
+    show([late, enrollment('q-none', 'Undated'), soon])
+    fireEvent.change(screen.getByLabelText('Sort current quests'), { target: { value: 'due' } })
+    const ids = screen.getAllByTestId(/^quest-card-/).map((el) => el.getAttribute('data-testid'))
+    expect(ids).toEqual(['quest-card-q-soon', 'quest-card-q-late', 'quest-card-q-none'])
+    expect(localStorage.getItem('optio.currentQuests.sort')).toBe('due')
+    localStorage.clear()
+  })
+
   it('draws no headings when no quest came through a class', () => {
     show([enrollment('q-1', 'One'), enrollment('q-2', 'Two')])
     expect(screen.getByTestId('quest-card-q-1')).toBeInTheDocument()

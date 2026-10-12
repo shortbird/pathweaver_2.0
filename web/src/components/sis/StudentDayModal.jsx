@@ -108,7 +108,10 @@ const StudentDayModal = ({ studentId, studentName, date, orgId, onClose, onOpenR
                     </span>
                     {c.status
                       ? <StatusPill domain="attendance" status={c.status} />
-                      : <span className={`text-[11px] font-semibold rounded-full px-2 py-0.5 shrink-0 ${NOT_TAKEN}`}>Roll not taken</span>}
+                      : <span className={`text-[11px] font-semibold rounded-full px-2 py-0.5 shrink-0 ${NOT_TAKEN}`}>
+                          {/* 29dff954: a class that takes no roll is not a gap. */}
+                          {c.attendance_optional ? 'No roll for this class' : 'Roll not taken'}
+                        </span>}
                     {onOpenRoster && (
                       <button type="button"
                         onClick={() => { onOpenRoster(c.class_id, day.date); onClose() }}

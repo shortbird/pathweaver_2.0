@@ -84,6 +84,40 @@ def _curriculum_quest_ids(admin, curriculum_id):
     return [r['quest_id'] for r in rows]
 
 
+# A class that gives a curriculum to nobody yet: push it nothing.
+SKIP = object()
+
+
+def _class_audience_for_curriculum(rows, curriculum_quest_ids):
+    """Who a class gives this curriculum to, read off the class's own rows.
+
+    iCreate, 30968a7e (2026-10-12), an org admin on the "Independent Study"
+    class: "I did not assign Independent Study: Science to the kids in the
+    class, but it assigned it anyway." A class like that gives each of its
+    curricula to the students taking it (the class page's per-curriculum
+    "Who gets it", 823de297), and that choice lives nowhere but on the
+    class_quests rows the curriculum's quests already have on the class. The
+    push used to ignore it and put every new quest on the whole class.
+
+    `rows` are the class's class_quests rows (with student_ids). Returns:
+      - None          the whole class: a row of this curriculum is whole-class,
+                      or the class keeps nothing to chosen students at all (an
+                      ordinary section, where a curriculum is the class's)
+      - [ids...]      the union of the students this curriculum's rows are for
+      - SKIP          the class keeps quests to chosen students and gives this
+                      curriculum to nobody yet: assign nothing. The teacher
+                      gives it from the curriculum card when someone takes it.
+    """
+    mine = [r for r in rows if r['quest_id'] in curriculum_quest_ids]
+    if mine:
+        if any(r.get('student_ids') is None for r in mine):
+            return None
+        return sorted({s for r in mine for s in (r.get('student_ids') or [])})
+    if any(r.get('student_ids') is not None for r in rows):
+        return SKIP
+    return None
+
+
 def push_curriculum_quests_to_classes(admin, curriculum_id, org_id, user_id,
                                       quest_ids=None, class_ids=None):
     """Put a curriculum's quests on its classes so enrolled students see them.
@@ -91,6 +125,12 @@ def push_curriculum_quests_to_classes(admin, curriculum_id, org_id, user_id,
     Additive and idempotent. A quest already on a class is left exactly as it is,
     publish_at and due_date included -- re-running this changes nothing, which is
     what makes it safe to call on every library edit.
+
+    Each new row goes to the students the class already gives this curriculum
+    to (_class_audience_for_curriculum), not automatically to the whole class:
+    a class that keeps a curriculum to two students gets the curriculum's new
+    quest for those two, and a class that gives the curriculum to nobody gets
+    nothing.
 
     quest_ids: which quests to push (default: the curriculum's whole set).
     class_ids: which classes to push onto (default: every active attached class).
@@ -102,7 +142,8 @@ def push_curriculum_quests_to_classes(admin, curriculum_id, org_id, user_id,
     who attaches a quest should be told it reached 3 classes, not left guessing
     the way this bug left them guessing before.
     """
-    wanted = quest_ids if quest_ids is not None else _curriculum_quest_ids(admin, curriculum_id)
+    saved = _curriculum_quest_ids(admin, curriculum_id)
+    wanted = quest_ids if quest_ids is not None else saved
     wanted = assignable_quest_ids(admin, wanted, org_id)
     if not wanted:
         return {'classes': 0, 'assignments': 0}
@@ -116,23 +157,31 @@ def push_curriculum_quests_to_classes(admin, curriculum_id, org_id, user_id,
     if not targets:
         return {'classes': 0, 'assignments': 0}
 
-    existing = (admin.table('class_quests').select('class_id, quest_id, sequence_order')
+    existing = (admin.table('class_quests')
+                .select('class_id, quest_id, sequence_order, student_ids')
                 .in_('class_id', targets).execute()).data or []
-    have, next_order = {}, {}
+    by_class, next_order = {}, {}
     for r in existing:
-        have.setdefault(r['class_id'], set()).add(r['quest_id'])
+        by_class.setdefault(r['class_id'], []).append(r)
         order = r.get('sequence_order') or 0
         next_order[r['class_id']] = max(next_order.get(r['class_id'], -1), order)
 
+    curriculum_set = set(saved)
     rows = []
     touched = set()
     for class_id in targets:
+        class_rows = by_class.get(class_id, [])
+        have = {r['quest_id'] for r in class_rows}
+        audience = _class_audience_for_curriculum(class_rows, curriculum_set)
+        if audience is SKIP or audience == []:
+            continue
         seq = next_order.get(class_id, -1) + 1
         for quest_id in wanted:
-            if quest_id in have.get(class_id, ()):
+            if quest_id in have:
                 continue
             rows.append({'class_id': class_id, 'quest_id': quest_id,
-                         'added_by': user_id, 'sequence_order': seq})
+                         'added_by': user_id, 'sequence_order': seq,
+                         'student_ids': audience})
             seq += 1
             touched.add(class_id)
 
@@ -140,12 +189,14 @@ def push_curriculum_quests_to_classes(admin, curriculum_id, org_id, user_id,
         admin.table('class_quests').upsert(
             rows, on_conflict='class_id,quest_id').execute()
         # An assignment the student can't find isn't an assignment. Enroll each
-        # affected class so the quest lands in their accounts like any other.
+        # affected class so the quest lands in their accounts like any other
+        # (only the students each row is for: enroll_class_in_quests reads
+        # student_ids).
         from services.class_quest_enrollment import enroll_class_in_quests, enroll_safe
-        by_class = {}
+        by_class_new = {}
         for r in rows:
-            by_class.setdefault(r['class_id'], []).append(r['quest_id'])
-        for class_id, qids in by_class.items():
+            by_class_new.setdefault(r['class_id'], []).append(r['quest_id'])
+        for class_id, qids in by_class_new.items():
             enroll_safe(enroll_class_in_quests, admin, class_id, qids)
     return {'classes': len(touched), 'assignments': len(rows)}
 

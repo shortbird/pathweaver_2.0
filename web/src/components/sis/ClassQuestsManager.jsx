@@ -318,9 +318,18 @@ export default function ClassQuestsManager({ classId, orgId = null, scheduledEna
     const cur = audienceFor(q)
     setAudienceDraft(q, cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id])
   }
+  // iCreate, 59a884f5 (2026-10-12): "Can't see who the quests are assigned
+  // to." A quest kept to three students or fewer names them by first name;
+  // more than that is a count, and the row's picker lists everyone.
+  const studentFirstName = (id) => {
+    const name = students.find((s) => s.student_id === id)?.name
+    return name ? firstName(name.trim()) : ''
+  }
   const audienceLabel = (q) => {
     if (q.made_by) return `Only ${q.made_by_name}`
     if (q.student_ids === null || q.student_ids === undefined) return `Everyone (${students.length})`
+    const names = q.student_ids.map(studentFirstName).filter(Boolean)
+    if (names.length > 0 && names.length <= 3 && names.length === q.student_ids.length) return names.join(', ')
     return `${q.student_ids.length} of ${students.length} students`
   }
 
@@ -366,7 +375,8 @@ export default function ClassQuestsManager({ classId, orgId = null, scheduledEna
   // class and leaves it in the school's library; delete removes it entirely.
   const unassign = async (q) => {
     if (!(await confirm(
-      `Take "${q.title}" off this class?\n\nThe quest stays in your school's library and you can assign it again later.`))) return
+      `Take "${q.title}" off this class?\n\nStudents who have not started it lose it. Students who started it keep their work. `
+      + 'The quest stays in your school\'s library and you can assign it again later.'))) return
     try {
       await api.delete(`/api/sis/classes/${classId}/quests/${q.quest_id}`)
       setQuests((prev) => prev.filter((x) => x.quest_id !== q.quest_id))

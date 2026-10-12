@@ -11,6 +11,8 @@ from. Two things here:
   assign_curriculum   put a curriculum's saved set on the class for chosen
                       students (or everyone), merging with what is already there
   curriculum_by_quest which curriculum heading each class quest sits under
+  curriculum_placement the same, with the curriculum's rank and the quest's
+                      place in it (the student's "Class order" sort)
 
 How an audience merges with a quest that is ALREADY on the class (the call is
 "make sure these students have every quest in the set", never "take it from
@@ -100,12 +102,18 @@ def assign_curriculum(admin, *, class_row: Dict[str, Any], curriculum_id: str, u
     }
 
 
-def curriculum_by_quest(admin, class_id: str) -> Dict[str, Dict[str, Any]]:
-    """{quest_id: {'curriculum_id', 'curriculum_title'}} for the class's
-    curricula. A quest saved on several curricula goes under the one attached
-    to the class FIRST (sis_curriculum_classes.created_at): one heading per
-    quest, and the order does not move when a curriculum is renamed. A quest on
-    none of them is absent; the page lists it under "Other quests"."""
+def curriculum_placement(admin, class_id: str) -> Dict[str, Dict[str, Any]]:
+    """{quest_id: {'curriculum_id', 'curriculum_title', 'curriculum_rank',
+    'curriculum_position'}} for the class's curricula. A quest saved on several
+    curricula goes under the one attached to the class FIRST
+    (sis_curriculum_classes.created_at): one heading per quest, and the order
+    does not move when a curriculum is renamed. A quest on none of them is
+    absent; the page lists it under "Other quests".
+
+    `curriculum_rank` is the curriculum's place among the class's curricula
+    (0 = attached first) and `curriculum_position` the quest's saved
+    sequence_order inside it: together, the order the school laid the work out
+    in, which the student's "Class order" sort reads (ticket 4cc854cd)."""
     repo = ClassCurriculumRepository(admin)
     curricula = repo.attached_curricula(class_id)
     if not curricula:
@@ -118,5 +126,14 @@ def curriculum_by_quest(admin, class_id: str) -> Dict[str, Dict[str, Any]]:
         qid = r.get('quest_id')
         if qid and qid not in out:
             out[qid] = {'curriculum_id': r['curriculum_id'],
-                        'curriculum_title': titles[r['curriculum_id']]}
+                        'curriculum_title': titles[r['curriculum_id']],
+                        'curriculum_rank': rank[r['curriculum_id']],
+                        'curriculum_position': r.get('sequence_order')}
     return out
+
+
+def curriculum_by_quest(admin, class_id: str) -> Dict[str, Dict[str, Any]]:
+    """{quest_id: {'curriculum_id', 'curriculum_title'}}: curriculum_placement
+    without the ordering, for the pages that only draw the heading."""
+    return {qid: {'curriculum_id': p['curriculum_id'], 'curriculum_title': p['curriculum_title']}
+            for qid, p in curriculum_placement(admin, class_id).items()}

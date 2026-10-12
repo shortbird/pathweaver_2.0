@@ -236,7 +236,26 @@ def context(user_id: str) -> Dict[str, Any]:
                 if sched and not _re.match(r'^https?://', sched, _re.I):
                     sched = f'https://{sched}'
                 orgs[r['id']]['scheduling_url'] = sched
+        # Who to contact (ticket c58b7c0b): the school's "for this, ask that
+        # person" list for the family home. [] when the school has none.
+        _attach_family_contacts(user_id, list(orgs.values()), {r['id']: r for r in rows})
     return {'orgs': list(orgs.values()), 'my_avatar_url': avatar_by_id.get(user_id)}
+
+
+def _attach_family_contacts(viewer_id: Optional[str], entries: List[Dict[str, Any]],
+                            rows_by_id: Dict[str, Dict[str, Any]],
+                            guardian_only: bool = False) -> None:
+    """Set `family_contacts` on each org entry, in place -- the school's
+    Who to contact list (services/sis_family_contacts_service). Only a
+    guardian's entry carries it when `guardian_only`: the list is for
+    families, and the hub context also answers students and staff."""
+    from services import sis_family_contacts_service
+    wanted = {e['organization_id']: ((rows_by_id.get(e['organization_id']) or {})
+                                     .get('feature_flags') or {}).get('sis_settings') or {}
+              for e in entries if not guardian_only or e.get('is_guardian')}
+    resolved = sis_family_contacts_service.contacts_for_orgs(viewer_id, wanted) if wanted else {}
+    for e in entries:
+        e['family_contacts'] = resolved.get(e['organization_id'], [])
 
 
 def school_context(user_id: str) -> Dict[str, Any]:
@@ -280,6 +299,7 @@ def school_context(user_id: str) -> Dict[str, Any]:
 
     orgs = [_hub_org_entry(oid, rows_by_id.get(oid) or {}, oid in guardian_org_ids)
             for oid in org_ids]
+    _attach_family_contacts(user_id, orgs, rows_by_id, guardian_only=True)
     return {'orgs': orgs, 'is_guardian': any(o['is_guardian'] for o in orgs)}
 
 

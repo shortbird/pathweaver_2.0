@@ -101,6 +101,9 @@ def _validate_class_fields(data):
     # exports. A flag, not pay data: no rate lives here, so ADMIN_ROLES is fine.
     if 'exclude_from_pay' in data and not isinstance(data['exclude_from_pay'], bool):
         return 'exclude_from_pay must be true or false'
+    # A class that takes no roll (ticket 29dff954).
+    if 'attendance_optional' in data and not isinstance(data['attendance_optional'], bool):
+        return 'attendance_optional must be true or false'
     for k in ('capacity', 'price_cents', 'min_age', 'max_age'):
         v = data.get(k)
         if v is not None and (not isinstance(v, int) or v < 0):
@@ -199,6 +202,10 @@ def update_class(user_id, class_id):
                     .eq('class_id', class_id).in_('advisor_id', removed).execute()
             except Exception as e:  # noqa: BLE001
                 logger.warning(f'Could not deactivate class_advisors on {class_id}: {e}')
+        # The class chats follow the teachers: a new teacher joins as an admin,
+        # a replaced one leaves (ticket 3bdf06bb). Never raises.
+        from services.class_group_sync_service import sync_class_groups
+        sync_class_groups(class_id, actor_id=user_id)
     # The chats carry the class name, written once when they were made. A class
     # copied and renamed kept its original's chat name (ticket 644d46d5).
     if 'name' in data:

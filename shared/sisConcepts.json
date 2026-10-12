@@ -204,6 +204,21 @@
       "use_instead": "emergency_contacts_service.replace_for_students(org, student_ids, contacts) for a family's own submission; add_emergency_contact / delete_emergency_contact / add_household_emergency_contact / remove_household_emergency_contacts / copy_family_contacts_to_student for the office; delete_for_students when the students themselves go. registrations.emergency_contacts is the funnel's draft only."
     },
     {
+      "id": "family_contacts",
+      "means": "The school's Who to contact list (ticket c58b7c0b, 2026-10-12): topic -> person, kept in feature_flags.sis_settings.family_contacts and shown on the family home and the mobile school hub. services/sis_family_contacts_service.py owns the shape: clean_contacts is the write check the settings PATCH runs (staff of this school only, at most 20) and contacts_for_orgs is the read that resolves current names and the Message target (the school inbox for front-office staff).",
+      "owner": { "backend": ["services/sis_family_contacts_service.py"] },
+      "forbid": {
+        "backend": {
+          "pattern": "\\.get\\(\\s*['\"]family_contacts['\"]",
+          "dirs": ["routes", "services", "repositories"]
+        }
+      },
+      "baseline": { "backend": 0 },
+      "measured": "2026-10-12",
+      "lowered_by": "none",
+      "use_instead": "sis_family_contacts_service.clean_contacts(org_id, raw) before writing; contacts_for_orgs(viewer_id, {org_id: sis_settings}) to read it for a family (sis_parent_service._attach_family_contacts already puts it on both family contexts as `family_contacts`)."
+    },
+    {
       "id": "funding_source_write",
       "means": "households.funding_source and its two mirrors (ufa_private, enrolled_private_school). Three write paths each spelled the mirror by hand; sis_payment_profile.funding_fields / set_funding_source is the one (M4, 2026-09-17), and ufa_private is not accepted on its own any more.",
       "owner": { "backend": ["services/sis_payment_profile.py"] },

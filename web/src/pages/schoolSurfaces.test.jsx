@@ -84,6 +84,10 @@ describe('a student opening the school-wide pages', () => {
   it('reads the resource library instead of being told they have no school', async () => {
     renderIn(<FamilyResourcesPage />)
     expect(await screen.findByText('Family Guidebook')).toBeInTheDocument()
+    // Ticket 5574dd28 (owner's call: "Library" everywhere): the staff call
+    // this list the Library in the SIS, so the family page says Library too.
+    expect(screen.getByRole('heading', { level: 1, name: 'Library' })).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Resources' })).not.toBeInTheDocument()
     expect(screen.queryByText(/isn't linked to a school/i)).not.toBeInTheDocument()
   })
 

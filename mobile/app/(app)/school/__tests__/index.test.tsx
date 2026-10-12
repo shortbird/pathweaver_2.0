@@ -27,6 +27,13 @@ jest.mock('@/src/hooks/useSchool', () => ({
   useSchoolHub: () => mockHub,
 }));
 
+// The family's volunteer hours (iCreate 2fab910a): the hook is tested on its
+// own; here it answers what each test sets.
+let mockHours: any = { hours: null, updatedAt: null, note: null, shown: false };
+jest.mock('@/src/hooks/useFamilyVolunteerHours', () => ({
+  useFamilyVolunteerHours: () => mockHours,
+}));
+
 let mockResources: any[] = [];
 jest.mock('@/src/hooks/useSchoolResources', () => ({
   useSchoolResources: () => ({ resources: mockResources, loading: false, refresh: jest.fn() }),
@@ -90,10 +97,65 @@ beforeEach(() => {
   mockParams = {};
   mockResources = [{ id: 'd1', title: 'Handbook' }];
   mockHub = guardianHub();
+  mockHours = { hours: null, updatedAt: null, note: null, shown: false };
+});
+
+describe('what the school keeps for this family, on the Feed tab', () => {
+  /** iCreate 2fab910a/9db5bde3: "I know you just added a tracker to track
+   *  hours and also comments for it... I'm not seeing it from the parent
+   *  side. Is there a way to make it so that the parents can also see the
+   *  notes and the hours?" */
+  it('shows a guardian their volunteer hours and the note', () => {
+    mockHours = { hours: 12.5, updatedAt: '2026-10-01T12:00:00Z', note: 'Fall fair: 4h on 9/20', shown: true };
+    render(<SchoolScreen />);
+    expect(screen.getByTestId('family-volunteer-hours')).toBeTruthy();
+    expect(screen.getByText('12.5')).toBeTruthy();
+    expect(screen.getByText(/^as of /)).toBeTruthy();
+    expect(screen.getByText('Fall fair: 4h on 9/20')).toBeTruthy();
+  });
+
+  it('shows no hours when the school does not use the field', () => {
+    mockHours = { hours: 0, updatedAt: null, note: null, shown: false };
+    render(<SchoolScreen />);
+    expect(screen.queryByTestId('family-volunteer-hours')).toBeNull();
+  });
+
+  /** Ticket c58b7c0b (iCreate, org admin): "On parent dashboards, could we
+   *  create a section where there is who to contact info? ..." */
+  it('shows the Who to contact list to a guardian, and nothing for an empty list', () => {
+    mockHub = guardianHub({ org: { ...guardianHub().org, family_contacts: [
+      { topic: 'Building questions', name: 'Becky Lane', phone: null, email: null, staff_user_id: 'becky', message_user_id: 'becky' },
+    ] } });
+    const { unmount } = render(<SchoolScreen />);
+    expect(screen.getByText('Who to contact')).toBeTruthy();
+    expect(screen.getByText('Building questions')).toBeTruthy();
+    unmount();
+    mockHub = guardianHub();
+    render(<SchoolScreen />);
+    expect(screen.queryByText('Who to contact')).toBeNull();
+  });
+
+  it('shows neither to a member who guards nobody', () => {
+    mockHours = { hours: 3, updatedAt: null, note: null, shown: true };
+    mockHub = guardianHub({ org: { ...guardianHub().org, is_guardian: false, family_contacts: [
+      { topic: 'Building questions', name: 'Becky Lane', phone: null, email: null, staff_user_id: null, message_user_id: null },
+    ] } });
+    render(<SchoolScreen />);
+    expect(screen.queryByTestId('family-volunteer-hours')).toBeNull();
+    expect(screen.queryByText('Who to contact')).toBeNull();
+  });
+});
+
+/** Ticket 5574dd28 (owner's call): the staff call the family documents list
+ *  the Library in the SIS, so the family's tab says Library too. */
+it('names the documents tab Library', () => {
+  render(<SchoolScreen />);
+  expect(screen.getByText('Library')).toBeTruthy();
+  expect(screen.queryByText('Documents')).toBeNull();
 });
 
 describe('the tab strip', () => {
-  it('lists Feed, To do, Schedule, Calendar, Carpool, Documents for an iCreate parent', () => {
+  it('lists Feed, To do, Schedule, Calendar, Carpool, Library for an iCreate parent', () => {
     render(<SchoolScreen />);
     for (const key of ['feed', 'todo', 'schedule', 'calendar', 'carpool', 'documents']) {
       expect(screen.getByTestId(`school-tab-${key}-button`)).toBeTruthy();

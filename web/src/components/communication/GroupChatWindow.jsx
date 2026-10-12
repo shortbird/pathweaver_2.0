@@ -6,6 +6,7 @@ import {
   UsersIcon,
   ArrowLeftIcon,
   MapPinIcon,
+  UserPlusIcon,
   XMarkIcon
 } from '@heroicons/react/24/outline'
 import { useAuth } from '../../contexts/AuthContext'
@@ -22,6 +23,7 @@ import {
 } from '../../hooks/api/useGroupMessages'
 import useMessagingRealtime from '../../hooks/api/useMessagingRealtime'
 import GroupSettingsModal from './GroupSettingsModal'
+import AddPeopleModal from './AddPeopleModal'
 import MessageInput from './MessageInput'
 import { messageDraftKey } from './messageDrafts'
 import MessageBubble from './MessageBubble'
@@ -39,13 +41,14 @@ import { REPORT_REASONS, reportContent } from '../../services/friendsAPI'
  * and writes it through /api/school-inbox/groups without being a member, so
  * the member-only actions -- reactions, edit, delete, pin, report, settings,
  * mute -- are not offered, and reading marks it read for the office on the
- * server.
+ * server. "Add people" is offered instead (0b85c3f1), over the school's routes.
  */
 const GroupChatWindow = ({ group, onBack, source, onMakeTask = null }) => {
   const asSchool = !!source?.school
   const confirm = useConfirm()
   const { user } = useAuth()
   const [showSettings, setShowSettings] = useState(false)
+  const [showAddPeople, setShowAddPeople] = useState(false)
   const [replyTo, setReplyTo] = useState(null)
   const [editingId, setEditingId] = useState(null)
   const [savingEdit, setSavingEdit] = useState(false)
@@ -256,6 +259,21 @@ const GroupChatWindow = ({ group, onBack, source, onMakeTask = null }) => {
             </p>
           </div>
         </div>
+
+        {/* The school adds people to a group it owns (ticket 0b85c3f1: "We
+            need a way to add someone to a group thread who is not already on
+            it."). Its only admin is the inbox account, so Group Settings
+            never let the office add anybody. */}
+        {asSchool && (
+          <button
+            type="button"
+            onClick={() => setShowAddPeople(true)}
+            className="flex-shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-optio-purple hover:bg-optio-purple/5 rounded-lg transition-colors"
+          >
+            <UserPlusIcon className="w-4 h-4" />
+            Add people
+          </button>
+        )}
 
         {/* Member-only, both of them. The school reading its own group is not
             a member, so it has no alerts of its own to mute here. */}
@@ -474,6 +492,15 @@ const GroupChatWindow = ({ group, onBack, source, onMakeTask = null }) => {
             Only teachers can post in this group
           </p>
         </div>
+      )}
+
+      {showAddPeople && (
+        <AddPeopleModal
+          isOpen={showAddPeople}
+          onClose={() => setShowAddPeople(false)}
+          group={group}
+          source={source}
+        />
       )}
 
       {/* Settings Modal */}

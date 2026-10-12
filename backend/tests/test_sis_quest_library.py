@@ -213,6 +213,52 @@ class TestPuttingAQuestOnACurriculum:
 
 
 @pytest.mark.unit
+class TestTakingAQuestOffACurriculum:
+    """iCreate, 79a54ac2 (2026-10-12): "Can't unassign on curriculum or
+    classes from here." The Assign dialog's remove control on a curriculum.
+    It means what removing the quest in the curriculum editor means: the
+    sis_curriculum_quests row goes, and no class or student is touched."""
+
+    def _tables(self, quest_org=ORG, curr_org=ORG, on=True, public=False):
+        return {
+            'sis_curriculum': [{'id': CURR, 'organization_id': curr_org, 'title': 'Art'}],
+            'quests': [{'id': Q2, 'organization_id': quest_org, 'is_public': public,
+                        'is_active': True}],
+            'sis_curriculum_quests': [{'id': 'x'}] if on else [],
+        }
+
+    def test_removes_the_link_and_touches_no_class(self):
+        body, status, log = _run(library.take_quest_off_curriculum, (Q2, CURR),
+                                 tables=self._tables())
+        assert status == 200 and body == {'success': True, 'removed': True}
+        assert log == [('delete', 'sis_curriculum_quests')]
+
+    def test_an_optio_library_quest_can_come_off_the_schools_curriculum(self):
+        body, status, log = _run(library.take_quest_off_curriculum, (Q2, CURR),
+                                 tables=self._tables(quest_org=None, public=True))
+        assert status == 200 and body['removed'] is True
+
+    def test_not_on_it_is_a_no_op(self):
+        body, status, log = _run(library.take_quest_off_curriculum, (Q2, CURR),
+                                 tables=self._tables(on=False))
+        assert status == 200 and body['removed'] is False and not log
+
+    def test_another_schools_curriculum_is_not_found_and_nothing_is_written(self):
+        _, status, log = _run(library.take_quest_off_curriculum, (Q2, CURR),
+                              tables=self._tables(curr_org=OTHER_ORG))
+        assert status == 404 and not log
+
+    def test_another_schools_quest_is_not_found_and_nothing_is_written(self):
+        _, status, log = _run(library.take_quest_off_curriculum, (Q2, CURR),
+                              tables=self._tables(quest_org=OTHER_ORG))
+        assert status == 404 and not log
+
+    def test_a_bad_id_is_a_400(self):
+        _, status, log = _run(library.take_quest_off_curriculum, ('nope', CURR))
+        assert status == 400 and not log
+
+
+@pytest.mark.unit
 def test_the_curriculum_page_and_the_library_share_one_attach_writer():
     """Two doors, one meaning. add_quest_to_curriculum in routes/sis/curriculum.py
     used to carry its own copy of the insert; a drift there would have made

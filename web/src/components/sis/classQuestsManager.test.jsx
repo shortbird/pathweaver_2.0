@@ -57,6 +57,9 @@ describe('ClassQuestsManager unassign vs delete', () => {
     fireEvent.click(screen.getByRole('menuitem', { name: 'Unassign' }))
     // The confirm must say the quest survives, or the two actions read alike.
     expect(await confirmText()).toMatch(/stays in your school's library/)
+    // b38c5085: unassigning now takes it out of students' accounts too, so
+    // the confirm says who loses it and who keeps their work.
+    expect(await confirmText()).toMatch(/Students who have not started it lose it\. Students who started it keep their work\./)
     await answerConfirm()
 
     await waitFor(() => expect(api.delete).toHaveBeenCalledWith('/api/sis/classes/c1/quests/q1'))
@@ -232,7 +235,8 @@ describe('ClassQuestsManager row layout', () => {
     mockWithStudents([{ ...OWN_QUEST, student_ids: ['s1', 's2'], due_date: due, xp_threshold: 150 }])
     render(withConfirm(<ClassQuestsManager classId="c1" />))
     expect(await screen.findByText('2 preset tasks')).toBeInTheDocument()
-    expect(screen.getByText(/2 of 3 students/)).toBeInTheDocument()
+    // Two students are named, not counted (59a884f5).
+    expect(screen.getByText('Ada, Ben')).toBeInTheDocument()
     const pill = screen.getByText(`Due ${new Date(due).toLocaleDateString()}`)
     expect(pill.className).toMatch(/bg-amber-100/)
     expect(screen.getByText('150 XP to finish')).toBeInTheDocument()

@@ -50,11 +50,18 @@ SCOPED = {
     'tasks.get_my_credit_requests': 'credits',
     'classes.get_student_classes': 'schedule',
     'classes.get_student_agenda': 'schedule',
+    # A class's own page, read by a guardian as the child (ticket 8700c16d).
+    'classes.get_class_quests': 'schedule',
+    'classes.get_class_courses': 'schedule',
+    'classes.get_class_advisors': 'schedule',
     # Friends (2026-09-16): a parent of a dependent sends, accepts and ends
     # friend requests for them through the same routes the child would use.
     'connections.get_connections': 'peer_connections',
     'connections.get_feed': 'activity',
     'connections.get_suggestions': True,
+    # The AI gate a parent's screens read for the child (Sentry 64448412 /
+    # e7429a56). Switch state, not a record, so nothing is logged.
+    'ai_access.get_ai_access_status': True,
     # writes
     'tasks.complete_task': True,
     'tasks.update_task': True,

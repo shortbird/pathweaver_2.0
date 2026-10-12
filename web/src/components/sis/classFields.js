@@ -118,6 +118,8 @@ export const toDraft = (c = {}) => {
     internal_notes: c.internal_notes || '',
     // A roster-only class: the teachers are not paid for it (2704bbd4).
     exclude_from_pay: !!c.exclude_from_pay,
+    // A class that takes no roll: at-home days, independent study (29dff954).
+    attendance_optional: !!c.attendance_optional,
   }
 }
 
@@ -154,4 +156,5 @@ export const draftToPayload = (d) => ({
   requires_full_day: !!d.requires_full_day,
   internal_notes: (d.internal_notes || '').trim() || null,
   exclude_from_pay: !!d.exclude_from_pay,
+  attendance_optional: !!d.attendance_optional,
 })

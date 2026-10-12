@@ -23,6 +23,7 @@ from typing import Dict, Any, Optional, List
 
 from app_config import Config
 from utils.logger import get_logger
+from utils.retry_handler import with_connection_retry
 from utils.url_metadata import fetch_url_metadata
 
 logger = get_logger(__name__)
@@ -190,10 +191,17 @@ def save_evidence_document(user_id: str, task_id: str):
                 }), 400
 
         # Validate task exists and user is enrolled (V3 personalized task system)
-        task_check = admin_supabase.table('user_quest_tasks')\
-            .select('quest_id, title, xp_value, pillar, user_id')\
-            .eq('id', task_id)\
-            .execute()
+        # The reads in this handler are retried on a transient connection
+        # failure; the writes are not. A stale pooled socket here ("Server
+        # disconnected without sending a response") failed a student's save
+        # as a 500 (Sentry 906d892b / c994037c). A read is safe to repeat.
+        task_check = with_connection_retry(
+            lambda: admin_supabase.table('user_quest_tasks')
+            .select('quest_id, title, xp_value, pillar, user_id')
+            .eq('id', task_id)
+            .execute(),
+            operation_name='save_evidence_document_task_lookup',
+        )
 
         if not task_check.data:
             # Provide helpful debugging info
@@ -227,11 +235,14 @@ def save_evidence_document(user_id: str, task_id: str):
         # Nothing downstream re-awards anything: the XP branch is guarded by an
         # existing quest_task_completions row, so re-saving a finished task's
         # evidence updates text and nothing else.
-        enrollment = admin_supabase.table('user_quests')\
-            .select('id')\
-            .eq('user_id', user_id)\
-            .eq('quest_id', quest_id)\
-            .execute()
+        enrollment = with_connection_retry(
+            lambda: admin_supabase.table('user_quests')
+            .select('id')
+            .eq('user_id', user_id)
+            .eq('quest_id', quest_id)
+            .execute(),
+            operation_name='save_evidence_document_enrollment',
+        )
 
         if not enrollment.data:
             return jsonify({
@@ -240,11 +251,14 @@ def save_evidence_document(user_id: str, task_id: str):
             }), 403
 
         # Get or create evidence document using upsert pattern
-        document_response = admin_supabase.table('user_task_evidence_documents')\
-            .select('*')\
-            .eq('user_id', user_id)\
-            .eq('task_id', task_id)\
-            .execute()
+        document_response = with_connection_retry(
+            lambda: admin_supabase.table('user_task_evidence_documents')
+            .select('*')
+            .eq('user_id', user_id)
+            .eq('task_id', task_id)
+            .execute(),
+            operation_name='save_evidence_document_document_lookup',
+        )
 
         if document_response.data:
             # Update existing document
@@ -323,11 +337,14 @@ def save_evidence_document(user_id: str, task_id: str):
             logger.info(f"[EVIDENCE_DOC] Task completion requested: task_id={task_id[:8]}, user_id={user_id[:8]}, status=completed")
 
             # Check if this task was already completed (V3 system)
-            existing_completion = admin_supabase.table('quest_task_completions')\
-                .select('id, user_quest_task_id')\
-                .eq('user_id', user_id)\
-                .eq('task_id', task_id)\
-                .execute()
+            existing_completion = with_connection_retry(
+                lambda: admin_supabase.table('quest_task_completions')
+                .select('id, user_quest_task_id')
+                .eq('user_id', user_id)
+                .eq('task_id', task_id)
+                .execute(),
+                operation_name='save_evidence_document_completion_lookup',
+            )
 
             logger.info(f"[EVIDENCE_DOC] Existing completion check: found={len(existing_completion.data or [])} records")
             if existing_completion.data:
@@ -403,11 +420,14 @@ def save_evidence_document(user_id: str, task_id: str):
                 logger.info("[EVIDENCE_DOC] Task already completed, skipping XP award")
 
         # Get the saved blocks to return their IDs
-        saved_blocks_response = admin_supabase.table('evidence_document_blocks')\
-            .select('id, order_index')\
-            .eq('document_id', document_id)\
-            .order('order_index')\
-            .execute()
+        saved_blocks_response = with_connection_retry(
+            lambda: admin_supabase.table('evidence_document_blocks')
+            .select('id, order_index')
+            .eq('document_id', document_id)
+            .order('order_index')
+            .execute(),
+            operation_name='save_evidence_document_saved_blocks',
+        )
 
         return jsonify({
             'success': True,

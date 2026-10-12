@@ -35,8 +35,10 @@ const SCHOOL_LIFE_CARDS = [
     name: 'Calendar', path: '/school-calendar', Icon: CalendarDaysIcon,
     description: 'Field trips, showcases and closures.', module: 'calendar',
   },
+  // "Library" (ticket 5574dd28, owner's call): the staff call this list the
+  // Library in the SIS, so the family's word matches theirs. The URL stays.
   {
-    name: 'Resources', path: '/resources', Icon: BookOpenIcon,
+    name: 'Library', path: '/resources', Icon: BookOpenIcon,
     description: 'Guidebooks, contracts and forms to refer back to.', module: 'resources',
   },
   {

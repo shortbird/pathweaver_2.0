@@ -10,7 +10,7 @@ eligibility) WITHOUT touching the existing LMS class CRUD (routes/classes/*). Re
 that compose enrollment counts + schedule live in services/sis_catalog_service.py.
 """
 
-from typing import Optional, Dict, List, Any
+from typing import Optional, Dict, List, Any, Set
 
 from repositories.base_repository import BaseRepository
 from utils.db_fetch import fetch_all_rows
@@ -42,6 +42,10 @@ SIS_CLASS_FIELDS = (
     # (iCreate, ticket 2704bbd4). The weekly teaching hours export skips it.
     # Staff-only like internal_notes: families have no use for it.
     'exclude_from_pay',
+    # A class that takes no roll: at-home days, independent study (iCreate,
+    # ticket 29dff954). Left out of every missing-roll alert and the rate.
+    # Staff-only for the same reason as exclude_from_pay.
+    'attendance_optional',
 )
 
 
@@ -65,6 +69,18 @@ class SisClassRepository(BaseRepository):
         rows = fetch_all_rows(build)
         return sorted(rows, key=lambda c: (c.get('name') or '').lower())
 
+    def attendance_optional_ids(self, class_ids) -> set:
+        """Which of `class_ids` take no roll (attendance_optional, ticket
+        29dff954). Bounded by the ids given, 100 per request."""
+        ids = sorted({c for c in (class_ids or []) if c})
+        out: set = set()
+        for i in range(0, len(ids), 100):
+            rows = (self.client.table(self.table_name).select('id, attendance_optional')
+                    .in_('id', ids[i:i + 100]).execute()).data or []
+            out.update(r['id'] for r in rows
+                       if r.get('attendance_optional') and r.get('id') in ids)
+        return out
+
     def names_in_org(self, organization_id: str, class_ids: List[str]) -> Dict[str, str]:
         """{class_id: name} for those of `class_ids` that belong to the org.
         A class missing from the answer is not this org's."""
@@ -76,6 +92,17 @@ class SisClassRepository(BaseRepository):
                     .execute()).data or []
             for c in rows:
                 out[c['id']] = c.get('name') or ''
+        return out
+
+    def archived_ids(self, class_ids: List[str]) -> Set[str]:
+        """The archived classes among `class_ids` (chunked; any org). Their
+        chats leave the inbox lists (class_group_sync_service.archived_class_ids)."""
+        ids = sorted({c for c in (class_ids or []) if c})
+        out: Set[str] = set()
+        for i in range(0, len(ids), 100):
+            rows = (self.client.table(self.table_name).select('id, status')
+                    .in_('id', ids[i:i + 100]).execute()).data or []
+            out.update(r['id'] for r in rows if r.get('status') == 'archived')
         return out
 
     def ids_matching_name(self, organization_id: str, term: str, limit: int = 100) -> List[str]:

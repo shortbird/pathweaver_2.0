@@ -210,6 +210,9 @@ def attendance_report(org_id: str) -> Dict[str, Any]:
         _admin().table('sis_attendance').select('status, class_id')
         .eq('organization_id', org_id)
     ))
+    # A class that takes no roll (29dff954) is not in the rate, overall or
+    # per class.
+    records = attendance.without_optional(records)
     overall = attendance.summarize(records)
     # per-class breakdown
     by_class: Dict[str, List[Dict[str, Any]]] = {}

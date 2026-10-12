@@ -6,6 +6,7 @@ import { useSisOrg } from '../useSisOrg'
 import {
   useSisQuestLibrary, useAddQuestToCurriculum, useAssignQuestToClass,
   useGiveQuestToStudents, useDuplicateLibraryQuest, useDeleteLibraryQuest, useQuestHolders,
+  useRemoveQuestFromCurriculum, useUnassignQuestFromClass,
 } from '../../../hooks/api/useSisQuestLibrary'
 import { useConfirm } from '../../../contexts/ConfirmContext'
 import { useRefreshAfterQuestEdit } from '../../../hooks/api/useQuestEditor'
@@ -104,6 +105,24 @@ const Chips = ({ items, labelOf, hrefOf, empty }) => {
   )
 }
 
+/** "Already on:" with an x on each place, to take the quest off it. */
+function AlreadyOn({ items, label, onRemove, removeLabel }) {
+  return (
+    <div className="flex flex-wrap items-center gap-1.5 mt-2 text-xs text-neutral-500">
+      <span>Already on:</span>
+      <ul className="contents">
+        {items.map((c) => (
+          <li key={c.id} className="inline-flex items-center gap-1 rounded-full bg-gray-100 text-neutral-700 px-2.5 py-1">
+            {label(c)}
+            <button type="button" onClick={() => onRemove(c)} aria-label={removeLabel(c)}
+              className="hover:text-red-600">×</button>
+          </li>
+        ))}
+      </ul>
+    </div>
+  )
+}
+
 /**
  * The assign dialog for one quest: put it on a curriculum, on a class, or
  * give it to students by name. Three small forms rather than one, because
@@ -121,6 +140,9 @@ export function AssignQuestModal({ quest, curricula, classes, orgId, onClose }) 
   const addToCurriculumMutation = useAddQuestToCurriculum(orgId)
   const assignToClassMutation = useAssignQuestToClass(orgId)
   const giveToStudentsMutation = useGiveQuestToStudents(orgId)
+  const removeFromCurriculumMutation = useRemoveQuestFromCurriculum(orgId)
+  const unassignFromClassMutation = useUnassignQuestFromClass(orgId)
+  const confirm = useConfirm()
   const { data: roster = [] } = useSisRoster(orgId)
   // Who already has it, marked in the picker before anyone presses Give
   // (iCreate, ebfc9253, 2026-09-23: "I can't tell if they already have it or
@@ -172,6 +194,38 @@ export function AssignQuestModal({ quest, curricula, classes, orgId, onClose }) 
     }
   }
 
+  // iCreate, 79a54ac2 (2026-10-12): "Can't unassign on curriculum or
+  // classes from here." Each place the quest is already on has its own x.
+  const removeFromCurriculum = async (c) => {
+    if (!(await confirm({
+      title: `Take it off ${c.title}?`,
+      body: 'Classes that already have this quest keep it. Only the curriculum changes.',
+      confirmLabel: 'Take it off',
+      cancelLabel: 'Keep it',
+    }))) return
+    try {
+      await removeFromCurriculumMutation.mutateAsync({ questId: quest.id, curriculumId: c.id })
+      toast.success(`Taken off ${c.title}`)
+    } catch (e) {
+      toast.error(e?.response?.data?.error || 'Could not take it off that curriculum')
+    }
+  }
+
+  const unassignFromClass = async (c) => {
+    if (!(await confirm({
+      title: `Unassign it from ${c.name}?`,
+      body: 'Students who have not started it lose it. Students who started it keep their work.',
+      confirmLabel: 'Unassign',
+      cancelLabel: 'Keep it',
+    }))) return
+    try {
+      await unassignFromClassMutation.mutateAsync({ questId: quest.id, classId: c.id })
+      toast.success(`Unassigned from ${c.name}`)
+    } catch (e) {
+      toast.error(e?.response?.data?.error || 'Could not unassign it from that class')
+    }
+  }
+
   const assignToClass = async () => {
     if (!classId) return
     try {
@@ -208,9 +262,8 @@ export function AssignQuestModal({ quest, curricula, classes, orgId, onClose }) 
             </Button>
           </div>
           {quest.curricula?.length > 0 && (
-            <p className="text-xs text-neutral-500 mt-2">
-              Already on: {quest.curricula.map((c) => c.title).join(', ')}
-            </p>
+            <AlreadyOn items={quest.curricula} label={(c) => c.title} onRemove={removeFromCurriculum}
+              removeLabel={(c) => `Take it off ${c.title}`} />
           )}
         </section>
 
@@ -239,9 +292,8 @@ export function AssignQuestModal({ quest, curricula, classes, orgId, onClose }) 
             </Button>
           </div>
           {quest.classes?.length > 0 && (
-            <p className="text-xs text-neutral-500 mt-2">
-              Already on: {quest.classes.map((c) => c.name).join(', ')}
-            </p>
+            <AlreadyOn items={quest.classes} label={(c) => c.name} onRemove={unassignFromClass}
+              removeLabel={(c) => `Unassign it from ${c.name}`} />
           )}
         </section>
 

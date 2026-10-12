@@ -563,6 +563,61 @@ def send_to_school_group(user_id: str, group_id: str):
                               error_code='internal_error')
 
 
+def _school_group_for_edit(user_id, group_id):
+    """school_group_access, then the inbox list again by name: changing who is
+    in a school group is an inbox action, so a coordinator the list leaves
+    out is refused even if a superadmin path would let them read."""
+    access, err = _school_group_or_404(user_id, group_id)
+    if err:
+        return None, err
+    if not school_inbox_service.inbox_access(user_id, access['org']['id']):
+        return None, error_response("You are not on this school's inbox", status_code=403,
+                                    error_code='forbidden')
+    return access, None
+
+
+@bp.route('/groups/<group_id>/available-members', methods=['GET'])
+@require_role(*ADMIN_ROLES)
+def school_group_available_members(user_id: str, group_id: str):
+    """Who the school may add to its group (ticket 0b85c3f1): its staff,
+    current students and their guardians, minus the members."""
+    try:
+        access, err = _school_group_for_edit(user_id, group_id)
+        if err:
+            return err
+        people = _groups().school_available_members(access['org']['id'], group_id)
+        return success_response({'available_members': people, 'count': len(people)})
+    except Exception as e:
+        logger.error(f"Error listing people for a school group: {str(e)}")
+        return error_response('Failed to load people', status_code=500,
+                              error_code='internal_error')
+
+
+@bp.route('/groups/<group_id>/members', methods=['POST'])
+@require_role(*ADMIN_ROLES)
+def add_school_group_member(user_id: str, group_id: str):
+    """Add someone to a group the school owns (ticket 0b85c3f1: "We need a
+    way to add someone to a group thread who is not already on it."). The
+    group's admin is the inbox account, so /api/groups/<id>/members refused
+    every person in the office; this is the office's door."""
+    try:
+        access, err = _school_group_for_edit(user_id, group_id)
+        if err:
+            return err
+        data = request.get_json() or {}
+        membership = _groups().add_school_member(
+            access['org']['id'], group_id, user_id, data.get('user_id'),
+            group_audience=(access.get('group') or {}).get('audience'))
+        return success_response({'membership': membership,
+                                 'message': 'Added to the group'}, status_code=201)
+    except ValueError as e:
+        return error_response(str(e), status_code=400, error_code='validation_error')
+    except Exception as e:
+        logger.error(f"Error adding to a school group: {str(e)}")
+        return error_response('Failed to add them', status_code=500,
+                              error_code='internal_error')
+
+
 # ── Making a task from a thread ───────────────────────────────────────────────
 
 

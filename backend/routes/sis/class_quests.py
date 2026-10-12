@@ -64,6 +64,7 @@ from services.class_quest_enrollment import (
     enroll_class_in_quests,
     enroll_safe,
     is_published,
+    unassign_class_quest_and_withdraw,
     withdraw_students_from_quest,
 )
 from repositories.class_quest_audience_repository import ClassQuestAudienceRepository
@@ -769,9 +770,8 @@ def unassign_quest(user_id, class_id, quest_id):
         return err
     if _bad_uuid(quest_id):
         return jsonify({'success': False, 'error': 'Invalid quest id'}), 400
-    admin.table('class_quests').delete() \
-        .eq('class_id', class_row['id']).eq('quest_id', quest_id).execute()
-    return jsonify({'success': True})
+    out = unassign_class_quest_and_withdraw(admin, class_row['id'], quest_id)
+    return jsonify({'success': True, 'withdrawn': out or {}})
 
 
 @bp.route('/classes/<class_id>/quests/<quest_id>/delete', methods=['DELETE'])

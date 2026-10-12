@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
+import { useFamilyScope } from '../contexts/FamilyScopeContext'
 import { ClassList, ClassDetailPage } from '../components/classes'
 import StudentClassesView from '../components/classes/StudentClassesView'
 
@@ -17,6 +18,7 @@ import StudentClassesView from '../components/classes/StudentClassesView'
  */
 export default function AdvisorClassesPage() {
   const { user } = useAuth()
+  const { isScoped: inFamilyScope } = useFamilyScope()
   const { classId } = useParams()
   const navigate = useNavigate()
   // Selection from the list carries the full class row (has organization_id);
@@ -33,8 +35,13 @@ export default function AdvisorClassesPage() {
 
   const isStudent = effectiveRole === 'student'
 
-  // Student view
-  if (isStudent) {
+  // Student view. Also the view a guardian gets while working FOR a child
+  // (family scope): the page used to switch on the signed-in role alone, so an
+  // org admin who is also a parent got her own teaching list instead of her
+  // son's classes (iCreate, ticket 8700c16d: "When I am working with brady I
+  // don't actually see his classes"). StudentClassesView reads the scope and
+  // asks every endpoint as the child.
+  if (isStudent || inFamilyScope) {
     return <StudentClassesView />
   }
 

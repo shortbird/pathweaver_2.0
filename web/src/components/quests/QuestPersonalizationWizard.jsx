@@ -6,6 +6,7 @@ import { useStudentScope } from '../../hooks/useStudentScope';
 import ManualTaskCreator from './ManualTaskCreator';
 import logger from '../../utils/logger';
 import { useAIAccess } from '../../contexts/AIAccessContext';
+import { aiDisabledMessage } from '../../utils/aiAccessErrors';
 import { useAuth } from '../../contexts/AuthContext';
 import { getCreditStanding, XP_PER_CREDIT } from '../../utils/creditRequirements';
 import { getSubjectName } from '../../constants/subjects';
@@ -224,7 +225,12 @@ export default function QuestPersonalizationWizard({
 
       // Handle rate limiting errors with user-friendly message
       const errorMessage = err.response?.data?.error || err.message || 'Failed to generate tasks';
-      if (errorMessage.includes('429') || errorMessage.includes('too many requests') || errorMessage.includes('quota')) {
+      // AI switched off for this learner: say so in the server's words, not
+      // the raw "ai_disabled" token (Sentry 64448412).
+      const aiOff = aiDisabledMessage(err);
+      if (aiOff) {
+        setError(aiOff);
+      } else if (errorMessage.includes('429') || errorMessage.includes('too many requests') || errorMessage.includes('quota')) {
         setError('AI service is temporarily busy. Please wait 30 seconds and try again.');
       } else if (errorMessage.includes('403') || errorMessage.includes('API key')) {
         setError('AI service configuration error. Please contact support.');

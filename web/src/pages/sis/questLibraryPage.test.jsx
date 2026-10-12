@@ -275,7 +275,9 @@ describe('QuestsPanel (was QuestLibraryPage)', () => {
     await screen.findByText('Watercolor Basics')
     rowAction(0, 'Assign')
     const dialog = await screen.findByRole('dialog')
-    expect(within(dialog).getByText(/Already on: Art$/)).toBeInTheDocument()
+    // "Already on" is a chip per place now, each with its own remove (79a54ac2).
+    expect(within(dialog).getAllByText('Already on:')).toHaveLength(2)
+    expect(within(dialog).getByRole('button', { name: 'Take it off Art' })).toBeInTheDocument()
     const curriculumBox = within(dialog).getByPlaceholderText('Search curriculum…')
     fireEvent.focus(curriculumBox)
     fireEvent.change(curriculumBox, { target: { value: 't' } })
@@ -722,6 +724,43 @@ describe('sorting the quest library', () => {
     fireEvent.click(header('Tasks'))
     expect(titlesIn('School library')).toEqual(['Pottery', 'Knitting', 'Archery'])
     expect(titlesIn('Teacher-made')).toEqual(['Baking', 'Zoology'])
+  })
+})
+
+describe('taking a quest off a curriculum or class from the Assign dialog (79a54ac2)', () => {
+  // iCreate org admin, 2026-10-12: "Can't unassign on curriculum or classes
+  // from here." The dialog listed where the quest was as plain text.
+  const removals = () => api.delete.mock.calls.map(([url]) => url)
+
+  const openAssign = async () => {
+    render(<QuestsPanel />)
+    await screen.findByText('Watercolor Basics')
+    rowAction(0, 'Assign')
+    return screen.findByRole('dialog')
+  }
+
+  it('takes it off a curriculum through the quest-scoped route, after asking', async () => {
+    confirmMock.mockResolvedValue(true)
+    const dialog = await openAssign()
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Take it off Art' }))
+    await waitFor(() => expect(removals()).toEqual(['/api/sis/quests/q1/curricula/cur-art?organization_id=org-1']))
+    expect(confirmMock.mock.calls[0][0].body).toMatch(/Classes that already have this quest keep it/)
+  })
+
+  it('unassigns it from a class through the class page\'s own route, and says what students keep', async () => {
+    confirmMock.mockResolvedValue(true)
+    const dialog = await openAssign()
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Unassign it from Art Expeditions' }))
+    await waitFor(() => expect(removals()).toEqual(['/api/sis/classes/cl-1/quests/q1?organization_id=org-1']))
+    expect(confirmMock.mock.calls[0][0].body).toMatch(/have not started it lose it.*started it keep their work/)
+  })
+
+  it('does nothing when the office keeps it', async () => {
+    confirmMock.mockResolvedValue(false)
+    const dialog = await openAssign()
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Unassign it from Art Expeditions' }))
+    await waitFor(() => expect(confirmMock).toHaveBeenCalled())
+    expect(removals()).toEqual([])
   })
 })
 

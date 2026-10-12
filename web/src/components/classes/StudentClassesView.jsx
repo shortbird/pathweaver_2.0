@@ -20,6 +20,7 @@ import { useStudentScope } from '../../hooks/useStudentScope'
 import { dueStatus, dueChipClasses } from '../../utils/dueDate'
 import CreateQuestModal from '../CreateQuestModal'
 import StudentAgenda from './StudentAgenda'
+import { groupClassQuestsByCurriculum } from './classQuestCurriculumGroups'
 
 /**
  * StudentClassesView - Shows enrolled classes for students
@@ -87,6 +88,7 @@ export default function StudentClassesView({ basePath = null, showAgenda = true 
       <StudentClassDetail
         classData={selectedClass}
         orgId={selectedClass.organization_id || user?.organization_id}
+        studentId={scopedStudentId}
         listPath={listPath}
         onBack={() => navigate(listPath)}
       />
@@ -255,7 +257,7 @@ function StudentClassCard({ classData, onClick }) {
  *
  * Can receive classData from parent (fast path) or classId to fetch independently.
  */
-function StudentClassDetail({ classData: initialClassData, classId: propClassId, orgId, onBack, listPath = '/org-classes' }) {
+function StudentClassDetail({ classData: initialClassData, classId: propClassId, orgId, onBack, listPath = '/org-classes', studentId = null }) {
   const { user } = useAuth()
   const navigate = useNavigate()
   const [quests, setQuests] = useState([])
@@ -283,7 +285,7 @@ function StudentClassDetail({ classData: initialClassData, classId: propClassId,
 
   useEffect(() => {
     fetchDetails()
-  }, [classId])
+  }, [classId, studentId])
 
   const fetchDetails = async () => {
     try {
@@ -291,7 +293,10 @@ function StudentClassDetail({ classData: initialClassData, classId: propClassId,
 
       // Best-effort: which quests has this student completed? Failure just means
       // nothing gets folded into the Completed section.
-      api.get('/api/users/completed-quests?per_page=100')
+      // Family scope: every read below is the child's (ticket 8700c16d).
+      const scope = studentId ? { studentId } : {}
+      api.get('/api/users/completed-quests?per_page=100',
+        studentId ? { params: { student_id: studentId } } : undefined)
         .then((res) => {
           const ids = (res.data?.quests || []).map((q) => q.id).filter(Boolean)
           setCompletedQuestIds(new Set(ids))
@@ -299,9 +304,9 @@ function StudentClassDetail({ classData: initialClassData, classId: propClassId,
         .catch(() => {})
 
       const requests = [
-        classService.getClassQuests(orgId, classId).catch(() => ({ success: false })),
-        classService.getClassAdvisors(orgId, classId).catch(() => ({ success: false })),
-        classService.getClassCourses(orgId, classId).catch(() => ({ success: false })),
+        classService.getClassQuests(orgId, classId, scope).catch(() => ({ success: false })),
+        classService.getClassAdvisors(orgId, classId, scope).catch(() => ({ success: false })),
+        classService.getClassCourses(orgId, classId, scope).catch(() => ({ success: false })),
         api.get(`/api/sis/classes/${classId}/materials`)
           .then((r) => r.data).catch(() => ({ success: false })),
       ]
@@ -309,7 +314,7 @@ function StudentClassDetail({ classData: initialClassData, classId: propClassId,
       // If we don't have classData yet, fetch student classes to get progress
       if (!initialClassData) {
         requests.push(
-          classService.getMyStudentClasses().catch(() => ({ success: false }))
+          classService.getMyStudentClasses(scope).catch(() => ({ success: false }))
         )
       }
 
@@ -331,7 +336,7 @@ function StudentClassDetail({ classData: initialClassData, classId: propClassId,
 
       // Set class data from student classes response if needed
       if (!initialClassData && results[4]?.success) {
-        const cls = (results[2].classes || []).find(c => c.id === classId)
+        const cls = (results[4].classes || []).find(c => c.id === classId)
         if (cls) {
           setClassData(cls)
           setProgress(cls.progress || {})
@@ -415,6 +420,11 @@ function StudentClassDetail({ classData: initialClassData, classId: propClassId,
     }
   })
 
+  // Under their curriculum headings (ticket 8700c16d: "they aren't organized
+  // by class (or in any way for that matter)"). Quests on no curriculum stay
+  // directly under the class; a class with no curricula reads as before.
+  const activeGroups = groupClassQuestsByCurriculum(activeQuests, ({ cq }) => cq)
+
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
       {/* Header */}
@@ -496,7 +506,13 @@ function StudentClassDetail({ classData: initialClassData, classId: propClassId,
           </div>
         ) : (
           <div className="space-y-3">
-            {activeQuests.map(({ cq, quest }) => renderQuestRow(cq, quest))}
+            {activeGroups.loose.map(({ cq, quest }) => renderQuestRow(cq, quest))}
+            {activeGroups.sections.map((section) => (
+              <section key={section.key} aria-label={section.title} className="space-y-3 pt-2">
+                <h4 className="text-sm font-semibold text-gray-700">{section.title}</h4>
+                {section.items.map(({ cq, quest }) => renderQuestRow(cq, quest))}
+              </section>
+            ))}
             {activeQuests.length === 0 && completedClassQuests.length > 0 && (
               <p className="text-sm text-gray-500 py-2">
                 All caught up — every quest here is completed.

@@ -36,7 +36,11 @@ REGISTRATION_STATUSES = ('open', 'closed')
 # supply_budget_per_student is the school's materials budget. It is edited in
 # the SIS class editor and read by no family- or student-facing surface, so it
 # has no business on a payload sent to one.
-STAFF_ONLY_FIELDS = ('internal_notes', 'supply_budget_per_student', 'exclude_from_pay')
+#
+# attendance_optional (ticket 29dff954) only changes what the office and the
+# teacher are asked to do; families have no use for it.
+STAFF_ONLY_FIELDS = ('internal_notes', 'supply_budget_per_student', 'exclude_from_pay',
+                     'attendance_optional')
 
 
 # admin client justified: the SIS console acts for the whole school — this

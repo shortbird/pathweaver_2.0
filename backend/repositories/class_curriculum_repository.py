@@ -49,6 +49,16 @@ class ClassCurriculumRepository:
                 .select('id, quest_id, sequence_order, student_ids')
                 .eq('class_id', class_id).execute()).data or []
 
+    def quest_positions(self, class_ids: List[str], quest_ids: List[str]) -> List[Dict[str, Any]]:
+        """class_quests (class_id, quest_id, sequence_order) for these classes
+        and quests: the class's own order, for the student's "Class order" sort.
+        Bounded by one student's classes and active quests."""
+        if not class_ids or not quest_ids:
+            return []
+        return (self.client.table('class_quests').select('class_id, quest_id, sequence_order')
+                .in_('class_id', list(class_ids)).in_('quest_id', list(quest_ids))
+                .execute()).data or []
+
     def add_links(self, rows: List[Dict[str, Any]]) -> None:
         if rows:
             self.client.table('class_quests').upsert(

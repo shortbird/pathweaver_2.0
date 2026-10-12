@@ -26,14 +26,16 @@ best-effort after changing class_enrollments:
     - waitlist offer acceptance (sis_waitlist_service)
 
 Each group is created lazily on the first sync that finds any members. A resync
-also REMOVES stale non-admin members (a guardian whose children all dropped, a
-student who dropped), so membership self-heals on the next enrollment change or
-teacher visit to the Messages tab.
+also REMOVES stale members (a guardian whose children all dropped, a student who
+dropped, and since 2026-10-12 a teacher who no longer teaches the class -- the
+front office keeps its seat), so membership self-heals on the next enrollment
+change, instructor change, or teacher visit to the Messages tab.
 """
 
-from typing import Any, Dict, Optional, Set, Tuple
+from typing import Any, Dict, List, Optional, Set, Tuple
 
 from utils import class_membership as membership
+from utils.sis_roles import ADMIN_ROLES
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -231,11 +233,77 @@ def _sync_one(admin, cls: Dict[str, Any], class_id: str, actor_id: Optional[str]
             }).execute()
 
     # Anyone else leaves the group (e.g. a guardian whose children all dropped,
-    # a student who dropped). Admins (teachers, staff who joined) are never
-    # auto-removed.
+    # a student who dropped).
+    #
+    # Admins too, since 2026-10-12. Until then an admin row was never removed,
+    # so a teacher replaced on a class stayed in its chats for good (iCreate,
+    # ticket 3bdf06bb: "I'm included in chats for classes that I'm not
+    # responsible for. I would only like to be in chats for classes that I
+    # teach."). An admin who is not a current teacher stays only when they are
+    # the school's front office -- the people the class Messages tab and the
+    # "All class chats" list legitimately join (ensure_admin_member): org
+    # admins and campus coordinators of this school, a superadmin, and the
+    # school inbox account. The group's created_by is a teacher at creation and
+    # nothing reads it for a class chat's ownership, so it gets no exemption.
     desired = member_ids | advisor_ids
-    for uid, row in have.items():
-        if uid not in desired and row.get('role') != 'admin':
-            admin.table('group_members').delete().eq('id', row['id']).execute()
+    stale = {uid: row for uid, row in have.items() if uid not in desired}
+    stale_admins = [uid for uid, row in stale.items() if row.get('role') == 'admin']
+    keep = _office_admins(admin, cls.get('organization_id'), stale_admins)
+    for uid, row in stale.items():
+        if uid in keep:
+            continue
+        admin.table('group_members').delete().eq('id', row['id']).execute()
 
     return group_id
+
+
+# The roles that administer every class chat at their school without teaching
+# the class (utils.sis_roles.ADMIN_ROLES).
+_OFFICE_ROLES = frozenset(ADMIN_ROLES)
+
+
+def _office_admins(admin, org_id: Optional[str], user_ids: List[str]) -> Set[str]:
+    """Which of `user_ids` are this school's front office, and so keep their
+    admin seat in a class chat they do not teach.
+
+    When the lookup fails every one of them is kept: a failed read must never
+    empty a chat of its staff."""
+    if not user_ids:
+        return set()
+    try:
+        from repositories.organization_repository import OrganizationRepository
+        from repositories.user_repository import UserRepository
+        from utils.roles import get_effective_roles
+        rows = UserRepository(client=admin).find_by_ids(
+            list(user_ids), 'id, role, org_role, org_roles, organization_id')
+        keep: Set[str] = set()
+        for u in rows.values():
+            roles = set(get_effective_roles(u))
+            if 'superadmin' in roles:
+                keep.add(u['id'])
+            elif org_id and u.get('organization_id') == org_id and roles & _OFFICE_ROLES:
+                keep.add(u['id'])
+        if org_id:
+            org = OrganizationRepository(client=admin).find_by_id(org_id) or {}
+            inbox_id = org.get('inbox_user_id')
+            if inbox_id and inbox_id in user_ids:
+                keep.add(inbox_id)
+        return keep
+    except Exception as e:  # noqa: BLE001 -- keep everyone rather than guess
+        logger.warning(f'Class chat admin check failed for org {org_id}: {e}')
+        return set(user_ids)
+
+
+def archived_class_ids(class_ids) -> Set[str]:
+    """The archived classes among `class_ids`. Their chats are hidden from the
+    inbox lists (ticket 3bdf06bb); the group rows and their history stay.
+    Best-effort: a failed read hides nothing."""
+    ids = sorted({c for c in (class_ids or []) if c})
+    if not ids:
+        return set()
+    try:
+        from repositories.sis_class_repository import SisClassRepository
+        return SisClassRepository(client=_admin()).archived_ids(ids)
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f'Archived class lookup failed: {e}')
+        return set()

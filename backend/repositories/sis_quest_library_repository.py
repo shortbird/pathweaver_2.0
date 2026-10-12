@@ -217,3 +217,12 @@ class SisQuestLibraryRepository(BaseRepository):
         except APIError as e:
             logger.error(f"Error adding quest {quest_id} to curriculum {curriculum_id}: {e}")
             raise DatabaseError("Failed to add the quest to the curriculum") from e
+
+    def remove_curriculum_quest(self, curriculum_id: str, quest_id: str) -> None:
+        """Take one quest off one curriculum. Classes are not touched."""
+        try:
+            self.client.table('sis_curriculum_quests').delete() \
+                .eq('curriculum_id', curriculum_id).eq('quest_id', quest_id).execute()
+        except APIError as e:
+            logger.error(f"Error removing quest {quest_id} from curriculum {curriculum_id}: {e}")
+            raise DatabaseError("Failed to remove the quest from the curriculum") from e

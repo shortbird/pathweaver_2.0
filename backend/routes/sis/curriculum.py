@@ -497,13 +497,26 @@ def set_curriculum_quests(user_id, curriculum_id):
                 seen.add(q)
                 valid_order.append(q)
 
+    before = {r['quest_id'] for r in (
+        _admin().table('sis_curriculum_quests').select('quest_id')
+        .eq('curriculum_id', curriculum_id).execute()).data or []}
     _replace_links('sis_curriculum_quests', curriculum_id, 'quest_id', valid_order, user_id)
     # Additive push, so the students in this curriculum's classes actually see
     # what was just attached. Removals are deliberately not mirrored: pulling a
     # quest off a section mid-term would take its due dates and its students'
     # place in it with it. See services/sis_curriculum_sync.
-    pushed = push_curriculum_quests_safe(_admin(), curriculum_id, org_id, user_id,
-                                         quest_ids=valid_order)
+    #
+    # Only the quests NEW to the set are pushed. iCreate, 30968a7e
+    # (2026-10-12): "I did not assign Independent Study: Science to the kids
+    # in the class, but it assigned it anyway." Pushing the whole list on every
+    # save re-gave a class every quest its teacher had taken off it, so a
+    # reorder or an unchanged re-save assigned work nobody asked for. And each
+    # new quest goes only to the students the class already gives this
+    # curriculum to (sis_curriculum_sync._class_audience_for_curriculum).
+    added = [q for q in valid_order if q not in before]
+    pushed = (push_curriculum_quests_safe(_admin(), curriculum_id, org_id, user_id,
+                                          quest_ids=added)
+              if added else {'classes': 0, 'assignments': 0})
     return jsonify({'success': True, 'attached': len(valid_order),
                     'rejected': len(requested) - len(valid_order),
                     'pushed_to_classes': pushed['classes'],

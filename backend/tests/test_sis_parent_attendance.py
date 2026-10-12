@@ -90,7 +90,8 @@ class TestTheHistoryIsPaged:
         client = Mock()
         table = Mock()
         client.table.return_value = table
-        for chained in ('select', 'eq', 'order', 'range', 'limit'):
+        # in_: the rate reads which classes take no roll (29dff954).
+        for chained in ('select', 'eq', 'order', 'range', 'limit', 'in_'):
             getattr(table, chained).return_value = table
         table.execute.return_value = Mock(data=RECORDS)
         return client, table

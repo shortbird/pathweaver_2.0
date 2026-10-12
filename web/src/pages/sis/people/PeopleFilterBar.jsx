@@ -13,8 +13,12 @@ const select = 'rounded-lg border border-gray-300 px-2.5 py-1.5 text-sm bg-white
  * rows, with a count, and an option nobody matches is not offered: the bar
  * describes this school, not every school.
  */
-const PeopleFilterBar = ({ rows, filters, onChange }) => {
-  const set = (patch) => onChange({ ...filters, ...patch })
+const PeopleFilterBar = ({ rows, filters, onChange, query, onQueryChange }) => {
+  // `query`/`onQueryChange` let the page own the search box as local state
+  // and hand the bar a deferred `filters` for its counts (ticket a8049dcb).
+  // Without them the box is driven by filters.q, as before.
+  const search = query ?? filters.q
+  const set = (patch) => onChange({ ...filters, q: search, ...patch })
   const roles = roleChipOptions(rows, filters)
   const statuses = statusOptions(rows, filters)
   const families = familyOptions(rows, filters)
@@ -24,8 +28,8 @@ const PeopleFilterBar = ({ rows, filters, onChange }) => {
     <div className="mb-4 space-y-3">
       <div className="flex flex-wrap items-center gap-3">
         <input
-          value={filters.q}
-          onChange={(e) => set({ q: e.target.value })}
+          value={search}
+          onChange={(e) => (onQueryChange ? onQueryChange(e.target.value) : set({ q: e.target.value }))}
           placeholder="Search by name, email, phone, or family…"
           aria-label="Search people"
           className="flex-1 min-w-[220px] rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-optio-purple"

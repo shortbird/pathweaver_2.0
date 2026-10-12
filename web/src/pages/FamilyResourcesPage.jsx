@@ -5,7 +5,7 @@ import useSchoolContext from '../hooks/useSchoolContext'
 import BackToSchool from '../components/navigation/BackToSchool'
 
 /**
- * Resources — the school's document library (family guidebook, student
+ * Library — the school's document library (family guidebook, student
  * contract, forms). Read-only; staff manage the list in the SIS.
  *
  * Reached from a card on /school. Open to everyone in the school, not only
@@ -25,7 +25,7 @@ const FamilyResourcesPage = () => {
     if (!orgId) return
     api.get(`/api/sis/parent/resources?organization_id=${orgId}`)
       .then((r) => setResources(r.data?.resources || []))
-      .catch(() => { toast.error('Could not load resources'); setResources([]) })
+      .catch(() => { toast.error('Could not load the library'); setResources([]) })
   }, [orgId])
 
   const org = orgs?.find((o) => o.organization_id === orgId)
@@ -38,7 +38,9 @@ const FamilyResourcesPage = () => {
   return (
     <div className="max-w-3xl mx-auto px-4 py-8">
       <BackToSchool className="mb-3" />
-      <h1 className="text-2xl font-bold text-gray-900 mb-1">Resources</h1>
+      {/* "Library" (ticket 5574dd28): the staff's word for this list in the
+          SIS. The page and its /resources URL keep their old names. */}
+      <h1 className="text-2xl font-bold text-gray-900 mb-1">Library</h1>
       <p className="text-sm text-gray-500 mb-6">
         Documents and links from {org?.organization_name || 'your school'} — guidebooks, contracts, and forms you can refer back to any time.
       </p>
@@ -54,7 +56,7 @@ const FamilyResourcesPage = () => {
 
       {(orgs === null || (orgId && resources === null)) && <p className="text-gray-500">Loading…</p>}
       {orgs?.length === 0 && <p className="text-gray-500">Your account isn't linked to a school yet.</p>}
-      {resources?.length === 0 && <p className="text-gray-500">{org?.organization_name || 'Your school'} hasn't published any resources yet.</p>}
+      {resources?.length === 0 && <p className="text-gray-500">{org?.organization_name || 'Your school'} hasn't added anything to its library yet.</p>}
 
       {Object.entries(grouped).map(([category, items]) => (
         <div key={category} className="mb-6">

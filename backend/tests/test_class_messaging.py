@@ -70,6 +70,9 @@ class _Query:
     def single(self):
         self._single = True; return self
 
+    def maybe_single(self):
+        self._single = True; return self
+
     def execute(self):
         if self._op == 'insert':
             payload = self._payload if isinstance(self._payload, list) else [self._payload]
@@ -495,3 +498,115 @@ class TestDirectMessagePermission:
         svc, client_patch = self._service(admin)
         with client_patch, patch.object(m, '_admin', return_value=admin):
             assert svc.can_message_user(TEACHER, 'stranger-parent') is False
+
+
+EX_TEACHER = 'ex-teacher-1'
+OFFICE_ADMIN = 'office-admin-1'
+COORDINATOR = 'coordinator-1'
+OTHER_SCHOOL_ADMIN = 'other-admin-1'
+PLATFORM_SUPERADMIN = 'super-1'
+INBOX = 'inbox-1'
+
+
+def _staff_rows():
+    """A family chat whose admins are a mix of current teachers, a teacher who
+    was replaced, the school's front office and an outsider."""
+    users = _rows()['users'] + [
+        {'id': TEACHER, 'role': 'org_managed', 'org_roles': ['advisor'], 'organization_id': 'org1'},
+        {'id': EX_TEACHER, 'role': 'org_managed', 'org_roles': ['advisor'], 'organization_id': 'org1'},
+        {'id': OFFICE_ADMIN, 'role': 'org_managed', 'org_roles': ['org_admin'], 'organization_id': 'org1'},
+        {'id': COORDINATOR, 'role': 'org_managed', 'org_roles': ['campus_coordinator'],
+         'organization_id': 'org1'},
+        {'id': OTHER_SCHOOL_ADMIN, 'role': 'org_managed', 'org_roles': ['org_admin'],
+         'organization_id': 'org2'},
+        {'id': PLATFORM_SUPERADMIN, 'role': 'superadmin', 'organization_id': None},
+        {'id': INBOX, 'role': 'org_managed', 'org_roles': [], 'organization_id': 'org1'},
+    ]
+    admins = [TEACHER, EX_TEACHER, OFFICE_ADMIN, COORDINATOR, OTHER_SCHOOL_ADMIN,
+              PLATFORM_SUPERADMIN, INBOX]
+    return _rows(
+        users=users,
+        organizations=[{'id': 'org1', 'inbox_user_id': INBOX}],
+        group_conversations=[{'id': 'g1', 'source_class_id': CLASS,
+                              'audience': 'family', 'is_active': True,
+                              'name': 'Musical Theater Parent Chat'}],
+        group_members=[{'id': f'gm-{u}', 'group_id': 'g1', 'user_id': u, 'role': 'admin'}
+                       for u in admins],
+    )
+
+
+@pytest.mark.unit
+class TestClassChatTeacherTurnover:
+    """Ticket 3bdf06bb (iCreate, an advisor): "I'm included in chats for
+    classes that I'm not responsible for. I would only like to be in chats for
+    classes that I teach." The sync never removed an admin row, so a teacher
+    replaced on a class stayed in its chats for good."""
+
+    def _sync(self, rows):
+        from services import class_group_sync_service as sync
+        admin = _FakeAdmin(rows)
+        with _membership(admin), patch.object(sync, '_admin', return_value=admin):
+            sync.sync_class_groups(CLASS, actor_id=OFFICE_ADMIN)
+        return {r['user_id'] for t, r in admin.deletes
+                if t == 'group_members' and r['group_id'] == 'g1'}
+
+    def test_a_replaced_teacher_leaves_the_chat(self):
+        assert EX_TEACHER in self._sync(_staff_rows())
+
+    def test_current_teachers_and_the_front_office_stay(self):
+        removed = self._sync(_staff_rows())
+        for keep in (TEACHER, OFFICE_ADMIN, COORDINATOR, PLATFORM_SUPERADMIN, INBOX):
+            assert keep not in removed, keep
+
+    def test_another_schools_admin_is_not_front_office_here(self):
+        assert OTHER_SCHOOL_ADMIN in self._sync(_staff_rows())
+
+    def test_a_failed_role_lookup_removes_no_admin(self):
+        from services import class_group_sync_service as sync
+        admin = _FakeAdmin(_staff_rows())
+        with patch.object(sync, '_admin', return_value=admin):
+            kept = sync._office_admins(_Boom(), 'org1', [EX_TEACHER])
+        assert kept == {EX_TEACHER}
+
+
+class _Boom:
+    def table(self, *a, **k):
+        raise RuntimeError('down')
+
+
+@pytest.mark.unit
+class TestArchivedClassChatsHidden:
+    """Ticket 3bdf06bb: the chats of an archived class stay in the database
+    but leave the inbox lists."""
+
+    def test_archived_class_ids_names_only_archived_classes(self):
+        from services import class_group_sync_service as sync
+        admin = _FakeAdmin({'org_classes': [
+            {'id': 'c-live', 'status': 'active'},
+            {'id': 'c-old', 'status': 'archived'},
+        ]})
+        with patch.object(sync, '_admin', return_value=admin):
+            assert sync.archived_class_ids(['c-live', 'c-old', None]) == {'c-old'}
+
+    def test_my_messages_drops_an_archived_class_chat(self):
+        from services import group_message_service as gms
+        rows = [{'id': 'g-live', 'source_class_id': 'c-live'},
+                {'id': 'g-old', 'source_class_id': 'c-old'},
+                {'id': 'g-plain', 'source_class_id': None}]
+        with patch('services.class_group_sync_service.archived_class_ids',
+                   return_value={'c-old'}):
+            kept = gms._without_archived_class_chats(rows)
+        assert [g['id'] for g in kept] == ['g-live', 'g-plain']
+
+    def test_all_class_chats_filters_archived_in_postgres(self):
+        from unittest.mock import MagicMock
+        from repositories.group_repository import GroupRepository
+        client = MagicMock()
+        q = client.table.return_value
+        for name in ('select', 'eq', 'neq', 'or_', 'order', 'range'):
+            getattr(q, name).return_value = q
+        q.not_.is_.return_value = q
+        q.execute.return_value = MagicMock(data=[], count=0)
+        GroupRepository(client=client).class_chats_page('org1')
+        q.neq.assert_any_call('org_classes.status', 'archived')
+        assert 'org_classes!inner(status)' in q.select.call_args[0][0]

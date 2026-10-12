@@ -169,6 +169,7 @@ class ClassService(BaseService):
 
         result = self.class_repo.add_advisor(class_id, advisor_id, assigned_by)
         logger.info(f"Advisor {advisor_id} added to class {class_id} by {assigned_by}")
+        _sync_class_chats(class_id, assigned_by)
 
         return result
 
@@ -188,6 +189,7 @@ class ClassService(BaseService):
         success = self.class_repo.remove_advisor(class_id, advisor_id)
         if success:
             logger.info(f"Advisor {advisor_id} removed from class {class_id} by {removed_by}")
+            _sync_class_chats(class_id, removed_by)
 
         return success
 
@@ -776,3 +778,10 @@ class ClassService(BaseService):
                     student_id,
                     'active'
                 )
+
+
+def _sync_class_chats(class_id: str, actor_id: str) -> None:
+    """The class chats follow the teachers: an advisor added joins them as an
+    admin, one removed leaves (ticket 3bdf06bb). Never raises."""
+    from services.class_group_sync_service import sync_class_groups
+    sync_class_groups(class_id, actor_id=actor_id)

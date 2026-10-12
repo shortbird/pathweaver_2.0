@@ -13,6 +13,10 @@ import FamilyScopeContext from '../../contexts/FamilyScopeContext'
 
 vi.mock('../../services/api', () => ({ default: { get: vi.fn(), post: vi.fn() } }))
 vi.mock('../../hooks/useHidePillars', () => ({ default: () => false }))
+// ManualTaskCreator reads the AI gate for "Help me finish this" (Sentry
+// e7429a56). On by default; one test below turns it off.
+const aiGate = vi.hoisted(() => ({ canUseTaskGeneration: true }))
+vi.mock('../../contexts/AIAccessContext', () => ({ useAIAccess: () => aiGate }))
 
 const QUEST = 'quest-dod'
 
@@ -36,6 +40,7 @@ const fillBasics = (title = 'Play chess', description = 'Play games against peop
 beforeEach(() => {
   localStorage.clear()
   vi.clearAllMocks()
+  aiGate.canUseTaskGeneration = true
 })
 
 describe('Definition of Done on manual tasks', () => {
@@ -143,6 +148,38 @@ describe('Help me finish this', () => {
     fireEvent.click(screen.getByRole('button', { name: /Help me finish this/i }))
 
     expect(await screen.findByText('AI help is turned off for this student.')).toBeInTheDocument()
+  })
+
+  it("shows the server's sentence, not the raw code, for an AI-off refusal", async () => {
+    // Sentry e7429a56: a parent for a child with AI off saw "ai_disabled".
+    api.get.mockResolvedValue(rulesResponse())
+    api.post.mockRejectedValue({
+      response: {
+        status: 403,
+        data: {
+          error: 'ai_disabled',
+          code: 'DEPENDENT_AI_DISABLED',
+          message: 'AI features are not enabled for your account. Ask your parent to enable them in their dashboard.',
+        },
+      },
+    })
+    renderCreator()
+    fireEvent.change(screen.getByLabelText(/Task Title/i), { target: { value: 'Play chess' } })
+    fireEvent.click(screen.getByRole('button', { name: /Help me finish this/i }))
+
+    expect(await screen.findByText(/Ask your parent to enable them in their dashboard/)).toBeInTheDocument()
+    expect(screen.queryByText('ai_disabled')).not.toBeInTheDocument()
+  })
+
+  it('is hidden when AI task generation is off for the learner', async () => {
+    // Sentry e7429a56: the button was offered, then refused with a 403.
+    aiGate.canUseTaskGeneration = false
+    api.get.mockResolvedValue(rulesResponse())
+    renderCreator()
+    await waitFor(() => expect(screen.getByLabelText(/Task Title/i)).toBeInTheDocument())
+    expect(screen.queryByRole('button', { name: /Help me finish this/i })).not.toBeInTheDocument()
+    // The form itself still works without AI.
+    expect(screen.getByRole('button', { name: /Add This Task/i })).toBeInTheDocument()
   })
 
   it("leaves XP alone where the child's school does not let the family set it", async () => {

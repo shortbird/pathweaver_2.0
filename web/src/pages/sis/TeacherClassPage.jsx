@@ -20,6 +20,7 @@ import { statusTone } from '../../components/sis/ui/statusMaps'
 import { fmtTime } from '../../utils/schedule'
 import GlassTabBar from '../../components/ui/GlassTabBar'
 import { RollStatus, SubstituteControl } from '../../components/sis/RollStatus'
+import SupplyBudgetCard from '../../components/sis/SupplyBudgetCard'
 
 /**
  * TeacherClassPage — one class for its teacher: the roster (photos, ages,
@@ -92,6 +93,9 @@ const TeacherClassPage = () => {
   // the substitute sheet. The other tabs answer "Class not found" to a
   // substitute, so they are not offered, and the date stays on today.
   const substitute = classData?.myRole === 'substitute'
+  // A class that takes no roll: at-home days, independent study (29dff954).
+  // The tab is the roster alone; a roll taken earlier stays stored.
+  const noRoll = Boolean(cls?.attendance_optional)
   const [date, setDate] = useState(today())
   const [marks, setMarks] = useState({})
   // student_id -> the guardian's report for this class on this date, if any.
@@ -258,11 +262,20 @@ const TeacherClassPage = () => {
       <GlassTabBar
         align="start" size="md" className="mb-6" aria-label="Class sections"
         tabs={(substitute
-          ? [['roster', 'Roster & Attendance']]
-          : [['roster', 'Roster & Attendance'], ['messages', 'Messages'], ['curriculum', 'Curriculum'], ['quests', 'Quests'], ['progress', 'Student Progress'], ['activity', 'This Week']])
+          ? [['roster', noRoll ? 'Roster' : 'Roster & Attendance']]
+          : [['roster', noRoll ? 'Roster' : 'Roster & Attendance'], ['messages', 'Messages'], ['curriculum', 'Curriculum'], ['quests', 'Quests'], ['progress', 'Student Progress'], ['activity', 'This Week']])
           .map(([id, label]) => ({ id, label }))}
         active={tab} onSelect={setTab}
       />
+
+      {/* Ticket e7a50b4b: "I would like to see what I have spent on each class
+          supply budget already/how much I have left." On every tab, not only
+          the roster -- the question does not wait for a tab. A substitute's
+          one-day grant does not include the class's money. */}
+      {!substitute && (
+        <SupplyBudgetCard classId={classId} orgId={orgId} budget={budget}
+          onChanged={load} readOnly={previewing} />
+      )}
 
       {tab === 'quests' && (
         // Release dates are gated by the org's scheduled_publish flag, read
@@ -297,62 +310,6 @@ const TeacherClassPage = () => {
         <ClassMessagesTab classId={classId} orgId={orgId} className={cls?.name} />
       )}
 
-      {/* Materials budget — a ceiling, never a target. The wording matters:
-          "up to" is what the school asked for, so teachers don't read it as
-          money they're expected to spend. */}
-      {budget && budget.total > 0 && tab === 'roster' && (
-        <div className="rounded-xl border border-gray-200 bg-white p-4 mb-6">
-          <p className="text-sm text-neutral-600">
-            Supply budget: spend <span className="font-semibold text-neutral-900">up to ${budget.total.toLocaleString()}</span> on
-            materials for this class this year.
-          </p>
-          {/* What is left, and what it went on. The ceiling on its own could
-              not answer "can I buy this?" — every supply request and
-              reimbursement filed against this class now counts against it
-              (805cb3a3, 2026-09-01). Committed, not spent: a request filed on
-              Tuesday is money already intended. */}
-          {budget.committed > 0 && (
-            <p className="text-sm mt-1">
-              <span className={budget.remaining < 0 ? 'font-semibold text-red-600' : 'font-semibold text-neutral-900'}>
-                ${budget.remaining.toLocaleString()}
-              </span>
-              <span className="text-neutral-600">
-                {budget.remaining < 0 ? ' over' : ' left'} — ${budget.committed.toLocaleString()} requested
-                {budget.spent < budget.committed && `, $${budget.spent.toLocaleString()} of it settled`}
-              </span>
-            </p>
-          )}
-          <p className="text-xs text-neutral-400 mt-1">
-            {budget.students} student{budget.students === 1 ? '' : 's'}
-            {budget.supply_fee_per_student > 0 && ` · $${budget.supply_fee_per_student} supply fee each`}
-            {budget.allowance_per_student > 0 && ` · $${budget.allowance_per_student} each from tuition`}
-            {budget.frozen
-              ? ` · fixed at the roster on ${budget.as_of}`
-              : ' · updates as students enroll until the first day of school'}
-          </p>
-          {(budget.transactions || []).length > 0 && (
-            <details className="mt-2">
-              <summary className="cursor-pointer text-xs text-neutral-500 hover:text-optio-purple">
-                {budget.transactions.length} request{budget.transactions.length === 1 ? '' : 's'} against this budget
-              </summary>
-              <ul className="mt-1.5 space-y-1">
-                {budget.transactions.map((t) => (
-                  <li key={t.id} className="text-xs flex items-baseline gap-2">
-                    <span className="text-neutral-700">{t.title}</span>
-                    <span className="text-neutral-500">
-                      {t.amount != null ? `$${t.amount.toLocaleString()}` : 'no amount'}
-                    </span>
-                    <span className="text-neutral-400">
-                      {t.status === 'resolved' ? 'settled' : 'pending'}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            </details>
-          )}
-        </div>
-      )}
-
       {tab === 'roster' && (() => {
         const count = (st) => students.filter((s) => markOf(s.student_id) === st).length
         const present = count('present'); const absent = count('absent')
@@ -365,8 +322,13 @@ const TeacherClassPage = () => {
           excused: 'border-blue-300 bg-blue-50',
         }
         return (<>
+          {noRoll && (
+            <p className="mb-4 text-sm text-neutral-500" data-no-roll>
+              Attendance is not taken for this class.
+            </p>
+          )}
           {/* Controls — same shell as the admin attendance page */}
-          <div className="bg-white rounded-xl border border-gray-200 p-4 mb-6 flex flex-wrap items-center gap-3">
+          {!noRoll && <div className="bg-white rounded-xl border border-gray-200 p-4 mb-6 flex flex-wrap items-center gap-3">
             <input type="date" value={date} onChange={(e) => setDate(e.target.value)}
               disabled={substitute} title={substitute ? 'You are covering this class today' : undefined}
               className="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-optio-purple"
@@ -381,7 +343,7 @@ const TeacherClassPage = () => {
                   session={session} onSaved={(s) => s && setSession(s)} />
               </span>
             )}
-          </div>
+          </div>}
 
           {!students.length && <p className="text-neutral-500">No students enrolled yet.</p>}
 
@@ -390,20 +352,24 @@ const TeacherClassPage = () => {
               <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 border-b border-gray-100">
                 <div className="text-sm text-neutral-600">
                   <span className="font-semibold text-neutral-900">{cls?.name}</span>
+                  {noRoll ? ` · ${students.length} student${students.length === 1 ? '' : 's'}` : <>
                   {' · '}{present} present
                   {absent ? <> · <span className="text-red-600 font-medium">{absent} absent</span></> : null}
                   {late ? ` · ${late} late` : ''}
                   {excused ? ` · ${excused} excused` : ''}
+                  </>}
                 </div>
               </div>
 
+              {!noRoll && (
               <p className="px-4 pt-3 text-xs text-neutral-400">
                 Everyone is present by default, and students a parent reported out start as excused. Tap only the rest.
               </p>
+              )}
 
               <div className="p-3 grid grid-cols-1 sm:grid-cols-2 gap-2">
                 {students.map((s) => (
-                  <div key={s.student_id} className={`rounded-lg border px-3 py-3 transition-colors ${CARD[markOf(s.student_id)]}`}>
+                  <div key={s.student_id} className={`rounded-lg border px-3 py-3 transition-colors ${CARD[noRoll ? 'present' : markOf(s.student_id)]}`}>
                     <div className="flex items-center justify-between gap-2">
                       {/* Photo first — the teacher's ask was to recognise the
                           class, and a name alone doesn't do that. Tap to enlarge. */}
@@ -432,7 +398,7 @@ const TeacherClassPage = () => {
                             onToggle={() => setAlertFor(alertFor === s.student_id ? null : s.student_id)} />
                         )}
                       </span>
-                      <div className="flex gap-1 shrink-0">
+                      {!noRoll && <div className="flex gap-1 shrink-0">
                         {ATT_STATUSES.map((st) => (
                           <button key={st}
                             onClick={() => setMarks((prev) => ({ ...prev, [s.student_id]: st }))}
@@ -441,12 +407,13 @@ const TeacherClassPage = () => {
                             {st}
                           </button>
                         ))}
-                      </div>
+                      </div>}
                     </div>
                   </div>
                 ))}
               </div>
 
+              {!noRoll && (
               <div className="px-4 py-3 border-t border-gray-100 flex items-center justify-between gap-3">
                 <span className="text-xs text-neutral-400">Untouched students are saved as present. You can edit and re-save anytime.</span>
                 <button onClick={saveAttendance} disabled={saving}
@@ -454,6 +421,7 @@ const TeacherClassPage = () => {
                   {saving ? 'Saving…' : 'Save attendance'}
                 </button>
               </div>
+              )}
             </div>
           )}
         </>)

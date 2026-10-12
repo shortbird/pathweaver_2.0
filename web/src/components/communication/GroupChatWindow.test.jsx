@@ -5,6 +5,8 @@ import GroupChatWindow from './GroupChatWindow'
 let groupMessages = { data: { messages: [] }, isLoading: false }
 let groupDetails = { data: null }
 const muteGroup = vi.fn()
+const addMember = vi.fn().mockResolvedValue({})
+let availableMembers = { data: null }
 
 vi.mock('../../contexts/AuthContext', () => ({ useAuth: () => ({ user: { id: 'u1' } }) }))
 vi.mock('../../hooks/api/useGroupMessages', () => ({
@@ -16,7 +18,9 @@ vi.mock('../../hooks/api/useGroupMessages', () => ({
   useEditGroupMessage: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useDeleteGroupMessage: () => ({ mutate: vi.fn() }),
   usePinGroupMessage: () => ({ mutate: vi.fn(), isPending: false }),
-  useMuteGroup: () => ({ mutate: muteGroup, isPending: false })
+  useMuteGroup: () => ({ mutate: muteGroup, isPending: false }),
+  useAvailableMembers: () => availableMembers,
+  useAddMember: () => ({ mutateAsync: addMember, isPending: false })
 }))
 vi.mock('../../hooks/api/useMessagingRealtime', () => ({
   default: vi.fn(),
@@ -24,7 +28,12 @@ vi.mock('../../hooks/api/useMessagingRealtime', () => ({
 }))
 vi.mock('../../services/api', () => ({ default: { post: vi.fn() } }))
 vi.mock('react-hot-toast', () => ({ default: { error: vi.fn(), success: vi.fn() } }))
-vi.mock('./GroupSettingsModal', () => ({ default: () => null }))
+// The settings modal is stubbed; its member picker is real, because Add
+// people (0b85c3f1) renders it.
+vi.mock('./GroupSettingsModal', async (importOriginal) => ({
+  ...(await importOriginal()),
+  default: () => null
+}))
 
 // jsdom doesn't implement scrollIntoView (used by the auto-scroll effect).
 Element.prototype.scrollIntoView = vi.fn()
@@ -243,6 +252,33 @@ describe('GroupChatWindow', () => {
     it('is not offered when the school reads its own group', () => {
       render(<GroupChatWindow group={{ ...group, muted: true }} source={{ school: true, orgId: 'o1' }} />)
       expect(screen.queryByRole('button', { name: /mute alerts for this chat/i })).not.toBeInTheDocument()
+    })
+  })
+
+  // Ticket 0b85c3f1 (iCreate org admin): "We need a way to add someone to a
+  // group thread who is not already on it." A school group's admin is the
+  // inbox account, so the office had no way in; Add people is its door.
+  describe('Add people (0b85c3f1)', () => {
+    const school = { school: true, orgId: 'o1' }
+
+    it('is offered when the school reads its own group', () => {
+      render(<GroupChatWindow group={group} source={school} />)
+      expect(screen.getByRole('button', { name: 'Add people' })).toBeInTheDocument()
+    })
+
+    it('is not offered to a member, who has Group Settings', () => {
+      render(<GroupChatWindow group={group} />)
+      expect(screen.queryByRole('button', { name: 'Add people' })).not.toBeInTheDocument()
+    })
+
+    it('opens the picker and adds through the school source', () => {
+      availableMembers = { data: { available_members: [
+        { id: 'ada', first_name: 'Ada', last_name: 'Lark' },
+      ] } }
+      render(<GroupChatWindow group={group} source={school} />)
+      fireEvent.click(screen.getByRole('button', { name: 'Add people' }))
+      fireEvent.click(screen.getByRole('button', { name: 'Add Ada Lark' }))
+      expect(addMember).toHaveBeenCalledWith({ groupId: 'g1', userId: 'ada', source: school })
     })
   })
 

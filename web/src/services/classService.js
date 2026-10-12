@@ -116,8 +116,10 @@ const classService = {
    * @param {string} orgId - Organization ID
    * @param {string} classId - Class ID
    */
-  getClassAdvisors: async (orgId, classId) => {
-    const response = await api.get(`/api/organizations/${orgId}/classes/${classId}/advisors`)
+  getClassAdvisors: async (orgId, classId, { studentId } = {}) => {
+    // studentId: family scope, read as the child (ticket 8700c16d)
+    const response = await api.get(`/api/organizations/${orgId}/classes/${classId}/advisors`,
+      studentId ? { params: { student_id: studentId } } : undefined)
     return response.data
   },
 
@@ -235,8 +237,10 @@ const classService = {
    * @param {string} orgId - Organization ID
    * @param {string} classId - Class ID
    */
-  getClassQuests: async (orgId, classId) => {
-    const response = await api.get(`/api/organizations/${orgId}/classes/${classId}/quests`)
+  getClassQuests: async (orgId, classId, { studentId } = {}) => {
+    // studentId: family scope, read as the child (ticket 8700c16d)
+    const response = await api.get(`/api/organizations/${orgId}/classes/${classId}/quests`,
+      studentId ? { params: { student_id: studentId } } : undefined)
     return response.data
   },
 
@@ -248,8 +252,10 @@ const classService = {
    * @param {string} orgId - Organization ID
    * @param {string} classId - Class ID
    */
-  getClassCourses: async (orgId, classId) => {
-    const response = await api.get(`/api/organizations/${orgId}/classes/${classId}/courses`)
+  getClassCourses: async (orgId, classId, { studentId } = {}) => {
+    // studentId: family scope, read as the child (ticket 8700c16d)
+    const response = await api.get(`/api/organizations/${orgId}/classes/${classId}/courses`,
+      studentId ? { params: { student_id: studentId } } : undefined)
     return response.data
   },
 

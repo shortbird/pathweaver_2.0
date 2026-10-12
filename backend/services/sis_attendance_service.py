@@ -6,7 +6,7 @@ read it. The summary math (counts + attendance rate) is a pure function, unit-te
 Admin-client DB ops elsewhere (SIS tables RLS-locked to backend-only).
 """
 
-from typing import Dict, List, Any, Optional
+from typing import Dict, Iterable, List, Any, Optional, Set
 
 from utils.logger import get_logger
 from utils import person_name
@@ -51,6 +51,29 @@ def summarize(records: List[Dict[str, Any]]) -> Dict[str, Any]:
 
 
 # ── DB-backed ────────────────────────────────────────────────────────────────
+def optional_class_ids(class_ids: Iterable[Optional[str]]) -> Set[str]:
+    """Which of these classes take no roll (org_classes.attendance_optional).
+
+    Ticket 29dff954 (iCreate): "Can we have some classes not require
+    attendance? Like this would be useful for our At Home days and independent
+    study." Every place that chases a missing roll or counts a rate asks this
+    one function, so a class is optional everywhere or nowhere. Bounded by the
+    ids given, read 100 at a time.
+    """
+    from repositories.sis_class_repository import SisClassRepository
+    return SisClassRepository(client=_admin()).attendance_optional_ids(class_ids)
+
+
+def without_optional(records: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """`records` minus the ones for a class that takes no roll. A roll a
+    teacher took before the class was made optional stays stored; it just no
+    longer counts toward a rate (29dff954)."""
+    optional = optional_class_ids(r.get('class_id') for r in records or [])
+    if not optional:
+        return list(records or [])
+    return [r for r in records if r.get('class_id') not in optional]
+
+
 def _enrolled_students(org_id: str, class_id: str) -> List[Dict[str, Any]]:
     enr = (
         _admin().table('class_enrollments').select('student_id')
@@ -177,6 +200,16 @@ def record(org_id: str, class_id: str, on_date: str,
             logger.error(f'Planned-absence lookup failed during record(): {e}')
             covered = {}
         unaccounted = [sid for sid in newly_absent if sid not in covered]
+        # A class that takes no roll raises no alarm (29dff954): an absent
+        # mark on an at-home day is not a missing student.
+        # The roll save must not fail on this read; when in doubt, alert.
+        try:
+            optional = unaccounted and class_id in optional_class_ids([class_id])
+        except Exception as e:  # noqa: BLE001
+            logger.error(f'Attendance-optional lookup failed during record(): {e}')
+            optional = False
+        if optional:
+            unaccounted = []
 
     _record_unaccounted(org_id, class_id, on_date, unaccounted)
     admins_notified = _notify_admins_of_absences(org_id, class_id, on_date, unaccounted)
@@ -223,6 +256,9 @@ def open_alerts(org_id: str, on_date: Optional[str] = None) -> List[Dict[str, An
     if on_date:
         q = q.eq('date', on_date)
     rows = q.execute().data or []
+    # Alerts raised in a class before it stopped taking roll (29dff954).
+    optional = optional_class_ids(r.get('class_id') for r in rows)
+    rows = [r for r in rows if r.get('class_id') not in optional]
     if not rows:
         return []
     students = {u['id']: _student_name(u) for u in (
@@ -338,6 +374,12 @@ def daily_report(org_id: str, on_date: str) -> List[Dict[str, Any]]:
         .select('student_user_id, class_id, reason')
         .eq('organization_id', org_id).eq('absence_date', on_date).execute()
     ).data or []
+    # A class that takes no roll has nobody missing from it (29dff954). A
+    # guardian's whole-day report has no class and still shows.
+    optional = optional_class_ids([r.get('class_id') for r in records]
+                                  + [p.get('class_id') for p in planned])
+    records = [r for r in records if r.get('class_id') not in optional]
+    planned = [p for p in planned if not p.get('class_id') or p['class_id'] not in optional]
 
     planned_all_day, planned_by_class = {}, {}
     for p in planned:
@@ -415,7 +457,9 @@ def student_history(org_id: str, student_user_id: str,
         return q.order('date', desc=True)
 
     records = fetch_all_rows(_query)
-    return {'records': records, 'summary': summarize(records)}
+    # The records stay listed; a class that takes no roll does not count
+    # toward the rate (29dff954).
+    return {'records': records, 'summary': summarize(without_optional(records))}
 
 
 def student_day(org_id: str, student_user_id: str, on_date: str) -> Dict[str, Any]:
@@ -459,7 +503,7 @@ def student_day(org_id: str, student_user_id: str, on_date: str) -> Dict[str, An
     if class_ids:
         classes = {c['id']: c for c in (
             admin.table('org_classes')
-            .select('id, name, location, primary_instructor_id')
+            .select('id, name, location, primary_instructor_id, attendance_optional')
             .in_('id', class_ids).eq('organization_id', org_id).execute()
         ).data or []}
 
@@ -515,6 +559,9 @@ def student_day(org_id: str, student_user_id: str, on_date: str) -> Dict[str, An
             'notes': rec.get('note'),
             'planned_absence': cover,
             'scheduled': meeting is not None,
+            # No roll is taken in this class (29dff954): a None status here
+            # is not a gap anybody has to close.
+            'attendance_optional': bool(cls.get('attendance_optional')),
         }
 
     entries = [_entry(m['class_id'], m) for m in meetings]
@@ -532,5 +579,6 @@ def student_day(org_id: str, student_user_id: str, on_date: str) -> Dict[str, An
         'date': on_date,
         'classes': entries,
         'counts': counts,
-        'not_taken': sum(1 for e in entries if e['status'] is None),
+        'not_taken': sum(1 for e in entries
+                         if e['status'] is None and not e['attendance_optional']),
     }

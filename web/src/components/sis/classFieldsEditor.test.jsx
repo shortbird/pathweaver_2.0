@@ -173,6 +173,23 @@ describe('the draft round trip', () => {
     expect(draftToPayload(toDraft({ ...CLASS, exclude_from_pay: true })).exclude_from_pay).toBe(true)
   })
 
+  // Ticket 29dff954 (iCreate): "Can we have some classes not require
+  // attendance? Like this would be useful for our At Home days and
+  // independent study."
+  it('carries the no-roll flag both ways, and defaults it to taking roll', () => {
+    expect(toDraft(CLASS).attendance_optional).toBe(false)
+    expect(draftToPayload(toDraft(CLASS)).attendance_optional).toBe(false)
+    expect(draftToPayload(toDraft({ ...CLASS, attendance_optional: true })).attendance_optional).toBe(true)
+  })
+
+  it('offers an Attendance not taken checkbox', () => {
+    const onChange = setup()
+    const box = screen.getByLabelText('Attendance not taken')
+    expect(box).not.toBeChecked()
+    fireEvent.click(box)
+    expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ attendance_optional: true }))
+  })
+
   it('offers a Roster only — not paid checkbox', () => {
     const onChange = setup()
     const box = screen.getByLabelText('Roster only — not paid')

@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback, useMemo } from 'react'
+import React, { useDeferredValue, useEffect, useState, useCallback, useMemo } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { toast } from 'react-hot-toast'
 import { Squares2X2Icon, TableCellsIcon, ArrowPathIcon, ArrowDownTrayIcon } from '@heroicons/react/24/outline'
@@ -201,6 +201,10 @@ export default function CatalogPanel({ section = 'classes', onCounts = null }) {
   const [searchParams, setSearchParams] = useSearchParams()
   const tab = section
   const [search, setSearch] = useState('')
+  // The catalog filters on a deferred copy so the box never waits on it
+  // (ticket a8049dcb: "it takes several seconds for each character to pop
+  // up" in console searches, "for example a student or class").
+  const deferredSearch = useDeferredValue(search)
   const [showSync, setShowSync] = useState(false)  // sync-from-sheet modal
   const [showArchived, setShowArchived] = useState(false) // include archived classes
   // "Open all N closed" used to be the only mention of those N classes anywhere
@@ -329,6 +333,7 @@ export default function CatalogPanel({ section = 'classes', onCounts = null }) {
     ...(payload.is_visible_to_parents !== undefined ? { is_visible_to_parents: payload.is_visible_to_parents } : {}),
     ...(payload.internal_notes !== undefined ? { internal_notes: payload.internal_notes } : {}),
     ...(payload.exclude_from_pay !== undefined ? { exclude_from_pay: payload.exclude_from_pay } : {}),
+    ...(payload.attendance_optional !== undefined ? { attendance_optional: payload.attendance_optional } : {}),
     ...(payload.registration_status ? { registration_status: payload.registration_status } : {}),
     ...(payload.requires_full_day !== undefined ? { requires_full_day: payload.requires_full_day } : {}),
     organization_id: orgId,
@@ -398,6 +403,7 @@ export default function CatalogPanel({ section = 'classes', onCounts = null }) {
         requires_full_day: c.requires_full_day ?? false,
         internal_notes: c.internal_notes ?? null,
         exclude_from_pay: !!c.exclude_from_pay,
+        attendance_optional: !!c.attendance_optional,
         registration_status: 'closed',
         organization_id: orgId,
       }
@@ -604,21 +610,21 @@ export default function CatalogPanel({ section = 'classes', onCounts = null }) {
   const items = useMemo(() => {
     if (tab === 'courses') {
       return courses
-        .filter((c) => courseMatchesSearch(c, search))
+        .filter((c) => courseMatchesSearch(c, deferredSearch))
         .map((c) => ({ kind: 'course', _name: c.title, ...c }))
     }
     return classes
-      .filter((c) => classMatchesSearch(c, search))
+      .filter((c) => classMatchesSearch(c, deferredSearch))
       .filter((c) => !closedOnly || isClosed(c))
       .map((c) => ({ kind: 'class', _name: c.name, ...c }))
-  }, [classes, courses, tab, search, closedOnly, classMatchesSearch, courseMatchesSearch])
+  }, [classes, courses, tab, deferredSearch, closedOnly, classMatchesSearch, courseMatchesSearch])
 
   // Table view is the org's classes only (Optio courses aren't org-editable).
   const tableClasses = useMemo(() => {
     return classes
-      .filter((c) => classMatchesSearch(c, search))
+      .filter((c) => classMatchesSearch(c, deferredSearch))
       .filter((c) => !closedOnly || isClosed(c))
-  }, [classes, search, closedOnly, classMatchesSearch])
+  }, [classes, deferredSearch, closedOnly, classMatchesSearch])
 
   // The page shows these on its tabs.
   useEffect(() => { onCounts?.({ all: classes.length, courses: courses.length }) },

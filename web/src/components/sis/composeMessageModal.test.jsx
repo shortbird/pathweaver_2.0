@@ -24,7 +24,7 @@ vi.mock('../../pages/sis/useSisOrg', () => ({ withOrg: (url) => url }))
 const auth = vi.hoisted(() => ({ user: { id: 'coord-1' } }))
 vi.mock('../../contexts/AuthContext', () => ({ useAuth: () => auth }))
 
-import ComposeMessageModal, { filterPeople, classPartIds, senderFor, voiceOf, composeDraftKey } from './ComposeMessageModal'
+import ComposeMessageModal, { filterPeople, classPartIds, senderFor, voiceOf, composeDraftKey, defaultModeFor } from './ComposeMessageModal'
 
 const TAM = { id: 'tam', name: 'Tam Teacher', kinds: ['staff', 'family'], staff_kinds: ['teacher'], role_labels: ['Teacher'], child_ids: ['ada'], children: ['Ada'] }
 const AL = { id: 'al', name: 'Al Aide', kinds: ['staff'], staff_kinds: ['teacher'], role_labels: ['Teacher'] }
@@ -140,8 +140,11 @@ describe('ComposeMessageModal', () => {
     render(<ComposeMessageModal isOpen onClose={vi.fn()} asSchool orgName="iCreate" />)
     fireEvent.click(await screen.findByLabelText('Select Kate Office'))
     expect(screen.getByText('From:').parentElement).toHaveTextContent('From: You')
-    // A teacher who is also a parent here is still a colleague.
+    // A teacher who is also a parent here is still a colleague. Two staff now
+    // start on One group thread (ticket 80afc28d), and a group from the School
+    // tab is the school's; written separately, each still hears from you.
     fireEvent.click(screen.getByLabelText('Select Tam Teacher'))
+    fireEvent.click(screen.getByLabelText(/^Separately/))
     expect(screen.getByText('From:').parentElement).toHaveTextContent('From: You')
     fireEvent.click(screen.getByLabelText('Select Mia Lark'))
     expect(screen.getByText('From:').parentElement).toHaveTextContent('From: iCreate and you')
@@ -208,6 +211,65 @@ describe('ComposeMessageModal', () => {
     fireEvent.click(screen.getByLabelText('Select Kate Office'))
     fireEvent.click(screen.getByLabelText(/One group thread/))
     expect(screen.getByText(/Families in it see each other/)).toBeInTheDocument()
+  })
+
+  // Ticket 80afc28d (iCreate org admin): "can you make 'one group thread' the
+  // default instead of separately?" Owner decision 2026-10-12: all staff
+  // starts on One group thread; a parent or a student in it starts on
+  // Separately, because a group shows every family to every other. A choice
+  // the sender clicked stays while the picks change.
+  describe('how it goes out by default (ticket 80afc28d)', () => {
+    const modeChecked = () => ({
+      group: screen.getByLabelText(/One group thread/).checked,
+      separate: screen.getByLabelText(/^Separately/).checked,
+    })
+
+    it('defaultModeFor: all staff is a group, anyone else is separate', () => {
+      expect(defaultModeFor({ staff: 2, family: 0, student: 0 })).toBe('group')
+      expect(defaultModeFor({ staff: 2, family: 1, student: 0 })).toBe('separate')
+      expect(defaultModeFor({ staff: 1, family: 0, student: 1 })).toBe('separate')
+      expect(defaultModeFor({ staff: 0, family: 3, student: 0 })).toBe('separate')
+    })
+
+    it('two staff start on One group thread and send as a group', async () => {
+      api.post.mockResolvedValue({ data: { mode: 'group', sent: 2, skipped: [], emailed: 0 } })
+      render(<ComposeMessageModal isOpen onClose={vi.fn()} />)
+      fireEvent.click(await screen.findByLabelText('Select Kate Office'))
+      fireEvent.click(screen.getByLabelText('Select Al Aide'))
+      expect(modeChecked()).toEqual({ group: true, separate: false })
+      fireEvent.change(screen.getByLabelText('Message'), { target: { value: 'Staff meeting' } })
+      fireEvent.click(screen.getByRole('button', { name: 'Send' }))
+      await waitFor(() => expect(api.post).toHaveBeenCalled())
+      expect(api.post.mock.calls[0][1].mode).toBe('group')
+    })
+
+    it('a parent in the picks flips the default back to Separately', async () => {
+      render(<ComposeMessageModal isOpen onClose={vi.fn()} />)
+      fireEvent.click(await screen.findByLabelText('Select Kate Office'))
+      fireEvent.click(screen.getByLabelText('Select Al Aide'))
+      fireEvent.click(screen.getByLabelText('Select Mia Lark'))
+      expect(modeChecked()).toEqual({ group: false, separate: true })
+    })
+
+    it('a student in the picks starts on Separately', async () => {
+      render(<ComposeMessageModal isOpen onClose={vi.fn()} />)
+      fireEvent.click(await screen.findByLabelText('Select Kate Office'))
+      fireEvent.click(screen.getByLabelText('Select Ada Lark'))
+      expect(modeChecked()).toEqual({ group: false, separate: true })
+    })
+
+    it('a choice the sender made sticks while the picks change', async () => {
+      render(<ComposeMessageModal isOpen onClose={vi.fn()} />)
+      fireEvent.click(await screen.findByLabelText('Select Kate Office'))
+      fireEvent.click(screen.getByLabelText('Select Al Aide'))
+      fireEvent.click(screen.getByLabelText(/^Separately/))
+      fireEvent.click(screen.getByLabelText('Select Tam Teacher'))
+      expect(modeChecked()).toEqual({ group: false, separate: true })
+
+      fireEvent.click(screen.getByLabelText(/One group thread/))
+      fireEvent.click(screen.getByLabelText('Select Mia Lark'))
+      expect(modeChecked()).toEqual({ group: true, separate: false })
+    })
   })
 
   // Ticket e6cc5fe5 (iCreate campus coordinator, SIS /inbox): "Can we make our

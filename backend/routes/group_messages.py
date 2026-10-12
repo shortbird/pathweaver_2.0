@@ -35,20 +35,16 @@ def create_group(user_id: str):
     Only advisors, org_admins, and superadmins can create groups
     """
     try:
-        data = request.get_json()
+        data = request.get_json() or {}
 
-        # Validate required fields
-        validate_required_fields(data, ['name'])
-
-        name = data['name'].strip()
-        description = data.get('description', '').strip() or None
+        # The name is optional (ticket 9c774b30): a blank one is filled in by
+        # the service from the members' first names.
+        name = (data.get('name') or '').strip()
+        description = (data.get('description') or '').strip() or None
         member_ids = data.get('member_ids', [])
 
-        # Validate name
-        if not name:
-            raise ValidationError("Group name cannot be empty")
-
-        validate_string_length(name, 'name', max_length=100)
+        if name:
+            validate_string_length(name, 'name', max_length=100)
 
         if description:
             validate_string_length(description, 'description', max_length=500)

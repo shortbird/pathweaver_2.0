@@ -80,3 +80,28 @@ describe('isAxiosError', () => {
     expect(isAxiosError(new Error('x'))).toBe(false);
   });
 });
+
+/**
+ * Sentry 64448412 / e7429a56: the AI-off refusal's `error` field is the token
+ * "ai_disabled"; the words are in `message`. The person sees the words.
+ */
+describe('extractApiError: AI switched off (Sentry 64448412 / e7429a56)', () => {
+  const sentence = 'AI features are not enabled for your account. Ask your parent to enable them in their dashboard.';
+
+  it('returns the server sentence and the code, not the ai_disabled token', () => {
+    const err = makeAxiosError(403, { error: 'ai_disabled', message: sentence, code: 'DEPENDENT_AI_DISABLED' });
+    const out = extractApiError(err, 'Failed to generate tasks');
+    expect(out.message).toBe(sentence);
+    expect(out.code).toBe('DEPENDENT_AI_DISABLED');
+  });
+
+  it('falls back to a plain sentence when the refusal carries no message', () => {
+    const err = makeAxiosError(403, { error: 'ai_disabled_org', code: 'ORG_AI_DISABLED' });
+    expect(extractApiError(err).message).toBe('AI features are turned off for this account.');
+  });
+
+  it('leaves other 403s alone', () => {
+    const err = makeAxiosError(403, { error: 'Not allowed', code: 'OTHER' });
+    expect(extractApiError(err).message).toBe('Not allowed');
+  });
+});

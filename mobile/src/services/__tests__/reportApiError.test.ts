@@ -218,3 +218,37 @@ describe('safety refusals (ticket d3b9ef5a)', () => {
     expect(captureMessage).toHaveBeenCalledTimes(1);
   });
 });
+
+/**
+ * Sentry 64448412 / e7429a56 (web): a 403 whose body says AI is switched off
+ * for the learner (DEPENDENT_AI_DISABLED and friends) is a parent's or a
+ * school's choice, not a defect. On mobile every 403 is silenced already;
+ * these tests lift that silence to prove the AI-off refusal is skipped on its
+ * own merit while any other 403 would still be reported.
+ */
+describe('reportApiError: AI switched off (Sentry 64448412 / e7429a56)', () => {
+  const aiOff403 = (code: string) => {
+    const err = axiosErr(403, '/api/quests/abc/generate-tasks', 'post');
+    err.response.data = { error: 'ai_disabled', message: 'AI features are not enabled for your account.', code };
+    return err;
+  };
+
+  beforeEach(() => { SILENCED_API_STATUSES.delete(403); });
+  afterEach(() => { SILENCED_API_STATUSES.add(403); });
+
+  it.each(['DEPENDENT_AI_DISABLED', 'DEPENDENT_AI_FEATURE_DISABLED', 'ORG_AI_DISABLED', 'ORG_AI_FEATURE_DISABLED'])(
+    'does not report a 403 %s',
+    (code) => {
+      reportApiError(aiOff403(code), 403);
+      expect(captureException).not.toHaveBeenCalled();
+      expect(captureMessage).not.toHaveBeenCalled();
+    },
+  );
+
+  it('still reports any other 403 once 403 is not silenced', () => {
+    const err = axiosErr(403, '/api/quests/abc/generate-tasks', 'post');
+    err.response.data = { error: 'forbidden', code: 'SOMETHING_ELSE' };
+    reportApiError(err, 403);
+    expect(captureMessage).toHaveBeenCalledTimes(1);
+  });
+});

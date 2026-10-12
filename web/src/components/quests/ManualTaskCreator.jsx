@@ -5,6 +5,8 @@ import useCanEditXp from '../../hooks/useCanEditXp';
 import useHidePillars from '../../hooks/useHidePillars';
 import { useStudentScope } from '../../hooks/useStudentScope';
 import useTaskAuthoringRules from '../../hooks/useTaskAuthoringRules';
+import { useAIAccess } from '../../contexts/AIAccessContext';
+import { aiDisabledMessage } from '../../utils/aiAccessErrors';
 import SuccessCriteriaEditor, { cleanCriteria } from '../quest/SuccessCriteriaEditor';
 
 // Draft autosave.
@@ -110,6 +112,7 @@ const ManualTaskCreator = ({
   const storageKey = draftKey(draftScope, questId);
   const { params: scope } = useStudentScope();
   const { rules } = useTaskAuthoringRules();
+  const { canUseTaskGeneration } = useAIAccess();
   const requiresCriteria = Boolean(rules?.requires_success_criteria);
   const hidePillars = schoolHidesPillars || Boolean(rules?.hide_pillars);
   // Read once, before first paint, so restored tasks are simply there rather
@@ -244,7 +247,9 @@ const ManualTaskCreator = ({
       setCriteriaError('');
       setError('');
     } catch (err) {
-      setAiError(err.response?.data?.error || 'Could not get suggestions. Please try again.');
+      // AI off for this learner: the server's sentence, not "ai_disabled"
+      // (Sentry e7429a56).
+      setAiError(aiDisabledMessage(err) || err.response?.data?.error || 'Could not get suggestions. Please try again.');
     } finally {
       setAiLoading(false);
     }
@@ -463,7 +468,11 @@ const ManualTaskCreator = ({
             error={criteriaError}
           />
 
-          {/* Optional AI help. Fills gaps; never overwrites what was chosen. */}
+          {/* Optional AI help. Fills gaps; never overwrites what was chosen.
+              Hidden when AI task generation is off for the learner (the
+              family-scoped child when a parent is working for one): the
+              server would refuse it (Sentry e7429a56). */}
+          {canUseTaskGeneration && (
           <div className="p-3 bg-optio-purple/5 border border-optio-purple/20 rounded-lg">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
               <p className="text-xs text-gray-600">
@@ -482,6 +491,7 @@ const ManualTaskCreator = ({
               <p role="alert" className="mt-2 text-sm text-red-700">{aiError}</p>
             )}
           </div>
+          )}
 
           {/* Pillar Selection */}
           {!hidePillars && (

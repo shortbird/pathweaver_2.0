@@ -4,7 +4,7 @@
  * page.
  *
  * One page, a strip of tabs (2026-09-18): Feed · To do · Schedule · Calendar ·
- * Carpool · Documents, each shown only when the school runs the thing and
+ * Carpool · Library, each shown only when the school runs the thing and
  * this member may use it (schoolTabsFor). Until then the hub was the feed
  * under a row of six chips, four of which pushed a screen and two of which
  * opened a browser, with the class schedules stacked, collapsed, at the
@@ -42,6 +42,7 @@ import { CalendarTab } from '@/src/components/school/CalendarTab';
 import { CarpoolTab } from '@/src/components/school/CarpoolTab';
 import { DocumentsTab } from '@/src/components/school/DocumentsTab';
 import { TodoTab } from '@/src/components/school/TodoTab';
+import { VolunteerHoursCard, WhoToContactCard } from '@/src/components/school/FamilySchoolCards';
 import { useAuthStore } from '@/src/stores/authStore';
 import { effectiveRoleOf } from '@/src/utils/effectiveRole';
 
@@ -214,6 +215,16 @@ export default function SchoolScreen() {
                   ))}
                 </View>
               )}
+
+              {/* What the school keeps for this family: its volunteer hours
+                  (iCreate 2fab910a) and who to contact for what (c58b7c0b).
+                  Guardians only; each draws nothing when there is nothing. */}
+              {org?.is_guardian ? (
+                <>
+                  <VolunteerHoursCard organizationId={org.organization_id} />
+                  <WhoToContactCard contacts={org.family_contacts} />
+                </>
+              ) : null}
 
               <FeedFilterRow filters={filters} value={feedFilter} onChange={setFeedFilter} />
 

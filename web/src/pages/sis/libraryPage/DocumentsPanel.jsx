@@ -124,7 +124,7 @@ const DocumentsPanel = () => {
       <div className="flex items-start justify-between gap-4 mb-5">
         <p className="text-sm text-neutral-500 max-w-2xl">
           School-wide documents and links every family can refer back to — the family guidebook, student
-          contract, calendars, forms. Families find these under "Resources" in their app.
+          contract, calendars, forms. Families find these under "Library" in their app.
           {' '}Material for one class goes on that class's <span className="font-medium text-neutral-600">Curriculum</span> tab
           instead, so this list stays short and stays school-wide.
         </p>

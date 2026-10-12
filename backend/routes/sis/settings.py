@@ -23,7 +23,8 @@ sis_catalog_service.save_time_blocks, answering with the rows too
 
 from flask import Blueprint, jsonify, request
 
-from services import sis_catalog_service, sis_incident_report_service, sis_service
+from services import (sis_catalog_service, sis_family_contacts_service,
+                      sis_incident_report_service, sis_service)
 from services.org_settings_service import FlagsRejected, patch_feature_flags
 from utils.auth.decorators import require_role
 from utils.sis_roles import ADMIN_ROLES
@@ -53,6 +54,15 @@ def patch_settings(user_id):
             return jsonify({'success': False, 'fields': [incident_key],
                             'error': 'Incident reports can only go to an org admin or '
                                      'campus coordinator of this school'}), 400
+    # Who to contact (ticket c58b7c0b): the list families see on their home.
+    # Checked and normalised here, and refused whole -- nothing is written --
+    # when an entry is bad or names someone who is not staff of this school.
+    contacts_key = sis_family_contacts_service.SETTING_KEY
+    if isinstance(sis_patch, dict) and contacts_key in sis_patch:
+        cleaned, problem = sis_family_contacts_service.clean_contacts(org_id, sis_patch.get(contacts_key))
+        if problem:
+            return jsonify({'success': False, 'fields': [contacts_key], 'error': problem}), 400
+        sis_patch[contacts_key] = cleaned or None
     blocks = None
     wanted =sis_catalog_service.take_time_blocks(patch)
     if wanted != ():

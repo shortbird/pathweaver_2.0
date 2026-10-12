@@ -16,7 +16,14 @@ import WeeklyXpGoalCard from '../components/overview/WeeklyXpGoalCard'
 import { PageLoader } from '../components/ui/Spinner'
 import CreateQuestModal from '../components/CreateQuestModal'
 import useHidePillars from '../hooks/useHidePillars'
-import { groupQuests } from '../components/overview/snapshotQuestGroups'
+import {
+  CURRENT_SORTS,
+  groupCurrentQuests,
+  pickNextUpTasks,
+  readStoredSort,
+  writeStoredSort,
+} from '../components/overview/currentQuestOrder'
+import { dueStatus, dueChipClasses } from '../utils/dueDate'
 import {
   RocketLaunchIcon,
   CheckCircleIcon,
@@ -67,51 +74,10 @@ const UpcomingTasks = memo(({ activeQuests }) => {
   // 13+ (or a school with the pillars off): every card takes the brand tint
   // (the civics style is optio-purple) instead of sorting by pillar colour.
   const hidePillars = useHidePillars();
-  // Get one incomplete task from each active quest, prioritizing pillar variety
-  const upcomingTasks = React.useMemo(() => {
-    if (!activeQuests || activeQuests.length === 0) return [];
-
-    // Collect first incomplete task from each quest
-    const allNextTasks = [];
-    activeQuests.forEach(quest => {
-      const questData = quest.quests || quest;
-      const questTasks = questData.quest_tasks || [];
-
-      const nextTask = questTasks.find(task => !task.is_completed);
-      if (nextTask) {
-        allNextTasks.push({
-          ...nextTask,
-          questId: quest.quest_id || quest.id,
-          questTitle: questData.title
-        });
-      }
-    });
-
-    // Prioritize variety: one task per pillar first
-    const selectedTasks = [];
-    const usedPillars = new Set();
-    const usedQuestIds = new Set();
-
-    // First pass: select one task from each unique pillar
-    for (const task of allNextTasks) {
-      const pillar = task.pillar?.toLowerCase() || 'wellness';
-      if (!usedPillars.has(pillar) && selectedTasks.length < 4) {
-        selectedTasks.push(task);
-        usedPillars.add(pillar);
-        usedQuestIds.add(task.questId);
-      }
-    }
-
-    // Second pass: fill remaining slots with tasks from different quests
-    for (const task of allNextTasks) {
-      if (!usedQuestIds.has(task.questId) && selectedTasks.length < 4) {
-        selectedTasks.push(task);
-        usedQuestIds.add(task.questId);
-      }
-    }
-
-    return selectedTasks;
-  }, [activeQuests]);
+  // Dated work first, soonest first; the rest by the old one-per-pillar rule
+  // in class order (components/overview/currentQuestOrder, ticket 4cc854cd:
+  // "On up next, idk how that prioritizes the tasks").
+  const upcomingTasks = React.useMemo(() => pickNextUpTasks(activeQuests), [activeQuests]);
 
   if (upcomingTasks.length === 0) {
     // Check if user has no active quests (new user) vs all tasks completed
@@ -160,6 +126,7 @@ const UpcomingTasks = memo(({ activeQuests }) => {
       {upcomingTasks.map((task, index) => {
         const pillar = task.pillar?.toLowerCase() || 'wellness';
         const styles = hidePillars ? pillarStyles.civics : (pillarStyles[pillar] || pillarStyles.wellness);
+        const due = task.dueAt != null ? dueStatus(new Date(task.dueAt).toISOString()) : null;
 
         return (
           <Link
@@ -177,6 +144,11 @@ const UpcomingTasks = memo(({ activeQuests }) => {
                   <p className="text-xs text-gray-500 truncate mt-0.5">
                     {task.questTitle}
                   </p>
+                  {due && (
+                    <span className={`inline-block mt-1 px-1.5 py-0.5 rounded text-[11px] font-medium ${dueChipClasses(due)}`}>
+                      {due.label}
+                    </span>
+                  )}
                 </div>
               </div>
               <ArrowRightIcon className="w-4 h-4 text-gray-400 group-hover:text-gray-600 transition-colors flex-shrink-0 mt-0.5" />
@@ -189,7 +161,7 @@ const UpcomingTasks = memo(({ activeQuests }) => {
 });
 
 // Memoized component for Active Quests section (now includes courses)
-const ActiveQuests = memo(({ activeQuests, enrolledCourses, completedQuestsCount = 0 }) => {
+const ActiveQuests = memo(({ activeQuests, enrolledCourses, completedQuestsCount = 0, sortBy = 'recent' }) => {
   // Trust the backend's active_quests array - no need to filter
   // Backend already filters by is_active=True, which is the source of truth
   // Restarted quests have both is_active=True AND completed_at set from previous completion
@@ -220,10 +192,11 @@ const ActiveQuests = memo(({ activeQuests, enrolledCourses, completedQuestsCount
   }
 
   // Grouped by the class each quest came through (ticket a4c5d2e2), the same
-  // groups the Learning Snapshot draws (snapshotQuestGroups.groupQuests). A
-  // student with no class quests sees the flat grid as before: one heading
+  // groups the Learning Snapshot draws (snapshotQuestGroups.groupQuests), and
+  // inside a class by curriculum, sorted by the chosen sort (ticket 4cc854cd).
+  // A student with no class quests sees the flat grid as before: one heading
   // reading "Personal" over everything says nothing.
-  const groups = groupQuests(allQuests, 'recent')
+  const groups = groupCurrentQuests(allQuests, sortBy)
   const headed = groups.some((g) => !g.personal)
   const grid = 'grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6'
 
@@ -269,7 +242,7 @@ const ActiveQuests = memo(({ activeQuests, enrolledCourses, completedQuestsCount
       <div className={grid}>
         {/* Enrolled courses first, then standalone quests */}
         {courseCards}
-        {allQuests.map(renderQuest)}
+        {(sortBy === 'recent' ? allQuests : groups.flatMap((g) => g.quests)).map(renderQuest)}
       </div>
     )
   }
@@ -283,7 +256,13 @@ const ActiveQuests = memo(({ activeQuests, enrolledCourses, completedQuestsCount
             {g.label}
             {g.former && <span className="font-normal text-gray-500"> · no longer in this class</span>}
           </h3>
-          <div className={grid}>{g.quests.map(renderQuest)}</div>
+          {g.loose.length > 0 && <div className={grid}>{g.loose.map(renderQuest)}</div>}
+          {g.sections.map((sec) => (
+            <div key={sec.key} className={g.loose.length > 0 ? 'mt-5' : ''}>
+              <h4 className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-3">{sec.title}</h4>
+              <div className={grid}>{sec.quests.map(renderQuest)}</div>
+            </div>
+          ))}
         </section>
       ))}
     </div>
@@ -296,6 +275,12 @@ const DashboardPage = () => {
   const { selectedChild } = useFamilyScope()
   const [showRhythmModal, setShowRhythmModal] = useState(false)
   const [showCreateQuest, setShowCreateQuest] = useState(false)
+  // Current quests' sort, remembered per browser (ticket 4cc854cd).
+  const [questSort, setQuestSort] = useState(readStoredSort)
+  const changeQuestSort = (value) => {
+    setQuestSort(value)
+    writeStoredSort(value)
+  }
   const navigate = useNavigate()
 
   // Whose dashboard: the child a parent is scoped to (contexts/
@@ -437,7 +422,22 @@ const DashboardPage = () => {
       <div className="mb-8">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-6">
           <h2 className="text-xl font-bold text-gray-900">Current Quests</h2>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            {inProgressQuests.length > 1 && (
+              <label className="inline-flex items-center gap-2 text-sm text-gray-600">
+                <span>Sort</span>
+                <select
+                  value={questSort}
+                  onChange={(e) => changeQuestSort(e.target.value)}
+                  aria-label="Sort current quests"
+                  className="min-h-[44px] rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-800"
+                >
+                  {CURRENT_SORTS.map((o) => (
+                    <option key={o.value} value={o.value}>{o.label}</option>
+                  ))}
+                </select>
+              </label>
+            )}
             <button
               type="button"
               onClick={() => setShowCreateQuest(true)}
@@ -468,6 +468,7 @@ const DashboardPage = () => {
           activeQuests={inProgressQuests}
           enrolledCourses={dashboardData?.enrolled_courses}
           completedQuestsCount={dashboardData?.stats?.completed_quests_count || 0}
+          sortBy={questSort}
         />
       </div>
 

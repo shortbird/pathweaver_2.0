@@ -68,8 +68,12 @@ const CreateGroupModal = ({ isOpen, onClose, onGroupCreated }) => {
     e.preventDefault()
     setError('')
 
-    if (!groupName.trim()) {
-      setError('Group name is required')
+    // The name is optional (ticket 9c774b30: "I would like to just send a
+    // message to two other people"). Left blank, the server names the group
+    // from its members' first names; the client never builds a name itself.
+    // Without a name the people are what the group is, so it needs one.
+    if (!groupName.trim() && selectedMembers.length === 0) {
+      setError('Add at least one person, or give the group a name')
       return
     }
 
@@ -121,14 +125,14 @@ const CreateGroupModal = ({ isOpen, onClose, onGroupCreated }) => {
             {/* Group Name */}
             <div>
               <label htmlFor="groupName" className="block text-sm font-medium text-gray-700 mb-1">
-                Group Name <span className="text-red-500">*</span>
+                Group Name <span className="text-gray-400 font-normal">(optional)</span>
               </label>
               <input
                 type="text"
                 id="groupName"
                 value={groupName}
                 onChange={(e) => setGroupName(e.target.value)}
-                placeholder="Enter group name"
+                placeholder="Leave blank to use their first names"
                 maxLength={100}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-optio-purple focus:border-transparent"
               />
@@ -249,7 +253,7 @@ const CreateGroupModal = ({ isOpen, onClose, onGroupCreated }) => {
             </button>
             <button
               type="submit"
-              disabled={createGroupMutation.isPending || !groupName.trim()}
+              disabled={createGroupMutation.isPending || (!groupName.trim() && selectedMembers.length === 0)}
               className="px-4 py-2 bg-gradient-primary text-white rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
             >
               {createGroupMutation.isPending ? (

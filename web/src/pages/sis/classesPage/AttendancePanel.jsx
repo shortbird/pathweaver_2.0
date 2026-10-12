@@ -78,7 +78,11 @@ export default function AttendancePanel() {
     setClassId('')
     api.get(withOrg('/api/sis/classes', orgId))
       .then((r) => {
-        const list = r.data?.classes || []
+        // A class marked "Attendance not taken" (ticket 29dff954: "Can we have
+        // some classes not require attendance? Like this would be useful for
+        // our At Home days and independent study") has no roll to take, so it
+        // is not offered here. Rolls taken before the switch stay stored.
+        const list = (r.data?.classes || []).filter((c) => !c.attendance_optional)
         setClasses(list)
         // A teacher lands ready to go: their first assigned class pre-selected.
         const mine = list.filter((c) => c.primary_instructor_id === user?.id)

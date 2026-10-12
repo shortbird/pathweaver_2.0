@@ -26,6 +26,10 @@ import { extractApiError } from '@/src/services/apiError';
 import { scopedTo } from '@/src/hooks/useDashboard';
 import { effectiveRoleOf } from '@/src/utils/effectiveRole';
 
+// The credit precheck is a live AI review (backend precheck.py: evidence
+// gathering up to 25s, model call up to 60s, a short slot wait).
+const CREDIT_PRECHECK_TIMEOUT_MS = 90000;
+
 export type DiplomaStatus =
   | 'none' | 'pending_review' | 'pending_org_approval' | 'grow_this' | 'finalized';
 
@@ -129,7 +133,12 @@ export function useTaskCredit(taskId: string, opts: { studentId?: string | null 
     setPrecheckOpen(true);
     let answer: CreditPrecheck;
     try {
-      const { data } = await api.post(`/api/tasks/${taskId}/credit-precheck`, scope);
+      // A live AI call: up to ~25s gathering evidence, a model call allowed
+      // 60s, plus a slot wait. The global 15s axios timeout cut it off in the
+      // foreground six times (Sentry 7541a68a, "timeout of 15000ms exceeded").
+      const { data } = await api.post(`/api/tasks/${taskId}/credit-precheck`, scope, {
+        timeout: CREDIT_PRECHECK_TIMEOUT_MS,
+      });
       answer = data?.data || data;
     } catch (err) {
       const status = extractApiError(err).status;

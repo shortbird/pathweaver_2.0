@@ -24,6 +24,11 @@ import api from '../../services/api'
 vi.mock('../../services/api', () => ({ default: { get: vi.fn(), post: vi.fn() } }))
 vi.mock('../../hooks/useCanEditXp', () => ({ default: () => true }))
 vi.mock('../../hooks/useHidePillars', () => ({ default: () => false }))
+// ManualTaskCreator now reads the AI gate for "Help me finish this" (Sentry
+// e7429a56); these tests are about drafts, so AI is simply on.
+vi.mock('../../contexts/AIAccessContext', () => ({
+  useAIAccess: () => ({ canUseTaskGeneration: true }),
+}))
 
 const QUEST = 'quest-1'
 

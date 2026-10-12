@@ -9,9 +9,10 @@ layer down, so counting unread group mail does not add another direct
 the layer guard in tests/unit/test_direct_db_calls_do_not_grow.py).
 
 Nothing here writes except the rename of a class's chats
-(rename_generated_chat), which the class-rename path needs, and a staff
-member's admin membership of a class chat (ensure_admin_member). Other group
-mutation stays in the service until it is migrated deliberately.
+(rename_generated_chat), which the class-rename path needs, a staff
+member's admin membership of a class chat (ensure_admin_member), and the
+school's "Add people" on a group it owns (insert_member, set_audience). Other
+group mutation stays in the service until it is migrated deliberately.
 """
 
 from typing import Any, Dict, List, Optional, Tuple
@@ -105,13 +106,18 @@ class GroupRepository(BaseRepository):
                          offset: int = 0, limit: int = 50) -> Tuple[List[Dict[str, Any]], int]:
         """One page of the org's live class chats (source_class_id set), most
         recent activity first, and the total counted in Postgres
-        (count='exact'), never by measuring a list (CLAUDE.md, row limits)."""
+        (count='exact'), never by measuring a list (CLAUDE.md, row limits).
+
+        An archived class's chats are left out (ticket 3bdf06bb), filtered in
+        Postgres through the class join so the total and the pages agree."""
         query = (self.client.table(self.table_name)
                  .select('id, name, audience, source_class_id, last_message_at, '
-                         'last_message_preview, created_at', count='exact')
+                         'last_message_preview, created_at, org_classes!inner(status)',
+                         count='exact')
                  .eq('organization_id', organization_id)
                  .eq('is_active', True)
-                 .not_.is_('source_class_id', 'null'))
+                 .not_.is_('source_class_id', 'null')
+                 .neq('org_classes.status', 'archived'))
         if or_filter:
             query = query.or_(or_filter)
         resp = (query.order('last_message_at', desc=True, nullsfirst=False)
@@ -139,3 +145,20 @@ class GroupRepository(BaseRepository):
             }).execute()
         elif me[0].get('role') != 'admin':
             self.client.table('group_members').update({'role': 'admin'}).eq('id', me[0]['id']).execute()
+
+    def member_ids(self, group_id: str) -> List[str]:
+        """Everyone in one group (bounded by the group; a school group is a
+        hand-picked room, far below the response cap)."""
+        rows = (self.client.table('group_members').select('user_id')
+                .eq('group_id', group_id).execute()).data or []
+        return [r['user_id'] for r in rows if r.get('user_id')]
+
+    def insert_member(self, row: Dict[str, Any]) -> Dict[str, Any]:
+        """One group_members row. The school's "Add people" (ticket 0b85c3f1)."""
+        res = self.client.table('group_members').insert(row).execute()
+        return (res.data or [{}])[0]
+
+    def set_audience(self, group_id: str, audience: str) -> None:
+        """Re-file a group under a new audience (staff -> family -> student)."""
+        self.client.table(self.table_name).update({'audience': audience}) \
+            .eq('id', group_id).execute()

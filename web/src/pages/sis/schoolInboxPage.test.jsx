@@ -976,8 +976,10 @@ describe('SchoolInboxPage — groups in drop-downs, above the people', () => {
 
   // c8e2946d + af47046f (iCreate): a campus coordinator in groups could not
   // find them under the 1:1 list. Pinned the other way round until
-  // 2026-10-05 ("lists individual threads above both group sections").
-  it('lists both group sections above the individual threads', async () => {
+  // 2026-10-05 ("lists individual threads above both group sections"), and
+  // with both sections on top until 2026-10-12, when class chats moved below
+  // the people (828cea34: "Right now they're below all of the class chats").
+  it('lists Group threads, then the individual threads, then Class chats', async () => {
     authUser = { id: 'me-1', role: 'org_managed', org_role: 'campus_coordinator' }
     state.myConvos = Array.from({ length: 12 }, (_, i) => ({ ...convo(i + 1, `P${i + 1}`), last_message_sender_id: `u${i + 1}` }))
     state.groups = [room({ unread_count: 2 }), classChat()]
@@ -986,8 +988,8 @@ describe('SchoolInboxPage — groups in drop-downs, above the people', () => {
     const groups = await screen.findByRole('button', { name: /Group threads/ })
     const chats = screen.getByRole('button', { name: /Class chats/ })
     const after = (a, b) => Boolean(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING)
-    expect(after(groups, chats)).toBe(true)
-    expect(after(chats, person)).toBe(true)
+    expect(after(groups, person)).toBe(true)
+    expect(after(person, chats)).toBe(true)
     // Collapsed, and its unread still shows without a search.
     expect(groups).toHaveAttribute('aria-expanded', 'false')
     expect(within(groups).getByLabelText('2 unread in Group threads')).toBeInTheDocument()
@@ -1051,6 +1053,70 @@ describe('SchoolInboxPage — groups in drop-downs, above the people', () => {
     const chats = await screen.findByRole('button', { name: /Class chats/ })
     await waitFor(() => expect(chats).toHaveAttribute('aria-expanded', 'true'))
     expect(screen.getByRole('button', { name: /Group threads/ })).toHaveAttribute('aria-expanded', 'false')
+  })
+
+  // Tickets 828cea34 + 15d9eb42 (iCreate, 2026-10-12): "only the most recent
+  // 5 threads and then 'Show more'... Same with class chats".
+  describe('the newest 5, then Show more (15d9eb42)', () => {
+    const rooms = (n, over = {}) => Array.from({ length: n }, (_, i) => room({
+      id: `r${i}`, name: `Room ${i}`,
+      last_message_at: new Date(Date.UTC(2026, 8, 30 - i)).toISOString(), ...over(i) }))
+    const open = async (name) => fireEvent.click(await screen.findByRole('button', { name }))
+
+    it('shows the 5 newest group threads and a toggle for the rest', async () => {
+      authUser = { id: 'me-1', role: 'advisor' }
+      state.groups = rooms(8, () => ({}))
+      render(<SchoolInboxPage />, { route: '/inbox?tab=mine' })
+      await open(/Group threads/)
+      for (let i = 0; i < 5; i += 1) expect(screen.getByText(`Room ${i}`)).toBeInTheDocument()
+      expect(screen.queryByText('Room 5')).toBeNull()
+      fireEvent.click(screen.getByRole('button', { name: 'Show 3 more' }))
+      expect(screen.getByText('Room 7')).toBeInTheDocument()
+      fireEvent.click(screen.getByRole('button', { name: 'Show fewer' }))
+      expect(screen.queryByText('Room 7')).toBeNull()
+    })
+
+    it('caps class chats the same way', async () => {
+      authUser = { id: 'me-1', role: 'advisor' }
+      state.groups = rooms(7, (i) => ({ audience: 'family', source_class_id: `c${i}` }))
+      render(<SchoolInboxPage />, { route: '/inbox?tab=mine' })
+      await open(/Class chats/)
+      expect(screen.getByText('Room 4')).toBeInTheDocument()
+      expect(screen.queryByText('Room 5')).toBeNull()
+      expect(screen.getByRole('button', { name: 'Show 2 more' })).toBeInTheDocument()
+    })
+
+    it('a search shows every match, with no cap', async () => {
+      authUser = { id: 'me-1', role: 'advisor' }
+      state.groups = rooms(8, () => ({}))
+      render(<SchoolInboxPage />, { route: '/inbox?tab=mine' })
+      await screen.findByRole('button', { name: /Group threads/ })
+      fireEvent.change(screen.getByPlaceholderText(/Search/), { target: { value: 'room' } })
+      expect(await screen.findByText('Room 7')).toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: /Show \d+ more/ })).toBeNull()
+    })
+
+    it('never hides the open group', async () => {
+      authUser = { id: 'me-1', role: 'advisor' }
+      state.groups = rooms(8, () => ({}))
+      render(<SchoolInboxPage />, { route: '/inbox?tab=mine&group=r6' })
+      const section = await screen.findByRole('button', { name: /Group threads/ })
+      await waitFor(() => expect(section).toHaveAttribute('aria-expanded', 'true'))
+      const list = section.parentElement
+      expect(within(list).getByText('Room 6')).toBeInTheDocument()
+      expect(within(list).queryByText('Room 5')).toBeNull()
+      expect(within(list).getByRole('button', { name: 'Show 2 more' })).toBeInTheDocument()
+    })
+
+    it('the school tab caps its group threads too', async () => {
+      state.schoolConvos = []
+      state.schoolGroups = rooms(6, (i) => ({ id: `sg${i}`, name: `School room ${i}` }))
+      render(<SchoolInboxPage />, { route: '/inbox?tab=school' })
+      await open(/Group threads/)
+      expect(screen.getByText('School room 4')).toBeInTheDocument()
+      expect(screen.queryByText('School room 5')).toBeNull()
+      expect(screen.getByRole('button', { name: 'Show 1 more' })).toBeInTheDocument()
+    })
   })
 
   // Pinned families-first until 2026-10-05 (c8e2946d + af47046f): the

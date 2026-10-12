@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import { toast } from 'react-hot-toast'
@@ -52,6 +52,8 @@ import { useRecordDoors } from '../../components/sis/RecordDoors'
 
 const FILTER_KEYS = ['q', 'role', 'status', 'family', 'pay']
 
+export const SEARCH_URL_DEBOUNCE_MS = 250
+
 const readFilters = (params) => {
   const f = { ...EMPTY_FILTERS }
   FILTER_KEYS.forEach((k) => { f[k] = params.get(k) || '' })
@@ -78,8 +80,53 @@ const PeoplePage = () => {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const [params, setParams] = useSearchParams()
-  const filters = useMemo(() => readFilters(params), [params])
-  const setFilters = (f) => setParams(writeFilters(params, f), { replace: true })
+  const urlFilters = useMemo(() => readFilters(params), [params])
+
+  // The search box is local state; the URL follows it on a short debounce.
+  //
+  // Ticket a8049dcb (iCreate coordinator): "When I type in a search ... it
+  // takes several seconds for each character to pop up. If you type at a
+  // normal speed it doesn't catch all of the characters." The input was driven
+  // by the URL, and the Router runs every navigation as a React transition
+  // (v7_startTransition), so each keystroke was a low-priority update the
+  // controlled input waited on -- and a keystroke that landed before the last
+  // one committed was built from the stale value and lost. On top of that the
+  // whole roster was refiltered (several passes, for the counts) per key.
+  //
+  // Now the box answers at once, the URL is written 250ms after typing stops
+  // (so a link and Back still carry the search), and the table and counts
+  // filter on a deferred copy so typing never waits for them.
+  const [query, setQuery] = useState(urlFilters.q)
+  // The q this page last wrote to (or read from) the URL. A URL q that
+  // differs from it came from outside -- Back, a link, a quick view -- and
+  // replaces the box; our own debounced write does not echo back into it.
+  const syncedQ = useRef(urlFilters.q)
+  useEffect(() => {
+    if (urlFilters.q === syncedQ.current) return
+    syncedQ.current = urlFilters.q
+    setQuery(urlFilters.q)
+  }, [urlFilters.q])
+  useEffect(() => {
+    if (query === syncedQ.current) return undefined
+    const t = setTimeout(() => {
+      syncedQ.current = query
+      setParams((prev) => {
+        const next = new URLSearchParams(prev)
+        if (query) next.set('q', query); else next.delete('q')
+        return next
+      }, { replace: true })
+    }, SEARCH_URL_DEBOUNCE_MS)
+    return () => clearTimeout(t)
+  }, [query])
+
+  const filters = useMemo(() => ({ ...urlFilters, q: query }), [urlFilters, query])
+  // What the table and the filter counts read: lags the box under load.
+  const listFilters = useDeferredValue(filters)
+  const setFilters = (f) => {
+    syncedQ.current = f.q
+    setQuery(f.q)
+    setParams((prev) => writeFilters(prev, f), { replace: true })
+  }
 
   const { data: roster = [], isLoading: loading, refetch } = useSisRoster(orgId)
   const [sort, setSort] = useState({ key: 'name', dir: 'asc' })
@@ -134,7 +181,7 @@ const PeoplePage = () => {
   }, [orgId])
 
   const people = useMemo(() => withTodaysAge(roster), [roster])
-  const visible = useMemo(() => sortRows(applyFilters(people, filters), sort), [people, filters, sort])
+  const visible = useMemo(() => sortRows(applyFilters(people, listFilters), sort), [people, listFilters, sort])
   const hiddenCount = roster.length - visible.length
   const studentsWithoutFamily = useMemo(
     () => roster.filter((r) => r.is_student && !r.household_id && !['withdrawn', 'graduated'].includes(r.enrollment_status)).length,
@@ -257,7 +304,8 @@ const PeoplePage = () => {
             active={quickViewOf(filters)}
             onSelect={(id) => setFilters(applyQuickView(filters, id))} />
           <StaffDuplicatesBanner rows={roster} orgId={orgId} onMerged={refresh} />
-          <PeopleFilterBar rows={roster} filters={filters} onChange={setFilters} />
+          <PeopleFilterBar rows={roster} filters={listFilters} onChange={setFilters}
+            query={query} onQueryChange={setQuery} />
           {studentsWithoutFamily > 0 && filters.family !== 'none' && (
             <p className="mb-3 text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 flex flex-wrap items-center gap-2">
               <span>

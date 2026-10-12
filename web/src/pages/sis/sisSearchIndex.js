@@ -105,6 +105,7 @@ export const SUB_ENTRIES = [
   { under: '/settings', path: '/classes', ...settingsCard('time-blocks', 'Class time blocks', ['blocks', 'periods', 'bell schedule', 'time slots']) },
   { under: '/settings', path: '/calendar', ...settingsCard('calendar-categories', 'Calendar categories', ['event types', 'calendar colors']) },
   { under: '/settings', ...settingsCard('quick-links', 'Dashboard quick links', ['shortcuts', 'links on dashboard']) },
+  { under: '/settings', ...settingsCard('family-contacts', 'Who to contact', ['contacts for families', 'who to contact', 'parent contacts', 'point of contact']) },
   { under: '/settings', path: '/tasks', ...settingsCard('incident-reports', 'Incident reports', ['incident', 'injury report', 'accident', 'who gets incident reports']) },
   { under: '/settings', path: '/classes', ...settingsCard('parent-digest', 'Parent emails', ['weekly digest', 'parent digest', 'email parents', 'due dates']) },
   { under: '/settings', ...settingsCard('kiosk', 'Kiosk devices', ['kiosk', 'classroom device', 'ipad', 'tablet login']) },

@@ -31,9 +31,11 @@ What the enrollment half deliberately does NOT do:
     who started, finished, or abandoned the quest keeps exactly what they had --
     re-running this is a no-op for them. That is what makes it safe to call on
     every assignment and to backfill with.
-  - It does not unenroll on UNASSIGN. Taking a quest off a class leaves every
-    student's enrollment alone, because by then it may have their work behind
-    it. Whether that should change is an open question (2026-09-02).
+  - Unassigning a quest from a class (unassign_class_quest_and_withdraw) is the
+    withdraw below applied to the row's audience, not a delete of anyone's
+    work: until 2026-10-12 it left every enrollment alone, and iCreate
+    (b38c5085) found the quest still in a child's account after it was taken
+    off the class.
 
 Taking a quest away from ONE student is different, and is the second half of
 this module. A teacher removing a struggling student from an assignment means
@@ -548,6 +550,54 @@ def withdraw_student_from_class_quests(admin, class_id, student_id):
         for k in ('removed', 'set_down', 'kept'):
             out[k] += taken[k]
     logger.info(f'Class {class_id} drop withdrew {student_id} from its quests: {out}')
+    return out
+
+
+def unassign_class_quest_and_withdraw(admin, class_id, quest_id):
+    """Take a quest off a class, and out of the accounts this class put it in.
+
+    iCreate, b38c5085 (2026-10-12): "I unassigned IS Science from when it
+    assigned to Cami, but it still shows up in her learning app." The class
+    row was deleted and the student's enrollment was left behind.
+
+    The students considered are the row's audience (its student_ids, or the
+    active roster when NULL), and only when the quest was released: a quest
+    scheduled for later never reached anyone through this class, so an
+    enrollment a student holds in it is their own. Each of them is withdrawn
+    the way the per-student remove does it (withdraw_students_from_quest):
+    untouched enrollments are deleted, started ones are set down with their
+    work and XP kept, finished ones are left alone.
+
+    A student who still gets the quest from another live class they are in
+    (and are in the audience of there) is skipped: it is still their
+    schoolwork, through the other class.
+
+    Returns None when the quest is not on the class; otherwise
+    {'students': n, 'shared': n, 'removed': n, 'set_down': n, 'kept': n}.
+    """
+    repo = ClassQuestAudienceRepository(admin)
+    link = repo.link(class_id, quest_id)
+    if not link:
+        return None
+    targets = audience(link, active_student_ids(admin, class_id)) if is_published(link) else []
+
+    repo.delete_link(link['id'])
+
+    out = {'students': 0, 'shared': 0, 'removed': 0, 'set_down': 0, 'kept': 0}
+    keep_for = []
+    for student_id in targets:
+        # Bounded by one class's roster; each read by one student's classes.
+        others = repo.student_active_class_ids(student_id, exclude_class_id=class_id)
+        if any(assigned_to(r, student_id) for r in repo.links_for_quests(others, [quest_id])):
+            out['shared'] += 1
+        else:
+            keep_for.append(student_id)
+    out['students'] = len(keep_for)
+    if keep_for:
+        taken = withdraw_students_from_quest(admin, keep_for, quest_id)
+        for k in ('removed', 'set_down', 'kept'):
+            out[k] = taken[k]
+    logger.info(f'Quest {quest_id} unassigned from class {class_id}: {out}')
     return out
 
 
