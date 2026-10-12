@@ -161,8 +161,8 @@ def sign_in_trouble(org_id: Optional[str] = None,
             'name': _display_name(u) if u else None,
             'role': _effective_role(u) if u else None,
             'organization_id': u.get('organization_id') if u else None,
-            'organization_name': org_names.get(u.get('organization_id')) if u else None,
-            'household_id': households.get(u.get('id')) if u else None,
+            'organization_name': org_names.get(u.get('organization_id') or '') if u else None,
+            'household_id': households.get(u.get('id') or '') if u else None,
             'failures': a.get('attempt_count') or 0,
             # Locked right now, or failed often enough to have been locked in
             # the window even if that lockout has since run out.
