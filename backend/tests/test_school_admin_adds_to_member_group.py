@@ -121,7 +121,7 @@ def test_available_members_opens_to_the_school_admin_and_not_a_member(_admin):
         svc.get_available_members(SCHOOL_ADMIN, GROUP)
     except ValueError as e:
         assert 'Only group admins' not in str(e)
-    except Exception:
+    except Exception:  # noqa: BLE001, S110
         pass  # the fake db cannot answer the roster read; the door is what is tested
 
 
