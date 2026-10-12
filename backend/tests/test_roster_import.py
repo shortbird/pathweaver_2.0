@@ -14,6 +14,15 @@ import pytest
 from services import roster_import_service as ris
 
 
+@pytest.fixture(autouse=True)
+def _no_linked_children():
+    """Planning asks utils.class_membership.children_of_parent for each
+    parent's existing children, which reads the live database. Nobody has any
+    unless a test says so."""
+    with patch('utils.class_membership.children_of_parent', return_value=set()) as fake:
+        yield fake
+
+
 class _Resp:
     def __init__(self, data):
         self.data = data
@@ -488,6 +497,27 @@ def test_rerunning_a_dependent_roster_reuses_the_profile_instead_of_duplicating(
     assert outcome['counts']['existing'] == 2
     assert not any(a['email'].endswith('@optio-internal-placeholder.local')
                    for a in admin.created_auth)
+
+
+def test_a_no_email_row_matches_a_linked_child_with_their_own_account(_no_linked_children):
+    """The parent's existing child is not a managed profile but a student
+    with their own login, linked by household or parent link. Matching
+    managed profiles alone made a second Juliana Inzhirov (2026-10-12)."""
+    admin = FakeAdmin({'users': [
+        {'id': 'p1', 'email': 'mhennessy@opened.co', 'organization_id': ORG},
+        {'id': 'kid1', 'email': 'noah@own.login', 'first_name': 'Noah', 'last_name': 'Hennessy',
+         'is_dependent': False, 'managed_by_parent_id': None, 'organization_id': ORG},
+    ]})
+    _no_linked_children.side_effect = lambda pid: {'kid1'} if pid == 'p1' else set()
+    plan = plan_for(DEPENDENT_ROSTER, admin)
+
+    noah = next(s for s in plan['students'] if s['first_name'] == 'Noah')
+    assert noah['status'] == 'existing' and noah['existing_user_id'] == 'kid1'
+
+    outcome, _ = _execute(admin, plan)
+    assert not any(a['email'].endswith('@optio-internal-placeholder.local')
+                   for a in admin.created_auth)
+    assert outcome['counts']['existing'] == 2  # Megan and Noah
 
 
 def test_a_dependent_row_fails_when_its_parent_fails():

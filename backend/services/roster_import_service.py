@@ -42,7 +42,7 @@ import io
 import re
 import secrets
 import time
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Set, Tuple
 
 from utils.logger import get_logger
 
@@ -199,15 +199,33 @@ def _normalize_name(value: Optional[str]) -> str:
 
 
 def _existing_dependents(admin, parent_ids) -> Dict[Tuple[str, str, str], Dict[str, Any]]:
-    """Dependent profiles already managed by this roster's parents, keyed by
+    """Every child these roster parents already have, keyed by
     (parent_id, first, last) lowercased.
 
-    Dependents have no email, so re-run safety has to match on the only stable
-    thing a roster row carries for them: whose child they are and what they are
-    called. Chunked for the same URL-length reason as _existing_accounts.
+    A row with no student email can only be matched on whose child it is and
+    what the child is called. "Whose child" is all three links the platform
+    has (utils.class_membership.children_of_parent): a managed profile, an
+    approved parent_student_links row, or the same household. Matching managed
+    profiles alone made a second Juliana Inzhirov on 2026-10-12: the real one
+    came over from Hearthwood as a linked student with her own login, so the
+    import did not see her and created a managed copy under her mother.
+    Chunked for the same URL-length reason as _existing_accounts.
     """
-    found: Dict[Tuple[str, str, str], Dict[str, Any]] = {}
+    from utils.class_membership import children_of_parent
+
     ids = sorted({i for i in parent_ids if i})
+    parents_of: Dict[str, Set[str]] = {}
+    for parent_id in ids:
+        for child_id in children_of_parent(parent_id):
+            parents_of.setdefault(child_id, set()).add(parent_id)
+
+    found: Dict[Tuple[str, str, str], Dict[str, Any]] = {}
+
+    def add(user: Dict[str, Any], parent_id: Optional[str]) -> None:
+        key = (parent_id, _normalize_name(user.get('first_name')),
+               _normalize_name(user.get('last_name')))
+        found.setdefault(key, user)
+
     for start in range(0, len(ids), 50):
         chunk = ids[start:start + 50]
         try:
@@ -218,10 +236,21 @@ def _existing_dependents(admin, parent_ids) -> Dict[Tuple[str, str, str], Dict[s
             logger.error(f'roster_import: existing-dependent lookup failed: {e}')
             raise
         for user in res.data or []:
-            key = (user.get('managed_by_parent_id'),
-                   _normalize_name(user.get('first_name')),
-                   _normalize_name(user.get('last_name')))
-            found[key] = user
+            add(user, user.get('managed_by_parent_id'))
+
+    child_ids = sorted(parents_of)
+    for start in range(0, len(child_ids), 50):
+        chunk = child_ids[start:start + 50]
+        try:
+            res = (admin.table('users')
+                   .select('id, first_name, last_name, organization_id, managed_by_parent_id')
+                   .in_('id', chunk).execute())
+        except Exception as e:  # noqa: BLE001
+            logger.error(f'roster_import: existing-children lookup failed: {e}')
+            raise
+        for user in res.data or []:
+            for parent_id in parents_of.get(user['id'], ()):
+                add(user, parent_id)
     return found
 
 
@@ -366,11 +395,11 @@ def build_plan(rows: List[Dict[str, Any]], org_id: str, admin,
                 if parent_account else None)
             student_state = _account_state(student_account, org_id)
             if student_state == 'foreign':
-                errors.append(f'{student_first} {student_last} is already a managed profile '
+                errors.append(f'{student_first} {student_last} is already a child of '
                               f'under {parent_email} at {other_school(student_account)}. '
                               'Remove the row, or move that account into this organization first.')
             elif student_state == 'adopt' and not superadmin:
-                errors.append(f'{student_first} {student_last} is already a managed profile '
+                errors.append(f'{student_first} {student_last} is already a child of '
                               f'under {parent_email}. Remove the row, or email '
                               'support@optioeducation.com and we will connect it.')
             elif dependent_key in seen_dependents:
