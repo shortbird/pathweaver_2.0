@@ -213,8 +213,25 @@ def record(org_id: str, class_id: str, on_date: str,
 
     _record_unaccounted(org_id, class_id, on_date, unaccounted)
     admins_notified = _notify_admins_of_absences(org_id, class_id, on_date, unaccounted)
+
+    # The other direction (05ccd3b9): a teacher who changes an absent mark to
+    # late/present/excused may have just accounted for the student. Only a
+    # student whose mark in THIS class moved off 'absent' can have changed the
+    # day's answer, so nobody else costs a read. auto_resolve_if_accounted
+    # still checks every other class that day before it closes anything.
+    auto_resolved = 0
+    for p in payloads:
+        if p['status'] != 'absent' and prior.get(p['student_user_id']) == 'absent':
+            try:
+                if auto_resolve_if_accounted(org_id, p['student_user_id'], on_date,
+                                             AUTO_NOTE_TEACHER):
+                    auto_resolved += 1
+            except Exception as e:  # noqa: BLE001 — the roll save must not fail here
+                logger.warning(f'Alert auto-resolve failed during record(): {e}')
+
     return {'saved': saved, 'count': len(saved),
-            'absences_flagged': len(unaccounted), 'admins_notified': admins_notified}
+            'absences_flagged': len(unaccounted), 'admins_notified': admins_notified,
+            'alerts_auto_resolved': auto_resolved}
 
 
 # What a coordinator can decide happened to an unaccounted student. 'late' and
@@ -246,6 +263,63 @@ def _record_unaccounted(org_id: str, class_id: str, on_date: str,
         logger.error(f'Unaccounted-alert insert failed: {e}')
         return 0
     return len(rows)
+
+
+# Notes written on an alert the system closed by itself. resolution is 'other'
+# because the CHECK constraint has no 'auto' value (decided 2026-10-12: no
+# migration for this), and resolved_by stays NULL — no person decided it.
+AUTO_NOTE_TEACHER = 'Teacher changed the mark'
+AUTO_NOTE_PARENT = 'Parent reported the absence'
+
+
+def auto_resolve_if_accounted(org_id: str, student_user_id: str, on_date: str,
+                              note: str, client=None) -> bool:
+    """Close the student's open 'unaccounted' alert for `on_date` when nothing
+    on the record still says they are missing. Returns True if it closed one.
+
+    Ticket 05ccd3b9 (iCreate, Kate): "some students are showing up as absent
+    after a teacher marked them late/present or sometimes a late excuse from a
+    parent. If those could automatically resolve when parents or teachers
+    change it so I don't have to click on their name to find out, that would
+    be great!"
+
+    The alert is per student per DAY, not per class, so the test is the whole
+    day: every class where the roll still says 'absent' must be covered —
+    either the class takes no roll (29dff954) or a guardian reported the
+    absence (a whole-day report covers every class; a class report covers only
+    its class). One uncovered absent mark anywhere keeps the alert open.
+
+    The close only matches status='open', so an alert a coordinator already
+    resolved is never overwritten. Every read is bounded by one student on one
+    date, well under the PostgREST row cap.
+    """
+    from repositories.attendance_alert_repository import AttendanceAlertRepository
+    repo = AttendanceAlertRepository(client=client or _admin())
+    alert = repo.open_unaccounted(org_id, student_user_id, on_date)
+    if not alert:
+        return False
+
+    absent_classes = repo.absent_class_ids(org_id, student_user_id, on_date)
+    if absent_classes:
+        reported = repo.reported_class_ids(org_id, student_user_id, on_date)
+        if None in reported:  # a whole-day report covers every class
+            absent_classes = set()
+        absent_classes -= reported
+    if absent_classes:
+        try:
+            absent_classes -= optional_class_ids(absent_classes)
+        except Exception as e:  # noqa: BLE001 — when in doubt, keep the alert open
+            logger.warning(f'auto-resolve: optional-class lookup failed: {e}')
+    if absent_classes:
+        return False
+
+    return repo.close_open(alert['id'], {
+        'status': 'resolved',
+        'resolution': 'other',
+        'resolution_note': note,
+        'resolved_by': None,
+        'resolved_at': _now(),
+    })
 
 
 def open_alerts(org_id: str, on_date: Optional[str] = None) -> List[Dict[str, Any]]:

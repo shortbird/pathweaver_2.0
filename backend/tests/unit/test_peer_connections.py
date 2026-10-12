@@ -161,6 +161,23 @@ def test_age_screen_refuses_a_second_answer():
             svc.age_check('u1', _dob(14))
 
 
+def test_age_screen_refuses_todays_date_without_locking():
+    """A date picker opens on today; Done without scrolling submitted an age
+    of zero and locked it (bounty report, 2026-09-09). The slip is refused
+    and nothing is written, so the user can answer again."""
+    from services import peer_connection_service as svc
+
+    client, store = _fake_admin({'id': 'u1', 'date_of_birth': None,
+                                 'date_of_birth_locked_at': None,
+                                 'is_dependent': False})
+    with patch.object(svc, '_admin', return_value=client):
+        for dob in (date.today().isoformat(), _dob(svc.MIN_SELF_REPORTED_AGE - 1)):
+            with pytest.raises(svc.PeerConnectionError, match='check the year'):
+                svc.age_check('u1', dob)
+
+    assert not store.get('updates')
+
+
 def test_age_screen_refuses_a_dependent():
     """A dependent's date of birth belongs to their parent; letting the child
     self-attest would route around the adult who manages it."""

@@ -86,9 +86,10 @@ def get_daily_platform_metrics(user_id):
 def get_analytics_overview(user_id):
     """
     Website traffic from the GA4 property both the web platform and the
-    marketing site tag into: daily visitors and sessions (zero-filled), plus
-    sessions by acquisition channel, page views by path, and sessions by
-    host, each ranked.
+    marketing site tag into: daily visitors and sessions (zero-filled),
+    sessions by acquisition channel and page views by path, each ranked, and
+    the sign-up funnel (marketing-site visitors, sign-up page visitors, then
+    accounts created from our own users table).
 
     Query params:
         - days: Number of days to look back (default: 30, max: 90)
@@ -111,4 +112,66 @@ def get_analytics_overview(user_id):
     except google_analytics_service.GoogleAnalyticsError as e:
         logger.error(f"Error fetching Google Analytics overview: {e}")
         return jsonify({'error': 'Google Analytics is unavailable'}), 502
+    if isinstance(data.get('funnel'), dict):
+        data = {**data, 'funnel': {**data['funnel'], **_accounts_created(days)}}
     return jsonify({'configured': True, **data})
+
+
+def _accounts_created(days):
+    """The funnel's last stage (activity_metrics_service.accounts_created). A
+    failed count leaves the stage out rather than claiming zero."""
+    from services import activity_metrics_service
+    try:
+        return activity_metrics_service.accounts_created(days)
+    except Exception as e:  # noqa: BLE001 -- one stage, not the section
+        logger.warning(f'Could not count new accounts for the funnel: {e}')
+        return {}
+
+
+@platform_metrics_bp.route('/platform-metrics/orgs', methods=['GET'])
+@require_superadmin
+def get_org_activity(user_id):
+    """
+    Activity per organization for the window, plus one row for platform users
+    with no org: members, active users this window and the one before, tasks
+    this window and the one before, evidence, messages sent, students gone
+    quiet, open SIS alerts, last seen.
+
+    Query params:
+        - days: Number of days to look back (default: 30, max: 90)
+    """
+    from services import activity_metrics_service
+    days = request.args.get('days', 30)
+    rows = activity_metrics_service.org_activity(days)
+    return jsonify({'orgs': rows, 'period_days': activity_metrics_service.clamp_days(days, 30)})
+
+
+@platform_metrics_bp.route('/platform-metrics/pipelines', methods=['GET'])
+@require_superadmin
+def get_platform_pipelines(user_id):
+    """
+    The queues that move people forward: credit review (requested, waiting on
+    a school, waiting on Optio, approved, sent back), the CRM (leads,
+    conversions, email delivery), and tickets (open, aging, resolved).
+
+    Query params:
+        - days: Number of days to look back (default: 30, max: 90)
+    """
+    from services import activity_metrics_service
+    days = request.args.get('days', 30)
+    return jsonify({**activity_metrics_service.platform_pipelines(days),
+                    'period_days': activity_metrics_service.clamp_days(days, 30)})
+
+
+@platform_metrics_bp.route('/platform-metrics/sign-in-trouble', methods=['GET'])
+@require_superadmin
+def get_sign_in_trouble(user_id):
+    """
+    People whose recent sign-ins keep failing and who have not signed in
+    since: name, school, failures, whether they are locked out now. Emails
+    with no account are included -- a family retyping a misspelled address
+    is a fix too.
+    """
+    from services import activity_metrics_service
+    return jsonify({'people': activity_metrics_service.sign_in_trouble(),
+                    'window_days': activity_metrics_service.SIGN_IN_WINDOW_DAYS})

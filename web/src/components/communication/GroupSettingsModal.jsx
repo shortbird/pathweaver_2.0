@@ -57,6 +57,10 @@ const GroupSettingsModal = ({ isOpen, onClose, group }) => {
   // The backend refuses to let the only admin leave (the group would be
   // ownerless), so Leave is not offered to them; Delete is what they can do.
   const isSoleAdmin = isAdmin && members.filter(m => m.role === 'admin').length === 1
+  // Adding people is wider than admin: the school's own admin may add to any
+  // group thread in the school, whoever started it (ticket 6da3f51f). The
+  // server decides; an older response without the field falls back to admin.
+  const canAddMembers = groupDetails?.can_add_members ?? isAdmin
 
   // Reset state when modal opens
   useEffect(() => {
@@ -234,8 +238,8 @@ const GroupSettingsModal = ({ isOpen, onClose, group }) => {
                 />
               </div>
 
-              {/* Add Members Button (Admin only) */}
-              {isAdmin && !showAddMembers && (
+              {/* Add Members Button (group admin, or the school admin: 6da3f51f) */}
+              {canAddMembers && !showAddMembers && (
                 <button
                   onClick={() => setShowAddMembers(true)}
                   className="w-full flex items-center justify-center gap-2 py-2 text-optio-purple border border-optio-purple rounded-lg hover:bg-optio-purple/5 transition-colors"

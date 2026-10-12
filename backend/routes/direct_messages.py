@@ -48,6 +48,9 @@ message_service = DirectMessageService()
 # Config.SUPPORT_EMAIL -- that is support@optioeducation.com, an inbox nobody
 # has an Optio ACCOUNT for, so routing student support DMs there would send
 # them to a user id that does not exist.
+#
+# message_email_relay_service.support_account_email() resolves the same address
+# for the email that every message to this account sends (2026-10-12).
 SUPPORT_EMAIL = (Config.PLATFORM_STAFF_EMAILS[0] if Config.PLATFORM_STAFF_EMAILS
                  else Config.ADMIN_EMAIL)
 

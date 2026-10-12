@@ -433,6 +433,8 @@ _COPIED_TASK_FIELDS = (
     # Without these two a duplicate silently re-defaults to Electives, so
     # copying a correctly-credited task produced a wrongly-credited one.
     'diploma_subjects', 'subject_xp_distribution',
+    # The Definition of Done (column added 2026-10-12).
+    'success_criteria',
 )
 
 
@@ -446,6 +448,8 @@ def _copy_task_fields(source):
     pillar, the same way a freshly typed task is.
     """
     copy = {k: source.get(k) for k in _COPIED_TASK_FIELDS}
+    if not copy.get('success_criteria'):
+        copy.pop('success_criteria', None)  # unset is NULL; see the field list
     subjects, distribution = clean_subjects(
         copy.get('diploma_subjects'), copy.get('subject_xp_distribution'),
         copy.get('xp_value') or DEFAULT_XP, copy.get('pillar'))

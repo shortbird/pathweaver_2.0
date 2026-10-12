@@ -85,5 +85,6 @@ def enrollment_tasks_as_template(tasks):
             'is_required': bool(task.get('is_required')),
             'diploma_subjects': subjects,
             'subject_xp_distribution': split,
+            'success_criteria': task.get('success_criteria') or None,
         })
     return rows

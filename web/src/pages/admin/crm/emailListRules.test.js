@@ -54,6 +54,20 @@ describe('email list rules', () => {
     expect(ids(recipients)).toEqual(['ana', 'dee'])
   })
 
+  it('a family group reaches everyone in those families, and only them', () => {
+    const people = [
+      person('opa', { group_ids: ['g-opened'] }),
+      person('okid', { roles: ['student'], group_ids: ['g-opened'] }),
+      person('npa'),
+    ]
+    const { recipients } = resolveList(people, { filters: filters({ org_ids: [ACADEMY], group_ids: ['g-opened'] }) })
+    expect(ids(recipients)).toEqual(['opa', 'okid'])
+    const parents = resolveList(people, { filters: filters({ roles: ['parent'], group_ids: ['g-opened'] }) })
+    expect(ids(parents.recipients)).toEqual(['opa'])
+    // Saved lists from before groups existed still resolve.
+    expect(matchesFilters(people[2], { roles: ['parent'] })).toBe(true)
+  })
+
   it('platform users are picked with the no-school option', () => {
     expect(matchesFilters(PEOPLE[4], filters({ org_ids: [NO_ORG] }))).toBe(true)
     expect(matchesFilters(PEOPLE[0], filters({ org_ids: [NO_ORG] }))).toBe(false)

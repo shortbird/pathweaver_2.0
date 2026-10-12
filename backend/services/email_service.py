@@ -2096,6 +2096,26 @@ class EmailService(BaseService):
             }
         )
 
+    def send_parent_link_request_email(
+        self,
+        parent_email: str,
+        student_name: str,
+        accept_url: str,
+        expiry_days: int,
+    ) -> bool:
+        """A platform student asked for this address to be linked as their
+        parent (services/parent_link_request_service.py)."""
+        return self.send_templated_email(
+            to_email=parent_email,
+            subject=f"{student_name} asked to link you as their parent on Optio",
+            template_name='parent_link_request',
+            context={
+                'student_name': student_name,
+                'accept_url': accept_url,
+                'expiry_days': expiry_days,
+            }
+        )
+
     def send_course_enrollment_email(
         self,
         user_email: str,

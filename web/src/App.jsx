@@ -179,6 +179,7 @@ const PublicEvidenceReport = lazy(() => import('./pages/PublicEvidenceReport'))
 const PublicTranscriptPage = lazy(() => import('./pages/PublicTranscriptPage'))
 const SharedFeedPostPage = lazy(() => import('./pages/SharedFeedPostPage'))
 const FriendInvitePage = lazy(() => import('./pages/FriendInvitePage'))
+const ParentLinkAcceptPage = lazy(() => import('./pages/ParentLinkAcceptPage'))
 // Credit Review Dashboard (March 2026 - Unified credit review for org admins + superadmin)
 const CreditReviewDashboardPage = lazy(() => import('./pages/CreditReviewDashboardPage'))
 // Bounty Board (March 2026 - Integrated from mobile app plan)
@@ -898,6 +899,10 @@ function App() {
             {/* A friend's invite link (Friends, 2026-09-16): the bridge to the
                 app, or to /connections (student) / /family (parent) on the web. */}
             <Route path="f/:code" element={<FriendInvitePage />} />
+
+            {/* A student asked this adult to be linked as their parent
+                (2026-10-12); the parent accepts here, a superadmin approves. */}
+            <Route path="parent-link/:token" element={<ParentLinkAcceptPage />} />
 
             {/* Invitation pages - standalone full-screen layouts */}
             <Route path="invitation/:code" element={<AcceptInvitationPage />} />

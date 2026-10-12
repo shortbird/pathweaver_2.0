@@ -40,6 +40,25 @@ class CrmEmailListRepository(BaseRepository):
     def all_organizations(self) -> List[Dict[str, Any]]:
         return fetch_all_rows(lambda: self.client.table('organizations').select('id, name'))
 
+    def family_groups(self) -> List[Dict[str, Any]]:
+        return fetch_all_rows(
+            lambda: self.client.table('family_groups').select('id, organization_id, name'))
+
+    def household_group_rows(self) -> List[Dict[str, Any]]:
+        return fetch_all_rows(
+            lambda: self.client.table('household_family_groups').select('id, household_id, group_id'))
+
+    def members_of(self, household_ids: List[str]) -> List[Dict[str, Any]]:
+        out: List[Dict[str, Any]] = []
+        for i in range(0, len(household_ids), 200):
+            chunk = household_ids[i:i + 200]
+
+            def page(chunk: List[str] = chunk) -> Any:
+                return (self.client.table('household_members')
+                        .select('id, household_id, user_id').in_('household_id', chunk))
+            out.extend(fetch_all_rows(page))
+        return out
+
     def suppressed_emails(self) -> set:
         rows = fetch_all_rows(lambda: self.client.table('crm_suppressions').select('id, email'))
         return {(r.get('email') or '').lower() for r in rows}

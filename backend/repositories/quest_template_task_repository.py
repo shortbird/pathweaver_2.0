@@ -10,6 +10,7 @@ from repositories.base_repository import BaseRepository, DatabaseError, NotFound
 from postgrest.exceptions import APIError
 
 from utils.logger import get_logger
+from utils.personalization_helpers import sanitize_success_criteria
 
 logger = get_logger(__name__)
 
@@ -256,7 +257,7 @@ class QuestTemplateTaskRepository(BaseRepository):
             # Prepare task data with quest_id and defaults
             tasks_data = []
             for i, task in enumerate(tasks):
-                tasks_data.append({
+                row = {
                     'quest_id': quest_id,
                     'title': task.get('title', ''),
                     'description': task.get('description', ''),
@@ -265,8 +266,15 @@ class QuestTemplateTaskRepository(BaseRepository):
                     'is_required': task.get('is_required', False),
                     'order_index': task.get('order_index', i),
                     'diploma_subjects': task.get('diploma_subjects', ['Electives']),
-                    'subject_xp_distribution': task.get('subject_xp_distribution', {})
-                })
+                    'subject_xp_distribution': task.get('subject_xp_distribution', {}),
+                }
+                # The Definition of Done each enrollment copies onto its task.
+                # Sent only when there is one, so a save still works on a
+                # database without the column (migration 20261012220000).
+                criteria = sanitize_success_criteria(task.get('success_criteria'))
+                if criteria:
+                    row['success_criteria'] = criteria
+                tasks_data.append(row)
 
             response = (
                 self.client.table(self.table_name)

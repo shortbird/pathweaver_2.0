@@ -36,6 +36,13 @@ export const sisPeopleApi = {
     api.post(`/api/sis/people/${personId}/resend-invite`, { organization_id: orgId }),
   createHousehold: (orgId, name) =>
     api.post('/api/sis/households', { name, organization_id: orgId }),
+  // The add wizard's "A family": the household, its parents and its children
+  // in one request (routes/sis/people_add.py).
+  createFamily: (orgId, body) =>
+    api.post('/api/sis/families', { ...body, organization_id: orgId }),
+  // A student who signs in with a username and a generated password, no email.
+  createUsernameStudent: (orgId, body) =>
+    api.post(`/api/admin/organizations/${orgId}/users/create-username`, { ...body, org_role: 'student' }),
 }
 
 export default sisPeopleApi

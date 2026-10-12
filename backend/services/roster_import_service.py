@@ -1,5 +1,17 @@
 """Roster import: a school hands us a spreadsheet instead of using signup links.
 
+Since 2026-10-12 this runs from the SIS console (People > + Add > Many people
+from a spreadsheet) for the school's own admins and coordinators, not from the
+superadmin dashboard. Two things changed with the audience, both in
+`build_plan(..., superadmin=False)`: a school never learns the name of another
+school an email belongs to, and a school cannot pull a platform account (one
+with no organization) into itself -- the same line family_guardian_service
+holds for the single-parent door. A superadmin, through the console's org
+picker, keeps both. Every imported parent and their students also land in one
+household (`_place_family`), because the SIS reads families from households and
+an import that only wrote parent links left every child under "not in a family
+yet".
+
 Hearthwood Academy enrolls families offline and sends the finished roster, so
 there is no self-service moment where a parent creates their own account and
 claims their kid. This module is that moment, performed in bulk by a superadmin:
@@ -30,7 +42,7 @@ import io
 import re
 import secrets
 import time
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Set, Tuple
 
 from utils.logger import get_logger
 
@@ -187,15 +199,33 @@ def _normalize_name(value: Optional[str]) -> str:
 
 
 def _existing_dependents(admin, parent_ids) -> Dict[Tuple[str, str, str], Dict[str, Any]]:
-    """Dependent profiles already managed by this roster's parents, keyed by
+    """Every child these roster parents already have, keyed by
     (parent_id, first, last) lowercased.
 
-    Dependents have no email, so re-run safety has to match on the only stable
-    thing a roster row carries for them: whose child they are and what they are
-    called. Chunked for the same URL-length reason as _existing_accounts.
+    A row with no student email can only be matched on whose child it is and
+    what the child is called. "Whose child" is all three links the platform
+    has (utils.class_membership.children_of_parent): a managed profile, an
+    approved parent_student_links row, or the same household. Matching managed
+    profiles alone made a second Juliana Inzhirov on 2026-10-12: the real one
+    came over from Hearthwood as a linked student with her own login, so the
+    import did not see her and created a managed copy under her mother.
+    Chunked for the same URL-length reason as _existing_accounts.
     """
-    found: Dict[Tuple[str, str, str], Dict[str, Any]] = {}
+    from utils.class_membership import children_of_parent
+
     ids = sorted({i for i in parent_ids if i})
+    parents_of: Dict[str, Set[str]] = {}
+    for parent_id in ids:
+        for child_id in children_of_parent(parent_id):
+            parents_of.setdefault(child_id, set()).add(parent_id)
+
+    found: Dict[Tuple[str, str, str], Dict[str, Any]] = {}
+
+    def add(user: Dict[str, Any], parent_id: Optional[str]) -> None:
+        key = (parent_id, _normalize_name(user.get('first_name')),
+               _normalize_name(user.get('last_name')))
+        found.setdefault(key, user)
+
     for start in range(0, len(ids), 50):
         chunk = ids[start:start + 50]
         try:
@@ -206,10 +236,21 @@ def _existing_dependents(admin, parent_ids) -> Dict[Tuple[str, str, str], Dict[s
             logger.error(f'roster_import: existing-dependent lookup failed: {e}')
             raise
         for user in res.data or []:
-            key = (user.get('managed_by_parent_id'),
-                   _normalize_name(user.get('first_name')),
-                   _normalize_name(user.get('last_name')))
-            found[key] = user
+            add(user, user.get('managed_by_parent_id'))
+
+    child_ids = sorted(parents_of)
+    for start in range(0, len(child_ids), 50):
+        chunk = child_ids[start:start + 50]
+        try:
+            res = (admin.table('users')
+                   .select('id, first_name, last_name, organization_id, managed_by_parent_id')
+                   .in_('id', chunk).execute())
+        except Exception as e:  # noqa: BLE001
+            logger.error(f'roster_import: existing-children lookup failed: {e}')
+            raise
+        for user in res.data or []:
+            for parent_id in parents_of.get(user['id'], ()):
+                add(user, parent_id)
     return found
 
 
@@ -246,12 +287,17 @@ def _account_state(account: Optional[Dict[str, Any]], org_id: str) -> str:
     return 'adopt' if not account_org else 'foreign'
 
 
-def build_plan(rows: List[Dict[str, Any]], org_id: str, admin) -> Dict[str, Any]:
+def build_plan(rows: List[Dict[str, Any]], org_id: str, admin,
+               superadmin: bool = True) -> Dict[str, Any]:
     """Work out what the import would do, without doing any of it.
 
     Siblings are the reason parents are collapsed by email rather than handled
     per row: two rows naming the same parent must produce one parent account
     with two links, not two accounts.
+
+    `superadmin` False is a school importing its own roster: another school's
+    name is never shown, and an account with no organization is refused
+    rather than adopted (see the module docstring).
     """
     students: List[Dict[str, Any]] = []
     parents: Dict[str, Dict[str, Any]] = {}
@@ -278,10 +324,23 @@ def build_plan(rows: List[Dict[str, Any]], org_id: str, admin) -> Dict[str, Any]
                                    for user in list(existing.values()) + list(known_dependents.values())
                                    if user.get('organization_id') != org_id})
 
+    def other_school(account):
+        if not superadmin:
+            return 'another school'
+        return org_names.get(account.get('organization_id'), 'another organization')
+
     def foreign_error(email, account):
-        name = org_names.get(account.get('organization_id'), 'another organization')
-        return (f'{email} already has an Optio account at {name}. Remove the row, or move '
-                'that account into this organization first.')
+        if not superadmin:
+            return (f'{email} already has an Optio account at another school. Remove the '
+                    'row, or email support@optioeducation.com and we will move it.')
+        return (f'{email} already has an Optio account at {other_school(account)}. Remove '
+                'the row, or move that account into this organization first.')
+
+    def platform_error(email):
+        # The single-parent door refuses the same case: claiming a platform
+        # account would rewrite the role of somebody already using Optio.
+        return (f'{email} already has an Optio account of its own. Remove the row, or '
+                'email support@optioeducation.com and we will connect it.')
 
     for row in rows:
         line = row['_row']
@@ -320,6 +379,8 @@ def build_plan(rows: List[Dict[str, Any]], org_id: str, admin) -> Dict[str, Any]
         parent_state = _account_state(parent_account, org_id) if parent_email else None
         if parent_state == 'foreign':
             errors.append(foreign_error(parent_email, parent_account))
+        elif parent_state == 'adopt' and not superadmin:
+            errors.append(platform_error(parent_email))
 
         # An account at another school blocks its row rather than being moved or
         # quietly linked from outside the org.
@@ -334,10 +395,13 @@ def build_plan(rows: List[Dict[str, Any]], org_id: str, admin) -> Dict[str, Any]
                 if parent_account else None)
             student_state = _account_state(student_account, org_id)
             if student_state == 'foreign':
-                name = org_names.get(student_account.get('organization_id'), 'another organization')
-                errors.append(f'{student_first} {student_last} is already a managed profile '
-                              f'under {parent_email} at {name}. Remove the row, or move that '
-                              'account into this organization first.')
+                errors.append(f'{student_first} {student_last} is already a child of '
+                              f'under {parent_email} at {other_school(student_account)}. '
+                              'Remove the row, or move that account into this organization first.')
+            elif student_state == 'adopt' and not superadmin:
+                errors.append(f'{student_first} {student_last} is already a child of '
+                              f'under {parent_email}. Remove the row, or email '
+                              'support@optioeducation.com and we will connect it.')
             elif dependent_key in seen_dependents:
                 errors.append(f'Duplicate student (also on row {seen_dependents[dependent_key]})')
         else:
@@ -345,6 +409,8 @@ def build_plan(rows: List[Dict[str, Any]], org_id: str, admin) -> Dict[str, Any]
             student_state = _account_state(student_account, org_id)
             if student_state == 'foreign':
                 errors.append(foreign_error(student_email, student_account))
+            elif student_state == 'adopt' and not superadmin:
+                errors.append(platform_error(student_email))
 
         if errors:
             row_errors.append({
@@ -390,13 +456,14 @@ def build_plan(rows: List[Dict[str, Any]], org_id: str, admin) -> Dict[str, Any]
 
     parent_list = list(parents.values())
     unlinked = [s['email'] for s in students if not s['parent_email']]
+    families_new = sum(1 for p in parent_list if p['status'] == 'create')
     adopting = [p for p in students + parent_list if p['status'] == 'adopt']
     dependents_new = [s for s in students if s['dependent'] and s['status'] == 'create']
 
     warnings = []
     if unlinked:
         warnings.append(f'{len(unlinked)} student(s) have no parent email and will not be '
-                        'linked to anyone')
+                        'linked to anyone or put in a family')
     if dependents_new:
         # A managed profile is a different thing than an account: no invite, no
         # login of their own. Said up front so nobody waits on an email that
@@ -427,6 +494,10 @@ def build_plan(rows: List[Dict[str, Any]], org_id: str, admin) -> Dict[str, Any]
             'dependents_new': len(dependents_new),
             'adopted': len(adopting),
             'links': sum(len(p['student_emails']) for p in parent_list),
+            # One family per parent email. A parent who already has a family
+            # here joins it; the count is the upper bound for new ones.
+            'families': len(parent_list),
+            'families_new': families_new,
             'invalid_rows': len(row_errors),
         },
     }
@@ -599,6 +670,20 @@ def _send_invite(admin, user_id: str, email: str, first_name: str,
         return False
 
 
+def _place_family(org_id: str, parent_id: str, student_ids: List[str],
+                  parent_last: str) -> Dict[str, Any]:
+    """The parent and their imported children in one household: the parent's
+    existing family here, else a new '<Last> Family' with them as the primary
+    contact. sis_attach_service.attach_family is the one path that does this
+    (the registration funnel uses it too). Its own function so the tests can
+    stand in for it without a database."""
+    from services import sis_attach_service
+    name = f'{parent_last} Family'.strip() if parent_last else 'New Family'
+    return sis_attach_service.attach_family(
+        org_id, parent_id, student_ids, household_fields={'name': name},
+        source='roster_import')
+
+
 def audit_entry(user_id: str, org_id: str, counts: Dict[str, Any],
                 send_emails: bool) -> Dict[str, Any]:
     """The admin_audit_logs row for one import.
@@ -631,6 +716,8 @@ def execute_plan(plan: Dict[str, Any], org_id: str, org_name: str, admin,
     """
     results: List[Dict[str, Any]] = []
     parent_ids: Dict[str, str] = {}
+    # parent email -> the student ids that go in that parent's family.
+    family_students: Dict[str, List[str]] = {}
 
     for parent in plan['parents']:
         entry = {'row': parent['row'], 'kind': 'parent', 'email': parent['email'],
@@ -693,6 +780,7 @@ def execute_plan(plan: Dict[str, Any], org_id: str, org_name: str, admin,
             continue
 
         if parent_id:
+            family_students.setdefault(student['parent_email'], []).append(student_id)
             if is_dependent:
                 # managed_by_parent_id IS the relationship for dependents;
                 # parent_student_links is for students with their own accounts.
@@ -707,10 +795,36 @@ def execute_plan(plan: Dict[str, Any], org_id: str, org_name: str, admin,
                     entry['link_error'] = str(e)[:200]
         results.append(entry)
 
+    # Families last: every account and link above is the import's real work,
+    # and a family that fails to form is reported, not a reason to undo it.
+    families_created = families_joined = 0
+    family_errors: List[Dict[str, Any]] = []
+    for parent in plan['parents']:
+        parent_id = parent_ids.get(parent['email'])
+        if not parent_id:
+            continue
+        try:
+            placed = _place_family(org_id, parent_id,
+                                   family_students.get(parent['email'], []),
+                                   parent.get('last_name') or '')
+            if placed.get('created'):
+                families_created += 1
+            else:
+                families_joined += 1
+            for refused_id, why in (placed.get('refused') or {}).items():
+                family_errors.append({'email': parent['email'], 'user_id': refused_id,
+                                      'error': why})
+        except Exception as e:  # noqa: BLE001
+            logger.error(f"roster_import: family for {parent['email']} failed: {e}")
+            family_errors.append({'email': parent['email'], 'error': str(e)[:200]})
+
     created = sum(1 for r in results if r.get('status') == 'created')
     return {
         'results': results,
+        'family_errors': family_errors,
         'counts': {
+            'families_created': families_created,
+            'families_joined': families_joined,
             'created': created,
             'existing': sum(1 for r in results if r.get('status') == 'existing'),
             'adopted': sum(1 for r in results if r.get('status') == 'adopted'),

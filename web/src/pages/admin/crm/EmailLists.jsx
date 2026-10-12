@@ -22,6 +22,8 @@ import {
   batches,
   presets,
 } from './emailListRules'
+import BroadcastComposer from './BroadcastComposer'
+import BroadcastHistory from './BroadcastHistory'
 
 const ROLE_LABEL = Object.fromEntries(ROLE_OPTIONS.map((r) => [r.id, r.label.replace(/s$/, '')]))
 
@@ -65,8 +67,9 @@ const copy = async (people) => {
 }
 
 /**
- * Email lists: pick a group of Optio users, copy their emails, paste them
- * into BCC on a Gmail draft. Nothing here sends. A saved list keeps its
+ * Email lists: pick a group of Optio users, then either copy their emails
+ * for BCC on a Gmail draft, or write one mail-merged email that Optio sends
+ * as a personal copy to each (BroadcastComposer.jsx). A saved list keeps its
  * filter, so "Academy parents in Robotics" stays current as families
  * enroll; ticks and "Add someone" are stored as hand edits on top of it.
  * The rules live in emailListRules.js.
@@ -81,6 +84,9 @@ const EmailLists = () => {
   const [saving, setSaving] = useState(false)
   const [tableSearch, setTableSearch] = useState('')
   const [addSearch, setAddSearch] = useState('')
+  // 'list' | 'compose' | 'history'; reuse carries a sent email into the composer.
+  const [view, setView] = useState('list')
+  const [reuse, setReuse] = useState(null)
 
   useEffect(() => {
     let cancelled = false
@@ -112,6 +118,10 @@ const EmailLists = () => {
   const people = directory?.people || []
   const organizations = directory?.organizations || []
   const orgName = useMemo(() => Object.fromEntries(organizations.map((o) => [o.id, o.name])), [organizations])
+  const groupsById = useMemo(
+    () => Object.fromEntries((directory?.family_groups || []).map((g) => [g.id, g])),
+    [directory]
+  )
   const classesById = useMemo(
     () => Object.fromEntries((directory?.classes || []).map((c) => [c.id, c])),
     [directory]
@@ -220,9 +230,38 @@ const EmailLists = () => {
 
   if (!directory) return <PageLoader />
 
+  if (view === 'compose') {
+    return (
+      <BroadcastComposer
+        recipients={recipients}
+        orgName={orgName}
+        list={current}
+        initial={reuse}
+        onClose={() => {
+          setView('list')
+          setReuse(null)
+        }}
+      />
+    )
+  }
+  if (view === 'history') {
+    return (
+      <BroadcastHistory
+        onClose={() => setView('list')}
+        onReuse={(b) => {
+          setReuse(b)
+          setView('compose')
+        }}
+      />
+    )
+  }
+
   const chosenOrgs = current.filters.org_ids.filter((id) => id !== NO_ORG)
   const classOptions = (directory.classes || []).filter(
     (c) => chosenOrgs.includes(c.organization_id) && !current.filters.class_ids.includes(c.id)
+  )
+  const groupOptions = (directory.family_groups || []).filter(
+    (g) => chosenOrgs.includes(g.organization_id) && !current.filters.group_ids.includes(g.id)
   )
   const leftOutText = [
     leftOut.suppressed.length && `${leftOut.suppressed.length} unsubscribed`,
@@ -235,7 +274,8 @@ const EmailLists = () => {
       <div className="mb-6">
         <h2 className="text-2xl font-bold">Email lists</h2>
         <p className="text-sm text-gray-500">
-          Pick who should get an email, copy the addresses, and paste them into BCC in Gmail. Nothing sends from here.
+          Pick who should get an email. Copy the addresses for Gmail, or write one email that Optio sends to each
+          person with their own details filled in.
         </p>
       </div>
 
@@ -260,6 +300,13 @@ const EmailLists = () => {
               ))}
             </ul>
           </div>
+          <button
+            type="button"
+            onClick={() => setView('history')}
+            className="w-full text-left px-3 py-2 rounded-lg text-sm hover:bg-gray-100 min-h-[44px] text-optio-purple font-medium"
+          >
+            Sent emails
+          </button>
           <div>
             <h3 className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-2">Start from</h3>
             <ul className="space-y-1">
@@ -351,8 +398,9 @@ const EmailLists = () => {
                     onRemove={() =>
                       editFilters({
                         org_ids: current.filters.org_ids.filter((o) => o !== id),
-                        // A class filter outlives its school otherwise, and matches nobody.
+                        // A class or group filter outlives its school otherwise, and matches nobody.
                         class_ids: current.filters.class_ids.filter((c) => classesById[c]?.organization_id !== id),
+                        group_ids: current.filters.group_ids.filter((g) => groupsById[g]?.organization_id !== id),
                       })
                     }
                   />
@@ -408,6 +456,39 @@ const EmailLists = () => {
               </div>
             )}
 
+            {chosenOrgs.length > 0 && (groupOptions.length > 0 || current.filters.group_ids.length > 0) && (
+              <div>
+                <label htmlFor="list-group" className="block text-sm font-medium text-gray-700 mb-2">
+                  Family groups (everyone in those families)
+                </label>
+                <div className="flex flex-wrap gap-2 mb-2">
+                  {current.filters.group_ids.map((id) => (
+                    <Chip
+                      key={id}
+                      label={groupsById[id]?.name || 'Unknown group'}
+                      onRemove={() => toggleIn('group_ids', id)}
+                    />
+                  ))}
+                </div>
+                {groupOptions.length > 0 && (
+                  <select
+                    id="list-group"
+                    value=""
+                    onChange={(e) => e.target.value && toggleIn('group_ids', e.target.value)}
+                    className={inputClass}
+                  >
+                    <option value="">Add a family group...</option>
+                    {groupOptions.map((g) => (
+                      <option key={g.id} value={g.id}>
+                        {g.name}
+                        {chosenOrgs.length > 1 ? ` (${orgName[g.organization_id] || ''})` : ''}
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </div>
+            )}
+
             <div className="flex flex-wrap gap-x-6 gap-y-2 text-sm text-gray-700">
               <label className="inline-flex items-center gap-2">
                 <input
@@ -441,8 +522,19 @@ const EmailLists = () => {
               )}
             </div>
             <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setReuse(null)
+                  setView('compose')
+                }}
+                disabled={!recipients.length}
+                className={primaryButton}
+              >
+                Write an email
+              </button>
               {recipients.length <= GMAIL_BATCH ? (
-                <button type="button" onClick={() => copy(recipients)} disabled={!recipients.length} className={primaryButton}>
+                <button type="button" onClick={() => copy(recipients)} disabled={!recipients.length} className={secondaryButton}>
                   Copy emails
                 </button>
               ) : (

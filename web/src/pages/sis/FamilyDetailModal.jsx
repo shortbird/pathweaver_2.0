@@ -27,6 +27,7 @@ import FamilyBillingPanel from './familyDetail/FamilyBillingPanel'
 import AddChildForm from './familyDetail/AddChildForm'
 import AddParentForm from './familyDetail/AddParentForm'
 import VolunteerHoursRow from './familyDetail/VolunteerHoursRow'
+import FamilyGroupsRow from './familyDetail/FamilyGroupsRow'
 import { INPUT_CLASS } from '../../components/ui/Input'
 
 const FUNDING_OPTIONS = [
@@ -35,10 +36,11 @@ const FUNDING_OPTIONS = [
   { value: 'ufa_private', label: 'UFA – Private School' },
   { value: 'private_pay', label: 'Private Pay' },
   { value: 'other', label: 'Other' },
+  { value: 'opened', label: 'OpenEd (OpenEd pays)' },
 ]
 export const FUNDING_LABELS = {
   ufa: 'UFA', ufa_private: 'UFA – Private School',
-  private_pay: 'Private Pay', other: 'Other',
+  private_pay: 'Private Pay', other: 'Other', opened: 'OpenEd',
 }
 
 // Whether the family pays tuition in one go or monthly. Recorded here so the
@@ -232,6 +234,11 @@ const FamilyDetailModal = ({ household, orgId, members, onClose, onSaved, initia
           ) : (
             <div className="flex items-center gap-2 min-w-0">
               <h2 className="text-lg font-bold text-neutral-900 truncate">{household.name}</h2>
+              {(household.groups || []).map((g) => (
+                <span key={g.id} className="flex-shrink-0 px-2 py-0.5 rounded-full bg-optio-purple/10 text-optio-purple text-xs font-medium">
+                  {g.name}
+                </span>
+              ))}
               <button onClick={startEdit} title="Rename family" className="text-neutral-400 hover:text-optio-purple flex-shrink-0">
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
               </button>
@@ -456,6 +463,7 @@ const DetailsPanel = ({ household, orgId, onSaved }) => {
   return (
     <div className="space-y-3">
       <RegistrationAccessSection household={household} orgId={orgId} onSaved={onSaved} />
+      <FamilyGroupsRow household={household} orgId={orgId} onSaved={onSaved} />
       <VolunteerHoursRow household={household} orgId={orgId} onSaved={onSaved} />
       <label className="text-xs text-neutral-500 block">Address line 1
         <input value={f.address_line1} onChange={(e) => set('address_line1', e.target.value)} className={field} />
@@ -642,7 +650,8 @@ const FundingRow = ({ household, orgId, schoolName, onSaved }) => {
           {FUNDING_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
         </select>
         <span className="mt-1 block text-[11px] text-neutral-400">
-          Decides how they are billed: UFA families are asked to pay through UFA rather than by card.
+          Decides how they are billed: UFA families are asked to pay through UFA, and OpenEd families are told
+          OpenEd pays. Neither is offered card payment.
         </span>
       </label>
       <label className="text-xs text-neutral-500 block">Payment plan

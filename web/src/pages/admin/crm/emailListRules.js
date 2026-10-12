@@ -4,7 +4,9 @@
  * can be tested without a browser.
  *
  * A list is a filter plus hand edits:
- *   filters      { roles: [], org_ids: [], class_ids: [], include_test, include_suppressed }
+ *   filters      { roles: [], org_ids: [], class_ids: [], group_ids: [], include_test, include_suppressed }
+ *                group_ids are a school's family groups ("OpenEd"); everyone
+ *                in a family carries its groups
  *   include_ids  people added by hand, whatever the filter says
  *   exclude_ids  people the filter catches who should not get this email
  *
@@ -32,6 +34,7 @@ export const emptyFilters = () => ({
   roles: [],
   org_ids: [],
   class_ids: [],
+  group_ids: [],
   include_test: false,
   include_suppressed: false,
 })
@@ -44,7 +47,8 @@ export const isTestEmail = (email) => {
   return /\.(example|test|invalid|localhost)$/.test(domain) || /(^|[.-])test([.-]|$)/.test(domain)
 }
 
-const hasFilter = (f) => f.roles.length > 0 || f.org_ids.length > 0 || f.class_ids.length > 0
+const hasFilter = (f) =>
+  f.roles.length > 0 || f.org_ids.length > 0 || f.class_ids.length > 0 || f.group_ids.length > 0
 
 export const matchesFilters = (person, filters) => {
   const f = normalizeFilters(filters)
@@ -56,6 +60,7 @@ export const matchesFilters = (person, filters) => {
     const mine = [...(person.class_ids || []), ...(person.child_class_ids || [])]
     if (!f.class_ids.some((c) => mine.includes(c))) return false
   }
+  if (f.group_ids.length && !f.group_ids.some((g) => (person.group_ids || []).includes(g))) return false
   return true
 }
 

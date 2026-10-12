@@ -16,8 +16,13 @@ const AdminUsers = () => {
   const navigate = useNavigate()
   const [users, setUsers] = useState([])
   const [loading, setLoading] = useState(true)
-  const [searchTerm, setSearchTerm] = useState('')
-  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('')
+  // ?search= arrives from the superadmin home's "People who cannot sign in"
+  // card, so a row there opens this list already narrowed to that person.
+  const [initialSearch] = useState(() => {
+    try { return new URLSearchParams(window.location.search).get('search') || '' } catch { return '' }
+  })
+  const [searchTerm, setSearchTerm] = useState(initialSearch)
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState(initialSearch)
   const [filters, setFilters] = useState({
     role: 'all',
     activity: 'all',

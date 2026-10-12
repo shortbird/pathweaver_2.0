@@ -1,6 +1,6 @@
 import React from 'react'
 import { PaymentFilterSelect } from '../PaymentMethodPills'
-import { roleChipOptions, statusOptions, familyOptions, everyoneCount, RECENT_DAYS } from './peopleFilters'
+import { roleChipOptions, statusOptions, familyOptions, groupOptions, everyoneCount, RECENT_DAYS } from './peopleFilters'
 
 const chip = (active) => `px-2.5 py-1 rounded-full text-xs font-medium border transition-colors ${
   active ? 'bg-optio-purple text-white border-optio-purple'
@@ -22,6 +22,7 @@ const PeopleFilterBar = ({ rows, filters, onChange, query, onQueryChange }) => {
   const roles = roleChipOptions(rows, filters)
   const statuses = statusOptions(rows, filters)
   const families = familyOptions(rows, filters)
+  const groups = groupOptions(rows, filters)
   const everyone = everyoneCount(rows, filters)
 
   return (
@@ -48,6 +49,15 @@ const PeopleFilterBar = ({ rows, filters, onChange, query, onQueryChange }) => {
             aria-label="Family" className={select}>
             <option value="">Any family</option>
             {families.map((o) => (
+              <option key={o.key} value={o.key}>{o.label} ({o.count})</option>
+            ))}
+          </select>
+        )}
+        {groups.length > 0 && (
+          <select value={filters.group} onChange={(e) => set({ group: e.target.value })}
+            aria-label="Family group" className={select}>
+            <option value="">Any group</option>
+            {groups.map((o) => (
               <option key={o.key} value={o.key}>{o.label} ({o.count})</option>
             ))}
           </select>

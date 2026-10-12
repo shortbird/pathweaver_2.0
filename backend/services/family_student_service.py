@@ -72,7 +72,8 @@ def _insert_profile_with_retry(admin, profile: Dict[str, Any], attempts: int = 3
 
 
 def create_teen_student(parent: Dict[str, Any], first_name: str, last_name: str,
-                        email: str, date_of_birth: date) -> Dict[str, Any]:
+                        email: str, date_of_birth: date,
+                        send_invite: bool = True) -> Dict[str, Any]:
     """Create a 13+ student account owned by the teen but made by the parent.
 
     `parent` is the parent's users row (needs id and organization_id).
@@ -143,7 +144,8 @@ def create_teen_student(parent: Dict[str, Any], first_name: str, last_name: str,
     except Exception as e:  # noqa: BLE001 — cosmetic setup, never fail the create
         logger.warning(f'create_teen_student: diploma init failed: {e}')
 
-    invite_sent = send_account_invite(student_id, email, first_name, parent, org_id, admin=admin)
+    invite_sent = send_invite and send_account_invite(
+        student_id, email, first_name, parent, org_id, admin=admin)
 
     _link_parent(admin, parent['id'], student_id)
 
@@ -243,7 +245,8 @@ def _link_parent(admin, parent_id: str, student_id: str) -> None:
 
 def create_child(parent: Dict[str, Any], first_name: str, last_name: str,
                  date_of_birth: date, email: str = '',
-                 avatar_url: Optional[str] = None) -> Dict[str, Any]:
+                 avatar_url: Optional[str] = None,
+                 send_invite: bool = True) -> Dict[str, Any]:
     """Make one child account for a family. Age decides the shape.
 
     `parent` is the guardian's users row (needs id and organization_id): the
@@ -255,7 +258,8 @@ def create_child(parent: Dict[str, Any], first_name: str, last_name: str,
     to a family later.
     """
     if calculate_age(date_of_birth) >= 13:
-        result = create_teen_student(parent, first_name, last_name, email, date_of_birth)
+        result = create_teen_student(parent, first_name, last_name, email, date_of_birth,
+                                     send_invite=send_invite)
         if result.get('error'):
             return result
         return {'kind': 'student', 'child': result['student'],
@@ -347,7 +351,8 @@ def add_child_to_household(org_id: str, household_id: str, actor_id: str,
     parent = {**parent, 'organization_id': org_id}
 
     try:
-        result = create_child(parent, first_name, last_name, date_of_birth, email=email)
+        result = create_child(parent, first_name, last_name, date_of_birth, email=email,
+                              send_invite=data.get('send_email', True) is not False)
     except Exception as e:  # noqa: BLE001 — the dependent path raises where the teen path returns
         logger.error(f'sis add-child: create failed for household {household_id}: {e}')
         return {'error': 'Could not create the account. Please try again.', 'status': 400}

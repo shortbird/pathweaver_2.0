@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import {
-  sliceWindow, meanOf, sumOf, failureShare, bucketWeeks, bucketWeeklySums, bucketCommentWeeks,
+  sliceWindow, meanOf, sumOf, bucketWeeks, bucketWeeklySums, bucketCommentWeeks,
   topServices, formatDollars,
 } from './PlatformMetricsSection'
 
@@ -35,18 +35,6 @@ describe('meanOf / sumOf', () => {
   it('treats empty input as zero, never NaN', () => {
     expect(meanOf([], 'dau')).toBe(0)
     expect(sumOf(null, 'dau')).toBe(0)
-  })
-})
-
-describe('failureShare', () => {
-  it('reports failures as a share of all attempts', () => {
-    const rows = [day('2026-08-24', { login_success: 30, login_failed: 10 })]
-    expect(failureShare(rows, 'login_success', 'login_failed'))
-      .toEqual({ attempts: 40, failed: 10, pct: 25 })
-  })
-
-  it('is null when nothing was attempted — 0% and no-data are different claims', () => {
-    expect(failureShare([day('2026-08-24')], 'login_success', 'login_failed')).toBeNull()
   })
 })
 

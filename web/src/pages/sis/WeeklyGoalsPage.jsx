@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'react-hot-toast'
 import api from '../../services/api'
 import Button from '../../components/ui/Button'
@@ -14,6 +14,13 @@ import { isGoalsEnabled } from './sisModules'
  * learning area (the org's goal subjects, the same list as the annual goals).
  * The check-in decides freedom on the server: every goal done and no valid
  * complaint. Nothing here computes it.
+ *
+ * Ticket 910668d8 (David Nilson): "us Coaches to be able to edit the fields
+ * as well, similar to Google Sheets." The board is a grid: each goal cell
+ * edits in place (click, type, Enter or click away saves, Esc cancels) through
+ * the same staff PUT as the editor. Students type their own goals too, so
+ * every staff save sends `base_goals`, the text it loaded: the server keeps a
+ * student's newer text in any subject the coach did not change.
  */
 
 const field = INLINE_INPUT_CLASS
@@ -74,6 +81,72 @@ const blankGoals = (subjects, week) => subjects.map((subject) => {
   return { subject, goal: g.goal || '', completed: g.completed ?? null }
 })
 
+const baseGoals = (subjects, week) => blankGoals(subjects, week).map(({ subject, goal }) => ({ subject, goal }))
+
+/** The staff PUT body for one student's week, with one subject's goal text
+ * changed: the board's inline cell edit. Everything else is sent as loaded. */
+export const cellSaveBody = (subjects, week, subject, text) => ({
+  goals: blankGoals(subjects, week).map((g) => (g.subject === subject
+    ? { ...g, goal: text, completed: text.trim() ? g.completed : null }
+    : g)),
+  complaints: week?.complaints ?? 0,
+  valid_complaints: week?.valid_complaints ?? 0,
+  notes: week?.notes || '',
+  check_in: false,
+  base_goals: baseGoals(subjects, week),
+})
+
+/** One goal cell of the board: shows the text, and on click becomes an
+ * input. Enter or blur saves when the text changed; Esc puts it back. */
+export const GoalCell = ({ value, label, onSave }) => {
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState(value)
+  const [saving, setSaving] = useState(false)
+  const cancelled = useRef(false)
+
+  const start = () => { cancelled.current = false; setDraft(value); setEditing(true) }
+
+  const commit = async () => {
+    if (cancelled.current) { cancelled.current = false; return }
+    setEditing(false)
+    if (draft === value) return
+    setSaving(true)
+    try {
+      await onSave(draft)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  if (editing) {
+    return (
+      <input
+        autoFocus
+        className={`${field} w-full text-sm`}
+        value={draft}
+        maxLength={500}
+        aria-label={label}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={commit}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') { e.preventDefault(); e.currentTarget.blur() }
+          if (e.key === 'Escape') { cancelled.current = true; setEditing(false); setDraft(value) }
+        }}
+      />
+    )
+  }
+  return (
+    <button
+      type="button"
+      onClick={start}
+      aria-label={label}
+      className={`w-full min-h-[2rem] text-left text-sm rounded px-2 py-1 hover:bg-blue-50 focus:bg-blue-50 ${saving ? 'opacity-60' : ''} ${value ? 'text-neutral-900' : 'text-neutral-400'}`}
+    >
+      {saving ? 'Saving…' : (value || 'Add')}
+    </button>
+  )
+}
+
 const WeekEditor = ({ student, subjects, weekStart, orgId, yearGoalsEditable, onClose, onSaved }) => {
   const [goals, setGoals] = useState(() => blankGoals(subjects, student.week))
   const [complaints, setComplaints] = useState(student.week?.complaints ?? 0)
@@ -107,6 +180,7 @@ const WeekEditor = ({ student, subjects, weekStart, orgId, yearGoalsEditable, on
         valid_complaints: Number(valid) || 0,
         notes,
         check_in: checkIn,
+        base_goals: baseGoals(subjects, student.week),
       })
       toast.success(checkIn ? 'Check-in saved' : 'Goals saved')
       onSaved()
@@ -253,6 +327,26 @@ const WeeklyGoalsPage = ({ embedded = false }) => {
     return { total: all.length, notSet: count('not_set'), earned: count('earned'), notEarned: count('not_earned') }
   }, [data])
 
+  const saveCell = async (student, subject, text) => {
+    try {
+      const r = await api.put(
+        withOrg(`/api/sis/weekly-goals/students/${student.student_id}/weeks/${data.week_start}`, orgId),
+        cellSaveBody(data.subjects, student.week, subject, text),
+      )
+      const week = r.data?.week
+      if (week) {
+        setData((d) => (d && d.week_start === data.week_start ? {
+          ...d,
+          students: d.students.map((s) => (s.student_id === student.student_id ? { ...s, week } : s)),
+        } : d))
+      } else {
+        load()
+      }
+    } catch (e) {
+      toast.error(e?.response?.data?.error || 'Could not save the goal')
+    }
+  }
+
   const selected = data?.students?.find((s) => s.student_id === selectedId)
   const thisWeek = mondayOf()
 
@@ -294,28 +388,57 @@ const WeeklyGoalsPage = ({ embedded = false }) => {
       )}
 
       {students.length > 0 && (
-        <div className="bg-white rounded-xl border border-gray-200 divide-y divide-gray-100 overflow-hidden">
-          {students.map((s) => {
-            const { set, done } = goalCounts(s.week)
-            const checked = Boolean(s.week?.checked_in_at)
-            return (
-              <button
-                key={s.student_id}
-                onClick={() => setSelectedId(s.student_id)}
-                className="w-full flex items-center justify-between gap-3 px-4 py-3 text-left hover:bg-gray-50 transition-colors"
-              >
-                <span className="min-w-0">
-                  <span className="block text-sm font-medium text-neutral-900 truncate">{s.name}</span>
-                  <span className="block text-xs text-neutral-500 truncate">
-                    {set === 0 ? 'No goals set' : checked ? `${done} of ${set} goals done` : `${set} goals set`}
-                    {s.week?.valid_complaints ? ` · ${s.week.valid_complaints} valid complaint${s.week.valid_complaints === 1 ? '' : 's'}` : ''}
-                    {s.last_week?.freedom ? ` · Last week: ${s.last_week.freedom === 'earned' ? 'freedom' : 'no freedom'}` : ''}
-                  </span>
-                </span>
-                <StatusPill domain="week" status={weekStatus(s.week)} />
-              </button>
-            )
-          })}
+        <div className="bg-white rounded-xl border border-gray-200 overflow-x-auto">
+          <table className="w-full text-left border-collapse">
+            <thead>
+              <tr className="border-b border-gray-200 bg-gray-50 text-xs font-semibold text-neutral-600">
+                <th scope="col" className="px-4 py-2 min-w-[12rem]">Student</th>
+                {data.subjects.map((subject) => (
+                  <th key={subject} scope="col" className="px-2 py-2 min-w-[10rem]">{subject}</th>
+                ))}
+                <th scope="col" className="px-4 py-2">Week</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {students.map((s) => {
+                const { set, done } = goalCounts(s.week)
+                const checked = Boolean(s.week?.checked_in_at)
+                const goals = blankGoals(data.subjects, s.week)
+                return (
+                  <tr key={s.student_id} className="align-top">
+                    <td className="px-4 py-2">
+                      <button
+                        type="button"
+                        onClick={() => setSelectedId(s.student_id)}
+                        className="text-left hover:underline"
+                        title="Open the week: ticks, complaints, notes and the check-in"
+                      >
+                        <span className="block text-sm font-medium text-neutral-900">{s.name}</span>
+                        <span className="block text-xs text-neutral-500">
+                          {set === 0 ? 'No goals set' : checked ? `${done} of ${set} goals done` : `${set} goals set`}
+                          {s.week?.valid_complaints ? ` · ${s.week.valid_complaints} valid complaint${s.week.valid_complaints === 1 ? '' : 's'}` : ''}
+                          {s.last_week?.freedom ? ` · Last week: ${s.last_week.freedom === 'earned' ? 'freedom' : 'no freedom'}` : ''}
+                        </span>
+                      </button>
+                    </td>
+                    {goals.map((g) => (
+                      <td key={g.subject} className="px-2 py-1">
+                        <GoalCell
+                          key={`${s.student_id}-${g.subject}-${g.goal}`}
+                          value={g.goal}
+                          label={`${s.name} ${g.subject} goal`}
+                          onSave={(text) => saveCell(s, g.subject, text)}
+                        />
+                      </td>
+                    ))}
+                    <td className="px-4 py-2">
+                      <StatusPill domain="week" status={weekStatus(s.week)} />
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
         </div>
       )}
 

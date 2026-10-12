@@ -13,7 +13,7 @@ Unconfigured (no GOOGLE_ANALYTICS_SA_KEY_B64 / GA_PROPERTY_ID) the read
 reports itself as such and the route tells the page to hide the section,
 so the code ships ahead of the GA setup.
 
-One batchRunReports call returns all four reports. The reply is cached for
+One batchRunReports call returns all five reports. The reply is cached for
 CACHE_TTL seconds per window: the Data API is quota-metered per property
 (tokens per hour and per day) and the home page is opened far more often
 than traffic changes.
@@ -40,7 +40,6 @@ MAX_DAYS = 90
 # Row caps for the ranked breakdowns: never more bars than a card can hold.
 CHANNEL_LIMIT = 8
 PAGE_LIMIT = 10
-HOST_LIMIT = 6
 
 
 class GoogleAnalyticsError(RuntimeError):
@@ -83,6 +82,26 @@ def _report(dimension: str, metrics: List[str], days: int,
     if limit:
         body['limit'] = limit
     return body
+
+
+# The sign-up doors: self-registration, a school's enroll and join links, and
+# a new school's setup link. A visitor who opens any of them meant to sign up.
+SIGNUP_PATH_REGEX = r'^/(register|enroll|join|start-school)(/.*)?$'
+
+# The web platform's host; every other host in the property is the marketing
+# site (www, plus the apex that redirects to it).
+APP_HOST_PREFIX = 'app.'
+
+
+def _total(metric: str, days: int, dimension_filter: Dict[str, Any]) -> Dict[str, Any]:
+    """One number for the window: no dimensions, so GA de-duplicates users
+    across every page or host the filter matches (summing a per-page report
+    would count a visitor who opened two sign-up pages twice)."""
+    return {
+        'dateRanges': [{'startDate': f'{days - 1}daysAgo', 'endDate': 'today'}],
+        'metrics': [{'name': metric}],
+        'dimensionFilter': dimension_filter,
+    }
 
 
 def _batch_run_reports(token: str, property_id: str, reports: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
@@ -158,14 +177,32 @@ def _ranked(rows: List[Dict[str, Any]], name_key: str, value_key: str) -> List[D
     return [{name_key: r['dim'], value_key: (r['metrics'] + [0])[0]} for r in rows]
 
 
+def _single(report: Dict[str, Any]) -> int:
+    rows = _rows(report)
+    return (rows[0]['metrics'] + [0])[0] if rows else 0
+
+
 def parse_overview(reports: List[Dict[str, Any]], days: int, today: Optional[datetime] = None) -> Dict[str, Any]:
-    """The four batched reports, in request order, as the page's payload."""
-    daily, channels, pages, hosts = (_rows(r) for r in reports)
+    """The batched reports, in request order, as the page's payload.
+
+    The first three are the time series and the ranked breakdowns; the last two
+    are the sign-up funnel's GA stages (marketing-site visitors, then visitors
+    who opened a sign-up page). The funnel's last stage, accounts created, is
+    ours, not GA's -- the route adds it from the users table.
+
+    Five is GA's ceiling for one batchRunReports call. Sessions by host was the
+    fifth until 2026-10-12: the property has two hosts, so it was a two-bar
+    chart that said nothing the funnel's first stage does not.
+    """
+    daily, channels, pages = (_rows(r) for r in reports[:3])
     return {
         'days': zero_fill_days(daily, days, today),
         'channels': _ranked(channels, 'name', 'sessions'),
         'pages': _ranked(pages, 'path', 'views'),
-        'sites': _ranked(hosts, 'host', 'sessions'),
+        'funnel': {
+            'site_visitors': _single(reports[3]) if len(reports) > 3 else 0,
+            'signup_page_visitors': _single(reports[4]) if len(reports) > 4 else 0,
+        },
     }
 
 
@@ -174,7 +211,12 @@ def _overview_reports(days: int) -> List[Dict[str, Any]]:
         _report('date', ['activeUsers', 'sessions'], days),
         _report('sessionDefaultChannelGroup', ['sessions'], days, order_by='sessions', limit=CHANNEL_LIMIT),
         _report('pagePath', ['screenPageViews'], days, order_by='screenPageViews', limit=PAGE_LIMIT),
-        _report('hostName', ['sessions'], days, order_by='sessions', limit=HOST_LIMIT),
+        _total('activeUsers', days, {'notExpression': {'filter': {
+            'fieldName': 'hostName',
+            'stringFilter': {'matchType': 'BEGINS_WITH', 'value': APP_HOST_PREFIX}}}}),
+        _total('activeUsers', days, {'filter': {
+            'fieldName': 'pagePath',
+            'stringFilter': {'matchType': 'FULL_REGEXP', 'value': SIGNUP_PATH_REGEX}}}),
     ]
 
 
@@ -189,7 +231,7 @@ def fetch_overview(days: int) -> Dict[str, Any]:
     if not is_configured():
         raise GoogleAnalyticsError('Google Analytics is not configured')
 
-    key = f'ga:overview:{Config.GA_PROPERTY_ID}:{days}'
+    key = f'ga:overview:v2:{Config.GA_PROPERTY_ID}:{days}'  # v2: funnel replaced sites
     cached = cache.get(key)
     if cached is not None:
         return cached

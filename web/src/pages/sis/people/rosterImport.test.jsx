@@ -2,7 +2,10 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent, waitFor, within } from '@testing-library/react'
 
 /**
- * Roster Import — a school's spreadsheet becomes accounts, links and invites.
+ * Roster Import — a school's spreadsheet becomes accounts, links, families
+ * and (when asked) invites. It lived on the superadmin dashboard until
+ * 2026-10-12 and is now the People page's "Many people" in the SIS console,
+ * so the school is the console's own org and is never picked here.
  *
  * The grid has to behave like the spreadsheet it came from: one paste fills the
  * whole sheet regardless of header spelling or stray columns, and a bad cell is
@@ -17,14 +20,9 @@ import { render, screen, fireEvent, waitFor, within } from '@testing-library/rea
 const { api } = vi.hoisted(() => ({
   api: { get: vi.fn(), post: vi.fn() },
 }))
-vi.mock('../../services/api', () => ({ default: api }))
+vi.mock('../../../services/api', () => ({ default: api }))
 
-import RosterImportPage, { parseRoster } from './RosterImportPage'
-
-const ORGS = [
-  { id: 'org-other', name: 'Arete Academy', slug: 'arete' },
-  { id: 'org-school', name: 'Willow Creek Academy', slug: 'willow-creek' },
-]
+import RosterImport, { parseRoster } from './RosterImport'
 
 // Pasted straight out of the school's sheet: tab-separated, with a User ID
 // column we don't use.
@@ -62,7 +60,7 @@ const PREVIEW = {
   warnings: [],
   counts: {
     rows: 2, students_new: 2, students_existing: 0, parents_new: 1,
-    parents_existing: 0, links: 2, invalid_rows: 0,
+    parents_existing: 0, links: 2, families: 1, families_new: 1, invalid_rows: 0,
   },
 }
 
@@ -107,11 +105,8 @@ const pasteRoster = (text = PASTED) =>
     clipboardData: { getData: () => text },
   })
 
-const renderPage = async ({ pick = true } = {}) => {
-  render(<RosterImportPage />)
-  await screen.findByRole('option', { name: 'Willow Creek Academy' })
-  // No organization is preselected; choose the school the way a superadmin does.
-  if (pick) fireEvent.change(screen.getByLabelText('Organization'), { target: { value: 'org-school' } })
+const renderPage = async () => {
+  render(<RosterImport orgId="org-school" orgName="Willow Creek Academy" />)
 }
 
 const previewIt = async () => {
@@ -121,7 +116,6 @@ const previewIt = async () => {
 
 beforeEach(() => {
   vi.clearAllMocks()
-  api.get.mockResolvedValue({ data: { organizations: ORGS } })
   api.post.mockImplementation((url) =>
     Promise.resolve({ data: url.endsWith('/preview') ? PREVIEW : COMMIT }))
 })
@@ -162,12 +156,6 @@ describe('parseRoster', () => {
 })
 
 describe('RosterImportPage', () => {
-  it('starts with no organization chosen, so an import never lands in a school by default', async () => {
-    await renderPage({ pick: false })
-    expect(screen.getByLabelText('Organization')).toHaveValue('')
-    expect(screen.getByRole('button', { name: 'Preview import' })).toBeDisabled()
-  })
-
   it('fills the whole grid from one paste', async () => {
     await renderPage()
     pasteRoster()
@@ -178,16 +166,13 @@ describe('RosterImportPage', () => {
     expect(cell('Parent first', 2)).toHaveValue('Megan')
   })
 
-  it('will not preview until there is both an organization and a row', async () => {
+  it('will not preview until there is a row', async () => {
     await renderPage()
     const previewButton = screen.getByRole('button', { name: 'Preview import' })
     expect(previewButton).toBeDisabled()
 
     pasteRoster()
     expect(previewButton).toBeEnabled()
-
-    fireEvent.change(screen.getByLabelText('Organization'), { target: { value: '' } })
-    expect(previewButton).toBeDisabled()
   })
 
   it('sends the grid as a roster, shows what it would do, then does it', async () => {
@@ -195,21 +180,20 @@ describe('RosterImportPage', () => {
     pasteRoster()
     await previewIt()
 
-    expect(api.post).toHaveBeenCalledWith('/api/admin/roster-import/preview', {
+    expect(api.post).toHaveBeenCalledWith('/api/sis/roster-import/preview', {
       csv: SENT, organization_id: 'org-school',
     })
-    // Megan is one parent account for two students, not two.
+    // Megan is one parent account and one family for two students, not two.
     expect(screen.getByText('New parents').previousSibling).toHaveTextContent('1')
-    expect(screen.getByText('Parent links').previousSibling).toHaveTextContent('2')
+    expect(screen.getByText('Families').previousSibling).toHaveTextContent('1')
 
-    fireEvent.click(screen.getByRole('button', { name: 'Create 3 accounts in Willow Creek Academy' }))
+    fireEvent.click(screen.getByLabelText(/Email each new account/))
+    fireEvent.click(screen.getByRole('button', { name: 'Create 3 accounts at Willow Creek Academy' }))
     await waitFor(() => expect(api.post).toHaveBeenCalledWith(
-      '/api/admin/roster-import/commit',
+      '/api/sis/roster-import/commit',
       { csv: SENT, organization_id: 'org-school', send_emails: true },
     ))
-    // The completion names the org, because that is where the accounts are
-    // findable and the selector is easy to skip past.
-    expect(await screen.findByText(/Import complete .* Willow Creek Academy/)).toBeInTheDocument()
+    expect(await screen.findByText('Import complete')).toBeInTheDocument()
     expect(screen.getByText('Emails sent').previousSibling).toHaveTextContent('3')
   })
 
@@ -225,15 +209,16 @@ describe('RosterImportPage', () => {
     expect(screen.queryByText('Preview')).not.toBeInTheDocument()
   })
 
-  it('lets the superadmin create the accounts without emailing anyone', async () => {
+  it('emails nobody unless the admin asks: a bulk add is set up before it is announced', async () => {
     await renderPage()
     pasteRoster()
     await previewIt()
-    fireEvent.click(screen.getByRole('checkbox'))
+    expect(screen.getByRole('checkbox')).not.toBeChecked()
+    expect(screen.getByText(/Send setup email/)).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: /^Create 3 accounts/ }))
 
     await waitFor(() => expect(api.post).toHaveBeenCalledWith(
-      '/api/admin/roster-import/commit',
+      '/api/sis/roster-import/commit',
       expect.objectContaining({ send_emails: false }),
     ))
   })
@@ -332,6 +317,7 @@ describe('RosterImportPage', () => {
     await renderPage()
     pasteRoster()
     await previewIt()
+    fireEvent.click(screen.getByRole('checkbox'))
     fireEvent.click(screen.getByRole('button', { name: /^Create 3 accounts/ }))
 
     // "3 created" reads as success at a glance; nobody was told how to log in.
@@ -425,7 +411,7 @@ describe('RosterImportPage', () => {
     dragColumn('Parent last', 'Parent first')
     await previewIt()
 
-    expect(api.post).toHaveBeenCalledWith('/api/admin/roster-import/preview', {
+    expect(api.post).toHaveBeenCalledWith('/api/sis/roster-import/preview', {
       csv: SENT, organization_id: 'org-school',
     })
   })

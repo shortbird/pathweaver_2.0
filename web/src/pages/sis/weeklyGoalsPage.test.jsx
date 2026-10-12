@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render as rtlRender, screen, fireEvent, waitFor } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
-import WeeklyGoalsPage, { bloomyLine, mondayOf, weekStatus } from './WeeklyGoalsPage'
+import WeeklyGoalsPage, { bloomyLine, cellSaveBody, mondayOf, weekStatus } from './WeeklyGoalsPage'
 
 const render = (ui) => rtlRender(<MemoryRouter>{ui}</MemoryRouter>)
 
@@ -120,5 +120,74 @@ describe('WeeklyGoalsPage', () => {
     const body = api.put.mock.calls[0][1]
     expect(body.check_in).toBe(true)
     expect(body.goals.map((g) => g.completed)).toEqual([true, true])
+  })
+
+  it('sends the goal text it loaded, so a student edit since is kept', async () => {
+    render(<WeeklyGoalsPage />)
+    fireEvent.click(await screen.findByText('Ben Kid'))
+    fireEvent.click(screen.getByText('Save goals'))
+    await waitFor(() => expect(api.put).toHaveBeenCalled())
+    expect(api.put.mock.calls[0][1].base_goals).toEqual([
+      { subject: 'Reading', goal: 'Ch 4' }, { subject: 'Math', goal: 'Lesson 9' }])
+  })
+})
+
+describe('inline goal cells (ticket 910668d8)', () => {
+  // David Nilson: "us Coaches to be able to edit the fields as well,
+  // similar to Google Sheets."
+  it('click a cell, type, Enter saves through the staff save', async () => {
+    api.put.mockImplementation((url, body) => Promise.resolve({ data: { success: true,
+      week: { goals: body.goals, checked_in_at: null } } }))
+    render(<WeeklyGoalsPage />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Ada Kid Math goal' }))
+    const input = screen.getByRole('textbox', { name: 'Ada Kid Math goal' })
+    fireEvent.change(input, { target: { value: 'Lesson 10' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+    await waitFor(() => expect(api.put).toHaveBeenCalledTimes(1))
+    const [url, body] = api.put.mock.calls[0]
+    expect(url).toContain('/api/sis/weekly-goals/students/s1/weeks/2026-09-28')
+    expect(body.check_in).toBe(false)
+    expect(body.goals).toEqual([
+      { subject: 'Reading', goal: '', completed: null },
+      { subject: 'Math', goal: 'Lesson 10', completed: null }])
+    expect(body.base_goals).toEqual([{ subject: 'Reading', goal: '' }, { subject: 'Math', goal: '' }])
+    expect(await screen.findByRole('button', { name: 'Ada Kid Math goal' })).toHaveTextContent('Lesson 10')
+  })
+
+  it('saves on blur too', async () => {
+    render(<WeeklyGoalsPage />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Ben Kid Reading goal' }))
+    const input = screen.getByRole('textbox', { name: 'Ben Kid Reading goal' })
+    fireEvent.change(input, { target: { value: 'Ch 5' } })
+    fireEvent.blur(input)
+    await waitFor(() => expect(api.put).toHaveBeenCalledTimes(1))
+    // The rest of the week goes back as loaded: ticks, counts and notes.
+    const body = api.put.mock.calls[0][1]
+    expect(body.goals).toEqual([
+      { subject: 'Reading', goal: 'Ch 5', completed: true },
+      { subject: 'Math', goal: 'Lesson 9', completed: false }])
+    expect(body.complaints).toBe(0)
+  })
+
+  it('Esc cancels without saving', async () => {
+    render(<WeeklyGoalsPage />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Ben Kid Math goal' }))
+    const input = screen.getByRole('textbox', { name: 'Ben Kid Math goal' })
+    fireEvent.change(input, { target: { value: 'Something else' } })
+    fireEvent.keyDown(input, { key: 'Escape' })
+    expect(screen.getByRole('button', { name: 'Ben Kid Math goal' })).toHaveTextContent('Lesson 9')
+    expect(api.put).not.toHaveBeenCalled()
+  })
+
+  it('an unchanged cell does not save', async () => {
+    render(<WeeklyGoalsPage />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Ben Kid Math goal' }))
+    fireEvent.blur(screen.getByRole('textbox', { name: 'Ben Kid Math goal' }))
+    expect(api.put).not.toHaveBeenCalled()
+  })
+
+  it('clearing a goal clears its tick', () => {
+    const body = cellSaveBody(['Math'], { goals: [{ subject: 'Math', goal: 'x', completed: true }] }, 'Math', '')
+    expect(body.goals).toEqual([{ subject: 'Math', goal: '', completed: null }])
   })
 })

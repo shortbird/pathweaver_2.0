@@ -56,6 +56,11 @@ export const sisFamilyApi = {
    */
   updateHousehold: (householdId, fields, orgId) =>
     api.patch(`/api/sis/households/${householdId}`, { ...fields, organization_id: orgId }),
+  // Family groups: the school's own cohorts ("OpenEd"); a label on the family.
+  listGroups: (orgId) => api.get(`/api/sis/family-groups?organization_id=${orgId}`),
+  createGroup: (name, orgId) => api.post('/api/sis/family-groups', { name, organization_id: orgId }),
+  setGroups: (householdId, groupIds, orgId) =>
+    api.put(`/api/sis/households/${householdId}/groups`, { group_ids: groupIds, organization_id: orgId }),
   uploadImage: (householdId, orgId, file) => {
     const form = new FormData()
     form.append('file', file)

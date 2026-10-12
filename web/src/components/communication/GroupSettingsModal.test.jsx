@@ -79,3 +79,37 @@ describe('GroupSettingsModal footer', () => {
     expect(deleteGroup.mutateAsync).not.toHaveBeenCalled()
   })
 })
+
+describe('GroupSettingsModal Add Members', () => {
+  // Ticket 6da3f51f (iCreate, 2026-10-12): "I am not sure who started the Sub
+  // Pool group chat, but we need to be able to add people to that group." A
+  // parent started it and was its only admin; the school's admin, a plain
+  // member, had no way to add anyone. The server now says who may add.
+  beforeEach(() => vi.clearAllMocks())
+
+  const withCanAdd = (members, can_add_members) => ({
+    data: { group: { id: 'g1', name: 'Sub Pool', members, can_add_members } }, refetch: vi.fn(),
+  })
+
+  it('a plain member the server allows (the school admin) sees Add Members', () => {
+    groupDetails = withCanAdd([member('u2', 'admin'), member('u1', 'member')], true)
+    render(<GroupSettingsModal isOpen onClose={vi.fn()} group={{ id: 'g1' }} />)
+    expect(screen.getByText('Add Members')).toBeInTheDocument()
+  })
+
+  it('a plain member the server refuses does not', () => {
+    groupDetails = withCanAdd([member('u2', 'admin'), member('u1', 'member')], false)
+    render(<GroupSettingsModal isOpen onClose={vi.fn()} group={{ id: 'g1' }} />)
+    expect(screen.queryByText('Add Members')).not.toBeInTheDocument()
+  })
+
+  it('without the field, a group admin still sees it and a member does not', () => {
+    groupDetails = groupWith([member('u1', 'admin')])
+    const { unmount } = render(<GroupSettingsModal isOpen onClose={vi.fn()} group={{ id: 'g1' }} />)
+    expect(screen.getByText('Add Members')).toBeInTheDocument()
+    unmount()
+    groupDetails = groupWith([member('u2', 'admin'), member('u1', 'member')])
+    render(<GroupSettingsModal isOpen onClose={vi.fn()} group={{ id: 'g1' }} />)
+    expect(screen.queryByText('Add Members')).not.toBeInTheDocument()
+  })
+})

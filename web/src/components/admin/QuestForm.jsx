@@ -18,6 +18,7 @@ import { useConfirm } from '../../contexts/ConfirmContext'
 // Keys match backend/utils/school_subjects.py SCHOOL_SUBJECTS exactly.
 
 import SortableTaskRow from './questForm/SortableTaskRow'
+import { cleanCriteria } from '../quest/SuccessCriteriaEditor'
 import DIPLOMA_SUBJECTS from './questForm/DIPLOMA_SUBJECTS'
 /**
  * QuestForm - Unified quest creation/editing form
@@ -132,6 +133,7 @@ const QuestForm = ({
           task.is_required !== undefined ? task.is_required : defaultRequired,
         diploma_subjects: finalSubjects,
         subject_xp_distribution: distribution,
+        success_criteria: Array.isArray(task.success_criteria) ? task.success_criteria : [],
         order_index: index,
       };
     };
@@ -283,7 +285,8 @@ const QuestForm = ({
               order_index: index,
               is_required: task.is_required || false,
               diploma_subjects: subjects,
-              subject_xp_distribution: distribution
+              subject_xp_distribution: distribution,
+              success_criteria: cleanCriteria(task.success_criteria)
             };
           })
         };

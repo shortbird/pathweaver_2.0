@@ -299,6 +299,41 @@ def _parse_span(absence_date: str, end_date: Optional[str],
     return start, end, None
 
 
+def _auto_resolve_alerts(org_id: str, student_user_id: str, dates: List[str]) -> int:
+    """Close an open 'not accounted for' alert on any day this report now
+    explains (ticket 05ccd3b9, Kate at iCreate: "a late excuse from a parent
+    ... If those could automatically resolve when parents or teachers change
+    it so I don't have to click on their name to find out").
+
+    One read finds which days in the span have an open alert at all (a span is
+    at most MAX_SPAN_DAYS rows), and only those days get the full check. The
+    check itself lives in sis_attendance_service.auto_resolve_if_accounted: a
+    class-scoped report closes the alert only if every absent class that day
+    is covered.
+
+    Best effort. The parent's report is already saved; a failure here leaves
+    the alert for the coordinator, exactly as before this existed.
+    """
+    if not dates:
+        return 0
+    closed = 0
+    try:
+        from services import sis_attendance_service as attendance
+        admin = _admin()
+        from repositories.attendance_alert_repository import AttendanceAlertRepository
+        open_days = AttendanceAlertRepository(client=admin).open_unaccounted_dates(
+            org_id, student_user_id, dates)
+        for day in open_days:
+            if attendance.auto_resolve_if_accounted(
+                    org_id, student_user_id, day, attendance.AUTO_NOTE_PARENT,
+                    client=admin):
+                closed += 1
+    except Exception as e:  # noqa: BLE001 — never fail the parent's report
+        logger.warning(f'planned absence: alert auto-resolve failed for '
+                       f'{str(student_user_id)[:8]}: {e}')
+    return closed
+
+
 def create(org_id: str, student_user_id: str, reported_by: str, absence_date: str,
            class_id: Optional[str] = None, reason: Optional[str] = None,
            end_date: Optional[str] = None) -> Dict[str, Any]:
@@ -345,6 +380,8 @@ def create(org_id: str, student_user_id: str, reported_by: str, absence_date: st
         day += timedelta(days=1)
     if not created:
         return {'error': 'This absence has already been reported'}
+    _auto_resolve_alerts(org_id, student_user_id,
+                         [r.get('absence_date') for r in created if r.get('absence_date')])
     _notify_admins_of_report(org_id, student_user_id, start.isoformat(), class_id,
                              end_date=end.isoformat() if end != start else None)
     return {'absence': created[0], 'absences': created, 'skipped_dates': skipped}
