@@ -697,26 +697,6 @@ class NotificationService(BaseService):
             organization_id=organization_id,
         )
 
-    def notify_bounty_claimed(
-        self,
-        poster_id: str,
-        student_name: str,
-        bounty_title: str,
-        bounty_id: str,
-        claim_id: str,
-        organization_id: Optional[str] = None,
-    ):
-        """Notify the bounty poster that a student claimed their bounty."""
-        return self.create_notification(
-            user_id=poster_id,
-            notification_type='bounty_claimed',
-            title='Bounty Claimed',
-            message=f'{student_name} claimed your bounty "{bounty_title}"',
-            link=f'/bounties/{bounty_id}',
-            metadata={'bounty_id': bounty_id, 'claim_id': claim_id},
-            organization_id=organization_id,
-        )
-
     def notify_quest_invitation(
         self,
         user_id: str,

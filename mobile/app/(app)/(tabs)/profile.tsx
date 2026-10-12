@@ -33,6 +33,7 @@ import { SubjectCreditsGrid } from '@/src/components/portfolio/SubjectCreditsGri
 import { DiplomaCreditTracker } from '@/src/components/diploma/DiplomaCreditTracker';
 import { tracksDiplomaCredits } from '@/src/utils/age';
 import { extractApiError } from '@/src/services/apiError';
+import { AddParentCard } from '@/src/components/family/AddParentCard';
 
 // Native-only system date picker (iOS spinner / Android dialog), used by the
 // date-of-birth field in the edit sheet. Guarded so the web bundle -- which
@@ -582,6 +583,8 @@ export default function ProfileScreen() {
                   </Button>
                 </VStack>
               </Card>
+              {/* Renders only for a platform student with no parent. */}
+              <View style={{ marginTop: 12 }}><AddParentCard /></View>
             </CollapsibleSection>
           )}
 

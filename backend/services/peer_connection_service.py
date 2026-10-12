@@ -119,6 +119,10 @@ def _iso(dt):
 # Eligibility and the age screen
 # ---------------------------------------------------------------------------
 
+# The youngest age the age screen accepts. The web and mobile screens use the
+# same number to warn before they submit.
+MIN_SELF_REPORTED_AGE = 5
+
 def eligibility(user_id: str) -> Dict[str, Any]:
     """What state is this student in with respect to Friends?
 
@@ -204,6 +208,14 @@ def age_check(user_id: str, dob_str: str) -> Dict[str, Any]:
         raise PeerConnectionError('Date of birth cannot be in the future.')
     if today.year - dob.year > 120:
         raise PeerConnectionError('Please enter a valid date of birth.')
+    # A date picker opens on today. On an iPad, Done without scrolling the
+    # wheels submits today's date, and because this answer locks, that
+    # mistake was permanent: a parent testing the app ended up with an
+    # account aged zero that only a parent could fix (bounty report,
+    # 2026-09-09). Nobody this young types their own birthday, so a date
+    # under MIN_SELF_REPORTED_AGE is a slip, refused before the lock.
+    if (today - dob).days / 365.25 < MIN_SELF_REPORTED_AGE:
+        raise PeerConnectionError('Please check the year of your date of birth.')
 
     update = {
         'date_of_birth': dob.isoformat(),

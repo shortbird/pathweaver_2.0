@@ -454,6 +454,24 @@ emails:
     closing_paragraph: "This link expires in {{ expiry_days }} days. If it has expired, use \"Forgot password\" on the login page with this email address."
     signature: "support"
 
+  # A platform student asked for this adult to be linked as their parent.
+  # Accepting proves the address; Optio then approves the link by hand.
+  parent_link_request:
+    subject: "{{ student_name }} asked to link you as their parent on Optio"
+    title: "Link Your Account to {{ student_name }}"
+    salutation: "Hi,"
+    paragraphs:
+      - "<strong>{{ student_name }}</strong> uses Optio to track what they are learning, and asked to link this email address as their parent or guardian."
+      - "When your account is linked, you can see {{ student_name }}'s quests and work, add quests for them, and approve their friends and portfolio."
+    cta:
+      text: "Accept as {{ student_name }}'s parent"
+      url: "{{ accept_url }}"
+    link_fallback: "If the button doesn't work, copy and paste this link into your browser:"
+    closing_paragraphs:
+      - "You will sign in or create a free parent account with this email address. Optio then checks and confirms the link, usually within a day."
+      - "This link expires in {{ expiry_days }} days. If you are not {{ student_name }}'s parent or guardian, you can ignore this email."
+    signature: "support"
+
   staff_access_added:
     subject: "Your Optio account now has teacher access at {{ org_name }}"
     title: "Teacher Access Added"

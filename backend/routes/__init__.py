@@ -363,6 +363,10 @@ def register_all(app):
     from routes.connections import bp as connections_bp
     app.register_blueprint(connections_bp)
 
+    # ── Parent link requests (student asks, parent accepts, superadmin approves)
+    from routes.parent_link_requests import bp as parent_link_requests_bp
+    app.register_blueprint(parent_link_requests_bp)
+
     # ── Custom program blueprints (Treehouse, POE) via the program seam ────────
     from programs.blueprints import register_program_blueprints
     register_program_blueprints(app)

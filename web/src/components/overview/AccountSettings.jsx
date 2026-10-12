@@ -5,6 +5,7 @@ import api, { tokenStore } from '../../services/api';
 import toast from 'react-hot-toast';
 import PasswordStrengthMeter from '../auth/PasswordStrengthMeter';
 import { useConfirm } from '../../contexts/ConfirmContext'
+import AddParentCard from '../family/AddParentCard'
 
 const AccountSettings = ({
   user,
@@ -365,6 +366,9 @@ const AccountSettings = ({
               </div>
             )}
           </div>
+
+          {/* Renders only for a platform student; see the card. */}
+          <AddParentCard />
 
           {/* FERPA Consent Status */}
           {visibilityStatus && (
