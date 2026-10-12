@@ -2,7 +2,7 @@ import { cloneElement } from 'react'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import WebTrafficSection, { topShare, truncateLabel } from './WebTrafficSection'
+import WebTrafficSection, { topShare, truncateLabel, funnelStages, stepRate } from './WebTrafficSection'
 import api from '../../services/api'
 
 vi.mock('../../services/api', () => ({
@@ -37,10 +37,9 @@ const payload = {
     { path: '/', views: 120 },
     { path: '/classes', views: 15 },
   ],
-  sites: [
-    { host: 'www.optioeducation.com', sessions: 60 },
-    { host: 'app.optioeducation.com', sessions: 20 },
-  ],
+  funnel: {
+    site_visitors: 400, signup_page_visitors: 40, accounts_independent: 10, accounts_school: 90,
+  },
 }
 
 function renderSection() {
@@ -95,9 +94,15 @@ describe('WebTrafficSection', () => {
     const pages = screen.getByRole('region', { name: 'Top pages' })
     expect(pages).toHaveTextContent('120')
     expect(pages).toHaveTextContent('views of / over 30 days')
-    const sites = screen.getByRole('region', { name: 'Traffic by site' })
-    expect(sites).toHaveTextContent('75%')
-    expect(sites).toHaveTextContent('of sessions on www.optioeducation.com over 30 days')
+    // The funnel replaced "Traffic by site": its headline is the first step's
+    // rate, each stage carries its step rate, and school-made accounts are
+    // named beside the funnel, not inside it.
+    expect(screen.queryByRole('region', { name: 'Traffic by site' })).not.toBeInTheDocument()
+    const funnel = screen.getByRole('region', { name: 'Sign-up funnel' })
+    expect(funnel).toHaveTextContent('10%')
+    expect(funnel).toHaveTextContent('of marketing-site visitors opened a sign-up page over 30 days')
+    expect(funnel).toHaveTextContent('Created an account themselves10 · 25% of the step before')
+    expect(funnel).toHaveTextContent('Schools also created 90 accounts')
 
     // recharts hands tickFormatter (value, index); a category label must never
     // lose characters to the index. "Direct" sits at index 1.
@@ -147,5 +152,24 @@ describe('truncateLabel', () => {
     expect(truncateLabel('/courses/6c963eb3-0b5f-4660-9b26-cb935db44a84')).toBe('/courses/6c96…935db44a84')
     expect(truncateLabel('/quests/abcdef0123456789/curriculum', 16)).toBe('/quests/…riculum')
     expect(truncateLabel(undefined)).toBe('')
+  })
+})
+
+describe('funnelStages', () => {
+  it('orders the stages and gives each its rate from the step before', () => {
+    const stages = funnelStages({ site_visitors: 200, signup_page_visitors: 50, accounts_independent: 5 })
+    expect(stages.map(s => [s.key, s.value, s.rate])).toEqual([
+      ['site', 200, null], ['signup', 50, 25], ['accounts', 5, 10],
+    ])
+  })
+
+  it('leaves out a stage the server could not count rather than drawing a zero', () => {
+    const stages = funnelStages({ site_visitors: 200, signup_page_visitors: 50 })
+    expect(stages.map(s => s.key)).toEqual(['site', 'signup'])
+  })
+
+  it('has no rate without a base', () => {
+    expect(stepRate(5, 0)).toBeNull()
+    expect(funnelStages(null)).toEqual([])
   })
 })

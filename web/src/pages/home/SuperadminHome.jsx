@@ -10,6 +10,8 @@ import AICostChart from '../../components/home/AICostChart'
 import SafetyScreenCard from '../../components/home/SafetyScreenCard'
 import PlatformMetricsSection from '../../components/home/PlatformMetricsSection'
 import WebTrafficSection from '../../components/home/WebTrafficSection'
+import OrgActivitySection from '../../components/home/OrgActivitySection'
+import PipelinesSection from '../../components/home/PipelinesSection'
 
 /**
  * Superadmin Home — the platform cockpit (rendered by RoleHome at /dashboard).
@@ -160,11 +162,17 @@ export default function SuperadminHome() {
         stats={stats}
       />
 
-      <SafetyScreenCard />
-
       <AICostChart />
 
+      {/* Which schools are using Optio, right under the pulse: the question
+          the platform totals below cannot answer. */}
+      <OrgActivitySection />
+
       <PlatformMetricsSection />
+
+      <PipelinesSection />
+
+      <SafetyScreenCard />
 
       <WebTrafficSection />
 

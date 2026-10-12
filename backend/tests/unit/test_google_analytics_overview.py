@@ -21,9 +21,14 @@ def _row(dim, *metrics):
             'metricValues': [{'value': str(m)} for m in metrics]}
 
 
-def _reports(daily=(), channels=(), pages=(), hosts=()):
+def _total(n):
+    # A report with no dimensions: one row, metrics only.
+    return {'rows': [{'metricValues': [{'value': str(n)}]}]}
+
+
+def _reports(daily=(), channels=(), pages=(), site_visitors=0, signup_visitors=0):
     return [{'rows': list(daily)}, {'rows': list(channels)},
-            {'rows': list(pages)}, {'rows': list(hosts)}]
+            {'rows': list(pages)}, _total(site_visitors), _total(signup_visitors)]
 
 
 TODAY = datetime(2026, 9, 18, 12, tzinfo=timezone.utc)
@@ -47,35 +52,51 @@ class TestParsing:
             {'day': '2026-09-18', 'users': 0, 'sessions': 0},
         ]
 
-    def test_the_four_reports_become_the_pages_payload(self):
+    def test_the_five_reports_become_the_pages_payload(self):
         reports = _reports(
             daily=[_row('20260918', 40, 52)],
             channels=[_row('Organic Search', 30), _row('Direct', 22)],
             pages=[_row('/', 80), _row('/classes', 12)],
-            hosts=[_row('www.optioeducation.com', 44), _row('app.optioeducation.com', 8)],
+            site_visitors=44, signup_visitors=9,
         )
         out = ga.parse_overview(reports, 1, TODAY)
         assert out['days'] == [{'day': '2026-09-18', 'users': 40, 'sessions': 52}]
         assert out['channels'] == [{'name': 'Organic Search', 'sessions': 30},
                                    {'name': 'Direct', 'sessions': 22}]
         assert out['pages'] == [{'path': '/', 'views': 80}, {'path': '/classes', 'views': 12}]
-        assert out['sites'] == [{'host': 'www.optioeducation.com', 'sessions': 44},
-                                {'host': 'app.optioeducation.com', 'sessions': 8}]
+        assert out['funnel'] == {'site_visitors': 44, 'signup_page_visitors': 9}
+        assert 'sites' not in out
 
     def test_an_empty_report_is_an_empty_list_not_a_crash(self):
-        out = ga.parse_overview([{}, {}, {}, {}], 2, TODAY)
+        out = ga.parse_overview([{}, {}, {}, {}, {}], 2, TODAY)
         assert [d['users'] for d in out['days']] == [0, 0]
-        assert out['channels'] == out['pages'] == out['sites'] == []
+        assert out['channels'] == out['pages'] == []
+        assert out['funnel'] == {'site_visitors': 0, 'signup_page_visitors': 0}
 
     def test_the_request_asks_for_the_window_and_ranks_the_breakdowns(self):
-        daily, channels, pages, hosts = ga._overview_reports(30)
+        reports = ga._overview_reports(30)
+        # GA refuses a batch of more than five.
+        assert len(reports) <= 5
+        daily, channels, pages, site, signup = reports
         assert daily['dateRanges'] == [{'startDate': '29daysAgo', 'endDate': 'today'}]
         assert daily['dimensions'] == [{'name': 'date'}]
         assert [m['name'] for m in daily['metrics']] == ['activeUsers', 'sessions']
         assert channels['orderBys'] == [{'metric': {'metricName': 'sessions'}, 'desc': True}]
         assert channels['limit'] == ga.CHANNEL_LIMIT
         assert pages['dimensions'] == [{'name': 'pagePath'}]
-        assert hosts['dimensions'] == [{'name': 'hostName'}]
+        # The funnel's totals have no dimension, so GA counts each visitor once.
+        assert 'dimensions' not in site and 'dimensions' not in signup
+        assert site['dimensionFilter']['notExpression']['filter']['fieldName'] == 'hostName'
+        assert signup['dimensionFilter']['filter']['stringFilter']['value'] == ga.SIGNUP_PATH_REGEX
+
+    def test_the_signup_doors_match_and_the_rest_do_not(self):
+        import re
+        doors = re.compile(ga.SIGNUP_PATH_REGEX)
+        for path in ('/register', '/register/icreate/ABC', '/enroll/x1', '/join/arete',
+                     '/start-school/tok'):
+            assert doors.match(path), path
+        for path in ('/', '/registration', '/admin/register', '/joined'):
+            assert not doors.match(path), path
 
 
 @pytest.mark.unit
@@ -112,7 +133,7 @@ class TestFetch:
     def test_the_second_read_of_a_window_comes_from_the_cache(self):
         resp = requests.Response()
         resp.status_code = 200
-        resp._content = b'{"reports": [{"rows": []}, {"rows": []}, {"rows": []}, {"rows": []}]}'
+        resp._content = b'{"reports": [{"rows": []}, {"rows": []}, {"rows": []}, {"rows": []}, {"rows": []}]}'
         with patch.object(Config, 'GOOGLE_ANALYTICS_SA_KEY_B64', 'ZmFrZQ=='), \
              patch.object(Config, 'GA_PROPERTY_ID', '123'), \
              patch.object(ga, '_access_token', return_value='token'), \

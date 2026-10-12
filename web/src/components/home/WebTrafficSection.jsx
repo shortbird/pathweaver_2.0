@@ -15,8 +15,8 @@ import {
  * and the marketing site both tag into (services/googleAnalytics.js).
  *
  * One endpoint (/api/admin/platform-metrics/analytics) returns the window's
- * daily visitors plus three ranked breakdowns; the server batches the four
- * GA reports into one call and caches the answer, so the range toggle here
+ * daily visitors, two ranked breakdowns and the sign-up funnel; the server
+ * batches the five GA reports into one call and caches the answer, so the range toggle here
  * refetches rather than slicing -- a ranked list cannot be sliced by date
  * on the client.
  *
@@ -33,7 +33,12 @@ import {
  *
  * Headlines are numbers, never names: a hostname at text-3xl overflows a
  * phone-width card and a bare "/" reads as a rendering fault. The name goes
- * in the subtitle. All four cards share one height so the grid rows align
+ * in the subtitle.
+ *
+ * The fourth card was "Traffic by site" (sessions by host) until 2026-10-12.
+ * The property has two hosts, so it was two bars that said only that the
+ * marketing site gets more visits than the app. The sign-up funnel took its
+ * place and its slot in GA's five-report batch. All four cards share one height so the grid rows align
  * whatever the row counts; ten ranked rows fit it at 18px bars.
  */
 const CARD_HEIGHT = 'h-64'
@@ -56,6 +61,65 @@ export function truncateLabel(value, max = 24) {
   if (s.length <= max) return s
   const tail = Math.min(10, Math.floor((max - 1) / 2))
   return `${s.slice(0, max - 1 - tail)}…${s.slice(-tail)}`
+}
+
+/** a/b as a whole percent; null when there is no base to divide by. */
+export function stepRate(a, b) {
+  const base = Number(b) || 0
+  if (base <= 0) return null
+  return Math.round(((Number(a) || 0) / base) * 100)
+}
+
+/**
+ * The funnel's stages in order, each with its step rate from the one before.
+ * The last stage is ours (independent accounts from the users table); a
+ * missing stage is left out rather than drawn as zero.
+ */
+export function funnelStages(funnel) {
+  if (!funnel) return []
+  const raw = [
+    { key: 'site', label: 'Visited the website', value: funnel.site_visitors },
+    { key: 'signup', label: 'Opened a sign-up page', value: funnel.signup_page_visitors },
+    { key: 'accounts', label: 'Created an account themselves', value: funnel.accounts_independent },
+  ].filter(s => s.value != null)
+  return raw.map((s, i) => ({
+    ...s,
+    value: Number(s.value) || 0,
+    rate: i === 0 ? null : stepRate(s.value, raw[i - 1].value),
+  }))
+}
+
+/**
+ * One hue, length carries the value, each bar scaled to the first stage so
+ * the drop between stages is the picture. The step rate sits beside the
+ * count in ink, never in the bar's color.
+ */
+function FunnelBars({ stages }) {
+  if (stages.length === 0) {
+    return <p className="text-xs text-gray-400">No funnel data in this window.</p>
+  }
+  const top = Math.max(stages[0].value, 1)
+  return (
+    <ol className="space-y-3">
+      {stages.map(s => (
+        <li key={s.key}>
+          <div className="flex items-baseline justify-between gap-2 text-xs">
+            <span className="text-gray-600">{s.label}</span>
+            <span className="tabular-nums text-gray-900 font-medium">
+              {s.value.toLocaleString('en')}
+              {s.rate != null && <span className="text-gray-500 font-normal"> · {s.rate}% of the step before</span>}
+            </span>
+          </div>
+          <div className="mt-1 h-3 rounded bg-gray-100 overflow-hidden" aria-hidden="true">
+            <div
+              className="h-full rounded"
+              style={{ width: `${Math.max((s.value / top) * 100, s.value > 0 ? 1.5 : 0)}%`, backgroundColor: BRAND }}
+            />
+          </div>
+        </li>
+      ))}
+    </ol>
+  )
 }
 
 function VisitorsChart({ rows }) {
@@ -137,13 +201,14 @@ export default function WebTrafficSection() {
   const rows = useMemo(() => (Array.isArray(data?.days) ? data.days : []), [data])
   const channels = useMemo(() => (Array.isArray(data?.channels) ? data.channels : []), [data])
   const pages = useMemo(() => (Array.isArray(data?.pages) ? data.pages : []), [data])
-  const sites = useMemo(() => (Array.isArray(data?.sites) ? data.sites : []), [data])
+  const funnel = data?.funnel || null
+  const stages = useMemo(() => funnelStages(funnel), [funnel])
 
   if (query.isError || !data || data.configured === false) return null
 
   const totalSessions = sumOf(rows, 'sessions')
   const topChannel = topShare(channels, 'sessions', totalSessions)
-  const topSite = topShare(sites, 'sessions', totalSessions)
+  const funnelRate = stepRate(funnel?.signup_page_visitors, funnel?.site_visitors)
   const topPage = pages[0]
   const shownDays = data.period_days || days
 
@@ -201,18 +266,20 @@ export default function WebTrafficSection() {
         </ChartCard>
 
         <ChartCard
-          ariaLabel="Traffic by site" title="Traffic by site"
-          headline={topSite ? `${topSite.pct}%` : '—'}
-          subtitle={topSite
-            ? `of sessions on ${topSite.name} over ${shownDays} days`
-            : `no sessions over ${shownDays} days`}
+          ariaLabel="Sign-up funnel" title="Sign-up funnel"
+          headline={funnelRate == null ? '—' : `${funnelRate}%`}
+          subtitle={funnelRate == null
+            ? `no marketing-site visitors over ${shownDays} days`
+            : `of marketing-site visitors opened a sign-up page over ${shownDays} days`}
           isLoading={false}
           height={CARD_HEIGHT}
         >
-          {sites.length > 0 ? (
-            <RankedBarChart rows={sites} nameKey="host" valueKey="sessions" valueLabel="Sessions" labelWidth={150} />
-          ) : (
-            <p className="text-xs text-gray-400">No sessions in this window.</p>
+          <FunnelBars stages={stages} />
+          {funnel && funnel.accounts_school != null && (
+            <p className="text-[11px] text-gray-500 mt-3">
+              Schools also created {Number(funnel.accounts_school).toLocaleString('en')} accounts
+              for their families. Those never pass through the website, so they are not in the funnel.
+            </p>
           )}
         </ChartCard>
       </div>

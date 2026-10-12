@@ -6,6 +6,7 @@ import {
 } from 'recharts'
 import api from '../../services/api'
 import { formatCost, shortDate } from './AICostChart'
+import SignInTroubleCard from './SignInTroubleCard'
 
 /**
  * Platform-health charts for SuperadminHome, below the AI cost chart.
@@ -21,9 +22,11 @@ import { formatCost, shortDate } from './AICostChart'
  * lines use a 3-slot categorical palette (purple/green/orange) validated with
  * the dataviz palette checker against white — CVD separation, normal-vision
  * floor, and >=3:1 contrast all pass, so no chart leans on color alone beyond
- * its legend. Auth health wears status colors (success/failure semantics),
- * with fixed stacking order and a glyph legend as the required non-color
- * channel.
+ * its legend.
+ *
+ * Sign-in health was a success/failure stacked bar here until 2026-10-12. It
+ * reported a failure rate and named nobody, so nothing could be done with it;
+ * SignInTroubleCard lists the people instead.
  */
 
 export const BRAND = '#6D469B' // optio-purple
@@ -32,7 +35,6 @@ const SERIES = {
   evidence: '#12a06e',    // green, darkened to clear 3:1 on white
   starts: '#eb6834',      // orange
 }
-const STATUS = { good: '#0ca30c', critical: '#d03b3b' }
 
 export const RANGES = [
   { days: 7, label: '7d' },
@@ -56,15 +58,6 @@ export function meanOf(rows, key) {
 export function sumOf(rows, key) {
   if (!Array.isArray(rows)) return 0
   return rows.reduce((s, r) => s + (Number(r?.[key]) || 0), 0)
-}
-
-/** "12% of 316" — failure share of attempts; null when nothing was attempted. */
-export function failureShare(rows, okKey, failKey) {
-  const ok = sumOf(rows, okKey)
-  const failed = sumOf(rows, failKey)
-  const attempts = ok + failed
-  if (attempts === 0) return null
-  return { attempts, failed, pct: Math.round((failed / attempts) * 100) }
 }
 
 /**
@@ -314,42 +307,6 @@ function SignupsChart({ rows }) {
   )
 }
 
-/**
- * Success/failure stacked bars. Color alone must not carry good/bad (the
- * red/green pair collapses under deuteranopia), so the stacking order is
- * fixed — successes always sit on the baseline, failures always on top — and
- * the legend pairs each color with a glyph.
- */
-function AuthStackChart({ rows, okKey, failKey, okLabel, failLabel }) {
-  return (
-    <ResponsiveContainer width="100%" height="100%">
-      <BarChart data={rows} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
-        {dayAxes({ width: 34 })}
-        <Tooltip
-          cursor={{ fill: 'rgba(0,0,0,0.04)' }}
-          content={(
-            <RowsTooltip
-              titleFormatter={shortDate}
-              rows={p => [
-                { label: okLabel, value: p[okKey].toLocaleString('en'), swatch: STATUS.good },
-                { label: failLabel, value: p[failKey].toLocaleString('en'), swatch: STATUS.critical },
-              ]}
-            />
-          )}
-        />
-        <Bar
-          dataKey={okKey} stackId="auth" fill={STATUS.good} maxBarSize={24}
-          stroke={INK.surface} strokeWidth={1} name={okLabel}
-        />
-        <Bar
-          dataKey={failKey} stackId="auth" fill={STATUS.critical} maxBarSize={24}
-          stroke={INK.surface} strokeWidth={1} radius={[2, 2, 0, 0]} name={failLabel}
-        />
-      </BarChart>
-    </ResponsiveContainer>
-  )
-}
-
 function LearningActivityChart({ rows }) {
   return (
     <ResponsiveContainer width="100%" height="100%">
@@ -495,8 +452,6 @@ export default function PlatformMetricsSection() {
   const commentWeeks = useMemo(() => bucketCommentWeeks(metricsQuery.data?.days), [metricsQuery.data])
   const services = useMemo(() => topServices(serviceQuery.data?.services), [serviceQuery.data])
 
-  const logins = failureShare(windowRows, 'login_success', 'login_failed')
-  const registrations = failureShare(windowRows, 'reg_success', 'reg_failed')
   const revenue90 = weekly.reduce((s, w) => s + w.dollars, 0)
   const communityComments = sumOf(windowRows, 'comments_community')
   const platformComments = sumOf(windowRows, 'comments_platform')
@@ -555,45 +510,7 @@ export default function PlatformMetricsSection() {
           </ChartCard>
         )}
 
-        {metricsUp && (
-          <ChartCard
-            ariaLabel="Sign-in and registration health" title="Sign-in & registration health"
-            headline={logins ? `${logins.pct}%` : '—'}
-            subtitle={[
-              logins && `${logins.failed.toLocaleString('en')} of ${logins.attempts.toLocaleString('en')} sign-ins failed`,
-              registrations && `registrations: ${registrations.failed.toLocaleString('en')} of ${registrations.attempts.toLocaleString('en')} failed`,
-            ].filter(Boolean).join(' · ') || `no attempts in ${days} days`}
-            isLoading={loading}
-            legend={(
-              <LegendChips items={[
-                { label: 'Succeeded', color: STATUS.good, glyph: '✓' },
-                { label: 'Failed', color: STATUS.critical, glyph: '✕' },
-              ]} />
-            )}
-            height="h-40"
-          >
-            <div className="grid grid-cols-2 gap-3 h-full">
-              <div className="flex flex-col min-h-0">
-                <p className="text-[11px] text-gray-500 mb-1">Sign-ins</p>
-                <div className="flex-1 min-h-0">
-                  <AuthStackChart
-                    rows={windowRows} okKey="login_success" failKey="login_failed"
-                    okLabel="Succeeded" failLabel="Failed"
-                  />
-                </div>
-              </div>
-              <div className="flex flex-col min-h-0">
-                <p className="text-[11px] text-gray-500 mb-1">Registrations</p>
-                <div className="flex-1 min-h-0">
-                  <AuthStackChart
-                    rows={windowRows} okKey="reg_success" failKey="reg_failed"
-                    okLabel="Succeeded" failLabel="Failed"
-                  />
-                </div>
-              </div>
-            </div>
-          </ChartCard>
-        )}
+        <SignInTroubleCard />
 
         {servicesUp && (
           <ChartCard
