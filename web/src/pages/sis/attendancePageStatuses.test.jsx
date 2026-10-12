@@ -106,3 +106,18 @@ describe('admin attendance page — four statuses', () => {
     expect(byId).toEqual({ s1: 'excused', s3: 'present' })
   })
 })
+
+/**
+ * d3139c27 (iCreate advisor): on a phone the teacher's roll showed photos and no
+ * names, because the status buttons took the whole row. The office panel has
+ * the same row; it wraps and the name keeps a minimum width here too.
+ */
+describe('d3139c27: the office roll keeps names on a phone', () => {
+  it('the row wraps and the name keeps a minimum width', async () => {
+    render(<MemoryRouter><AttendancePanel /></MemoryRouter>)
+    const name = (await screen.findByText('Ada')).closest('[data-roll-name]')
+    expect(name).not.toBeNull()
+    expect(name.className).toContain('min-w-[8rem]')
+    expect(name.closest('[data-student-row]').className).toContain('flex-wrap')
+  })
+})

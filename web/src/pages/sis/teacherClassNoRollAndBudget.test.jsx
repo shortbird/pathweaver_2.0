@@ -143,3 +143,22 @@ describe('e7a50b4b: the supply budget on every tab', () => {
     expect(left.parentElement.textContent).toContain('over')
   })
 })
+
+/**
+ * d3139c27 (iCreate advisor, phone): "Only the pictures, not the names appeared
+ * for my class on the app. Please include showing the names." The roll row was
+ * one fixed line, so the four status buttons took a phone's width and the name
+ * (min-w-0, truncate) shrank to nothing. jsdom does no layout, so this pins the
+ * two classes that prevent it: the row wraps, and the name keeps a minimum width.
+ */
+describe('d3139c27: the roll shows names on a phone', () => {
+  it('the row wraps and the name keeps a minimum width', async () => {
+    world()
+    render(<TeacherClassPage />)
+    const name = (await screen.findByText('Ada')).closest('[data-roll-name]')
+    expect(name).not.toBeNull()
+    expect(name.className).toContain('min-w-[8rem]')
+    expect(name.className).not.toContain('min-w-0')
+    expect(name.closest('[data-roll-row]').className).toContain('flex-wrap')
+  })
+})
