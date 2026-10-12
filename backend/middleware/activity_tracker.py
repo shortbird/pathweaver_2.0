@@ -377,7 +377,7 @@ class ActivityTracker:
 
             # Cast session_id string to UUID for database
             # Database expects UUID type, but we use string for cookies
-            insert_data = {
+            insert_data: Dict[str, Any] = {
                 'session_id': session_id,  # Supabase Python client handles UUID casting
                 'event_type': event_type,
                 'event_category': event_category,

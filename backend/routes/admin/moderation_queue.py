@@ -164,7 +164,8 @@ def _cron_or_superadmin() -> bool:
     # admin client justified: one users row to confirm the caller is a superadmin before running an internal job by hand
     row = get_supabase_admin_client().table('users').select('role') \
         .eq('id', uid).limit(1).execute().data
-    return bool(row and get_effective_role(row[0]) == 'superadmin')
+    return bool(row and isinstance(row[0], dict)
+                and get_effective_role(row[0]) == 'superadmin')
 
 
 @bp.route('/internal/daily-digest', methods=['POST'])
