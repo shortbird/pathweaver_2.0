@@ -251,6 +251,53 @@ def email_message_to_owner(owner: Dict[str, Any], message: Dict[str, Any],
     return {'sent': bool(sent), 'reply_address': reply_to, 'to': to_email}
 
 
+def support_account_email() -> str:
+    """The mailbox of the superadmin account behind the "Optio Support" contact.
+
+    Not Config.SUPPORT_EMAIL: that is support@optioeducation.com, which has no
+    Optio account. See the note beside routes/direct_messages.SUPPORT_EMAIL.
+    """
+    return (Config.PLATFORM_STAFF_EMAILS[0] if Config.PLATFORM_STAFF_EMAILS
+            else Config.ADMIN_EMAIL).strip().lower()
+
+
+def email_support_message(message: Dict[str, Any], sender_id: str,
+                          recipient_id: str) -> bool:
+    """Mail a message sent to the Optio Support account to that account's inbox.
+
+    Why (Tanner, 2026-10-12): "all messages sent to optio support or the optio
+    academy superadmin (me) need to come to my email". Optio Academy families
+    write to the Optio Support contact, which is Tanner's own account, not to
+    the school inbox, so the 2026-10-09 school inbox alerts never fired for
+    them and nothing reached Gmail unless he clicked "Email this to me" on
+    each one. Every message to that account is now mailed the same way that
+    button mails it, with the same personal relay, so a reply posts back into
+    the thread as him.
+
+    Returns whether a mail went out. Never raises: the message is already
+    delivered, and a mail problem must not undo that.
+    """
+    try:
+        repo = _repo()
+        owner = repo.get_caller(recipient_id)
+        if not owner or owner.get('role') != 'superadmin':
+            return False
+        if (owner.get('email') or '').strip().lower() != support_account_email():
+            return False
+        author = repo.get_person(sender_id)
+        if not author:
+            return False
+        from services import school_inbox_service
+        org = school_inbox_service.member_org(sender_id)
+        result = email_message_to_owner(owner=owner, message=message, author=author,
+                                        other_party=author,
+                                        org_name=(org or {}).get('name'))
+        return result['sent']
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f"support message email failed for {message.get('id')}: {e}")
+        return False
+
+
 def email_school_message_to_watcher(watcher: Dict[str, Any], org: Dict[str, Any],
                                     message: Dict[str, Any],
                                     member: Dict[str, Any]) -> bool:
