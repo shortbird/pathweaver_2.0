@@ -15,7 +15,7 @@ definition of "parent of" (managed accounts, approved links AND households).
 A household-only guardian -- most families who registered through a school's
 funnel -- is invisible to a read of parent_student_links alone.
 """
-from typing import Any, Dict, Iterable, List, Set
+from typing import Any, Dict, Iterable, List, Optional, Set
 
 from utils.roles import get_effective_roles
 
@@ -36,17 +36,35 @@ def display_name(user: Dict[str, Any]) -> str:
     return full or (user.get('display_name') or '').strip() or (user.get('email') or '')
 
 
+def groups_by_user(memberships: Iterable[Dict[str, Any]],
+                   household_members: Iterable[Dict[str, Any]]) -> Dict[str, Set[str]]:
+    """{user_id: {family_group_id, ...}}: everyone in a family inherits the
+    family's groups (sis_family_groups -- the label is on the household)."""
+    by_household: Dict[str, Set[str]] = {}
+    for m in memberships:
+        by_household.setdefault(m['household_id'], set()).add(m['group_id'])
+    out: Dict[str, Set[str]] = {}
+    for m in household_members:
+        groups = by_household.get(m.get('household_id') or '')
+        if groups and m.get('user_id'):
+            out.setdefault(m['user_id'], set()).update(groups)
+    return out
+
+
 def build_directory(users: Iterable[Dict[str, Any]],
                     classes_by_student: Dict[str, Set[str]],
                     guardians: Dict[str, Set[str]],
-                    suppressed: Set[str]) -> List[Dict[str, Any]]:
+                    suppressed: Set[str],
+                    family_groups: Optional[Dict[str, Set[str]]] = None) -> List[Dict[str, Any]]:
     """One row per user with an email.
 
     users               user rows (id, names, email, role, org_role(s), ...)
     classes_by_student  {student_id: {class_id, ...}} active enrollments
     guardians           {student_id: {guardian_id, ...}}
     suppressed          lower-cased emails on crm_suppressions
+    family_groups       {user_id: {family_group_id, ...}} (groups_by_user)
     """
+    family_groups = family_groups or {}
     users = list(users)
     by_id = {u['id']: u for u in users}
 
@@ -74,6 +92,7 @@ def build_directory(users: Iterable[Dict[str, Any]],
             'class_ids': sorted(class_ids),
             'child_class_ids': sorted(child_class_ids),
             'children': [display_name(by_id[k]) for k in kids if k in by_id],
+            'group_ids': sorted(family_groups.get(u['id'], ())),
             'last_active': u.get('last_active'),
             'created_at': u.get('created_at'),
             'suppressed': email.lower() in suppressed,

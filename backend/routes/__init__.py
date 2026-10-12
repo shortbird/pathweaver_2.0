@@ -255,6 +255,9 @@ def register_all(app):
     # Same prefix again: email lists for Gmail BCC; no rule overlaps.
     from routes.admin import crm_lists as admin_crm_lists
     app.register_blueprint(admin_crm_lists.bp)
+    # Same prefix: mail-merge sends to a list; no rule overlaps.
+    from routes.admin import crm_broadcasts as admin_crm_broadcasts
+    app.register_blueprint(admin_crm_broadcasts.bp)
 
     # ── Organization classes (classroom mgmt) ─────────────────────────────────
     from routes.classes import bp as classes_bp
