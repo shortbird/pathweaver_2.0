@@ -4,7 +4,8 @@ sis_point_balances view over it, and the school's quick buttons
 
 Authorization is the caller's: staff reads and writes are gated by
 @require_role(STAFF_ROLES) plus the resolved org on routes/sis/points.py, a
-family read by @require_relationship_to, and a bounty award by the bounty
+family read by @require_relationship_to, a student's own addition by the
+service's caller-is-the-student check, and a bounty award by the bounty
 review it follows. Nothing here decides who may ask.
 """
 
@@ -71,6 +72,21 @@ class SisPointsRepository(BaseRepository):
             .gt('amount', 0)
             .gte('created_at', since_iso)
         ))
+
+    def self_added_since(self, org_id: str, student_id: str, since_iso: str) -> List[Dict[str, Any]]:
+        """A student's own additions (created_by is the student) since a time,
+        for the daily cap. The cap bounds this to a handful of rows a day."""
+        return (self.client.table(self.table_name).select('id, amount')
+                .eq('organization_id', org_id)
+                .eq('student_user_id', student_id)
+                .eq('created_by', student_id)
+                .gte('created_at', since_iso)
+                .execute()).data or []
+
+    def org_timezone(self, org_id: str) -> Optional[str]:
+        rows = (self.client.table('organizations').select('timezone')
+                .eq('id', org_id).limit(1).execute()).data
+        return (rows[0].get('timezone') if rows else None) or None
 
     def balances(self, org_id: str, student_ids: Optional[Iterable[str]] = None) -> List[Dict[str, Any]]:
         """{student_user_id, balance, earned, spent} per student with any entry.

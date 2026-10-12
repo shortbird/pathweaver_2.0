@@ -173,6 +173,20 @@ def test_a_description_without_a_checklist_is_untouched():
 
 
 @pytest.mark.unit
+def test_the_template_column_wins_over_a_checklist_in_the_text():
+    # quest_template_tasks gained success_criteria 2026-10-12; a row that has
+    # it is copied as written, and a row from before still has its text split.
+    rows = [
+        {'id': 'a', 'title': 'New', 'description': 'Do it.', 'success_criteria': ['Done']},
+        {'id': 'b', 'title': 'Old', 'description': 'Do it.\n\nDefinition of done:\n- Legacy'},
+    ]
+    with patch('utils.template_tasks.load_template_tasks', lambda qid: rows):
+        tasks = svc._template_tasks(None, 'tpl')
+    assert [(t['description'], t['success_criteria']) for t in tasks] == [
+        ('Do it.', ['Done']), ('Do it.', ['Legacy'])]
+
+
+@pytest.mark.unit
 def test_age_rules():
     with pytest.raises(svc.OfferingError) as missing:
         svc.check_age(None)

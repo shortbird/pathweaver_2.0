@@ -87,30 +87,3 @@ def test_notify_bounty_posted_writes_expected_record():
     assert payload['type'] == 'bounty_posted'
     assert 'Build a rocket' in payload['message']
     assert payload['link'] == '/bounties/bounty-1'
-
-
-def test_notify_bounty_claimed_writes_expected_record():
-    with patch('supabase.create_client') as mock_create_client:
-        supabase = MagicMock()
-        mock_create_client.return_value = supabase
-        supabase.table.return_value.insert.return_value.execute.return_value = MagicMock(
-            data=[{'id': 'notif-2', 'type': 'bounty_claimed'}]
-        )
-
-        svc = NotificationService()
-        svc._broadcast_realtime = MagicMock(return_value=True)
-        svc._send_expo_push_notification = MagicMock(return_value=True)
-
-        svc.notify_bounty_claimed(
-            poster_id='poster-1',
-            student_name='Jane',
-            bounty_title='Learn Spanish',
-            bounty_id='b-2',
-            claim_id='c-2',
-        )
-
-    payload = supabase.table.return_value.insert.call_args[0][0]
-    assert payload['user_id'] == 'poster-1'
-    assert payload['type'] == 'bounty_claimed'
-    assert 'Jane' in payload['message']
-    assert payload['metadata']['claim_id'] == 'c-2'

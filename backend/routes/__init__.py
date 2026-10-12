@@ -255,6 +255,9 @@ def register_all(app):
     # Same prefix again: email lists for Gmail BCC; no rule overlaps.
     from routes.admin import crm_lists as admin_crm_lists
     app.register_blueprint(admin_crm_lists.bp)
+    # Same prefix: mail-merge sends to a list; no rule overlaps.
+    from routes.admin import crm_broadcasts as admin_crm_broadcasts
+    app.register_blueprint(admin_crm_broadcasts.bp)
 
     # ── Organization classes (classroom mgmt) ─────────────────────────────────
     from routes.classes import bp as classes_bp
@@ -282,8 +285,8 @@ def register_all(app):
     from routes.admin import lti_registrations as admin_lti_registrations
     app.register_blueprint(admin_lti_registrations.bp)
 
-    from routes.admin import roster_import as admin_roster_import
-    app.register_blueprint(admin_roster_import.bp)
+    # Roster import moved to the SIS console (routes/sis/people_add.py,
+    # 2026-10-12); /api/admin/roster-import is gone.
 
     from routes import observer
     app.register_blueprint(observer.bp)
@@ -362,6 +365,10 @@ def register_all(app):
     # ── Peer connections (student <-> student, both families approving) ───────
     from routes.connections import bp as connections_bp
     app.register_blueprint(connections_bp)
+
+    # ── Parent link requests (student asks, parent accepts, superadmin approves)
+    from routes.parent_link_requests import bp as parent_link_requests_bp
+    app.register_blueprint(parent_link_requests_bp)
 
     # ── Custom program blueprints (Treehouse, POE) via the program seam ────────
     from programs.blueprints import register_program_blueprints
@@ -444,6 +451,10 @@ def register_all(app):
     # routes/sis/people_removal.py).
     from routes.sis import people_removal
     app.register_blueprint(people_removal.bp)
+    # Family groups ("OpenEd"); its own blueprint, gated on 'sis' (see
+    # routes/sis/family_groups.py).
+    from routes.sis import family_groups
+    app.register_blueprint(family_groups.bp)
 
     # ── Public embeddable widgets (org catalog/schedule for external sites) ────
     from routes import embed

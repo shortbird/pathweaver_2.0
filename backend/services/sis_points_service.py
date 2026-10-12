@@ -16,7 +16,9 @@ from the sis_point_balances view; nothing stores it, so it cannot drift from
 the entries it is made of. A mistake is undone by deleting the entry.
 """
 
+from datetime import datetime, time, timezone
 from typing import Any, Dict, Iterable, List, Optional
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from repositories.sis_points_repository import SisPointsRepository
 from services import sis_service
@@ -37,6 +39,15 @@ MAX_BUTTONS = 12
 MAX_STUDENTS_PER_ENTRY = 500
 RECENT_ENTRIES = 30
 HISTORY_ENTRIES = 100
+
+# Ticket 910668d8 (David Nilson, Apogee Cache Valley): "I would also like both
+# the Adventurers and us Coaches to be able to input Points - but where we
+# Coaches can take them away if upon inspection they shouldn't have been
+# received." A student's own points count at once; this caps how many a
+# student can give themselves per school day (org-local), so a mistake or a
+# joke stays small until a coach looks. Owner's default, 2026-10-12.
+STUDENT_DAILY_CAP = 20
+DEFAULT_TZ = 'America/Denver'  # matches sis_staff_service.DEFAULT_TZ
 
 
 class PointsError(ValueError):
@@ -60,6 +71,14 @@ def _text(value: Any, field: str, limit: int) -> str:
     if not text:
         raise PointsError(f'{field} is required')
     return text
+
+
+def added_by_student(row: Dict[str, Any]) -> bool:
+    """An entry the student gave themselves. No column says so: the ledger's
+    source CHECK allows only 'staff' and 'bounty', and created_by equal to
+    the student is already an exact flag (staff entries are created by a
+    staff member, bounty entries by nobody), so no migration was needed."""
+    return bool(row.get('created_by')) and row.get('created_by') == row.get('student_user_id')
 
 
 def bounty_points(bounty: Dict[str, Any]) -> int:
@@ -105,7 +124,8 @@ class PointsService:
             'student_name': names.get(r['student_user_id']),
             'amount': r['amount'],
             'reason': r['reason'],
-            'source': r.get('source') or 'staff',
+            'source': 'student' if added_by_student(r) else (r.get('source') or 'staff'),
+            'added_by_student': added_by_student(r),
             'bounty_id': r.get('bounty_id'),
             'created_by_name': names.get(r['created_by']) if r.get('created_by') else None,
             'created_at': r['created_at'],
@@ -167,8 +187,29 @@ class PointsService:
         for sid in student_ids:
             org_id = (by_id.get(sid) or {}).get('organization_id')
             if org_id and module_enabled(org_id, 'points'):
-                out.append(self.history(sid))
+                data = self.history(sid)
+                # Only the student adds their own points (ticket 910668d8);
+                # a parent reading a child's points stays read-only.
+                data['can_add'] = sid == user_id
+                if data['can_add']:
+                    data['daily_cap'] = STUDENT_DAILY_CAP
+                    data['added_today'] = self._added_today(org_id, sid)
+                out.append(data)
         return out
+
+    def _day_start_iso(self, org_id: str) -> str:
+        """Midnight today at the school, in UTC: the daily cap's day is the
+        school's, not the server's."""
+        try:
+            tz = ZoneInfo(self.repository.org_timezone(org_id) or DEFAULT_TZ)
+        except (ZoneInfoNotFoundError, ValueError):
+            tz = ZoneInfo(DEFAULT_TZ)
+        local_today = datetime.now(tz).date()
+        return datetime.combine(local_today, time.min, tzinfo=tz).astimezone(timezone.utc).isoformat()
+
+    def _added_today(self, org_id: str, student_id: str) -> int:
+        rows = self.repository.self_added_since(org_id, student_id, self._day_start_iso(org_id))
+        return sum(r.get('amount') or 0 for r in rows if (r.get('amount') or 0) > 0)
 
     def given_since(self, org_id: str, since_iso: str) -> int:
         """Points given (not spent) since a date, for the School Dashboard."""
@@ -218,6 +259,64 @@ class PointsService:
         return {
             'entries': self._entries_out(created),
             'balances': {sid: balances.get(sid, 0) + amount for sid in student_ids},
+        }
+
+    def add_own(self, student_id: str, data: Dict[str, Any]) -> Dict[str, Any]:
+        """A student gives themselves points: {amount, reason}.
+
+        Ticket 910668d8: "I would also like both the Adventurers and us
+        Coaches to be able to input Points - but where we Coaches can take
+        them away if upon inspection they shouldn't have been received."
+
+        - the caller IS the student, at a school with points on;
+        - a positive amount only (a student never spends or takes here);
+        - a reason is required, so a coach can judge it;
+        - at most STUDENT_DAILY_CAP a school day across all their additions;
+        - it counts at once, and shows on the staff board as added by the
+          student; a coach takes it away with the ordinary undo.
+
+        The cap is read, then written: two requests at the same instant can
+        both pass it. The overshoot is one entry, visible, and undoable.
+        """
+        from modules.enabled import module_enabled
+
+        users = self.repository.users([student_id])
+        student = users[0] if users else None
+        org_id = (student or {}).get('organization_id')
+        if not student or not org_id or not sis_service.is_student(student):
+            raise PermissionError('Only a student can add their own points')
+        if not module_enabled(org_id, 'points'):
+            raise PermissionError('Points are off at this school')
+
+        amount = _amount(data.get('amount'))
+        if amount < 0:
+            raise PointsError('You can only add points. A coach takes them away.')
+        reason = _text(data.get('reason'), 'Reason', MAX_REASON_LENGTH)
+
+        used = self._added_today(org_id, student_id)
+        if used + amount > STUDENT_DAILY_CAP:
+            left = max(STUDENT_DAILY_CAP - used, 0)
+            raise PointsError(f'You can add up to {STUDENT_DAILY_CAP} points a day. '
+                              f'You have {left} left today.')
+
+        created = self.repository.insert_entries([{
+            'organization_id': org_id,
+            'student_user_id': student_id,
+            'amount': amount,
+            'reason': reason,
+            # 'staff' because the ledger's CHECK allows nothing else for a
+            # hand entry; created_by == the student is what marks it as the
+            # student's (added_by_student) everywhere it is read.
+            'source': 'staff',
+            'created_by': student_id,
+            'created_at': now_iso(),
+        }])
+        bal = next(iter(self.repository.balances(org_id, [student_id])), {}) or {}
+        return {
+            'entries': self._entries_out(created),
+            'balance': bal.get('balance') or 0,
+            'added_today': used + amount,
+            'daily_cap': STUDENT_DAILY_CAP,
         }
 
     def undo(self, org_id: str, entry_id: str) -> Dict[str, Any]:

@@ -315,12 +315,15 @@ export default function AttendancePanel() {
 
           <div className="p-3 grid grid-cols-1 sm:grid-cols-2 gap-2">
             {visibleRoster.map((s) => (
+              // Wraps, and the name keeps a minimum width: on one fixed line
+              // a phone gave the four status buttons the row and truncated
+              // the name away (d3139c27, the teacher's page; same row here).
               <div
                 key={s.student_user_id}
                 data-student-row
-                className={`flex items-center justify-between gap-2 rounded-lg border px-3 py-3 transition-colors ${CARD[s.mark] || CARD.present}`}
+                className={`flex flex-wrap items-center justify-between gap-2 rounded-lg border px-3 py-3 transition-colors ${CARD[s.mark] || CARD.present}`}
               >
-                <span className="min-w-0">
+                <span className="min-w-[8rem] flex-1" data-roll-name>
                   <span className={`block text-sm font-medium truncate ${s.mark === 'absent' ? 'text-red-700' : 'text-neutral-800'}`}>
                     {s.name}
                     {s.age != null && <span className="ml-1.5 text-xs font-normal text-neutral-400">age {s.age}</span>}

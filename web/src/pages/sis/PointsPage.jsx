@@ -33,7 +33,16 @@ const EntryRow = ({ entry, showName, onUndo, undoing }) => (
       </span>
       <span className="block text-xs text-neutral-500">
         {fmtWhen(entry.created_at)}
-        {entry.source === 'bounty' ? ' · from a bounty' : entry.created_by_name ? ` · ${entry.created_by_name}` : ''}
+        {entry.source === 'bounty' ? ' · from a bounty'
+          : entry.added_by_student ? ''
+            : entry.created_by_name ? ` · ${entry.created_by_name}` : ''}
+        {/* Ticket 910668d8: a student's own points count at once, so the
+            coach needs to see which ones to inspect and, if wrong, undo. */}
+        {entry.added_by_student && (
+          <span className="ml-1 inline-block rounded bg-amber-100 text-amber-800 px-1.5 py-0.5 font-medium">
+            Added by student
+          </span>
+        )}
       </span>
     </span>
     <span className="flex items-center gap-3 shrink-0">

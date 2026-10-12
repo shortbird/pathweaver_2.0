@@ -1125,6 +1125,24 @@
       "measured": "2026-10-05",
       "lowered_by": "new concept (school setup links, 2026-10-05)",
       "use_instead": "organization_service.new_org_row(name, slug, policy, **columns) inserted through OrganizationRepository.create_organization. The school setup link (school_onboarding_service.submit) is the self-serve path."
+    },
+    {
+      "id": "school_activity",
+      "means": "Who is using Optio at a school: active students and parents this window against the last, per class, the students gone quiet, and the people stuck at sign-in. Counted in SQL (admin_org_activity, sis_org_activity) because user_activity_events outgrows PostgREST's row cap. The superadmin home reads every school; the School Dashboard reads one (2026-10-12).",
+      "owner": {
+        "backend": ["services/activity_metrics_service.py", "repositories/activity_metrics_repository.py"]
+      },
+      "forbid": {
+        "backend": {
+          "pattern": "rpc\\(\\s*['\"](sis_org_activity|admin_org_activity|admin_platform_pipelines)['\"]|table\\(\\s*['\"]login_attempts['\"]\\)\\s*\\.select",
+          "dirs": ["routes", "services", "repositories", "utils", "jobs"],
+          "exempt": ["repositories/activity_metrics_repository.py", "routes/auth/login/security.py"]
+        }
+      },
+      "baseline": { "backend": 0 },
+      "measured": "2026-10-12",
+      "lowered_by": "new concept (activity dashboards, 2026-10-12)",
+      "use_instead": "activity_metrics_service (queries in ActivityMetricsRepository): org_activity(days) and platform_pipelines(days) for the superadmin home, school_activity(org_id, days) for one school, sign_in_trouble(org_id=None) for who cannot sign in. A new number goes into the SQL function and out through the service."
     }
   ]
 }

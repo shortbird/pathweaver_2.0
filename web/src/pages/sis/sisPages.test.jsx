@@ -183,17 +183,22 @@ describe('PeoplePage', () => {
     expect(names[3]).toContain('Alice')
   })
 
-  it('creates a family from the Add menu', async () => {
+  it('creates a family, its parent and child included, from the Add wizard', async () => {
     render(<PeoplePage />)
     await screen.findByText('Alice Student')
     fireEvent.click(screen.getByRole('button', { name: '+ Add' }))
-    fireEvent.click(screen.getByRole('menuitem', { name: 'Family' }))
-    fireEvent.change(screen.getByPlaceholderText('New family / household name'), {
-      target: { value: 'The Garcia Family' },
-    })
-    fireEvent.click(screen.getByText('Create'))
+    fireEvent.click(screen.getByRole('button', { name: /A family/ }))
+    fireEvent.change(screen.getAllByLabelText('First name')[0], { target: { value: 'Rosa' } })
+    fireEvent.change(screen.getAllByLabelText('Last name')[0], { target: { value: 'Garcia' } })
+    fireEvent.change(screen.getByLabelText('Email'), { target: { value: 'rosa@example.com' } })
+    fireEvent.change(screen.getByLabelText('Family name'), { target: { value: 'The Garcia Family' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Review' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Create family' }))
     await waitFor(() =>
-      expect(api.post).toHaveBeenCalledWith('/api/sis/households', expect.objectContaining({ name: 'The Garcia Family' })),
+      expect(api.post).toHaveBeenCalledWith('/api/sis/families', expect.objectContaining({
+        name: 'The Garcia Family',
+        guardians: [{ first_name: 'Rosa', last_name: 'Garcia', email: 'rosa@example.com' }],
+      })),
     )
   })
 

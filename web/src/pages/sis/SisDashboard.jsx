@@ -10,6 +10,7 @@ import { range12h } from '../../utils/timeFormat'
 import TeacherDashboard from './TeacherDashboard'
 import CoordinatorDashboard from './CoordinatorDashboard'
 import DashboardCard from '../../components/sis/DashboardCard'
+import SchoolActivityCard, { SignInTroubleCard } from '../../components/sis/SchoolActivityCard'
 import TeachersToCheck from '../../components/sis/TeachersToCheck'
 import LeavingSoon from '../../components/sis/LeavingSoon'
 import { RollStatus, SubstituteControl } from '../../components/sis/RollStatus'
@@ -279,6 +280,10 @@ const SisDashboard = () => {
               column flow closes the space. `break-inside-avoid` is what stops a
               card being sliced in half across the column boundary. */}
           <div className="columns-1 lg:columns-2 2xl:columns-3 gap-4">
+            {/* People stuck at sign-in: present only when somebody is, like
+                the attention tiles -- the absence of the card is the report. */}
+            <SignInTroubleCard people={data.sign_in_trouble} className={MASONRY_CARD} />
+
             {classesOn && today.schedule && (
               <DashboardCard
                 title="Today's classes"
@@ -390,6 +395,9 @@ const SisDashboard = () => {
                 </div>
               </DashboardCard>
             )}
+
+            {/* Who is using Optio this week, against last week (2026-10-12). */}
+            <SchoolActivityCard activity={data.activity} className={MASONRY_CARD} />
 
             {calendarOn && events.length > 0 && (
               <DashboardCard title="Coming up" className={MASONRY_CARD}>

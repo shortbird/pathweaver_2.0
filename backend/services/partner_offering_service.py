@@ -190,7 +190,12 @@ def _template_tasks(admin, template_quest_id: str) -> List[Dict[str, Any]]:
     from utils.template_tasks import load_template_tasks
     tasks = []
     for t in load_template_tasks(template_quest_id):
-        body, criteria = split_definition_of_done(t.get('description'))
+        # The column wins. A row written before quest_template_tasks had one
+        # keeps its checklist as a "Definition of done:" list in the text.
+        if t.get('success_criteria'):
+            body, criteria = t.get('description') or '', t['success_criteria']
+        else:
+            body, criteria = split_definition_of_done(t.get('description'))
         tasks.append({**t, 'description': body, 'success_criteria': criteria})
     return tasks
 

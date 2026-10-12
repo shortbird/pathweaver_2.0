@@ -1001,37 +1001,11 @@ class BountyService(BaseService):
         claim = self.repository.create_claim(bounty_id, student_id)
         logger.info(f"Student {student_id[:8]} claimed bounty {bounty_id[:8]}")
 
-        # Notify poster
-        try:
-            import threading
-            from services.notification_service import NotificationService
-
-            def _notify():
-                try:
-                    ns = NotificationService()
-                    student_result = self.repository.client.table('users') \
-                        .select('display_name, first_name, last_name') \
-                        .eq('id', student_id).execute()
-                    student_name = 'A student'
-                    if student_result.data:
-                        s = student_result.data[0]
-                        student_name = s.get('display_name') or \
-                            f"{s.get('first_name', '')} {s.get('last_name', '')}".strip() or \
-                            'A student'
-                    ns.notify_bounty_claimed(
-                        poster_id=bounty['poster_id'],
-                        student_name=student_name,
-                        bounty_title=bounty['title'],
-                        bounty_id=bounty_id,
-                        claim_id=claim['id'],
-                        organization_id=bounty.get('organization_id'),
-                    )
-                except Exception as e:
-                    logger.warning(f"bounty_claimed notify failed: {e}")
-
-            threading.Thread(target=_notify, daemon=True).start()
-        except Exception as e:
-            logger.warning(f"Failed to start bounty_claimed notify thread: {e}")
+        # No notification to the poster here. A claim asks nothing of them;
+        # the turn-in does, and that one notifies (turn_in_bounty). A bell
+        # full of claims buried the submissions: "Find a bug in Optio" had a
+        # report waiting a month for review (2026-09-09 to 2026-10-12) while
+        # the poster read claim notices.
 
         return claim
 

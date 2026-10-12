@@ -222,6 +222,9 @@ class TestSetStatedPaymentMethodsService:
             def members_for_households(self, ids):
                 captured['members_for'] = ids
                 return [{'user_id': 'p1', 'household_id': 'hh1'}, {'user_id': 'kid', 'household_id': 'hh1'}]
+            def find_by_id(self, hh_id):
+                # A family-set source; a staff-only one (OpenEd) is kept.
+                return {'id': hh_id, 'funding_source': None}
             def update(self, hh_id, fields):
                 captured['household'] = (hh_id, fields)
 

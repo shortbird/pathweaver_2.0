@@ -65,7 +65,7 @@ class TestAddGuardian:
         assert profile['org_role'] == 'parent'
         assert profile['organization_id'] == ORG
         # The one attach path: it both joins the family and links the kids.
-        attach.assert_called_once_with(ORG, 'new-parent', HH, source='add_parent')
+        attach.assert_called_once_with(ORG, 'new-parent', HH, primary=False, source='add_parent')
         link = send.call_args.kwargs['invite_link']
         assert '/reset-password?token=tok' in link
         assert audit.call_args[0][2] == 'sis_household_guardian_added'
@@ -74,7 +74,7 @@ class TestAddGuardian:
         result, admin, attach, _, insert, send = _run(
             [{'id': 'p-2', 'organization_id': ORG, 'org_role': 'parent'}])
         assert result['kind'] == 'connected'
-        attach.assert_called_once_with(ORG, 'p-2', HH, source='add_parent')
+        attach.assert_called_once_with(ORG, 'p-2', HH, primary=False, source='add_parent')
         admin.auth.admin.create_user.assert_not_called()
         send.assert_not_called()
 

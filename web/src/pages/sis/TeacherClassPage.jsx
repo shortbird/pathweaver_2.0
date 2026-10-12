@@ -370,11 +370,17 @@ const TeacherClassPage = () => {
               <div className="p-3 grid grid-cols-1 sm:grid-cols-2 gap-2">
                 {students.map((s) => (
                   <div key={s.student_id} className={`rounded-lg border px-3 py-3 transition-colors ${CARD[noRoll ? 'present' : markOf(s.student_id)]}`}>
-                    <div className="flex items-center justify-between gap-2">
+                    {/* Wraps, and the name keeps a minimum width. On one fixed
+                        line the four status buttons took a phone's whole row and
+                        the name truncated to nothing, leaving only photos
+                        (iCreate, d3139c27: "Only the pictures, not the names
+                        appeared for my class on the app"). Now the buttons drop
+                        to a second line when the name would not fit beside them. */}
+                    <div className="flex flex-wrap items-center justify-between gap-2" data-roll-row>
                       {/* Photo first — the teacher's ask was to recognise the
                           class, and a name alone doesn't do that. Tap to enlarge. */}
                       <PersonPhoto src={s.avatar_url} name={s.name} size="w-10 h-10" textSize="text-xs" />
-                      <span className="min-w-0 mr-auto">
+                      <span className="min-w-[8rem] flex-1" data-roll-name>
                         <span className="block text-sm font-medium text-neutral-800 truncate">
                           {s.name}
                           {s.age != null && <span className="ml-1.5 text-xs font-normal text-neutral-400">age {s.age}</span>}

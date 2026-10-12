@@ -19,10 +19,10 @@ const StoriesManager = lazy(() => import('../components/admin/StoriesManager'))
 const StoryEditor = lazy(() => import('../components/admin/StoryEditor'))
 const BulkCourseGeneration = lazy(() => import('./admin/BulkCourseGeneration'))
 const ModerationQueue = lazy(() => import('../components/admin/ModerationQueue'))
-const RosterImportPage = lazy(() => import('./admin/RosterImportPage'))
 const CrmConsole = lazy(() => import('./admin/crm/CrmConsole'))
 const TicketsPanel = lazy(() => import('../components/admin/tickets/TicketsPanel'))
 const AdminBillingPage = lazy(() => import('./admin/AdminBillingPage'))
+const ParentLinkRequests = lazy(() => import('./admin/ParentLinkRequests'))
 
 // Loading spinner component
 const LoadingFallback = () => (
@@ -43,7 +43,7 @@ const ADMIN_TABS = [
   { path: 'billing', label: 'Billing' },
   { path: 'tickets', label: 'Tickets' },
   { path: 'moderation', label: 'Moderation' },
-  { path: 'roster-import', label: 'Roster Import' },
+  { path: 'parent-links', label: 'Parent Links' },
   { path: 'bulk-generate', label: 'Bulk Generate' },
   { path: 'docs', label: 'Docs' },
   { path: 'stories', label: 'Stories' }
@@ -115,7 +115,7 @@ const AdminPage = () => {
           <Route path="stories" element={<StoriesManager />} />
           <Route path="stories/:storyId" element={<StoryEditor />} />
           <Route path="moderation" element={<ModerationQueue />} />
-          <Route path="roster-import" element={<RosterImportPage />} />
+          <Route path="parent-links" element={<ParentLinkRequests />} />
           <Route path="crm/*" element={<CrmConsole />} />
           <Route path="billing" element={<AdminBillingPage />} />
           <Route path="tickets" element={<TicketsPanel />} />

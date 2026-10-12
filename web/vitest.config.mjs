@@ -18,6 +18,12 @@ export default defineConfig({
     // Global test utilities (available without importing)
     globals: true,
 
+    // Worker threads, not child processes (the default since Vitest 2). Every
+    // file pays for its own jsdom and imports, and threads start cheaper:
+    // about 8% less CPU over the whole suite on 2026-10-12, all 5110 tests
+    // passing either way.
+    pool: 'threads',
+
     // Coverage configuration
     coverage: {
       provider: 'v8',

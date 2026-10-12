@@ -788,7 +788,8 @@ def _prepare_template_tasks(raw_tasks):
             'order_index': task.get('order_index', i),
             'is_required': task.get('is_required', False),
             'diploma_subjects': diploma_subjects,
-            'subject_xp_distribution': subject_xp_distribution
+            'subject_xp_distribution': subject_xp_distribution,
+            'success_criteria': task.get('success_criteria'),
         })
 
     return tasks_data

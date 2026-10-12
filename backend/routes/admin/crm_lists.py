@@ -9,7 +9,7 @@ the filter plus hand edits, not a frozen set of people. Nothing here sends.
 from flask import Blueprint, jsonify, request
 
 from repositories.crm_email_list_repository import CrmEmailListRepository
-from services.crm_email_lists import build_directory, clean_list_payload
+from services.crm_email_lists import build_directory, clean_list_payload, groups_by_user
 from utils.auth.decorators import require_superadmin
 from utils.class_membership import guardians_by_student
 from utils.logger import get_logger
@@ -55,12 +55,19 @@ def directory(user_id):
     # their own until they log in, so ask about every user, not only students.
     guardians = guardians_by_student([u['id'] for u in users])
 
-    people = build_directory(users, classes_by_student, guardians, suppressed)
+    group_rows = repo.household_group_rows()
+    members = repo.members_of(sorted({m['household_id'] for m in group_rows}))
+    people = build_directory(users, classes_by_student, guardians, suppressed,
+                             groups_by_user(group_rows, members))
     return jsonify({
         'people': people,
         'organizations': sorted(
             ({'id': o['id'], 'name': (o.get('name') or '').strip()} for o in orgs),
             key=lambda o: o['name'].lower()),
+        'family_groups': sorted(
+            ({'id': g['id'], 'name': g.get('name') or '', 'organization_id': g.get('organization_id')}
+             for g in repo.family_groups()),
+            key=lambda g: g['name'].lower()),
         'classes': sorted(
             ({'id': c['id'], 'name': c.get('name') or '', 'organization_id': c.get('organization_id'),
               'status': c.get('status')} for c in classes),

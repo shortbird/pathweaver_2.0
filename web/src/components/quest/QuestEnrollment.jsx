@@ -118,13 +118,6 @@ const QuestEnrollment = ({
                   ? 'Starting...'
                   : hidePersonalizationPrompt ? 'Start Quest' : 'Start Personalizing'}
               </button>
-              {isStaffViewer && (
-                <p className="mt-2 text-sm text-gray-500">
-                  {hidePersonalizationPrompt
-                    ? 'Students click Start Quest to add this quest to their account.'
-                    : 'Students click Start Personalizing to add this quest to their account and build their own tasks.'}
-                </p>
-              )}
             </>
           )}
         </div>

@@ -1,11 +1,20 @@
-import React, { useEffect, useState } from 'react'
+import React, { useContext, useEffect, useState } from 'react'
 import { XMarkIcon, UserCircleIcon, PhotoIcon, LinkIcon } from '@heroicons/react/24/outline'
 import { toast } from 'react-hot-toast'
 import api from '../../services/api'
+import { AuthContext } from '../../contexts/AuthContext'
+import { canGrantAdmin } from '../../pages/sis/sisRole'
 import { ModalOverlay } from '../ui'
 
 /**
- * TeacherModal — add a teacher from the People page's + Add menu.
+ * TeacherModal — add a staff member from the People page's + Add wizard.
+ *
+ * Since 2026-10-12 it adds any staff role, not only a teacher: Teacher, Campus
+ * Coordinator or Admin, picked at the top (POST /api/sis/staff with org_role).
+ * Admin shows only to someone who may grant it (sisRole.canGrantAdmin; the
+ * backend refuses it too). The placeholder picker and the "they already have
+ * an account" offer are teacher things and show only for Teacher. The wizard
+ * passes `onBack`, which turns Cancel into Back.
  *
  * Collects an email, a photo, and an optional onboarding checklist to assign
  * so the teacher lands in the portal with it ready. Creating a teacher makes
@@ -31,7 +40,21 @@ import { ModalOverlay } from '../ui'
 const inputClass =
   'w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-optio-purple focus:border-transparent'
 
-export default function TeacherModal({ orgId, onClose, onSaved, placeholders = [] }) {
+// The same words as the role editor on a staff record (staffRecord/ProfilePanel).
+const STAFF_ROLES = [
+  { key: 'advisor', label: 'Teacher', hint: 'Their own classes, in the teacher portal.' },
+  { key: 'campus_coordinator', label: 'Campus Coordinator',
+    hint: 'Runs the campus: people, classes, registration, attendance. No billing or pay rates.' },
+  { key: 'org_admin', label: 'Admin', hint: 'The whole console, including tuition, invoices and pay rates.' },
+]
+
+export default function TeacherModal({ orgId, onClose, onSaved, onBack, placeholders = [] }) {
+  // Context directly, not useAuth(): this modal is rendered bare in tests.
+  const mayGrantAdmin = canGrantAdmin(useContext(AuthContext)?.user)
+  const roleOptions = mayGrantAdmin ? STAFF_ROLES : STAFF_ROLES.filter((r) => r.key !== 'org_admin')
+  const [role, setRole] = useState('advisor')
+  const isTeacher = role === 'advisor'
+  const roleLabel = STAFF_ROLES.find((r) => r.key === role)?.label || 'Teacher'
   const [formData, setFormData] = useState({ first_name: '', last_name: '', email: '', bio: '' })
   const [photoFile, setPhotoFile] = useState(null)
   const [photoPreview, setPhotoPreview] = useState(null)
@@ -110,6 +133,7 @@ export default function TeacherModal({ orgId, onClose, onSaved, placeholders = [
         bio: formData.bio,
         organization_id: orgId,
         onboarding_template_id: onboardingTemplateId || null,
+        ...(isTeacher ? {} : { org_role: role }),
         ...(forceNew ? { force_new: true } : {}),
       }
       const r = await api.post('/api/sis/staff', body)
@@ -130,6 +154,8 @@ export default function TeacherModal({ orgId, onClose, onSaved, placeholders = [
       if (photoFile && staffId) await uploadPhoto(staffId)
       if (data.email_sent === false) {
         toast.error('Teacher added, but the set-password email could not be sent. Ask them to use "Forgot password" on the login page.', { duration: 8000 })
+      } else if (!isTeacher) {
+        toast.success(`Invite sent — they’ll join as ${roleLabel} when they set their password`)
       } else if (data.onboarding_assigned) {
         toast.success('Invite sent — they’ll add their name when they set their password, and their onboarding tasks are ready')
       } else {
@@ -185,7 +211,7 @@ export default function TeacherModal({ orgId, onClose, onSaved, placeholders = [
     // The admin named who this is on the staff list — link rather than create,
     // which is the whole difference between Julia keeping her twelve classes
     // and a second Julia starting from zero.
-    const chosen = placeholders.find((p) => p.id === linkTarget)
+    const chosen = isTeacher && placeholders.find((p) => p.id === linkTarget)
     if (chosen) {
       linkToPlaceholder(chosen)
       return
@@ -319,7 +345,7 @@ export default function TeacherModal({ orgId, onClose, onSaved, placeholders = [
             <div className="w-10 h-10 rounded-lg bg-gradient-primary flex items-center justify-center">
               <UserCircleIcon className="w-6 h-6 text-white" />
             </div>
-            <h2 className="text-lg font-semibold text-gray-900">Add Teacher</h2>
+            <h2 className="text-lg font-semibold text-gray-900">Add a staff member</h2>
           </div>
           <button
             type="button"
@@ -333,6 +359,24 @@ export default function TeacherModal({ orgId, onClose, onSaved, placeholders = [
         {/* Form */}
         <form onSubmit={handleSubmit} className="flex flex-col min-h-0 flex-1">
           <div className="p-4 space-y-4 overflow-y-auto">
+            <fieldset>
+              <legend className="block text-sm font-medium text-gray-700 mb-1">Role</legend>
+              <div className="space-y-1.5">
+                {roleOptions.map((r) => (
+                  <label key={r.key}
+                    className={`flex items-start gap-2 rounded-lg border px-3 py-2 cursor-pointer ${
+                      role === r.key ? 'border-optio-purple bg-optio-purple/5' : 'border-gray-200 hover:bg-gray-50'}`}>
+                    <input type="radio" name="staff-role" value={r.key} checked={role === r.key}
+                      onChange={() => setRole(r.key)} className="mt-1 text-optio-purple focus:ring-optio-purple" />
+                    <span>
+                      <span className="block text-sm font-medium text-neutral-900">{r.label}</span>
+                      <span className="block text-xs text-neutral-500">{r.hint}</span>
+                    </span>
+                  </label>
+                ))}
+              </div>
+            </fieldset>
+
             {/* Photo */}
             <div className="flex items-center gap-4">
               {photoPreview ? (
@@ -376,7 +420,7 @@ export default function TeacherModal({ orgId, onClose, onSaved, placeholders = [
                 created!" — the previous version of this said the same thing in
                 prose and sent the admin to another screen to act on it. Now the
                 choice is on the form that would otherwise make the duplicate. */}
-            {placeholders.length > 0 && (
+            {isTeacher && placeholders.length > 0 && (
               <div className="rounded-lg border border-amber-200 bg-amber-50 p-3">
                 <label htmlFor="link-placeholder" className="block text-sm font-medium text-amber-900 mb-1">
                   Is this someone already on the staff list?
@@ -419,7 +463,7 @@ export default function TeacherModal({ orgId, onClose, onSaved, placeholders = [
                     ))}
                   </select>
                   <p className="text-xs text-gray-400 mt-1">
-                    Assigned when the teacher is added; they’ll see it in their portal.
+                    Assigned when they are added; they’ll see it in their portal.
                   </p>
                 </>
               ) : (
@@ -434,15 +478,15 @@ export default function TeacherModal({ orgId, onClose, onSaved, placeholders = [
 
           {/* Actions */}
           <div className="flex items-center justify-end gap-3 p-4 border-t border-gray-200 shrink-0">
-            <button type="button" onClick={onClose}
+            <button type="button" onClick={onBack || onClose}
               className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors">
-              Cancel
+              {onBack ? 'Back' : 'Cancel'}
             </button>
             <button type="submit" disabled={submitting}
               className="px-4 py-2 bg-gradient-primary text-white rounded-lg hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-opacity">
               {submitting ? 'Saving...'
-                : linkTarget ? `Link ${placeholders.find((p) => p.id === linkTarget)?.name || 'their'} account`
-                : 'Add Teacher'}
+                : isTeacher && linkTarget ? `Link ${placeholders.find((p) => p.id === linkTarget)?.name || 'their'} account`
+                : `Add ${roleLabel}`}
             </button>
           </div>
         </form>

@@ -25,6 +25,7 @@ export default function OfferPage() {
   const [problem, setProblem] = useState(null) // { code, message }
   const [dob, setDob] = useState('')
   const autoTried = useRef(false)
+  const isOrgAdmin = user?.org_role === 'org_admin'
 
   const { data: offer, isLoading, isError } = useQuery({
     queryKey: queryKeys.offer(slug),
@@ -36,8 +37,11 @@ export default function OfferPage() {
     setClaiming(true)
     setProblem(null)
     try {
+      // expect403: every 403 here is a coded refusal (under age, not a
+      // student) shown on the page, so none of them is a fault to report. The
+      // first one Sentry saw was a partner opening their own buyer link.
       await api.post(`/api/offers/${encodeURIComponent(slug)}/claim`,
-        dateOfBirth ? { date_of_birth: dateOfBirth } : {})
+        dateOfBirth ? { date_of_birth: dateOfBirth } : {}, { expect403: true })
       clearPendingOffer()
       toast.success(`${offer?.title || 'The class'} is in your classes`)
       navigate('/my-classes', { replace: true })
@@ -148,6 +152,15 @@ export default function OfferPage() {
                 {claiming ? 'Adding...' : 'Add the class'}
               </button>
             </form>
+          ) : problem?.code === 'not_a_student' && isOrgAdmin ? (
+            // The partner testing their own buyer link: the class itself is
+            // on their organization page, under Quests.
+            <button
+              onClick={() => navigate('/organization?tab=quests')}
+              className="w-full px-4 py-2.5 text-sm font-medium text-white bg-gradient-primary rounded-lg hover:opacity-90"
+            >
+              See your class
+            </button>
           ) : problem?.code ? null : (
             // A refusal with a code (under age, not a student) is final; one
             // without (a network error) can be retried.

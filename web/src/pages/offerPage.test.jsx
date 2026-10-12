@@ -41,6 +41,7 @@ const mount = () => {
           <Route path="/offer/:slug" element={<OfferPage />} />
           <Route path="/register" element={<div>register page</div>} />
           <Route path="/my-classes" element={<div>my classes page</div>} />
+          <Route path="/organization" element={<div>organization page</div>} />
         </Routes>
       </MemoryRouter>
     </QueryClientProvider>
@@ -71,7 +72,7 @@ describe('OfferPage', () => {
     api.post.mockResolvedValue({ data: { created: true } })
     mount()
     expect(await screen.findByText('my classes page')).toBeInTheDocument()
-    expect(api.post).toHaveBeenCalledWith('/api/offers/latticework/claim', {})
+    expect(api.post).toHaveBeenCalledWith('/api/offers/latticework/claim', {}, { expect403: true })
     expect(localStorage.getItem('optioPendingOffer')).toBeNull()
   })
 
@@ -94,7 +95,7 @@ describe('OfferPage', () => {
     await userEvent.type(dob, '2010-03-04')
     await userEvent.click(screen.getByRole('button', { name: 'Add the class' }))
     await waitFor(() => expect(api.post).toHaveBeenLastCalledWith(
-      '/api/offers/latticework/claim', { date_of_birth: '2010-03-04' }))
+      '/api/offers/latticework/claim', { date_of_birth: '2010-03-04' }, { expect403: true }))
   })
 
   it('an under-age refusal is final and clears the saved link', async () => {
@@ -105,6 +106,27 @@ describe('OfferPage', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('13 and older')
     expect(screen.queryByRole('button', { name: 'Add this class to my account' })).not.toBeInTheDocument()
     expect(localStorage.getItem('optioPendingOffer')).toBeNull()
+  })
+
+  it('the partner opening their own link is sent to the class on their organization page', async () => {
+    // Sentry: Raleigh, an org admin, opened /offer/latticework to see his class.
+    const user = userEvent.setup()
+    Object.assign(auth, { isAuthenticated: true, user: { id: 'u1', role: 'org_managed', org_role: 'org_admin' } })
+    localStorage.setItem('optioPendingOffer', 'latticework')
+    api.post.mockRejectedValue({ response: { status: 403, data: { code: 'not_a_student', error: 'Classes go on a student account.' } } })
+    mount()
+    expect(await screen.findByRole('alert')).toHaveTextContent('student account')
+    await user.click(screen.getByRole('button', { name: 'See your class' }))
+    expect(await screen.findByText('organization page')).toBeInTheDocument()
+  })
+
+  it('a parent opening the link gets the refusal and no button', async () => {
+    Object.assign(auth, { isAuthenticated: true, user: { id: 'u1', role: 'parent' } })
+    localStorage.setItem('optioPendingOffer', 'latticework')
+    api.post.mockRejectedValue({ response: { status: 403, data: { code: 'not_a_student', error: 'Classes go on a student account.' } } })
+    mount()
+    expect(await screen.findByRole('alert')).toHaveTextContent('student account')
+    expect(screen.queryByRole('button')).not.toBeInTheDocument()
   })
 
   it('an unknown link says so', async () => {

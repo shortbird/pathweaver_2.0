@@ -337,3 +337,10 @@ def test_any_other_write_failure_is_not_retried():
     out = resync_enrollments_to_template(db, QUEST, TEMPLATE)
     assert out['inserted'] == 0 and out['updated'] == 0
     assert len(attempts) == 1, 'a non-FK failure must not be retried'
+
+
+def test_a_template_definition_of_done_reaches_the_students_copy():
+    template = [dict(TEMPLATE[0], success_criteria=['Shows the work']), *TEMPLATE[1:]]
+    db = FakeDB(tasks=[_task('t1', 'Old one', 0), _task('t2', 'Old two', 1)])
+    resync_enrollments_to_template(db, QUEST, template)
+    assert db.tasks['t1']['success_criteria'] == ['Shows the work']

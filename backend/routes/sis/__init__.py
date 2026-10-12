@@ -158,12 +158,18 @@ def org_staff(user_id):
 @bp.route('/staff', methods=['POST'])
 @require_role(*ADMIN_ROLES)
 def create_teacher(user_id):
-    """Add a teacher (advisor) to the org: creates the account + sends the
-    set-password email. Accepts first_name, last_name, email, bio."""
+    """Add a staff member to the org: creates the account + sends the
+    set-password email. Accepts first_name, last_name, email, bio, and
+    org_role (advisor by default; campus_coordinator or org_admin)."""
     org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
-    result = sis_service.create_org_teacher(org_id, request.get_json() or {}, actor_id=user_id)
+    data = request.get_json() or {}
+    # A coordinator adds teachers and coordinators, never an admin.
+    if not sis_service.caller_may_grant(user_id, data.get('org_role') or 'advisor'):
+        return jsonify({'success': False,
+                        'error': 'Only an organization admin can add another admin.'}), 403
+    result = sis_service.create_org_teacher(org_id, data, actor_id=user_id)
     if result.get('error'):
         return jsonify({'success': False, 'error': result['error']}), 400
     # A same-named placeholder exists: don't create a duplicate — let the UI
@@ -415,6 +421,8 @@ def list_households(user_id):
     # invoices from this list, so "are they UFA?" has to be answerable here
     # rather than one family at a time (see services/sis_payment_profile.py).
     sis_payment_profile.attach_to_households(org_id, households)
+    from services import sis_family_groups
+    sis_family_groups.attach_to_households(org_id, households)
     # `family-images` is private; the stored image_url is a pointer, not a
     # fetchable link. Sign the whole page in one batched call.
     sign_in_place(households, ['image_url'], 'family-images')
@@ -1278,6 +1286,9 @@ def register_sis_routes(app):
     from routes.sis.quest_editor import bp as quest_editor_bp
     from routes.sis.internal import bp as internal_bp
     from routes.sis.settings import bp as settings_bp
+    # The People page's add wizard: a new family, and the roster spreadsheet
+    # import that moved here from the superadmin dashboard (2026-10-12).
+    from routes.sis.people_add import bp as people_add_bp
 
     for blueprint, module_key in (
         (bp, 'sis'),                        # people/households/roster core
@@ -1321,6 +1332,7 @@ def register_sis_routes(app):
         (sis_bounties_bp, 'bounty_management'),
         (student_records_bp, 'sis'),
         (settings_bp, 'sis'),
+        (people_add_bp, 'sis'),
         (community_bp, 'community'),
         # P3: the staff surfaces get the 'sis' baseline (their per-feature
         # tags are on the routes); the two single-module family blueprints
@@ -1384,3 +1396,4 @@ def register_sis_routes(app):
     # sweep is about every org at once (routes/sis/internal.py says why).
     app.register_blueprint(internal_bp)
     app.register_blueprint(settings_bp)
+    app.register_blueprint(people_add_bp)

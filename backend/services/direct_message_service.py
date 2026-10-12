@@ -687,6 +687,14 @@ class DirectMessageService(BaseService):
                         inbox_org, message_row, sender_id)
                 return
 
+            # A message to the Optio Support account is also mailed to that
+            # account's inbox, with a Reply-To that answers in the thread
+            # (2026-10-12). The bell below still rings.
+            if message_row:
+                from services import message_email_relay_service
+                message_email_relay_service.email_support_message(
+                    message_row, sender_id, recipient_id)
+
             # Get recipient's organization for notification
             supabase = self._get_client()
             recipient = supabase.table('users').select('organization_id').eq(

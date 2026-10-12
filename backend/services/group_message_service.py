@@ -114,6 +114,32 @@ class GroupMessageService(BaseService):
             logger.error(f"Error checking group admin status: {str(e)}")
             return False
 
+    def is_school_admin_of_group(self, user_id: str, group_org_id: Optional[str]) -> bool:
+        """The school's own admin manages membership of any group thread in
+        the school, whoever started it.
+
+        Ticket 6da3f51f (iCreate, 2026-10-12): a parent started "Sub Pool" and
+        was its only group admin, so the school's admins -- members of it, and
+        the people who run the sub pool -- could not add anyone. 0b85c3f1 had
+        given them Add people only on threads the SCHOOL started. Superadmin
+        too. A platform (null-org) group has no school, so nobody qualifies.
+        Reads the derived is_org_admin flag (CLAUDE.md: write the roles, read
+        the flag).
+        """
+        if not user_id or not group_org_id:
+            return False
+        try:
+            from repositories.user_repository import UserRepository
+            caller = UserRepository(client=self._get_client()).find_by_id(user_id)
+        except Exception as e:  # noqa: BLE001 -- unknown means no
+            logger.warning(f"school-admin check failed for {str(user_id)[:8]}: {e}")
+            return False
+        if not caller:
+            return False
+        if caller.get('role') == 'superadmin':
+            return True
+        return bool(caller.get('is_org_admin')) and caller.get('organization_id') == group_org_id
+
     def can_add_member(self, user_id: str, group_id: str, target_user_id: str) -> bool:
         """
         Check if user can add target user to group
@@ -130,10 +156,6 @@ class GroupMessageService(BaseService):
         try:
             supabase = self._get_client()
 
-            # User must be group admin
-            if not self.is_group_admin(user_id, group_id):
-                return False
-
             # Get group info
             group = supabase.table('group_conversations').select('organization_id').eq(
                 'id', group_id
@@ -143,6 +165,11 @@ class GroupMessageService(BaseService):
                 return False
 
             group_org_id = group.data.get('organization_id')
+
+            # A group admin, or the school's own admin (6da3f51f).
+            if not (self.is_group_admin(user_id, group_id)
+                    or self.is_school_admin_of_group(user_id, group_org_id)):
+                return False
 
             # Get target user's organization
             target_user = supabase.table('users').select('organization_id').eq(
@@ -636,6 +663,12 @@ class GroupMessageService(BaseService):
                 'member_count': len(member_list),
                 'pinned_message': pinned,
                 'muted': group_id in self._muted_group_ids(supabase, user_id, [group_id]),
+                # Whether this caller may add people: a group admin, or the
+                # school's admin on a thread someone else started (6da3f51f).
+                'can_add_members': (
+                    any(m.get('user_id') == user_id and m.get('role') == 'admin' for m in member_list)
+                    or self.is_school_admin_of_group(user_id, group.data.get('organization_id'))
+                ),
                 **context.get(group_id, {}),
             }
 
@@ -1692,9 +1725,6 @@ class GroupMessageService(BaseService):
             List of user records that can be added
         """
         try:
-            if not self.is_group_admin(user_id, group_id):
-                raise ValueError("Only group admins can view available members")
-
             supabase = self._get_client()
 
             # Get group org
@@ -1706,6 +1736,11 @@ class GroupMessageService(BaseService):
                 raise ValueError("Group not found")
 
             org_id = group.data.get('organization_id')
+
+            # Same door as can_add_member: a group admin or the school's admin (6da3f51f).
+            if not (self.is_group_admin(user_id, group_id)
+                    or self.is_school_admin_of_group(user_id, org_id)):
+                raise ValueError("Only group admins can view available members")
 
             # Get current members
             current_members = supabase.table('group_members').select('user_id').eq(

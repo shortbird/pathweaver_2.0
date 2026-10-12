@@ -47,7 +47,25 @@ PLAN_LABELS = {'in_full': 'Pays in full', 'monthly': 'Monthly payments'}
 from utils.admin_client import admin_client as _admin
 
 
-FUNDING_SOURCES = ('ufa', 'ufa_private', 'private_pay', 'other')
+FUNDING_SOURCES = ('ufa', 'ufa_private', 'private_pay', 'other', 'opened')
+
+# Sources where somebody other than the family pays the school, by the name the
+# family knows them by. The family is asked to pay through them, never by card
+# in Optio: every `pay_through_ufa` flag reads this (the name predates OpenEd).
+# OpenEd pays Optio Academy directly for the families who came from Hearthwood
+# Academy (2026-10-02).
+FUNDERS = {'ufa': 'UFA', 'ufa_private': 'UFA', 'opened': 'OpenEd'}
+FUNDER_PAID_SOURCES = tuple(FUNDERS)
+
+# Sources only staff can set. No registration answer implies them, so the
+# family's own edit on /family/billing must not overwrite one.
+STAFF_ONLY_SOURCES = ('opened',)
+
+
+def funder_of(source: Optional[str]) -> Optional[str]:
+    """PURE. Who pays for this family ('UFA', 'OpenEd'), or None when the
+    family pays the school themselves."""
+    return FUNDERS.get(source or '')
 
 
 def funding_fields(source: Optional[str]) -> Dict[str, Any]:

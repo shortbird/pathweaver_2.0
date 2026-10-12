@@ -552,3 +552,31 @@ class TestMicroschoolQueues:
             data = _run(modules={'submissions': False},
                         overrides={'submissions_new': patch.object(dash, '_submissions_new', new=count)})
         assert 'submissions_new' not in data['attention']
+
+
+@pytest.mark.unit
+class TestSchoolActivity:
+    """Who is using Optio this week and who cannot sign in (2026-10-12)."""
+
+    def test_the_school_activity_and_its_sign_in_trouble_reach_the_payload(self):
+        activity = {'students': 20, 'active_students': 12, 'quiet_total': 2, 'quiet': []}
+        stuck = [{'email': 'mom@x.test', 'user_id': 'u1', 'failures': 3}]
+        with patch('services.activity_metrics_service.school_activity',
+                   return_value=activity) as act, \
+             patch('services.activity_metrics_service.sign_in_trouble',
+                   return_value=stuck) as trouble:
+            data = _run()
+        act.assert_called_once_with(ORG, 7)
+        # Scoped to the school: a school never sees another's people.
+        trouble.assert_called_once_with(ORG)
+        assert data['activity'] == activity
+        assert data['sign_in_trouble'] == stuck
+
+    def test_a_failed_source_is_absent_not_an_empty_school(self):
+        with patch('services.activity_metrics_service.school_activity',
+                   side_effect=RuntimeError('rpc down')), \
+             patch('services.activity_metrics_service.sign_in_trouble',
+                   side_effect=RuntimeError('down')):
+            data = _run()
+        assert 'activity' not in data
+        assert 'sign_in_trouble' not in data

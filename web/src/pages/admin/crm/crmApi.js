@@ -123,3 +123,13 @@ export const listEmailLists = () => api.get('/api/admin/crm/lists')
 export const createEmailList = (data) => api.post('/api/admin/crm/lists', { ...data })
 export const updateEmailList = (listId, data) => api.put(`/api/admin/crm/lists/${listId}`, { ...data })
 export const deleteEmailList = (listId) => api.delete(`/api/admin/crm/lists/${listId}`)
+
+// Mail merge: one personal copy per person on a list, sent through SendGrid
+export const getBroadcastVariables = () => api.get('/api/admin/crm/broadcasts/variables')
+export const getSchoolSheet = (organizationIds) =>
+  api.post('/api/admin/crm/broadcasts/school-sheet', { organization_ids: organizationIds })
+export const previewBroadcast = (draft) => api.post('/api/admin/crm/broadcasts/preview', { ...draft })
+export const sendTestBroadcast = (draft) => api.post('/api/admin/crm/broadcasts/test', { ...draft })
+export const sendBroadcast = (draft) => api.post('/api/admin/crm/broadcasts', { ...draft })
+export const listBroadcasts = () => api.get('/api/admin/crm/broadcasts')
+export const getBroadcast = (broadcastId) => api.get(`/api/admin/crm/broadcasts/${broadcastId}`)

@@ -97,3 +97,28 @@ describe('QuestForm templateTasksEndpoint', () => {
     await waitFor(() => expect(templateTasksPut()).toBeTruthy())
   })
 })
+
+describe('QuestForm Definition of Done', () => {
+  // A template task's checklist is its own field (quest_template_tasks gained
+  // success_criteria 2026-10-12), so it has to survive a load and a save.
+  it('loads a task checklist and sends it back on save', async () => {
+    api.get.mockResolvedValue({ data: { tasks: [{ ...TASKS[0], success_criteria: ['Three sketches', ' '] }] } })
+    renderForm()
+    await screen.findByDisplayValue('Bridge Building')
+
+    await save()
+
+    await waitFor(() => expect(templateTasksPut()).toBeTruthy())
+    expect(templateTasksPut()[1].tasks[0].success_criteria).toEqual(['Three sketches'])
+  })
+
+  it('sends an empty checklist for a task without one', async () => {
+    renderForm()
+    await screen.findByDisplayValue('Bridge Building')
+
+    await save()
+
+    await waitFor(() => expect(templateTasksPut()).toBeTruthy())
+    expect(templateTasksPut()[1].tasks[0].success_criteria).toEqual([])
+  })
+})

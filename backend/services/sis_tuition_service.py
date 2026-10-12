@@ -40,8 +40,10 @@ from utils import person_name
 
 logger = get_logger(__name__)
 
-# Household funding sources that pay THROUGH UFA rather than by card in Optio.
-UFA_FUNDING_SOURCES = ('ufa', 'ufa_private')
+# Household funding sources where someone else (UFA, OpenEd) pays, so the
+# invoice is a record and no card payment is collected. One list:
+# sis_payment_profile.FUNDER_PAID_SOURCES.
+UFA_FUNDING_SOURCES = payment_profile.FUNDER_PAID_SOURCES
 
 # A flat tuition-plan flag (users.sis_tuition_plan) -> its block_pricing key.
 _PLAN_PRICING_KEY = {'ufa_academy': 'ufa'}
@@ -620,6 +622,7 @@ def tuition_queue(org_id: str) -> Dict[str, Any]:
             'tuition_plan': u.get('sis_tuition_plan'),
             'funding_source': fs,
             'pay_through_ufa': fs in UFA_FUNDING_SOURCES,
+            'funder': payment_profile.funder_of(fs),
             'stated_payment_methods': prof.get('methods') or [],
             'stated_ufa_private': prof.get('ufa_private'),
             'payment_plan': plan_pref.get(hh_id) or prof.get('plan'),
@@ -674,6 +677,7 @@ def tuition_preview(org_id: str, student_id: str) -> Dict[str, Any]:
         'funding_source': funding,
         'funding_label': billing._FUNDING_LABELS.get(funding) if funding else None,
         'pay_through_ufa': funding in UFA_FUNDING_SOURCES,
+        'funder': payment_profile.funder_of(funding),
         'stated_payment_methods': profile.get('methods') or [],
         'stated_ufa_private': profile.get('ufa_private'),
         'payment_plan': plan,

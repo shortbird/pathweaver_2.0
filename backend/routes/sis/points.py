@@ -7,6 +7,9 @@ Staff endpoints are role-gated and org-scoped through sis_service.resolve_org_id
 Every staff member sees every student here: points are the school's, and a
 coach at a microschool gives them to the whole school. A family reads its own
 child's points through @require_relationship_to.
+
+A student adds points for themselves through POST /mine (ticket 910668d8):
+self-only, capped per day, and undone by staff like any entry.
 """
 
 from flask import Blueprint, jsonify, request
@@ -91,6 +94,23 @@ def mine(user_id):
     """A student's own points, or a parent's children's. Authorized by who the
     caller is: the service reads only the caller or children_of_parent."""
     return jsonify({'success': True, 'students': PointsService().mine(user_id)})
+
+
+@bp.route('/mine', methods=['POST'])
+# superadmin passes the door (every role list carries it) and is refused by
+# the service unless acting as the student: the write is always the caller's.
+@require_role('student', 'superadmin')
+def add_mine(user_id):
+    """Body: {amount, reason}. A student gives themselves points: positive
+    only, a reason required, capped per day. Counts at once; staff see it
+    marked as the student's and can undo it."""
+    try:
+        data = PointsService().add_own(user_id, request.get_json(silent=True) or {})
+    except PointsError as e:
+        return jsonify({'success': False, 'error': str(e)}), 400
+    except PermissionError as e:
+        return jsonify({'success': False, 'error': str(e)}), 403
+    return jsonify({'success': True, **data})
 
 
 @bp.route('/students/<student_id>', methods=['GET'])

@@ -46,7 +46,6 @@ vi.mock('./teacherPreview', () => preview)
 vi.mock('./StudentDetailModal', () => ({ default: ({ student }) => <div>MANAGE {student.name}</div> }))
 vi.mock('./FamilyDetailModal', () => ({ default: ({ household }) => <div>FAMILY {household.name}</div> }))
 vi.mock('../../components/sis/StaffDetailModal', () => ({ default: ({ staff }) => <div>STAFF {staff.id} roles:{staff.roles.join(',')}</div> }))
-vi.mock('../../components/sis/SisNewUserModal', () => ({ default: () => <div>NEW USER</div> }))
 vi.mock('../../components/sis/TeacherModal', () => ({ default: ({ placeholders }) => <div>NEW TEACHER placeholders:{placeholders.length}</div> }))
 vi.mock('../../components/sis/PeopleExportModal', () => ({ default: ({ rows }) => <div>EXPORT {rows.length}</div> }))
 vi.mock('../../services/masqueradeService', () => ({ startMasquerade: vi.fn(() => Promise.resolve({ success: true })) }))
@@ -382,30 +381,24 @@ describe('what a row can do', () => {
 })
 
 describe('adding', () => {
-  it('one Add button offers a person, a teacher, or a family', async () => {
+  it('one Add button opens a wizard that asks what you are doing', async () => {
     render(<PeoplePage />)
     await screen.findByText('Ada Ant')
     fireEvent.click(screen.getByRole('button', { name: '+ Add' }))
-    fireEvent.click(screen.getByRole('menuitem', { name: 'Teacher' }))
-    // The teacher form is told about the cards with no login, so it links
+    for (const job of ['A family', 'A staff member', 'A student', 'Many people']) {
+      expect(screen.getByRole('button', { name: new RegExp(job) })).toBeInTheDocument()
+    }
+    // Observers are added by a parent, never here.
+    expect(screen.queryByText(/observer/i)).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: /A staff member/ }))
+    // The staff form is told about the cards with no login, so it links
     // instead of creating a second record.
     expect(screen.getByText('NEW TEACHER placeholders:1')).toBeInTheDocument()
   })
 
-  it('creates a family in place', async () => {
-    render(<PeoplePage />)
-    await screen.findByText('Ada Ant')
-    fireEvent.click(screen.getByRole('button', { name: '+ Add' }))
-    fireEvent.click(screen.getByRole('menuitem', { name: 'Family' }))
-    fireEvent.change(screen.getByPlaceholderText('New family / household name'), { target: { value: 'The Garcia Family' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Create' }))
-    await waitFor(() => expect(api.post).toHaveBeenCalledWith('/api/sis/households',
-      expect.objectContaining({ name: 'The Garcia Family' })))
-  })
-
   it('the dashboard link opens the family form straight away', async () => {
     render(<PeoplePage />, { route: '/people?add=family' })
-    expect(await screen.findByPlaceholderText('New family / household name')).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: '+ Add a second parent' })).toBeInTheDocument()
   })
 
   it('exports the rows on screen', async () => {

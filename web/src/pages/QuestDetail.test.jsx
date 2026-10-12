@@ -11,6 +11,7 @@ import api from '../services/api'
 const mockNavigate = vi.fn()
 let authState = {}
 let questDetailData = {}
+let questDetailIds = []
 
 vi.mock('../contexts/AuthContext', () => ({
   useAuth: () => authState
@@ -24,8 +25,10 @@ vi.mock('react-router-dom', async () => {
   }
 })
 
-vi.mock('../hooks/useQuestDetailData', () => ({
-  useQuestDetailData: () => questDetailData
+vi.mock('../hooks/useQuestDetailData', async () => ({
+  // The real id cleaner (Gmail links, 5cd18ed1); the data hook is faked.
+  useCleanQuestId: (await vi.importActual('../hooks/useQuestDetailData')).useCleanQuestId,
+  useQuestDetailData: (id) => { questDetailIds.push(id); return questDetailData }
 }))
 
 vi.mock('../hooks/useActivityTracking', () => ({
@@ -218,6 +221,30 @@ describe('QuestDetail', () => {
       isQuestCompleted: false,
       queryClient: mockQueryClient
     }
+  })
+
+  // --- Gmail redirect junk on the id ---
+  describe('a link copied out of Gmail', () => {
+    // Tickets 5cd18ed1 / ee024803: /quests/<uuid>&source=gmail&ust=...&sa=E
+    // sent the whole tail to the API as the id and 500'd.
+    const REAL = 'a2be8cb7-758e-4b6d-89fe-08d87948e812'
+
+    it('reads the leading uuid and replaces the URL with the clean one', () => {
+      questDetailIds = []
+      questDetailData.isLoading = true
+      renderQuestDetail(`${REAL}&source=gmail&ust=1791918907613000&sa=E`)
+      expect(questDetailIds.every((id) => id === REAL)).toBe(true)
+      expect(questDetailIds.length).toBeGreaterThan(0)
+      expect(mockNavigate).toHaveBeenCalledWith(`/quests/${REAL}`, { replace: true })
+    })
+
+    it('leaves a clean id alone', () => {
+      questDetailIds = []
+      questDetailData.isLoading = true
+      renderQuestDetail(REAL)
+      expect(questDetailIds.every((id) => id === REAL)).toBe(true)
+      expect(mockNavigate).not.toHaveBeenCalled()
+    })
   })
 
   // --- Loading state ---

@@ -86,6 +86,8 @@ PyMuPDF>=1.23.0,<2  # PDF image stripping for large curriculum files
 # than hoped for, and 9.0.3 installs cleanly beside pytest-cov 7.1.0.
 pytest==9.0.3
 pytest-cov==7.1.0
+# Runs the suite on every core in CI (tests-backend.yml, 2026-10-12).
+pytest-xdist==3.8.0
 # pytest-flask and pytest-mock were dropped 2026-09-03. Neither is used: no
 # test references `mocker` (pytest-mock's only fixture), and conftest defines
 # its own `client` rather than taking pytest-flask's. The local venv has never

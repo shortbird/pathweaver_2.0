@@ -25,6 +25,8 @@ import { useThemeColors } from '@/src/hooks/useThemeColors';
 import { VStack, HStack, Heading, UIText, Card, Button, ButtonText, Avatar, AvatarFallbackText, AvatarImage } from '@/src/components/ui';
 import { confirmAlert, showAlert } from '@/src/utils/alerts';
 import { extractApiError } from '@/src/services/apiError';
+import { AddParentCard } from '@/src/components/family/AddParentCard';
+import { ageFromDob } from '@/src/utils/age';
 
 const DESKTOP_BREAKPOINT = 768;
 
@@ -62,6 +64,9 @@ function Section({ title, count, children }: { title: string; count?: number; ch
     </VStack>
   );
 }
+
+// Mirrors MIN_SELF_REPORTED_AGE in backend/services/peer_connection_service.py.
+const MIN_SELF_REPORTED_AGE = 5;
 
 export default function FriendsScreen() {
   const c = useThemeColors();
@@ -110,6 +115,21 @@ export default function FriendsScreen() {
 
   const sendDob = useCallback(async () => {
     if (!dob.trim()) return;
+    // The answer locks, so it is read back as an age first. A slip such as
+    // this year typed by mistake is caught here, before the lock (bounty
+    // report, 2026-09-09: an account locked at age zero).
+    const age = /^\d{4}-\d{2}-\d{2}$/.test(dob.trim()) ? ageFromDob(dob.trim()) : null;
+    if (age === null || age < MIN_SELF_REPORTED_AGE) {
+      showAlert('Please check the year', 'Enter your date of birth as YYYY-MM-DD.');
+      return;
+    }
+    const ok = await confirmAlert({
+      title: `That makes you ${age} years old. Is that right?`,
+      message: 'You can only answer this once.',
+      confirmText: 'Yes, save it',
+      cancelText: 'Change it',
+    });
+    if (!ok) return;
     try {
       await submitDob(dob.trim());
     } catch (err) {
@@ -174,6 +194,10 @@ export default function FriendsScreen() {
                 </VStack>
               </Card>
             )}
+
+            {/* No parent is linked, so nobody can turn Friends on: linking
+                one is the way forward. */}
+            {state === 'friends_off' && eligibility?.who_can_enable === 'nobody' && <AddParentCard />}
 
             {state === 'module_off' && (
               <Card variant="filled" size="lg">

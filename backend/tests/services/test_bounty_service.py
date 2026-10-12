@@ -271,6 +271,34 @@ class TestClaimBounty:
         with pytest.raises(NotFoundError):
             service.claim_bounty(str(uuid.uuid4()), str(uuid.uuid4()))
 
+    def test_claim_does_not_notify_the_poster(self):
+        """A claim asks nothing of the poster; only a turn-in does. Claim
+        notices buried a bug report that waited a month for review."""
+        service = _make_service()
+        service.repository.get_bounty_by_id.return_value = {
+            'id': str(uuid.uuid4()), 'status': 'active', 'max_participants': 0,
+            'poster_id': str(uuid.uuid4()), 'title': 'Find a bug in Optio',
+        }
+        service.repository.get_claim_by_bounty_and_student.return_value = None
+        service.repository.create_claim.return_value = {'id': str(uuid.uuid4()), 'status': 'claimed'}
+
+        with patch('threading.Thread', _InlineThread), \
+                patch('services.notification_service.NotificationService') as ns_cls:
+            service.claim_bounty(str(uuid.uuid4()), str(uuid.uuid4()))
+
+        ns_cls.return_value.create_notification.assert_not_called()
+
+
+class _InlineThread:
+    """Runs a notify thread's target on start(), so a test sees its writes."""
+
+    def __init__(self, target=None, daemon=None, **kwargs):
+        self._target = target
+        self.daemon = daemon
+
+    def start(self):
+        self._target()
+
 
 @pytest.mark.unit
 @pytest.mark.critical
@@ -301,6 +329,37 @@ class TestTurnInBounty:
 
         result = service.turn_in_bounty(claim_id, student_id, bounty_id)
         assert result['status'] == 'submitted'
+
+    def test_turn_in_notifies_the_poster(self):
+        service = _make_service()
+        claim_id = str(uuid.uuid4())
+        student_id = str(uuid.uuid4())
+        bounty_id = str(uuid.uuid4())
+        poster_id = str(uuid.uuid4())
+        d_id = str(uuid.uuid4())
+        service.repository.get_claim.return_value = {
+            'id': claim_id, 'student_id': student_id, 'status': 'claimed',
+            'evidence': {'completed_deliverables': [d_id]},
+        }
+        service.repository.get_bounty_by_id.return_value = {
+            'id': bounty_id, 'poster_id': poster_id, 'title': 'Find a bug in Optio',
+            'deliverables': [{'id': d_id, 'text': 'Describe the issue'}],
+        }
+        service.repository.submit_evidence.return_value = {'status': 'submitted'}
+        named = Mock()
+        named.data = [{'display_name': 'Sarah Towns'}]
+        service.repository.client.table.return_value.select.return_value \
+            .eq.return_value.execute.return_value = named
+
+        with patch('threading.Thread', _InlineThread), \
+                patch('services.notification_service.NotificationService') as ns_cls:
+            service.turn_in_bounty(claim_id, student_id, bounty_id)
+
+        kwargs = ns_cls.return_value.create_notification.call_args.kwargs
+        assert kwargs['user_id'] == poster_id
+        assert kwargs['notification_type'] == 'bounty_submission'
+        assert 'Sarah Towns' in kwargs['message']
+        assert kwargs['metadata'] == {'bounty_id': bounty_id, 'claim_id': claim_id}
 
     def test_turn_in_wrong_student(self):
         service = _make_service()

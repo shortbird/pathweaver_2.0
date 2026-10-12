@@ -114,6 +114,9 @@ const PeopleTable = ({
                         title={`Open ${s.household_name}`}>
                         {s.household_name}
                       </button>
+                      {(s.household_groups || []).map((g) => (
+                        <span key={g} className="text-[11px] font-semibold rounded-full px-2 py-0.5 bg-optio-purple/10 text-optio-purple">{g}</span>
+                      ))}
                       {s.household_former && (
                         <span className="text-[11px] font-semibold rounded-full px-2 py-0.5 bg-gray-100 text-neutral-500"
                           title="Every student in this family has withdrawn or graduated">Former</span>

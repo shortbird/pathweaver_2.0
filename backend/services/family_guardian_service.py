@@ -100,6 +100,10 @@ def add_guardian_to_household(org_id: str, household_id: str, actor_id: str,
 
     Returns {'kind': 'invited'|'connected', 'member', 'invite_sent'} or
     {'error', 'status'}.
+
+    `send_email` False makes the account without the email; the People page's
+    "Send setup email" sends it later. `is_primary` makes this parent the
+    family's primary contact -- the new-family wizard's first parent.
     """
     from repositories.household_repository import HouseholdRepository
     from repositories.user_repository import UserRepository
@@ -113,6 +117,8 @@ def add_guardian_to_household(org_id: str, household_id: str, actor_id: str,
     first_name = (data.get('first_name') or '').strip()
     last_name = (data.get('last_name') or '').strip()
     email = (data.get('email') or '').strip().lower()
+    send_email = data.get('send_email', True) is not False
+    primary = bool(data.get('is_primary'))
     if not first_name or not last_name:
         return {'error': 'First and last name are required', 'status': 400}
     if not email or '@' not in email or '.' not in email.split('@')[-1]:
@@ -129,13 +135,13 @@ def add_guardian_to_household(org_id: str, household_id: str, actor_id: str,
             return {'error': 'That email belongs to a student at this school.',
                     'code': 'is_student', 'status': 409}
         rows = sis_attach_service.attach_guardian(
-            org_id, user['id'], household_id, source='add_parent')
+            org_id, user['id'], household_id, primary=primary, source='add_parent')
         sis_person_service.audit_removal(
             org_id, actor_id, 'sis_household_guardian_added', 'household', household_id,
             {'household_name': household.get('name'), 'guardian_user_id': user['id'],
              'kind': 'connected'})
         return {'kind': 'connected', 'member': rows[0] if rows else None,
-                'invite_sent': False}
+                'user_id': user['id'], 'invite_sent': False}
 
     try:
         uid = _create_org_parent(admin, org_id, email, first_name, last_name)
@@ -143,9 +149,10 @@ def add_guardian_to_household(org_id: str, household_id: str, actor_id: str,
         logger.error(f'sis add-parent: create failed for household {household_id}: {e}')
         return {'error': 'Could not create the account. Please try again.', 'status': 400}
 
-    rows = sis_attach_service.attach_guardian(org_id, uid, household_id, source='add_parent')
-    invite_sent = send_guardian_invite(uid, email, first_name, org_id,
-                                       household.get('name') or '', admin=admin)
+    rows = sis_attach_service.attach_guardian(org_id, uid, household_id, primary=primary,
+                                              source='add_parent')
+    invite_sent = send_email and send_guardian_invite(uid, email, first_name, org_id,
+                                                      household.get('name') or '', admin=admin)
     sis_person_service.audit_removal(
         org_id, actor_id, 'sis_household_guardian_added', 'household', household_id,
         {'household_name': household.get('name'), 'guardian_user_id': uid,
@@ -153,4 +160,4 @@ def add_guardian_to_household(org_id: str, household_id: str, actor_id: str,
     logger.info(f'sis add-parent: {uid[:8]} joined household {household_id[:8]} '
                 f'at org {org_id[:8]} (invite_sent={invite_sent})')
     return {'kind': 'invited', 'member': rows[0] if rows else None,
-            'invite_sent': invite_sent}
+            'user_id': uid, 'invite_sent': invite_sent}

@@ -322,6 +322,13 @@ def _build_jobs(org_id: str, *, caller_id: str, hidden: set, settings: Dict[str,
         'prior_learning_pending': (lambda: _prior_learning_pending(org_id), None),
     }
 
+    # Who is using Optio at this school, and who cannot get in -- the school's
+    # slice of the superadmin home's activity cards (2026-10-12). Neither is a
+    # module: every school has students who sign in or do not.
+    from services import activity_metrics_service as activity
+    jobs['activity'] = (lambda: activity.school_activity(org_id, 7), None)
+    jobs['sign_in_trouble'] = (lambda: activity.sign_in_trouble(org_id), None)
+
     # The noticeboard's links are managed in the Library's resources, so a
     # school with resources off has no board (rule 2: an off module leaves no
     # trace on the dashboard).
@@ -449,6 +456,11 @@ def get_admin_dashboard(org_id: str, caller_id: str) -> Dict[str, Any]:
         'pinned_links': r.get('pinned_links') or [],
         **({'points': {'given_this_week': r['points_week']}}
            if r.get('points_week') is not None else {}),
+        # Absent when the source failed, so the card hides rather than
+        # reporting a school where nobody signed in.
+        **({'activity': r['activity']} if r.get('activity') else {}),
+        **({'sign_in_trouble': r['sign_in_trouble']}
+           if r.get('sign_in_trouble') is not None else {}),
         # Echoed so the frontend filters tiles with the same sisModules.js that
         # filters the nav, instead of a second copy of the module map here.
         'settings': {

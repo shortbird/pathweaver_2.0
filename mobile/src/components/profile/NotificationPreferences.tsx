@@ -31,14 +31,13 @@ export interface PreferenceRow {
  *
  * `roles` mirrors the backend's actual recipient for each type so a viewer only
  * sees toggles for notifications they can receive (e.g. students never post
- * bounties, so "Bounty claims/submissions" are poster-only; observers never
+ * bounties, so "Bounty submissions" is poster-only; observers never
  * own a portfolio, so student/parent approval rows are hidden from them).
  */
 const ROWS: PreferenceRow[] = [
   { type: 'message_received', label: 'Messages', description: 'New direct messages.', icon: 'chatbubbles-outline', roles: ['student', 'parent', 'observer', 'advisor'] },
   { type: 'observer_comment', label: 'Comments', description: 'When someone comments on student work.', icon: 'chatbox-outline', roles: ['student', 'parent'] },
   { type: 'bounty_posted', label: 'New bounties', description: 'When a bounty is posted for you.', icon: 'flag-outline', roles: ['student'] },
-  { type: 'bounty_claimed', label: 'Bounty claims', description: 'When a student claims your bounty.', icon: 'checkmark-circle-outline', roles: ['parent', 'observer', 'advisor'] },
   { type: 'bounty_submission', label: 'Bounty submissions', description: 'When a student submits a bounty for review.', icon: 'cloud-upload-outline', roles: ['parent', 'observer', 'advisor'] },
   { type: 'task_approved', label: 'Approvals', description: 'When your work or bounty is approved.', icon: 'ribbon-outline', roles: ['student'] },
   { type: 'task_revision_requested', label: 'Revision requests', description: 'When revisions are requested on your work.', icon: 'create-outline', roles: ['student'] },

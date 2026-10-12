@@ -2,7 +2,7 @@ import { describe, it, expect, vi, afterEach } from 'vitest'
 import {
   applyFilters, sortRows, roleChipOptions, statusOptions, familyOptions,
   isFormer, statusOf, EMPTY_FILTERS, QUICK_VIEWS, quickViewOf, applyQuickView,
-  withTodaysAge,
+  withTodaysAge, groupOptions,
 } from './peopleFilters'
 
 /**
@@ -199,5 +199,24 @@ describe('age on People is today\'s age', () => {
     const rows = [SAGE]
     withTodaysAge(rows)
     expect(rows[0].age).toBe(7)
+  })
+})
+
+describe('family groups', () => {
+  const rows = [
+    row('Opa', { household_id: 'h1', household_name: 'Ant', household_groups: ['OpenEd'] }),
+    row('Okid', { is_student: true, roles: ['student'], enrollment_status: 'enrolled', household_id: 'h1', household_groups: ['OpenEd'] }),
+    row('Npa', { household_id: 'h2', household_name: 'Bee', household_groups: [] }),
+    row('Teach', { roles: ['advisor'] }),
+  ]
+
+  it('shows everyone in a family in the group, and only them', () => {
+    expect(names(applyFilters(rows, { ...EMPTY_FILTERS, group: 'OpenEd' }))).toEqual(['Opa', 'Okid'])
+    expect(applyFilters(rows, EMPTY_FILTERS)).toHaveLength(4)
+  })
+
+  it('offers each group with its count', () => {
+    expect(groupOptions(rows, EMPTY_FILTERS)).toEqual([{ key: 'OpenEd', label: 'OpenEd', count: 2 }])
+    expect(groupOptions([row('x')], EMPTY_FILTERS)).toEqual([])
   })
 })

@@ -8,7 +8,7 @@
  * the approval card actually says what is being consented to.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render as rtlRender, screen, waitFor } from '@testing-library/react'
+import { render as rtlRender, screen, waitFor, fireEvent } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
@@ -123,6 +123,39 @@ describe('ConnectionsPage', () => {
     render(<ConnectionsPage />)
 
     expect(await screen.findByText(/only answer this once/i)).toBeInTheDocument()
+  })
+
+  it("refuses today's date instead of locking an age of zero", async () => {
+    // A date picker opens on today. On an iPad, Done without scrolling sent
+    // today's date and the backend locked it (bounty report, 2026-09-09).
+    mockLoad({ state: 'needs_dob', reason: 'x' })
+    render(<ConnectionsPage />)
+
+    const input = await screen.findByLabelText(/what[’']s your date of birth/i)
+    fireEvent.change(input, { target: { value: new Date().toISOString().slice(0, 10) } })
+
+    expect(screen.getByText(/please check the year/i)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /continue/i })).toBeDisabled()
+    expect(api.post).not.toHaveBeenCalled()
+  })
+
+  it('reads the birthday back as an age and sends it only on yes', async () => {
+    mockLoad({ state: 'needs_dob', reason: 'x' })
+    api.post.mockResolvedValue({ data: { data: { state: 'eligible' } } })
+    render(<ConnectionsPage />)
+
+    const input = await screen.findByLabelText(/what[’']s your date of birth/i)
+    const year = new Date().getFullYear() - 15
+    fireEvent.change(input, { target: { value: `${year}-01-01` } })
+    await userEvent.click(screen.getByRole('button', { name: /continue/i }))
+
+    expect(screen.getByText(/that makes you 1[45] years old/i)).toBeInTheDocument()
+    expect(api.post).not.toHaveBeenCalled()
+
+    await userEvent.click(screen.getByRole('button', { name: /yes, save it/i }))
+    await waitFor(() => expect(api.post).toHaveBeenCalledWith(
+      '/api/connections/age-check', { date_of_birth: `${year}-01-01` },
+    ))
   })
 
   it('names the adult who can turn Friends on, not a form the student cannot use', async () => {

@@ -3,6 +3,8 @@ import { Link, useSearchParams } from 'react-router-dom'
 import { toast } from 'react-hot-toast'
 import { QRCodeSVG } from 'qrcode.react'
 import * as friends from '../services/friendsAPI'
+import AddParentCard from '../components/family/AddParentCard'
+import { ageFromDob } from '../utils/age'
 
 /**
  * Friends — the student's page.
@@ -48,6 +50,11 @@ const STATE_ELIGIBLE = 'eligible'
 const STATE_NEEDS_DOB = 'needs_dob'
 const STATE_FRIENDS_OFF = 'friends_off'
 const STATE_MODULE_OFF = 'module_off'
+
+// Mirrors MIN_SELF_REPORTED_AGE in peer_connection_service.py. A date picker
+// opens on today, and on an iPad Done without scrolling submitted an age of
+// zero, which the backend then locked (bounty report, 2026-09-09).
+const MIN_SELF_REPORTED_AGE = 5
 
 const STATE_LABEL = {
   none: null,
@@ -111,6 +118,8 @@ export default function ConnectionsPage() {
   const [connections, setConnections] = useState(null)
   const [loading, setLoading] = useState(true)
   const [dob, setDob] = useState('')
+  // The answer locks, so the page reads it back as an age before it is sent.
+  const [confirmingDob, setConfirmingDob] = useState(false)
   const [code, setCode] = useState((searchParams.get('code') || '').toUpperCase())
   const [myCode, setMyCode] = useState(null)
   const [busy, setBusy] = useState(false)
@@ -157,14 +166,23 @@ export default function ConnectionsPage() {
     }
   }
 
-  const submitDob = async (e) => {
+  const dobAge = dob ? ageFromDob(dob) : null
+  const dobImplausible = dobAge !== null && dobAge < MIN_SELF_REPORTED_AGE
+
+  const reviewDob = (e) => {
     e.preventDefault()
+    if (!dob || dobImplausible) return
+    setConfirmingDob(true)
+  }
+
+  const submitDob = async () => {
     if (!dob) return
     setBusy(true)
     try {
       setEligibility(await friends.submitDob(dob))
     } catch (err) {
       toast.error(err.response?.data?.error || 'Could not save your date of birth.')
+      setConfirmingDob(false)
     } finally {
       setBusy(false)
     }
@@ -244,6 +262,12 @@ export default function ConnectionsPage() {
         </div>
       )}
 
+      {/* Nobody can turn Friends on because no parent is linked: the way
+          forward is linking one, so the card that does it sits right here. */}
+      {state === STATE_FRIENDS_OFF && eligibility.who_can_enable === 'nobody' && (
+        <AddParentCard className="mt-4" />
+      )}
+
       {state === STATE_MODULE_OFF && (
         <div className="mt-6 rounded-lg border border-neutral-200 bg-neutral-50 p-5">
           <p className="text-neutral-800">{eligibility.reason}</p>
@@ -255,7 +279,7 @@ export default function ConnectionsPage() {
           above the input. Leading with the rule turns the field into a
           multiple-choice question with one obviously correct answer. */}
       {state === STATE_NEEDS_DOB && (
-        <form onSubmit={submitDob} className="mt-6 rounded-lg border border-neutral-200 bg-white p-5">
+        <form onSubmit={reviewDob} className="mt-6 rounded-lg border border-neutral-200 bg-white p-5">
           <label htmlFor="dob" className="block font-medium text-neutral-900">
             What&rsquo;s your date of birth?
           </label>
@@ -263,13 +287,35 @@ export default function ConnectionsPage() {
             id="dob"
             type="date"
             value={dob}
-            onChange={(e) => setDob(e.target.value)}
+            onChange={(e) => { setDob(e.target.value); setConfirmingDob(false) }}
             className="mt-2 w-full rounded-md border border-neutral-300 px-3 py-2"
+            aria-invalid={dobImplausible}
+            aria-describedby={dobImplausible ? 'dob-error' : undefined}
+            disabled={confirmingDob}
             required
           />
-          <button type="submit" disabled={busy || !dob} className={`mt-3 ${primaryBtn} px-4 py-2`}>
-            Continue
-          </button>
+          {dobImplausible && (
+            <p id="dob-error" className="text-sm text-red-600 mt-2">Please check the year.</p>
+          )}
+          {confirmingDob ? (
+            <div className="mt-3">
+              <p className="font-medium text-neutral-900">
+                That makes you {dobAge} years old. Is that right?
+              </p>
+              <div className="mt-2 flex gap-2">
+                <button type="button" onClick={submitDob} disabled={busy} className={`${primaryBtn} px-4 py-2`}>
+                  Yes, save it
+                </button>
+                <button type="button" onClick={() => setConfirmingDob(false)} disabled={busy} className={`${secondaryBtn} px-4 py-2`}>
+                  Change it
+                </button>
+              </div>
+            </div>
+          ) : (
+            <button type="submit" disabled={busy || !dob || dobImplausible} className={`mt-3 ${primaryBtn} px-4 py-2`}>
+              Continue
+            </button>
+          )}
           <p className="text-sm text-neutral-500 mt-3">
             You can only answer this once, so check it before you continue. Ask a
             parent, guardian, or your school if you need it changed later.
