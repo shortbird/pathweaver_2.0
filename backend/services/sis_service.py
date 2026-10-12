@@ -1373,25 +1373,25 @@ def create_org_teacher(org_id: str, fields: Dict[str, Any],
       (typically a parent at this school), returns {'existing_account': {...}}
       without creating anything, so the caller can offer to add the role to it.
 
-    Returns {'error': ...} on bad input or an email that can never be staff."""
-    import secrets
     `org_role` picks the staff role the account starts with: 'advisor'
     (default), 'campus_coordinator' or 'org_admin'. The People page's add
     wizard offers all three (2026-10-12); the caller checks caller_may_grant.
     Placeholder matching and the existing-account offer are teacher things
     and only run for 'advisor'.
 
+    Returns {'error': ...} on bad input or an email that can never be staff."""
+    import secrets
 
     first = (fields.get('first_name') or '').strip()
     last = (fields.get('last_name') or '').strip()
     email = (fields.get('email') or '').strip().lower()
     if not email or '@' not in email:
         return {'error': 'A valid email is required'}
-    # Name is OPTIONAL (2026-07-29). An admin adding staff only knows their
-    # email; the teacher fills in their own name and bio when they set their
     org_role = (fields.get('org_role') or 'advisor').strip()
     if org_role not in STAFF_ORG_ROLES:
         return {'error': 'Not a staff role'}
+    # Name is OPTIONAL (2026-07-29). An admin adding staff only knows their
+    # email; the teacher fills in their own name and bio when they set their
     # password. Until then the account carries a provisional label derived from
     # the address so it is recognizable in the staff list.
     provisional_name = not (first and last)
@@ -1408,13 +1408,13 @@ def create_org_teacher(org_id: str, fields: Dict[str, Any],
                 'first_name, last_name, display_name, preferred_name')
         .eq('email', email).limit(1).execute()
     ).data
-    if existing:
-        # A parent who also teaches is one person with one login, not a blocked
     if existing and org_role != 'advisor':
         # Granting admin or coordinator to an account that already exists is
         # the role editor on their record, not a second door here.
         return {'error': 'This email already has an Optio account. Add them as a teacher, '
                          'then change their role on their staff record.'}
+    if existing:
+        # A parent who also teaches is one person with one login, not a blocked
         # duplicate. Report who the address belongs to so the caller can offer
         # to add the teacher role to that account (reported 2026-08-05:
         # "it just says a user with this email already exists but it won't let

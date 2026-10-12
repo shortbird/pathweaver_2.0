@@ -1284,11 +1284,11 @@ def register_sis_routes(app):
     from routes.sis.quest_editor import bp as quest_editor_bp
     from routes.sis.internal import bp as internal_bp
     from routes.sis.settings import bp as settings_bp
-
-    for blueprint, module_key in (
     # The People page's add wizard: a new family, and the roster spreadsheet
     # import that moved here from the superadmin dashboard (2026-10-12).
     from routes.sis.people_add import bp as people_add_bp
+
+    for blueprint, module_key in (
         (bp, 'sis'),                        # people/households/roster core
         (catalog_bp, 'classes'),
         (registration_bp, 'registration'),
@@ -1330,9 +1330,9 @@ def register_sis_routes(app):
         (sis_bounties_bp, 'bounty_management'),
         (student_records_bp, 'sis'),
         (settings_bp, 'sis'),
+        (people_add_bp, 'sis'),
         (community_bp, 'community'),
         # P3: the staff surfaces get the 'sis' baseline (their per-feature
-        (people_add_bp, 'sis'),
         # tags are on the routes); the two single-module family blueprints
         # join the table outright.
         (staff_portal_bp, 'sis'),
