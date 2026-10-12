@@ -3,17 +3,14 @@
  * Moved verbatim -- no behaviour changed, only the address.
  */
 
-import { XMarkIcon, PlusIcon, TrashIcon, ExclamationCircleIcon, ChevronDownIcon, ChevronUpIcon, Bars3Icon, SparklesIcon } from '@heroicons/react/24/outline';
+import { XMarkIcon, TrashIcon, ExclamationCircleIcon, ChevronDownIcon, ChevronUpIcon, Bars3Icon } from '@heroicons/react/24/outline';
 import { CSS } from '@dnd-kit/utilities';
 import { getPillarData } from '../../../utils/pillarMappings';
 import {
-  arrayMove,
-  SortableContext,
-  sortableKeyboardCoordinates,
   useSortable,
-  verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
 import DIPLOMA_SUBJECTS from './DIPLOMA_SUBJECTS'
+import SuccessCriteriaEditor from '../../quest/SuccessCriteriaEditor'
 
 const SortableTaskRow = ({
   task,
@@ -178,6 +175,14 @@ const SortableTaskRow = ({
               placeholder="Optional task description"
             />
           </div>
+
+          {/* Definition of Done. Copied onto each student's task, where it is
+              the checklist the student and the reviewer see. */}
+          <SuccessCriteriaEditor
+            idPrefix={`task-${index}-dod`}
+            value={task.success_criteria}
+            onChange={(lines) => onUpdateTask(index, 'success_criteria', lines)}
+          />
 
           {/* Row: Pillar + Pillar XP + Required Toggle */}
           <div className="flex flex-wrap gap-4 items-end">

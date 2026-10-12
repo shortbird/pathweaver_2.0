@@ -104,11 +104,10 @@ def copy_template_tasks_to_enrollment(admin, quest_id, user_id, user_quest_id,
         'subject_xp_distribution': t.get('subject_xp_distribution'),
         'source_template_task_id': t.get('id') if t.get('id') in valid_template_ids else None,
         'source_task_id': t.get('id'),
-        # quest_template_tasks has no such column, so this is None (the column
-        # default) for every template read from the table. A caller that built
-        # the template list itself may carry one: a partner's class keeps each
-        # task's Definition of Done in its description and passes it here
-        # (services/partner_offering_service.py).
+        # The template task's Definition of Done (quest_template_tasks gained
+        # the column 2026-10-12). Before that a partner's class kept it as a
+        # "Definition of done:" list in the description, which
+        # services/partner_offering_service.py still splits out for an old row.
         'success_criteria': t.get('success_criteria') or None,
     } for t in template_tasks]
 
@@ -152,6 +151,7 @@ def _task_fields(tmpl, valid_template_ids):
         'is_required': tmpl.get('is_required', False),
         'diploma_subjects': subjects_for_copy(tmpl),
         'subject_xp_distribution': tmpl.get('subject_xp_distribution'),
+        'success_criteria': tmpl.get('success_criteria') or None,
         'source_template_task_id': (tmpl.get('id')
                                     if tmpl.get('id') in valid_template_ids else None),
         'source_task_id': tmpl.get('id'),
