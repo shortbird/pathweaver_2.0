@@ -421,6 +421,8 @@ def list_households(user_id):
     # invoices from this list, so "are they UFA?" has to be answerable here
     # rather than one family at a time (see services/sis_payment_profile.py).
     sis_payment_profile.attach_to_households(org_id, households)
+    from services import sis_family_groups
+    sis_family_groups.attach_to_households(org_id, households)
     # `family-images` is private; the stored image_url is a pointer, not a
     # fetchable link. Sign the whole page in one batched call.
     sign_in_place(households, ['image_url'], 'family-images')

@@ -138,7 +138,7 @@ export const applyQuickView = (f, id) => {
 }
 
 export const EMPTY_FILTERS = {
-  q: '', role: '', status: '', family: '', pay: '', recent: false, showFormer: false,
+  q: '', role: '', status: '', family: '', pay: '', group: '', recent: false, showFormer: false,
 }
 
 /**
@@ -155,6 +155,8 @@ export const applyFilters = (rows, f) => {
     if (!matchesStatus(r, f.status)) return false
     if (!matchesFamily(r, f.family)) return false
     if (!matchesPaymentFilter(r, f.pay)) return false
+    // A family group (sis_family_groups): everyone in a family carries its groups.
+    if (f.group && !(r.household_groups || []).includes(f.group)) return false
     if (f.recent && !isRecent(r.joined_at)) return false
     return matchesSearch(r, q)
   })
@@ -214,6 +216,16 @@ export const familyOptions = (rows, f) => {
     { key: 'none', label: 'Not in a family', count: none },
     { key: 'former', label: 'Former family', count: former },
   ].filter((o) => o.count > 0 || o.key === f.family)
+}
+
+/** The school's family groups, each with how many people match it. */
+export const groupOptions = (rows, f) => {
+  const base = applyFilters(rows, { ...f, group: '' })
+  const counts = {}
+  base.forEach((r) => (r.household_groups || []).forEach((g) => { counts[g] = (counts[g] || 0) + 1 }))
+  const names = new Set(rows.flatMap((r) => r.household_groups || []))
+  if (f.group) names.add(f.group)
+  return [...names].sort((a, b) => a.localeCompare(b)).map((g) => ({ key: g, label: g, count: counts[g] || 0 }))
 }
 
 /**

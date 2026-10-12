@@ -48,10 +48,11 @@ REMINDER_COOLDOWN_DAYS = 25
 UNPAID_INSTALLMENT_STATUSES = ('scheduled', 'due', 'late')
 OPEN_INVOICE_STATUSES = ('sent', 'partial', 'overdue')
 
-# Household funding sources that pay THROUGH UFA rather than by card in Optio.
-UFA_FUNDING_SOURCES = ('ufa', 'ufa_private')
+# Household funding sources where someone else (UFA, OpenEd) pays, so the
+# family is not offered card payment in Optio. One list: sis_payment_profile.
+UFA_FUNDING_SOURCES = payment_profile.FUNDER_PAID_SOURCES
 _FUNDING_LABELS = {'ufa': 'UFA', 'ufa_private': 'UFA – Private School',
-                   'private_pay': 'Private Pay', 'other': 'Other'}
+                   'private_pay': 'Private Pay', 'other': 'Other', 'opened': 'OpenEd'}
 
 
 # admin client justified: the SIS console acts for the whole school — this
@@ -2175,6 +2176,7 @@ def parent_billing_overview(user_id: str) -> Dict[str, Any]:
             'stated_ufa_private': stated.get('ufa_private'),
             'funding_question': (orgs.get(hh.get('organization_id')) or {}).get('funding_question'),
             'pay_through_ufa': funding in UFA_FUNDING_SOURCES,
+            'funder': payment_profile.funder_of(funding),
             'payment_plan_preference': hh.get('payment_plan_preference'),
             'invoices': invoices,
             'payments': payments,
@@ -2250,7 +2252,13 @@ def set_stated_payment_methods(user_id: str, household_id: str, methods: List[st
         RegistrationRepository(client=admin).update_answers(target['id'], answers)
 
     fs = payment_profile.derive_funding_source(answers)
-    HouseholdRepository(client=admin).update(household_id, payment_profile.funding_fields(fs))
+    current = (HouseholdRepository(client=admin).find_by_id(household_id) or {}).get('funding_source')
+    if current in payment_profile.STAFF_ONLY_SOURCES:
+        # The office set this (OpenEd pays); no answer the family can give
+        # implies it, so their edit records the answer and keeps the source.
+        fs = current
+    else:
+        HouseholdRepository(client=admin).update(household_id, payment_profile.funding_fields(fs))
 
     read = payment_profile.read_answers(answers)
     return {'household_id': household_id,
@@ -2258,7 +2266,8 @@ def set_stated_payment_methods(user_id: str, household_id: str, methods: List[st
             'stated_ufa_private': read['ufa_private'],
             'funding_source': fs,
             'funding_label': _FUNDING_LABELS.get(fs) if fs else None,
-            'pay_through_ufa': fs in UFA_FUNDING_SOURCES}
+            'pay_through_ufa': fs in UFA_FUNDING_SOURCES,
+            'funder': payment_profile.funder_of(fs)}
 
 
 def payment_receipt(user_id: str, payment_id: str) -> Dict[str, Any]:

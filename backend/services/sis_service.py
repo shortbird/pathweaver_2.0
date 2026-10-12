@@ -431,6 +431,8 @@ def get_roster(org_id: str) -> List[Dict[str, Any]]:
     roster.sort(key=lambda r: r['name'].lower())
     _annotate_roster_staff(org_id, roster)
     _annotate_roster_households(org_id, roster)
+    from services import sis_family_groups
+    sis_family_groups.attach_to_roster(org_id, roster)
     # Student and staff photos are private-bucket objects. One batch per bucket
     # for the entire roster — a per-row sign here would be one storage round
     # trip per family in the school.

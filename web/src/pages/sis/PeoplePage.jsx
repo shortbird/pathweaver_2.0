@@ -48,7 +48,7 @@ import { useRecordDoors } from '../../components/sis/RecordDoors'
  * the Staff view (ticket 180cc397, 2026-09-22).
  */
 
-const FILTER_KEYS = ['q', 'role', 'status', 'family', 'pay']
+const FILTER_KEYS = ['q', 'role', 'status', 'family', 'pay', 'group']
 
 export const SEARCH_URL_DEBOUNCE_MS = 250
 

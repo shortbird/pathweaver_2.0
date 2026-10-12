@@ -448,6 +448,10 @@ def register_all(app):
     # routes/sis/people_removal.py).
     from routes.sis import people_removal
     app.register_blueprint(people_removal.bp)
+    # Family groups ("OpenEd"); its own blueprint, gated on 'sis' (see
+    # routes/sis/family_groups.py).
+    from routes.sis import family_groups
+    app.register_blueprint(family_groups.bp)
 
     # ── Public embeddable widgets (org catalog/schedule for external sites) ────
     from routes import embed

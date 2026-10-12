@@ -356,7 +356,7 @@ const InvoicePanel = () => {
                       methods={s.stated_payment_methods}
                       ufaPrivate={s.stated_ufa_private}
                       plan={s.payment_plan}
-                      emptyLabel={s.pay_through_ufa ? 'UFA' : 'Form of payment not answered'}
+                      emptyLabel={s.pay_through_ufa ? (s.funder || 'UFA') : 'Form of payment not answered'}
                     />
                   </div>
                 </button>
@@ -405,8 +405,9 @@ const InvoicePanel = () => {
 
               {preview.pay_through_ufa && (
                 <div className="mb-4 rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-sm text-amber-800">
-                  This family pays through UFA. The invoice is sent for their records — the family
-                  is asked to pay through UFA, and no card payment is collected in Optio.
+                  {preview.funder === 'OpenEd'
+                    ? 'OpenEd pays for this family. The invoice is sent for their records, and no card payment is collected in Optio.'
+                    : 'This family pays through UFA. The invoice is sent for their records — the family is asked to pay through UFA, and no card payment is collected in Optio.'}
                 </div>
               )}
               {preview.already_invoiced && preview.existing_invoice && (

@@ -24,7 +24,7 @@ const shortDate = (iso) => {
 }
 const FUNDING_LABELS = {
   ufa: 'UFA', ufa_private: 'UFA – Private School',
-  private_pay: 'Private Pay', other: 'Other',
+  private_pay: 'Private Pay', other: 'Other', opened: 'OpenEd',
 }
 const STATUS_STYLES = {
   sent: 'bg-blue-100 text-blue-700', partial: 'bg-amber-100 text-amber-700',
@@ -51,6 +51,8 @@ const StatusPill = ({ status }) => (
  *  picking Self-Pay shows it. When the school has no such question configured
  *  the value is read-only. */
 const fundingText = (household) => {
+  // OpenEd is set by the office; no registration answer means it.
+  if (household.funding_source === 'opened') return 'Paid by OpenEd'
   const stated = (household.stated_payment_methods || []).filter(Boolean)
   if (stated.length) return stated.join(', ') + (household.stated_ufa_private ? ' (private school)' : '')
   return household.funding_label || 'Not on file'
@@ -89,7 +91,7 @@ const FundingSourceCard = ({ household, saving, onSave }) => {
             </div>
           )}
         </div>
-        {question && !editing && (
+        {question && !editing && household.funding_source !== 'opened' && (
           <button type="button" onClick={begin} className="btn-quiet flex-shrink-0" aria-label="Edit funding source">
             <PencilSquareIcon className="w-4 h-4" />
             Edit
@@ -641,7 +643,9 @@ const FamilyBillingPage = () => {
               <div className="min-w-0 flex-1">
                 <div className="text-sm font-semibold text-gray-900">{money(hh.totals?.balance_cents)} balance due</div>
                 <div className="text-xs text-gray-600">
-                  {hh.pay_through_ufa
+                  {hh.funding_source === 'opened'
+                    ? 'OpenEd pays this for your family. You do not need to pay it here.'
+                    : hh.pay_through_ufa
                     ? 'Paid through UFA. The school records it here once it is received.'
                     : hh.organization?.online_pay_enabled
                       ? 'Pays every open invoice at once. A card processing fee is added at checkout.'
@@ -674,7 +678,11 @@ const FamilyBillingPage = () => {
             </div>
           </div>
           <FundingSourceCard household={hh} saving={updatingFunding === hh.household_id} onSave={updateFundingSource} />
-          {hh.pay_through_ufa ? (
+          {hh.funding_source === 'opened' ? (
+            <div className="mb-5 rounded-xl bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-800">
+              OpenEd pays the tuition for your family directly to the school. You do not need to pay anything here.
+            </div>
+          ) : hh.pay_through_ufa ? (
             <div className="mb-5 rounded-xl bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-800">
               Your family's tuition is funded through UFA{hh.funding_label ? ` (${hh.funding_label})` : ''}.
               Please make your payment through UFA — the school records it here once it's received.

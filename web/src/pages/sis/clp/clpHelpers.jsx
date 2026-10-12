@@ -78,7 +78,7 @@ export const LEARNING_DAY_LABELS = {
 
 export const FUNDING_LABELS = {
   ufa: 'UFA', ufa_private: 'UFA – Private School',
-  private_pay: 'Private Pay', other: 'Other',
+  private_pay: 'Private Pay', other: 'Other', opened: 'OpenEd',
 }
 
 // Seats "3 / 12 · 9 left" or "8 / 8 · Full" or "Unlimited".
