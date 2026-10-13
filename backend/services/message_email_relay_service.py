@@ -525,6 +525,10 @@ _QUOTE_MARKERS = (
 )
 
 
+_WRAPPED_ATTRIBUTION = re.compile(r'^\s*On\s+\S', re.IGNORECASE)
+_WRAPPED_WROTE = re.compile(r'^\s*On .{0,300}?\bwrote:\s*$', re.IGNORECASE)
+
+
 def strip_quoted_reply(text: str) -> str:
     """Just what the person typed.
 
@@ -536,8 +540,14 @@ def strip_quoted_reply(text: str) -> str:
         return ''
     lines = text.replace('\r\n', '\n').split('\n')
     kept = []
-    for line in lines:
+    for i, line in enumerate(lines):
         if any(marker.match(line) for marker in _QUOTE_MARKERS):
+            break
+        # Gmail hard-wraps the attribution at ~78 columns, so a long sender
+        # name pushes "wrote:" onto the next line and the single-line marker
+        # misses it (the whole quote landed in a thread on 2026-10-12).
+        if _WRAPPED_ATTRIBUTION.match(line) and _WRAPPED_WROTE.match(
+                ' '.join(lines[i:i + 3])):
             break
         kept.append(line)
     # A trailing "-- \nsignature" block, per RFC 3676.

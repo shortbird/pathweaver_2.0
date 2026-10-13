@@ -68,6 +68,21 @@ def test_gmail_quoted_thread_is_dropped():
     assert relay.strip_quoted_reply(body) == "Sounds good, I'll take a look today."
 
 
+def test_gmail_attribution_wrapped_onto_two_lines_is_dropped():
+    # Gmail wraps the attribution at ~78 columns; "wrote:" lands alone.
+    body = (
+        "testing\n\nreply.\n\nDr. Bowman T\n\n"
+        "On Mon, Oct 12, 2026 at 5:08 PM Optio Support <support@optioeducation.com>\n"
+        "wrote:\n\n> the original\n"
+    )
+    assert relay.strip_quoted_reply(body) == "testing\n\nreply.\n\nDr. Bowman T"
+
+
+def test_a_line_starting_with_on_is_kept_when_no_wrote_follows():
+    assert relay.strip_quoted_reply("On Monday we start.\nSee you then.") == (
+        "On Monday we start.\nSee you then.")
+
+
 def test_outlook_and_signature_blocks_are_dropped():
     assert relay.strip_quoted_reply(
         "Done.\n\n-----Original Message-----\nFrom: someone"
