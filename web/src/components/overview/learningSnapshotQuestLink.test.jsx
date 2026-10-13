@@ -15,8 +15,9 @@
  * (dependents). Observers have no per-quest page and get no link.
  */
 import React from 'react'
-import { render, screen } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import LearningSnapshot from './LearningSnapshot'
 
@@ -38,6 +39,11 @@ vi.mock('react-router-dom', async () => {
   return { ...actual, useNavigate: () => navigate }
 })
 
+const apiGet = vi.fn()
+vi.mock('../../services/api', () => ({
+  default: { get: (...args) => apiGet(...args), delete: vi.fn() },
+}))
+
 vi.mock('../../hooks/api/useQuests', () => ({
   useQuestEngagement: () => ({ data: null }),
   useStudentQuestEngagement: () => ({ data: null }),
@@ -49,7 +55,9 @@ const activeQuests = [{
 }]
 
 function renderSnapshot(props) {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return render(
+    <QueryClientProvider client={client}>
     <MemoryRouter>
       <LearningSnapshot
         engagementData={{ calendar: [], summary: {} }}
@@ -59,6 +67,7 @@ function renderSnapshot(props) {
         {...props}
       />
     </MemoryRouter>
+    </QueryClientProvider>
   )
 }
 
@@ -99,6 +108,34 @@ describe('quest card destination', () => {
     renderSnapshot({ viewerMode: 'advisor' })
     expect(screen.getByText('Build a telescope')).toBeInTheDocument()
     expect(questHref()).toBeNull()
+    expect(navigate).not.toHaveBeenCalled()
+  })
+
+  it('opens every task, still-to-do first, for a staff viewer', async () => {
+    // Horizon, 2026-10-13 (ticket 8c21d8e7): "When I click on their quests I
+    // am only seeing what they completed. Is there a way to see their next
+    // steps they haven't done without ... masquerade as student?"
+    apiGet.mockResolvedValue({ data: { quests: [{
+      quest_id: QUEST_ID,
+      tasks: [
+        { id: 't1', title: 'Grind the mirror', completed: true, xp_value: 50 },
+        { id: 't2', title: 'Build the tube', completed: false, xp_value: 75, due_date: '2026-10-20' },
+      ],
+    }] } })
+    renderSnapshot({ viewerMode: 'advisor' })
+    expect(apiGet).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByRole('button', { name: 'See all tasks for Build a telescope' }))
+
+    await waitFor(() => expect(screen.getByText('Build the tube')).toBeInTheDocument())
+    expect(apiGet).toHaveBeenCalledWith(`/api/advisor/students/${STUDENT_ID}/quests-with-tasks`)
+    expect(screen.getByText('1 of 2 tasks done')).toBeInTheDocument()
+    const todo = screen.getByRole('region', { name: 'Still to do' })
+    expect(todo).toHaveTextContent('Build the tube')
+    expect(todo).toHaveTextContent('Due Oct 20')
+    expect(todo).not.toHaveTextContent('Grind the mirror')
+    expect(screen.getByRole('region', { name: 'Done' })).toHaveTextContent('Grind the mirror')
+    expect(navigate).not.toHaveBeenCalled()
   })
 
   it('never points a staff viewer at the parent quest view', () => {

@@ -514,6 +514,17 @@ class AdvisorService(BaseService):
 
     # ==================== Task Management ====================
 
+    def _may_see_student_tasks(self, caller_id: str, student_id: str) -> bool:
+        """Assigned advisor, teacher of the student, or org admin of their school."""
+        from utils.portfolio_access import (
+            _fetch_user, is_advisor_of, is_org_admin_over, teaches_student,
+        )
+
+        if is_advisor_of(caller_id, student_id) or teaches_student(caller_id, student_id):
+            return True
+        cols = 'id, role, org_role, org_roles, organization_id'
+        return is_org_admin_over(_fetch_user(caller_id, cols), _fetch_user(student_id, cols))
+
     def get_student_active_quests_with_tasks(self, student_id: str, advisor_id: str) -> List[Dict[str, Any]]:
         """
         Get all active quests for a student with their tasks.
@@ -537,17 +548,15 @@ class AdvisorService(BaseService):
             if not is_superadmin and not self._verify_same_organization(advisor_id, student_id):
                 raise ValueError("You do not have permission to view this student's quests - organization mismatch")
 
-            # Verify advisor has permission for this student (superadmin always has access)
-            if not is_superadmin:
-                assignment = self.supabase.table('advisor_student_assignments')\
-                    .select('id')\
-                    .eq('advisor_id', advisor_id)\
-                    .eq('student_id', student_id)\
-                    .eq('is_active', True)\
-                    .execute()
-
-                if not assignment.data:
-                    raise ValueError("You do not have permission to view this student's quests")
+            # Verify advisor has permission for this student (superadmin always has access).
+            # An assigned advisor, a teacher of one of the student's classes, or an
+            # org admin of the student's school. Horizon, 2026-10-13: the director
+            # (org_admin, no assignment row) could see a student's quest names on
+            # the overview but not the tasks still to do, short of "view as
+            # student" (ticket 8c21d8e7). org_admin holds every teacher
+            # capability (ruling 2026-09-12).
+            if not is_superadmin and not self._may_see_student_tasks(advisor_id, student_id):
+                raise ValueError("You do not have permission to view this student's quests")
 
             # Get active quests for this student
             user_quests = self.supabase.table('user_quests')\

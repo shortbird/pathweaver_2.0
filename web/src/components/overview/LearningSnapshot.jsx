@@ -8,6 +8,7 @@ import { useFamilyScope } from '../../contexts/FamilyScopeContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { useConfirm } from '../../contexts/ConfirmContext';
 import { SORTS, groupQuests, questIdOf, questTitle } from './snapshotQuestGroups';
+import StudentQuestTasksModal from './StudentQuestTasksModal';
 
 // The school office: who may take a quest off a student's snapshot. Matches the
 // backend's ADMIN_ROLES on DELETE /api/advisor/student-overview/:id/quests/:id.
@@ -108,6 +109,7 @@ const ActiveQuestCard = ({
   const questId = questData.id || quest.quest_id;
   const navigate = useNavigate();
   const { enterScope } = useFamilyScope();
+  const [showTasks, setShowTasks] = useState(false);
 
   // Which engagement endpoint to ask depends on WHO is looking, not on whether
   // a studentId was passed — every caller passes one, including
@@ -183,12 +185,37 @@ const ActiveQuestCard = ({
     );
   }
 
-  // Staff or observers looking at somebody else's overview: show the card,
-  // don't pretend it opens. See the questLink note above.
+  // Staff or observers looking at somebody else's overview: no navigation (see
+  // the questLink note above). A teacher or school admin opens the quest's
+  // task list in place instead -- done and still to do -- so they can see a
+  // student's next steps without "view as student" (Horizon, ticket 8c21d8e7).
+  // Observers keep a plain card: the task list endpoint does not admit them.
   if (isStaffViewer && studentId) {
+    const opensTasks = viewerMode === 'advisor';
     return (
-      <div className="block p-4 bg-white border border-gray-200 rounded-xl">
-        {cardContent}
+      <div className="block p-4 bg-white border border-gray-200 hover:border-optio-purple/30 rounded-xl transition-all">
+        {opensTasks ? (
+          <>
+            <button
+              type="button"
+              onClick={() => setShowTasks(true)}
+              className="block w-full text-left"
+              aria-label={`See all tasks for ${questData.title}`}
+            >
+              {cardContent}
+              <span className="mt-2 block text-xs font-medium text-optio-purple">See all tasks</span>
+            </button>
+            {showTasks && (
+              <StudentQuestTasksModal
+                isOpen
+                onClose={() => setShowTasks(false)}
+                studentId={studentId}
+                questId={questId}
+                questTitle={questData.title}
+              />
+            )}
+          </>
+        ) : cardContent}
         {onRemove && (
           <div className="mt-2 flex justify-end">
             <button
