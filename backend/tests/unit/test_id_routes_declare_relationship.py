@@ -348,6 +348,16 @@ _reviewed(
     'member can be removed',
     'group_messages.remove_member',
 )
+# A family group's manager (OpenEd) is outside the school, so no relationship
+# predicate names them. The grant is on the group, and the student must be in
+# one of the group's families.
+_reviewed(
+    'family_group_dashboard.require_manager (family_group_managers grant or '
+    'superadmin) then _student_in_group (student in one of the group\'s households)',
+    'family_group_dashboard.drop_student',
+    'family_group_dashboard.reenroll_student',
+    'family_group_dashboard.add_student_credits',
+)
 # MIGRATED 2026-09-03: routes/xp_goals.py (4 routes) declares
 # ('self','parent','advisor','teacher','observer','org_staff') -- can_view_goal's
 # grants, which are can_view_portfolio's minus PEER. The absence is the

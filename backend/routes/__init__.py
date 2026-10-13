@@ -455,6 +455,13 @@ def register_all(app):
     # routes/sis/family_groups.py).
     from routes.sis import family_groups
     app.register_blueprint(family_groups.bp)
+    # A family group's own dashboard for the outside person who runs it
+    # (OpenEd); a grant on the group, no SIS role (routes/family_group_dashboard.py).
+    from routes import family_group_dashboard
+    app.register_blueprint(family_group_dashboard.bp)
+    # A student's credit bank on their SIS record (routes/sis/credit_bank.py).
+    from routes.sis import credit_bank
+    app.register_blueprint(credit_bank.bp)
 
     # ── Public embeddable widgets (org catalog/schedule for external sites) ────
     from routes import embed

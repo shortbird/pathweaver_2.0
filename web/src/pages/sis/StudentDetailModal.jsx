@@ -23,6 +23,7 @@ import GlassTabBar from '../../components/ui/GlassTabBar'
 import { useRecordDoors } from '../../components/sis/recordDoorsContext'
 import { INPUT_CLASS } from '../../components/ui/Input'
 import ClassHistorySection from '../../components/sis/ClassHistorySection'
+import { SisStudentCredits } from '../../components/sis/CreditBankPanel'
 
 /**
  * Tabbed per-student management modal.
@@ -39,10 +40,11 @@ const TABS = [
   { key: 'record', label: 'Record' },
   { key: 'materials', label: 'Materials' },
   { key: 'schedule', label: 'Schedule' },
+  { key: 'credits', label: 'Credits' },
   { key: 'message', label: 'Message' },
 ]
 
-const STUDENT_ONLY_TABS = ['record', 'materials', 'schedule']
+const STUDENT_ONLY_TABS = ['record', 'materials', 'schedule', 'credits']
 
 const StudentDetailModal = ({ student, orgId, onClose, onSaved }) => {
   const { activeOrg } = useSisOrg()
@@ -148,6 +150,7 @@ const StudentDetailModal = ({ student, orgId, onClose, onSaved }) => {
           {tab === 'record' && isStudent && <RecordPanel student={student} orgId={orgId} />}
           {tab === 'materials' && isStudent && <MaterialsPanel student={student} orgId={orgId} />}
           {tab === 'schedule' && isStudent && <SchedulePanel student={student} orgId={orgId} />}
+          {tab === 'credits' && isStudent && <SisStudentCredits studentId={student.student_id} />}
           {tab === 'message' && <MessagePanel student={student} orgId={orgId} />}
         </div>
       </div>

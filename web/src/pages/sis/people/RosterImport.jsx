@@ -167,12 +167,25 @@ const Count = ({ label, value, tone = 'default' }) => (
   </div>
 )
 
-export default function RosterImport({ orgId, orgName = 'your school', onImported }) {
+// The SIS People page's endpoints. A family group's dashboard passes its own
+// (pages/FamilyGroupDashboardPage.jsx), which file every family under the group.
+const SIS_PATHS = {
+  preview: '/api/sis/roster-import/preview',
+  commit: '/api/sis/roster-import/commit',
+}
+
+export default function RosterImport({
+  orgId, orgName = 'your school', onImported, paths = SIS_PATHS,
+  // A family group's manager has no People page to send the emails from
+  // later, so that dashboard starts with them on and says what "off" means there.
+  sendEmailsDefault = false,
+  emailsOffHint = 'Leave this off to set the school up first. Each new person shows on People with a \u201cSend setup email\u201d button for when you are ready.',
+}) {
   const [rows, setRows] = useState(() => [blankRow(), blankRow(), blankRow()])
   const [order, setOrder] = useState(DEFAULT_ORDER)
   const [dragging, setDragging] = useState(null)
   const [dropTarget, setDropTarget] = useState(null)
-  const [sendEmails, setSendEmails] = useState(false)
+  const [sendEmails, setSendEmails] = useState(sendEmailsDefault)
   const [preview, setPreview] = useState(null)
   const [outcome, setOutcome] = useState(null)
   const [error, setError] = useState(null)
@@ -261,10 +274,7 @@ export default function RosterImport({ orgId, orgName = 'your school', onImporte
     setError(null)
     if (step === 'preview') previewedKeys.current = filledRows.map(row => row.key)
     try {
-      // Two literal paths, not one template: the client-path test reads them.
-      const path = step === 'preview'
-        ? '/api/sis/roster-import/preview'
-        : '/api/sis/roster-import/commit'
+      const path = step === 'preview' ? paths.preview : paths.commit
       const { data } = await api.post(path, {
         csv: toRosterText(filledRows),
         organization_id: orgId,
@@ -531,10 +541,7 @@ export default function RosterImport({ orgId, orgName = 'your school', onImporte
                 Email each new account a link to set their password now
               </label>
               {!sendEmails && (
-                <p className="text-xs text-gray-500 mt-1 ml-6">
-                  Leave this off to set the school up first. Each new person shows on People
-                  with a &ldquo;Send setup email&rdquo; button for when you are ready.
-                </p>
+                <p className="text-xs text-gray-500 mt-1 ml-6">{emailsOffHint}</p>
               )}
               <button
                 onClick={() => run('commit')}

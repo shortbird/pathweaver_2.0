@@ -94,9 +94,17 @@ export const queryKeys = {
 
   // SIS console. Everything here is org-scoped, so orgId is part of the key --
   // a superadmin switching orgs must not be served the previous org's cache.
+  // A family group's own dashboard (OpenEd), for the outside person who runs it.
+  familyGroups: {
+    mine: ['familyGroups', 'mine'],
+    students: (groupId) => ['familyGroups', groupId, 'students'],
+  },
+
   sis: {
     all: ['sis'],
     roster: (orgId) => [...queryKeys.sis.all, 'roster', orgId],
+    // A student's credit bank (banked, used, left) on their record.
+    creditBank: (studentId) => [...queryKeys.sis.all, 'creditBank', studentId],
     // School points (Apogee Cache Valley, 2026-10-08): the board, one
     // student's history, and a family's own.
     points: (orgId) => [...queryKeys.sis.all, 'points', orgId],

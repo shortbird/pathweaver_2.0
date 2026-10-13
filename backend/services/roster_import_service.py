@@ -762,7 +762,7 @@ def execute_plan(plan: Dict[str, Any], org_id: str, org_name: str, admin,
                 if student['status'] == 'adopt':
                     _adopt(admin, student_id, 'student', org_id)
                 entry.update(status='adopted' if student['status'] == 'adopt' else 'existing',
-                             invited=False)
+                             user_id=student_id, invited=False)
             elif is_dependent:
                 student_id = _create_dependent(admin, student['first_name'],
                                                student['last_name'], parent_id, org_id)
