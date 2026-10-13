@@ -92,6 +92,15 @@ class TestTheRosterGate:
                                'colors': {'primary': '#123456', 'secondary': None}}
         assert body['device'] == {'name': 'Room 2 iPad', 'class_id': None}
 
+    def test_the_roster_says_whether_the_school_has_the_journal(self, client):
+        # The tablet shows "Add to my journal" only where the journal is on.
+        with _kiosk({'kiosk': True}):
+            on = client.post('/api/kiosk/roster', json={'token': 'ksk_x'}).get_json()
+        with _kiosk({'kiosk': True, 'modules': {'journal': False}}):
+            off = client.post('/api/kiosk/roster', json={'token': 'ksk_x'}).get_json()
+        assert on['journal'] is True
+        assert off['journal'] is False
+
     def test_an_explicit_off_beats_the_legacy_flag(self, client):
         with _kiosk({'kiosk': True, 'modules': {'kiosk': False}}):
             res = client.post('/api/kiosk/roster', json={'token': 'ksk_x'})
@@ -261,7 +270,8 @@ class TestLimitingADeviceToAClass:
         device = res.get_json()['device']
         assert device['class_id'] == CLASS_ID
         assert device['class_name'] == 'Explorers'
-        assert rc.update.call_args.args[0] == {'class_id': CLASS_ID}
+        # A class scope replaces any hand-picked student list (one scope at a time).
+        assert rc.update.call_args.args[0] == {'class_id': CLASS_ID, 'student_ids': None}
 
     def test_a_class_from_another_school_is_refused_and_nothing_is_written(
             self, client, auth_headers, mock_verify_token):

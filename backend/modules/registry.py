@@ -261,15 +261,19 @@ def _defs() -> Tuple[ModuleDef, ...]:
                   ('Prior Learning',),
                   default='on', parent='sis', gate='optio_diploma', surfaces=('console', 'family'),
                   legacy='prior_learning_enabled'),
-        # A shared classroom device: tap your name, photograph your paper
-        # work into a quest task. It rides on core LMS surfaces only (quests,
+        # A shared classroom tablet: a student taps their name and
+        # photographs their work into a quest task or their learning journal.
+        # It is NOT a check-in or attendance kiosk -- it was labelled "Kiosk
+        # Check-In" until 2026-10-13, and that name led schools (Apogee Cache
+        # Valley, who also wanted arrival/pickup attendance) to expect a
+        # sign-in station at the door. It rides on core LMS surfaces only (quests,
         # tasks, evidence), so it has NO parent -- an LMS-only school can run
         # kiosks without taking on the SIS console. It carried parent='sis'
         # until 2026-09-07, when Arete Academy (no SIS) asked for it and the
         # device card turned out to be unreachable for them: the card sat on
         # the console-only settings surface, behind a block the SIS switch
         # kept off. Both settings surfaces carry the card now.
-        ModuleDef('kiosk', 'Kiosk Check-In', 'operations', ('Kiosk Check-In',),
+        ModuleDef('kiosk', 'Classroom Tablet', 'operations', ('Classroom Tablet',),
                   default='off', surfaces=('console', 'learning'),
                   legacy='kiosk_flag'),
     )

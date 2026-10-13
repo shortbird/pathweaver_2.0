@@ -189,7 +189,16 @@ const COMPONENTS = path.resolve(__dirname, '../components')
 // retired, and StaffFormsPage, FormBuilder, FormRoutingModal, the paperwork
 // and checklist-assignment components and MyChecklists went with their calls;
 // the new task components read through hooks/api/useTasks.
-const CALL_SITE_BASELINE = 693
+// 693 -> 701 on 2026-10-13, the classroom tablet (Apogee Cache Valley): six
+// calls in kiosk/KioskStudentSession.jsx for "Add to my journal" (topics read,
+// add, rename; the moment, its upload, its blocks) and two in
+// sis/KioskDevicesCard.jsx for hand-picked device rosters. Both files were
+// fully hand-rolled already. The kiosk one stays that way on purpose: one
+// browser serves child after child, and a query cache keyed on a URL like
+// /api/interest-tracks (no user id in it) is exactly how the previous child's
+// topics would appear on the next child's screen. Fetch-per-session is the
+// safe shape there.
+const CALL_SITE_BASELINE = 701
 const SLACK = 40
 
 const USES_HOOK = /useQuery|useMutation|hooks\/api/

@@ -103,7 +103,7 @@ OPTIO_FEATURES: Dict[str, Tuple[str, str, str]] = {
     'credits': ('credits', 'Credits', 'Students earn school credit for the work staff approve.'),
     'transcripts': ('credits', 'Transcripts and diplomas', 'Official transcripts and diplomas built from approved credit.'),
     'prior_learning': ('credits', 'Prior learning', 'Optio Academy reviews work and transcripts from before a student joined, for credit.'),
-    'kiosk': ('office', 'Sign-in kiosk', 'A tablet at the door where students sign in and out.'),
+    'kiosk': ('teaching', 'Classroom tablet', 'A shared tablet where students tap their name and photograph their work into a quest or their journal.'),
 }
 
 

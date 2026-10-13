@@ -28,16 +28,76 @@ import { INLINE_INPUT_CLASS as field } from '../ui/Input'
  * admin's, not Optio's, since 2026-09-07. Changing it never touches the iPad:
  * the kiosk re-reads its roster on every hand-off and every few minutes.
  *
+ * A school without classes can hand-pick the students instead ("Chosen
+ * students"). Apogee Cache Valley, 2026-10-13: their youngest children share
+ * one tablet, the school has no classes in Optio, and the grid listed every
+ * student in the school. One scope at a time: the server clears the class
+ * when a student list is saved, and the student list when a class is picked.
+ *
  * Props: orgId (uuid). Superadmins may manage any org; the orgId is always
  * passed explicitly so the card works in the SIS org-picker context.
  */
 
 const ALL_STUDENTS = ''
+const CHOSEN = '__chosen__'
+
+const studentLabel = (s) =>
+  s.display_name || [s.first_name, s.last_name].filter(Boolean).join(' ') || s.email || 'Student'
+
+/** Checkbox list of the school's students, for one device's hand-picked roster. */
+const StudentPicker = ({ deviceName, students, initial, onSave, onCancel }) => {
+  const [picked, setPicked] = useState(() => new Set(initial || []))
+  const [saving, setSaving] = useState(false)
+  const toggle = (id) => setPicked((prev) => {
+    const next = new Set(prev)
+    if (next.has(id)) next.delete(id)
+    else next.add(id)
+    return next
+  })
+  const save = async () => {
+    setSaving(true)
+    try { await onSave([...picked]) } finally { setSaving(false) }
+  }
+  return (
+    <div className="mt-2 border border-gray-200 rounded-lg p-3">
+      <p className="text-xs text-neutral-500 mb-2">Tick the students who should see their name on {deviceName}.</p>
+      {students.length === 0 ? (
+        <p className="text-sm text-neutral-400">No students in this school yet.</p>
+      ) : (
+        <div className="max-h-64 overflow-y-auto grid grid-cols-1 sm:grid-cols-2 gap-1">
+          {students.map((s) => (
+            <label key={s.id} className="flex items-center gap-2 text-sm text-neutral-800 py-1">
+              <input
+                type="checkbox"
+                checked={picked.has(s.id)}
+                onChange={() => toggle(s.id)}
+                className="rounded border-gray-300 text-optio-purple focus:ring-optio-purple"
+              />
+              {studentLabel(s)}
+            </label>
+          ))}
+        </div>
+      )}
+      <div className="flex items-center gap-3 mt-3">
+        <button
+          onClick={save}
+          disabled={saving || picked.size === 0}
+          className="px-4 py-1.5 rounded-lg bg-gradient-primary text-white text-sm font-medium disabled:opacity-50"
+        >
+          {saving ? 'Saving...' : `Save ${picked.size} student${picked.size === 1 ? '' : 's'}`}
+        </button>
+        <button onClick={onCancel} className="text-sm text-neutral-500 hover:underline">Cancel</button>
+      </div>
+    </div>
+  )
+}
 
 const KioskDevicesCard = ({ orgId }) => {
   const confirm = useConfirm()
   const [devices, setDevices] = useState([])
   const [classes, setClasses] = useState([])
+  const [students, setStudents] = useState([])
+  const [pickingFor, setPickingFor] = useState(null) // device id with the student picker open
   const [kioskEnabled, setKioskEnabled] = useState(true)
   const [loading, setLoading] = useState(true)
   const [name, setName] = useState('')
@@ -70,17 +130,32 @@ const KioskDevicesCard = ({ orgId }) => {
     }
   }, [orgId])
 
-  useEffect(() => { load(); loadClasses() }, [load, loadClasses])
+  // The school's students, for the "Chosen students" picker.
+  const loadStudents = useCallback(async () => {
+    if (!orgId) return
+    try {
+      const { data } = await api.get(`/api/organizations/${orgId}/students`)
+      const list = data.users || []
+      list.sort((a, b) => studentLabel(a).localeCompare(studentLabel(b)))
+      setStudents(list)
+    } catch {
+      setStudents([])
+    }
+  }, [orgId])
+
+  useEffect(() => { load(); loadClasses(); loadStudents() }, [load, loadClasses, loadStudents])
 
   const createDevice = async () => {
     if (!name.trim()) return toast.error('Give the device a name (e.g. "Room 2 iPad")')
     setCreating(true)
     try {
-      await api.post('/api/kiosk/devices', {
+      const { data } = await api.post('/api/kiosk/devices', {
         name: name.trim(),
         organization_id: orgId,
-        class_id: newClassId || null,
+        class_id: newClassId && newClassId !== CHOSEN ? newClassId : null,
       })
+      // "Chosen students" opens the picker on the new device's row.
+      if (newClassId === CHOSEN && data?.device?.id) setPickingFor(data.device.id)
       setName('')
       setNewClassId(ALL_STUDENTS)
       toast.success('Device added — its code is in the list below')
@@ -93,10 +168,29 @@ const KioskDevicesCard = ({ orgId }) => {
   }
 
   const setScope = async (device, classId) => {
+    if (classId === CHOSEN) {
+      setPickingFor(device.id)
+      return
+    }
+    setPickingFor(null)
     try {
-      await api.patch(`/api/kiosk/devices/${device.id}`, { class_id: classId || null })
+      // Choosing "All students" also drops a hand-picked list.
+      await api.patch(`/api/kiosk/devices/${device.id}`, classId
+        ? { class_id: classId }
+        : { class_id: null, student_ids: [] })
       const cls = classes.find((c) => c.id === classId)
       toast.success(cls ? `"${device.name}" now lists ${cls.name}` : `"${device.name}" now lists all students`)
+      load()
+    } catch (e) {
+      toast.error(e.response?.data?.error || 'Failed to update device')
+    }
+  }
+
+  const saveChosen = async (device, ids) => {
+    try {
+      await api.patch(`/api/kiosk/devices/${device.id}`, { student_ids: ids })
+      toast.success(`"${device.name}" now lists ${ids.length} student${ids.length === 1 ? '' : 's'}`)
+      setPickingFor(null)
       load()
     } catch (e) {
       toast.error(e.response?.data?.error || 'Failed to update device')
@@ -135,17 +229,18 @@ const KioskDevicesCard = ({ orgId }) => {
 
   return (
     <div className="bg-white rounded-xl border border-gray-200 p-6">
-      <h2 className="text-lg font-semibold text-neutral-900 mb-1">Kiosk devices</h2>
+      <h2 className="text-lg font-semibold text-neutral-900 mb-1">Classroom tablets</h2>
       <p className="text-sm text-neutral-500 mb-4">
         Shared classroom devices (like a class iPad) where students tap their name and photograph
-        their paper work into a quest task. Add a device here, then open{' '}
+        their work into a quest task or their learning journal. Add a device here, then open{' '}
         <span className="font-mono">{kioskUrl}</span> on the device and paste its code once.
-        {classes.length > 0 && ' Limit a device to a class so its name grid shows only that class.'}
+        {' '}Choose which students a device lists{classes.length > 0 ? ' (a class, or students you pick)' : ''} so
+        its name grid shows only them.
       </p>
 
       {!kioskEnabled && (
         <p className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-3 mb-4">
-          The kiosk feature is not enabled for this organization. Contact Optio to turn it on.
+          Classroom tablets are not turned on for this organization. Contact Optio to turn them on.
         </p>
       )}
 
@@ -153,7 +248,7 @@ const KioskDevicesCard = ({ orgId }) => {
         <p className="text-sm text-neutral-400 mb-4">Loading devices...</p>
       ) : (
         <div className="space-y-2 mb-4">
-          {devices.length === 0 && <p className="text-sm text-neutral-400">No kiosk devices yet.</p>}
+          {devices.length === 0 && <p className="text-sm text-neutral-400">No classroom tablets yet.</p>}
           {devices.map((d) => (
             <div key={d.id} className="border border-gray-100 rounded-lg px-3 py-2">
               <div className="flex flex-wrap items-center justify-between gap-2">
@@ -177,22 +272,38 @@ const KioskDevicesCard = ({ orgId }) => {
                 <>
                   <div className="flex flex-wrap items-center gap-2 mt-2">
                     <span className="text-xs text-neutral-500">Students:</span>
-                    {classes.length > 0 ? (
-                      <select
-                        className="rounded-lg border border-gray-300 px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-optio-purple"
-                        aria-label={`Students on ${d.name}`}
-                        value={d.class_id || ALL_STUDENTS}
-                        onChange={(e) => setScope(d, e.target.value)}
-                      >
-                        <option value={ALL_STUDENTS}>All students</option>
-                        {scopeOptions(d).map((c) => (
-                          <option key={c.id} value={c.id}>{c.name}</option>
-                        ))}
-                      </select>
-                    ) : (
-                      <span className="text-sm text-neutral-700">{d.class_name || 'All students'}</span>
+                    <select
+                      className="rounded-lg border border-gray-300 px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-optio-purple"
+                      aria-label={`Students on ${d.name}`}
+                      value={pickingFor === d.id || d.student_ids?.length ? CHOSEN : (d.class_id || ALL_STUDENTS)}
+                      onChange={(e) => setScope(d, e.target.value)}
+                    >
+                      <option value={ALL_STUDENTS}>All students</option>
+                      {scopeOptions(d).map((c) => (
+                        <option key={c.id} value={c.id}>{c.name}</option>
+                      ))}
+                      <option value={CHOSEN}>Chosen students</option>
+                    </select>
+                    {d.student_ids?.length > 0 && pickingFor !== d.id && (
+                      <>
+                        <span className="text-sm text-neutral-700">
+                          {d.student_ids.length} student{d.student_ids.length === 1 ? '' : 's'}
+                        </span>
+                        <button onClick={() => setPickingFor(d.id)} className="text-sm font-medium text-optio-purple hover:underline">
+                          Edit
+                        </button>
+                      </>
                     )}
                   </div>
+                  {pickingFor === d.id && (
+                    <StudentPicker
+                      deviceName={d.name}
+                      students={students}
+                      initial={d.student_ids}
+                      onSave={(ids) => saveChosen(d, ids)}
+                      onCancel={() => setPickingFor(null)}
+                    />
+                  )}
                   <div className="flex flex-wrap items-center gap-2 mt-2">
                     <span className="text-xs text-neutral-500">Code:</span>
                     {d.token ? (
@@ -228,20 +339,19 @@ const KioskDevicesCard = ({ orgId }) => {
           onChange={(e) => setName(e.target.value)}
           disabled={!kioskEnabled}
         />
-        {classes.length > 0 && (
-          <select
-            className={field}
-            aria-label="Limit to class"
-            value={newClassId}
-            onChange={(e) => setNewClassId(e.target.value)}
-            disabled={!kioskEnabled}
-          >
-            <option value={ALL_STUDENTS}>All students</option>
-            {classes.map((c) => (
-              <option key={c.id} value={c.id}>{c.name}</option>
-            ))}
-          </select>
-        )}
+        <select
+          className={field}
+          aria-label="Limit to class"
+          value={newClassId}
+          onChange={(e) => setNewClassId(e.target.value)}
+          disabled={!kioskEnabled}
+        >
+          <option value={ALL_STUDENTS}>All students</option>
+          {classes.map((c) => (
+            <option key={c.id} value={c.id}>{c.name}</option>
+          ))}
+          <option value={CHOSEN}>Chosen students</option>
+        </select>
         <button
           onClick={createDevice}
           disabled={creating || !kioskEnabled}

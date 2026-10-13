@@ -32,6 +32,15 @@ import api from '../../services/api'
  * one: `capture="environment"` is what opens the camera straight away on an
  * iPad, and the same attribute is what keeps the library out of reach.
  *
+ * Not every piece of work belongs to a quest (2026-10-13, Apogee Cache
+ * Valley: young children share one tablet, the school has no classes, and
+ * many children have no quest at all). "Add to my journal" saves the photos
+ * as a learning moment instead, under a topic the student picks, adds or
+ * renames on the spot -- the same interest tracks the journal page uses, so
+ * a topic made here is the one they see at home. It replaced a dead end: a
+ * child with no quest used to see only "Ask your teacher to assign one".
+ * Hidden where the school has switched the journal off (journalEnabled).
+ *
  * Defensive by design: every network step surfaces a friendly retryable error
  * instead of throwing, because this runs unattended on a shared iPad.
  */
@@ -60,6 +69,85 @@ const Header = ({ title, subtitle, onBack, onSignOut }) => (
   </div>
 )
 
+/**
+ * The photo grid both flows share: thumbnails, the camera, and the photo
+ * library. Two inputs, not one: `capture="environment"` is what opens the
+ * camera straight away on an iPad, and the same attribute is what keeps the
+ * library out of reach.
+ */
+const PhotoCapture = ({ photos, onAdd, onRemove, disabled }) => {
+  const cameraInputRef = useRef(null)
+  const libraryInputRef = useRef(null)
+  return (
+    <>
+      <input
+        ref={cameraInputRef}
+        type="file"
+        accept="image/*"
+        capture="environment"
+        multiple
+        className="hidden"
+        aria-label="Take a photo"
+        onChange={(e) => { onAdd(e.target.files); e.target.value = '' }}
+      />
+      <input
+        ref={libraryInputRef}
+        type="file"
+        accept="image/*"
+        multiple
+        className="hidden"
+        aria-label="Choose from photos"
+        onChange={(e) => { onAdd(e.target.files); e.target.value = '' }}
+      />
+      <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
+        {photos.map((p, i) => (
+          <div key={p.previewUrl} className="relative">
+            <img src={p.previewUrl} alt={`Photo ${i + 1}`} className="w-full aspect-square object-cover rounded-xl" />
+            {!disabled && (
+              <button
+                onClick={() => onRemove(i)}
+                aria-label={`Remove photo ${i + 1}`}
+                className="absolute -top-2 -right-2 w-7 h-7 rounded-full bg-rose-600 text-white font-bold shadow"
+              >
+                x
+              </button>
+            )}
+          </div>
+        ))}
+        {!disabled && (
+          <>
+            <button
+              onClick={() => cameraInputRef.current && cameraInputRef.current.click()}
+              className="aspect-square rounded-xl border-2 border-dashed border-neutral-300 flex flex-col items-center justify-center text-neutral-400 hover:border-optio-purple hover:text-optio-purple touch-manipulation"
+            >
+              <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                  d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
+              <span className="text-sm font-semibold mt-1">{photos.length ? 'Add another' : 'Take photo'}</span>
+            </button>
+            <button
+              onClick={() => libraryInputRef.current && libraryInputRef.current.click()}
+              className="aspect-square rounded-xl border-2 border-dashed border-neutral-300 flex flex-col items-center justify-center text-neutral-400 hover:border-optio-purple hover:text-optio-purple touch-manipulation"
+            >
+              <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                  d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+              </svg>
+              <span className="text-sm font-semibold mt-1">Choose from photos</span>
+            </button>
+          </>
+        )}
+      </div>
+    </>
+  )
+}
+
+// The journal shows the description as the moment's body, and the server
+// requires one. A child who skips the caption still gets a readable entry.
+const DEFAULT_JOURNAL_CAPTION = 'Photo of my work'
+
 /** The dashboard payload -> the two lists the kiosk offers. */
 function shapeDashboard(data) {
   const active = (data?.active_quests || [])
@@ -86,8 +174,9 @@ function shapeDashboard(data) {
   return { active, assigned }
 }
 
-export default function KioskStudentSession({ studentName, accentColor, onFinished }) {
-  // step: loading | quests | tasks | newTask | capture | uploading | done | error
+export default function KioskStudentSession({ studentName, accentColor, onFinished, journalEnabled = true }) {
+  // step: loading | quests | tasks | newTask | capture | uploading
+  //     | journalTopic | journalCapture | journalSaving | done | error
   const [step, setStep] = useState('loading')
   const [quests, setQuests] = useState([])
   const [assigned, setAssigned] = useState([])
@@ -97,8 +186,14 @@ export default function KioskStudentSession({ studentName, accentColor, onFinish
   const [newTaskTitle, setNewTaskTitle] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
-  const cameraInputRef = useRef(null)
-  const libraryInputRef = useRef(null)
+  // Journal: the student's topics, the one picked (null = no topic), the row
+  // being renamed, and the caption for the moment.
+  const [topics, setTopics] = useState([])
+  const [topic, setTopic] = useState(null)
+  const [topicDraft, setTopicDraft] = useState('')
+  const [renamingId, setRenamingId] = useState(null) // topic id, or 'new'
+  const [caption, setCaption] = useState('')
+  const [savedTo, setSavedTo] = useState('quest') // which done message to show
   const doneTimer = useRef(null)
 
   // The student's quests (started + assigned) via the standard dashboard API.
@@ -236,12 +331,114 @@ export default function KioskStudentSession({ studentName, accentColor, onFinish
       })
       if (!saved?.success) throw new Error(saved?.error || 'Save failed')
 
+      setSavedTo('quest')
       setStep('done')
       // Auto sign-out back to the name grid after a short celebration.
       doneTimer.current = setTimeout(() => onFinished(), 6000)
     } catch (e) {
       setError(e?.response?.data?.error || 'Something went wrong saving your work. Try again.')
       setStep('capture')
+    }
+  }
+
+  const clearPhotos = () => {
+    setPhotos((prev) => {
+      prev.forEach((p) => URL.revokeObjectURL(p.previewUrl))
+      return []
+    })
+  }
+
+  // "Add to my journal": load the student's topics, then let them pick one.
+  const openJournal = async () => {
+    setError('')
+    setTopic(null)
+    setRenamingId(null)
+    setCaption('')
+    clearPhotos()
+    setStep('journalTopic')
+    try {
+      const { data } = await api.get('/api/interest-tracks')
+      setTopics(data?.tracks || [])
+    } catch {
+      setTopics([])
+      setError('Could not load your topics. You can still save without one.')
+    }
+  }
+
+  // Add a topic ('new') or rename one, from the same inline field.
+  const saveTopicName = async () => {
+    const name = topicDraft.trim()
+    if (!name) return
+    setBusy(true)
+    setError('')
+    try {
+      if (renamingId === 'new') {
+        const { data } = await api.post('/api/interest-tracks', { name })
+        const created = data?.track
+        if (!created?.id) throw new Error(data?.error || 'Could not add that topic')
+        setTopics((prev) => [created, ...prev])
+      } else {
+        const { data } = await api.put(`/api/interest-tracks/${renamingId}`, { name })
+        const updated = data?.track || { id: renamingId, name }
+        setTopics((prev) => prev.map((t) => (t.id === renamingId ? { ...t, ...updated } : t)))
+        setTopic((cur) => (cur && cur.id === renamingId ? { ...cur, ...updated } : cur))
+      }
+      setRenamingId(null)
+      setTopicDraft('')
+    } catch (e) {
+      setError(e?.response?.data?.error || 'Could not save that topic. Try again.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const pickTopic = (t) => {
+    setTopic(t)
+    setError('')
+    setStep('journalCapture')
+  }
+
+  // The moment, then each photo into its storage, then the blocks that point
+  // at them -- the journal's own three calls. Blocks store `file_url`, the
+  // durable pointer, never a signed display URL that expires.
+  const saveJournal = async () => {
+    if (photos.length === 0) return
+    setStep('journalSaving')
+    setError('')
+    try {
+      const description = caption.trim() || DEFAULT_JOURNAL_CAPTION
+      const { data } = await api.post('/api/learning-events/quick', {
+        description,
+        ...(topic ? { topics: [{ type: 'topic', id: topic.id }] } : {}),
+      })
+      const eventId = data?.event?.id
+      if (!eventId) throw new Error(data?.error || 'Could not save to your journal')
+
+      const blocks = []
+      for (const [i, p] of photos.entries()) {
+        const form = new FormData()
+        form.append('file', p.file)
+        form.append('block_type', 'image')
+        const upload = await api.post(`/api/learning-events/${eventId}/upload`, form, {
+          headers: { 'Content-Type': 'multipart/form-data' },
+        })
+        if (!upload?.data?.file_url) throw new Error(upload?.data?.error || 'Upload failed')
+        blocks.push({
+          block_type: 'image',
+          order_index: i,
+          file_url: upload.data.file_url,
+          file_name: upload.data.filename || p.file.name,
+          content: { url: upload.data.file_url, caption: description, alt_text: description },
+        })
+      }
+      await api.post(`/api/learning-events/${eventId}/evidence`, { blocks })
+
+      setSavedTo('journal')
+      setStep('done')
+      doneTimer.current = setTimeout(() => onFinished(), 6000)
+    } catch (e) {
+      setError(e?.response?.data?.error || e?.message || 'Something went wrong saving your work. Try again.')
+      setStep('journalCapture')
     }
   }
 
@@ -275,7 +472,11 @@ export default function KioskStudentSession({ studentName, accentColor, onFinish
         <h1 className="text-3xl font-bold text-neutral-900" style={accent ? { color: accent } : undefined}>
           Nice work, {studentName}!
         </h1>
-        <p className="text-neutral-500">Your work was turned in.</p>
+        <p className="text-neutral-500">
+          {savedTo === 'journal'
+            ? `Saved to your journal${topic ? ` in ${topic.name}` : ''}.`
+            : 'Your work was turned in.'}
+        </p>
         <button onClick={onFinished} className={btnPrimary}>Done</button>
       </div>
     )
@@ -286,15 +487,39 @@ export default function KioskStudentSession({ studentName, accentColor, onFinish
       <div className="max-w-3xl mx-auto">
         {step === 'quests' && (
           <>
-            <Header title={`Hi, ${studentName}!`} subtitle="Which quest is this work for?" onSignOut={onFinished} />
+            <Header
+              title={`Hi, ${studentName}!`}
+              subtitle={journalEnabled ? 'Where does this work go?' : 'Which quest is this work for?'}
+              onSignOut={onFinished}
+            />
             {error && (
               <div className="bg-rose-50 border border-rose-200 text-rose-700 rounded-xl p-4 mb-4">{error}</div>
             )}
+            {journalEnabled && (
+              <button
+                onClick={openJournal}
+                className="w-full mb-6 rounded-2xl p-5 flex items-center gap-4 text-left text-white shadow-sm hover:shadow-md active:scale-[0.99] transition touch-manipulation bg-gradient-to-r from-optio-purple to-optio-pink"
+                style={accent ? { background: accent } : undefined}
+              >
+                <span className="w-12 h-12 rounded-full bg-white/20 flex items-center justify-center shrink-0">
+                  <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                      d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+                  </svg>
+                </span>
+                <span>
+                  <span className="block text-lg font-bold">Add to my journal</span>
+                  <span className="block text-sm opacity-90">Photos of anything you made or learned</span>
+                </span>
+              </button>
+            )}
             {quests.length === 0 && assigned.length === 0 ? (
-              <div className="bg-white rounded-2xl p-8 text-center">
-                <p className="text-neutral-600 font-semibold">You don't have any quests yet.</p>
-                <p className="text-neutral-400 text-sm mt-1">Ask your teacher to assign one to your class.</p>
-              </div>
+              !journalEnabled && (
+                <div className="bg-white rounded-2xl p-8 text-center">
+                  <p className="text-neutral-600 font-semibold">You don't have any quests yet.</p>
+                  <p className="text-neutral-400 text-sm mt-1">Ask your teacher to assign one to your class.</p>
+                </div>
+              )
             ) : (
               <>
                 {quests.length > 0 && (
@@ -421,66 +646,12 @@ export default function KioskStudentSession({ studentName, accentColor, onFinish
             {error && (
               <div className="bg-rose-50 border border-rose-200 text-rose-700 rounded-xl p-4 mb-4">{error}</div>
             )}
-            <input
-              ref={cameraInputRef}
-              type="file"
-              accept="image/*"
-              capture="environment"
-              multiple
-              className="hidden"
-              aria-label="Take a photo"
-              onChange={(e) => { addPhotos(e.target.files); e.target.value = '' }}
+            <PhotoCapture
+              photos={photos}
+              onAdd={addPhotos}
+              onRemove={removePhoto}
+              disabled={step === 'uploading'}
             />
-            <input
-              ref={libraryInputRef}
-              type="file"
-              accept="image/*"
-              multiple
-              className="hidden"
-              aria-label="Choose from photos"
-              onChange={(e) => { addPhotos(e.target.files); e.target.value = '' }}
-            />
-            <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
-              {photos.map((p, i) => (
-                <div key={p.previewUrl} className="relative">
-                  <img src={p.previewUrl} alt={`Photo ${i + 1}`} className="w-full aspect-square object-cover rounded-xl" />
-                  {step === 'capture' && (
-                    <button
-                      onClick={() => removePhoto(i)}
-                      aria-label={`Remove photo ${i + 1}`}
-                      className="absolute -top-2 -right-2 w-7 h-7 rounded-full bg-rose-600 text-white font-bold shadow"
-                    >
-                      x
-                    </button>
-                  )}
-                </div>
-              ))}
-              {step === 'capture' && (
-                <>
-                  <button
-                    onClick={() => cameraInputRef.current && cameraInputRef.current.click()}
-                    className="aspect-square rounded-xl border-2 border-dashed border-neutral-300 flex flex-col items-center justify-center text-neutral-400 hover:border-optio-purple hover:text-optio-purple touch-manipulation"
-                  >
-                    <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                        d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
-                    </svg>
-                    <span className="text-sm font-semibold mt-1">{photos.length ? 'Add another' : 'Take photo'}</span>
-                  </button>
-                  <button
-                    onClick={() => libraryInputRef.current && libraryInputRef.current.click()}
-                    className="aspect-square rounded-xl border-2 border-dashed border-neutral-300 flex flex-col items-center justify-center text-neutral-400 hover:border-optio-purple hover:text-optio-purple touch-manipulation"
-                  >
-                    <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                        d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                    </svg>
-                    <span className="text-sm font-semibold mt-1">Choose from photos</span>
-                  </button>
-                </>
-              )}
-            </div>
             <div className="mt-8">
               <button
                 onClick={submit}
@@ -491,6 +662,137 @@ export default function KioskStudentSession({ studentName, accentColor, onFinish
                 {step === 'uploading'
                   ? 'Turning in your work...'
                   : `Turn in ${photos.length || ''} photo${photos.length === 1 ? '' : 's'}`}
+              </button>
+            </div>
+          </>
+        )}
+        {step === 'journalTopic' && (
+          <>
+            <Header
+              title="Add to my journal"
+              subtitle="Which topic is this for?"
+              onBack={() => { setError(''); setRenamingId(null); setStep('quests') }}
+              onSignOut={onFinished}
+            />
+            {error && (
+              <div className="bg-rose-50 border border-rose-200 text-rose-700 rounded-xl p-4 mb-4">{error}</div>
+            )}
+            <div className="space-y-3">
+              {topics.map((t) => (
+                renamingId === t.id ? (
+                  <div key={t.id} className="w-full bg-white rounded-2xl p-3 flex items-center gap-2 shadow-sm">
+                    <input
+                      value={topicDraft}
+                      onChange={(e) => setTopicDraft(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === 'Enter') saveTopicName() }}
+                      aria-label="Topic name"
+                      autoFocus
+                      maxLength={80}
+                      className="flex-1 rounded-xl border border-neutral-200 px-4 py-3 text-lg focus:outline-none focus:ring-2 focus:ring-optio-purple"
+                    />
+                    <button onClick={saveTopicName} disabled={busy || !topicDraft.trim()} className={btnPrimary}>
+                      {busy ? 'Saving...' : 'Save'}
+                    </button>
+                    <button onClick={() => setRenamingId(null)} className="text-sm text-neutral-500 px-2">Cancel</button>
+                  </div>
+                ) : (
+                  <div key={t.id} className="w-full bg-white rounded-2xl flex items-center shadow-sm hover:shadow-md transition">
+                    <button
+                      onClick={() => pickTopic(t)}
+                      className="flex-1 p-4 flex items-center gap-3 text-left touch-manipulation"
+                    >
+                      <span className="w-4 h-4 rounded-full shrink-0" style={{ background: t.color || '#B794F6' }} />
+                      <span className="font-semibold text-neutral-900">{t.name}</span>
+                    </button>
+                    <button
+                      onClick={() => { setRenamingId(t.id); setTopicDraft(t.name || ''); setError('') }}
+                      aria-label={`Rename ${t.name}`}
+                      className="p-4 text-neutral-400 hover:text-optio-purple touch-manipulation"
+                    >
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                          d="M15.232 5.232l3.536 3.536M9 13l6.232-6.232a2.5 2.5 0 113.536 3.536L12.536 16.536 9 17l.464-3.536z" />
+                      </svg>
+                    </button>
+                  </div>
+                )
+              ))}
+              {renamingId === 'new' ? (
+                <div className="w-full bg-white rounded-2xl p-3 flex items-center gap-2 shadow-sm">
+                  <input
+                    value={topicDraft}
+                    onChange={(e) => setTopicDraft(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') saveTopicName() }}
+                    placeholder="Reading"
+                    aria-label="New topic name"
+                    autoFocus
+                    maxLength={80}
+                    className="flex-1 rounded-xl border border-neutral-200 px-4 py-3 text-lg focus:outline-none focus:ring-2 focus:ring-optio-purple"
+                  />
+                  <button onClick={saveTopicName} disabled={busy || !topicDraft.trim()} className={btnPrimary}>
+                    {busy ? 'Saving...' : 'Add'}
+                  </button>
+                  <button onClick={() => setRenamingId(null)} className="text-sm text-neutral-500 px-2">Cancel</button>
+                </div>
+              ) : (
+                <button
+                  onClick={() => { setRenamingId('new'); setTopicDraft(''); setError('') }}
+                  className="w-full rounded-2xl p-4 flex items-center gap-3 text-left border-2 border-dashed border-neutral-300 text-neutral-600 hover:border-optio-purple hover:text-optio-purple touch-manipulation"
+                >
+                  <span className="w-9 h-9 rounded-full bg-white shadow-sm flex items-center justify-center text-2xl font-bold leading-none">+</span>
+                  <span className="font-semibold">New topic</span>
+                </button>
+              )}
+              <button
+                onClick={() => pickTopic(null)}
+                className="w-full rounded-2xl p-4 text-left text-neutral-500 font-semibold hover:text-optio-purple touch-manipulation"
+              >
+                Skip: save without a topic
+              </button>
+            </div>
+          </>
+        )}
+
+        {(step === 'journalCapture' || step === 'journalSaving') && (
+          <>
+            <Header
+              title={topic ? topic.name : 'My journal'}
+              subtitle="Take a photo of your work"
+              onBack={step === 'journalCapture' ? () => { setError(''); setStep('journalTopic') } : undefined}
+              onSignOut={onFinished}
+            />
+            {error && (
+              <div className="bg-rose-50 border border-rose-200 text-rose-700 rounded-xl p-4 mb-4">{error}</div>
+            )}
+            <PhotoCapture
+              photos={photos}
+              onAdd={addPhotos}
+              onRemove={removePhoto}
+              disabled={step === 'journalSaving'}
+            />
+            <label htmlFor="kiosk-journal-caption" className="block text-neutral-500 font-semibold mt-6">
+              What did you do?
+            </label>
+            <input
+              id="kiosk-journal-caption"
+              value={caption}
+              onChange={(e) => setCaption(e.target.value)}
+              disabled={step === 'journalSaving'}
+              placeholder="I read a level 3 book"
+              autoComplete="off"
+              maxLength={200}
+              className="w-full mt-1 rounded-2xl border border-neutral-200 bg-white px-5 py-4 text-xl focus:outline-none focus:ring-2 focus:ring-optio-purple disabled:opacity-60"
+            />
+            <div className="mt-8">
+              <button
+                onClick={saveJournal}
+                disabled={photos.length === 0 || step === 'journalSaving'}
+                className={`w-full ${btnPrimary}`}
+                style={accent ? { background: accent } : undefined}
+              >
+                {step === 'journalSaving'
+                  ? 'Saving to your journal...'
+                  : `Save ${photos.length || ''} photo${photos.length === 1 ? '' : 's'} to my journal`}
               </button>
             </div>
           </>

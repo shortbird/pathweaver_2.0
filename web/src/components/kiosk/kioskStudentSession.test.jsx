@@ -9,11 +9,15 @@
  *
  * The capture screen takes photos from the camera roll as well as the camera
  * (Arete, 2026-09-15: "upload things we got pics of throughout the day").
+ *
+ * "Add to my journal" saves work that belongs to no quest, under a topic the
+ * child picks, adds or renames on the tablet (Apogee Cache Valley,
+ * 2026-10-13: no classes, and many young children with no quest at all).
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 
-const { api } = vi.hoisted(() => ({ api: { get: vi.fn(), post: vi.fn() } }))
+const { api } = vi.hoisted(() => ({ api: { get: vi.fn(), post: vi.fn(), put: vi.fn() } }))
 vi.mock('../../services/api', () => ({ default: api }))
 
 import KioskStudentSession from './KioskStudentSession'
@@ -159,10 +163,98 @@ describe('KioskStudentSession', () => {
     })
   })
 
-  it('with nothing started and nothing assigned, points at the teacher', async () => {
+  it('with the journal off and nothing started or assigned, points at the teacher', async () => {
     api.get.mockResolvedValueOnce(dashboard())
-    render(<KioskStudentSession studentName="Ada" onFinished={vi.fn()} />)
+    render(<KioskStudentSession studentName="Ada" onFinished={vi.fn()} journalEnabled={false} />)
     expect(await screen.findByText("You don't have any quests yet.")).toBeInTheDocument()
     expect(screen.getByText(/assign one to your class/)).toBeInTheDocument()
+    expect(screen.queryByText('Add to my journal')).not.toBeInTheDocument()
+  })
+
+  describe('add to my journal', () => {
+    const TOPICS = [{ id: 'tr-read', name: 'Reading', color: '#123456' }]
+
+    beforeEach(() => {
+      globalThis.URL.createObjectURL = vi.fn((file) => `blob:${file.name}`)
+      globalThis.URL.revokeObjectURL = vi.fn()
+    })
+
+    const openJournal = async () => {
+      api.get
+        .mockResolvedValueOnce(dashboard())
+        .mockResolvedValueOnce({ data: { success: true, tracks: TOPICS } })
+      render(<KioskStudentSession studentName="Ada" onFinished={vi.fn()} />)
+      // A child with no quest is no longer at a dead end.
+      expect(screen.queryByText(/assign one to your class/)).not.toBeInTheDocument()
+      fireEvent.click(await screen.findByText('Add to my journal'))
+      await screen.findByText('Which topic is this for?')
+      await waitFor(() => expect(api.get).toHaveBeenCalledWith('/api/interest-tracks'))
+    }
+
+    const addPhoto = () => {
+      const picked = new File(['jpg'], 'page.jpg', { type: 'image/jpeg' })
+      fireEvent.change(screen.getByLabelText('Choose from photos'), { target: { files: [picked] } })
+    }
+
+    it('saves the photos as a journal moment under the chosen topic', async () => {
+      await openJournal()
+      api.post.mockImplementation(async (url) => {
+        if (url === '/api/learning-events/quick') return { data: { success: true, event: { id: 'ev1' } } }
+        if (url === '/api/learning-events/ev1/upload') return { data: { file_url: 'https://x/page.jpg', filename: 'page.jpg' } }
+        return { data: { success: true } }
+      })
+      fireEvent.click(await screen.findByText('Reading'))
+      expect(await screen.findByText('Take a photo of your work')).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: /to my journal/ })).toBeDisabled()
+      addPhoto()
+      fireEvent.change(screen.getByLabelText('What did you do?'), { target: { value: 'I read a level 3 book' } })
+      fireEvent.click(screen.getByRole('button', { name: 'Save 1 photo to my journal' }))
+
+      await waitFor(() => expect(api.post).toHaveBeenCalledWith('/api/learning-events/quick', {
+        description: 'I read a level 3 book',
+        topics: [{ type: 'topic', id: 'tr-read' }],
+      }))
+      expect(await screen.findByText('Saved to your journal in Reading.')).toBeInTheDocument()
+      const evidence = api.post.mock.calls.find(([url]) => url === '/api/learning-events/ev1/evidence')
+      expect(evidence[1].blocks).toEqual([expect.objectContaining({
+        block_type: 'image', file_url: 'https://x/page.jpg',
+      })])
+    })
+
+    it('a new topic can be added on the tablet and appears in the list', async () => {
+      await openJournal()
+      api.post.mockResolvedValueOnce({ data: { success: true, track: { id: 'tr-math', name: 'Math' } } })
+      fireEvent.click(screen.getByText('New topic'))
+      fireEvent.change(screen.getByLabelText('New topic name'), { target: { value: ' Math ' } })
+      fireEvent.click(screen.getByText('Add'))
+      await waitFor(() => expect(api.post).toHaveBeenCalledWith('/api/interest-tracks', { name: 'Math' }))
+      expect(await screen.findByText('Math')).toBeInTheDocument()
+    })
+
+    it('a topic can be renamed in place', async () => {
+      await openJournal()
+      api.put.mockResolvedValueOnce({ data: { success: true, track: { id: 'tr-read', name: 'Waseca Reading' } } })
+      fireEvent.click(await screen.findByLabelText('Rename Reading'))
+      fireEvent.change(screen.getByLabelText('Topic name'), { target: { value: 'Waseca Reading' } })
+      fireEvent.click(screen.getByText('Save'))
+      await waitFor(() => expect(api.put).toHaveBeenCalledWith('/api/interest-tracks/tr-read', { name: 'Waseca Reading' }))
+      expect(await screen.findByText('Waseca Reading')).toBeInTheDocument()
+    })
+
+    it('a moment can be saved without a topic, with a readable caption', async () => {
+      await openJournal()
+      api.post.mockImplementation(async (url) => {
+        if (url === '/api/learning-events/quick') return { data: { success: true, event: { id: 'ev2' } } }
+        if (url.endsWith('/upload')) return { data: { file_url: 'https://x/p.jpg' } }
+        return { data: { success: true } }
+      })
+      fireEvent.click(screen.getByText('Skip: save without a topic'))
+      await screen.findByText('Take a photo of your work')
+      addPhoto()
+      fireEvent.click(screen.getByRole('button', { name: 'Save 1 photo to my journal' }))
+      await waitFor(() => expect(api.post).toHaveBeenCalledWith('/api/learning-events/quick',
+        { description: 'Photo of my work' }))
+      expect(await screen.findByText('Saved to your journal.')).toBeInTheDocument()
+    })
   })
 })

@@ -15,8 +15,9 @@ import KioskStudentSession from '../components/kiosk/KioskStudentSession'
  * once (kept in localStorage). The device then shows the org-branded student
  * name grid; tapping a name mints a real student session server-side
  * (httpOnly cookies via POST /api/kiosk/login) and enters "student mode",
- * where the student photographs their paper work and attaches it to a quest
- * task through the standard evidence endpoints. Every session ends with a
+ * where the student photographs their work and attaches it to a quest task
+ * (standard evidence endpoints) or saves it to their learning journal under a
+ * topic. A classroom tablet, not a check-in station. Every session ends with a
  * full logout (authService.logout clears cookies + all client auth state) so
  * nothing leaks between students. Standalone route — must be mounted OUTSIDE
  * the authed app Layout, like /treehouse-kiosk.
@@ -42,7 +43,7 @@ export default function KioskPage() {
     if (!silent) setBusy(true)
     try {
       const { data } = await api.post('/api/kiosk/roster', { token: t })
-      setRoster({ org: data.org || {}, students: data.students || [] })
+      setRoster({ org: data.org || {}, students: data.students || [], journal: data.journal !== false })
       setError('')
       try { localStorage.setItem(TOKEN_KEY, t) } catch { /* private mode */ }
       setToken(t)
@@ -122,6 +123,7 @@ export default function KioskPage() {
       <KioskStudentSession
         studentName={activeStudent.name}
         accentColor={roster?.org?.colors?.primary || null}
+        journalEnabled={roster?.journal !== false}
         onFinished={signOut}
       />
     )

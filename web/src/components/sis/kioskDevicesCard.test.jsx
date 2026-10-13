@@ -10,6 +10,9 @@
  *
  * Class scope existed on the backend from the start but had no control here,
  * so limiting an iPad to a room's students was a hand edit by Optio.
+ *
+ * A school without classes (Apogee Cache Valley, 2026-10-13) hand-picks the
+ * students instead: "Chosen students" opens a checkbox list.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
@@ -22,6 +25,11 @@ vi.mock('../../utils/appSurface', () => ({ getLearningOrigin: () => 'https://app
 
 import KioskDevicesCard from './KioskDevicesCard'
 
+const STUDENTS = [
+  { id: 's-ada', first_name: 'Ada', last_name: 'Lovelace' },
+  { id: 's-bo', first_name: 'Bo', last_name: 'Diddley' },
+]
+
 const CLASSES = [
   { id: 'c-explorers', name: 'Explorers', status: 'active' },
   { id: 'c-chesapeake', name: 'Chesapeake', status: 'active' },
@@ -33,12 +41,14 @@ const devices = [
   { id: 'd3', name: 'Retired iPad', token: null, class_id: null, class_name: null, is_active: false, last_used_at: null },
 ]
 
-// One GET answers both the device list and the class list.
+// One GET answers the device list, the class list and the student list.
 const serve = ({ devices: list = devices, kioskEnabled = true, classes = CLASSES } = {}) =>
   api.get.mockImplementation(async (url) =>
     url.includes('/classes')
       ? { data: { success: true, classes } }
-      : { data: { success: true, devices: list, kiosk_enabled: kioskEnabled } })
+      : url.includes('/students')
+        ? { data: { success: true, users: STUDENTS } }
+        : { data: { success: true, devices: list, kiosk_enabled: kioskEnabled } })
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -72,7 +82,7 @@ describe('KioskDevicesCard', () => {
       return { data: { success: true, device: list[0], device_token: 'ksk_room3code' } }
     })
     render(<KioskDevicesCard orgId="org-1" />)
-    await screen.findByText('No kiosk devices yet.')
+    await screen.findByText('No classroom tablets yet.')
     fireEvent.change(screen.getByPlaceholderText(/Device name/), { target: { value: 'Room 3 iPad' } })
     fireEvent.click(screen.getByText('Add device'))
     await waitFor(() => expect(api.post).toHaveBeenCalledWith('/api/kiosk/devices',
@@ -102,7 +112,7 @@ describe('KioskDevicesCard', () => {
     fireEvent.change(picker, { target: { value: 'c-chesapeake' } })
     await waitFor(() => expect(api.patch).toHaveBeenCalledWith('/api/kiosk/devices/d1', { class_id: 'c-chesapeake' }))
     fireEvent.change(picker, { target: { value: '' } })
-    await waitFor(() => expect(api.patch).toHaveBeenCalledWith('/api/kiosk/devices/d1', { class_id: null }))
+    await waitFor(() => expect(api.patch).toHaveBeenCalledWith('/api/kiosk/devices/d1', { class_id: null, student_ids: [] }))
   })
 
   it('a device scoped to a class that has since been archived still shows that class', async () => {
@@ -113,18 +123,33 @@ describe('KioskDevicesCard', () => {
     expect(picker).toHaveTextContent('Class of 2025')
   })
 
-  it('a school with no classes gets no picker: every device lists everyone', async () => {
+  it('a school with no classes can still hand-pick the students a device lists', async () => {
     serve({ classes: [] })
+    api.patch.mockResolvedValue({ data: { success: true } })
     render(<KioskDevicesCard orgId="org-1" />)
-    await screen.findByText('ksk_room2code')
-    expect(screen.queryByLabelText('Limit to class')).not.toBeInTheDocument()
-    expect(screen.getAllByText('All students').length).toBeGreaterThan(0)
+    const picker = await screen.findByLabelText('Students on Room 2 iPad')
+    expect(picker).toHaveTextContent('All students')
+    expect(picker).toHaveTextContent('Chosen students')
+    fireEvent.change(picker, { target: { value: '__chosen__' } })
+    fireEvent.click(await screen.findByLabelText('Bo Diddley'))
+    fireEvent.click(screen.getByText('Save 1 student'))
+    await waitFor(() => expect(api.patch).toHaveBeenCalledWith('/api/kiosk/devices/d1', { student_ids: ['s-bo'] }))
+  })
+
+  it('a device with chosen students shows how many, with an Edit link', async () => {
+    serve({ devices: [{ id: 'd6', name: 'Lower Studio iPad', token: 'ksk_lower', class_id: null, student_ids: ['s-ada', 's-bo'], is_active: true }] })
+    render(<KioskDevicesCard orgId="org-1" />)
+    const picker = await screen.findByLabelText('Students on Lower Studio iPad')
+    expect(picker.value).toBe('__chosen__')
+    expect(screen.getByText('2 students')).toBeInTheDocument()
+    fireEvent.click(screen.getByText('Edit'))
+    expect(await screen.findByLabelText('Ada Lovelace')).toBeChecked()
   })
 
   it('explains itself when the block is off', async () => {
     serve({ devices: [], kioskEnabled: false })
     render(<KioskDevicesCard orgId="org-1" />)
-    expect(await screen.findByText(/not enabled for this organization/)).toBeInTheDocument()
+    expect(await screen.findByText(/not turned on for this organization/)).toBeInTheDocument()
     expect(screen.getByText('Add device')).toBeDisabled()
   })
 })

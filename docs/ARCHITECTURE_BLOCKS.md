@@ -112,7 +112,7 @@ features into fake toggles or merge real toggles into fake features. So:
 | `reports` | on | Reports & Exports | parent `sis`, `min_tier: admin` |
 | `community` | off | Community Hub, Family Directory | parent `sis`; = today's `community_enabled` |
 | `prior_learning` | on, gate `optio_diploma` | Prior Learning | parent `sis`; only where `accreditation_source = 'optio'` (Optio Academy and its extension schools, 2026-10-07); `prior_learning_enabled = false` still switches it off |
-| `kiosk` | off | Kiosk Check-In | **no parent** (core LMS surfaces only, so an LMS-only school can run it; lost its `sis` parent 2026-09-07); = today's flat `kiosk` flag |
+| `kiosk` | off | Classroom Tablet (was "Kiosk Check-In" until 2026-10-13; it is photo capture, not attendance) | **no parent** (core LMS surfaces only, so an LMS-only school can run it; lost its `sis` parent 2026-09-07); = today's flat `kiosk` flag |
 
 **Tuition** (inside `billing`) additionally declares `requires_any: (clp, goals)` —
 the tuition-approval queue keys on CLP/goal completion, and today a Goals-mode org
@@ -622,7 +622,7 @@ Tier shown where above `staff`. Superadmin sees each org exactly as configured.
 | sis (console core) | — | F (hub) | — | C (portal) | C | C | C |
 | classes | — | F (schedule) | — | C (My Classes) | C | C | C |
 | registration | — | F (funnel) | — | — | C | C | C (fees) |
-| attendance | M (kiosk) | F (absences) | — | C (take roll) | C | C | — |
+| attendance | — | F (absences) | — | C (take roll) | C | C | — |
 | billing | — | F (invoices, pay) | — | — | **no** | C | C |
 | tasks / forms / onboarding | — | F | — | C (mine) | C | C | — |
 | secure_documents | — | — | — | own docs | **no** | C (hr) | — |

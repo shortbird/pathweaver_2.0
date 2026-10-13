@@ -108,7 +108,7 @@ export const SUB_ENTRIES = [
   { under: '/settings', ...settingsCard('family-contacts', 'Who to contact', ['contacts for families', 'who to contact', 'parent contacts', 'point of contact']) },
   { under: '/settings', path: '/tasks', ...settingsCard('incident-reports', 'Incident reports', ['incident', 'injury report', 'accident', 'who gets incident reports']) },
   { under: '/settings', path: '/classes', ...settingsCard('parent-digest', 'Parent emails', ['weekly digest', 'parent digest', 'email parents', 'due dates']) },
-  { under: '/settings', ...settingsCard('kiosk', 'Kiosk devices', ['kiosk', 'classroom device', 'ipad', 'tablet login']) },
+  { under: '/settings', ...settingsCard('kiosk', 'Classroom tablets', ['kiosk', 'classroom device', 'classroom tablet', 'ipad', 'tablet login', 'shared tablet']) },
   { under: '/settings', ...settingsCard('step-printing', 'Printing', ['print', 'step printing', 'worksheets']) },
   { under: '/settings', ...settingsCard('friends', 'Friends', ['friends', 'collaborate', 'friend codes', 'share a quest']) },
   { under: '/settings', ...settingsCard('student-chat', 'Student chat', ['student chat', 'turn off chat', 'class chat', 'friend messages']) },

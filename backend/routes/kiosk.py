@@ -20,8 +20,13 @@ token, while the blueprint guard resolves it from the caller.
 
 Devices live in org_kiosk_devices:
   id, organization_id, name, token_hash (sha256, UNIQUE), token (plaintext,
-  nullable), class_id (nullable — optional roster scope), is_active,
+  nullable), class_id (nullable — optional roster scope), student_ids (uuid[],
+  nullable — a hand-picked roster, for schools without classes), is_active,
   created_by, created_at, last_used_at
+
+What a device is for: a shared classroom tablet where a student photographs
+their work into a quest task or their learning journal. It is not a check-in
+or attendance station.
 
 Security model (mirrors treehouse.py, with one deliberate difference):
   - Lookups go through the sha256 hash. The plaintext code is ALSO stored, and
@@ -95,7 +100,7 @@ def _get_active_device_by_token(admin, token):
     if not token:
         return None
     res = admin.table('org_kiosk_devices')\
-        .select('id, organization_id, name, class_id, is_active')\
+        .select('id, organization_id, name, class_id, student_ids, is_active')\
         .eq('token_hash', _hash_token(token)).eq('is_active', True)\
         .limit(1).execute()
     return res.data[0] if res.data else None
@@ -119,7 +124,9 @@ def _is_student(user_row):
 def _device_scope_students(admin, device):
     """
     Students selectable on this device: the org's students, or — when the
-    device is scoped to a class — only that class's active enrollments.
+    device is scoped — only its hand-picked students (student_ids) or that
+    class's active enrollments. student_ids wins; the write paths keep only
+    one of the two set.
     Returns a list of user rows (id, names, avatar_url).
 
     Both reads grow with the org, so both page: a roster silently cut at the
@@ -132,6 +139,13 @@ def _device_scope_students(admin, device):
         .select('id, first_name, last_name, display_name, avatar_url, role, org_role, org_roles')
         .eq('organization_id', org_id)))
     students = [u for u in rows if _is_student(u)]
+
+    picked = device.get('student_ids') or []
+    if picked:
+        # Filtering the org's students (not fetching the ids directly) means a
+        # student who has since left the school drops off the grid on its own.
+        picked = set(picked)
+        return [s for s in students if s['id'] in picked]
 
     if device.get('class_id'):
         enrolled = fetch_all_rows(lambda: (
@@ -153,6 +167,26 @@ def _class_in_org(admin, class_id, org_id):
     return cls.data[0], None
 
 
+def _students_in_org(admin, student_ids, org_id):
+    """Validate a hand-picked device roster. Returns (ids, error_response):
+    a de-duplicated list, or an error when it is not a list of this org's
+    students. An empty list is valid and means "no hand-picked roster"."""
+    if not isinstance(student_ids, list) or not all(isinstance(i, str) for i in student_ids):
+        return None, (jsonify({'success': False,
+                               'error': 'student_ids must be a list of ids'}), 400)
+    ids = list(dict.fromkeys(i.strip() for i in student_ids if i.strip()))
+    if not ids:
+        return [], None
+    rows = admin.table('users')\
+        .select('id, organization_id, role, org_role, org_roles')\
+        .in_('id', ids).execute().data or []
+    ok = {r['id'] for r in rows if r.get('organization_id') == org_id and _is_student(r)}
+    if ok != set(ids):
+        return None, (jsonify({'success': False,
+                               'error': 'Every student must be a student in this organization'}), 400)
+    return ids, None
+
+
 def _student_payload(u):
     name = u.get('first_name') or u.get('display_name') or ''
     display = u.get('display_name') or ' '.join(
@@ -170,8 +204,8 @@ def _student_payload(u):
 @require_role(*ADMIN_ROLES)
 def create_device(user_id):
     """
-    Provision a shared kiosk device for an org. Body: {name, class_id?,
-    organization_id? (superadmin only)}. Returns the plaintext code; the list
+    Provision a shared kiosk device for an org. Body: {name, class_id? |
+    student_ids?, organization_id? (superadmin only)}. Returns the plaintext code; the list
     endpoint returns it again for as long as the device is active.
     """
     data = request.get_json() or {}
@@ -193,6 +227,11 @@ def create_device(user_id):
         if err:
             return err
         class_name = cls.get('name')
+    student_ids, err = _students_in_org(admin, data.get('student_ids') or [], org_id)
+    if err:
+        return err
+    if student_ids:
+        class_id, class_name = None, None
 
     token = TOKEN_PREFIX + secrets.token_urlsafe(32)
     ins = admin.table('org_kiosk_devices').insert({
@@ -201,6 +240,7 @@ def create_device(user_id):
         'token_hash': _hash_token(token),
         'token': token,
         'class_id': class_id,
+        'student_ids': student_ids or None,
         'is_active': True,
         'created_by': user_id,
     }).execute()
@@ -211,7 +251,8 @@ def create_device(user_id):
     return jsonify({
         'success': True,
         'device': {'id': device['id'], 'name': name, 'class_id': class_id,
-                   'class_name': class_name, 'organization_id': org_id,
+                   'class_name': class_name, 'student_ids': student_ids or None,
+                   'organization_id': org_id,
                    'is_active': True, 'created_at': device.get('created_at'),
                    'token': token},
         'device_token': token,
@@ -225,7 +266,10 @@ def update_device(user_id, device_id):
     """
     Change which students a device lists, or rename it. Body: {class_id: uuid}
     limits the name grid to that class's active roster, {class_id: null} lists
-    the whole school; {name} renames. The org's own admins manage this from
+    the whole school; {student_ids: [...]} lists exactly those students (for
+    a school without classes), and [] or null drops that list; {name}
+    renames. Only one scope is kept: a class clears the student list, and a
+    non-empty student list clears the class. The org's own admins manage this from
     the settings card (2026-09-07 — it used to take a hand edit by Optio).
     The device picks the change up on its next roster refresh, so the iPad
     never needs re-pairing.
@@ -233,7 +277,7 @@ def update_device(user_id, device_id):
     data = request.get_json() or {}
     # admin client justified: role-gated edit of an org kiosk device; the device's org is matched against the caller's org before the write
     admin = get_supabase_admin_client()
-    res = admin.table('org_kiosk_devices').select('id, organization_id, name, class_id')\
+    res = admin.table('org_kiosk_devices').select('id, organization_id, name, class_id, student_ids')\
         .eq('id', device_id).limit(1).execute()
     if not res.data:
         return jsonify({'success': False, 'error': 'Device not found'}), 404
@@ -259,7 +303,16 @@ def update_device(user_id, device_id):
             if err:
                 return err
             class_name = cls.get('name')
+            changes['student_ids'] = None
         changes['class_id'] = class_id
+    if 'student_ids' in data:
+        student_ids, err = _students_in_org(admin, data.get('student_ids') or [], org_id)
+        if err:
+            return err
+        changes['student_ids'] = student_ids or None
+        if student_ids:
+            changes['class_id'] = None
+            class_name = None
     if not changes:
         return jsonify({'success': False, 'error': 'Nothing to update'}), 400
 
@@ -284,7 +337,7 @@ def list_devices(user_id):
         return err
 
     res = admin.table('org_kiosk_devices')\
-        .select('id, organization_id, name, token, class_id, is_active, created_at, last_used_at')\
+        .select('id, organization_id, name, token, class_id, student_ids, is_active, created_at, last_used_at')\
         .eq('organization_id', org_id).order('created_at', desc=True).execute()
     devices = res.data or []
     for d in devices:
@@ -384,6 +437,9 @@ def kiosk_roster():
         'success': True,
         'org': {'name': org_name, 'logo_url': logo_url, 'colors': colors},
         'device': {'name': device.get('name'), 'class_id': device.get('class_id')},
+        # The tablet offers "Add to my journal" only where the school has the
+        # journal; a school that switched it off sees the quest flow alone.
+        'journal': module_enabled(device['organization_id'], 'journal'),
         'students': students,
     }), 200
 
