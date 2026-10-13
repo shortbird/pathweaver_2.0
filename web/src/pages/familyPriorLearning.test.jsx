@@ -491,3 +491,61 @@ describe('a student sending their own', () => {
     expect(await screen.findByText(/aren’t available for your account/i)).toBeInTheDocument()
   })
 })
+
+describe('a record the school sent back', () => {
+  const SENT_BACK = {
+    id: 'rec-5', title: 'Co-op science', status: 'needs_info', student_user_id: 'kid-1',
+    review_notes: 'Page 2 of the transcript is missing.', evidence: [{ id: 'e1', title: 'p1.pdf' }],
+  }
+
+  it('says what the school asked for', async () => {
+    mockPage({ records: [SENT_BACK] })
+    render(<FamilyPriorLearningPage />)
+    expect(await screen.findByText(/Page 2 of the transcript is missing/)).toBeInTheDocument()
+    expect(screen.getByText('Needs more from you')).toBeInTheDocument()
+  })
+
+  it('adds the new page to the same record, then sends it again', async () => {
+    mockPage({ records: [SENT_BACK] })
+    api.post.mockResolvedValue({ data: {} })
+    render(<FamilyPriorLearningPage />)
+
+    await userEvent.upload(await screen.findByLabelText('Add documents to this record'), file('p2.pdf'))
+    await userEvent.click(screen.getByRole('button', { name: /Send again with 1 new document/ }))
+
+    await waitFor(() => expect(api.post).toHaveBeenCalledTimes(2))
+    expect(api.post.mock.calls[0][0]).toContain('/prior-learning/rec-5/evidence')
+    expect(api.post.mock.calls[1][0]).toContain('/prior-learning/rec-5/submit')
+  })
+})
+
+describe('keeping a document out of the portfolio', () => {
+  const ACCEPTED = {
+    id: 'rec-7', title: 'Co-op math', status: 'accepted', student_user_id: 'kid-1',
+    awarded_credits: { math: 1 },
+    evidence: [{ id: 'e1', title: 'report-card.pdf', url: 'https://x/r.pdf', is_private: false }],
+  }
+
+  it('marks one document private, and says so', async () => {
+    mockPage({ records: [ACCEPTED] })
+    api.patch = vi.fn().mockResolvedValue({ data: { is_private: true } })
+    render(<FamilyPriorLearningPage />)
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Make private' }))
+
+    expect(api.patch).toHaveBeenCalledWith('/api/sis/parent/prior-learning/rec-7/evidence/e1',
+      { organization_id: 'org-1', is_private: true })
+    expect(await screen.findByRole('button', { name: 'Private' })).toBeInTheDocument()
+  })
+
+  it('flips back when the save fails', async () => {
+    mockPage({ records: [ACCEPTED] })
+    api.patch = vi.fn().mockRejectedValue({ response: { data: { error: 'nope' } } })
+    render(<FamilyPriorLearningPage />)
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Make private' }))
+
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Make private' })).toBeInTheDocument())
+    expect(toast.error).toHaveBeenCalledWith('nope')
+  })
+})

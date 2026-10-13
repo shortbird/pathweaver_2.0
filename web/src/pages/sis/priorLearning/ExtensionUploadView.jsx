@@ -20,7 +20,8 @@ const STEPS = ['Sent', 'In review', 'Decision', 'On transcript']
 export const stepFor = (record) => {
   if (record.status === 'accepted') return record.transfer_credit ? 3 : 2
   if (record.status === 'rejected') return 2
-  if (record.status === 'under_review') return 1
+  // Sent back to the family for more is still Optio's review in progress.
+  if (record.status === 'under_review' || record.status === 'needs_info') return 1
   return 0
 }
 

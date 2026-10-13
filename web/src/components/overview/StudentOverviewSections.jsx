@@ -122,6 +122,7 @@ const StudentOverviewSections = ({
             hideHeader
             onEvidenceDeleted={onEvidenceDeleted}
             transferCredits={data.transferCredits}
+            priorLearning={data.priorLearning}
           />
         </CollapsibleSection>
       )}

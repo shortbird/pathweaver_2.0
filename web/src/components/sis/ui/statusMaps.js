@@ -23,6 +23,7 @@ export const STATUS_MAPS = {
   prior_learning: {
     submitted: { label: 'Submitted', tone: 'bg-blue-100 text-blue-700' },
     under_review: { label: 'Under review', tone: 'bg-amber-100 text-amber-800' },
+    needs_info: { label: 'Sent back', tone: 'bg-gray-100 text-gray-700' },
     accepted: { label: 'Accepted', tone: 'bg-green-100 text-green-700' },
     rejected: { label: 'Rejected', tone: 'bg-red-100 text-red-700' },
   },

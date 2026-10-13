@@ -31,6 +31,7 @@ import DiplomaHero from '../components/diploma/DiplomaHero';
 import DiplomaShareControls from '../components/diploma/DiplomaShareControls';
 import DiplomaModals from '../components/diploma/DiplomaModals';
 import TransferCreditsCard from '../components/diploma/TransferCreditsCard';
+import PriorLearningCard from '../components/portfolio/PriorLearningCard';
 
 const DiplomaPage = () => {
   const { user, loginTimestamp } = useAuth();
@@ -69,6 +70,7 @@ const DiplomaPage = () => {
   const [learningEvents, setLearningEvents] = useState([]);  // Learning events
   const [curated, setCurated] = useState([]);  // "Portfolio picks" (student-curated completions)
   const [transferCredits, setTransferCredits] = useState(null);  // Transfer credits from external transcripts
+  const [priorLearning, setPriorLearning] = useState([]);  // Accepted prior learning, private documents left out
   const [isLoading, setIsLoading] = useState(true);
   const [selectedAchievement, setSelectedAchievement] = useState(null);
   const [shareableLink, setShareableLink] = useState('');
@@ -378,6 +380,7 @@ const DiplomaPage = () => {
     if (data.transfer_credits) {
       setTransferCredits(data.transfer_credits);
     }
+    setPriorLearning(data.prior_learning || []);
   };
 
   const fetchPublicDiploma = async () => {
@@ -560,6 +563,7 @@ const DiplomaPage = () => {
       if (response.data?.transfer_credits) {
         setTransferCredits(response.data.transfer_credits);
       }
+      setPriorLearning(response.data?.prior_learning || []);
     } catch (error) {
       // Silently handle - transfer credits are optional
     }
@@ -876,6 +880,13 @@ const DiplomaPage = () => {
                 />
               ))
             }
+
+            {/* Accepted prior learning, with the documents the family left public */}
+            {priorLearning.length > 0 && (
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 mb-8">
+                {priorLearning.map(entry => <PriorLearningCard key={entry.id} entry={entry} />)}
+              </div>
+            )}
 
             {/* Portfolio picks — completions the student chose to spotlight */}
             {curated.length > 0 && (

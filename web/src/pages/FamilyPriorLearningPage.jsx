@@ -45,6 +45,7 @@ const STATUS_STYLES = {
   draft: 'bg-amber-100 text-amber-800',
   submitted: 'bg-blue-100 text-blue-700',
   under_review: 'bg-amber-100 text-amber-800',
+  needs_info: 'bg-red-100 text-red-700',
   accepted: 'bg-green-100 text-green-700',
   rejected: 'bg-red-100 text-red-700',
 }
@@ -53,6 +54,7 @@ const STATUS_LABELS = {
   draft: 'Not sent yet',
   submitted: 'Sent',
   under_review: 'Being reviewed',
+  needs_info: 'Needs more from you',
   accepted: 'Credit awarded',
   rejected: 'Not accepted',
 }
@@ -75,6 +77,64 @@ const StatusPill = ({ status }) => (
     {STATUS_LABELS[status] || status}
   </span>
 )
+
+/**
+ * A record the school sent back (needs_info): add what they asked for and send
+ * it again. It returns to the school's queue as a new submission. Sending with
+ * no new file is allowed -- sometimes the answer is "that is all there is".
+ */
+const SendAgain = ({ record, orgId, onDone }) => {
+  const [files, setFiles] = useState([])
+  const [sending, setSending] = useState(false)
+
+  const send = async () => {
+    setSending(true)
+    const failed = []
+    for (const file of files) {
+      const data = new FormData()
+      data.append('evidence_type', kindFor(file))
+      data.append('file', file)
+      data.append('organization_id', orgId)
+      try {
+        await api.post(
+          `/api/sis/parent/prior-learning/${record.id}/evidence?organization_id=${orgId}`, data)
+      } catch (err) {
+        failed.push(err.response?.data?.error ? `${file.name} (${err.response.data.error})` : file.name)
+      }
+    }
+    try {
+      await api.post(`/api/sis/parent/prior-learning/${record.id}/submit`, { organization_id: orgId })
+      if (failed.length) toast.error(`Sent, but these did not upload: ${failed.join(', ')}`)
+      else toast.success('Sent back to the school')
+      setFiles([])
+      onDone()
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Could not send this again')
+    } finally {
+      setSending(false)
+    }
+  }
+
+  return (
+    <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-3 space-y-2">
+      <p className="text-sm text-red-900">
+        <span className="font-medium">The school asked for more: </span>{record.review_notes}
+      </p>
+      <label className="block text-sm text-gray-700">
+        <span className="sr-only">Add documents to this record</span>
+        <input type="file" multiple aria-label="Add documents to this record"
+               onChange={(e) => setFiles(Array.from(e.target.files || []).filter(isSupported))}
+               className="text-sm" />
+      </label>
+      <button type="button" disabled={sending} onClick={send}
+              className="px-4 py-2 rounded-lg text-sm font-medium text-white bg-gradient-primary disabled:opacity-50">
+        {sending ? 'Sending…' : files.length
+          ? `Send again with ${files.length} new ${files.length === 1 ? 'document' : 'documents'}`
+          : 'Send again'}
+      </button>
+    </div>
+  )
+}
 
 const FamilyPriorLearningPage = ({ studentId: fixedStudentId = null, onChange = null }) => {
   const embedded = Boolean(fixedStudentId)
@@ -236,6 +296,24 @@ const FamilyPriorLearningPage = ({ studentId: fixedStudentId = null, onChange = 
     }
   }
 
+  // Hide one document from the portfolio, or show it again. Optimistic: the
+  // switch flips at once and flips back if the save fails.
+  const setPrivacy = async (recordId, item) => {
+    const next = !item.is_private
+    const flip = (value) => setRecords((current) => current.map((r) => (r.id !== recordId ? r : {
+      ...r, evidence: (r.evidence || []).map((e) => (e.id === item.id ? { ...e, is_private: value } : e)),
+    })))
+    flip(next)
+    try {
+      await api.patch(`/api/sis/parent/prior-learning/${recordId}/evidence/${item.id}`,
+        { organization_id: orgId, is_private: next })
+      toast.success(next ? 'Hidden from the portfolio' : 'Shown in the portfolio')
+    } catch (err) {
+      flip(!next)
+      toast.error(err.response?.data?.error || 'Could not change that')
+    }
+  }
+
   const withdraw = async (recordId) => {
     try {
       await api.delete(`/api/sis/parent/prior-learning/${recordId}?organization_id=${orgId}`)
@@ -387,6 +465,10 @@ const FamilyPriorLearningPage = ({ studentId: fixedStudentId = null, onChange = 
 
       <section className="space-y-3">
         <h2 className={embedded ? 'text-sm font-semibold text-gray-900' : 'font-semibold text-gray-900'}>What you’ve sent</h2>
+        <p className="text-xs text-gray-500">
+          Once credit is awarded, a record and its documents show in your student’s
+          portfolio. Mark a document Private to keep it out.
+        </p>
         {!shown.length && <p className="text-sm text-gray-500">Nothing yet.</p>}
 
         {shown.map((record) => {
@@ -413,6 +495,7 @@ const FamilyPriorLearningPage = ({ studentId: fixedStudentId = null, onChange = 
 
               {files.map((item) => (
                 <div key={item.id} className="text-sm bg-gray-50 rounded-lg px-3 py-2">
+                  <div className="flex items-start justify-between gap-3">
                   {item.url ? (
                     <a href={item.url} target="_blank" rel="noreferrer"
                        className="text-optio-purple hover:underline break-all">
@@ -421,6 +504,17 @@ const FamilyPriorLearningPage = ({ studentId: fixedStudentId = null, onChange = 
                   ) : (
                     <span className="text-gray-700">{item.content}</span>
                   )}
+                    {/* Accepted prior learning shows in the student's
+                        portfolio, documents included; this keeps one out. */}
+                    <button type="button" onClick={() => setPrivacy(record.id, item)}
+                            aria-pressed={Boolean(item.is_private)}
+                            title={item.is_private ? 'Hidden from the portfolio' : 'Shown in the portfolio once credit is awarded'}
+                            className={`shrink-0 text-xs px-2 py-0.5 rounded-full border ${item.is_private
+                              ? 'border-gray-400 bg-gray-200 text-gray-700'
+                              : 'border-gray-300 bg-white text-gray-500 hover:text-gray-800'}`}>
+                      {item.is_private ? 'Private' : 'Make private'}
+                    </button>
+                  </div>
                   {item.url && item.content && (
                     <p className="text-xs text-gray-500 mt-0.5">{item.content}</p>
                   )}
@@ -434,7 +528,10 @@ const FamilyPriorLearningPage = ({ studentId: fixedStudentId = null, onChange = 
                     : 'Accepted for the portfolio (no credit awarded).'}
                 </p>
               )}
-              {record.review_notes && (
+              {record.status === 'needs_info' && (
+                <SendAgain record={record} orgId={orgId} onDone={() => { load(); onChange?.() }} />
+              )}
+              {record.review_notes && record.status !== 'needs_info' && (
                 <p className="text-sm text-gray-600 bg-gray-50 rounded-lg px-3 py-2">
                   <span className="font-medium">From {schoolName}: </span>{record.review_notes}
                 </p>

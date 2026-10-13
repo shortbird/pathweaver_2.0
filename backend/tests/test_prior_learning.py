@@ -25,6 +25,15 @@ from services import sis_prior_learning_service as prior
 from utils.school_subjects import SCHOOL_SUBJECTS
 
 
+@pytest.fixture(autouse=True)
+def _no_history_writes(monkeypatch):
+    """History lines and analysis queueing are best-effort side writes
+    (sis_prior_learning_queue); keep them off the network in these tests."""
+    from services import sis_prior_learning_queue as queue
+    monkeypatch.setattr(queue, 'log_event', lambda *a, **k: None)
+    monkeypatch.setattr(queue, 'queue_analysis', lambda *a, **k: None)
+
+
 @pytest.mark.unit
 class TestAwardedCreditsAreTranscriptSafe:
     def test_a_real_subject_survives(self):
@@ -158,7 +167,13 @@ class TestReviewLifecycle:
 @pytest.mark.unit
 class TestFamilyEditWindow:
     def test_the_family_may_still_change_a_record_the_office_has_not_picked_up(self):
-        assert set(prior.FAMILY_EDITABLE) == {'draft', 'submitted'}
+        assert {'draft', 'submitted'} <= set(prior.FAMILY_EDITABLE)
+
+    def test_a_record_sent_back_for_more_unlocks_for_the_family(self):
+        """needs_info (2026-10-13): the office asked for a missing page, so the
+        family must be able to add it and send the record again."""
+        assert 'needs_info' in prior.FAMILY_EDITABLE
+        assert 'needs_info' in prior.FAMILY_SENDABLE
 
     def test_once_in_review_it_is_frozen_for_the_family(self):
         for status in ('under_review', 'accepted', 'rejected'):

@@ -53,7 +53,7 @@ const mockPage = ({ records = [RECORD], students = STUDENTS } = {}) => {
 }
 
 const openForm = async () => {
-  render(<PriorLearningPage />)
+  render(<PriorLearningPage defaultView="records" />)
   await userEvent.click(await screen.findByRole('button', { name: /upload a transcript/i }))
   return screen.findByRole('combobox', { name: /student/i })
 }
@@ -162,7 +162,7 @@ describe('adding a document to a record that already exists', () => {
   it('posts it to that record, whatever the record status', async () => {
     mockPage({ records: [{ ...RECORD, status: 'under_review' }] })
     api.post.mockResolvedValue({ data: { evidence: { id: 'e2', title: 'Page 2' } } })
-    render(<PriorLearningPage />)
+    render(<PriorLearningPage defaultView="records" />)
 
     await userEvent.upload(await screen.findByLabelText(/add a document to this record/i),
                            pdf('page-2.pdf'))
@@ -178,7 +178,7 @@ describe('adding a document to a record that already exists', () => {
     api.post.mockResolvedValue({
       data: { evidence: { id: 'e2', evidence_type: 'document', url: 'https://x/p2.pdf', title: 'Page 2' } },
     })
-    render(<PriorLearningPage />)
+    render(<PriorLearningPage defaultView="records" />)
 
     await userEvent.upload(await screen.findByLabelText(/add a document to this record/i),
                            pdf('page-2.pdf'))
@@ -190,13 +190,13 @@ describe('adding a document to a record that already exists', () => {
 describe('where a record came from', () => {
   it('marks the ones the office filed itself', async () => {
     mockPage({ records: [{ ...RECORD, source: 'staff' }] })
-    render(<PriorLearningPage />)
+    render(<PriorLearningPage defaultView="records" />)
     expect(await screen.findByText(/filed by the office/i)).toBeInTheDocument()
   })
 
   it('says nothing extra about a family submission', async () => {
     mockPage()
-    render(<PriorLearningPage />)
+    render(<PriorLearningPage defaultView="records" />)
     await screen.findByText(RECORD.title)
     expect(screen.queryByText(/filed by the office/i)).not.toBeInTheDocument()
   })

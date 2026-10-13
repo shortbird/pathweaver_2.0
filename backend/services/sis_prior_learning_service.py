@@ -45,8 +45,13 @@ logger = get_logger(__name__)
 EVIDENCE_TYPES = ('text', 'link', 'video', 'image', 'document')
 
 # Statuses a guardian may still edit or withdraw in. Once the office has picked
-# the record up (under_review and later), the family's copy is frozen.
-FAMILY_EDITABLE = ('draft', 'submitted')
+# the record up (under_review and later), the family's copy is frozen -- unless
+# the office sends it back for more (needs_info), which unlocks it again.
+FAMILY_EDITABLE = ('draft', 'submitted', 'needs_info')
+
+# A family may send a record from these: a new draft, or one the office sent
+# back. Sending again returns it to the queue as 'submitted'.
+FAMILY_SENDABLE = ('draft', 'needs_info')
 
 # Where a record came from. See the migration: stored, not derived from the
 # submitter's role, which can change under an old record.
@@ -325,7 +330,7 @@ def queue_counts(org_id: str) -> Dict[str, int]:
     more than 1000 records would otherwise get quietly wrong numbers.
     """
     counts: Dict[str, int] = {}
-    for status in ('submitted', 'under_review', 'accepted', 'rejected'):
+    for status in ('submitted', 'under_review', 'needs_info', 'accepted', 'rejected'):
         query = _scope_to_queue(
             _admin().table('prior_learning_records').select('id', count='exact'), org_id)
         counts[status] = query.eq('status', status).limit(1).execute().count or 0
@@ -457,13 +462,19 @@ def submit_record(record_id: str, org_id: str, guardian_id: str,
     record = get_own_record(record_id, org_id, guardian_id, student_ids)
     if not record:
         return {'error': 'Record not found', 'status': 404}
-    if record['status'] != 'draft':
+    if record['status'] not in FAMILY_SENDABLE:
         return {'error': 'This record has already been submitted'}
     if not record.get('evidence'):
         return {'error': 'Attach at least one piece of evidence before submitting'}
+    resent = record['status'] == 'needs_info'
     updated = (_admin().table('prior_learning_records')
                .update({'status': 'submitted'}).eq('id', record_id).execute().data)
-    notify_reviewers(record)
+    from services import sis_prior_learning_queue as queue
+    queue.log_event(record_id, 'resubmitted' if resent else 'submitted', guardian_id)
+    notify_reviewers(record, resent=resent)
+    # Read the evidence now, so the suggestion is waiting when the reviewer
+    # opens the record instead of behind an Analyze button.
+    queue.queue_analysis(record_id, start=True)
     return {'record': {**(updated[0] if updated else record),
                        'evidence': record.get('evidence', [])}}
 
@@ -483,6 +494,15 @@ def delete_record(record_id: str, org_id: str, guardian_id: str,
         return {'error': 'The school is reviewing this record, so it can no longer be withdrawn'}
     _admin().table('prior_learning_records').delete().eq('id', record_id).execute()
     return {'deleted': True}
+
+
+def _log(record: Dict[str, Any], kind: str, actor_id: Optional[str], **kw: Any) -> None:
+    """History for a record the office can see. A draft's edits are the
+    family assembling it, not history."""
+    if record.get('status') == 'draft':
+        return
+    from services import sis_prior_learning_queue as queue
+    queue.log_event(record['id'], kind, actor_id, **kw)
 
 
 def add_evidence(record_id: str, org_id: str, guardian_id: str,
@@ -524,6 +544,8 @@ def _insert_evidence(record: Dict[str, Any], uploader_id: str,
     # otherwise working list until the next refetch. Sign it like a read.
     out = dict(created[0])
     sign_in_place([out], ['url'])
+    _log(record, 'evidence_added', uploader_id,
+         body=row['title'] or row['file_name'] or row['evidence_type'])
     return {'evidence': out}
 
 
@@ -564,11 +586,14 @@ def delete_evidence(evidence_id: str, record_id: str, org_id: str,
         return {'error': 'Record not found', 'status': 404}
     if record['status'] not in FAMILY_EDITABLE:
         return {'error': 'The school is reviewing this record, so it can no longer be changed'}
-    return _delete_evidence_row(evidence_id, record_id)
+    result = _delete_evidence_row(evidence_id, record_id)
+    if result.get('deleted'):
+        _log(record, 'evidence_removed', guardian_id)
+    return result
 
 
 def staff_delete_evidence(evidence_id: str, record_id: str,
-                          org_id: str) -> Dict[str, Any]:
+                          org_id: str, staff_id: Optional[str] = None) -> Dict[str, Any]:
     """Staff removing a document from a record they are reviewing.
 
     Not bound by FAMILY_EDITABLE, deliberately: the reason this exists is that a
@@ -580,7 +605,10 @@ def staff_delete_evidence(evidence_id: str, record_id: str,
     record = get_record(record_id, org_id)
     if not record:
         return {'error': 'Record not found', 'status': 404}
-    return _delete_evidence_row(evidence_id, record_id)
+    result = _delete_evidence_row(evidence_id, record_id)
+    if result.get('deleted'):
+        _log(record, 'evidence_removed', staff_id)
+    return result
 
 
 # ── Posted evidence ───────────────────────────────────────────────────────────
@@ -682,6 +710,8 @@ def staff_create_record(org_id: str, staff_id: str, student_id: str,
     if not created:
         return {'error': 'Could not save this record'}
     record = annotate_reviewer([created[0]])[0]
+    from services import sis_prior_learning_queue as queue
+    queue.log_event(record['id'], 'filed', staff_id)
     # A microschool office filing for an Academy student hands the record to
     # the Academy; the Academy's own office does not need telling.
     if record['reviewer_org_id'] != org_id:
@@ -701,7 +731,14 @@ def staff_add_evidence(record_id: str, org_id: str, staff_id: str,
     record = get_record(record_id, org_id)
     if not record:
         return {'error': 'Record not found', 'status': 404}
-    return _insert_evidence(record, staff_id, evidence)
+    result = _insert_evidence(record, staff_id, evidence)
+    if result.get('evidence'):
+        # New paperwork changes what the analyzer would say. The cron sweep
+        # reads it within ten minutes, after the rest of a multi-file upload
+        # has landed, rather than once per file.
+        from services import sis_prior_learning_queue as queue
+        queue.queue_analysis(record_id)
+    return result
 
 
 # ── Staff review ──────────────────────────────────────────────────────────────
@@ -763,6 +800,10 @@ def review(record_id: str, org_id: str, reviewer_id: str,
                .eq('id', record_id).execute().data)
     if not updated:
         return {'error': 'Could not save this review'}
+    if record.get('status') != status:
+        _log(record, 'status_changed', reviewer_id, body=update.get('review_notes'),
+             metadata={'from': record.get('status'), 'to': status,
+                       'awarded_credits': update.get('awarded_credits')})
     if status in ('accepted', 'rejected') and record.get('status') != status:
         notify_family_of_review({**record, **updated[0]})
     return {'record': {**record, **updated[0], 'evidence': record.get('evidence', [])}}
@@ -773,8 +814,10 @@ def review(record_id: str, org_id: str, reviewer_id: str,
 # office found it only by opening the queue, and the family learned the outcome
 # only by coming back to look.
 
-def notify_reviewers(record: Dict[str, Any]) -> None:
-    """Tell the reviewing school's office a record is waiting."""
+def notify_reviewers(record: Dict[str, Any], resent: bool = False) -> None:
+    """Tell the reviewing school's office a record is waiting, and the
+    superadmins. Optio Academy has no office staff of its own, so before the
+    superadmins were added (2026-10-13) an Academy submission reached nobody."""
     try:
         from services.notification_service import NotificationService
         from services.school_inbox_service import admin_recipient_ids
@@ -782,16 +825,26 @@ def notify_reviewers(record: Dict[str, Any]) -> None:
         names = _attach_names([dict(record)])[0]
         via = (f" through {names['organization_name']}"
                if reviewer != record.get('organization_id') and names.get('organization_name') else '')
+        from services import sis_prior_learning_queue as queue
         service = NotificationService()
-        for admin_id in admin_recipient_ids(reviewer):
+        staff = admin_recipient_ids(reviewer)
+        # A superadmin's bell lives on the learning app, where /prior-learning
+        # is not a page, so theirs links to the console by its full address.
+        recipients = {**{a: '/prior-learning' for a in staff},
+                      **{a: queue.sis_link(record.get('student_user_id'))
+                         for a in queue.superadmin_ids() if a not in staff}}
+        student = f"{names.get('student_name') or 'Student'}{via}"
+        title = (f'Prior learning sent back with more: {student}' if resent
+                 else f'Prior learning to review: {student}')
+        for admin_id, link in recipients.items():
             if admin_id == record.get('submitted_by'):
                 continue
             service.create_notification(
                 user_id=admin_id,
                 notification_type='school_notice',
-                title=f"Prior learning to review: {names.get('student_name') or 'Student'}{via}",
+                title=title,
                 message=record.get('title') or 'New documents were sent in.',
-                link='/prior-learning',
+                link=link,
                 metadata={'prior_learning_record_id': record['id']},
                 organization_id=reviewer,
             )

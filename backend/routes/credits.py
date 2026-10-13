@@ -198,7 +198,10 @@ def get_my_transfer_credits(user_id):
 
     return jsonify({
         'success': True,
-        'transfer_credits': transfer_credits
+        'transfer_credits': transfer_credits,
+        # The owner's own diploma page reads its portfolio parts one by one;
+        # accepted prior learning rides with the transfer credit it became.
+        'prior_learning': PortfolioService._prior_learning(user_id),
     }), 200
 
 

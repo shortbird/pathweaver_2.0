@@ -8,6 +8,7 @@ import { XP_PER_CREDIT } from '../../../utils/creditRequirements'
 import inputClass from './inputClass'
 import parseCourseText from './parseCourseText'
 import courseTotal from './courseTotal'
+import AccreditedCheckbox from './AccreditedCheckbox'
 
 /**
  * The transcript step, shown once a record is accepted.
@@ -28,6 +29,7 @@ const TranscriptStep = ({ record, suggestion, busy, onSubmit }) => {
   const [school, setSchool] = useState(
     () => suggestion?.school_name || record.provider || ''
   )
+  const [accredited, setAccredited] = useState(false)
   const [courses, setCourses] = useState(() => {
     const bySubject = {}
     for (const s of (suggestion?.subjects || [])) {
@@ -122,11 +124,15 @@ const TranscriptStep = ({ record, suggestion, busy, onSubmit }) => {
         </div>
       )})}
 
+      <AccreditedCheckbox id={`transcript-accredited-${record.id}`}
+                          checked={accredited} onChange={setAccredited} />
+
       <button type="button" disabled={busy || !school.trim() || mismatches.length > 0}
               onClick={() => onSubmit({
                 school_name: school.trim(),
                 subject_credits: awarded,
                 course_names: parsed,
+                source_accredited: accredited,
               })}
               className="px-4 py-2 rounded-lg text-sm font-medium text-white bg-gradient-primary disabled:opacity-50">
         Add to transcript

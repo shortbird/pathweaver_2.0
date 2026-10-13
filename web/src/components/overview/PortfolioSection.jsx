@@ -7,6 +7,7 @@ import toast from 'react-hot-toast';
 import QuestAccordionGallery from './QuestAccordionGallery';
 import EvidenceDetailModal from '../diploma/EvidenceDetailModal';
 import { formatCredits } from '../../utils/creditRequirements';
+import PriorLearningCard from '../portfolio/PriorLearningCard';
 
 // What an official transcript prints. Shared with every other transcript
 // surface and with the backend.
@@ -26,7 +27,8 @@ const PortfolioSection = ({
   hideHeader = false,
   readOnly = false, // When true, hide privacy toggle and show status badge only
   onEvidenceDeleted, // Callback when evidence is deleted (to refresh data)
-  transferCredits = null // array of transfer credit records, or single object (legacy), or null
+  transferCredits = null, // array of transfer credit records, or single object (legacy), or null
+  priorLearning = [] // accepted prior-learning records with their non-private documents
 }) => {
   const [selectedEvidenceItem, setSelectedEvidenceItem] = useState(null);
   const [showShareOptions, setShowShareOptions] = useState(false);
@@ -330,13 +332,19 @@ const PortfolioSection = ({
     );
   };
 
-  // All Transfer Credits Cards
+  // All Transfer Credits Cards, then accepted prior learning. Prior learning
+  // DOES carry its documents, unlike the transfer card above: Tanner decided
+  // on 2026-10-13 to show them all, with the family's per-document private
+  // switch as the way to keep one out.
   const TransferCreditsCards = () => {
-    if (transferCreditsList.length === 0) return null;
+    if (transferCreditsList.length === 0 && priorLearning.length === 0) return null;
     return (
       <>
         {transferCreditsList.map(tc => (
           <TransferCreditCard key={tc.id} tc={tc} />
+        ))}
+        {priorLearning.map(entry => (
+          <PriorLearningCard key={entry.id} entry={entry} className="mb-4" />
         ))}
       </>
     );
@@ -345,7 +353,7 @@ const PortfolioSection = ({
   // Evidence gallery content
   const EvidenceContent = () => (
     <>
-      {achievements.length > 0 || transferCreditsList.length > 0 ? (
+      {achievements.length > 0 || transferCreditsList.length > 0 || priorLearning.length > 0 ? (
         <QuestAccordionGallery
           achievements={achievements}
           onEvidenceClick={(item) => setSelectedEvidenceItem(item)}

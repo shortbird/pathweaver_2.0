@@ -186,3 +186,22 @@ def remove_evidence(user_id, record_id, evidence_id):
     if result.get('error'):
         return _fail(result)
     return jsonify({'success': True, **result})
+
+
+@bp.route('/prior-learning/<record_id>/evidence/<evidence_id>', methods=['PATCH'])
+@require_auth
+def set_evidence_privacy(user_id, record_id, evidence_id):
+    """Hide one document from the student's portfolio, or show it again:
+    {is_private: true|false}. Any status -- an accepted record's documents are
+    exactly the ones that show in the portfolio."""
+    org_id, students, err = _guard(user_id)
+    if err:
+        return err
+    record = prior.get_own_record(record_id, org_id, user_id, _ids(students))
+    if not record:
+        return jsonify({'success': False, 'error': 'Record not found'}), 404
+    from services import sis_prior_learning_queue as queue
+    result = queue.set_evidence_privacy(record, evidence_id, (request.json or {}).get('is_private'))
+    if result.get('error'):
+        return _fail(result)
+    return jsonify({'success': True, **result})

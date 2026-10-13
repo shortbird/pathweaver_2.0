@@ -778,7 +778,8 @@ def get_child_overview(user_id, student_id):
             'pending_subject_xp': pending_subject_xp,
             'visibility_status': visibility_status,
             'pillars_data': pillars_data,
-            'transfer_credits': PortfolioService().get_transfer_credits(student_id)
+            'transfer_credits': PortfolioService().get_transfer_credits(student_id),
+            'prior_learning': _prior_learning_portfolio(student_id),
         }), 200
 
     except AuthorizationError as e:
@@ -861,3 +862,10 @@ def upload_child_avatar(user_id, child_id):
     except Exception as e:
         logger.error(f"Error uploading avatar for child {child_id}: {str(e)}")
         return jsonify({'success': False, 'error': 'Failed to upload avatar'}), 500
+
+
+def _prior_learning_portfolio(student_id):
+    """Accepted prior learning for the portfolio section, private documents
+    left out (services/sis_prior_learning_queue.portfolio_entries)."""
+    from services.sis_prior_learning_queue import portfolio_entries
+    return portfolio_entries(student_id)

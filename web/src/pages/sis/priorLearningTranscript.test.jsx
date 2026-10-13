@@ -59,9 +59,9 @@ describe('the analyze step', () => {
   it('asks the backend to read the evidence and shows what came back', async () => {
     mockQueue([record()])
     api.post.mockResolvedValue({ data: { suggestion: SUGGESTION } })
-    render(<PriorLearningPage />)
+    render(<PriorLearningPage defaultView="records" />)
 
-    await userEvent.click(await screen.findByRole('button', { name: 'Analyze evidence' }))
+    await userEvent.click(await screen.findByRole('button', { name: 'Read with AI' }))
 
     await waitFor(() => expect(api.post).toHaveBeenCalledWith(
       '/api/sis/prior-learning/rec-1/analyze', { organization_id: 'org-1' }))
@@ -71,7 +71,7 @@ describe('the analyze step', () => {
 
   it('draws the proposal as transcript rows, not a paragraph', async () => {
     mockQueue([record({ ai_suggestion: SUGGESTION })])
-    render(<PriorLearningPage />)
+    render(<PriorLearningPage defaultView="records" />)
 
     // One row per course, with the columns a registrar checks.
     const row = (await screen.findByText('US History')).closest('tr')
@@ -87,7 +87,7 @@ describe('the analyze step', () => {
   // A subject missing from the table is credit approved without being seen.
   it('gives a credited subject a row even when no course was named', async () => {
     mockQueue([record({ ai_suggestion: SUGGESTION })])
-    render(<PriorLearningPage />)
+    render(<PriorLearningPage defaultView="records" />)
     const cells = [...(await screen.findByText('math')).closest('tr').cells]
       .map((c) => c.textContent.trim())
     // Course and Term both read "—"; the credit is still on the row.
@@ -99,7 +99,7 @@ describe('the analyze step', () => {
 
   it('calls out a shaky reading instead of showing it like the confident one', async () => {
     mockQueue([record({ ai_suggestion: SUGGESTION })])
-    render(<PriorLearningPage />)
+    render(<PriorLearningPage defaultView="records" />)
 
     const shaky = (await screen.findByText('math')).closest('tr')
     expect(within(shaky).getByText('41%')).toBeInTheDocument()
@@ -115,9 +115,9 @@ describe('the analyze step', () => {
   it('never awards on its own — analyzing posts nothing to review', async () => {
     mockQueue([record()])
     api.post.mockResolvedValue({ data: { suggestion: SUGGESTION } })
-    render(<PriorLearningPage />)
+    render(<PriorLearningPage defaultView="records" />)
 
-    await userEvent.click(await screen.findByRole('button', { name: 'Analyze evidence' }))
+    await userEvent.click(await screen.findByRole('button', { name: 'Read with AI' }))
     await waitFor(() => expect(api.post).toHaveBeenCalledTimes(1))
 
     const called = api.post.mock.calls.map(([url]) => url)
@@ -129,7 +129,7 @@ describe('using a suggestion', () => {
   it('copies the numbers into the reviewer’s boxes, still needing an Accept', async () => {
     mockQueue([record({ ai_suggestion: SUGGESTION })])
     api.post.mockResolvedValue({ data: {} })
-    render(<PriorLearningPage />)
+    render(<PriorLearningPage defaultView="records" />)
 
     await userEvent.click(await screen.findByRole('button', { name: 'Use these numbers' }))
 
@@ -150,7 +150,7 @@ describe('using a suggestion', () => {
   it('lets the reviewer overrule the suggestion before accepting', async () => {
     mockQueue([record({ ai_suggestion: SUGGESTION })])
     api.post.mockResolvedValue({ data: {} })
-    render(<PriorLearningPage />)
+    render(<PriorLearningPage defaultView="records" />)
 
     await userEvent.click(await screen.findByRole('button', { name: 'Use these numbers' }))
     const math = await screen.findByLabelText('Math credits')
@@ -173,21 +173,21 @@ describe('the transcript step', () => {
 
   it('only appears once a record is accepted', async () => {
     mockQueue([record({ status: 'submitted' })])
-    render(<PriorLearningPage />)
+    render(<PriorLearningPage defaultView="records" />)
     await screen.findByText('Junior year')
     expect(screen.queryByRole('button', { name: 'Add to transcript' })).not.toBeInTheDocument()
   })
 
   it('shows the XP the award is worth at 2000 per credit', async () => {
     mockQueue([accepted])
-    render(<PriorLearningPage />)
+    render(<PriorLearningPage defaultView="records" />)
     expect(await screen.findByText(/2000 XP/)).toBeInTheDocument()
   })
 
   it('sends the award, the school and the AI-drafted course split', async () => {
     mockQueue([accepted])
     api.post.mockResolvedValue({ data: { action: 'created' } })
-    render(<PriorLearningPage />)
+    render(<PriorLearningPage defaultView="records" />)
 
     await userEvent.click(await screen.findByRole('button', { name: 'Add to transcript' }))
 
@@ -197,12 +197,25 @@ describe('the transcript step', () => {
         school_name: 'Cava Academy',
         subject_credits: { social_studies: 1.0 },
         course_names: { social_studies: [{ name: 'US History', credits: 1.0 }] },
+        source_accredited: false,
       }))
+  })
+
+  it('sends the accredited mark when the office ticks it', async () => {
+    mockQueue([accepted])
+    api.post.mockResolvedValue({ data: { action: 'created' } })
+    render(<PriorLearningPage defaultView="records" />)
+
+    await userEvent.click(await screen.findByLabelText(/Official transcript from an accredited school/))
+    await userEvent.click(screen.getByRole('button', { name: 'Add to transcript' }))
+
+    await waitFor(() => expect(api.post).toHaveBeenCalledWith(
+      '/api/sis/prior-learning/rec-1/credit', expect.objectContaining({ source_accredited: true })))
   })
 
   it('offers no button at all once the record is already on the transcript', async () => {
     mockQueue([{ ...accepted, transfer_credit: { id: 'tc-1', school_name: 'Cava Academy' } }])
-    render(<PriorLearningPage />)
+    render(<PriorLearningPage defaultView="records" />)
 
     expect(await screen.findByText(/On the transcript under/)).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Add to transcript' })).not.toBeInTheDocument()
@@ -210,7 +223,7 @@ describe('the transcript step', () => {
 
   it('says so plainly when a record was accepted without credit', async () => {
     mockQueue([record({ status: 'accepted', awarded_credits: {} })])
-    render(<PriorLearningPage />)
+    render(<PriorLearningPage defaultView="records" />)
     expect(await screen.findByText(/Accepted without credit/)).toBeInTheDocument()
   })
 })
@@ -225,7 +238,7 @@ describe('not losing the record after accepting it', () => {
   it('follows the record to the Accepted tab after awarding credit', async () => {
     mockQueue([record({ ai_suggestion: SUGGESTION })])
     api.post.mockResolvedValue({ data: {} })
-    render(<PriorLearningPage />)
+    render(<PriorLearningPage defaultView="records" />)
 
     await userEvent.click(await screen.findByRole('button', { name: 'Use these numbers' }))
     await userEvent.click(screen.getByRole('button', { name: /Accept & award/i }))
@@ -237,7 +250,7 @@ describe('not losing the record after accepting it', () => {
   it('stays put when a record is declined', async () => {
     mockQueue([record()])
     api.post.mockResolvedValue({ data: {} })
-    render(<PriorLearningPage />)
+    render(<PriorLearningPage defaultView="records" />)
 
     await userEvent.click(await screen.findByRole('button', { name: 'Review' }))
     await userEvent.click(screen.getByRole('button', { name: /Don’t accept/i }))
@@ -248,7 +261,7 @@ describe('not losing the record after accepting it', () => {
 
   it('marks an accepted record that never reached the transcript', async () => {
     mockQueue([record({ status: 'accepted', awarded_credits: { social_studies: 1 } })])
-    render(<PriorLearningPage />)
+    render(<PriorLearningPage defaultView="records" />)
 
     expect(await screen.findByText('not on transcript')).toBeInTheDocument()
     expect(screen.getByText('Not on the transcript yet')).toBeInTheDocument()
@@ -259,7 +272,7 @@ describe('not losing the record after accepting it', () => {
       status: 'accepted', awarded_credits: { social_studies: 1 },
       transfer_credit: { id: 'tc-1', school_name: 'Cava Academy' },
     })])
-    render(<PriorLearningPage />)
+    render(<PriorLearningPage defaultView="records" />)
 
     await screen.findByText(/On the transcript under/)
     expect(screen.queryByText('not on transcript')).not.toBeInTheDocument()
@@ -267,7 +280,7 @@ describe('not losing the record after accepting it', () => {
 
   it('does not warn when a record was accepted without credit', async () => {
     mockQueue([record({ status: 'accepted', awarded_credits: {} })])
-    render(<PriorLearningPage />)
+    render(<PriorLearningPage defaultView="records" />)
 
     await screen.findByText(/Accepted without credit/)
     expect(screen.queryByText('not on transcript')).not.toBeInTheDocument()
@@ -281,14 +294,14 @@ describe('unlocking a password-protected PDF', () => {
 
   it('asks for a password only when a file is actually locked', async () => {
     mockQueue([record({ ai_suggestion: SUGGESTION })])
-    render(<PriorLearningPage />)
+    render(<PriorLearningPage defaultView="records" />)
     await screen.findByText('Junior year')
     expect(screen.queryByLabelText('PDF password')).not.toBeInTheDocument()
   })
 
   it('names the file it needs the password for', async () => {
     mockQueue([withLocked()])
-    render(<PriorLearningPage />)
+    render(<PriorLearningPage defaultView="records" />)
     expect(await screen.findByText('CAVA-LA_Transcript.pdf')).toBeInTheDocument()
     expect(screen.getByLabelText('PDF password')).toBeInTheDocument()
   })
@@ -296,7 +309,7 @@ describe('unlocking a password-protected PDF', () => {
   it('re-reads the evidence with the password and clears the box', async () => {
     mockQueue([withLocked()])
     api.post.mockResolvedValue({ data: { suggestion: SUGGESTION } })
-    render(<PriorLearningPage />)
+    render(<PriorLearningPage defaultView="records" />)
 
     const box = await screen.findByLabelText('PDF password')
     await userEvent.type(box, 'hunter2')
@@ -311,7 +324,7 @@ describe('unlocking a password-protected PDF', () => {
 
   it('does nothing on an empty password', async () => {
     mockQueue([withLocked()])
-    render(<PriorLearningPage />)
+    render(<PriorLearningPage defaultView="records" />)
     await screen.findByLabelText('PDF password')
     expect(screen.getByRole('button', { name: 'Unlock and re-read' })).toBeDisabled()
     expect(api.post).not.toHaveBeenCalled()
@@ -320,9 +333,9 @@ describe('unlocking a password-protected PDF', () => {
   it('sends no passwords on an ordinary analyze', async () => {
     mockQueue([record()])
     api.post.mockResolvedValue({ data: { suggestion: SUGGESTION } })
-    render(<PriorLearningPage />)
+    render(<PriorLearningPage defaultView="records" />)
 
-    await userEvent.click(await screen.findByRole('button', { name: 'Analyze evidence' }))
+    await userEvent.click(await screen.findByRole('button', { name: 'Read with AI' }))
     await waitFor(() => expect(api.post).toHaveBeenCalledWith(
       '/api/sis/prior-learning/rec-1/analyze', { organization_id: 'org-1' }))
   })
@@ -338,7 +351,7 @@ describe('deleting an uploaded document', () => {
 
   it('asks before removing a family’s file, and does nothing if declined', async () => {
     mockQueue([withDoc()])
-    render(withConfirm(<PriorLearningPage />))
+    render(withConfirm(<PriorLearningPage defaultView="records" />))
 
     await screen.findByText('Junior year')
     fireEvent.click(screen.getByRole('button', { name: 'Delete' }))
@@ -351,7 +364,7 @@ describe('deleting an uploaded document', () => {
   it('deletes the document once confirmed and drops it from the list', async () => {
     mockQueue([withDoc()])
     api.delete.mockResolvedValue({ data: { deleted: true } })
-    render(withConfirm(<PriorLearningPage />))
+    render(withConfirm(<PriorLearningPage defaultView="records" />))
 
     await screen.findByText('Junior year')
     fireEvent.click(screen.getByRole('button', { name: 'Delete' }))
@@ -366,7 +379,7 @@ describe('deleting an uploaded document', () => {
   it('keeps the document on screen when the delete fails', async () => {
     mockQueue([withDoc()])
     api.delete.mockRejectedValue({ response: { data: { error: 'nope' } } })
-    render(withConfirm(<PriorLearningPage />))
+    render(withConfirm(<PriorLearningPage defaultView="records" />))
 
     await screen.findByText('Junior year')
     fireEvent.click(screen.getByRole('button', { name: 'Delete' }))
@@ -403,7 +416,7 @@ describe('course splits that do not add up', () => {
 
   it('shows the running total against the award before anything is sent', async () => {
     mockQueue([mismatched()])
-    render(<PriorLearningPage />)
+    render(<PriorLearningPage defaultView="records" />)
     expect(await screen.findByText('2.25 / 2')).toBeInTheDocument()
     expect(screen.getByText(/These courses add up to 2.25, but cte was awarded 2/))
       .toBeInTheDocument()
@@ -411,7 +424,7 @@ describe('course splits that do not add up', () => {
 
   it('will not let a transcript that disagrees with itself be submitted', async () => {
     mockQueue([mismatched()])
-    render(<PriorLearningPage />)
+    render(<PriorLearningPage defaultView="records" />)
     await screen.findByText('2.25 / 2')
     expect(screen.getByRole('button', { name: 'Add to transcript' })).toBeDisabled()
     expect(api.post).not.toHaveBeenCalled()
@@ -420,7 +433,7 @@ describe('course splits that do not add up', () => {
   it('offers dropping the course names as the way out', async () => {
     mockQueue([mismatched()])
     api.post.mockResolvedValue({ data: { action: 'created' } })
-    render(<PriorLearningPage />)
+    render(<PriorLearningPage defaultView="records" />)
 
     await userEvent.click(await screen.findByRole('button', { name: 'drop the course names' }))
     fireEvent.click(screen.getByRole('button', { name: 'Add to transcript' }))
@@ -433,7 +446,7 @@ describe('course splits that do not add up', () => {
 
   it('clears once the courses are corrected by hand', async () => {
     mockQueue([mismatched()])
-    render(<PriorLearningPage />)
+    render(<PriorLearningPage defaultView="records" />)
 
     const box = await screen.findByLabelText(/cte courses/)
     await userEvent.clear(box)
@@ -449,7 +462,7 @@ describe('course splits that do not add up', () => {
       awarded_credits: { social_studies: 1.0 },
       ai_suggestion: SUGGESTION,
     })])
-    render(<PriorLearningPage />)
+    render(<PriorLearningPage defaultView="records" />)
     expect(await screen.findByText('1 / 1')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Add to transcript' })).toBeEnabled()
   })

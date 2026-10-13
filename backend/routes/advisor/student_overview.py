@@ -638,7 +638,8 @@ def get_student_overview(user_id, student_id):
             'pending_subject_xp': pending_subject_xp,
             'visibility_status': visibility_status,
             'pillars_data': pillars_data,
-            'transfer_credits': PortfolioService().get_transfer_credits(student_id)
+            'transfer_credits': PortfolioService().get_transfer_credits(student_id),
+            'prior_learning': _prior_learning_portfolio(student_id),
         }), 200
 
     except AuthorizationError as e:
@@ -688,3 +689,10 @@ def remove_student_quest(user_id, student_id, quest_id):
         # Classes the quest is still on for this student. Empty when none.
         'still_on_classes': [{'id': c, 'name': names.get(c)} for c in out['still_on_classes']],
     }), 200
+
+
+def _prior_learning_portfolio(student_id):
+    """Accepted prior learning for the portfolio section, private documents
+    left out (services/sis_prior_learning_queue.portfolio_entries)."""
+    from services.sis_prior_learning_queue import portfolio_entries
+    return portfolio_entries(student_id)

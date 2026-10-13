@@ -146,6 +146,27 @@ def _run_bloomy_sync():
     return bloomy_sync_service.run_due()
 
 
+def _run_prior_learning_analyze():
+    """Prior learning: analyze records queued for the AI reader, and requeue
+    any a dead worker left mid-read. Returns before any model call."""
+    from services import sis_prior_learning_queue as queue
+    return queue.analyze_sweep()
+
+
+def _run_prior_learning_digest():
+    """Prior learning: the morning email to the superadmins while records
+    wait. Sends nothing when nothing waits."""
+    from services import sis_prior_learning_queue as queue
+    return queue.daily_digest()
+
+
+def _run_credit_bank_sweep():
+    """Credit bank: bank each self-pay tuition month Stripe has confirmed
+    (registration subscriptions and office-set autopay). Idempotent."""
+    from services import credit_bank_service
+    return credit_bank_service.sweep()
+
+
 #: name -> the sweep. The path is /api/sis/internal/<name>; the dispatcher's
 #: schedule (jobs/cron_dispatch.py) names the same eight.
 CRON_SWEEPS = {
@@ -159,6 +180,9 @@ CRON_SWEEPS = {
     'waitlist-offer-sweep': _run_waitlist_offer_sweep,
     'task-occurrences': _run_task_occurrences,
     'bloomy-sync': _run_bloomy_sync,
+    'prior-learning-analyze': _run_prior_learning_analyze,
+    'prior-learning-digest': _run_prior_learning_digest,
+    'credit-bank-sweep': _run_credit_bank_sweep,
 }
 
 

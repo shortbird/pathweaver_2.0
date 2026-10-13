@@ -40,7 +40,7 @@ describe('awarding credit', () => {
   it('sends only the subjects the reviewer actually typed a number into', async () => {
     mockQueue()
     api.post.mockResolvedValue({ data: {} })
-    render(<PriorLearningPage />)
+    render(<PriorLearningPage defaultView="records" />)
 
     await userEvent.click(await screen.findByRole('button', { name: 'Review' }))
     await userEvent.type(screen.getByLabelText(/math credits/i), '1')
@@ -56,7 +56,7 @@ describe('awarding credit', () => {
   it('carries quarter credits through, because schools award them', async () => {
     mockQueue()
     api.post.mockResolvedValue({ data: {} })
-    render(<PriorLearningPage />)
+    render(<PriorLearningPage defaultView="records" />)
 
     await userEvent.click(await screen.findByRole('button', { name: 'Review' }))
     await userEvent.type(screen.getByLabelText(/science credits/i), '0.25')
@@ -69,7 +69,7 @@ describe('awarding credit', () => {
   it('declining a record sends no credit at all', async () => {
     mockQueue()
     api.post.mockResolvedValue({ data: {} })
-    render(<PriorLearningPage />)
+    render(<PriorLearningPage defaultView="records" />)
 
     await userEvent.click(await screen.findByRole('button', { name: 'Review' }))
     await userEvent.type(screen.getByLabelText(/math credits/i), '1')
@@ -88,7 +88,7 @@ describe('reading the evidence without leaving the page', () => {
   it('renders a PDF inline, in a frame that scrolls its own pages', async () => {
     withEvidence([{ id: 'e1', evidence_type: 'document', url: 'https://x/t.pdf',
                     title: 'Transcript', content_type: 'application/pdf' }])
-    render(<PriorLearningPage />)
+    render(<PriorLearningPage defaultView="records" />)
 
     const frame = await screen.findByTitle('Transcript')
     expect(frame.tagName).toBe('IFRAME')
@@ -98,7 +98,7 @@ describe('reading the evidence without leaving the page', () => {
   it('renders a photo inline', async () => {
     withEvidence([{ id: 'e1', evidence_type: 'image', url: 'https://x/p.jpg',
                     title: 'Project', content_type: 'image/jpeg' }])
-    render(<PriorLearningPage />)
+    render(<PriorLearningPage defaultView="records" />)
 
     expect(await screen.findByRole('img', { name: 'Project' }))
       .toHaveAttribute('src', 'https://x/p.jpg')
@@ -110,7 +110,7 @@ describe('reading the evidence without leaving the page', () => {
     })
     withEvidence([{ id: 'e1', evidence_type: 'document', url: 'https://x/e.csv',
                     title: 'export.csv', file_name: 'export.csv', content_type: 'text/csv' }])
-    render(<PriorLearningPage />)
+    render(<PriorLearningPage defaultView="records" />)
 
     expect(await screen.findByText(/Ada,Algebra I/)).toBeInTheDocument()
   })
@@ -119,7 +119,7 @@ describe('reading the evidence without leaving the page', () => {
     global.fetch = vi.fn().mockRejectedValue(new Error('cors'))
     withEvidence([{ id: 'e1', evidence_type: 'document', url: 'https://x/e.csv',
                     file_name: 'export.csv', content_type: 'text/csv' }])
-    render(<PriorLearningPage />)
+    render(<PriorLearningPage defaultView="records" />)
 
     expect(await screen.findByText(/couldn’t load this file here/i)).toBeInTheDocument()
   })
@@ -128,7 +128,7 @@ describe('reading the evidence without leaving the page', () => {
     withEvidence([{ id: 'e1', evidence_type: 'document', url: 'https://x/e.docx',
                     file_name: 'essay.docx',
                     content_type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' }])
-    render(<PriorLearningPage />)
+    render(<PriorLearningPage defaultView="records" />)
 
     expect(await screen.findByText(/can’t be shown here/i)).toBeInTheDocument()
   })
@@ -137,7 +137,7 @@ describe('reading the evidence without leaving the page', () => {
     withEvidence([{ id: 'e1', evidence_type: 'document', url: 'https://x/t.pdf',
                     title: 'Scan', file_name: 'scan.pdf',
                     content_type: 'application/octet-stream' }])
-    render(<PriorLearningPage />)
+    render(<PriorLearningPage defaultView="records" />)
 
     expect((await screen.findByTitle('Scan')).tagName).toBe('IFRAME')
   })
@@ -147,7 +147,7 @@ describe('reading the evidence without leaving the page', () => {
        viewer — the .pdf on the end of the URL does. */
     withEvidence([{ id: 'e1', evidence_type: 'document', url: 'https://x/t.pdf',
                     title: 'Transcript' }])
-    render(<PriorLearningPage />)
+    render(<PriorLearningPage defaultView="records" />)
 
     expect((await screen.findByTitle('Transcript')).tagName).toBe('IFRAME')
   })
@@ -155,7 +155,7 @@ describe('reading the evidence without leaving the page', () => {
   it('ignores a query string hanging off a signed URL', async () => {
     withEvidence([{ id: 'e1', evidence_type: 'document',
                     url: 'https://x/t.pdf?token=abc&x=1', title: 'Signed' }])
-    render(<PriorLearningPage />)
+    render(<PriorLearningPage defaultView="records" />)
 
     expect((await screen.findByTitle('Signed')).tagName).toBe('IFRAME')
   })
@@ -163,7 +163,7 @@ describe('reading the evidence without leaving the page', () => {
   it('can be collapsed when a document is in the way', async () => {
     withEvidence([{ id: 'e1', evidence_type: 'image', url: 'https://x/p.jpg',
                     title: 'Project', content_type: 'image/jpeg' }])
-    render(<PriorLearningPage />)
+    render(<PriorLearningPage defaultView="records" />)
 
     await userEvent.click(await screen.findByRole('button', { name: /collapse/i }))
     expect(screen.queryByRole('img', { name: 'Project' })).not.toBeInTheDocument()
@@ -172,7 +172,7 @@ describe('reading the evidence without leaving the page', () => {
   it('still offers a tab for anyone who wants one', async () => {
     withEvidence([{ id: 'e1', evidence_type: 'document', url: 'https://x/t.pdf',
                     title: 'Transcript', content_type: 'application/pdf' }])
-    render(<PriorLearningPage />)
+    render(<PriorLearningPage defaultView="records" />)
 
     expect(await screen.findByRole('link', { name: /open/i }))
       .toHaveAttribute('href', 'https://x/t.pdf')
@@ -182,7 +182,7 @@ describe('reading the evidence without leaving the page', () => {
     withEvidence([{ id: 'e1', evidence_type: 'document', url: 'https://x/t.pdf',
                     title: 'Transcript', content_type: 'application/pdf',
                     content: '10th grade, first semester' }])
-    render(<PriorLearningPage />)
+    render(<PriorLearningPage defaultView="records" />)
 
     expect(await screen.findByText('10th grade, first semester')).toBeInTheDocument()
   })
@@ -195,14 +195,14 @@ describe('what the reviewer sees', () => {
       ...RECORD,
       ai_suggestion: { summary: 'Looks like a full year of algebra.', subjects: [] },
     }])
-    render(<PriorLearningPage />)
+    render(<PriorLearningPage defaultView="records" />)
 
     expect(await screen.findByText(/not a decision/i)).toBeInTheDocument()
   })
 
   it('says the feature is off rather than showing an empty queue', async () => {
     api.get.mockRejectedValue({ response: { status: 403 } })
-    render(<PriorLearningPage />)
+    render(<PriorLearningPage defaultView="records" />)
 
     expect(await screen.findByText(/aren’t enabled for this school/i)).toBeInTheDocument()
   })

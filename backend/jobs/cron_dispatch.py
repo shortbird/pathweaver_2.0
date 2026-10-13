@@ -218,6 +218,24 @@ def main():
         _run("conversation-review", f"{base}/api/admin/moderation/internal/conversation-review",
              cron_secret, failures, base=base)
 
+    # Every run: prior learning. Reads records whose evidence changed since
+    # the last suggestion (staff uploads queue the record rather than reading
+    # each file as it lands). Returns before any model call.
+    _run("prior-learning-analyze", f"{base}/api/sis/internal/prior-learning-analyze",
+         cron_secret, failures, base=base)
+
+    # Once/day (14:00 UTC, morning in Utah): what waits in the prior learning
+    # queue, emailed to the superadmins. Sends nothing when nothing waits.
+    if now.hour == 14 and now.minute < 10:
+        _run("prior-learning-digest", f"{base}/api/sis/internal/prior-learning-digest",
+             cron_secret, failures, base=base)
+
+    # Once/day (11:00 UTC): bank the self-pay tuition months Stripe confirmed
+    # since yesterday (services/credit_bank_service.py). Idempotent.
+    if now.hour == 11 and now.minute < 10:
+        _run("credit-bank-sweep", f"{base}/api/sis/internal/credit-bank-sweep",
+             cron_secret, failures, base=base)
+
     if now.hour == 14 and now.minute < 10:
         _run("moderation-daily-digest", f"{base}/api/admin/moderation/internal/daily-digest",
              cron_secret, failures, base=base)

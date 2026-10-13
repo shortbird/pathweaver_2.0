@@ -331,6 +331,11 @@ class PortfolioService:
             for subject, xp in subject_xp_map.items()
         ]
 
+    @staticmethod
+    def _prior_learning(user_id: str) -> list:
+        from services.sis_prior_learning_queue import portfolio_entries
+        return portfolio_entries(user_id)
+
     def get_transfer_credits(self, user_id: str) -> Optional[list]:
         """Get all transfer credits data formatted for diploma display.
 
@@ -1167,6 +1172,8 @@ class PortfolioService:
             'total_xp': total_xp,
             'total_quests_completed': len([a for a in achievements if a.get('status') == 'completed']),
             'transfer_credits': transfer_credits,
+            # Accepted prior learning with its non-private documents.
+            'prior_learning': self._prior_learning(user_id),
             'curated': self.get_curated_completions(user_id),
             'public_consent_info': self._public_consent_info(diploma, is_public, user_id),
         }

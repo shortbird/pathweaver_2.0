@@ -439,6 +439,7 @@ class TestTheOverviewsSendIt:
              patch.object(so, 'verify_advisor_access', return_value=True, create=True), \
              patch.object(so.AccessLogger, 'log_student_data_access', return_value=True), \
              patch.object(so, 'calculate_subject_xp_from_tasks', return_value={}, create=True), \
+             patch('services.sis_prior_learning_queue.portfolio_entries', return_value=[]), \
              patch('services.portfolio_service.PortfolioService') as portfolio:
             portfolio.return_value.get_transfer_credits.return_value = None
             portfolio.return_value.get_visibility_status.return_value = {}

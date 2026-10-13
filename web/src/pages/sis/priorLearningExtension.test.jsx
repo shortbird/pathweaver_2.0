@@ -40,7 +40,7 @@ describe('an extension school', () => {
     expect(screen.getByRole('button', { name: 'Upload a transcript' })).toBeInTheDocument()
     expect(screen.getByText(/all four pages arrived/)).toBeInTheDocument()
     expect(screen.getByLabelText('Optio Academy review: On transcript')).toBeInTheDocument()
-    for (const name of ['Review', 'Analyze evidence', 'Re-analyze']) {
+    for (const name of ['Review', 'Read with AI', 'Read again with AI']) {
       expect(screen.queryByRole('button', { name })).not.toBeInTheDocument()
     }
     expect(screen.queryByRole('tab', { name: /In review/ })).not.toBeInTheDocument()

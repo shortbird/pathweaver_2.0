@@ -1,26 +1,13 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react'
+import React, { useCallback, useEffect, useState } from 'react'
 import { toast } from 'react-hot-toast'
 import api from '../../services/api'
 import { useSisOrg } from './useSisOrg'
-// Shared with the family upload page: one list of what a prior-learning upload
-// accepts, so the office and a parent are never told different things.
-import { isSupported, kindFor } from '../../utils/priorLearningFiles'
-
-
+import GlassTabBar from '../../components/ui/GlassTabBar'
 import ReceivedTranscriptForm from './priorLearning/ReceivedTranscriptForm'
 import ExtensionUploadView from './priorLearning/ExtensionUploadView'
-import EvidenceList from './priorLearning/EvidenceList'
-import AiSuggestion from './priorLearning/AiSuggestion'
-import TranscriptStep from './priorLearning/TranscriptStep'
-import ReviewForm from './priorLearning/ReviewForm'
-import previewKindFor from './priorLearning/previewKindFor'
-import LOW_CONFIDENCE from './priorLearning/LOW_CONFIDENCE'
-import transcriptRows from './priorLearning/transcriptRows'
-import parseCourseText from './priorLearning/parseCourseText'
-import courseTotal from './priorLearning/courseTotal'
-import creditsFromSuggestion from './priorLearning/creditsFromSuggestion'
-import StatusPill from '../../components/sis/ui/StatusPill'
-import GlassTabBar from '../../components/ui/GlassTabBar'
+import RecordQueue from './priorLearning/RecordQueue'
+import StudentQueue from './priorLearning/StudentQueue'
+import StudentWorkspace from './priorLearning/StudentWorkspace'
 export { default as previewKindFor } from './priorLearning/previewKindFor'
 export { default as LOW_CONFIDENCE } from './priorLearning/LOW_CONFIDENCE'
 export { default as transcriptRows } from './priorLearning/transcriptRows'
@@ -55,6 +42,16 @@ export { default as creditsFromSuggestion } from './priorLearning/creditsFromSug
  * a copy, not an application — the reviewer still presses Accept, so a
  * confident-but-wrong reading always passes through a person.
  *
+ * Two views (2026-10-13). "By student" is the default: a list of students,
+ * longest wait first, and one workspace per student with every record, the
+ * diploma progress, what is already on the transcript, overlap warnings, a
+ * one-step Approve (accept + transcribe) and Send back. "All records" is the
+ * status list this page used to be, for questions a student list does not
+ * answer ("everything accepted but not transcribed").
+ *
+ * ?student=<id> opens one student, and ?organization_id= picks the school for
+ * a superadmin -- the bell and the morning digest link here that way.
+ *
  * The office can also FILE a record here, not only review one. Transcripts
  * arrive at the school directly — mailed, emailed, handed over at enrollment —
  * and before this an admin holding one either sat on it or asked the family to
@@ -64,50 +61,39 @@ export { default as creditsFromSuggestion } from './priorLearning/creditsFromSug
  * late and belongs on the record it belongs on.
  */
 
-const STATUS_TABS = [
-  ['submitted', 'New'],
-  ['under_review', 'In review'],
-  ['accepted', 'Accepted'],
-  ['rejected', 'Not accepted'],
+const VIEWS = [
+  { id: 'students', label: 'By student' },
+  { id: 'records', label: 'All records' },
 ]
 
+const param = (name) => {
+  try { return new URLSearchParams(window.location.search).get(name) } catch { return null }
+}
 
-const dateRange = (record) => (
-  [record.started_on, record.ended_on].filter(Boolean).join(' – ') || null
-)
-
-const PriorLearningPage = () => {
-  const { orgId } = useSisOrg()
-  const [loading, setLoading] = useState(true)
-  const [status, setStatus] = useState('submitted')
-  const [records, setRecords] = useState([])
-  const [counts, setCounts] = useState({})
-  const [subjects, setSubjects] = useState([])
-  const [openId, setOpenId] = useState(null)
-  const [busy, setBusy] = useState(false)
-  const [analyzing, setAnalyzing] = useState(null)
-  const [suggested, setSuggested] = useState({})
+const PriorLearningPage = ({ defaultView = null }) => {
+  const { orgId, setOrgId, isSuperadmin } = useSisOrg()
+  const [view, setView] = useState(() => defaultView || param('view') || 'students')
+  const [queue, setQueue] = useState({ students: [], totals: {} })
+  const [studentId, setStudentId] = useState(() => param('student'))
   const [disabled, setDisabled] = useState(false)
   const [adding, setAdding] = useState(false)
+  const [filedAt, setFiledAt] = useState(null)
   // An extension of Optio Academy uploads and watches; Optio reviews.
   const [optioReviews, setOptioReviews] = useState(false)
   // Which view to show is only known once the first read returns; until then
   // show neither, or an extension school's office sees the review tools flash.
   const [ready, setReady] = useState(false)
 
-  const query = useMemo(() => {
-    const params = new URLSearchParams({ status })
-    if (orgId) params.set('organization_id', orgId)
-    return params.toString()
-  }, [status, orgId])
+  // A superadmin arriving from an alert lands on the school the alert names.
+  useEffect(() => {
+    const wanted = param('organization_id')
+    if (wanted && isSuperadmin && setOrgId && wanted !== orgId) setOrgId(wanted)
+  }, [isSuperadmin])
 
-  const load = useCallback(() => {
-    setLoading(true)
-    api.get(`/api/sis/prior-learning?${query}`)
+  const loadQueue = useCallback(() => {
+    return api.get('/api/sis/prior-learning/queue', { params: { organization_id: orgId || undefined } })
       .then((r) => {
-        setRecords(r.data?.records || [])
-        setCounts(r.data?.counts || {})
-        setSubjects(r.data?.subjects || [])
+        setQueue({ students: r.data?.students || [], totals: r.data?.totals || {} })
         setOptioReviews(Boolean(r.data?.optio_reviews))
         setDisabled(false)
       })
@@ -115,139 +101,25 @@ const PriorLearningPage = () => {
         if (err.response?.status === 403) { setDisabled(true); return }
         toast.error('Could not load prior learning records')
       })
-      .finally(() => { setLoading(false); setReady(true) })
-  }, [query])
+      .finally(() => setReady(true))
+  }, [orgId])
 
-  useEffect(() => { load() }, [load])
+  useEffect(() => { loadQueue() }, [loadQueue])
 
-  const review = async (recordId, payload) => {
-    setBusy(true)
-    try {
-      await api.post(`/api/sis/prior-learning/${recordId}/review`,
-        { organization_id: orgId || undefined, ...payload })
-      setOpenId(null)
-      // Accepting moves the record OUT of the tab it was reviewed in, which
-      // used to take the unfinished "Add to transcript" step with it — the
-      // record simply vanished and nothing said the credit had gone nowhere.
-      // Follow it, so the remaining step is on screen instead of one tab away.
-      if (payload.status === 'accepted' && Object.keys(payload.awarded_credits || {}).length) {
-        toast.success('Credit awarded. Now add it to the transcript.')
-        setStatus('accepted')
-      } else {
-        toast.success('Saved')
-        load()
-      }
-    } catch (err) {
-      toast.error(err.response?.data?.error || 'Could not save this review')
-    } finally {
-      setBusy(false)
-    }
-  }
+  // Open the first student who needs something, so the page starts on work.
+  useEffect(() => {
+    if (studentId || view !== 'students') return
+    const first = queue.students.find((s) => s.needs_action)
+    if (first && window.matchMedia?.('(min-width: 1024px)').matches) setStudentId(first.student_id)
+  }, [queue.students, studentId, view])
 
-  // Reads the evidence and writes ai_suggestion. Synchronous — the reviewer is
-  // looking at the record and waits a few seconds, which beats a queue and a
-  // poll for a call this short.
-  // `passwords` unlock encrypted PDFs for this one call. They are never stored
-  // — not in component state beyond the attempt, not on the record, not in the
-  // response — so a reviewer retypes rather than the school holding a family's
-  // document password.
-  const analyze = async (recordId, passwords) => {
-    setAnalyzing(recordId)
-    try {
-      const r = await api.post(`/api/sis/prior-learning/${recordId}/analyze`,
-        { organization_id: orgId || undefined, passwords: passwords || undefined })
-      setRecords((prev) => prev.map((rec) => (
-        rec.id === recordId ? { ...rec, ai_suggestion: r.data?.suggestion } : rec
-      )))
-    } catch (err) {
-      toast.error(err.response?.data?.error || 'Could not analyze this record')
-    } finally {
-      setAnalyzing(null)
-    }
-  }
+  const forbidden = useCallback(() => setDisabled(true), [])
 
-  const deleteEvidence = async (recordId, evidenceId) => {
-    setBusy(true)
-    try {
-      await api.delete(`/api/sis/prior-learning/${recordId}/evidence/${evidenceId}`,
-        { params: { organization_id: orgId || undefined } })
-      setRecords((prev) => prev.map((rec) => (
-        rec.id === recordId
-          ? { ...rec, evidence: (rec.evidence || []).filter((e) => e.id !== evidenceId) }
-          : rec
-      )))
-      toast.success('Document deleted')
-    } catch (err) {
-      toast.error(err.response?.data?.error || 'Could not delete that document')
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  // Documents the office received itself, added to a record that already exists
-  // — the rest of a transcript that arrived in two envelopes, or the official
-  // copy the school sent to back up what a family scanned.
-  const addDocuments = async (recordId, fileList) => {
-    const all = Array.from(fileList || [])
-    const files = all.filter(isSupported)
-    const refused = all.filter((f) => !isSupported(f))
-    if (refused.length) {
-      toast.error(`Can’t use ${refused.map((f) => f.name).join(', ')} — try a PDF, a photo, or a CSV.`)
-    }
-    if (!files.length) return
-    setBusy(true)
-    const added = []
-    const failed = []
-    for (const file of files) {
-      const data = new FormData()
-      data.append('evidence_type', kindFor(file))
-      data.append('file', file)
-      if (orgId) data.append('organization_id', orgId)
-      try {
-        const r = await api.post(
-          `/api/sis/prior-learning/${recordId}/evidence${orgId ? `?organization_id=${orgId}` : ''}`,
-          data)
-        if (r.data?.evidence) added.push(r.data.evidence)
-      } catch (err) {
-        failed.push({ name: file.name, reason: err.response?.data?.error })
-      }
-    }
-    if (added.length) {
-      setRecords((prev) => prev.map((rec) => (
-        rec.id === recordId ? { ...rec, evidence: [...(rec.evidence || []), ...added] } : rec
-      )))
-      toast.success(added.length === 1 ? 'Document added' : `${added.length} documents added`)
-    }
-    if (failed.length) {
-      toast.error(`Didn’t upload: ${failed
-        .map((f) => (f.reason ? `${f.name} (${f.reason})` : f.name)).join(', ')}`)
-    }
-    setBusy(false)
-  }
-
-  // A new record lands in review, so follow it there — otherwise the thing the
-  // reviewer just filed is on a tab they aren't looking at.
+  // A new record lands in review; follow it there.
   const afterFiling = () => {
     setAdding(false)
-    if (status === 'under_review') load()
-    else setStatus('under_review')
-  }
-
-  // The only call that touches a transcript.
-  const addToTranscript = async (recordId, payload) => {
-    setBusy(true)
-    try {
-      const r = await api.post(`/api/sis/prior-learning/${recordId}/credit`,
-        { organization_id: orgId || undefined, ...payload })
-      toast.success(r.data?.action === 'merged'
-        ? 'Added to this school’s existing transfer credit'
-        : 'Added to the transcript')
-      load()
-    } catch (err) {
-      toast.error(err.response?.data?.error || 'Could not add this to the transcript')
-    } finally {
-      setBusy(false)
-    }
+    setFiledAt(Date.now())
+    loadQueue()
   }
 
   if (disabled) {
@@ -264,14 +136,19 @@ const PriorLearningPage = () => {
   if (!ready) return <p className="p-6 text-sm text-gray-500">Loading…</p>
   if (optioReviews) return <ExtensionUploadView orgId={orgId} />
 
+  const totals = queue.totals || {}
+
   return (
-    <div className="p-6 space-y-5">
-      <div className="flex items-start justify-between gap-4">
+    <div className="p-4 sm:p-6 space-y-5">
+      <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <h1 className="text-xl font-bold text-gray-900 font-poppins">Prior Learning</h1>
           <p className="text-sm text-gray-600 mt-1">
-            Learning students did before or outside Optio, with evidence, for
-            high-school credit — sent by a family or received by the office.
+            {totals.waiting
+              ? `${totals.waiting} record${totals.waiting === 1 ? '' : 's'} waiting for review`
+              : 'Nothing waiting for review'}
+            {totals.not_transcribed ? ` · ${totals.not_transcribed} accepted but not on a transcript` : ''}
+            {totals.needs_info ? ` · ${totals.needs_info} with families` : ''}
           </p>
         </div>
         <button type="button" onClick={() => setAdding(true)}
@@ -285,120 +162,34 @@ const PriorLearningPage = () => {
                                 onFiled={afterFiling} />
       )}
 
-      <GlassTabBar
-        align="start" aria-label="Prior learning queues"
-        tabs={STATUS_TABS.map(([id, label]) => ({ id, label, badge: counts[id] || null }))}
-        active={status} onSelect={setStatus}
-      />
+      <GlassTabBar align="start" aria-label="Prior learning views"
+                   tabs={VIEWS} active={view} onSelect={setView} />
 
-      {loading && <p className="text-sm text-gray-500">Loading…</p>}
-      {!loading && !records.length && (
-        <p className="text-sm text-gray-500">Nothing here.</p>
+      {view === 'records' && (
+        <RecordQueue orgId={orgId} filedAt={filedAt} onForbidden={forbidden} />
       )}
 
-      <div className="space-y-4">
-        {records.map((record) => (
-          <div key={record.id} className="bg-white rounded-xl border border-gray-200 p-5 space-y-3">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <div className="flex items-center gap-2 flex-wrap">
-                  <h2 className="font-semibold text-gray-900">{record.title}</h2>
-                  <StatusPill domain="prior_learning" status={record.status} />
-                  {/* Accepted-and-awarded but not yet transcribed reads as
-                      "done" from the status alone, and it is the state where
-                      the credit exists but the student has none of it. */}
-                  {record.status === 'accepted' && !record.transfer_credit
-                    && Object.keys(record.awarded_credits || {}).length > 0 && (
-                    <span className="text-xs px-2 py-0.5 rounded-full bg-amber-100 text-amber-800">
-                      not on transcript
-                    </span>
-                  )}
-                  {/* Where it came from, because "who filed this" is a question
-                      an accreditor asks, and a staff record has no family
-                      behind it to ask about a missing page. */}
-                  {record.source === 'staff' && (
-                    <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-600">
-                      filed by the office
-                    </span>
-                  )}
-                  {/* Optio Academy reviews the records of a microschool that
-                      issues its diplomas (accreditation_source 'optio'). The
-                      Academy needs to know which school the family is at; the
-                      microschool needs to know the decision is not theirs. */}
-                  {record.academy_reviews && record.can_review && record.organization_name && (
-                    <span className="text-xs px-2 py-0.5 rounded-full bg-purple-50 text-optio-purple">
-                      via {record.organization_name}
-                    </span>
-                  )}
-                  {record.can_review === false && (
-                    <span className="text-xs px-2 py-0.5 rounded-full bg-purple-50 text-optio-purple">
-                      Optio Academy reviews this
-                    </span>
-                  )}
-                </div>
-                <p className="text-sm text-gray-500 mt-0.5">
-                  {[record.student_name, record.provider, dateRange(record),
-                    record.hours_estimate ? `${record.hours_estimate} hrs` : null]
-                    .filter(Boolean).join(' · ')}
-                </p>
-              </div>
-              {record.can_review !== false && (
-              <div className="flex items-center gap-3 shrink-0">
-                <button type="button" disabled={analyzing === record.id}
-                        onClick={() => analyze(record.id)}
-                        className="text-sm text-gray-600 font-medium disabled:opacity-50">
-                  {analyzing === record.id ? 'Reading…'
-                    : record.ai_suggestion ? 'Re-analyze' : 'Analyze evidence'}
+      {view === 'students' && (
+        <div className="grid gap-5 lg:grid-cols-[20rem_1fr] items-start">
+          <div className={studentId ? 'hidden lg:block' : ''}>
+            <StudentQueue students={queue.students} totals={totals}
+                          selectedId={studentId} onSelect={setStudentId} />
+          </div>
+          <div className={studentId ? '' : 'hidden lg:block'}>
+            {studentId ? (
+              <>
+                <button type="button" onClick={() => setStudentId(null)}
+                        className="lg:hidden text-sm text-optio-purple font-medium mb-3">
+                  ← All students
                 </button>
-                <button type="button" onClick={() => setOpenId(openId === record.id ? null : record.id)}
-                        className="text-sm text-optio-purple font-medium">
-                  {openId === record.id ? 'Close' : 'Review'}
-                </button>
-              </div>
-              )}
-            </div>
-
-            {record.description && (
-              <p className="text-sm text-gray-700 whitespace-pre-wrap">{record.description}</p>
-            )}
-
-            <EvidenceList evidence={record.evidence} busy={busy}
-                          onAdd={(files) => addDocuments(record.id, files)}
-                          onDelete={(evidenceId) => deleteEvidence(record.id, evidenceId)} />
-
-            {record.ai_suggestion && record.can_review !== false && (
-              <AiSuggestion
-                suggestion={record.ai_suggestion}
-                busy={analyzing === record.id}
-                onUnlock={(password) => analyze(record.id, [password])}
-                onUse={() => {
-                  setSuggested({ ...suggested, [record.id]: record.ai_suggestion })
-                  setOpenId(record.id)
-                }}
-              />
-            )}
-
-            {openId === record.id && record.can_review !== false && record.transfer_credit && (
-              <p className="text-sm text-gray-600">
-                This credit is on the transcript. To change the review, remove it from the
-                student&apos;s transfer credits first.
-              </p>
-            )}
-
-            {openId === record.id && record.can_review !== false && !record.transfer_credit && (
-              <ReviewForm record={record} subjects={subjects} busy={busy}
-                          prefill={suggested[record.id]}
-                          onSubmit={(payload) => review(record.id, payload)} />
-            )}
-
-            {record.status === 'accepted' && record.can_review !== false && (
-              <TranscriptStep record={record} busy={busy}
-                              suggestion={record.ai_suggestion}
-                              onSubmit={(payload) => addToTranscript(record.id, payload)} />
+                <StudentWorkspace key={studentId} orgId={orgId} studentId={studentId} onChanged={loadQueue} />
+              </>
+            ) : (
+              <p className="text-sm text-gray-500 p-4">Choose a student to see their records.</p>
             )}
           </div>
-        ))}
-      </div>
+        </div>
+      )}
     </div>
   )
 }

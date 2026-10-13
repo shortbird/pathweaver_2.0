@@ -31,6 +31,7 @@ from utils.sis_roles import ADMIN_ROLES
 from utils.school_subjects import SCHOOL_SUBJECTS, SCHOOL_SUBJECT_DISPLAY_NAMES
 from services import sis_service
 from services import sis_prior_learning_service as prior
+from services import sis_prior_learning_queue as queue
 
 logger = get_logger(__name__)
 
@@ -45,7 +46,7 @@ def list_records(user_id):
     if err:
         return err
     status = request.args.get('status') or None
-    if status and status not in ('submitted', 'under_review', 'accepted', 'rejected'):
+    if status and status not in ('submitted', 'under_review', 'needs_info', 'accepted', 'rejected'):
         return jsonify({'success': False, 'error': 'Unknown status'}), 400
     records = prior.list_for_org(org_id, status=status,
                                  student_id=request.args.get('student_id'))
@@ -72,9 +73,129 @@ def list_records(user_id):
         'counts': prior.queue_counts(org_id),
         # The award vocabulary, so the reviewer's boxes and the analyzer's
         # suggestions can never drift apart.
-        'subjects': [{'key': key, 'name': SCHOOL_SUBJECT_DISPLAY_NAMES.get(key, key)}
-                     for key in SCHOOL_SUBJECTS],
+        'subjects': _subjects(),
     })
+
+
+def _subjects():
+    return [{'key': key, 'name': SCHOOL_SUBJECT_DISPLAY_NAMES.get(key, key)}
+            for key in SCHOOL_SUBJECTS]
+
+
+def _fail(result):
+    return jsonify({'success': False, 'error': result['error']}), result.get('status', 400)
+
+
+@bp.route('/queue', methods=['GET'])
+@require_role(*ADMIN_ROLES)
+def student_queue(user_id):
+    """The queue by student: one row each, longest wait first."""
+    org_id, err = sis_service.org_or_error(user_id)
+    if err:
+        return err
+    return jsonify({
+        'success': True,
+        'optio_reviews': org_id in prior._extension_org_ids(),
+        'subjects': _subjects(),
+        **queue.student_queue(org_id),
+    })
+
+
+@bp.route('/students/<student_id>/workspace', methods=['GET'])
+@require_role(*ADMIN_ROLES)
+@require_relationship_to('student_id', allow=('org_staff',), discloses='prior_learning')
+def student_workspace(user_id, student_id):
+    """Everything about one student's prior learning: records, evidence,
+    history, transfer credit already on the transcript, diploma progress."""
+    org_id, err = sis_service.org_or_error(user_id)
+    if err:
+        return err
+    data = queue.workspace(org_id, student_id)
+    if data is None:
+        return jsonify({'success': False, 'error': 'No prior learning for this student'}), 404
+    return jsonify({'success': True, 'subjects': _subjects(), **data})
+
+
+@bp.route('/students/<student_id>/report', methods=['GET'])
+@require_role(*ADMIN_ROLES)
+@require_relationship_to('student_id', allow=('org_staff',), discloses='prior_learning')
+def student_report(user_id, student_id):
+    """The Optio-branded credit report for this student, as a PDF to send
+    the family: credit by subject, where each credit came from, and every
+    prior-learning decision. The same numbers as the workspace."""
+    org_id, err = sis_service.org_or_error(user_id)
+    if err:
+        return err
+    data = queue.workspace(org_id, student_id)
+    if data is None:
+        return jsonify({'success': False, 'error': 'No prior learning for this student'}), 404
+    from flask import Response
+    from services.prior_learning_report_pdf import render
+    pdf = render(data)
+    slug = ''.join(ch if ch.isalnum() else '-' for ch in (data['student']['name'] or 'student')).strip('-')
+    logger.info(f'[PRIOR LEARNING] {user_id[:8]} generated a credit report for {student_id[:8]}')
+    return Response(pdf, mimetype='application/pdf', headers={
+        'Content-Disposition': f'attachment; filename="Optio-credit-report-{slug}.pdf"',
+    })
+
+
+@bp.route('/transfer-credits/<transfer_credit_id>/accredited', methods=['PUT'])
+@require_role(*ADMIN_ROLES)
+def set_transfer_accredited(user_id, transfer_credit_id):
+    """{accredited: bool}: whether this school's credit came on an accredited
+    transcript. Accredited credit transfers free; the rest is charged."""
+    org_id, err = sis_service.org_or_error(user_id)
+    if err:
+        return err
+    accredited = (request.json or {}).get('accredited')
+    if not isinstance(accredited, bool):
+        return jsonify({'success': False, 'error': 'accredited must be true or false'}), 400
+    result = queue.set_transfer_accredited(org_id, transfer_credit_id, accredited)
+    if result.get('error'):
+        return jsonify({'success': False, 'error': result['error']}), result.get('status', 400)
+    return jsonify({'success': True, **result})
+
+
+@bp.route('/<record_id>/approve', methods=['POST'])
+@require_role(*ADMIN_ROLES)
+def approve_record(user_id, record_id):
+    """Accept and put on the transcript in one step:
+    {school_name, subject_credits: {math: 1.0}, course_names: {math: [...]},
+     review_notes}. The numbers are what the reviewer approved on screen."""
+    org_id, err = sis_service.org_or_error(user_id)
+    if err:
+        return err
+    result = queue.approve(record_id, org_id, user_id, request.json or {})
+    if result.get('error'):
+        return jsonify({'success': False, 'error': result['error'],
+                        'record': result.get('record')}), result.get('status', 400)
+    return jsonify({'success': True, **result})
+
+
+@bp.route('/<record_id>/request-info', methods=['POST'])
+@require_role(*ADMIN_ROLES)
+def request_info(user_id, record_id):
+    """Send a record back to the family with a note: {message}."""
+    org_id, err = sis_service.org_or_error(user_id)
+    if err:
+        return err
+    result = queue.request_info(record_id, org_id, user_id, (request.json or {}).get('message'))
+    if result.get('error'):
+        return _fail(result)
+    return jsonify({'success': True, **result})
+
+
+@bp.route('/<record_id>/notes', methods=['POST'])
+@require_role(*ADMIN_ROLES)
+def add_note(user_id, record_id):
+    """A private reviewer note: {body}. The family never sees it."""
+    org_id, err = sis_service.org_or_error(user_id)
+    if err:
+        return err
+    result = queue.add_note(record_id, org_id, user_id, (request.json or {}).get('body'))
+    if result.get('error'):
+        return _fail(result)
+    return jsonify({'success': True, **result})
 
 
 @bp.route('/students', methods=['GET'])
@@ -208,7 +329,7 @@ def delete_evidence(user_id, record_id, evidence_id):
     org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
-    result = prior.staff_delete_evidence(evidence_id, record_id, org_id)
+    result = prior.staff_delete_evidence(evidence_id, record_id, org_id, user_id)
     if result.get('error'):
         return jsonify({'success': False, 'error': result['error']}), result.get('status', 400)
     logger.info(f'[PRIOR LEARNING] {user_id[:8]} deleted evidence {evidence_id} '
@@ -248,10 +369,9 @@ def analyze_record(user_id, record_id):
         raw_passwords = [raw_passwords]
     passwords = [p for p in (str(x).strip() for x in raw_passwords[:10]) if p]
 
-    from services.sis_prior_learning_analyzer import analyze_record as run_analysis
     # The record's own school, not the caller's: the analyzer's writes pin the
     # row's organization_id, and Optio Academy analyzes partner-school records.
-    result = run_analysis(record, record['organization_id'], passwords)
+    result = queue.run_analysis(record, passwords, actor_id=user_id)
     if result.get('error'):
         return jsonify({'success': False, 'error': result['error']}), 502
     return jsonify({'success': True, **result})
@@ -284,7 +404,13 @@ def credit_record(user_id, record_id):
                         'error': 'Accept this record before adding it to the transcript'}), 400
 
     from services import transfer_credit_service as credit
-    result = credit.convert_prior_learning(record, request.json or {}, user_id)
+    body = request.json or {}
+    result = credit.convert_prior_learning(record, body, user_id)
+    if not result.get('error'):
+        # The fee for what just reached the transcript, the same rule Approve
+        # uses (sis_prior_learning_queue.record_fee).
+        result['fee'] = queue.record_fee(record, body.get('subject_credits') or {},
+                                         body.get('source_accredited'))
     if result.get('error'):
         return jsonify({'success': False, 'error': result['error'],
                         'transfer_credit_id': result.get('transfer_credit_id')}), \
