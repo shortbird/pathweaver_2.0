@@ -159,6 +159,17 @@ export function cardGroupsFor(org, { viewerRole } = {}) {
     if (!org.is_guardian && viewerRole !== 'student') return []
     const cards = [coursesAndCreditsCard]
     if (org.prior_learning_enabled) cards.push(priorLearningCard)
+    // Billing only for a family with something to see there (2026-10-12):
+    // a self-paying family's receipts and card, or "paid in full" when a
+    // funder such as OpenEd pays (school_context billing_view).
+    if (org.is_guardian && org.billing_view) {
+      cards.push({
+        ...FAMILY_CARDS.find((c) => c.path === '/family/billing'),
+        description: org.billing_view.view === 'funder_paid'
+          ? `Paid in full by ${org.billing_view.funder || 'your funding program'}.`
+          : 'Your monthly tuition, receipts and payment method.',
+      })
+    }
     return [{ id: 'family', title: org.is_guardian ? 'My family' : 'My credits', cards }]
   }
   const family = [flowCard(org.post_registration_flow), ...FAMILY_CARDS]

@@ -423,6 +423,19 @@ describe('the school hub card is opt-in', () => {
         organization_id: OPTIO_ACADEMY_ORG_ID, is_guardian: false, prior_learning_enabled: true,
       })).toEqual([])
     })
+
+    // 2026-10-12: Billing comes back for a family with something to see.
+    it('adds Billing for a self-paying family', () => {
+      const cards = cardsFor(academy({ billing_view: { view: 'self_pay', funder: null } }))
+      expect(cards.map((c) => c.name)).toEqual(['Courses and Credits', 'Billing'])
+      expect(cards[1].path).toBe('/family/billing')
+      expect(cards[1].description).toMatch(/receipts/)
+    })
+
+    it('tells an OpenEd family they are paid in full', () => {
+      const [, billing] = cardsFor(academy({ billing_view: { view: 'funder_paid', funder: 'OpenEd' } }))
+      expect(billing.description).toBe('Paid in full by OpenEd.')
+    })
   })
 
   it('appears for a school that turned prior learning on', () => {

@@ -2128,6 +2128,35 @@ def _hydrate_invoices(invoices: List[Dict[str, Any]]) -> None:
         inv['payments'] = pays_by_inv.get(inv['id'], [])
 
 
+def family_billing_views(user_id: str) -> Dict[str, Dict[str, Any]]:
+    """Per org the caller guards a household in, what their Billing tab is
+    for: 'funder_paid' (OpenEd or UFA pays; the tab says so) or 'self_pay'
+    (a Stripe subscription, or invoices from the school). Orgs with neither
+    are left out. The school page reads this to decide whether a
+    family-first school (Optio Academy) shows a Billing tab at all."""
+    views: Dict[str, Dict[str, Any]] = {}
+    for hh in _guardian_household_rows(user_id):
+        org_id = hh.get('organization_id')
+        if not org_id:
+            continue
+        funder = payment_profile.funder_of(_household_funding_source(hh['id']))
+        if funder:
+            views[org_id] = {'view': 'funder_paid', 'funder': funder}
+            continue
+        from services import family_stripe_billing
+        if family_stripe_billing.has_subscription(org_id, user_id) or any(
+                i.get('status') != 'draft' for i in list_invoices(org_id, household_id=hh['id'])):
+            views.setdefault(org_id, {'view': 'self_pay', 'funder': None})
+    return views
+
+
+def _stripe_plan(org_id: Optional[str], user_id: str, funding: Optional[str]) -> Optional[Dict[str, Any]]:
+    if not org_id or payment_profile.funder_of(funding):
+        return None
+    from services import family_stripe_billing
+    return family_stripe_billing.plan_for(org_id, user_id)
+
+
 def parent_billing_overview(user_id: str) -> Dict[str, Any]:
     """Everything a guardian needs on /family/billing: per guarded household,
     the org, its invoices (line items + installments), payments, and totals.
@@ -2178,6 +2207,9 @@ def parent_billing_overview(user_id: str) -> Dict[str, Any]:
             'pay_through_ufa': funding in UFA_FUNDING_SOURCES,
             'funder': payment_profile.funder_of(funding),
             'payment_plan_preference': hh.get('payment_plan_preference'),
+            # A registration-made Stripe subscription (Optio Academy): its
+            # charges live on Stripe, not in sis_invoices.
+            'stripe_plan': _stripe_plan(hh.get('organization_id'), user_id, funding),
             'invoices': invoices,
             'payments': payments,
             'totals': {'invoiced_cents': invoiced, 'paid_cents': paid,

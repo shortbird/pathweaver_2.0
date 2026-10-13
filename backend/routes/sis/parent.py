@@ -157,6 +157,28 @@ def family_billing(user_id):
     return jsonify({'success': True, **billing.parent_billing_overview(user_id)})
 
 
+@bp.route('/billing/manage-payment', methods=['POST'])
+@require_auth
+@require_module('billing')
+def billing_manage_payment(user_id):
+    """A Stripe customer-portal link for the caller's own subscription with
+    this school: change the card or bank, download receipts."""
+    from services import family_stripe_billing
+    data = request.get_json(silent=True) or {}
+    org_id = data.get('organization_id')
+    return_url = data.get('return_url')
+    if not org_id or not isinstance(return_url, str) or not return_url.startswith('http'):
+        return jsonify({'success': False, 'error': 'organization_id and return_url are required'}), 400
+    try:
+        url = family_stripe_billing.portal_url(org_id, user_id, return_url)
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f'family billing: portal failed for org {org_id}: {e}')
+        return jsonify({'success': False, 'error': 'Could not open payment settings. Message Optio Support.'}), 502
+    if not url:
+        return jsonify({'success': False, 'error': 'No subscription found for your family'}), 404
+    return jsonify({'success': True, 'url': url})
+
+
 @bp.route('/billing/receipts/<payment_id>', methods=['GET'])
 @require_auth
 @require_module('billing')

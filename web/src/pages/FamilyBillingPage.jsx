@@ -5,6 +5,8 @@ import Button from '../components/ui/Button'
 import { ChevronDownIcon, CreditCardIcon, PencilSquareIcon } from '@heroicons/react/24/outline'
 import { formatCents as money } from '../utils/money'
 import { methodLabel } from './sis/billingPage/payLabel'
+import { isFamilyFirstHubOrg } from '../config/optioAcademy'
+import { PaidInFull, StripePlan } from './familyBilling/AcademyBillingPanel'
 
 /**
  * Billing — a family's account balance with their school: invoices (line items
@@ -607,6 +609,24 @@ const FamilyBillingPage = () => {
     setPrintMode('statement')
   }
 
+  // A family-first school's family with no school-side ledger (Optio
+  // Academy: a Stripe subscription, or OpenEd pays) gets its own panel in
+  // place of the empty invoice ledger.
+  const academyPanel = (hh) => {
+    if (!isFamilyFirstHubOrg({ organization_id: hh.organization?.id }) || (hh.invoices || []).length) return null
+    if (!hh.funder && !hh.stripe_plan) return null
+    return (
+      <div key={hh.household_id} className="mb-10">
+        <h2 className="font-semibold text-gray-900 mb-3">
+          {hh.organization?.name || 'Your school'}{hh.household_name ? ` · ${hh.household_name}` : ''}
+        </h2>
+        {hh.funder
+          ? <PaidInFull funder={hh.funder} />
+          : <StripePlan organizationId={hh.organization?.id} plan={hh.stripe_plan} />}
+      </div>
+    )
+  }
+
   // A tab of the school page (pages/school/SchoolShell): the shell carries
   // the letterhead and the rail, this is the panel.
   return (
@@ -621,7 +641,7 @@ const FamilyBillingPage = () => {
         <p className="text-gray-500">No billing history yet. Invoices from your school will appear here.</p>
       )}
 
-      {(households || []).map((hh) => (
+      {(households || []).map((hh) => (academyPanel(hh) || (
         <div key={hh.household_id} className="mb-10">
           <div className="flex items-center justify-between mb-3">
             <h2 className="font-semibold text-gray-900">
@@ -755,7 +775,7 @@ const FamilyBillingPage = () => {
             ))}
           </div>
         </div>
-      ))}
+      )))}
 
       {/* Print-only surface: exactly one of receipt/statement renders for window.print */}
       <div className="billing-print-area" data-testid="billing-print-area">

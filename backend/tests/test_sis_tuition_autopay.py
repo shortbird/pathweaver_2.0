@@ -326,6 +326,7 @@ class TestParentBillingOverview:
                  i.update({'line_items': [], 'installments': [], 'payments': []}) for i in invs]), \
              patch.object(billing, '_users_map', return_value={'kid1': {'first_name': 'Daxton', 'last_name': 'Evans'}}), \
              patch.object(billing, '_household_funding_source', return_value=None), \
+             patch.object(billing, '_stripe_plan', return_value=None), \
              patch.object(billing.payment_profile, 'profile_for_household',
                           return_value={'methods': ['Utah Fits All'], 'ufa_private': None, 'plan': None}):
             out = billing.parent_billing_overview('p1')

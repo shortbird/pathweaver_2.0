@@ -48,7 +48,8 @@ def _school_context(user_id, guardian_orgs=(), member_org=None, sis_enabled=True
          patch('services.sis_service.member_org_id', return_value=member_org), \
          patch.object(parent, 'org_has_feature', return_value=sis_enabled), \
          patch.object(parent, '_admin',
-                      return_value=_admin_returning(list(org_rows))):
+                      return_value=_admin_returning(list(org_rows))), \
+         patch('services.sis_billing_service.family_billing_views', return_value={}):
         return parent.school_context(user_id)
 
 
@@ -76,7 +77,9 @@ class TestWhichSchoolAmIIn:
                                 'logo_url': 'data:image/png;base64,x',
                                 'logo_subtitle': None,
                                 # Who to contact (c58b7c0b); none set here.
-                                'family_contacts': []}]
+                                'family_contacts': [],
+                                # No Billing tab: nothing billed, no funder.
+                                'billing_view': None}]
 
     def test_a_student_gets_their_own_school(self):
         """The regression this whole change exists for: a student guards nobody,
@@ -95,7 +98,9 @@ class TestWhichSchoolAmIIn:
                                 'logo_url': 'data:image/png;base64,x',
                                 'logo_subtitle': None,
                                 # Who to contact (c58b7c0b); none set here.
-                                'family_contacts': []}]
+                                'family_contacts': [],
+                                # No Billing tab: nothing billed, no funder.
+                                'billing_view': None}]
 
     def test_a_school_without_a_logo_sends_none_not_a_broken_image(self):
         ctx = _school_context('student-1', member_org='org-1',

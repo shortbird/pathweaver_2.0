@@ -300,6 +300,16 @@ def school_context(user_id: str) -> Dict[str, Any]:
     orgs = [_hub_org_entry(oid, rows_by_id.get(oid) or {}, oid in guardian_org_ids)
             for oid in org_ids]
     _attach_family_contacts(user_id, orgs, rows_by_id, guardian_only=True)
+    # Whether this family has a Billing tab, and which kind: a family-first
+    # school (Optio Academy) shows one only to a family with something to see.
+    try:
+        from services.sis_billing_service import family_billing_views
+        views = family_billing_views(user_id) if guardian_org_ids else {}
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f'school_context: billing view failed for {user_id[:8]}: {e}')
+        views = {}
+    for o in orgs:
+        o['billing_view'] = views.get(o['organization_id']) if o.get('is_guardian') else None
     return {'orgs': orgs, 'is_guardian': any(o['is_guardian'] for o in orgs)}
 
 
