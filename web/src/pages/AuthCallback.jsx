@@ -8,6 +8,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import TosConsentModal from '../components/auth/TosConsentModal'
 import { resumePendingRegistrationFunnel } from '../components/auth/registrationFunnelResume'
 import logger from '../utils/logger'
+import { safeLocal, safeSession } from '../utils/safeStorage'
 
 /**
  * OAuth Authorization Callback Page
@@ -103,17 +104,17 @@ export default function AuthCallback() {
    * Returns true if invitation was accepted, false otherwise
    */
   const handlePendingObserverInvitation = async () => {
-    const pendingInvitation = localStorage.getItem('pendingObserverInvitation')
+    const pendingInvitation = safeLocal.getItem('pendingObserverInvitation')
     if (pendingInvitation) {
       try {
         logger.debug('[AuthCallback] Accepting pending observer invitation:', pendingInvitation)
         await observerAPI.acceptInvitation(pendingInvitation, {})
-        localStorage.removeItem('pendingObserverInvitation')
+        safeLocal.removeItem('pendingObserverInvitation')
         logger.debug('[AuthCallback] Observer invitation accepted')
         return true
       } catch (err) {
         console.error('[AuthCallback] Failed to accept observer invitation:', err)
-        localStorage.removeItem('pendingObserverInvitation')
+        safeLocal.removeItem('pendingObserverInvitation')
         // Don't block auth if invitation acceptance fails
       }
     }
@@ -125,12 +126,12 @@ export default function AuthCallback() {
    * Returns object with accepted status
    */
   const handlePendingOrgInvitation = async (userEmail) => {
-    const pendingInvitation = localStorage.getItem('pendingOrgInvitation')
+    const pendingInvitation = safeLocal.getItem('pendingOrgInvitation')
     if (!pendingInvitation || !userEmail) return { accepted: false }
     // Must go through the api client: by now the OAuth exchange has set auth
     // cookies, so the backend enforces CSRF — a raw fetch without the
     // X-CSRF-Token header gets a 400 and the join silently fails.
-    localStorage.removeItem('pendingOrgInvitation')
+    safeLocal.removeItem('pendingOrgInvitation')
     try {
       logger.debug('[AuthCallback] Accepting pending org invitation:', pendingInvitation, 'for user:', userEmail)
       const response = await api.post(
@@ -206,7 +207,7 @@ export default function AuthCallback() {
         if (funnelPath) {
           redirectPath = funnelPath
         } else if (invitationAccepted) {
-          const hasSeenWelcome = localStorage.getItem('observerWelcomeSeen')
+          const hasSeenWelcome = safeLocal.getItem('observerWelcomeSeen')
           redirectPath = hasSeenWelcome ? '/observer/feed' : '/observer/welcome'
         } else if (orgInvitationResult.code) {
           // The org join failed — return to the invitation page, which shows a
@@ -217,7 +218,7 @@ export default function AuthCallback() {
         }
 
         // Signal to PrivateRoute that auth just completed (prevents flash to login)
-        sessionStorage.setItem('authJustCompleted', Date.now().toString())
+        safeSession.setItem('authJustCompleted', Date.now().toString())
 
         // Small delay to ensure IndexedDB token writes are persisted before navigation
         await new Promise(resolve => setTimeout(resolve, 100))
@@ -251,12 +252,12 @@ export default function AuthCallback() {
     setTosLoading(true)
     try {
       // Check for pending promo code
-      const pendingPromoCode = localStorage.getItem('pendingPromoCode')
+      const pendingPromoCode = safeLocal.getItem('pendingPromoCode')
 
       const result = await authService.acceptTos(tosAcceptanceToken, pendingPromoCode)
 
       // Clear promo code after use (regardless of success)
-      localStorage.removeItem('pendingPromoCode')
+      safeLocal.removeItem('pendingPromoCode')
 
       if (result.success) {
         setShowTosModal(false)
@@ -278,7 +279,7 @@ export default function AuthCallback() {
         if (funnelPath) {
           redirectPath = funnelPath
         } else if (invitationAccepted) {
-          const hasSeenWelcome = localStorage.getItem('observerWelcomeSeen')
+          const hasSeenWelcome = safeLocal.getItem('observerWelcomeSeen')
           redirectPath = hasSeenWelcome ? '/observer/feed' : '/observer/welcome'
         } else if (orgInvitationResult.code) {
           // The org join failed — return to the invitation page, which shows a
@@ -289,7 +290,7 @@ export default function AuthCallback() {
         }
 
         // Signal to PrivateRoute that auth just completed (prevents flash to login)
-        sessionStorage.setItem('authJustCompleted', Date.now().toString())
+        safeSession.setItem('authJustCompleted', Date.now().toString())
 
         // Small delay to ensure IndexedDB token writes are persisted before navigation
         await new Promise(resolve => setTimeout(resolve, 100))
@@ -324,7 +325,7 @@ export default function AuthCallback() {
    */
   const handleTosClose = () => {
     // Clear pending promo code since registration was cancelled
-    localStorage.removeItem('pendingPromoCode')
+    safeLocal.removeItem('pendingPromoCode')
 
     setShowTosModal(false)
     setStatus('error')
@@ -448,7 +449,7 @@ export default function AuthCallback() {
         onAccept={handleTosAccept}
         loading={tosLoading}
         userName={tosUserName}
-        isObserverSignup={!!localStorage.getItem('pendingObserverInvitation')}
+        isObserverSignup={!!safeLocal.getItem('pendingObserverInvitation')}
       />
     </>
   )

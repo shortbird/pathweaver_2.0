@@ -432,4 +432,21 @@ describe('LoginPage', () => {
       })
     })
   })
+
+  // Sentry OPTIO-WEB-3D (2026-10-13): a Samsung Android WebView with DOM
+  // storage off exposes window.localStorage as null. The page read it in a
+  // useState initializer and crashed on mount, 13 times, so that visitor could
+  // never sign in. The page must render and accept an invitation link anyway.
+  describe('when web storage is unavailable', () => {
+    it('renders the sign-in form with localStorage set to null', () => {
+      const spy = vi.spyOn(window, 'localStorage', 'get').mockReturnValue(null)
+      try {
+        renderLoginPage('/login?invitation=abc123')
+        expect(screen.getByText('Welcome back')).toBeInTheDocument()
+        expect(screen.getByPlaceholderText('Email address')).toBeInTheDocument()
+      } finally {
+        spy.mockRestore()
+      }
+    })
+  })
 })

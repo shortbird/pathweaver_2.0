@@ -6,6 +6,7 @@ import PasswordStrengthMeter from '../components/auth/PasswordStrengthMeter'
 import GoogleButton from '../components/auth/GoogleButton'
 import AppleButton from '../components/auth/AppleButton'
 import logger from '../utils/logger'
+import { safeLocal } from '../utils/safeStorage'
 import toast from 'react-hot-toast'
 
 const RegisterPage = () => {
@@ -80,7 +81,7 @@ const RegisterPage = () => {
       if (invitationCode) {
         registrationData.invitation_code = invitationCode
         // Store invitation code so we can redirect after email verification
-        localStorage.setItem('pendingObserverInvitation', invitationCode)
+        safeLocal.setItem('pendingObserverInvitation', invitationCode)
       }
 
       // Let the normal registration flow handle email verification redirect

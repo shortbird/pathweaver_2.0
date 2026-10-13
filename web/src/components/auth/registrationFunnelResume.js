@@ -1,3 +1,4 @@
+import { safeLocal } from '../../utils/safeStorage'
 import api from '../../services/api'
 import { PENDING_CODE_KEYS } from './oauthPendingCodes'
 
@@ -24,11 +25,11 @@ import { PENDING_CODE_KEYS } from './oauthPendingCodes'
  *   registration funnel is pending and the caller should route normally.
  */
 export async function resumePendingRegistrationFunnel() {
-  const code = localStorage.getItem(PENDING_CODE_KEYS.registrationCode)
+  const code = safeLocal.getItem(PENDING_CODE_KEYS.registrationCode)
   if (!code) return null
   // Consumed either way: a code left behind would re-fire the attach on the
   // parent's next unrelated sign-in.
-  localStorage.removeItem(PENDING_CODE_KEYS.registrationCode)
+  safeLocal.removeItem(PENDING_CODE_KEYS.registrationCode)
   try {
     await api.post('/api/registration/attach', { code })
     // /enroll/resume rehydrates the registration from the server, so a parent

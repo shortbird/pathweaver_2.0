@@ -3,6 +3,7 @@
  * Used to detect Safari and implement automatic fallbacks
  */
 import logger from './logger'
+import { safeSession } from './safeStorage'
 
 /**
  * Detect if the browser is Safari
@@ -135,7 +136,7 @@ export const shouldUseAuthHeaders = () => {
   }
 
   // Check if we have a stored preference (from previous cookie test)
-  const storedPreference = sessionStorage.getItem('auth_method_preference')
+  const storedPreference = safeSession.getItem('auth_method_preference')
   if (storedPreference === 'headers') {
     return true
   }

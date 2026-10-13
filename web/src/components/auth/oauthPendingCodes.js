@@ -1,3 +1,5 @@
+import { safeLocal } from '../../utils/safeStorage'
+
 /**
  * Codes that have to survive an OAuth redirect.
  *
@@ -20,12 +22,12 @@ export const PENDING_CODE_KEYS = {
 }
 
 export function stashPendingCodes({ promoCode, invitationCode, orgInvitationCode, registrationCode } = {}) {
-  if (promoCode) localStorage.setItem(PENDING_CODE_KEYS.promoCode, promoCode)
-  if (invitationCode) localStorage.setItem(PENDING_CODE_KEYS.invitationCode, invitationCode)
-  if (orgInvitationCode) localStorage.setItem(PENDING_CODE_KEYS.orgInvitationCode, orgInvitationCode)
-  if (registrationCode) localStorage.setItem(PENDING_CODE_KEYS.registrationCode, registrationCode)
+  if (promoCode) safeLocal.setItem(PENDING_CODE_KEYS.promoCode, promoCode)
+  if (invitationCode) safeLocal.setItem(PENDING_CODE_KEYS.invitationCode, invitationCode)
+  if (orgInvitationCode) safeLocal.setItem(PENDING_CODE_KEYS.orgInvitationCode, orgInvitationCode)
+  if (registrationCode) safeLocal.setItem(PENDING_CODE_KEYS.registrationCode, registrationCode)
 }
 
 export function clearPendingCodes() {
-  Object.values(PENDING_CODE_KEYS).forEach((key) => localStorage.removeItem(key))
+  Object.values(PENDING_CODE_KEYS).forEach((key) => safeLocal.removeItem(key))
 }
