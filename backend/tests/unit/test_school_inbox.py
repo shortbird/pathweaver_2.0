@@ -54,6 +54,18 @@ def test_append_school_contact_for_member():
     assert contacts[-1]['display_name'] == 'iCreate'
 
 
+def test_optio_academy_families_write_to_optio_support_not_the_school():
+    """2026-10-12: an Optio Academy parent saw both "Optio Academy" and
+    "Optio Support" -- two contacts for one office."""
+    from app_config import Config
+    academy = {**ORG, 'id': Config.OPTIO_ACADEMY_ORG_ID, 'name': 'Optio Academy'}
+    with patch.object(school_inbox_service, 'member_org', return_value=academy), \
+         patch.object(school_inbox_service, 'get_or_create_inbox_user', return_value='inbox-1'):
+        contacts = [{'id': 'a'}, {'id': 'inbox-1', 'display_name': 'Optio Academy'}]
+        _append_school_contact(contacts, 'parent-1')
+    assert contacts == [{'id': 'a'}]
+
+
 def test_append_school_contact_skipped_for_non_member():
     with patch.object(school_inbox_service, 'member_org', return_value=None):
         contacts = []

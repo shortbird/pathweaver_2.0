@@ -192,6 +192,12 @@ def _append_school_contact(contacts, user_id):
         org, inbox_user_id = school_inbox_service.school_account(school_inbox_service.member_org(user_id))
         if not org or not inbox_user_id or inbox_user_id == user_id:
             return
+        # Optio Academy is Optio's own school: its families already reach the
+        # people who run it through "Optio Support", so a second "Optio
+        # Academy" contact is two doors to one office.
+        if org.get('id') == Config.OPTIO_ACADEMY_ORG_ID:
+            contacts[:] = [ct for ct in contacts if ct['id'] != inbox_user_id]
+            return
         # The front office IS the school inbox: it is not someone they write to.
         if school_inbox_service.office_inbox_id(user_id) == inbox_user_id:
             contacts[:] = [ct for ct in contacts if ct['id'] != inbox_user_id]
