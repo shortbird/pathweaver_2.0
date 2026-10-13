@@ -823,12 +823,15 @@ def reorder_quest_tasks(user_id: str, quest_id: str):
         # admin client justified: quest completion writes to quest_task_completions + user_skill_xp + user_quests for caller (self) under @require_auth; cross-table writes to RLS-protected XP tables
         supabase = get_supabase_admin_client()
 
-        # Verify user is enrolled in this quest
+        # Verify user is enrolled in this quest. Not maybe_single(): a student
+        # who finished a quest and picked it up again holds two rows, and
+        # postgrest-py turns the "more than one row" error into an opaque
+        # APIError "Missing response" -> 500 (Sentry 7788761663, 2026-10-12).
         enrollment = supabase.table('user_quests')\
-            .select('*')\
+            .select('id')\
             .eq('user_id', user_id)\
             .eq('quest_id', quest_id)\
-            .maybe_single()\
+            .limit(1)\
             .execute()
 
         if not enrollment.data:
@@ -875,21 +878,25 @@ def update_display_mode(user_id: str, quest_id: str):
         # admin client justified: quest completion writes to quest_task_completions + user_skill_xp + user_quests for caller (self) under @require_auth
         admin = get_supabase_admin_client()
 
-        # First, get the user_quest record to find its ID
+        # First, get the user_quest record to find its ID. A re-enrolled
+        # student holds more than one row, which maybe_single() turned into a
+        # 500; pick the active one, else the newest, as end_quest does.
         user_quest = admin.table('user_quests')\
-            .select('id')\
+            .select('id, is_active')\
             .eq('user_id', user_id)\
             .eq('quest_id', quest_id)\
-            .maybe_single()\
+            .order('created_at', desc=True)\
             .execute()
 
         if not user_quest.data:
             return jsonify({'error': 'Quest not found or not enrolled'}), 404
 
+        target = next((e for e in user_quest.data if e.get('is_active')), user_quest.data[0])
+
         # Update using the primary key and admin client (bypasses RLS)
         admin.table('user_quests')\
             .update({'task_display_mode': display_mode})\
-            .eq('id', user_quest.data['id'])\
+            .eq('id', target['id'])\
             .execute()
 
         logger.info(f"User {user_id[:8]} set display mode to '{display_mode}' for quest {quest_id}")

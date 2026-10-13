@@ -150,8 +150,10 @@ const RegistrationSetupTab = ({ orgId, orgData, onUpdate }) => {
       }
     })()
     return () => { active = false }
+    // Re-run on !!cfg: after "Set up family registration" the link is fetched
+    // (and created) for the editor that replaces the setup screen.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [orgId])
+  }, [orgId, !!cfg])
 
   // Whether card payment is live (the key itself is never echoed back).
   useEffect(() => {
@@ -181,23 +183,6 @@ const RegistrationSetupTab = ({ orgId, orgData, onUpdate }) => {
     } finally {
       setEnabling(false)
     }
-  }
-
-  if (!cfg) {
-    return (
-      <div className="bg-white rounded-xl border border-gray-200 p-8 text-center">
-        <h2 className="text-lg font-semibold text-neutral-900 mb-2">Family registration is not set up</h2>
-        <p className="text-sm text-neutral-500 max-w-lg mx-auto mb-5">
-          Turn on the branded registration funnel to get a standing link families use to
-          create their account, add their kids, answer your intake questions, e-sign
-          paperwork, and pay a registration fee — all configured right here.
-        </p>
-        <button onClick={enableFunnel} disabled={enabling}
-          className="px-5 py-2.5 rounded-lg bg-gradient-primary text-white font-semibold hover:opacity-90 disabled:opacity-50">
-          {enabling ? 'Setting up…' : 'Set up family registration'}
-        </button>
-      </div>
-    )
   }
 
   const regLinkUrl = regLink ? `${getLearningOrigin()}/enroll/${regLink.invitation_code}` : ''
@@ -283,9 +268,30 @@ const RegistrationSetupTab = ({ orgId, orgData, onUpdate }) => {
   const sampleStudents = studentsForPricing(SAMPLE_KIDS, sampleSelection)
   const draftKey = JSON.stringify([draftMoney, sampleSelection])
   const { quote: draftQuote } = useRegistrationQuote(
-    () => (seesFinance && orgId ? quotePreview(draftMoney, { num_students: 1, kids: sampleStudents }) : null),
-    `${orgId}|${seesFinance}|${draftKey}`,
+    () => (seesFinance && orgId && cfg ? quotePreview(draftMoney, { num_students: 1, kids: sampleStudents }) : null),
+    `${orgId}|${seesFinance}|${!!cfg}|${draftKey}`,
   )
+
+  // Below every hook: this screen flips to the editor the moment "Set up
+  // family registration" succeeds, and a hook called only after this return
+  // crashed that render ("Rendered more hooks than during the previous
+  // render", Sentry OPTIO-WEB-3C, 2026-10-13).
+  if (!cfg) {
+    return (
+      <div className="bg-white rounded-xl border border-gray-200 p-8 text-center">
+        <h2 className="text-lg font-semibold text-neutral-900 mb-2">Family registration is not set up</h2>
+        <p className="text-sm text-neutral-500 max-w-lg mx-auto mb-5">
+          Turn on the branded registration funnel to get a standing link families use to
+          create their account, add their kids, answer your intake questions, e-sign
+          paperwork, and pay a registration fee — all configured right here.
+        </p>
+        <button onClick={enableFunnel} disabled={enabling}
+          className="px-5 py-2.5 rounded-lg bg-gradient-primary text-white font-semibold hover:opacity-90 disabled:opacity-50">
+          {enabling ? 'Setting up…' : 'Set up family registration'}
+        </button>
+      </div>
+    )
+  }
 
   // ── Save ───────────────────────────────────────────────────────────────────
 

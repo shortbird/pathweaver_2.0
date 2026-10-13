@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
+import api from '../../../../services/api'
 
 /**
  * QF-02 guard: every step of the Registration setup editor still renders after
@@ -135,5 +136,42 @@ describe('registration setup step previews render after the split', () => {
     await screen.findByText('Your account')
     goToStep('Next steps')
     expect(await screen.findByText('Your account is ready')).toBeInTheDocument()
+  })
+})
+
+describe('switching from the setup screen to the editor', () => {
+  beforeEach(() => vi.clearAllMocks())
+
+  const NOT_SET_UP = { organization: { id: 'org-1', name: 'Test Academy', feature_flags: { sis_settings: {} } } }
+
+  /**
+   * Sentry OPTIO-WEB-3C (2026-10-13, Apogee NoCo on /registration): "Rendered
+   * more hooks than during the previous render". The "not set up" screen
+   * returned before three hooks ran, so the render after "Set up family
+   * registration" (cfg appears) called more hooks and the page crashed.
+   */
+  it('renders the editor when registration turns on, without a hooks crash', async () => {
+    const { rerender } = render(
+      <RegistrationSetupTab orgId="org-1" orgData={NOT_SET_UP} onUpdate={vi.fn()} />,
+    )
+    expect(screen.getByText('Family registration is not set up')).toBeInTheDocument()
+    rerender(<RegistrationSetupTab orgId="org-1" orgData={ORG_DATA} onUpdate={vi.fn()} />)
+    expect(await screen.findByText('Your account')).toBeInTheDocument()
+  })
+
+  it('fetches the registration link once the editor appears', async () => {
+    const { rerender } = render(
+      <RegistrationSetupTab orgId="org-1" orgData={NOT_SET_UP} onUpdate={vi.fn()} />,
+    )
+    expect(api.get.mock.calls.some(([url]) => url.includes('/invitations'))).toBe(false)
+    rerender(<RegistrationSetupTab orgId="org-1" orgData={ORG_DATA} onUpdate={vi.fn()} />)
+    await screen.findByText('Your account')
+    await vi.waitFor(() => expect(api.get.mock.calls.some(([url]) => url.includes('/invitations'))).toBe(true))
+  })
+
+  it('asks for no price quote while registration is off', async () => {
+    render(<RegistrationSetupTab orgId="org-1" orgData={NOT_SET_UP} onUpdate={vi.fn()} />)
+    await new Promise((r) => setTimeout(r, 50))
+    expect(api.post.mock.calls.some(([url]) => url === '/api/registration/quote-preview')).toBe(false)
   })
 })
