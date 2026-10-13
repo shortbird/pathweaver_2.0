@@ -162,7 +162,8 @@ describe('only finished courses are on the transcript (ticket 9200a103, item 1)'
 
     renderFor({ role: 'superadmin' })
 
-    expect(await screen.findByText('Mathematics')).toBeInTheDocument()
+    // Unnamed Optio credit prints under the subject's name (item 4).
+    expect(await screen.findAllByText('Mathematics')).toHaveLength(2)
     expect(screen.queryByText('First Aid')).toBeNull()
     expect(screen.queryByText('Ceramics I')).toBeNull()
     expect(screen.queryByText('Chemistry')).toBeNull()
@@ -171,5 +172,20 @@ describe('only finished courses are on the transcript (ticket 9200a103, item 1)'
     // Totals and GPA come from completed credit only.
     expect(screen.getByText('1.0')).toBeInTheDocument()
     expect(screen.getByText('4.00')).toBeInTheDocument()
+  })
+})
+
+describe('course names on the summary (ticket 9200a103, item 4)', () => {
+  it('prints the office\'s named Optio courses, not "Optio Competency-Based"', async () => {
+    api.get
+      .mockResolvedValueOnce({ data: { data: { exists: true } } })
+      .mockResolvedValueOnce({ data: { data: {
+        ...transcriptPayload.data.data,
+        earned_credits: { math: { display_name: 'Mathematics', credits: 1 } },
+        overrides: { optio_courses_math: [{ name: 'Algebra I', credits: 1 }] },
+      } } })
+    renderFor({ role: 'superadmin' })
+    expect(await screen.findByText('Algebra I')).toBeInTheDocument()
+    expect(screen.queryByText('Optio Competency-Based')).toBeNull()
   })
 })

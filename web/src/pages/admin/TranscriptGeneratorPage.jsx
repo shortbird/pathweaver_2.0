@@ -5,6 +5,7 @@ import toast from 'react-hot-toast';
 import { PageLoader } from '../../components/ui/Spinner';
 import TransferToSchoolModal from '../../components/transcript/TransferToSchoolModal';
 import { ACCREDITATION_ACTIVE } from '../../constants/accreditation';
+import { buildTranscriptRows, optioBreakdown, optioCoursesKey } from '../../utils/transcriptRows';
 import { useConfirm } from '../../contexts/ConfirmContext'
 
 // html2pdf is loaded ON DEMAND, not at module scope (QF-06). It pulls in
@@ -207,8 +208,24 @@ const TranscriptGeneratorPage = () => {
     setShowAddForm(true);
   };
 
-  // Start splitting a transfer credit subject into courses
+  // Start splitting a subject's credit into named courses. Transfer credit
+  // keeps its breakdown on the transfer record; Optio credit (earned plus
+  // class) keeps it in the overrides, and its remainder prints under the
+  // subject's name, so it may total less than the subject (ticket 9200a103).
   const startSplit = (row) => {
+    if (row.type !== 'transfer') {
+      const existing = optioBreakdown(overrides, row.subjectKey);
+      setSplitCourses(existing.length > 0
+        ? existing.map(c => ({ name: c.name, credits: String(c.credits), grade: '' }))
+        : [{ name: '', credits: String(row.totalSubjectCredits), grade: '' }]);
+      setSplitTarget({
+        kind: 'optio',
+        subjectKey: row.subjectKey,
+        subjectName: row.subject,
+        totalCredits: row.totalSubjectCredits
+      });
+      return;
+    }
     // Find existing course breakdown if any
     const tc = (transfer_credits || []).find(t => t.id === row.transferCreditId);
     const existing = tc?.course_names?.[row.subjectKey];
@@ -251,6 +268,17 @@ const TranscriptGeneratorPage = () => {
     }
 
     const totalAssigned = courses.reduce((sum, c) => sum + c.credits, 0);
+    if (splitTarget.kind === 'optio') {
+      if (totalAssigned - splitTarget.totalCredits > 0.01) {
+        toast.error(`Course credits cannot be more than ${splitTarget.totalCredits} (currently ${totalAssigned.toFixed(2)})`);
+        return;
+      }
+      // Optio courses carry no grade: Optio awards only an A.
+      updateOverride(optioCoursesKey(splitTarget.subjectKey), courses.map(({ name, credits }) => ({ name, credits })));
+      toast.success('Course breakdown saved');
+      setSplitTarget(null);
+      return;
+    }
     if (Math.abs(totalAssigned - splitTarget.totalCredits) > 0.01) {
       toast.error(`Course credits must total ${splitTarget.totalCredits} (currently ${totalAssigned.toFixed(2)})`);
       return;
@@ -279,6 +307,17 @@ const TranscriptGeneratorPage = () => {
 
   const clearSplit = async () => {
     if (!splitTarget) return;
+    if (splitTarget.kind === 'optio') {
+      setOverrides(prev => {
+        const updated = { ...prev };
+        delete updated[optioCoursesKey(splitTarget.subjectKey)];
+        saveOverrides(updated);
+        return updated;
+      });
+      toast.success('Course breakdown removed');
+      setSplitTarget(null);
+      return;
+    }
     setSplitSaving(true);
     try {
       const tc = (transfer_credits || []).find(t => t.id === splitTarget.transferCreditId);
@@ -315,7 +354,7 @@ const TranscriptGeneratorPage = () => {
     );
   }
 
-  const { student, earned_credits, class_credits, transfer_credits, planned_credits, totals, accreditation } = data;
+  const { student, transfer_credits, totals, accreditation } = data;
   // Timezone-safe: date-only strings (YYYY-MM-DD) must be split manually.
   // new Date('2008-07-22') parses as UTC midnight and renders a day early
   // in any western timezone.
@@ -332,114 +371,9 @@ const TranscriptGeneratorPage = () => {
   // Academy's accreditation (partners with their own accreditation are excluded).
   const isWascAccredited = ACCREDITATION_ACTIVE && accreditation?.source === 'optio';
 
-  // Build rows for the transcript table
-  const buildCreditRows = () => {
-    const rows = [];
-
-    // Earned credits from Optio
-    Object.entries(earned_credits || {}).forEach(([subject, info]) => {
-      if (info.credits > 0) {
-        const overrideKey = `earned_course_${subject}`;
-        rows.push({
-          type: 'earned',
-          subject: info.display_name,
-          course: field(overrideKey, 'Optio Competency-Based'),
-          courseOverrideKey: overrideKey,
-          source: 'Optio',
-          credits: info.credits,
-          status: 'Completed'
-        });
-      }
-    });
-
-    // Awarded classes - grouped into one row per subject; course names are
-    // listed together and credits summed (0.5 per class, A grade)
-    const classesBySubject = {};
-    (class_credits || []).forEach(cc => {
-      if (!classesBySubject[cc.school_subject]) classesBySubject[cc.school_subject] = [];
-      classesBySubject[cc.school_subject].push(cc);
-    });
-    Object.entries(classesBySubject).forEach(([subject, classes]) => {
-      const overrideKey = `class_courses_${subject}`;
-      rows.push({
-        type: 'class',
-        subject: classes[0].display_name,
-        course: field(overrideKey, classes.map(c => c.course_name).join(', ')),
-        courseOverrideKey: overrideKey,
-        source: 'Optio',
-        credits: classes.reduce((sum, c) => sum + c.credits, 0),
-        status: 'Completed'
-      });
-    });
-
-    // Transfer credits - expand into individual courses if course_names breakdown exists
-    (transfer_credits || []).forEach(tc => {
-      const courseNames = tc.course_names || {};
-      Object.entries(tc.subjects || {}).forEach(([subject, info]) => {
-        const courses = courseNames[subject];
-        if (courses && courses.length > 0) {
-          // Render individual course rows
-          courses.forEach((course, idx) => {
-            const overrideKey = `tc_course_${tc.id}_${subject}_${idx}`;
-            rows.push({
-              type: 'transfer',
-              subject: info.display_name,
-              course: field(overrideKey, course.name),
-              courseOverrideKey: overrideKey,
-              source: tc.school_name || 'Transfer',
-              credits: course.credits,
-              grade: course.grade || 'A',
-              status: 'Completed',
-              transcriptUrl: idx === 0 ? tc.transcript_url : null,
-              transferCreditId: tc.id,
-              subjectKey: subject,
-              hasCourseBreakdown: true
-            });
-          });
-        } else {
-          // No breakdown - single row for the whole subject
-          const overrideKey = `tc_course_${tc.id}_${subject}`;
-          rows.push({
-            type: 'transfer',
-            subject: info.display_name,
-            course: field(overrideKey, info.display_name),
-            courseOverrideKey: overrideKey,
-            source: tc.school_name || 'Transfer',
-            credits: info.credits,
-            status: 'Completed',
-            transcriptUrl: tc.transcript_url,
-            transferCreditId: tc.id,
-            subjectKey: subject,
-            totalSubjectCredits: info.credits
-          });
-        }
-      });
-    });
-
-    // Planned credits
-    (planned_credits || []).forEach(pc => {
-      rows.push({
-        type: 'planned',
-        subject: pc.display_name,
-        course: pc.course_name,
-        source: pc.source || '',
-        credits: pc.credits,
-        status: pc.status === 'in_progress' ? 'In Progress' : pc.status === 'completed' ? 'Completed' : 'Dropped',
-        id: pc.id,
-        raw: pc
-      });
-    });
-
-    rows.sort((a, b) => {
-      if (a.status === 'Completed' && b.status !== 'Completed') return -1;
-      if (a.status !== 'Completed' && b.status === 'Completed') return 1;
-      return a.subject.localeCompare(b.subject);
-    });
-
-    return rows;
-  };
-
-  const creditRows = buildCreditRows();
+  // One builder for every transcript screen (utils/transcriptRows); only
+  // this editor lists planned credit, marked as not printed.
+  const creditRows = buildTranscriptRows(data, overrides, { includePlanned: true });
 
   // Aggregate credits by subject for the summary
   const subjectTotals = {};

@@ -1,12 +1,18 @@
-// The no-print editor for splitting one transfer credit across several named
+// The no-print editor for splitting one subject's credit across several named
 // courses, so a transcript line reads as the courses a school will recognise.
+// Transfer credit must be split in full and keeps its original grades. Optio
+// credit (splitTarget.kind === 'optio') may be split in part: what the courses
+// do not hold prints under the subject's name, and Optio awards only an A, so
+// it has no grade column (ticket 9200a103).
 import React from 'react';
 
 const CourseBreakdownEditor = ({
   addSplitRow, clearSplit, removeSplitRow, saveSplit, setSplitTarget,
   splitCourses, splitSaving, splitTarget, updateSplitRow,
-}) => (
-  splitTarget && (
+}) => {
+  if (!splitTarget) return null;
+  const isOptio = splitTarget.kind === 'optio';
+  return (
     <div className="no-print max-w-5xl mx-auto px-6 pt-4">
       <div className="bg-white rounded-lg border border-emerald-200 p-4">
         <div className="flex items-center justify-between mb-3">
@@ -17,14 +23,24 @@ const CourseBreakdownEditor = ({
             </span>
           </h3>
           <div className="flex items-center gap-2">
-            <span className={`text-xs font-medium ${
-              Math.abs(splitCourses.reduce((s, c) => s + (parseFloat(c.credits) || 0), 0) - splitTarget.totalCredits) <= 0.01
-                ? 'text-emerald-600' : 'text-red-500'
-            }`}>
-              Assigned: {splitCourses.reduce((s, c) => s + (parseFloat(c.credits) || 0), 0).toFixed(2)} / {splitTarget.totalCredits}
-            </span>
+            {(() => {
+              const assigned = splitCourses.reduce((s, c) => s + (parseFloat(c.credits) || 0), 0);
+              const ok = isOptio
+                ? assigned - splitTarget.totalCredits <= 0.01
+                : Math.abs(assigned - splitTarget.totalCredits) <= 0.01;
+              return (
+                <span className={`text-xs font-medium ${ok ? 'text-emerald-600' : 'text-red-500'}`}>
+                  Assigned: {assigned.toFixed(2)} / {splitTarget.totalCredits}
+                </span>
+              );
+            })()}
           </div>
         </div>
+        {isOptio && (
+          <p className="text-xs text-gray-500 mb-2">
+            Name the courses this credit counts toward. Any credit you do not assign prints as {splitTarget.subjectName}.
+          </p>
+        )}
         <div className="space-y-2">
           {splitCourses.map((course, idx) => (
             <div key={idx} className="flex items-center gap-2">
@@ -44,7 +60,7 @@ const CourseBreakdownEditor = ({
                 placeholder="Credits"
                 className="w-24 px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500"
               />
-              <select
+              {!isOptio && <select
                 value={course.grade || ''}
                 onChange={e => updateSplitRow(idx, 'grade', e.target.value)}
                 aria-label="Grade"
@@ -53,7 +69,7 @@ const CourseBreakdownEditor = ({
               >
                 <option value="">Grade</option>
                 {['A', 'B', 'C', 'D', 'F'].map(g => <option key={g} value={g}>{g}</option>)}
-              </select>
+              </select>}
               {splitCourses.length > 1 && (
                 <button
                   onClick={() => removeSplitRow(idx)}
@@ -104,7 +120,7 @@ const CourseBreakdownEditor = ({
         </div>
       </div>
     </div>
-  )
-);
+  );
+};
 
 export default CourseBreakdownEditor;

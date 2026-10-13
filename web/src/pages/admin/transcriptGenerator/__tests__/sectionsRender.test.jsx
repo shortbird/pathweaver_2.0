@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, fireEvent } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/react'
 import { MemoryRouter, Routes, Route } from 'react-router-dom'
 
 /**
@@ -66,6 +66,10 @@ vi.mock('../../../../services/api', async (importOriginal) => {
 
 import TranscriptGeneratorPage from '../../TranscriptGeneratorPage'
 
+// The row whose Subject cell is `subject` (the course cell may say it too).
+const rowFor = (subject) => screen.getAllByTestId('transcript-row')
+  .find(r => r.querySelector('td')?.textContent === subject)
+
 const renderPage = () => render(
   <MemoryRouter initialEntries={['/admin/transcript/u1']}>
     <Routes>
@@ -84,8 +88,9 @@ describe('transcript generator sections render after the split', () => {
     // Printable document: the name comes through the EditableField component
     expect(screen.getByText('Lovelace, Ada')).toBeInTheDocument()
     expect(screen.getByText('Test Academy')).toBeInTheDocument()
-    // Every credit source reaches the table
-    expect(screen.getByText('Mathematics')).toBeInTheDocument()
+    // Every credit source reaches the table. Unnamed Optio credit prints
+    // under its subject's name, in both columns (ticket 9200a103, item 4).
+    expect(rowFor('Mathematics')).toBeTruthy()
     // Language Arts appears in the table and again in a subject <select>;
     // what matters is that the transfer row reached the document at all.
     expect(screen.getAllByText('Language Arts').length).toBeGreaterThan(0)
@@ -118,9 +123,10 @@ describe('transcript generator sections render after the split', () => {
     expect(legacyCompleted).toHaveClass('no-print')
     expect(legacyCompleted.textContent).toContain('not printed')
 
-    // Finished credit (quest, transfer) prints, with its grade.
-    for (const name of ['Mathematics', 'Green Canyon High', 'Biology']) {
-      expect(await rowOf(name)).not.toHaveClass('no-print')
+    // Finished credit (quest, class, transfer) prints, with its grade.
+    expect(await rowOf('Green Canyon High')).not.toHaveClass('no-print')
+    for (const subject of ['Mathematics', 'Science']) {
+      expect(rowFor(subject)).not.toHaveClass('no-print')
     }
 
     // Nothing printable carries an unfinished status.
@@ -152,7 +158,53 @@ describe('transcript generator sections render after the split', () => {
     renderPage()
     // The transfer row renders with the sending school, and the split control
     // that opens CourseBreakdownEditor sits on it.
-    expect(await screen.findByText('Green Canyon High')).toBeInTheDocument()
-    expect(screen.getByTitle('Break into individual courses')).toBeInTheDocument()
+    const transferRow = (await screen.findByText('Green Canyon High')).closest('tr')
+    expect(within(transferRow).getByTitle('Break into individual courses')).toBeInTheDocument()
+  })
+
+  // Ticket 9200a103, item 4 (Tanner, 2026-10-13): the transcript prints
+  // conventional course names. Optio credit no longer prints as "Optio
+  // Competency-Based", and a class no longer prints its own title.
+  it('ticket 9200a103: unnamed Optio and class credit print under the subject name', async () => {
+    renderPage()
+    await screen.findByText('Lovelace, Ada')
+    expect(screen.queryByText('Optio Competency-Based')).toBeNull()
+    expect(screen.queryByText('Biology')).toBeNull()
+    expect(within(rowFor('Science')).getAllByText('Science')).toHaveLength(2)
+  })
+
+  it('ticket 9200a103: the office splits Optio credit into named courses; the rest prints under the subject', async () => {
+    const api = (await import('../../../../services/api')).default
+    renderPage()
+    await screen.findByText('Lovelace, Ada')
+    fireEvent.click(screen.getByRole('button', { name: 'Break Mathematics into courses' }))
+
+    // Optio awards only an A, so the Optio editor has no grade column.
+    expect(screen.queryByRole('combobox', { name: 'Grade' })).toBeNull()
+    fireEvent.change(screen.getByPlaceholderText('Course name (e.g. Woodworking)'), { target: { value: 'Algebra I' } })
+    fireEvent.change(screen.getByPlaceholderText('Credits'), { target: { value: '0.75' } })
+    fireEvent.click(screen.getByText('Save Breakdown'))
+
+    const algebra = (await screen.findByText('Algebra I')).closest('tr')
+    expect(algebra.textContent).toContain('0.75')
+    const rest = screen.getAllByTestId('transcript-row')
+      .find(r => r.textContent.startsWith('MathematicsMathematics'))
+    expect(rest.textContent).toContain('0.25')
+    await waitFor(() => expect(api.put).toHaveBeenCalledWith(
+      '/api/admin/transcript/u1/overrides',
+      expect.objectContaining({ optio_courses_math: [{ name: 'Algebra I', credits: 0.75 }] }),
+    ), { timeout: 2000 })
+  })
+
+  it('ticket 9200a103: refuses an Optio breakdown that claims more credit than was earned', async () => {
+    const toast = (await import('react-hot-toast')).default
+    renderPage()
+    await screen.findByText('Lovelace, Ada')
+    fireEvent.click(screen.getByRole('button', { name: 'Break Mathematics into courses' }))
+    fireEvent.change(screen.getByPlaceholderText('Course name (e.g. Woodworking)'), { target: { value: 'Algebra I' } })
+    fireEvent.change(screen.getByPlaceholderText('Credits'), { target: { value: '1.5' } })
+    fireEvent.click(screen.getByText('Save Breakdown'))
+    expect(toast.error).toHaveBeenCalledWith(expect.stringContaining('cannot be more than 1'))
+    expect(screen.queryByText('Algebra I', { selector: 'td, td *' })).toBeNull()
   })
 })

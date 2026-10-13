@@ -11,7 +11,7 @@
  * the editor stopped offering that status.
  */
 
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import { MemoryRouter, Routes, Route } from 'react-router-dom'
 import { describe, it, expect, vi } from 'vitest'
 
@@ -30,8 +30,9 @@ const DATA = {
   totals: { total_completed: 1, gpa: 4 },
 }
 
+const get = vi.fn(() => Promise.resolve({ data: { data: DATA } }))
 vi.mock('../services/api', () => ({
-  default: { get: vi.fn(() => Promise.resolve({ data: { data: DATA } })) },
+  default: { get: (...a) => get(...a) },
 }))
 
 import PublicTranscriptPage from './PublicTranscriptPage'
@@ -60,5 +61,20 @@ describe('shared transcript (ticket 9200a103)', () => {
   it('shows the GPA from completed credit', async () => {
     renderPage()
     expect(await screen.findByText('4.00')).toBeInTheDocument()
+  })
+})
+
+describe('shared transcript course names (ticket 9200a103, item 4)', () => {
+  it('prints the office\'s named courses and the rest under the subject', async () => {
+    get.mockResolvedValueOnce({ data: { data: {
+      ...DATA,
+      overrides: { optio_courses_math: [{ name: 'Algebra I', credits: 0.75 }] },
+    } } })
+    renderPage()
+    expect((await screen.findAllByText('Algebra I')).length).toBeGreaterThan(0)
+    expect(screen.queryByText('Optio Competency-Based')).toBeNull()
+    const table = screen.getAllByRole('table')[0]
+    expect(within(table).getByText('0.75')).toBeInTheDocument()
+    expect(within(table).getByText('0.25')).toBeInTheDocument()
   })
 })

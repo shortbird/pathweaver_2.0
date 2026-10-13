@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import api from '../services/api';
 import TranscriptSignatureBlock from '../components/transcript/TranscriptSignatureBlock';
+import { buildTranscriptRows } from '../utils/transcriptRows';
 import {
   ACCREDITATION_ACTIVE,
   WASC_LOGO_SRC,
@@ -102,7 +103,7 @@ const PublicTranscriptPage = () => {
     );
   }
 
-  const { student, earned_credits, class_credits, transfer_credits, overrides, totals, accreditation } = data;
+  const { student, overrides, totals, accreditation } = data;
   const field = (key, fallback) => overrides?.[key] !== undefined && overrides[key] !== '' ? overrides[key] : fallback;
   // Show the ACS WASC mark only when this transcript is issued under Optio
   // Academy's accreditation (backend decides; partners with their own
@@ -120,78 +121,10 @@ const PublicTranscriptPage = () => {
     return d;
   };
 
-  // Build credit rows
-  const rows = [];
-
-  Object.entries(earned_credits || {}).forEach(([subject, info]) => {
-    if (info.credits > 0) {
-      const overrideKey = `earned_course_${subject}`;
-      rows.push({
-        subject: info.display_name,
-        course: field(overrideKey, 'Optio Competency-Based'),
-        source: 'Optio',
-        credits: info.credits,
-        status: 'Completed'
-      });
-    }
-  });
-
-  // Awarded classes - grouped into one row per subject; course names are
-  // listed together and credits summed (0.5 per class, A grade)
-  const classesBySubject = {};
-  (class_credits || []).forEach(cc => {
-    if (!classesBySubject[cc.school_subject]) classesBySubject[cc.school_subject] = [];
-    classesBySubject[cc.school_subject].push(cc);
-  });
-  Object.entries(classesBySubject).forEach(([subject, classes]) => {
-    const overrideKey = `class_courses_${subject}`;
-    rows.push({
-      subject: classes[0].display_name,
-      course: field(overrideKey, classes.map(c => c.course_name).join(', ')),
-      source: 'Optio',
-      credits: classes.reduce((sum, c) => sum + c.credits, 0),
-      status: 'Completed'
-    });
-  });
-
-  (transfer_credits || []).forEach(tc => {
-    const courseNames = tc.course_names || {};
-    Object.entries(tc.subjects || {}).forEach(([subject, info]) => {
-      const courses = courseNames[subject];
-      if (courses && courses.length > 0) {
-        courses.forEach((course, idx) => {
-          const overrideKey = `tc_course_${tc.id}_${subject}_${idx}`;
-          rows.push({
-            subject: info.display_name,
-            course: field(overrideKey, course.name),
-            source: tc.school_name || 'Transfer',
-            credits: course.credits,
-            grade: course.grade || 'A',
-            status: 'Completed'
-          });
-        });
-      } else {
-        const overrideKey = `tc_course_${tc.id}_${subject}`;
-        rows.push({
-          subject: info.display_name,
-          course: field(overrideKey, info.display_name),
-          source: tc.school_name || 'Transfer',
-          credits: info.credits,
-          status: 'Completed'
-        });
-      }
-    });
-  });
-
-  // No planned credit is on an official transcript: planned means not
-  // finished, and only finished courses print (ticket 9200a103, item 1).
-  // Planned credits are managed in the full transcript editor.
-
-  rows.sort((a, b) => {
-    if (a.status === 'Completed' && b.status !== 'Completed') return -1;
-    if (a.status !== 'Completed' && b.status === 'Completed') return 1;
-    return a.subject.localeCompare(b.subject);
-  });
+  // One builder for every transcript screen (utils/transcriptRows). No
+  // planned credit is on an official transcript: planned means not finished,
+  // and only finished courses print (ticket 9200a103, item 1).
+  const rows = buildTranscriptRows(data, overrides);
 
   const studentName = field('student_name', `${student.last_name}, ${student.first_name}`);
   const dateIssued = field('date_issued', formatDate(new Date().toISOString().split('T')[0]));

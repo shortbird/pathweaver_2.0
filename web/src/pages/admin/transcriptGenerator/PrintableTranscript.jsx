@@ -181,6 +181,32 @@ const PrintableTranscript = ({
                       </button>
                     </div>
                   )}
+                  {/* Optio credit (earned and class) splits into named
+                      courses like transfer credit (ticket 9200a103). */}
+                  {['earned', 'class'].includes(row.type) && (
+                    <button
+                      onClick={() => startSplit(row)}
+                      className="text-gray-400 hover:text-emerald-600"
+                      title="Break into individual courses"
+                      aria-label={`Break ${row.subject} into courses`}
+                    >
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h7" />
+                      </svg>
+                    </button>
+                  )}
+                  {row.type === 'optio' && (
+                    <button
+                      onClick={() => startSplit(row)}
+                      className="text-emerald-500 hover:text-emerald-700"
+                      title="Edit course breakdown"
+                      aria-label={`Edit ${row.subject} courses`}
+                    >
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                      </svg>
+                    </button>
+                  )}
                   {row.type === 'transfer' && !row.hasCourseBreakdown && row.totalSubjectCredits && (
                     <button
                       onClick={() => startSplit(row)}
