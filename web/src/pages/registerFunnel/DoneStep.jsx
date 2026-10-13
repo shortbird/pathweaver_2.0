@@ -5,7 +5,29 @@
 // found again.
 import React from 'react'
 
+// A school with its own welcome emails (own_welcome: Optio Academy) holds no
+// goals meeting, so its ending points at the inbox and the Family page.
+const WelcomeEnding = ({ org }) => (
+  <div className="space-y-6 text-center">
+    <div className="bg-white rounded-xl border border-gray-200 p-8">
+      <div className="w-14 h-14 rounded-full bg-green-100 text-green-600 flex items-center justify-center mx-auto mb-4 text-2xl">✓</div>
+      <h2 className="text-xl font-bold text-neutral-900 mb-2">Welcome to {org.name || 'the school'}</h2>
+      <p className="text-neutral-500 mb-5">
+        Your registration is complete. We just emailed you how to get started.
+      </p>
+      <a href="/family"
+        className="inline-block px-5 py-2.5 rounded-lg bg-gradient-to-r from-optio-purple to-optio-pink text-white font-semibold hover:opacity-90">
+        Go to your Family page
+      </a>
+      <p className="text-sm text-neutral-500 mt-5">
+        Questions at any time? Click Messages, then Optio Support.
+      </p>
+    </div>
+  </div>
+)
+
 const DoneStep = ({ code, config, org, previewMode, scheduling }) => (
+  config.own_welcome ? <WelcomeEnding org={org} /> :
   config.post_registration_flow === 'goals' ? (
     <div className="space-y-6 text-center">
       <div className="bg-white rounded-xl border border-gray-200 p-8">

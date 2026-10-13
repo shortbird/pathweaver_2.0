@@ -164,11 +164,11 @@ class CrmRepository(BaseRepository):
         }).eq('id', lead_id).execute()
 
     def account_role(self, email: str) -> Optional[Dict[str, Any]]:
-        """{'role': effective role, 'org_slug': slug or None} for the account
+        """{'role': effective role, 'org_slug': slug or None, 'user_id'} for the account
         holding this email, None when there is no account. Raises on a failed
         lookup so the caller can tell "no account" from "could not check"."""
         users = (self.client.table('users')
-                 .select('role, org_role, organization_id')
+                 .select('id, role, org_role, organization_id')
                  .ilike('email', email).limit(1).execute()).data
         if not users:
             return None
@@ -179,7 +179,30 @@ class CrmRepository(BaseRepository):
             orgs = (self.client.table('organizations').select('slug')
                     .eq('id', user['organization_id']).limit(1).execute()).data
             org_slug = orgs[0].get('slug') if orgs else None
-        return {'role': role, 'org_slug': org_slug}
+        return {'role': role, 'org_slug': org_slug, 'user_id': user.get('id')}
+
+    def active_funnel(self, keys: List[str]) -> Optional[Dict[str, Any]]:
+        """The first active funnel among these keys, or None."""
+        rows = (self.client.table('crm_funnels').select('*').in_('key', list(keys))
+                .eq('status', 'active').limit(1).execute()).data or []
+        return rows[0] if rows else None
+
+    def active_membership_id(self, funnel_id: str, email: str) -> Optional[str]:
+        """The id of this address's active membership in this funnel."""
+        leads = (self.client.table('crm_leads').select('id').ilike('email', email)
+                 .execute()).data or []
+        if not leads:
+            return None
+        rows = (self.client.table('crm_funnel_memberships').select('id')
+                .eq('funnel_id', funnel_id).eq('status', 'active')
+                .in_('lead_id', [lead['id'] for lead in leads]).limit(1)
+                .execute()).data or []
+        return rows[0]['id'] if rows else None
+
+    def active_membership_with_lead(self, membership_id: str) -> List[Dict[str, Any]]:
+        """One active membership with its lead embedded, as the sweep reads them."""
+        return (self.client.table('crm_funnel_memberships').select('*, crm_leads(*)')
+                .eq('id', membership_id).eq('status', 'active').execute()).data or []
 
     def active_leads_with_accounts(self) -> List[Dict[str, Any]]:
         """'active' leads whose (lowercased) email has a users row: people

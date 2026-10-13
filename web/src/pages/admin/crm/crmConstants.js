@@ -76,6 +76,11 @@ export const TEMPLATE_VARIABLES = [
   { name: 'last_name', token: '{{last_name}}', label: 'Last name', sample: 'Rivera' },
   { name: 'email', token: '{{email}}', label: 'Email', sample: 'jordan@example.com' },
   { name: 'unsubscribe_url', token: '{{unsubscribe_url}}', label: 'Unsubscribe URL', sample: '#' },
+  // Registration-fed funnels only (Optio Academy welcomes); "your student" elsewhere.
+  // Their copy can also hold {{#if high_school}}...{{/if}} blocks: the names
+  // live in backend/services/crm_registration_segments.py, and Send test
+  // shows every variant at once.
+  { name: 'student_names', token: '{{student_names}}', label: 'Student names', sample: 'Ava and Ben' },
 ]
 
 export const formatDate = (value) => {

@@ -76,6 +76,51 @@ class RegistrationRepository(BaseRepository):
                 .order('created_at', desc=True).limit(1).execute()).data or []
         return rows[0] if rows else None
 
+    # Welcome-email segments read the answers and kids, so these two carry
+    # the full row the recovery lookups above do not need.
+    _SEGMENT_COLUMNS = 'id, status, answers, kids, completed_at'
+
+    def newest_full_for_parent(self, organization_id: str, parent_user_id: str) -> Optional[Dict[str, Any]]:
+        rows = (self.client.table(self.table_name).select(self._SEGMENT_COLUMNS)
+                .eq('organization_id', organization_id)
+                .eq('parent_user_id', parent_user_id)
+                .order('created_at', desc=True).limit(1).execute()).data or []
+        return rows[0] if rows else None
+
+    def newest_full_naming_child(self, organization_id: str, child_user_id: str) -> Optional[Dict[str, Any]]:
+        import json
+        rows = (self.client.table(self.table_name).select(self._SEGMENT_COLUMNS)
+                .eq('organization_id', organization_id)
+                .contains('kids', json.dumps([{'user_id': child_user_id}]))
+                .order('created_at', desc=True).limit(1).execute()).data or []
+        return rows[0] if rows else None
+
+    def completed_since(self, organization_id: str, completed_after: str) -> List[Dict[str, Any]]:
+        """This org's registrations completed after the given time, with
+        their kids. Bounded by a two-week window of one school's sign-ups."""
+        return (self.client.table(self.table_name).select('id, kids, completed_at')
+                .eq('organization_id', organization_id).eq('status', 'completed')
+                .gte('completed_at', completed_after).execute()).data or []
+
+    def user_id_for_email(self, email: str) -> Optional[str]:
+        rows = (self.client.table('users').select('id').ilike('email', email)
+                .limit(1).execute()).data
+        return rows[0]['id'] if rows else None
+
+    def mark_emailed(self, registration_id: str, at: str) -> None:
+        """Record when the completion email went out."""
+        self.client.table(self.table_name).update({'scheduling_emailed_at': at}) \
+            .eq('id', registration_id).execute()
+
+    def subscriptions_for_parent(self, organization_id: str, parent_user_id: str) -> List[Dict[str, Any]]:
+        """This parent's registrations with this org that hold a Stripe
+        subscription, newest first (the family Billing tab)."""
+        return (self.client.table(self.table_name)
+                .select('id, stripe_subscription_id, stripe_customer_id')
+                .eq('organization_id', organization_id).eq('parent_user_id', parent_user_id)
+                .not_.is_('stripe_subscription_id', 'null')
+                .order('created_at', desc=True).execute()).data or []
+
     def org_id_for_slug(self, slug: str) -> Optional[str]:
         rows = (self.client.table('organizations').select('id')
                 .eq('slug', slug).limit(1).execute()).data

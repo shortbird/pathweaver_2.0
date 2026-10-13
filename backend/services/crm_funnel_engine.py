@@ -92,10 +92,38 @@ def _in_send_window(settings: Dict[str, Any], now: Optional[datetime] = None) ->
     return start_hour <= local.hour < end_hour
 
 
-def render_step_content(text: str, lead: Dict[str, Any], unsubscribe_url: str) -> str:
+# Conditional blocks for registration-fed funnels (2026-10-12):
+#   {{#if high_school}}...{{/if}}   {{#unless teacher_added}}...{{/unless}}
+# One level, no nesting, no else. The segment names and what they mean live
+# in crm_registration_segments.SEGMENTS. A send passes the lead's segments
+# ({} for a funnel with no registration behind it, so every #if drops); a
+# test send passes None and keeps every block under a grey label, so one
+# test email shows the owner all the variants at once.
+_BLOCK_RE = re.compile(
+    r'\{\{\s*#(if|unless)\s+([a-z0-9_]+)\s*\}\}(.*?)\{\{\s*/\1\s*\}\}', re.DOTALL)
+_STUDENT_NAMES_RE = re.compile(r'\{\{\s*student_names\s*\}\}')
+
+
+def _render_blocks(text: str, segments: Optional[Dict[str, Any]]) -> str:
+    def repl(m: 're.Match[str]') -> str:
+        kind, name, body = m.group(1), m.group(2), m.group(3)
+        if segments is None:
+            label = ('Only if' if kind == 'if' else 'Only if not') + f' {name}'
+            return (f'<div style="border-left:3px solid #d1d5db;padding-left:8px;">'
+                    f'<p style="margin:0;font-size:11px;color:#9ca3af;">[{label}]</p>'
+                    f'{body}</div>')
+        shown = bool(segments.get(name))
+        return body if shown == (kind == 'if') else ''
+    return _BLOCK_RE.sub(repl, text)
+
+
+def render_step_content(text: str, lead: Dict[str, Any], unsubscribe_url: str,
+                        segments: Optional[Dict[str, Any]] = None) -> str:
     """Substitute the known template variables. Values are HTML-escaped (lead
     names are user input landing inside our HTML)."""
-    result = text
+    result = _render_blocks(text, segments)
+    names = (segments or {}).get('student_names') or 'your student'
+    result = _STUDENT_NAMES_RE.sub(str(escape(names)), result)
     result = _TOKEN_RE['first_name'].sub(str(escape(lead.get('first_name') or 'there')), result)
     result = _TOKEN_RE['last_name'].sub(str(escape(lead.get('last_name') or '')), result)
     result = _TOKEN_RE['email'].sub(str(escape(lead.get('email') or '')), result)
@@ -145,15 +173,21 @@ def _parse_ts(value: str) -> datetime:
     return ts if ts.tzinfo else ts.replace(tzinfo=timezone.utc)
 
 
-def run_sweep(now: Optional[datetime] = None) -> Dict[str, Any]:
-    """One sweep pass. Returns a summary dict for the cron log."""
+def run_sweep(now: Optional[datetime] = None,
+              membership_id: Optional[str] = None) -> Dict[str, Any]:
+    """One sweep pass. Returns a summary dict for the cron log.
+
+    With membership_id, only that membership is considered, the entry passes
+    are skipped, and the send window does not apply: a family that finishes
+    registering at 9 pm gets its welcome then, not the next morning
+    (send_welcome_now). Every other gate still runs."""
     db = _db()
     now = now or datetime.now(timezone.utc)
     settings = _settings(db)
 
     _fail_stale_claims(db)
 
-    if not _in_send_window(settings, now):
+    if membership_id is None and not _in_send_window(settings, now):
         return {'skipped': 'outside_send_window', 'sent': 0}
     postal_address = (settings.get('postal_address') or '')
     if isinstance(postal_address, dict):
@@ -173,15 +207,22 @@ def run_sweep(now: Optional[datetime] = None) -> Dict[str, Any]:
     # Recovery funnels have no form feeding them; their entry is a stalled
     # registration, found here so this run can already send its first step.
     from services.crm_registration_recovery import (
-        enroll_completed, enroll_stalled, registration_open)
-    try:
-        enroll_stalled(db, funnels, now)
-    except Exception as e:  # noqa: BLE001  # entry failing must not stop the sends
-        logger.warning(f'CRM sweep: recovery enrollment failed: {e}')
-    try:
-        enroll_completed(db, funnels, now)
-    except Exception as e:  # noqa: BLE001
-        logger.warning(f'CRM sweep: registration welcome enrollment failed: {e}')
+        SEGMENT_FUNNEL_ORGS, enroll_completed, enroll_completed_students, enroll_stalled,
+        registration_open)
+    from services.crm_registration_segments import segments_for_email
+    if membership_id is None:
+        try:
+            enroll_stalled(db, funnels, now)
+        except Exception as e:  # noqa: BLE001  # entry failing must not stop the sends
+            logger.warning(f'CRM sweep: recovery enrollment failed: {e}')
+        try:
+            enroll_completed(db, funnels, now)
+        except Exception as e:  # noqa: BLE001
+            logger.warning(f'CRM sweep: registration welcome enrollment failed: {e}')
+        try:
+            enroll_completed_students(db, funnels, now)
+        except Exception as e:  # noqa: BLE001
+            logger.warning(f'CRM sweep: student welcome enrollment failed: {e}')
 
     steps =(db.table('crm_funnel_steps').select('*')
              .in_('funnel_id', list(funnel_by_id)).eq('is_active', True)
@@ -191,11 +232,15 @@ def run_sweep(now: Optional[datetime] = None) -> Dict[str, Any]:
         steps_by_funnel.setdefault(s['funnel_id'], []).append(s)
 
     from utils.db_fetch import fetch_all_rows
-    memberships = fetch_all_rows(lambda: (
-        db.table('crm_funnel_memberships')
-        .select('*, crm_leads(*)')
-        .in_('funnel_id', list(funnel_by_id)).eq('status', 'active')
-    ))
+    if membership_id is not None:
+        from repositories.crm_repository import CrmRepository
+        memberships = CrmRepository(client=db).active_membership_with_lead(membership_id)
+    else:
+        memberships = fetch_all_rows(lambda: (
+            db.table('crm_funnel_memberships')
+            .select('*, crm_leads(*)')
+            .in_('funnel_id', list(funnel_by_id)).eq('status', 'active')
+        ))
 
     from services.crm_service import mark_converted, suppression_state
     from services.email_service import email_service
@@ -277,6 +322,16 @@ def run_sweep(now: Optional[datetime] = None) -> Dict[str, Any]:
             skipped += 1
             continue
 
+        # A registration-fed funnel's copy varies with the family's answers.
+        segments: Dict[str, Any] = {}
+        segment_org = SEGMENT_FUNNEL_ORGS.get(funnel['key'])
+        if segment_org:
+            found = segments_for_email(db, lead['email'], segment_org)
+            if found is None:
+                skipped += 1  # lookup failed; never fall back to generic copy
+                continue
+            segments = found
+
         # Claim before send: at-most-once.
         try:
             claim = (db.table('crm_sends').insert({
@@ -292,9 +347,9 @@ def run_sweep(now: Optional[datetime] = None) -> Dict[str, Any]:
         unsubscribe_url = _unsubscribe_url(lead['unsubscribe_token'])
         footer = _marketing_footer(unsubscribe_url, str(postal_address))
         html = _with_footer(
-            render_step_content(step['html_body'], lead, unsubscribe_url), footer)
-        subject = render_step_content(step['subject'], lead, unsubscribe_url)
-        text = (render_step_content(step['text_body'], lead, unsubscribe_url)
+            render_step_content(step['html_body'], lead, unsubscribe_url, segments), footer)
+        subject = render_step_content(step['subject'], lead, unsubscribe_url, segments)
+        text = (render_step_content(step['text_body'], lead, unsubscribe_url, segments)
                 if step.get('text_body') else None)
 
         message_id = email_service.send_crm_email(
@@ -354,6 +409,22 @@ def _not_for_learner_onboarding(db, email: str) -> Optional[str]:
         return 'staff_role'
     if account['role'] == 'parent' and account['org_slug'] in OWN_WELCOME_ORGS:
         return 'org_welcome'
+    # A parent who has only STARTED an Academy registration is still a
+    # platform parent with no org, so the check above misses them; one got
+    # "start a class about something that interests you" on 2026-10-09. Any
+    # registration with these schools, finished or not, means that school's
+    # recovery or welcome emails speak to this person instead.
+    try:
+        from repositories.registration_repository import RegistrationRepository
+        repo = RegistrationRepository(client=db)
+        org_ids = [o['id'] for o in repo.orgs_for_slugs(list(OWN_WELCOME_ORGS))]
+        if org_ids and account.get('user_id') and (
+                repo.newest_started_by(account['user_id'], org_ids)
+                or repo.newest_naming_child(account['user_id'], org_ids)):
+            return 'org_welcome'
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f'CRM sweep: registration lookup failed: {e}')
+        return None
     return ''
 
 

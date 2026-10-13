@@ -15,9 +15,10 @@ route sees. A registration enters once it has sat untouched for STALL_HOURS,
 and only while its funnel is active; activating the funnel picks up every
 open registration from the last MAX_AGE_DAYS.
 """
-from datetime import datetime, timedelta
-from typing import Any, Dict, Iterable, Optional
+from datetime import date, datetime, timedelta
+from typing import Any, Dict, Iterable, List, Optional
 
+from repositories.crm_repository import CrmRepository
 from repositories.registration_repository import RegistrationRepository
 from utils.logger import get_logger
 
@@ -45,6 +46,19 @@ WELCOME_FUNNEL_ORGS = {
     'academy_parent_welcome': 'optio-academy',
 }
 WELCOME_MAX_AGE_DAYS = 14
+
+# Onboarding funnel key -> org slug for the STUDENTS of those completed
+# registrations: a teen with their own email login hears from the school
+# too, in words written to them. Under-13s never enter (their parent's
+# funnel covers them, and the CRM keeps no child's address).
+STUDENT_WELCOME_FUNNEL_ORGS = {
+    'academy_student_welcome': 'optio-academy',
+}
+STUDENT_MIN_AGE = 13
+
+# Every funnel whose copy may test registration answers
+# (crm_registration_segments), with the org whose registrations answer.
+SEGMENT_FUNNEL_ORGS = {**WELCOME_FUNNEL_ORGS, **STUDENT_WELCOME_FUNNEL_ORGS}
 
 
 def _repo(db) -> RegistrationRepository:
@@ -111,6 +125,67 @@ def enroll_completed(db, funnels: Iterable[Dict[str, Any]], now: datetime) -> in
                                           last_name=parent.get('last_name')):
                 entered += 1
     return entered
+
+
+def _own_login_teens(reg: Dict[str, Any], today: date) -> List[Dict[str, Any]]:
+    """The students on this registration old enough for their own welcome
+    and holding their own email login."""
+    from services.sis_eligibility import age_on
+    teens = []
+    for kid in reg.get('kids') or []:
+        email = (kid.get('email') or '').strip()
+        age = age_on(kid.get('dob'), today)  # None without a birthday: left out
+        if email and age is not None and age >= STUDENT_MIN_AGE:
+            teens.append({'email': email, 'first_name': kid.get('preferred_name') or kid.get('first_name'),
+                          'last_name': kid.get('last_name')})
+    return teens
+
+
+def enroll_completed_students(db, funnels: Iterable[Dict[str, Any]], now: datetime) -> int:
+    """Enter each own-login teen of a recently completed registration into
+    the school's student welcome. Returns how many entered."""
+    from services.crm_service import enter_registration_welcome
+
+    entered = 0
+    for funnel in funnels:
+        slug = STUDENT_WELCOME_FUNNEL_ORGS.get(funnel['key'])
+        org_id = _org_id(db, slug) if slug else None
+        if not org_id:
+            continue
+        regs = _repo(db).completed_since(
+            org_id, (now - timedelta(days=WELCOME_MAX_AGE_DAYS)).isoformat())
+        for reg in regs:
+            for teen in _own_login_teens(reg, now.date()):
+                if enter_registration_welcome(db, teen['email'], funnel,
+                                              first_name=teen['first_name'],
+                                              last_name=teen['last_name']):
+                    entered += 1
+    return entered
+
+
+def send_welcome_now(db, org_slug: str, parent: Dict[str, Any]) -> bool:
+    """At the moment a registration completes, enter the parent into the
+    school's welcome funnel and send its first step straight away, outside
+    the sweep's send window. Returns True when the welcome went out; False
+    tells the caller to send its own completion email instead (no active
+    funnel, a suppressed address, a send failure)."""
+    from services.crm_funnel_engine import run_sweep
+    from services.crm_service import enter_registration_welcome
+
+    keys = [k for k, slug in WELCOME_FUNNEL_ORGS.items() if slug == org_slug]
+    if not keys or not parent.get('email'):
+        return False
+    crm = CrmRepository(client=db)
+    funnel = crm.active_funnel(keys)
+    if not funnel:
+        return False
+    enter_registration_welcome(db, parent['email'], funnel,
+                               first_name=parent.get('first_name'),
+                               last_name=parent.get('last_name'))
+    membership_id = crm.active_membership_id(funnel['id'], parent['email'])
+    if not membership_id:
+        return False
+    return bool(run_sweep(membership_id=membership_id).get('sent'))
 
 
 def registration_open(db, email: str, funnel_key: str) -> Optional[bool]:

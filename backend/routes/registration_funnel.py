@@ -90,6 +90,7 @@ from utils.registration_config import get_registration_config
 from modules.enabled import module_enabled, module_enabled_for_row
 from services import academy_enrollment_service as academy_enrollment
 from services import sis_attach_service
+from services.crm_registration_recovery import WELCOME_FUNNEL_ORGS
 from services import emergency_contacts_service as emergency_contacts
 # The one affirmation sentence every typed signature is recorded under.
 from services.sis_onboarding_service import SIGNATURE_STATEMENT
@@ -196,6 +197,9 @@ def _public_config(org, cfg, paperwork_urls=None):
         # 'schedule' (default) = Schedule Builder + CLP appointment (iCreate);
         # 'goals' = the family goals page (/family/goals).
         'post_registration_flow': sis_settings.get('post_registration_flow') or 'schedule',
+        # A school with its own welcome emails (Optio Academy) ends on "check
+        # your email" instead of the goals or schedule step.
+        'own_welcome': org.get('slug') in WELCOME_FUNNEL_ORGS.values(),
         'organization': {
             'id': org.get('id'),
             'name': org.get('name'),

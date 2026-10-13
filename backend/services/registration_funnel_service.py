@@ -16,7 +16,7 @@ pre-merge blocks branch.
 import re
 from datetime import datetime
 
-from repositories.registration_repository import REGISTRATIONS_TABLE
+from repositories.registration_repository import REGISTRATIONS_TABLE, RegistrationRepository
 from services import academy_enrollment_service as academy_enrollment
 from services import registration_teacher_interest
 from services.email_service import email_service
@@ -52,23 +52,26 @@ def org_funnel_config(admin, org_id):
     return get_registration_config(((r.data if r else None) or {}).get('feature_flags'))
 
 
-def finish_fee_step(admin, reg, cfg, extra_fields=None):
-    """Shared fee completion: email the post-registration next step and complete
-    the registration. Which next step depends on the org's
-    sis_settings.post_registration_flow:
-      'schedule' (default) — the iCreate flow: Schedule Builder + CLP
-        appointment link (only sent when a scheduling_url is configured);
-      'goals' — set-your-student-goals email pointing at /family/goals (sent
-        regardless of scheduling_url, which goals orgs typically leave empty).
-    Either way the emailed-at moment lands in scheduling_emailed_at (in goals
-    mode it simply means "completion email sent"). Returns the response payload."""
-    scheduling_url = _abs_url(cfg.get('scheduling_url'))
-    now = datetime.utcnow().isoformat()
+def _send_welcome(admin, reg, org, parent, scheduling_url, now):
+    """The school's welcome funnel, sent now; the old completion email when
+    the funnel cannot send (paused, suppressed address, provider error), so
+    a family never finishes to silence. Returns the emailed-at moment."""
+    sent = False
+    try:
+        from services.crm_registration_recovery import send_welcome_now
+        sent = send_welcome_now(admin, org.get('slug'), parent)
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f'registration: welcome send failed for registration {reg["id"]}: {e}')
+    emailed_at = now if sent else _send_flow_email(reg, org, parent, scheduling_url, now)
+    if emailed_at:
+        RegistrationRepository(client=admin).mark_emailed(reg['id'], emailed_at)
+    return emailed_at
 
+
+def _send_flow_email(reg, org, parent, scheduling_url, now):
+    """The post_registration_flow email (goals or schedule). Returns the
+    emailed-at moment, or None when nothing went out."""
     emailed_at = None
-    parent = _parent_row(admin, reg['parent_user_id'])
-    org = admin.table('organizations').select('name, slug, feature_flags') \
-        .eq('id', reg['organization_id']).single().execute().data
     flow = ((((org or {}).get('feature_flags') or {}).get('sis_settings') or {})
             .get('post_registration_flow') or 'schedule')
     if flow == 'goals':
@@ -110,12 +113,42 @@ def finish_fee_step(admin, reg, cfg, extra_fields=None):
         except Exception as e:  # noqa: BLE001
             logger.warning(f'registration: scheduling email failed for registration {reg["id"]}: {e}')
 
+    return emailed_at
+
+
+def finish_fee_step(admin, reg, cfg, extra_fields=None):
+    """Shared fee completion: email the post-registration next step and complete
+    the registration. Which next step depends on the org's
+    sis_settings.post_registration_flow:
+      'schedule' (default) — the iCreate flow: Schedule Builder + CLP
+        appointment link (only sent when a scheduling_url is configured);
+      'goals' — set-your-student-goals email pointing at /family/goals (sent
+        regardless of scheduling_url, which goals orgs typically leave empty).
+    Either way the emailed-at moment lands in scheduling_emailed_at (in goals
+    mode it simply means "completion email sent"). Returns the response payload."""
+    scheduling_url = _abs_url(cfg.get('scheduling_url'))
+    now = datetime.utcnow().isoformat()
+
+    parent = _parent_row(admin, reg['parent_user_id'])
+    org = admin.table('organizations').select('name, slug, feature_flags') \
+        .eq('id', reg['organization_id']).single().execute().data
+    # A school with its own welcome funnel (Optio Academy) sends that instead,
+    # after the row below is written, so the welcome reads the final answers
+    # and add-ons. Its old goals email promised a staff meeting that school
+    # does not hold.
+    from services.crm_registration_recovery import WELCOME_FUNNEL_ORGS
+    own_welcome = (org or {}).get('slug') in WELCOME_FUNNEL_ORGS.values()
+    emailed_at = None if own_welcome else _send_flow_email(reg, org, parent, scheduling_url, now)
+
     payload = {
         'fee_recorded_at': now, 'scheduling_emailed_at': emailed_at,
         'status': 'completed', 'completed_at': now, 'updated_at': now,
         **(extra_fields or {}),
     }
     admin.table(REGISTRATIONS_TABLE).update(payload).eq('id', reg['id']).execute()
+
+    if own_welcome:
+        emailed_at = _send_welcome(admin, reg, org, parent, scheduling_url, now)
 
     # The school hears about it too (org admins, or ADMIN_EMAIL for a school
     # without any). Best-effort inside; the registration is already complete.

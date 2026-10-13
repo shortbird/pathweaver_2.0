@@ -71,6 +71,14 @@ UNIQUE_CONSTRAINTS = {
 }
 
 
+def _contains(have, v):
+    """jsonb @> for one element: a dict matches any element holding its keys."""
+    if isinstance(v, dict):
+        return any(isinstance(h, dict) and all(h.get(k) == x for k, x in v.items())
+                   for h in have)
+    return v in have
+
+
 class FakeResult:
     def __init__(self, data, count=None):
         self.data = data
@@ -142,6 +150,10 @@ class FakeQuery:
         return self
 
     def contains(self, col, vals):
+        # The real client takes a JSON string for jsonb (kids @> '[{...}]').
+        if isinstance(vals, str):
+            import json
+            vals = json.loads(vals)
         self.filters.append(('contains', col, list(vals)))
         return self
 
@@ -198,7 +210,7 @@ class FakeQuery:
                 return False
             if kind == 'contains':
                 have = row.get(col) or []
-                if not all(v in have for v in val):
+                if not all(_contains(have, v) for v in val):
                     return False
             if kind == 'ilike':
                 pattern = '^' + re.escape(val).replace('%', ' ').replace(
