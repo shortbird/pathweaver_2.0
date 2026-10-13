@@ -1,6 +1,11 @@
 import React from 'react'
 import { Link } from 'react-router-dom'
 import { marketingUrl } from '../utils/marketingUrl'
+// Every price in this agreement comes from Optio's price list
+// (shared/data/pricing.json), the same list the website, the Terms of Service
+// and the help center read. A price change there changes this text, so bump
+// the Effective Date in the same commit.
+import { PRICE_TEXT as P } from '@shared/pricing'
 
 const OptioAcademyAgreement = () => {
   return (
@@ -10,7 +15,7 @@ const OptioAcademyAgreement = () => {
           <h1 className="text-3xl font-bold text-gray-900 mb-8">Optio Academy Participant &amp; Parent Agreement</h1>
 
           <div className="prose prose-gray max-w-none">
-            <p className="text-sm text-gray-600 mb-6">Effective Date: October 12, 2026</p>
+            <p className="text-sm text-gray-600 mb-6">Effective Date: October 13, 2026</p>
 
             <div className="bg-optio-purple/5 border-l-4 border-optio-purple p-4 mb-8">
               <p className="font-semibold text-gray-900">Important Notice</p>
@@ -161,26 +166,51 @@ const OptioAcademyAgreement = () => {
               </p>
               <ul className="list-disc ml-6 mb-4">
                 <li>
-                  <strong>Parent-Supported Diploma:</strong> $50 per month for each Participant, and
-                  no more than $150 per month for a family, however many Participants are enrolled.
-                  Tuition covers six credits a year, the pace that completes the 24-credit diploma in
-                  four years. Credits beyond that pace are $100 each, billed when the credit is begun.
+                  <strong>Parent-Supported Diploma:</strong> {P.academyTuitionMonthly} per month for each
+                  Participant, and no more than {P.academyFamilyCapMonthly} per month for a family, however
+                  many Participants are enrolled. Tuition covers {P.academyCreditsIncludedPerYear} credits a
+                  year, the pace that completes the {P.diplomaCredits}-credit diploma in {P.diplomaYears} years.
+                  Credits beyond that pace are {P.acceleratedCredit} each, billed when the credit is begun.
                   Tuition includes access to the Optio digital platform, curriculum structure, Academy
                   credit review, the Participant&apos;s transcript, and the diploma pathway.
                 </li>
                 <li>
-                  <strong>Full-Time Academy:</strong> $500 per month for each Participant with a
-                  dedicated Optio teacher. This includes that Participant&apos;s $50 monthly tuition; it is
-                  not added on top. It also includes everything in the Parent-Supported Diploma, the
-                  weekly teacher sessions, and all curriculum materials. The $150 family limit applies
-                  to Parent-Supported tuition only.
+                  <strong>Full-Time Academy:</strong> {P.fullTimeMonthly} per month for each Participant
+                  with a dedicated Optio teacher. This includes that Participant&apos;s{' '}
+                  {P.academyTuitionMonthly} monthly tuition; it is not added on top. It also includes
+                  everything in the Parent-Supported Diploma, the weekly teacher sessions, and all
+                  curriculum materials. The {P.academyFamilyCapMonthly} family limit applies to
+                  Parent-Supported tuition only.
                 </li>
               </ul>
+
+              <h3 className="text-xl font-semibold mb-3">Transfer Credit and Prior Learning</h3>
+              <p className="mb-4">
+                Credit the Participant earned at an accredited school transfers at no charge when that
+                school sends an official transcript. Other learning completed before or outside the
+                Academy (homeschool courses, co-ops, and programs without accreditation) may be
+                submitted for review; credit the Academy awards for it is {P.transferUnaccreditedPrivate}{' '}
+                per credit, billed when the credit is awarded, and nothing is charged for learning the
+                Academy does not accept. A Participant may transfer in up to {P.maxTransferCredits}{' '}
+                credits toward the diploma.
+              </p>
+              <p className="mb-4">
+                A Participant whose school holds an Optio license for them pays {P.licensedCredit} per
+                credit for credits earned through the Academy and for awarded prior learning. Credits
+                beyond the included pace are {P.acceleratedCredit} each for every Participant and are not
+                discounted.
+              </p>
+              <p className="mb-4">
+                A Participant whose enrollment is purchased through OpenEd buys credits and prior
+                learning through OpenEd, and OpenEd pays the Academy. The Academy does not bill these
+                Participants directly.
+              </p>
 
               <h3 className="text-xl font-semibold mb-3">No Additional Required Fees</h3>
               <p className="mb-4">
                 There are no required additional fees during the school year. No enrollment fee, no
-                materials fee, no technology fee, no testing fee.
+                materials fee, no technology fee, no testing fee. The credit fees above are charged only
+                for credits the family chooses to pursue.
               </p>
 
               <h3 className="text-xl font-semibold mb-3">Tuition Parity</h3>

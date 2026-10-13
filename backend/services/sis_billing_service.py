@@ -67,10 +67,13 @@ from utils.money import format_cents
 
 
 # ── Processing fees ──────────────────────────────────────────────────────────
-# Default is Stripe's standard US card rate. Orgs can override in
-# branding_config.processing_fee = {"percent": 2.9, "flat_cents": 30}. Applied to
+# Default is Stripe's standard US card rate, from Optio's price list
+# (shared/data/pricing.json, cardProcessing). Orgs can override in
+# branding_config.processing_fee = {"percent": ..., "flat_cents": ...}. Applied to
 # any payment method that costs the school a fee (card / e-check / ACH-with-fee).
-_DEFAULT_PROCESSING_FEE = {'percent': 2.9, 'flat_cents': 30}
+from generated.pricing import PRICING as _PRICING  # noqa: E402
+_DEFAULT_PROCESSING_FEE = {'percent': _PRICING['cardProcessing']['percent'],
+                           'flat_cents': _PRICING['cardProcessing']['flatCents']}
 
 
 def _processing_fee_settings(org_id: str) -> Dict[str, Any]:

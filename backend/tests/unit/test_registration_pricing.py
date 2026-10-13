@@ -182,3 +182,34 @@ class TestApplySelection:
         ]}})
         kids = apply_add_on_selection(plan, [_kid(1)], {'kid-1': ['b', 'a', 'b']})
         assert kids[0]['add_ons'] == ['a', 'b']
+
+class TestOptioAcademyPricesComeFromThePriceList:
+    """pricing: 'optio_academy' means shared/data/pricing.json owns the amounts
+    (2026-10-13); whatever cents the config still carries are ignored."""
+
+    CFG = {'monthly': {
+        'pricing': 'optio_academy', 'per_student_cents': 1, 'family_cap_cents': 2,
+        'add_ons': [{'key': 'teacher_support', 'label': 'Optio teacher support',
+                     'amount_cents': 3, 'includes_program_fee': False},
+                    {'key': 'tutoring', 'label': 'Tutoring', 'amount_cents': 2500}],
+    }}
+
+    def test_tuition_cap_and_teacher_price_come_from_the_json(self):
+        from generated.pricing import PRICING
+        from services.registration_pricing import monthly_plan
+        plan = monthly_plan(self.CFG)
+        assert plan['per_student_cents'] == PRICING['academy']['tuitionMonthlyCents']
+        assert plan['family_cap_cents'] == PRICING['academy']['familyCapMonthlyCents']
+        teacher = next(a for a in plan['add_ons'] if a['key'] == 'teacher_support')
+        assert teacher['amount_cents'] == PRICING['academy']['fullTimeMonthlyCents']
+        assert teacher['includes_program_fee'] is True
+
+    def test_an_add_on_the_price_list_does_not_own_keeps_its_own_price(self):
+        from services.registration_pricing import monthly_plan
+        tutoring = next(a for a in monthly_plan(self.CFG)['add_ons'] if a['key'] == 'tutoring')
+        assert tutoring['amount_cents'] == 2500
+
+    def test_any_other_org_keeps_its_own_numbers(self):
+        from services.registration_pricing import monthly_plan
+        cfg = {'monthly': {**self.CFG['monthly'], 'pricing': None}}
+        assert monthly_plan(cfg)['per_student_cents'] == 1

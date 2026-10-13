@@ -20,6 +20,7 @@ Admin endpoints (superadmin only):
 - GET    /api/admin/docs/analytics        - view counts, popular articles
 """
 
+from utils.pricing_text import fill_prices
 from flask import Blueprint, request, jsonify
 import re
 from database import get_supabase_admin_client
@@ -32,6 +33,14 @@ logger = get_logger(__name__)
 # Two blueprints: one public, one admin
 public_docs_bp = Blueprint('public_docs', __name__, url_prefix='/api/public/docs')
 admin_docs_bp = Blueprint('admin_docs', __name__, url_prefix='/api/admin/docs')
+
+
+def _priced(rows):
+    """Article list rows with {{price.<name>}} filled in title and summary."""
+    for row in rows:
+        for field in ('title', 'summary'):
+            row[field] = fill_prices(row.get(field))
+    return rows
 
 
 def generate_slug(title):
@@ -69,7 +78,7 @@ def list_public_categories():
 
             articles_by_cat = {}
             count_map = {}
-            for a in (articles_result.data or []):
+            for a in _priced(articles_result.data or []):
                 cid = a['category_id']
                 count_map[cid] = count_map.get(cid, 0) + 1
                 if cid not in articles_by_cat:
@@ -109,7 +118,7 @@ def get_public_category(slug):
             'is_published', True
         ).order('sort_order').execute()
 
-        category['articles'] = articles_result.data or []
+        category['articles'] = _priced(articles_result.data or [])
 
         return jsonify({'success': True, 'category': category}), 200
 
@@ -150,6 +159,9 @@ def get_public_article(slug):
             if cat_result.data:
                 article['category'] = cat_result.data[0]
 
+        # Prices in the copy are {{price.<name>}}, filled from pricing.json.
+        for field in ('title', 'summary', 'content'):
+            article[field] = fill_prices(article.get(field))
         return jsonify({'success': True, 'article': article}), 200
 
     except Exception as e:
@@ -207,7 +219,7 @@ def search_docs():
                 for r in results:
                     r['category'] = cat_map.get(r.get('category_id'))
 
-        return jsonify({'success': True, 'results': results}), 200
+        return jsonify({'success': True, 'results': _priced(results)}), 200
 
     except Exception as e:
         logger.error(f"Error searching docs: {str(e)}")

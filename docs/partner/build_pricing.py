@@ -17,14 +17,25 @@ REPO = "/Users/optio/pathweaver_2.0"
 CHROME = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
 OUT_DIR = os.path.expanduser("~/Desktop")
 
+# Every price comes from Optio's price list, shared/data/pricing.json, the same
+# list the website, the agreement and the app read (2026-10-13). This sheet
+# used to carry its own copy.
+import json  # noqa: E402
+
+with open(os.path.join(REPO, "shared/data/pricing.json")) as f:
+    _P = json.load(f)
+with open(os.path.join(REPO, "shared/data/credits.json")) as f:
+    _C = json.load(f)
+
 PRICES = {
-    "tuition_month": 50,        # private pay tuition, per month
-    "credits_per_year": 6,      # credits the tuition covers each year
-    "credit_private": 100,      # one credit, private pay
-    "credit_school": 50,        # one credit, student on a school license
-    "license_year": 80,         # Optio license, per student per year
-    "diploma_credits": 24,
-    "max_transfer": 18,         # most credits a student may transfer in
+    "tuition_month": _P["academy"]["tuitionMonthlyCents"] // 100,
+    "credits_per_year": _P["academy"]["creditsIncludedPerYear"],
+    "credit_private": _P["academy"]["creditCents"] // 100,
+    "credit_school": _P["licensed"]["creditCents"] // 100,
+    "credit_accelerated": _P["accelerated"]["creditCents"] // 100,  # never discounted
+    "license_year": _P["licensed"]["licensePerStudentYearCents"] // 100,
+    "diploma_credits": _C["totalCreditsRequired"],
+    "max_transfer": _P["transfer"]["maxTransferCredits"],
 }
 
 with open(os.path.join(REPO, "marketing/public/images/OptioLogo-FullColor.svg")) as f:
@@ -60,8 +71,9 @@ def values():
         "SCHOOL_CREDITS_DIPLOMA": money(p["credit_school"] * p["diploma_credits"]),
         "SCHOOL_DIPLOMA": money(school_year * years),
         "SAVE_DIPLOMA": money((private_year - school_year) * years),
-        "EX_PRIVATE_EXTRA": money(p["credit_private"] * 2),
-        "EX_SCHOOL_EXTRA": money(p["credit_school"] * 2),
+        "EX_PRIVATE_EXTRA": money(p["credit_accelerated"] * 2),
+        "EX_SCHOOL_EXTRA": money(p["credit_accelerated"] * 2),
+        "CREDIT_ACCELERATED": money(p["credit_accelerated"]),
         "EX_PRIVATE_REVIEW": money(p["credit_private"] * 5),
         "EX_SCHOOL_REVIEW": money(p["credit_school"] * 5),
     }
@@ -145,12 +157,12 @@ PAGE = """<!doctype html>
   <tbody>
     <tr><td>Optio license (the full Optio app)</td><td class="num">Included in tuition</td><td class="num school">{{LICENSE_YEAR}} a year</td></tr>
     <tr><td>Credits earned at Optio</td><td class="num">{{CREDIT_PRIVATE}} a credit</td><td class="num school">{{CREDIT_SCHOOL}} a credit</td></tr>
-    <tr><td>Extra credits, to finish faster</td><td class="num">{{CREDIT_PRIVATE}} a credit</td><td class="num school">{{CREDIT_SCHOOL}} a credit</td></tr>
+    <tr><td>Extra credits, to finish faster</td><td class="num">{{CREDIT_ACCELERATED}} a credit</td><td class="num school">{{CREDIT_ACCELERATED}} a credit</td></tr>
     <tr><td>Transfer from an accredited school</td><td class="num">Free</td><td class="num school">Free</td></tr>
     <tr><td>Transfer from a school that is not accredited</td><td class="num">{{CREDIT_PRIVATE}} a credit</td><td class="num school">{{CREDIT_SCHOOL}} a credit</td></tr>
   </tbody>
 </table>
-<p>A licensed student in your program pays half the private pay price for every credit.</p>
+<p>A licensed student in your program pays half the private pay price for credits earned through Optio and for transfer credit Optio Academy reviews. Extra credits, to finish faster, are the same price for every student.</p>
 
 <div class="keep">
 <h2>Credit transfers</h2>

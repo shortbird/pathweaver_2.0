@@ -34,11 +34,15 @@ const isStandalone = () => {
  * Leaves this host for the marketing site. A real navigation, not a router
  * one: the destination is a different origin. `replace` so the back button
  * does not bounce the visitor straight back here and round again.
+ *
+ * Also the landing for retired app pages whose replacement lives on www: the
+ * public course catalog (/catalog) and course pages (/course/:slug) sold the
+ * $149 individual class, retired 2026-09-17, so old links now go to /academy.
  */
-const RedirectToMarketing = () => {
+export const RedirectToMarketing = ({ path = '/' }) => {
   useEffect(() => {
-    window.location.replace(marketingUrl('/'))
-  }, [])
+    window.location.replace(marketingUrl(path))
+  }, [path])
   return <DecidingLoader />
 }
 

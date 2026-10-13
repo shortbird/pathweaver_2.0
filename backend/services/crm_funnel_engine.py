@@ -29,6 +29,7 @@ deactivating or deleting a step naturally advances leads to the next
 remaining one.
 """
 import re
+from utils.pricing_text import fill_prices
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 from zoneinfo import ZoneInfo
@@ -114,7 +115,15 @@ def _render_blocks(text: str, segments: Optional[Dict[str, Any]]) -> str:
                     f'{body}</div>')
         shown = bool(segments.get(name))
         return body if shown == (kind == 'if') else ''
-    return _BLOCK_RE.sub(repl, text)
+    # A block may sit inside another of the other kind ({{#unless opened}}
+    # inside {{#if teacher_none}}); one pass leaves the inner one untouched,
+    # so render until nothing is left to render.
+    for _ in range(5):
+        rendered = _BLOCK_RE.sub(repl, text)
+        if rendered == text:
+            break
+        text = rendered
+    return text
 
 
 def render_step_content(text: str, lead: Dict[str, Any], unsubscribe_url: str,
@@ -122,6 +131,8 @@ def render_step_content(text: str, lead: Dict[str, Any], unsubscribe_url: str,
     """Substitute the known template variables. Values are HTML-escaped (lead
     names are user input landing inside our HTML)."""
     result = _render_blocks(text, segments)
+    # Prices are {{price.<name>}}, filled from shared/data/pricing.json.
+    result = fill_prices(result) or ''
     names = (segments or {}).get('student_names') or 'your student'
     result = _STUDENT_NAMES_RE.sub(str(escape(names)), result)
     result = _TOKEN_RE['first_name'].sub(str(escape(lead.get('first_name') or 'there')), result)

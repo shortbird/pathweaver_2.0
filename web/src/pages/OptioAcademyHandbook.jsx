@@ -1,5 +1,8 @@
 import React from 'react'
 import { Link } from 'react-router-dom'
+// Prices come from Optio's price list (shared/data/pricing.json); see
+// OptioAcademyAgreement.jsx, whose Section 4 this summarizes.
+import { PRICE_TEXT as P } from '@shared/pricing'
 
 const OptioAcademyHandbook = () => {
   return (
@@ -263,12 +266,22 @@ const OptioAcademyHandbook = () => {
             <section className="mb-8">
               <h2 className="text-2xl font-semibold mb-4">Tuition &amp; Refunds</h2>
               <p className="mb-4">
-                The Parent-Supported Diploma is $50 a month for each student, and never more than
-                $150 a month for a family. That covers six credits a year, the pace that finishes the
-                24-credit diploma in four years; credits beyond that pace are $100 each. The Full-Time
-                Academy, with a dedicated Optio teacher, is $500 a month for each student, and that
-                includes the $50. Both include the Optio platform, the transcript, and the diploma
-                pathway. There are no required additional fees during the school year.
+                The Parent-Supported Diploma is {P.academyTuitionMonthly} a month for each student, and
+                never more than {P.academyFamilyCapMonthly} a month for a family. That covers{' '}
+                {P.academyCreditsIncludedPerYear} credits a year, the pace that finishes the{' '}
+                {P.diplomaCredits}-credit diploma in {P.diplomaYears} years; credits beyond that pace are{' '}
+                {P.acceleratedCredit} each. The Full-Time Academy, with a dedicated Optio teacher, is{' '}
+                {P.fullTimeMonthly} a month for each student, and that includes the{' '}
+                {P.academyTuitionMonthly}. Both include the Optio platform, the transcript, and the
+                diploma pathway. There are no required additional fees during the school year.
+              </p>
+              <p className="mb-4">
+                Credit from an accredited school transfers {P.transferAccredited} with an official
+                transcript. Other prior learning, such as homeschool courses, is reviewed by an Optio
+                Academy teacher, and each credit awarded is {P.transferUnaccreditedPrivate}{' '}
+                ({P.licensedCredit} for students whose school holds an Optio license). Up to{' '}
+                {P.maxTransferCredits} credits can transfer in. Families enrolled through OpenEd buy
+                credits through OpenEd instead, and OpenEd pays Optio Academy.
               </p>
               <p className="mb-4">
                 If a student leaves, monthly billing stops and no further month is charged. Months

@@ -32,7 +32,7 @@ import ScrollToTop from './components/ScrollToTop'
 import MetaPixelTracker from './components/MetaPixelTracker'
 import GaTracker from './components/GaTracker'
 import { initGa } from './services/googleAnalytics'
-import HomeRoute, { NotFoundRedirect } from './components/HomeRoute'
+import HomeRoute, { NotFoundRedirect, RedirectToMarketing } from './components/HomeRoute'
 import LoginPage from './pages/LoginPage'
 import OrgLoginPage from './pages/auth/OrgLoginPage'
 import RegisterPage from './pages/RegisterPage'
@@ -116,6 +116,8 @@ const MobileDemoPage = lazy(() => import('./pages/MobileDemoPage'))
 const OrganizationManagement = lazy(() => import('./pages/admin/OrganizationManagement'))
 const PartnerEnrollStudentPage = lazy(() => import('./pages/PartnerEnrollStudentPage'))
 const OnFireDashboard = lazy(() => import('./pages/OnFireDashboard'))
+const FamilyGroupDashboardPage = lazy(() => import('./pages/FamilyGroupDashboardPage'))
+const FamilyGroupsIndexPage = lazy(() => import('./pages/FamilyGroupDashboardPage').then(m => ({ default: m.FamilyGroupsIndexPage })))
 const OrgStudentOverviewPage = lazy(() => import('./pages/admin/OrgStudentOverviewPage'))
 const AdvisorClassesPage = lazy(() => import('./pages/AdvisorClassesPage'))
 const AdvisorCheckinPage = lazy(() => import('./pages/AdvisorCheckinPage'))
@@ -137,8 +139,6 @@ const CurriculumPage = lazy(() => import('./pages/curriculum/CurriculumPage'))
 const CourseBuilder = lazy(() => import('./pages/courses/CourseBuilder'))
 const CourseHomepage = lazy(() => import('./pages/courses/CourseHomepage'))
 const CourseCatalog = lazy(() => import('./pages/courses/CourseCatalog'))
-const PublicCoursePage = lazy(() => import('./pages/courses/PublicCoursePage'))
-const PublicCatalogPage = lazy(() => import('./pages/courses/PublicCatalogPage'))
 const MyClasses = lazy(() => import('./pages/classes/MyClasses'))
 const StartClassPage = lazy(() => import('./pages/classes/StartClassPage'))
 const CoursesAndCreditsPage = lazy(() => import('./pages/CoursesAndCreditsPage'))
@@ -550,9 +550,11 @@ function App() {
                   only by a bookmark to this host made in the six days between.
                   MarketingNav and MarketingFooter now link to www directly. An
                   unknown path falls through to NotFoundRedirect. */}
-              {/* Public course catalog + detail — marketing chrome (nav + footer), no auth */}
-              <Route path="catalog" element={<PublicCatalogPage />} />
-              <Route path="course/:slug" element={<PublicCoursePage />} />
+              {/* The public course catalog and course pages sold the $149
+                  individual class, retired 2026-09-17. Old links (shared,
+                  bookmarked, indexed) now go to the Academy page on www. */}
+              <Route path="catalog" element={<RedirectToMarketing path="/academy" />} />
+              <Route path="course/:slug" element={<RedirectToMarketing path="/academy" />} />
               {/* Program public/marketing routes (e.g. POE) — see src/programs/registry.jsx */}
               {getProgramRoutes('public')}
 
@@ -602,6 +604,10 @@ function App() {
                 {/* Docs routes moved outside Layout for standalone full-screen experience */}
 
               <Route element={<PrivateRoute />}>
+                {/* A family group's dashboard (OpenEd). Any signed-in account:
+                    access is a grant on the group, checked by the API. */}
+                <Route path="family-groups" element={<FamilyGroupsIndexPage />} />
+                <Route path="family-groups/:groupId" element={<FamilyGroupDashboardPage />} />
                 {/* Every role's home. RoleHome switches on effective role
                     (student dashboard, family home, teacher home, ...). */}
                 <Route path="dashboard" element={<RoleHome />} />

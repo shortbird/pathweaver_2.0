@@ -39,20 +39,12 @@ UNSUB_TOKEN = re.compile(r'\{\{\s*unsubscribe\s*\}\}')
 
 # (funnel key, name, type, entry_types, [(file, subject, name, delay_hours)])
 FUNNELS = [
-    ('free_class_nurture', 'Free Class Nurture', 'nurture', ['claim_free_class'], [
-        ('01-nurture-1-getting-set-up.html', "Let's build your free class together", 'Let me build it with you', 1),
-        ('02-nurture-2-already-doing-the-work.html', "You're probably already doing the work", 'Already doing the work', 48),
-        ('03-nurture-3-will-your-school-accept-it.html', 'Will your school actually accept it?', 'Will your school accept it', 96),
-        ('49-nurture-3b-diploma-pathways.html', 'This can go all the way to a diploma', 'Diploma pathways', 120),
-        ('04-nurture-4-what-a-class-looks-like.html', 'What an Optio class actually looks like', 'What a class looks like', 168),
-        ('05-nurture-5-details-for-parents.html', 'The details your parents will ask about', 'Details for parents', 240),
-        ('06-nurture-6-keep-it-open.html', 'Should I keep your free class open?', 'Thirty minutes with me', 336),
-    ]),
-    ('families_nurture', 'Families Nurture', 'nurture', ['families'], [
-        ('08-families-welcome.html', 'Your questions about Optio, answered directly', 'Questions answered', 1),
-        ('33-families-2-day-to-day.html', 'What Optio looks like day to day', 'Day to day', 96),
-        ('34-families-3-first-class-free.html', 'The first class is free', 'Thirty minutes', 192),
-    ]),
+    # free_class_nurture, families_nurture and winback_free_class_chat were
+    # removed from this list on 2026-10-13: they sold or chased the free first
+    # class, retired with the $149 individual class on 2026-09-17. The three
+    # free-class funnels were deleted from prod the same day with no lead
+    # still active in them (backup: tmp/free-class-funnels-2026-10-13/). A
+    # re-run must not put them back in front of anyone.
     ('general_interest_nurture', 'General Interest Nurture', 'nurture',
      ['demo', 'general', 'course_purchase'], [
         ('24-general-interest-1-info-you-asked-for.html', 'The info you asked for', 'Info you asked for', 1),
@@ -70,12 +62,6 @@ FUNNELS = [
         ('46-course-onboarding-2-how-your-course-works.html', 'How your course works', 'How your course works', 72),
         ('47-course-onboarding-3-why-lessons-are-short.html', 'Why the lessons are so short', 'Why lessons are short', 144),
         ('48-course-onboarding-4-what-tasks-add-up-to.html', 'What all your tasks add up to', 'What tasks add up to', 240),
-    ]),
-    # One-off win-back for the ad-campaign free-class leads. entry_types is
-    # empty on purpose: nothing auto-feeds it, leads are enrolled by hand once
-    # and the funnel is archived afterwards.
-    ('winback_free_class_chat', 'Win-back: Free Class to Video Chat', 'nurture', [], [
-        ('50-winback-1-apology.html', 'We made this harder than it needed to be', 'The apology', 0),
     ]),
 ]
 

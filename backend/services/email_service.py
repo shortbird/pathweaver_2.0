@@ -10,7 +10,7 @@ from typing import Optional, List, Dict, Any
 import requests
 from services.base_service import BaseService
 from jinja2 import Environment, FileSystemLoader, select_autoescape, TemplateNotFound
-from markupsafe import Markup, escape
+from markupsafe import escape
 from services.email_copy_loader import email_copy_loader
 from app_config import Config
 
@@ -56,6 +56,11 @@ class EmailService(BaseService):
             trim_blocks=True,
             lstrip_blocks=True
         )
+        # Every template can name a price as {{ price.academyTuitionMonthly }}:
+        # the formatted prices from shared/data/pricing.json, so email copy
+        # never types a dollar amount of its own.
+        from generated.pricing import PRICE_TEXT
+        self.jinja_env.globals['price'] = PRICE_TEXT
 
         # Load email copy loader for centralized copy management
         self.copy_loader = email_copy_loader
@@ -1274,35 +1279,6 @@ class EmailService(BaseService):
                 'activity_text': activity_text
             },
             bcc=[tanner_email]  # Copy Tanner for personal follow-up
-        )
-
-    def send_student_promo_email(self, email: str, name: str, interest_individual: bool = False, interest_fulltime: bool = False, classes: str = '', state: str = '') -> bool:
-        """Send promo email to students based on their interest selections."""
-        tanner_email = Config.ADMIN_EMAIL
-
-        # Build conditional text (marked as safe HTML)
-        classes_text = Markup(f"You mentioned interest in <strong>{classes}</strong>. We'll help you figure out the best path to earn that credit.") if classes else ''
-
-        # Pick template based on selections
-        if interest_individual and interest_fulltime:
-            template = 'student_promo_both'
-            subject = 'Your Free Credit Code + Full-Time Program Info'
-        elif interest_fulltime:
-            template = 'student_promo_fulltime'
-            subject = 'Welcome to Optio — Full-Time Program Info'
-        else:
-            template = 'student_promo_individual'
-            subject = 'Your Free Credit Code from Optio'
-
-        return self.send_templated_email(
-            to_email=email,
-            subject=subject,
-            template_name=template,
-            context={
-                'name': name,
-                'classes_text': classes_text,
-            },
-            bcc=[tanner_email]
         )
 
     def send_consultation_confirmation_email(self, parent_email: str, parent_name: str) -> bool:

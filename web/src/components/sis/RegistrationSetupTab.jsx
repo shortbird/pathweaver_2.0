@@ -76,6 +76,9 @@ const RegistrationSetupTab = ({ orgId, orgData, onUpdate }) => {
   // Monthly plan (services/registration_pricing): a per-student program fee
   // with a family cap, and per-student add-ons. Dollars as typed; cents on save.
   const dollars = (cents) => (cents ? (cents / 100).toString() : '')
+  // 'optio_academy' when the amounts come from Optio's price list
+  // (shared/data/pricing.json) instead of this editor; kept on every save.
+  const pricingSource = cfg?.monthly?.pricing || null
   const [monthlyPerStudent, setMonthlyPerStudent] = useState(dollars(cfg?.monthly?.per_student_cents))
   const [monthlyCap, setMonthlyCap] = useState(dollars(cfg?.monthly?.family_cap_cents))
   const [monthlyAddOns, setMonthlyAddOns] = useState(() => (cfg?.monthly?.add_ons || []).map((a) => ({
@@ -256,6 +259,7 @@ const RegistrationSetupTab = ({ orgId, orgData, onUpdate }) => {
     per_student_fee_cents: toCents(perStudentFee),
     payment_url: absUrl(paymentUrl),
     monthly: {
+      ...(pricingSource ? { pricing: pricingSource } : {}),
       per_student_cents: toCents(monthlyPerStudent),
       family_cap_cents: toCents(monthlyCap),
       add_ons: monthlyAddOns.map((a) => ({
@@ -362,8 +366,11 @@ const RegistrationSetupTab = ({ orgId, orgData, onUpdate }) => {
           amount_cents: Math.round(parseFloat(a.amount || '0') * 100) || 0,
           includes_program_fee: a.includes_program_fee !== false,
         }))
-      newCfg.monthly = (monthlyPerCents > 0 || addOns.length)
-        ? { per_student_cents: monthlyPerCents, family_cap_cents: monthlyCapCents, add_ons: addOns }
+      newCfg.monthly = (monthlyPerCents > 0 || addOns.length || pricingSource)
+        ? {
+          ...(pricingSource ? { pricing: pricingSource } : {}),
+          per_student_cents: monthlyPerCents, family_cap_cents: monthlyCapCents, add_ons: addOns,
+        }
         : null
       // Only touch the stored Stripe key when the admin acted on it.
       if (stripeClear) newCfg.stripe_secret_key = ''
@@ -431,7 +438,7 @@ const RegistrationSetupTab = ({ orgId, orgData, onUpdate }) => {
     perStudentFee, setPerStudentFee, stripeClear, setStripeClear,
     stripeEnabled, stripeKey, setStripeKey,
     monthlyPerStudent, setMonthlyPerStudent, monthlyCap, setMonthlyCap,
-    monthlyAddOns, setMonthlyAddOns,
+    monthlyAddOns, setMonthlyAddOns, pricingSource,
   }
 
   // If the viewed step just disappeared (e.g. the fee was cleared while on the

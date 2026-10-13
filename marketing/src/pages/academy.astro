@@ -17,9 +17,10 @@ import { HOW_IT_WORKS } from '../data/howItWorks'
 // the student in the second person; money lines carry no pronoun so they read
 // the same to whoever pays. Every number comes from OFFER.
 //
-// Tuition-to-credit rule confirmed 2026-09-17: every $100 of tuition is one
-// credit, $50/month is six credits a year, extra credits are $100 each, and
-// students 13+ earn high school credit. Still open: whether an unused balance
+// Tuition-to-credit rule confirmed 2026-09-17: every academyPerCredit of
+// tuition is one credit, a year of academyMonthly is academyCreditsPerYear
+// credits, extra credits cost academyPerCredit each, and students 13+ earn
+// high school credit. Prices live in shared/data/pricing.json. Still open: whether an unused balance
 // rolls across years, and how the family cap divides among several teens.
 
 const enrollUrl = appLink(OFFER.academyEnrollPath)
@@ -47,7 +48,16 @@ const TUITION_POINTS = [
   `Every ${OFFER.academyPerCredit} of tuition is one high school credit.`,
   `Capped at ${OFFER.academyFamilyCap} a month per family.`,
   'Under 13? Same price. Credit starts counting at 13.',
-  `Want to finish sooner? Extra credits are ${OFFER.academyPerCredit} each.`,
+  `Want to finish sooner? Extra credits are ${OFFER.acceleratedPerCredit} each.`,
+]
+
+// Prior learning (Tanner, 2026-10-13): an accredited school's official
+// transcript transfers free; anything else is reviewed by an Optio Academy
+// teacher at the private credit price.
+const TRANSFER_POINTS = [
+  'Credit on an official transcript from an accredited school transfers free.',
+  `Credit from homeschool, a co-op, or a school without accreditation is reviewed by an Optio Academy teacher for ${OFFER.transferUnaccreditedPrivate} a credit.`,
+  `Bring in up to ${OFFER.maxTransferCredits} credits toward the ${OFFER.academyDiplomaCredits}-credit diploma.`,
 ]
 
 const SUPPORT_POINTS = [
@@ -86,7 +96,7 @@ const FAQS = [
   },
   {
     q: `Can I earn more than ${OFFER.academyCreditsPerYear} credits a year?`,
-    a: `Yes. Tuition covers ${OFFER.academyCreditsPerYear} credits a year, the standard pace for a diploma in four years. Credits beyond that are ${OFFER.academyPerCredit} each. Tuition is capped at ${OFFER.academyFamilyCap} a month per family.`,
+    a: `Yes. Tuition covers ${OFFER.academyCreditsPerYear} credits a year, the standard pace for a diploma in four years. Credits beyond that are ${OFFER.acceleratedPerCredit} each. Tuition is capped at ${OFFER.academyFamilyCap} a month per family.`,
   },
   {
     q: "Can I get a teacher's help?",
@@ -312,6 +322,20 @@ const schema = [
             Add an Optio teacher: schedule a call
           </a>
         </div>
+      </div>
+
+      <div class="rounded-2xl border border-neutral-100 bg-white p-6 sm:p-8 mt-5">
+        <p class="text-sm font-semibold uppercase tracking-wider text-optio-purple mb-2">Credit you already earned</p>
+        <ul class="space-y-2.5">
+          {TRANSFER_POINTS.map((line) => (
+            <li class="flex items-start gap-2.5 text-neutral-700 font-medium leading-relaxed">
+              <svg class="w-5 h-5 mt-0.5 text-optio-purple flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+              </svg>
+              <span>{line}</span>
+            </li>
+          ))}
+        </ul>
       </div>
 
       <p class="text-xs text-neutral-500 font-medium text-center mt-6">All prices in US dollars.</p>

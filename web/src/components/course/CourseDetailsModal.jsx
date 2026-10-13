@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { XMarkIcon, TrashIcon, PlusIcon, LinkIcon, ArrowTopRightOnSquareIcon, SparklesIcon } from '@heroicons/react/24/outline'
+import { XMarkIcon, TrashIcon, PlusIcon, SparklesIcon } from '@heroicons/react/24/outline'
 import CourseCoverImage from './CourseCoverImage'
 import { generateShowcaseFields } from '../../services/courseService'
 
@@ -154,9 +154,6 @@ const CourseDetailsModal = ({
     onClose()
   }
 
-  const publicPageUrl = localSlug ? `/course/${localSlug}` : null
-  const isPublished = course?.status === 'published'
-  const isPublic = course?.visibility === 'public'
 
   if (!isOpen) return null
 
@@ -349,38 +346,6 @@ const CourseDetailsModal = ({
             </>
           ) : (
             <>
-              {/* Public Page URL Notice */}
-              {isPublished && isPublic && localSlug && (
-                <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-                  <div className="flex items-start gap-3">
-                    <LinkIcon className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
-                    <div className="flex-1">
-                      <p className="text-sm font-medium text-green-800">Public Page Available</p>
-                      <p className="text-sm text-green-700 mt-1">
-                        Your course has a public page that anyone can view.
-                      </p>
-                      <a
-                        href={publicPageUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1 mt-2 text-sm font-medium text-green-700 hover:text-green-800"
-                      >
-                        Preview public page
-                        <ArrowTopRightOnSquareIcon className="w-4 h-4" />
-                      </a>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {!isPublic && (
-                <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
-                  <p className="text-sm text-amber-800">
-                    Set visibility to "Public" in the General tab to enable a public course page.
-                  </p>
-                </div>
-              )}
-
               {/* AI Generation Tool */}
               <div className="bg-gradient-to-r from-optio-purple/5 to-optio-pink/5 border border-optio-purple/20 rounded-lg p-4">
                 <div className="flex items-start gap-3">

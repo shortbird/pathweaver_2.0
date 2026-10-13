@@ -37,6 +37,10 @@ SEGMENTS = {
     'own_login': 'A student signs in with their own email',
     'managed_login': 'A student has no login of their own (parent-managed)',
     'several_students': 'Registered more than one student',
+    # OpenEd families buy through OpenEd and OpenEd pays Optio, so they are
+    # never shown a price (Tanner, 2026-10-13). Copy that quotes one wraps it
+    # in {{#unless opened}}.
+    'opened': 'The family is funded by OpenEd (household funding source)',
 }
 
 
@@ -89,13 +93,14 @@ def segments_for_email(db, email: str, org_slug: str) -> Optional[Dict[str, Any]
         user_id = repo.user_id_for_email(email)
         if not org_id or not user_id:
             return {}
+        opened = {'opened': 'opened' in repo.household_funding_sources(org_id, user_id)}
         reg = repo.newest_full_for_parent(org_id, user_id)
         if reg:
-            return segments_for_registration(reg)
+            return {**segments_for_registration(reg), **opened}
         reg = repo.newest_full_naming_child(org_id, user_id)
         if reg:
-            return segments_for_registration(reg, kid_ids=[user_id])
-        return {}
+            return {**segments_for_registration(reg, kid_ids=[user_id]), **opened}
+        return opened
     except Exception as e:  # noqa: BLE001
         logger.warning(f'CRM segments: registration lookup failed: {e}')
         return None

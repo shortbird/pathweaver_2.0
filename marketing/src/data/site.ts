@@ -4,6 +4,8 @@
  *   PUBLIC_APP_URL  where the product lives (login, register, terms, privacy)
  *   PUBLIC_API_URL  the Flask API (marketing forms POST /api/contact there)
  */
+import { PRICE_TEXT, PRICING } from './pricing.generated'
+
 export const SITE = {
   name: 'Optio',
   url: 'https://www.optioeducation.com',
@@ -34,29 +36,58 @@ export const SOCIAL_LINKS = [
   { name: 'TikTok', href: 'https://www.tiktok.com/@optioeducation' },
 ]
 
+/** Small counts written as words in copy ("six credits a year"). */
+const NUMBER_WORDS: Record<number, string> = {
+  1: 'one', 2: 'two', 3: 'three', 4: 'four', 5: 'five', 6: 'six',
+  7: 'seven', 8: 'eight', 9: 'nine', 10: 'ten', 11: 'eleven', 12: 'twelve',
+}
+const numberWord = (n: number): string => {
+  const word = NUMBER_WORDS[n]
+  if (!word) throw new Error(`site.ts: no word for ${n}; add it to NUMBER_WORDS`)
+  return word
+}
+
 /**
  * The offer, stated once. Every page reads from here.
  *
- * The site sells one thing: enrollment in Optio Academy. The free first class
- * and the $149 individual class retired on 2026-09-17.
+ * The site sells one thing: enrollment in Optio Academy. Every price comes
+ * from shared/data/pricing.json through ./pricing.generated; to change a
+ * price, edit the JSON and run `npm run generate` from the repo root. Never
+ * type a dollar amount here or on a page.
  *
- * Tuition-to-credit rule: every $100 of tuition is one high school credit, so
- * 12 x $50 covers six credits a year and four years covers the 24-credit
- * diploma. Extra credits beyond that pace are $100 each. Keep these in step.
+ * Tuition-to-credit rule: every academyPerCredit of tuition is one high school
+ * credit, so twelve months of tuition covers academyCreditsPerYear credits and
+ * four years covers the diploma. Extra credits beyond that pace cost
+ * academyPerCredit each.
  */
 export const OFFER = {
-  academyMonthly: '$50',
-  academyFamilyCap: '$150',
-  academyYearly: '$600',
-  academyFourYears: '$2,400',
-  academyPerCredit: '$100',
-  academyCreditsPerYear: 'six',
-  academyCreditsPerYearNumeral: '6',
-  academyDiplomaCredits: '24',
-  // Teacher support add-on. The app's registration config prices it at $500
-  // a month with tuition included (includes_program_fee), so a family pays
-  // $500, not $550.
-  academyTeacherSupportMonthly: '$500',
+  academyMonthly: PRICE_TEXT.academyTuitionMonthly,
+  academyFamilyCap: PRICE_TEXT.academyFamilyCapMonthly,
+  academyYearly: PRICE_TEXT.academyTuitionYearly,
+  academyFourYears: PRICE_TEXT.academyDiplomaTotal,
+  academyPerCredit: PRICE_TEXT.academyCredit,
+  academyCreditsPerYear: numberWord(PRICING.academy.creditsIncludedPerYear),
+  academyCreditsPerYearNumeral: PRICE_TEXT.academyCreditsIncludedPerYear,
+  academyDiplomaCredits: PRICE_TEXT.diplomaCredits,
+  // Full-Time Academy: a dedicated Optio teacher. The price includes tuition
+  // (the app's registration config marks it includes_program_fee), so a
+  // family pays fullTimeMonthly per student, not fullTimeMonthly + tuition.
+  academyTeacherSupportMonthly: PRICE_TEXT.fullTimeMonthly,
+  // Prior learning brought in from elsewhere. An accredited school's official
+  // transcript transfers free; anything else (homeschool, co-op, a school
+  // without accreditation) is reviewed by an Optio Academy teacher at the
+  // student's credit price.
+  transferAccredited: PRICE_TEXT.transferAccredited,
+  transferUnaccreditedPrivate: PRICE_TEXT.transferUnaccreditedPrivate,
+  transferUnaccreditedLicensed: PRICE_TEXT.transferUnaccreditedLicensed,
+  maxTransferCredits: PRICE_TEXT.maxTransferCredits,
+  // Schools: a student whose school holds an Optio license pays the licensed
+  // (half) price for every credit.
+  licensePerStudentYearly: PRICE_TEXT.licensePerStudentYearly,
+  licensedPerCredit: PRICE_TEXT.licensedCredit,
+  // A credit beyond the included pace: one price for every student, never
+  // discounted (Tanner, 2026-10-13).
+  acceleratedPerCredit: PRICE_TEXT.acceleratedCredit,
   // The Optio Academy org's parent registration link in the app. `optio-academy`
   // is the human-readable invitation code in org_invitations; the funnel it
   // opens charges academyMonthly per student, capped at academyFamilyCap.

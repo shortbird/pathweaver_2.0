@@ -20,7 +20,9 @@ logger = get_logger(__name__)
 # Keep in sync with shared/legal/termsOfService.ts (`version`).
 # 1.1 (2026-08-01): private-by-default portfolios, parent-controlled
 #   publication, transcript share links, opt-in promotional use.
-CURRENT_TOS_VERSION = "1.1"
+# 1.2 (2026-10-13): Section 6 states the Academy agreement's monthly tuition,
+#   with prices from shared/data/pricing.json (was $8,000 a year).
+CURRENT_TOS_VERSION = "1.2"
 
 # Current version of Privacy Policy
 # Keep in sync with shared/legal/privacyPolicy.ts (`version`).

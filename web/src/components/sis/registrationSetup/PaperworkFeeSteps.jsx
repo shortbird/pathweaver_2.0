@@ -21,8 +21,11 @@ import SignatureCapture from '../SignatureCapture'
 // The monthly plan's editor: program fee + family cap, and the add-on rows.
 const MonthlyPlanEditor = ({
   monthlyPerStudent, setMonthlyPerStudent, monthlyCap, setMonthlyCap,
-  monthlyAddOns, setMonthlyAddOns,
+  monthlyAddOns, setMonthlyAddOns, pricingSource,
 }) => {
+  // Optio Academy's amounts come from Optio's price list; the backend ignores
+  // what is typed here, so the boxes are read-only rather than misleading.
+  const locked = Boolean(pricingSource)
   const setAddOn = (i, patch) => setMonthlyAddOns((list) => list.map((a, j) => (j === i ? { ...a, ...patch } : a)))
   return (
     <div className="border-t border-gray-200 pt-4">
@@ -32,15 +35,21 @@ const MonthlyPlanEditor = ({
         the payment step saves their card and starts a monthly subscription on your Stripe account.
         Leave both amounts blank for no monthly plan.
       </p>
+      {locked && (
+        <p className="text-xs text-optio-purple bg-purple-50 rounded-lg px-3 py-2 mb-3">
+          These amounts come from Optio&apos;s price list, the same prices the website, the
+          agreement and the help center show. Change them there, not here.
+        </p>
+      )}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div>
           <label className="block text-xs font-medium text-neutral-500 mb-1">Per student, per month ($)</label>
-          <input className={field} inputMode="decimal" value={monthlyPerStudent}
+          <input className={field} inputMode="decimal" value={monthlyPerStudent} disabled={locked}
             onChange={(e) => setMonthlyPerStudent(e.target.value)} placeholder="50" />
         </div>
         <div>
           <label className="block text-xs font-medium text-neutral-500 mb-1">Family cap, per month ($, optional)</label>
-          <input className={field} inputMode="decimal" value={monthlyCap}
+          <input className={field} inputMode="decimal" value={monthlyCap} disabled={locked}
             onChange={(e) => setMonthlyCap(e.target.value)} placeholder="150" />
         </div>
       </div>
@@ -52,6 +61,7 @@ const MonthlyPlanEditor = ({
               <input className={`${field} sm:flex-1`} placeholder="Name (e.g. Optio teacher support)"
                 value={a.label} onChange={(e) => setAddOn(i, { label: e.target.value })} />
               <input className={`${field} sm:w-40`} inputMode="decimal" placeholder="$ per month"
+                disabled={locked && a.key === 'teacher_support'}
                 value={a.amount} onChange={(e) => setAddOn(i, { amount: e.target.value })} />
               <button onClick={() => setMonthlyAddOns((list) => list.filter((_, j) => j !== i))}
                 className="text-red-500 text-sm px-2 hover:underline">Remove</button>
@@ -82,7 +92,7 @@ const FeeEditor = ({
   perStudentFee, setPerStudentFee, stripeClear, setStripeClear,
   stripeEnabled, stripeKey, setStripeKey,
   monthlyPerStudent, setMonthlyPerStudent, monthlyCap, setMonthlyCap,
-  monthlyAddOns, setMonthlyAddOns,
+  monthlyAddOns, setMonthlyAddOns, pricingSource,
 }) => (
   // Three kinds of money, each under its own heading: the one-time
   // registration fee, the monthly plan, and how either is collected. They
@@ -117,6 +127,7 @@ const FeeEditor = ({
       monthlyPerStudent={monthlyPerStudent} setMonthlyPerStudent={setMonthlyPerStudent}
       monthlyCap={monthlyCap} setMonthlyCap={setMonthlyCap}
       monthlyAddOns={monthlyAddOns} setMonthlyAddOns={setMonthlyAddOns}
+      pricingSource={pricingSource}
     />
     <div className="border-t border-gray-200 pt-4">
       <p className="text-xs font-semibold text-neutral-700 mb-1">Collecting the money</p>

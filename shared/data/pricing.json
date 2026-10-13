@@ -1,0 +1,74 @@
+{
+  "_comment": [
+    "What families, schools and partners pay Optio. The ONE place a price is",
+    "written (Tanner, 2026-10-13: 'review all mentions of pricing in the whole",
+    "site and app and standardize to one set of pricing').",
+    "",
+    "Before this file the same price was typed into the marketing site, the",
+    "Academy agreement and handbook, the Terms of Service, email copy, CRM",
+    "funnels, the help center and the microschool pricing sheet, and they had",
+    "drifted: the Terms said Full-Time Academy was $8,000 a year while the",
+    "agreement said $500 a month, and retired $149 class pages were still live.",
+    "",
+    "Everything here is integer cents. shared/scripts/generate-constants.mjs",
+    "emits it for the backend (backend/generated/pricing.py), the web and mobile",
+    "apps (shared/generated/pricing.ts) and the marketing site",
+    "(marketing/src/data/pricing.generated.ts). Help center articles and CRM",
+    "funnel emails live in the database; they write {{price.<name>}} and the",
+    "backend fills it in from here when they are served or sent",
+    "(backend/utils/pricing_text.py).",
+    "",
+    "The two price lists:",
+    "  private   a family paying Optio Academy itself.",
+    "  licensed  a student whose school holds an Optio license for them (any",
+    "            microschool), and OpenEd families. Every credit is half price.",
+    "",
+    "Change a number here, run `npm run generate` from the repo root, and",
+    "commit the JSON with the generated files. The agreement and the Terms of",
+    "Service read these values too, so a price change is also a change to legal",
+    "text: bump their effective dates in the same commit."
+  ],
+  "currency": "USD",
+
+  "academy": {
+    "tuitionMonthlyCents": 5000,
+    "familyCapMonthlyCents": 15000,
+    "creditsIncludedPerYear": 6,
+    "creditCents": 10000,
+    "fullTimeMonthlyCents": 50000,
+    "enrollmentFeeCents": 0
+  },
+
+  "accelerated": {
+    "_comment": "A credit beyond the included pace, to finish faster. One price for every student: it is not discounted for a license, for OpenEd or for any program, and it is priced above accrediting transfer credit (Tanner, 2026-10-13).",
+    "creditCents": 10000
+  },
+
+  "licensed": {
+    "_comment": "A student whose microschool holds an Optio license. Half price for credits earned through Optio and for prior learning Optio Academy accredits. Accelerated credits are not discounted (see accelerated).",
+    "licensePerStudentYearCents": 8000,
+    "creditCents": 5000
+  },
+
+  "transfer": {
+    "_comment": "Credit from an accredited school's official transcript is free. Credit from anywhere else (homeschool, co-ops, schools without accreditation) is reviewed and costs academy.creditCents, or licensed.creditCents for a licensed student.",
+    "accreditedCreditCents": 0,
+    "maxTransferCredits": 18
+  },
+
+  "openEd": {
+    "_comment": "OpenEd families buy from OpenEd's marketplace and OpenEd pays Optio, so the platform never shows them a price (Tanner, 2026-10-13). These are the marketplace products, for reference and for the partner sheet: the year buys creditsIncludedPerYear credits at licensed.creditCents (the generator checks that), prior learning is licensed.creditCents and accelerated is accelerated.creditCents.",
+    "yearCents": 30000,
+    "creditsIncludedPerYear": 6,
+    "priorLearningWindowDays": 90
+  },
+
+  "optioCourseForSchools": {
+    "perStudentCents": 5000
+  },
+
+  "cardProcessing": {
+    "percent": 2.9,
+    "flatCents": 30
+  }
+}

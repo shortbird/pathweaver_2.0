@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react'
+import OPTIO_COURSE_FEE from '../../pages/sis/classesPage/OPTIO_COURSE_FEE'
 import { Link } from 'react-router-dom'
 import api from '../../services/api'
 import toast from 'react-hot-toast'
@@ -70,7 +71,7 @@ export default function OrgCoursesTab({ orgId, orgData }) {
           <h2 className="text-lg font-semibold text-gray-900">Optio Courses</h2>
           <p className="text-sm text-gray-600">
             Enroll your students in published Optio platform courses.
-            Each course is an additional $50 per student enrollment.
+            Each course is an additional {OPTIO_COURSE_FEE} per student enrollment.
           </p>
         </div>
         <div className="flex items-center gap-3">

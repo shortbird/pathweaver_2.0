@@ -2,7 +2,24 @@
 import Marketing from '../layouts/Marketing.astro'
 import ContactForm from '../components/ContactForm.astro'
 import WascBadge from '../components/WascBadge.astro'
-import { SITE } from '../data/site'
+import { SITE, OFFER } from '../data/site'
+
+// Published school pricing. Every number comes from OFFER, which reads
+// shared/data/pricing.json; never type a price on this page.
+const minOptioCredits = Number(OFFER.academyDiplomaCredits) - Number(OFFER.maxTransferCredits)
+
+const SCHOOL_PRICE_TILES = [
+  { value: OFFER.licensePerStudentYearly, unit: 'per student, per year', label: 'the Optio license' },
+  { value: OFFER.licensedPerCredit, unit: 'per credit', label: `half the ${OFFER.academyPerCredit} private price` },
+  { value: OFFER.transferAccredited, unit: 'accredited transfers', label: 'from an official transcript' },
+]
+
+const SCHOOL_PRICE_POINTS = [
+  `Every credit a licensed student earns through Optio is ${OFFER.licensedPerCredit}. Extra credits, to finish faster, are ${OFFER.acceleratedPerCredit} each for every student.`,
+  `Credit from a homeschool, a co-op, or a school without accreditation is reviewed by an Optio Academy teacher for ${OFFER.transferUnaccreditedLicensed} a credit.`,
+  'Credit on an official transcript from an accredited school transfers free.',
+  `A student can bring in up to ${OFFER.maxTransferCredits} transfer credits. At least ${minOptioCredits} of the ${OFFER.academyDiplomaCredits} diploma credits are earned through Optio.`,
+]
 
 const schema = [
   {
@@ -36,7 +53,7 @@ const schema = [
             Enrollment, attendance, tuition, transcripts, and student-directed learning on one
             platform, so your time goes to students instead of spreadsheets.
           </p>
-          <a href="#get-info" data-track="hero_quote" class="btn-primary btn-lg">Get a custom quote</a>
+          <a href="#get-info" data-track="hero_quote" class="btn-primary btn-lg">Talk to us</a>
         </div>
         <div class="hidden md:block">
           <img
@@ -256,14 +273,40 @@ const schema = [
   </section>
 
   <!-- ========== PRICING ========== -->
-  <section class="bg-white">
-    <div class="max-w-3xl mx-auto px-4 sm:px-6 py-16 sm:py-20 text-center">
-      <h2 class="text-3xl sm:text-4xl font-bold text-neutral-900 mb-5">What it costs</h2>
-      <p class="text-lg text-neutral-500 font-medium leading-relaxed">
-        The platform is free to use for tracking and portfolios. Credential services are priced per
-        student based on your program size. Tell us how you run your program and we will quote the
-        blocks you actually need.
-      </p>
+  <section id="pricing" class="bg-white">
+    <div class="max-w-5xl mx-auto px-4 sm:px-6 py-16 sm:py-20">
+      <div class="max-w-3xl mx-auto text-center mb-12">
+        <h2 class="text-3xl sm:text-4xl font-bold text-neutral-900 mb-5">What it costs</h2>
+        <p class="text-lg text-neutral-500 font-medium leading-relaxed">
+          The platform is free to use for tracking and portfolios. For credit, your school holds an
+          Optio license for each student, {OFFER.licensePerStudentYearly} a year. A licensed student
+          pays half price for credits earned through Optio and for transfer credit Optio
+          Academy reviews.
+        </p>
+      </div>
+
+      <ul class="grid md:grid-cols-3 gap-4">
+        {SCHOOL_PRICE_TILES.map((t) => (
+          <li class="rounded-2xl border border-neutral-100 bg-neutral-50 p-6 text-center">
+            <p class="text-4xl sm:text-5xl font-bold text-neutral-900 leading-none capitalize">{t.value}</p>
+            <p class="text-xs font-semibold uppercase tracking-wider text-optio-purple mt-3">{t.unit}</p>
+            <p class="text-sm text-neutral-500 font-medium mt-1">{t.label}</p>
+          </li>
+        ))}
+      </ul>
+
+      <ul class="max-w-3xl mx-auto space-y-2.5 mt-10">
+        {SCHOOL_PRICE_POINTS.map((line) => (
+          <li class="flex items-start gap-2.5 text-neutral-700 font-medium leading-relaxed">
+            <svg class="w-5 h-5 mt-0.5 text-optio-purple flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24" aria-hidden="true">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+            </svg>
+            <span>{line}</span>
+          </li>
+        ))}
+      </ul>
+
+      <p class="text-xs text-neutral-500 font-medium text-center mt-6">All prices in US dollars.</p>
     </div>
   </section>
 
@@ -275,6 +318,6 @@ const schema = [
     choicesLabel="What kind of program do you run?"
     choices={['Microschool', 'Online school', 'Learning center or co-op', 'Traditional school', 'Still figuring it out']}
     placeholder="How many students? How does your week actually run? What are you using today?"
-    buttonLabel="Get a custom quote"
+    buttonLabel="Talk to us"
   />
 </Marketing>

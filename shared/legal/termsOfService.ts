@@ -1,8 +1,16 @@
 import type { LegalDocument } from './types';
+import { PRICE_TEXT } from '../pricing';
 
 /**
  * Terms of Service — canonical content shared by the web and mobile apps.
  * Keep `version` in sync with CURRENT_TOS_VERSION in backend/legal_versions.py.
+ *
+ * v1.2 (2026-10-13): Section 6 described an Optio Academy that no longer
+ * exists -- $8,000 a year with a dedicated teacher and pro-rated refunds --
+ * while the Academy agreement had moved to monthly tuition. It now states the
+ * agreement's terms, and its prices come from shared/data/pricing.json, the
+ * list the agreement, the website and the help center read, so the two
+ * documents cannot disagree about a price again.
  *
  * v1.1 (2026-08-01): Portfolios are private by default and parents control
  * publication. Replaced the "your portfolio is PUBLIC by default" warning,
@@ -17,8 +25,8 @@ import type { LegalDocument } from './types';
  */
 export const termsOfService: LegalDocument = {
   title: 'Terms of Service',
-  effectiveDate: 'August 1, 2026',
-  version: '1.1',
+  effectiveDate: 'October 13, 2026',
+  version: '1.2',
   sections: [
     {
       heading: '1. Acceptance of Terms',
@@ -167,19 +175,19 @@ export const termsOfService: LegalDocument = {
         { type: 'subheading', text: 'The Optio App and Platform Are Free' },
         {
           type: 'paragraph',
-          text: 'The Optio mobile app and the core Optio learning platform are free to use. There are no in-app purchases or subscriptions. Creating an account and using the learning features — including quests, the learning journal, badges, the AI Tutor, and the parent and observer dashboards — costs nothing.',
+          text: 'The Optio mobile app and the core Optio learning platform are free to use. There are no in-app purchases or subscriptions. Creating an account and using the learning features — including quests, the learning journal, the AI Tutor, and the parent and observer dashboards — costs nothing.',
         },
         { type: 'subheading', text: 'Optio Academy' },
         {
           type: 'paragraph',
-          text: 'Optio Academy is our fully online private school for grades 9 – 12, delivered through the Optio platform with daily contact between students and a dedicated teacher. Enrollment in Optio Academy is a separate educational relationship established directly with Optio at enrollment — it is not an in-app subscription or purchase. Annual tuition is $8,000 per student, billed on the schedule agreed at enrollment, and covers all instruction, curriculum materials, and the Optio platform. Enrolled Academy students and their parents gain access to additional platform features as part of that enrollment relationship.',
+          text: `Optio Academy is our fully online, accredited private school, delivered through the Optio platform. Enrollment in Optio Academy is a separate educational relationship established directly with Optio at enrollment and governed by the Optio Academy Participant & Parent Agreement; it is not an in-app subscription or purchase. Tuition is billed monthly. The Parent-Supported Diploma is ${PRICE_TEXT.academyTuitionMonthly} a month for each student, and no more than ${PRICE_TEXT.academyFamilyCapMonthly} a month for a family. It covers ${PRICE_TEXT.academyCreditsIncludedPerYear} credits a year; credits beyond that pace are ${PRICE_TEXT.acceleratedCredit} each for every student. The Full-Time Academy, with a dedicated Optio teacher, is ${PRICE_TEXT.fullTimeMonthly} a month for each student, which includes that student's ${PRICE_TEXT.academyTuitionMonthly} tuition. Credit transferred from an accredited school's official transcript is ${PRICE_TEXT.transferAccredited}; other prior learning that Optio Academy reviews and awards is ${PRICE_TEXT.academyCredit} a credit. Students whose school holds an Optio license for them pay ${PRICE_TEXT.licensedCredit} a credit for credits earned and prior learning awarded. Families enrolled through OpenEd purchase through OpenEd, which pays Optio. Enrolled Academy students and their parents gain access to additional platform features as part of that enrollment relationship.`,
         },
         { type: 'subheading', text: 'Tuition Terms (Optio Academy)' },
         {
           type: 'list',
           items: [
-            'Optio Academy tuition is arranged directly between the family and Optio at enrollment, not through the app, and is billed on the schedule agreed at enrollment (annual or installment)',
-            'If an Optio Academy student withdraws before the end of the school year, tuition is refunded prorated by the number of months attended',
+            'Optio Academy tuition is arranged directly between the family and Optio at enrollment, not through the app, and is billed monthly',
+            'If an Optio Academy student withdraws, billing stops at the end of the current month; monthly tuition already paid is not refunded, and fees for extra credits not yet begun are refunded',
             'Where tuition is funded by a scholarship or other third-party program, refunds flow back through that program rather than to the family directly',
             'We reserve the right to modify tuition with 30 days\' advance notice; pricing changes do not affect tuition for the current school year',
           ],

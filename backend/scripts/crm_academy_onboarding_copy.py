@@ -110,12 +110,13 @@ PARENT_STEPS = [
                 'that works and what it costs.')),
             only('teacher_added', p(
                 'You added an Optio teacher. I will email you this week to set up the first weekly video call.')),
-            p('<strong>What you pay.</strong> If you pay for Optio Academy yourself, the program is $50 a '
-              'month for each student, and never more than $150 a month for a family. '
-              + only('teacher_added', 'A student with an Optio teacher is $500 a month, and that includes '
-                     'their $50. ')
+            # OpenEd families buy through OpenEd and never see a price.
+            only('opened', p('<strong>What you pay.</strong> If you pay for Optio Academy yourself, the program is {{price.academyTuitionMonthly}} a '
+              'month for each student, and never more than {{price.academyFamilyCapMonthly}} a month for a family. '
+              + only('teacher_added', 'A student with an Optio teacher is {{price.fullTimeMonthly}} a month, and that includes '
+                     'their {{price.academyTuitionMonthly}}. ')
               + 'Stripe charges the payment method you entered once a month. To stop at any time, email me at '
-              + link('tanner@optioeducation.com', 'mailto:tanner@optioeducation.com') + '.'),
+              + link('tanner@optioeducation.com', 'mailto:tanner@optioeducation.com') + '.'), unless=True),
         ])),
     },
     {
@@ -203,8 +204,10 @@ PARENT_STEPS = [
                 'How are the calls with your Optio teacher going? If anything should change, reply and tell me.')),
             only('teacher_none', p(
                 'Some families want more structure. An Optio teacher meets your student on a weekly video call '
-                'and gives feedback on the work. It is $500 a month, and that includes the $50 program fee. '
-                'If you want to talk about it, or anything else, '
+                'and gives feedback on the work. '
+                + only('opened', 'It is {{price.fullTimeMonthly}} a month, and that includes the '
+                       '{{price.academyTuitionMonthly}} program fee. ', unless=True)
+                + 'If you want to talk about it, or anything else, '
                 + link('book a call with me', BOOKING_URL) + '.')),
         ])),
     },

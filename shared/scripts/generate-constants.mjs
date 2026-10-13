@@ -52,6 +52,7 @@ const readJson = (p) => JSON.parse(readFileSync(p, 'utf8'));
 const pillars = readJson(join(SHARED, 'data', 'pillars.json')).pillars;
 const subjects = readJson(join(SHARED, 'data', 'subjects.json')).subjects;
 const credits = readJson(join(SHARED, 'data', 'credits.json'));
+const pricing = readJson(join(SHARED, 'data', 'pricing.json'));
 
 /** Single-quoted Python string literal. */
 const py = (s) => `'${String(s).replace(/\\/g, '\\\\').replace(/'/g, "\\'")}'`;
@@ -304,6 +305,136 @@ ${pyDict(credits.subjects.map((c) => [c.key, c.transcriptName]))}
 `;
 }
 
+
+// ------------------------------------------------------------------- pricing
+//
+// One price list, three readers: the backend, the apps, and the marketing site
+// (which builds on its own and cannot import shared/, so it gets its own copy
+// of the same generated file). Every surface also gets PRICE_TEXT -- the
+// prices already formatted -- so "$50" is spelled one way everywhere, and the
+// help center and CRM emails in the database can name a price as
+// {{price.<key>}} and have the backend fill it in.
+
+/** "$50", "$2,400", "$0.30" -- whole dollars print without cents. */
+const usd = (cents) => {
+  const dollars = cents / 100;
+  return Number.isInteger(dollars)
+    ? `$${dollars.toLocaleString('en-US')}`
+    : `$${dollars.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+};
+
+function pricingChecks() {
+  const a = pricing.academy;
+  const l = pricing.licensed;
+  const o = pricing.openEd;
+  const problems = [];
+  // The rule the copy states: a year of tuition is the included credits.
+  if (a.tuitionMonthlyCents * 12 !== a.creditsIncludedPerYear * a.creditCents) {
+    problems.push('academy: 12 months of tuition must equal creditsIncludedPerYear credits at creditCents');
+  }
+  if (o.yearCents !== o.creditsIncludedPerYear * l.creditCents) {
+    problems.push('openEd: yearCents must equal creditsIncludedPerYear credits at licensed.creditCents');
+  }
+  // Tanner, 2026-10-13: accelerated credit is priced above accrediting
+  // transfer credit and is never discounted.
+  if (pricing.accelerated.creditCents < l.creditCents) {
+    problems.push('accelerated: creditCents must not be below licensed.creditCents');
+  }
+  if (a.fullTimeMonthlyCents < a.tuitionMonthlyCents) {
+    problems.push('academy: fullTimeMonthlyCents includes tuition, so it cannot be less than it');
+  }
+  if (problems.length) {
+    console.error('shared/data/pricing.json does not add up:\n' + problems.map((p) => `  ${p}`).join('\n'));
+    process.exit(1);
+  }
+}
+
+/** The formatted prices, keyed by the name copy uses. */
+function priceText() {
+  const a = pricing.academy;
+  const l = pricing.licensed;
+  const o = pricing.openEd;
+  const c = pricing.cardProcessing;
+  const years = credits.totalCreditsRequired / a.creditsIncludedPerYear;
+  return {
+    academyTuitionMonthly: usd(a.tuitionMonthlyCents),
+    academyFamilyCapMonthly: usd(a.familyCapMonthlyCents),
+    academyTuitionYearly: usd(a.tuitionMonthlyCents * 12),
+    academyDiplomaTotal: usd(a.tuitionMonthlyCents * 12 * years),
+    academyCreditsIncludedPerYear: String(a.creditsIncludedPerYear),
+    academyCredit: usd(a.creditCents),
+    academyHalfCredit: usd(a.creditCents / 2),
+    fullTimeMonthly: usd(a.fullTimeMonthlyCents),
+    acceleratedCredit: usd(pricing.accelerated.creditCents),
+    acceleratedHalfCredit: usd(pricing.accelerated.creditCents / 2),
+    licensedCredit: usd(l.creditCents),
+    licensedHalfCredit: usd(l.creditCents / 2),
+    licensePerStudentYearly: usd(l.licensePerStudentYearCents),
+    transferAccredited: pricing.transfer.accreditedCreditCents === 0 ? 'free' : usd(pricing.transfer.accreditedCreditCents),
+    transferUnaccreditedPrivate: usd(a.creditCents),
+    transferUnaccreditedLicensed: usd(l.creditCents),
+    maxTransferCredits: String(pricing.transfer.maxTransferCredits),
+    openEdYearly: usd(o.yearCents),
+    openEdCreditsIncludedPerYear: String(o.creditsIncludedPerYear),
+    openEdPriorLearningWindowDays: String(o.priorLearningWindowDays),
+    optioCourseForSchools: usd(pricing.optioCourseForSchools.perStudentCents),
+    cardProcessingFee: `${c.percent}% + ${usd(c.flatCents)}`,
+    diplomaCredits: String(credits.totalCreditsRequired),
+    diplomaYears: String(years),
+  };
+}
+
+const stripComments = (v) => (Array.isArray(v) ? v.map(stripComments)
+  : v && typeof v === 'object'
+    ? Object.fromEntries(Object.entries(v).filter(([k]) => !k.startsWith('_')).map(([k, x]) => [k, stripComments(x)]))
+    : v);
+
+function tsPricing() {
+  pricingChecks();
+  const data = stripComments(pricing);
+  const text = priceText();
+  return `/**
+ * ${BANNER('shared/data/pricing.json').split('\n').join('\n * ')}
+ *
+ * Integer cents in PRICING; the same prices formatted for copy in PRICE_TEXT.
+ */
+
+export const PRICING = ${JSON.stringify(data, null, 2)} as const;
+
+/** Formatted for copy: '$50', '$2,400', '2.9% + $0.30'. */
+export const PRICE_TEXT = ${JSON.stringify(text, null, 2)} as const;
+
+export type PriceTextKey = keyof typeof PRICE_TEXT;
+`;
+}
+
+function pyLiteral(v, indent = '') {
+  if (v === null) return 'None';
+  if (typeof v === 'boolean') return v ? 'True' : 'False';
+  if (typeof v === 'number') return String(v);
+  if (typeof v === 'string') return py(v);
+  if (Array.isArray(v)) return `[${v.map((x) => pyLiteral(x, indent)).join(', ')}]`;
+  const inner = indent + '    ';
+  return `{\n${Object.entries(v).map(([k, x]) => `${inner}${py(k)}: ${pyLiteral(x, inner)},`).join('\n')}\n${indent}}`;
+}
+
+function pyPricing() {
+  pricingChecks();
+  return `"""${BANNER('shared/data/pricing.json')}
+
+Integer cents in PRICING; the same prices formatted for copy in PRICE_TEXT.
+utils/pricing_text.py fills {{price.<key>}} in database-held copy from
+PRICE_TEXT.
+"""
+
+from typing import Any, Dict
+
+PRICING: Dict[str, Any] = ${pyLiteral(stripComments(pricing))}
+
+PRICE_TEXT: Dict[str, str] = ${pyLiteral(priceText())}
+`;
+}
+
 // --------------------------------------------------------------------- drive
 
 const OUTPUTS = [
@@ -313,6 +444,10 @@ const OUTPUTS = [
   [join(REPO, 'backend', 'generated', 'subjects.py'), pySubjects()],
   [join(SHARED, 'generated', 'credits.ts'), tsCredits()],
   [join(REPO, 'backend', 'generated', 'credits.py'), pyCredits()],
+  [join(SHARED, 'generated', 'pricing.ts'), tsPricing()],
+  [join(REPO, 'backend', 'generated', 'pricing.py'), pyPricing()],
+  // The marketing site builds from marketing/ alone and cannot reach shared/.
+  [join(REPO, 'marketing', 'src', 'data', 'pricing.generated.ts'), tsPricing()],
 ];
 
 const check = process.argv.includes('--check');

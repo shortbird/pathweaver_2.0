@@ -167,64 +167,6 @@ emails:
       url: "https://www.optioeducation.com/demo"
     signature: "tanner"
 
-  student_promo_individual:
-    subject: "Your Free Credit Code from Optio"
-    title: "Your Free Credit Code"
-    salutation: "Hey {{ name }},"
-    paragraphs:
-      - "Thanks for checking out Optio! Your free credit code is: <strong>FIRSTFREE</strong>"
-      - "Use this code when you enroll to get your first credit completely free. One credit equals one full-year high school class, and the credit transfers back to your high school transcript."
-    closing_paragraphs:
-      - "{{ classes_text }}"
-      - "Here's how it works: you'll meet with a dedicated teacher who will help you get set up on the Optio platform. From there, you self-direct your learning at your own pace. Your teacher is always available when you need support."
-      - "Every class you complete earns you an A on an official WASC-accredited transcript that transfers back to your school. And if your school won't accept the credit, you get a full refund."
-      - "Have questions? Just reply to this email. I read and respond to every message personally."
-    cta:
-      text: "Create Your Optio Account"
-      url: "https://www.optioeducation.com/register"
-    signature: "tanner"
-
-  student_promo_fulltime:
-    subject: "Welcome to Optio: Full-Time Program Info"
-    title: "Optio Academy: Full-Time Program"
-    salutation: "Hey {{ name }},"
-    paragraphs:
-      - "Thanks for your interest in Optio Academy, our full-time diploma program!"
-      - "Optio Academy lets you self-direct your entire high school education. You'll work with a dedicated teacher who helps you get started, and then you drive your own learning through the Optio platform. Your teacher is always available for support along the way."
-    highlight_box:
-      title: "What's Included"
-      bullet_points:
-        - "A dedicated teacher who guides and supports you"
-        - "All courses and materials"
-        - "WASC-accredited diploma"
-        - "Work at your own pace. Accelerate or take your time."
-        - "Every completed class is an A on your transcript"
-    closing_paragraphs:
-      - "Tuition is $8,000/year. If you're in Utah, your full tuition could be covered by the <a href='https://utah-fits-all.withodyssey.com/'>Utah Fits All Scholarship</a> program."
-      - "Have questions? Just reply to this email. I read and respond to every message personally."
-    cta:
-      text: "Create Your Optio Account"
-      url: "https://www.optioeducation.com/register"
-    signature: "tanner"
-
-  student_promo_both:
-    subject: "Your Free Credit Code + Full-Time Program Info"
-    title: "Welcome to Optio!"
-    salutation: "Hey {{ name }},"
-    paragraphs:
-      - "Thanks for checking out Optio! You mentioned interest in both individual classes and our full-time program, so here's everything you need to know."
-      - "Your free credit code is: <strong>FIRSTFREE</strong>. Use this code when you enroll to get your first credit completely free. One credit equals one full-year high school class, and the credit transfers back to your high school transcript."
-    closing_paragraphs:
-      - "{{ classes_text }}"
-      - "Here's how it works: you'll meet with a dedicated teacher who will help you get set up on the Optio platform. From there, you self-direct your learning at your own pace. Your teacher is always available when you need support."
-      - "Every class you complete earns you an A on an official WASC-accredited transcript. And if your school won't accept a transfer credit, you get a full refund."
-      - "<strong>About Optio Academy (Full-Time):</strong> If you're considering going full time, Optio Academy is our complete diploma program at $8,000/year. You get a dedicated teacher, all courses and materials, and a WASC-accredited diploma. If you're in Utah, your full tuition could be covered by the <a href='https://utah-fits-all.withodyssey.com/'>Utah Fits All Scholarship</a> program."
-      - "Have questions? Just reply to this email. I read and respond to every message personally."
-    cta:
-      text: "Create Your Optio Account"
-      url: "https://www.optioeducation.com/register"
-    signature: "tanner"
-
   consultation_confirmation:
     subject: "Let's Explore How We Can Work Together"
     title: "Let's Explore How We Can Work Together"
@@ -657,7 +599,7 @@ emails:
     salutation: "Hi {{ name }},"
     paragraphs:
       - "Thank you for your interest in Optio Academy. We're excited to learn more about your student and talk through whether Optio is the right fit."
-      - "<a href='https://www.optioeducation.com/docs/high-school-classes/transcripts-and-accreditation?utm_source=transactional&utm_medium=email&utm_campaign=academy_confirmation' style='color: #6D469B;'>Optio Academy</a> is a fully online, WASC-accredited private school where <a href='https://www.optioeducation.com/docs/high-school-classes/how-high-school-classes-work?utm_source=transactional&utm_medium=email&utm_campaign=academy_confirmation' style='color: #6D469B;'>real projects earn real high school credit</a> toward a diploma. Families choose the path that fits: in the Full-Time Academy your student works one-on-one with a dedicated Optio teacher, with support tailored to their needs, while the Parent-Supported Diploma lets you lead the learning as their teacher for $100 per credit."
+      - "<a href='https://www.optioeducation.com/docs/high-school-classes/transcripts-and-accreditation?utm_source=transactional&utm_medium=email&utm_campaign=academy_confirmation' style='color: #6D469B;'>Optio Academy</a> is a fully online, WASC-accredited private school where <a href='https://www.optioeducation.com/docs/high-school-classes/how-high-school-classes-work?utm_source=transactional&utm_medium=email&utm_campaign=academy_confirmation' style='color: #6D469B;'>real projects earn real high school credit</a> toward a diploma. Families choose the path that fits: in the Full-Time Academy your student works one-on-one with a dedicated Optio teacher for {{ price.fullTimeMonthly }} a month, while the Parent-Supported Diploma lets you lead the learning as their teacher for {{ price.academyTuitionMonthly }} a month, never more than {{ price.academyFamilyCapMonthly }} a month for a family."
     highlight_box:
       title: "What to Expect Next"
       bullet_points:
@@ -891,6 +833,31 @@ emails:
       url: "{{ queue_url }}"
     closing_paragraphs:
       - "Held texts are in the Holds tab. A hold that should not have happened is worth a look at the screen's prompt."
+    signature: "support"
+
+  prior_learning_daily_digest:
+    subject: "Prior learning: {{ waiting }} waiting for review"
+    title: "Prior Learning Queue"
+    salutation: "Hi {{ admin_name }},"
+    paragraphs:
+      - "<strong>{{ waiting }}</strong> prior learning record(s) are waiting for review. <strong>{{ new_24h }}</strong> came in during the last day, and the oldest has waited <strong>{{ oldest_days }}</strong> day(s)."
+      - "<strong>{{ not_transcribed }}</strong> accepted record(s) are not on a transcript yet. <strong>{{ needs_info }}</strong> record(s) are with families who were asked for more."
+    cta:
+      text: "Open the prior learning queue"
+      url: "{{ queue_url }}"
+    signature: "support"
+
+  prior_learning_needs_info:
+    subject: "The school needs more for your prior learning record"
+    title: "A little more is needed"
+    salutation: "Hi {{ first_name }},"
+    paragraphs:
+      - "We looked at <strong>{{ record_title }}</strong> and need a little more before we can award credit:"
+      - "{{ message }}"
+      - "Open the record, add what is missing, and press Send again. It comes straight back to us."
+    cta:
+      text: "Open my prior learning"
+      url: "{{ record_url }}"
     signature: "support"
 
   csam_incident:

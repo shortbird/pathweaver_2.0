@@ -80,6 +80,17 @@ class RegistrationRepository(BaseRepository):
     # the full row the recovery lookups above do not need.
     _SEGMENT_COLUMNS = 'id, status, answers, kids, completed_at'
 
+    def household_funding_sources(self, organization_id: str, user_id: str) -> List[str]:
+        """funding_source of this person's households in the school."""
+        hh = [m['household_id'] for m in (self.client.table('household_members').select('household_id')
+                                          .eq('user_id', user_id).execute().data or [])
+              if m.get('household_id')]
+        if not hh:
+            return []
+        rows = (self.client.table('households').select('funding_source')
+                .in_('id', hh).eq('organization_id', organization_id).execute().data or [])
+        return [r['funding_source'] for r in rows if r.get('funding_source')]
+
     def newest_full_for_parent(self, organization_id: str, parent_user_id: str) -> Optional[Dict[str, Any]]:
         rows = (self.client.table(self.table_name).select(self._SEGMENT_COLUMNS)
                 .eq('organization_id', organization_id)

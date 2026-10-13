@@ -3,6 +3,10 @@
  * Moved verbatim -- no behaviour changed, only the address.
  */
 
-const OPTIO_COURSE_FEE = '$50'
+// What Optio bills a school for each student it enrolls in an Optio course,
+// from Optio's price list (shared/data/pricing.json).
+import { PRICE_TEXT } from '@shared/pricing'
+
+const OPTIO_COURSE_FEE = PRICE_TEXT.optioCourseForSchools
 
 export default OPTIO_COURSE_FEE

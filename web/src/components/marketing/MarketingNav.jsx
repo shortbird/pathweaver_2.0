@@ -10,15 +10,16 @@ const LOGO_URL = 'https://auth.optioeducation.com/storage/v1/object/public/site-
 
 // `external: true` means the destination lives on the marketing site, not in
 // this SPA. Before the 2026-09-01 cutover every one of these was a route here
-// and a react-router <Link> was right. Now only /catalog is: the rest moved to
-// www, and pointing a <Link> at them navigated to this app's stale duplicate
-// pages instead of the real ones. Their paths on www differ too -- Classes and
+// and a react-router <Link> was right. Now none is: they moved to www, and
+// pointing a <Link> at them navigated to this app's stale duplicate pages
+// instead of the real ones. (A "Courses" item pointed at /catalog, the public
+// catalog of the $149 individual class; that offer was retired 2026-09-17 and
+// /catalog now redirects to /academy, which is already listed.) Their paths on www differ too -- Classes and
 // How It Works are anchors on /academy, For Schools is /schools -- so this is
 // a remap, not just an origin swap. Kept in sync with the redirect table in
 // marketing/DEPLOYMENT.md.
 const NAV_LINKS = [
   { label: 'Classes', path: '/academy#free-class', external: true },
-  { label: 'Courses', path: '/catalog' },
   { label: 'Academy', path: '/academy', external: true },
   { label: 'For Families', path: '/academy', external: true },
   { label: 'For Schools', path: '/schools', external: true },

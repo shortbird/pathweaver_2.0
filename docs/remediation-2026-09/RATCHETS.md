@@ -53,6 +53,7 @@ Four rules, learned the hard way:
 | 5 `console.*` calls | `web/src/__tests__/lintRules.test.js` | CI-03. `console.warn`/`error` stay legitimate; `.log` became `logger.debug` |
 | 105 clickable non-interactive elements | `web/src/components/ui/__tests__/a11y.test.jsx` | QF-08. The file says out loud that axe catches maybe a third of real problems |
 | 562 explicit `any` | `mobile/src/__tests__/typeWidening.test.ts` | QF-09 |
+| Typed dollar amounts per source file (39 files, 87 lines on 2026-10-13, none an Optio price) | `backend/tests/unit/test_prices_come_from_pricing_json.py`; generated-file drift in `test_pricing_constants_generated.py` and `npm run generate:check` | One price list, `shared/data/pricing.json`. The Terms said $8,000 a year while the agreement said $500 a month. A price is written as `PRICE_TEXT.<name>` in code and `{{price.<name>}}` in database copy; the count per file is exact both ways |
 | 1,400 lines per route file | `backend/tests/unit/test_route_file_sizes.py` | QB-04. **`EXEMPTIONS` is empty** |
 | 1,000 lines per web component | `web/src/__tests__/componentSize.test.js` | QF-02. **`EXEMPT` is empty**, and a fourth test fails when a file drops under the cap and its exemption lingers |
 | 20 known-dead client API paths | `backend/tests/test_client_api_paths_exist.py` | Every `/api/...` the web and mobile clients call is a real route. The dead list may only shrink |

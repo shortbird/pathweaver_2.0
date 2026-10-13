@@ -122,6 +122,36 @@ def quote(cfg: Any, kids: List[Dict[str, Any]], *, num_students: Optional[int] =
     }
 
 
+# The Optio teacher add-on's key, whose price the price list owns.
+TEACHER_SUPPORT_KEY = 'teacher_support'
+
+
+def _from_price_list(raw: Dict[str, Any]) -> Dict[str, Any]:
+    """The monthly block with its amounts taken from Optio's price list when it
+    says so (`pricing: 'optio_academy'`).
+
+    Optio Academy's tuition is published in the agreement, the handbook, the
+    help center and the website, all of which read shared/data/pricing.json.
+    The registration config used to hold its own copy of the same three
+    numbers, so a price change meant remembering to change it here too. Now
+    the config only says where its prices come from; labels, descriptions and
+    which add-ons exist stay the org's.
+    """
+    if raw.get('pricing') != 'optio_academy':
+        return raw
+    from generated.pricing import PRICING
+    academy = PRICING['academy']
+    priced = dict(raw)
+    priced['per_student_cents'] = academy['tuitionMonthlyCents']
+    priced['family_cap_cents'] = academy['familyCapMonthlyCents']
+    priced['add_ons'] = [
+        {**a, 'amount_cents': academy['fullTimeMonthlyCents'], 'includes_program_fee': True}
+        if isinstance(a, dict) and a.get('key') == TEACHER_SUPPORT_KEY else a
+        for a in (raw.get('add_ons') or [])
+    ]
+    return priced
+
+
 def monthly_plan(cfg: Any) -> Optional[Dict[str, Any]]:
     """The org's monthly plan, normalized, or None when nothing bills monthly.
 
@@ -131,6 +161,7 @@ def monthly_plan(cfg: Any) -> Optional[Dict[str, Any]]:
     raw = cfg.get('monthly') if isinstance(cfg, dict) else None
     if not isinstance(raw, dict):
         return None
+    raw = _from_price_list(raw)
     per_student = _cents(raw.get('per_student_cents'))
     family_cap = _cents(raw.get('family_cap_cents'))
     add_ons: List[Dict[str, Any]] = []

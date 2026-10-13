@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter, Routes, Route } from 'react-router-dom'
-import HomeRoute, { NotFoundRedirect } from './HomeRoute'
+import HomeRoute, { NotFoundRedirect, RedirectToMarketing } from './HomeRoute'
 import { PROD_MARKETING_URL } from '../utils/marketingUrl'
 
 let authState = {}
@@ -120,5 +120,21 @@ describe('NotFoundRedirect (unknown paths)', () => {
     authState = { isAuthenticated: false, user: null, loading: true }
     renderAt('/some/removed/page')
     expect(screen.getByRole('status')).toBeInTheDocument()
+  })
+})
+
+describe('RedirectToMarketing (retired app pages)', () => {
+  // /catalog and /course/:slug sold the $149 individual class, retired
+  // 2026-09-17. Their old links now land on the Academy page on www.
+  it.each(['/catalog', '/course/intro-to-film'])('sends %s to /academy on www', async (path) => {
+    render(
+      <MemoryRouter initialEntries={[path]}>
+        <Routes>
+          <Route path="catalog" element={<RedirectToMarketing path="/academy" />} />
+          <Route path="course/:slug" element={<RedirectToMarketing path="/academy" />} />
+        </Routes>
+      </MemoryRouter>
+    )
+    await waitFor(() => expect(replaceSpy).toHaveBeenCalledWith(`${PROD_MARKETING_URL}/academy`))
   })
 })

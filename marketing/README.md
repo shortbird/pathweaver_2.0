@@ -38,8 +38,12 @@ submit from a browser; curl works regardless).
 - `src/pages/` — one file per page. `l/[activity].astro` generates every lander.
 - `src/data/landers.ts` — **adding a lander = adding one entry here**, then
   `npm run og` (keep the OG list in `scripts/generate-og.mjs` in sync).
-- `src/data/site.ts` — URLs, the offer ($149, free class, Transfer Guarantee),
-  analytics IDs. Prices are stated once, here.
+- `src/data/site.ts` — URLs, the offer (`OFFER`: Optio Academy tuition, the
+  school license, transfer credit), analytics IDs. `OFFER` holds no typed
+  prices: it reads `src/data/pricing.generated.ts`, which
+  `shared/scripts/generate-constants.mjs` emits from `shared/data/pricing.json`.
+  To change a price, edit the JSON and run `npm run generate` from the repo
+  root. Never type a dollar amount into a page or `scripts/generate-og.mjs`.
 - `src/data/testimonials.ts` — real quotes, migrated verbatim. Never invent one.
 - `src/data/accreditation.ts` — WASC constants + kill-switch
   (`ACCREDITATION_ACTIVE`), ported from the app. A claim must always appear
@@ -103,6 +107,6 @@ adding a lander means adding the slug there too.
 - Never invent testimonials, statistics, partner names, or accreditation
   claims. Unknown facts get a `TODO(tanner)` comment and a placeholder.
 
-Current `TODO(tanner)` markers: Academy pricing mechanics ($50/month accrual
-toward $100/credit), ESA/UFA amounts and language, partner-school case studies,
-real activity photos for the landers.
+Current `TODO(tanner)` markers: ESA/UFA amounts and language, partner-school
+case studies, real activity photos for the landers. (Academy pricing is settled
+in `shared/data/pricing.json`.)
