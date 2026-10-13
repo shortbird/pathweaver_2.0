@@ -425,3 +425,112 @@ class TestGroupName:
 
     def test_no_name_and_no_subject_falls_back_to_the_default(self, universe, repo):
         assert _group_name_for(universe, repo, name=None, subject='') == 'Tam and Al'
+
+
+# ── Edit / delete for everyone (iCreate, 2026-10-13) ─────────────────────────
+# A coordinator's question for Marika went out with an announcement to 334
+# people. Every family copy was a school-voiced DM, so nothing in the console
+# could take it back short of 334 clicks.
+
+def _sent(**over):
+    return {'id': 's1', 'organization_id': ORG, 'sent_by': KATE, 'mode': 'separate',
+            'group_message_id': None, 'deleted_at': None, **over}
+
+
+@pytest.fixture
+def extras():
+    with patch('services.messaging_extras_service.bulk_edit', return_value=2) as edit, \
+         patch('services.messaging_extras_service.bulk_soft_delete', return_value=2) as delete:
+        yield {'edit': edit, 'delete': delete}
+
+
+@pytest.mark.unit
+class TestChangeSend:
+    def test_edit_rewrites_every_copy_with_the_subject_on_top(self, repo, extras):
+        repo.get_send.return_value = _sent()
+        repo.message_ids.return_value = ['m1', 'm2']
+        out = compose.edit_send(ORG, KATE, 's1', body=' New text ', subject='Hours')
+        extras['edit'].assert_called_once_with('dm', ['m1', 'm2'], 'Hours\n\nNew text')
+        fields = repo.update_send.call_args.args[1]
+        assert fields['body'] == 'New text' and fields['subject'] == 'Hours' and fields['edited_at']
+        assert out == {'send_id': 's1', 'changed': 2}
+
+    def test_a_group_send_changes_its_one_group_message(self, repo, extras):
+        repo.get_send.return_value = _sent(mode='group', group_message_id='gm1')
+        compose.delete_send(ORG, KATE, 's1')
+        extras['delete'].assert_called_once_with('group', ['gm1'])
+        repo.message_ids.assert_not_called()
+        assert repo.update_send.call_args.args[1]['deleted_at']
+
+    def test_only_the_person_who_sent_it_may_change_it(self, repo, extras):
+        """A school-voiced copy shows no author; sent_by is the only proof
+        (the ecc73d0e rule). Marika may not rewrite Becky's send."""
+        repo.get_send.return_value = _sent(sent_by=TEACH)
+        with pytest.raises(PermissionError):
+            compose.edit_send(ORG, KATE, 's1', body='x')
+        with pytest.raises(PermissionError):
+            compose.delete_send(ORG, KATE, 's1')
+        extras['edit'].assert_not_called()
+        extras['delete'].assert_not_called()
+        repo.update_send.assert_not_called()
+
+    def test_another_schools_send_is_not_found(self, repo, extras):
+        repo.get_send.return_value = None
+        with pytest.raises(LookupError):
+            compose.delete_send(ORG, KATE, 's1')
+        extras['delete'].assert_not_called()
+
+    def test_a_deleted_send_cannot_be_edited_or_deleted_again(self, repo, extras):
+        repo.get_send.return_value = _sent(deleted_at='2026-10-13T20:00:00+00:00')
+        with pytest.raises(ValueError):
+            compose.edit_send(ORG, KATE, 's1', body='x')
+        extras['edit'].assert_not_called()
+
+    def test_an_empty_or_long_edit_is_refused_before_anything_changes(self, repo, extras):
+        repo.get_send.return_value = _sent()
+        with pytest.raises(ValueError):
+            compose.edit_send(ORG, KATE, 's1', body='   ')
+        with pytest.raises(ValueError):
+            compose.edit_send(ORG, KATE, 's1', body='x' * (compose.MAX_BODY + 1))
+        extras['edit'].assert_not_called()
+        repo.update_send.assert_not_called()
+
+
+@pytest.mark.unit
+class TestBulkChange:
+    """messaging_extras_service.bulk_edit / bulk_soft_delete: chunked writes,
+    one batched broadcast, previews only where the copy is still the latest."""
+
+    def _repo(self, rows, stamps):
+        repo = Mock()
+        repo.live_rows.return_value = rows
+        repo.thread_last_message_at.return_value = stamps
+        return repo
+
+    def test_edit_updates_live_copies_and_broadcasts_once(self):
+        from services import messaging_extras_service as ex
+        rows = [{'id': 'm1', 'conversation_id': 'c1', 'created_at': '2026-10-13T19:48:00+00:00'},
+                {'id': 'm2', 'conversation_id': 'c2', 'created_at': '2026-10-13T19:48:00+00:00'}]
+        stamps = {'c1': '2026-10-13T19:48:00+00:00', 'c2': '2026-10-13T19:53:00+00:00'}
+        repo = self._repo(rows, stamps)
+        with patch.object(ex, '_bulk_repo', return_value=repo), \
+             patch.object(ex, '_recompute_conversation_preview') as preview, \
+             patch.object(ex, 'broadcast_many') as bc:
+            assert ex.bulk_edit('dm', ['m1', 'm2'], 'Fixed') == 2
+        ids, fields = repo.update_messages.call_args.args[1:]
+        assert ids == ['m1', 'm2'] and fields['message_content'] == 'Fixed' and fields['edited_at']
+        # c2 has a newer reply, so its list preview already shows the reply.
+        assert [c.args[1]['id'] for c in preview.call_args_list] == ['m1']
+        bc.assert_called_once()
+        sent = bc.call_args.args[0]
+        assert {m['topic'] for m in sent} == {'dm:c1', 'dm:c2'}
+        assert all(m['event'] == 'edited' and m['payload']['content'] == 'Fixed' for m in sent)
+
+    def test_nothing_live_writes_nothing(self):
+        from services import messaging_extras_service as ex
+        repo = self._repo([], {})
+        with patch.object(ex, '_bulk_repo', return_value=repo), \
+             patch.object(ex, 'broadcast_many') as bc:
+            assert ex.bulk_soft_delete('dm', ['m1']) == 0
+        repo.update_messages.assert_not_called()
+        bc.assert_not_called()

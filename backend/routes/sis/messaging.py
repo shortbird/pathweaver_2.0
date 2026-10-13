@@ -137,6 +137,41 @@ def send_detail(user_id, send_id):
     return jsonify({'success': True, 'send': detail})
 
 
+def _change_send(user_id, send_id, change):
+    """Run an edit or delete of one send, mapping the service's refusals.
+    Scoped to the caller's org by the read, and to its author by the service."""
+    org_id, err = sis_service.org_or_error(user_id)
+    if err:
+        return err
+    try:
+        result = change(org_id)
+    except LookupError as e:
+        return jsonify({'success': False, 'error': str(e)}), 404
+    except PermissionError as e:
+        return jsonify({'success': False, 'error': str(e)}), 403
+    except ValueError as e:
+        return jsonify({'success': False, 'error': str(e)}), 400
+    return jsonify({'success': True, **result})
+
+
+@bp.route('/sends/<send_id>', methods=['PATCH'])
+@require_role(*ADMIN_ROLES)
+def edit_send(user_id, send_id):
+    """Edit for everyone: rewrite every copy of a send (iCreate, 2026-10-13).
+    Body: {body, subject}."""
+    data = request.get_json(silent=True) or {}
+    return _change_send(user_id, send_id, lambda org_id: compose_service.edit_send(
+        org_id, user_id, send_id, body=data.get('body') or '', subject=data.get('subject')))
+
+
+@bp.route('/sends/<send_id>', methods=['DELETE'])
+@require_role(*ADMIN_ROLES)
+def delete_send(user_id, send_id):
+    """Delete for everyone: soft-delete every copy of a send."""
+    return _change_send(user_id, send_id, lambda org_id: compose_service.delete_send(
+        org_id, user_id, send_id))
+
+
 # ── All class chats (ticket bbb477db) ────────────────────────────────────────
 
 @bp.route('/class-chats', methods=['GET'])

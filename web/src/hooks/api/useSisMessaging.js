@@ -62,6 +62,30 @@ export const useSentMessage = (orgId, sendId) => useQuery({
   enabled: !!sendId,
 })
 
+/**
+ * Edit or delete every copy of a send (iCreate, 2026-10-13). `body` given is
+ * an edit ({sendId, subject, body}); without it, a delete ({sendId}). Only the
+ * person who sent it may; the server answers 403 to anybody else.
+ */
+export const useChangeSentMessage = (orgId) => {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ sendId, body, subject }) => {
+      const path = withOrg(`/api/sis/messaging/sends/${sendId}`, orgId)
+      const res = body === undefined
+        ? await api.delete(path)
+        : await api.patch(path, { body, subject })
+      return res.data || {}
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['sis-messaging', 'sends'] })
+      queryClient.invalidateQueries({ queryKey: ['sis-messaging', 'send'] })
+      queryClient.invalidateQueries({ queryKey: ['conversations'] })
+      queryClient.invalidateQueries({ queryKey: ['groups'] })
+    },
+  })
+}
+
 /** "Make a task" from a school thread (conversationId) or school group (groupId). */
 export const useMakeThreadTask = (orgId) => useMutation({
   mutationFn: async ({ conversationId, groupId, ...body }) => {

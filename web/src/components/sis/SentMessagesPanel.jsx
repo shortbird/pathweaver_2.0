@@ -1,9 +1,11 @@
 import React, { useEffect, useState } from 'react'
 import { toast } from 'react-hot-toast'
 import { ArrowLeftIcon, PaperAirplaneIcon } from '@heroicons/react/24/outline'
-import { useSentMessages, useSentMessage } from '../../hooks/api/useSisMessaging'
+import { useSentMessages, useSentMessage, useChangeSentMessage } from '../../hooks/api/useSisMessaging'
+import { useAuth } from '../../contexts/AuthContext'
 import { formatMessageTime } from '../communication/MessageParts'
 import { Spinner } from '../ui/Spinner'
+import ConfirmDialog from '../ui/ConfirmDialog'
 
 /**
  * What the office sent with Compose, and who has read it.
@@ -16,7 +18,14 @@ import { Spinner } from '../ui/Spinner'
  *
  * A separate send is read when the person opens their thread; a group send
  * when they open the group past the message.
+ *
+ * iCreate, 2026-10-13: a coordinator's question for Marika went out with an
+ * announcement to 334 people, and nothing in the console could take it back.
+ * Whoever sent it can now Edit or Delete it here, for every copy at once.
+ * Push notifications and email copies already went out and stay as they were.
  */
+
+const errorText = (e, fallback) => e?.response?.data?.error || fallback
 
 const KIND_LABEL = { staff: 'Staff', family: 'Parent', student: 'Student' }
 
@@ -28,8 +37,12 @@ const preview = (s) => s.subject || (s.body || '').split('\n')[0] || 'Message'
  */
 export default function SentMessagesPanel({ orgId, search = '' }) {
   const [open, setOpen] = useState(null)
+  const [draft, setDraft] = useState(null)
+  const [confirmDelete, setConfirmDelete] = useState(false)
+  const { user } = useAuth()
   const sendsQuery = useSentMessages(orgId)
   const detailQuery = useSentMessage(orgId, open)
+  const change = useChangeSentMessage(orgId)
   const sends = sendsQuery.isError ? [] : (sendsQuery.data ?? null)
   const detail = detailQuery.data || null
 
@@ -44,10 +57,34 @@ export default function SentMessagesPanel({ orgId, search = '' }) {
     return <div className="flex items-center justify-center h-40"><Spinner /></div>
   }
 
+  const saveEdit = async () => {
+    try {
+      const res = await change.mutateAsync({ sendId: open, subject: draft.subject, body: draft.body })
+      toast.success(`Updated for ${res.changed ?? 'every'} ${res.changed === 1 ? 'person' : 'people'}`)
+      setDraft(null)
+    } catch (e) {
+      toast.error(errorText(e, 'Could not update the message'))
+    }
+  }
+
+  const deleteSend = async () => {
+    try {
+      const res = await change.mutateAsync({ sendId: open })
+      toast.success(`Deleted for ${res.removed ?? 'every'} ${res.removed === 1 ? 'person' : 'people'}`)
+    } catch (e) {
+      toast.error(errorText(e, 'Could not delete the message'))
+      throw e
+    }
+  }
+
   if (open) {
+    const mine = detail && user?.id && detail.sent_by === user.id && !detail.deleted_at
+    const deliveredNote = detail?.email
+      ? 'Push notifications and the email copies already went out and will not change.'
+      : 'Push notifications already went out and will not change.'
     return (
       <div className="p-4">
-        <button type="button" onClick={() => setOpen(null)}
+        <button type="button" onClick={() => { setOpen(null); setDraft(null) }}
           className="inline-flex items-center gap-1 text-sm text-neutral-600 hover:text-optio-purple mb-3">
           <ArrowLeftIcon className="w-4 h-4" /> All sent messages
         </button>
@@ -55,12 +92,60 @@ export default function SentMessagesPanel({ orgId, search = '' }) {
           <div className="flex items-center justify-center h-32"><Spinner /></div>
         ) : (
           <div>
-            <h2 className="text-base font-semibold text-neutral-900">{preview(detail)}</h2>
+            <div className="flex items-start justify-between gap-3">
+              <h2 className="text-base font-semibold text-neutral-900 min-w-0">{preview(detail)}</h2>
+              {mine && !draft && (
+                <div className="flex-shrink-0 flex gap-2">
+                  <button type="button" className="btn-quiet text-sm"
+                    onClick={() => setDraft({ subject: detail.subject || '', body: detail.body || '' })}>
+                    Edit
+                  </button>
+                  <button type="button" className="btn-quiet text-sm text-red-600"
+                    onClick={() => setConfirmDelete(true)}>
+                    Delete
+                  </button>
+                </div>
+              )}
+            </div>
             <p className="text-xs text-neutral-500 mt-0.5">
               {formatMessageTime(detail.created_at)} · {detail.mode === 'group' ? 'One group thread' : 'A private thread each'}
               {detail.email ? ' · also emailed' : ''}{detail.push ? '' : ' · no push'}
+              {detail.edited_at && !detail.deleted_at ? ` · edited ${formatMessageTime(detail.edited_at)}` : ''}
             </p>
-            <p className="text-sm text-neutral-700 whitespace-pre-wrap mt-3 bg-gray-50 rounded-lg p-3">{detail.body}</p>
+            {detail.deleted_at && (
+              <p className="text-sm text-red-700 bg-red-50 rounded-lg px-3 py-2 mt-3">
+                Deleted for everyone {formatMessageTime(detail.deleted_at)}. Only the office sees this copy.
+              </p>
+            )}
+            {draft ? (
+              <div className="mt-3 space-y-2">
+                <input type="text" value={draft.subject} placeholder="Subject (optional)"
+                  onChange={(e) => setDraft({ ...draft, subject: e.target.value })}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+                <textarea value={draft.body} rows={10}
+                  onChange={(e) => setDraft({ ...draft, body: e.target.value })}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+                <p className="text-xs text-neutral-500">
+                  Saving changes the message for all {detail.recipient_count} people. {deliveredNote}
+                </p>
+                <div className="flex justify-end gap-2">
+                  <button type="button" className="btn-quiet text-sm" disabled={change.isPending}
+                    onClick={() => setDraft(null)}>Cancel</button>
+                  <button type="button" className="btn-primary text-sm"
+                    disabled={change.isPending || !draft.body.trim()} onClick={saveEdit}>
+                    {change.isPending ? 'Saving...' : 'Save for everyone'}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <p className={`text-sm whitespace-pre-wrap mt-3 bg-gray-50 rounded-lg p-3 ${detail.deleted_at ? 'text-neutral-400 line-through' : 'text-neutral-700'}`}>{detail.body}</p>
+            )}
+            <ConfirmDialog isOpen={confirmDelete} onClose={() => setConfirmDelete(false)}
+              title="Delete for everyone?" confirmLabel="Delete for everyone" destructive
+              onConfirm={deleteSend}>
+              <p>This removes the message from all {detail.recipient_count} people&apos;s threads. Replies they already wrote stay.</p>
+              <p>{deliveredNote}</p>
+            </ConfirmDialog>
             <p className="text-sm font-semibold text-neutral-800 mt-4 mb-2">
               Read by {detail.read_count} of {detail.recipient_count}
             </p>
@@ -114,7 +199,10 @@ export default function SentMessagesPanel({ orgId, search = '' }) {
           <button type="button" onClick={() => setOpen(s.id)}
             className="w-full text-left px-4 py-3 hover:bg-gray-50 flex items-start gap-3">
             <span className="min-w-0 flex-1">
-              <span className="block text-sm font-medium text-neutral-900 truncate">{preview(s)}</span>
+              <span className="block text-sm font-medium text-neutral-900 truncate">
+                {s.deleted_at && <span className="mr-1.5 text-xs font-semibold text-red-600">Deleted</span>}
+                {preview(s)}
+              </span>
               <span className="block text-xs text-neutral-500 truncate">
                 {formatMessageTime(s.created_at)}{s.sent_by_name ? ` · by ${s.sent_by_name}` : ''}
                 {' · '}{s.mode === 'group' ? 'group thread' : 'separately'}

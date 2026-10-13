@@ -55,6 +55,27 @@ def broadcast(topic: str, event: str, payload: Dict[str, Any]) -> bool:
         return False
 
 
+def broadcast_many(messages: List[Dict[str, Any]], chunk: int = 100) -> None:
+    """Many broadcasts in a few requests: the endpoint takes a list. A Compose
+    send edited for 334 people is 334 topics, and one POST each held the
+    request open for a minute. Never raises."""
+    for i in range(0, len(messages), chunk):
+        part = messages[i:i + chunk]
+        try:
+            requests.post(
+                f"{Config.SUPABASE_URL}/realtime/v1/api/broadcast",
+                json={'messages': part},
+                headers={
+                    'apikey': Config.SUPABASE_SERVICE_ROLE_KEY,
+                    'Authorization': f'Bearer {Config.SUPABASE_SERVICE_ROLE_KEY}',
+                    'Content-Type': 'application/json',
+                },
+                timeout=10,
+            )
+        except Exception as e:  # noqa: BLE001
+            logger.warning(f'Realtime batch broadcast failed ({len(part)} messages): {e}')
+
+
 def broadcast_dm(conversation_id: str, event: str, payload: Dict[str, Any]) -> None:
     broadcast(f'dm:{conversation_id}', event, payload)
 
@@ -402,6 +423,78 @@ def _soft_delete(message_type: str, msg: Dict[str, Any]) -> None:
         broadcast_dm(msg['conversation_id'], 'deleted', event)
     else:
         broadcast_group(msg['group_id'], 'deleted', event)
+
+
+# ── Bulk edit / delete (a Compose send, every copy at once) ────────────────────
+# No authorization here: message_compose_service.edit_send / delete_send check
+# that the caller wrote the send, and pass only that send's message ids.
+
+_SCOPE = {'dm': 'conversation_id', 'group': 'group_id'}
+
+
+def _bulk_repo():
+    from repositories.message_bulk_repository import MessageBulkRepository
+    return MessageBulkRepository(client=_admin())
+
+
+def _latest_in_thread(repo, message_type: str, rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """The rows that are still their thread's last message, so only those
+    threads need their list preview rewritten. One read per 100 threads
+    instead of a recompute per thread."""
+    scope = _SCOPE[message_type]
+    by_conv = {r[scope]: r for r in rows if r.get(scope)}
+    stamps = repo.thread_last_message_at(message_type, list(by_conv))
+    # The send path stamps last_message_at with the message's created_at; a
+    # later stamp means a reply came after, and the preview already shows the
+    # reply. Unparseable: recompute.
+    return [row for conv, row in by_conv.items()
+            if conv in stamps and not _is_later(stamps[conv], row.get('created_at'))]
+
+
+def _is_later(a: Optional[str], b: Optional[str]) -> bool:
+    """True when timestamp `a` is more than a second after `b`."""
+    from datetime import datetime
+    try:
+        return (datetime.fromisoformat(a) - datetime.fromisoformat(b)).total_seconds() > 1
+    except (TypeError, ValueError):
+        return False
+
+
+def bulk_edit(message_type: str, message_ids: List[str], content: str) -> int:
+    """Rewrite these messages to `content` and mark them edited; return how
+    many changed. Deleted ones stay deleted."""
+    repo = _bulk_repo()
+    scope = _SCOPE[message_type]
+    rows = repo.live_rows(message_type, message_ids)
+    if not rows:
+        return 0
+    stamp = _now()
+    repo.update_messages(message_type, [r['id'] for r in rows],
+                         {'message_content': content, 'edited_at': stamp})
+    for row in _latest_in_thread(repo, message_type, rows):
+        _recompute_conversation_preview(message_type, row)
+    broadcast_many([{'topic': f'{message_type}:{r[scope]}', 'event': 'edited',
+                     'payload': {'message_id': r['id'], 'content': content, 'edited_at': stamp}}
+                    for r in rows])
+    return len(rows)
+
+
+def bulk_soft_delete(message_type: str, message_ids: List[str]) -> int:
+    """Soft-delete these messages; return how many were still live."""
+    repo = _bulk_repo()
+    scope = _SCOPE[message_type]
+    rows = repo.live_rows(message_type, message_ids)
+    if not rows:
+        return 0
+    ids = [r['id'] for r in rows]
+    repo.update_messages(message_type, ids, {'is_deleted': True})
+    for row in _latest_in_thread(repo, message_type, rows):
+        _recompute_conversation_preview(message_type, row)
+    if message_type == 'group':
+        repo.unpin(list({r['group_id'] for r in rows}), ids)
+    broadcast_many([{'topic': f'{message_type}:{r[scope]}', 'event': 'deleted',
+                     'payload': {'message_id': r['id']}} for r in rows])
+    return len(rows)
 
 
 # ── Pins + announcement-only (group admin controls) ────────────────────────────

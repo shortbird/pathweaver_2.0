@@ -572,3 +572,66 @@ def send_detail(org_id: str, send_id: str) -> Optional[Dict[str, Any]]:
     sent = [r for r in recipients if r['status'] == 'sent']
     return {**send, 'recipients': recipients, 'recipient_count': len(sent),
             'read_count': sum(1 for r in sent if r.get('read_at'))}
+
+
+# ── Changing a send after it went out ─────────────────────────────────────────
+#
+# iCreate, 2026-10-13: a coordinator's question for Marika rode along at the
+# end of the volunteer-hours announcement to 334 people. Every family copy was
+# a school-voiced DM, so the per-message Edit refused her (the school is the
+# sender) and Delete meant opening 334 threads. Edit and Delete on the Sent
+# page change every copy at once.
+#
+# Only the colleague who wrote the send may change it -- the school-inbox
+# delete rule (ticket ecc73d0e), for the same reason: a school-voiced message
+# shows no author, so the Sent record's sent_by is the only proof of who wrote
+# it. Push notifications and email copies are already delivered and are not
+# recalled; the console says so before either button acts.
+
+def _owned_send(org_id: str, actor_id: str, send_id: str) -> Dict[str, Any]:
+    send = _repo().get_send(org_id, send_id)
+    if not send:
+        raise LookupError('Send not found')
+    if send.get('sent_by') != actor_id:
+        raise PermissionError('Only the person who sent this can change it')
+    if send.get('deleted_at'):
+        raise ValueError('This message was already deleted')
+    return send
+
+
+def _copies(send: Dict[str, Any]):
+    """(message_type, ids) for every copy of a send."""
+    if send.get('mode') == 'group':
+        return 'group', [send['group_message_id']] if send.get('group_message_id') else []
+    return 'dm', _repo().message_ids(send['id'])
+
+
+def edit_send(org_id: str, actor_id: str, send_id: str, *, body: str,
+              subject: Optional[str] = None) -> Dict[str, Any]:
+    """Rewrite every copy of a send. The subject heads the message the way
+    compose() wrote it. Attachments are kept."""
+    from services import messaging_extras_service as extras
+    send = _owned_send(org_id, actor_id, send_id)
+    body = (body or '').strip()
+    title = (subject or '').strip()
+    if not body:
+        raise ValueError('Write something, or delete the message instead')
+    content = f'{title}\n\n{body}' if title else body
+    if len(content) > MAX_BODY:
+        raise ValueError(f'Messages are limited to {MAX_BODY} characters')
+    message_type, ids = _copies(send)
+    changed = extras.bulk_edit(message_type, ids, content)
+    _repo().update_send(send_id, {'body': body, 'subject': title or None,
+                                  'edited_at': extras._now()})
+    return {'send_id': send_id, 'changed': changed}
+
+
+def delete_send(org_id: str, actor_id: str, send_id: str) -> Dict[str, Any]:
+    """Delete every copy of a send. The Sent record stays, marked deleted, so
+    the office can still see that it went out and to whom."""
+    from services import messaging_extras_service as extras
+    send = _owned_send(org_id, actor_id, send_id)
+    message_type, ids = _copies(send)
+    removed = extras.bulk_soft_delete(message_type, ids)
+    _repo().update_send(send_id, {'deleted_at': extras._now()})
+    return {'send_id': send_id, 'removed': removed}

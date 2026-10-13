@@ -57,7 +57,7 @@ class MessageSendRepository(BaseRepository):
                    offset: int = 0) -> List[Dict[str, Any]]:
         return (self.client.table('message_sends')
                 .select('id, organization_id, sent_by, as_school, mode, subject, body, '
-                        'push, email, group_id, created_at')
+                        'push, email, group_id, created_at, edited_at, deleted_at')
                 .eq('organization_id', org_id)
                 .order('created_at', desc=True)
                 .range(offset, offset + limit - 1).execute()).data or []
@@ -67,6 +67,19 @@ class MessageSendRepository(BaseRepository):
                 .eq('id', send_id).eq('organization_id', org_id)
                 .limit(1).execute()).data or []
         return rows[0] if rows else None
+
+    def update_send(self, send_id: str, fields: Dict[str, Any]) -> None:
+        self.client.table('message_sends').update(fields).eq('id', send_id).execute()
+
+    def message_ids(self, send_id: str) -> List[str]:
+        """The DM id of every copy a separate send delivered. Paged: one
+        send can pass the 1000-row cap."""
+        rows = fetch_all_rows(lambda: (
+            self.client.table('message_send_recipients')
+            .select('user_id, message_id')
+            .eq('send_id', send_id).eq('status', 'sent')
+        ), order_by='user_id')
+        return [r['message_id'] for r in rows if r.get('message_id')]
 
     def read_stats(self, send_ids: Iterable[str]) -> Dict[str, Dict[str, Any]]:
         """{send_id: {recipient_count, read_count, skipped_count}}, one row per
