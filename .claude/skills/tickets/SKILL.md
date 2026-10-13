@@ -189,6 +189,31 @@ A question the user has not answered blocks that ticket's `resolution`, not
 its fix. Mark it `fixing`, say so in the step 6 report, and leave it for the
 answer rather than send a mail that ignores the question.
 
+### 2b. Feature requests: build what they ask for, generically, without bloat
+
+Tanner's rule (2026-10-13). Build what the ticket asks for, but:
+
+- **Generic, never school-specific.** A feature built for one org is an Optio
+  feature that org happens to turn on first. No slug checks, no org ids, no
+  hard-coded labels in code. Anything that differs between programs (status
+  names, school days, who may use it) is an org setting with a default that
+  matches how other orgs work today, gated by the normal module/block
+  registry so any program can switch it on.
+- **Reuse before you build.** Before designing anything, search for the
+  feature that already does most of it (the reporter often does not know it
+  exists). If one exists, the answer is one of, in this order: (1) show them
+  how to use it, with a `/docs` page (step 4a); (2) tweak the existing
+  feature; (3) only then a new one. A second feature with high overlap
+  (a second attendance table, a second photo uploader, a second points
+  screen) is the bloat this rule exists to stop.
+- **A tweak must not break other orgs.** Before changing a shared feature,
+  find which orgs use it (query prod), and make the new behaviour opt-in or
+  a strict superset of the old. Pin the old behaviour with a test.
+
+Write the reuse finding in `triage_notes` ("Extends <feature> at <file>;
+no new table" or "Nothing similar exists: searched <x, y, z>") and put the
+plan in the step 2 list so Tanner sees the overlap call before you build.
+
 ### 3. Work each ticket
 
 1. `update bug_reports set status = 'fixing' where id = '...';` so the console
