@@ -2435,6 +2435,84 @@ class EmailService(BaseService):
             headers=headers,
         )
 
+    # The renderer for services/group_photo_service (ticket 85949de5). Like the
+    # digest it carries NO photo: the picture is a minor's, it lives in a
+    # private bucket, and a forwarded email would hand it to a stranger. The
+    # email says who added what, quotes the caption, and links to the app.
+
+    def send_child_photo_email(
+        self,
+        to_email: str,
+        parent_name: str,
+        coach_name: str,
+        org_name: str,
+        kind: str,
+        caption: str,
+        children: List[Dict[str, str]],
+        unsubscribe_url: Optional[str] = None,
+    ) -> bool:
+        """One parent's note about one capture. `children` is every child of
+        theirs tagged in it: [{name, url}], url being that child's journal on
+        the app host. `kind` is 'photo', 'video' or 'note'."""
+        names = [c['name'] for c in children]
+        joined = names[0] if len(names) == 1 else ', '.join(names[:-1]) + f' and {names[-1]}'
+        noun = {'photo': 'a new photo', 'video': 'a new video'}.get(kind, 'a note')
+        about = 'about' if noun == 'a note' else 'of'
+        subject = f'{coach_name} added {noun} {about} {joined} at {org_name}'
+
+        buttons = ''.join(
+            f'<p style="margin: 0 0 10px;"><a href="{escape(c["url"])}" style="display: inline-block; '
+            'background: linear-gradient(90deg, #6D469B 0%, #EF597B 100%); color: #ffffff; '
+            'text-decoration: none; padding: 12px 22px; border-radius: 8px; font-weight: bold; '
+            f'font-size: 15px;">See it in {escape(c["name"])}\'s journal</a></p>'
+            for c in children)
+        quote = (f'<blockquote style="margin: 0 0 18px; padding: 12px 16px; background: #f9fafb; '
+                 f'border-left: 4px solid #6D469B; border-radius: 6px; font-size: 15px; line-height: 1.6;">'
+                 f'{escape(caption)}</blockquote>') if caption else ''
+        html_body = f"""\
+<div style="font-family: Arial, Helvetica, sans-serif; max-width: 600px; margin: 0 auto; color: #1f2937;">
+  <div style="background: linear-gradient(90deg, #6D469B 0%, #EF597B 100%); padding: 24px; border-radius: 12px 12px 0 0;">
+    <p style="margin: 0; color: rgba(255,255,255,0.85); font-size: 13px; letter-spacing: 1px; text-transform: uppercase;">{escape(org_name)}</p>
+    <h1 style="margin: 6px 0 0; color: #ffffff; font-size: 22px;">{escape(subject)}</h1>
+  </div>
+  <div style="border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 12px 12px; padding: 24px;">
+    <p style="font-size: 16px; margin: 0 0 14px;">Hi {escape(parent_name)},</p>
+    <p style="font-size: 15px; line-height: 1.6; margin: 0 0 14px;">{escape(coach_name)} added {noun} {about} {escape(joined)} to {'their journals' if len(children) > 1 else 'their journal'}.</p>
+    {quote}
+    <p style="font-size: 15px; line-height: 1.6; margin: 0 0 18px;">Photos stay behind your login, so they are not in this email. Open the app to see it.</p>
+    {buttons}
+    <p style="font-size: 14px; line-height: 1.6; color: #6b7280; margin: 18px 0 0;">
+      You get this email when {escape(org_name)} adds a photo of your child.{
+        f' <a href="{unsubscribe_url}" style="color:#6b7280;">Stop these emails</a>.' if unsubscribe_url else ''
+      }
+    </p>
+  </div>
+</div>"""
+        text_body = (
+            f"Hi {parent_name},\n\n"
+            f"{coach_name} added {noun} {about} {joined} at {org_name}.\n\n"
+            + (f'"{caption}"\n\n' if caption else '')
+            + "Photos stay behind your login, so they are not in this email. See it in the app:\n"
+            + ''.join(f"{c['name']}: {c['url']}\n" for c in children)
+            + (f"\nStop these emails: {unsubscribe_url}\n" if unsubscribe_url else '')
+        )
+        headers = None
+        if unsubscribe_url:
+            headers = {
+                'List-Unsubscribe': f'<{unsubscribe_url}>',
+                'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
+            }
+        return self.send_email(
+            to_email=to_email,
+            subject=subject,
+            html_body=html_body,
+            text_body=text_body,
+            # Names a child and quotes their journal. Never copied to support.
+            contains_student_records=True,
+            categories=['transactional', 'child-photo'],
+            headers=headers,
+        )
+
 
 # Create singleton instance
 email_service = EmailService()

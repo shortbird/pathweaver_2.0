@@ -303,10 +303,11 @@ class TestTheRestOfThePayload:
         # it lost its SIS parent on 2026-09-07 (LMS-only schools run it).
         # Weekly goals and bounty management (2026-10-01) are opt-in too, so
         # they are reported off here. Prior learning is off too: this school
-        # does not issue Optio Academy diplomas (2026-10-07).
+        # does not issue Optio Academy diplomas (2026-10-07). Group photos
+        # (2026-10-13) is opt-in as well: it emails parents.
         assert data['settings'] == {
             'hidden_modules': ['billing', 'bloomy', 'bounty_management', 'clp', 'community',
-                               'points', 'prior_learning', 'weekly_goals'],
+                               'group_photos', 'points', 'prior_learning', 'weekly_goals'],
             'prior_learning_enabled': True,
             'post_registration_flow': 'goals',
         }

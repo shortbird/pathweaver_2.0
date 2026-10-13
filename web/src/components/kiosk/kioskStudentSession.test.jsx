@@ -15,12 +15,19 @@
  * 2026-10-13: no classes, and many young children with no quest at all).
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { render as rtlRender, screen, fireEvent, waitFor } from '@testing-library/react'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 
 const { api } = vi.hoisted(() => ({ api: { get: vi.fn(), post: vi.fn(), put: vi.fn() } }))
 vi.mock('../../services/api', () => ({ default: api }))
 
 import KioskStudentSession from './KioskStudentSession'
+
+// The Give points panel (ticket 0f401a62) reads through react-query.
+const render = (ui) => {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  return rtlRender(<QueryClientProvider client={client}>{ui}</QueryClientProvider>)
+}
 
 const dashboard = ({ active = [], assigned = [] } = {}) => ({
   data: { active_quests: active, assigned_class_quests: assigned },
@@ -256,5 +263,57 @@ describe('KioskStudentSession', () => {
         { description: 'Photo of my work' }))
       expect(await screen.findByText('Saved to your journal.')).toBeInTheDocument()
     })
+  })
+})
+
+/**
+ * Ticket 0f401a62 (Apogee Cache Valley): "we do have a studio leader each
+ * session that tracks points." A points helper who signs in on the tablet
+ * gets "Give points"; nobody else does, and a school without points is
+ * never asked.
+ */
+describe('KioskStudentSession give points', () => {
+  const helperBoard = {
+    success: true,
+    students: [{ student_id: 's2', name: 'Ben Kid', balance: 4 }],
+    buttons: [{ id: 'b1', label: 'Daily job', amount: 5 }],
+    max_amount: 10,
+    recent: [],
+  }
+
+  const serve = (isHelper) => api.get.mockImplementation((url) => {
+    if (url === '/api/users/dashboard') return Promise.resolve(dashboard())
+    if (url === '/api/sis/points/mine') {
+      return Promise.resolve({ data: { success: true, students: [{ student_id: 's1', is_helper: isHelper }] } })
+    }
+    if (url === '/api/sis/points/helper') return Promise.resolve({ data: helperBoard })
+    return Promise.resolve({ data: {} })
+  })
+
+  it('a helper opens Give points and gives a quick button', async () => {
+    serve(true)
+    api.post.mockResolvedValue({ data: { success: true } })
+    render(<KioskStudentSession studentName="Hal" onFinished={vi.fn()} pointsEnabled />)
+    fireEvent.click(await screen.findByText('Give points'))
+    fireEvent.click(await screen.findByLabelText('Select Ben Kid'))
+    fireEvent.click(screen.getByRole('button', { name: /Daily job \+5/ }))
+    await waitFor(() => expect(api.post).toHaveBeenCalledWith('/api/sis/points/helper/entries',
+      { student_ids: ['s2'], amount: 5, reason: 'Daily job' }))
+  })
+
+  it('a student who is not a helper sees no Give points', async () => {
+    serve(false)
+    render(<KioskStudentSession studentName="Ada" onFinished={vi.fn()} pointsEnabled />)
+    expect(await screen.findByText('Add to my journal')).toBeInTheDocument()
+    await waitFor(() => expect(api.get).toHaveBeenCalledWith('/api/sis/points/mine'))
+    expect(screen.queryByText('Give points')).not.toBeInTheDocument()
+  })
+
+  it('a school without points is never asked', async () => {
+    serve(true)
+    render(<KioskStudentSession studentName="Ada" onFinished={vi.fn()} />)
+    expect(await screen.findByText('Add to my journal')).toBeInTheDocument()
+    expect(api.get).not.toHaveBeenCalledWith('/api/sis/points/mine')
+    expect(screen.queryByText('Give points')).not.toBeInTheDocument()
   })
 })

@@ -15,6 +15,105 @@ logger = get_logger(__name__)
 
 ATTENDANCE_STATUSES = ('present', 'absent', 'late', 'excused')
 
+# ── Attendance settings (organizations.feature_flags.sis_settings.attendance) ─
+# Ticket 0680d03c (Apogee Cache Valley): "schoolwide daily attendance for
+# teachers" with Present / Absent (a reason box, no "Sick") / Picked Up, the
+# pickup time recorded automatically, school days Mon-Thu. Built generic: any
+# program with the attendance module can turn these on, and the defaults are
+# exactly how every school worked before the setting existed (no daily roll,
+# no check-out, all four statuses, Mon-Fri). No migration for the settings:
+# they ride the sis_settings blob and PATCH /api/sis/settings.
+SETTINGS_KEY = 'attendance'
+#: Present and Absent cannot be turned off: a roll without them is not a roll,
+#: and the class roll defaults every student to present.
+REQUIRED_STATUSES = ('present', 'absent')
+DEFAULT_SCHOOL_DAYS = (1, 2, 3, 4, 5)  # ISO weekdays, Monday = 1
+DAILY_ROLL_LABEL = 'Daily roll'
+NOTE_MAX = 500
+
+
+def default_attendance_settings() -> Dict[str, Any]:
+    return {'daily_roll': False, 'checkout': False,
+            'statuses': list(ATTENDANCE_STATUSES),
+            'school_days': list(DEFAULT_SCHOOL_DAYS)}
+
+
+def _clean_statuses(raw: Any) -> Optional[List[str]]:
+    if not isinstance(raw, list) or not all(isinstance(s, str) for s in raw):
+        return None
+    if any(s not in ATTENDANCE_STATUSES for s in raw):
+        return None
+    if any(s not in raw for s in REQUIRED_STATUSES):
+        return None
+    return [s for s in ATTENDANCE_STATUSES if s in raw]  # canonical order
+
+
+def _clean_days(raw: Any) -> Optional[List[int]]:
+    if not isinstance(raw, list) or not raw:
+        return None
+    if not all(isinstance(d, int) and not isinstance(d, bool) and 1 <= d <= 7 for d in raw):
+        return None
+    return sorted(set(raw))
+
+
+def parse_attendance_settings(raw: Any) -> Dict[str, Any]:
+    """A stored value as settings. Every missing or unreadable key reads as its
+    default, so a half-written blob never changes what an untouched school sees."""
+    out = default_attendance_settings()
+    if not isinstance(raw, dict):
+        return out
+    for key in ('daily_roll', 'checkout'):
+        if isinstance(raw.get(key), bool):
+            out[key] = raw[key]
+    statuses = _clean_statuses(raw.get('statuses'))
+    if statuses:
+        out['statuses'] = statuses
+    days = _clean_days(raw.get('school_days'))
+    if days:
+        out['school_days'] = days
+    return out
+
+
+def clean_attendance_settings(raw: Any):
+    """A submitted value for the settings PATCH: (cleaned, None) to store, or
+    (None, problem) to refuse it whole. None clears the setting (defaults)."""
+    if raw is None:
+        return None, None
+    if not isinstance(raw, dict):
+        return None, 'Attendance settings must be an object'
+    cleaned: Dict[str, Any] = {}
+    for key in ('daily_roll', 'checkout'):
+        if key in raw:
+            if not isinstance(raw[key], bool):
+                return None, f'{key} must be true or false'
+            cleaned[key] = raw[key]
+    if 'statuses' in raw:
+        statuses = _clean_statuses(raw['statuses'])
+        if not statuses:
+            return None, ('Statuses must be chosen from present, absent, late and '
+                          'excused, and must include present and absent')
+        cleaned['statuses'] = statuses
+    if 'school_days' in raw:
+        days = _clean_days(raw['school_days'])
+        if not days:
+            return None, 'Pick at least one school day'
+        cleaned['school_days'] = days
+    return cleaned, None
+
+
+def attendance_settings(org: Any) -> Dict[str, Any]:
+    """The org's attendance settings. `org` is an org id or an organizations
+    row with its feature_flags."""
+    if isinstance(org, dict):
+        flags = org.get('feature_flags') or {}
+    elif org:
+        from modules.enabled import org_flags
+        flags = org_flags(org) or {}
+    else:
+        flags = {}
+    sis = flags.get('sis_settings') if isinstance(flags, dict) else None
+    return parse_attendance_settings((sis or {}).get(SETTINGS_KEY) if isinstance(sis, dict) else None)
+
 
 # admin client justified: the SIS console acts for the whole school — this
 #   reads/writes rows belonging to every family in the org, which no single
@@ -270,6 +369,23 @@ def _record_unaccounted(org_id: str, class_id: str, on_date: str,
 # migration for this), and resolved_by stays NULL — no person decided it.
 AUTO_NOTE_TEACHER = 'Teacher changed the mark'
 AUTO_NOTE_PARENT = 'Parent reported the absence'
+AUTO_NOTE_REASON = 'Staff gave a reason on the daily roll'
+
+
+def _close_daily_alert(org_id: str, student_user_id: str, on_date: str, note: str) -> bool:
+    """Close the student's open 'unaccounted' alert for `on_date`, if any."""
+    from repositories.attendance_alert_repository import AttendanceAlertRepository
+    repo = AttendanceAlertRepository(client=_admin())
+    alert = repo.open_unaccounted(org_id, student_user_id, on_date)
+    if not alert:
+        return False
+    return repo.close_open(alert['id'], {
+        'status': 'resolved',
+        'resolution': 'other',
+        'resolution_note': note,
+        'resolved_by': None,
+        'resolved_at': _now(),
+    })
 
 
 def auto_resolve_if_accounted(org_id: str, student_user_id: str, on_date: str,
@@ -387,6 +503,13 @@ def resolve_alert(org_id: str, alert_id: str, resolution: str,
         }).eq('class_id', alert['class_id']) \
           .eq('student_user_id', alert['student_user_id']) \
           .eq('date', alert['date']).execute()
+    elif corrected_to:
+        # An alert the daily roll raised has no class (ticket 0680d03c): the
+        # correction lands on the student's daily row for that date. Bounded
+        # to the org, so an alert can only ever correct its own school's roll.
+        _daily_repo().correct_status(org_id, alert['student_user_id'], alert['date'],
+                                     {'status': corrected_to, 'note': None,
+                                      'updated_at': _now()})
 
     return {'alert': updated[0] if updated else dict(alert, **fields)}
 
@@ -404,10 +527,16 @@ def _notify_admins_of_absences(org_id: str, class_id: str, on_date: str,
     if not admin_ids:
         return 0
 
-    cls = (
-        _admin().table('org_classes').select('name').eq('id', class_id).limit(1).execute()
-    ).data
-    class_name = (cls[0].get('name') if cls else None) or 'a class'
+    # class_id None is the daily roll (ticket 0680d03c): there is no class to
+    # name, and the place to act on it is the daily roll page.
+    if class_id:
+        cls = (
+            _admin().table('org_classes').select('name').eq('id', class_id).limit(1).execute()
+        ).data
+        class_name = (cls[0].get('name') if cls else None) or 'a class'
+        where, link = f'in {class_name}', '/classes?tab=attendance'
+    else:
+        where, link = 'on the daily roll', '/attendance'
 
     users = (
         _admin().table('users')
@@ -421,10 +550,10 @@ def _notify_admins_of_absences(org_id: str, class_id: str, on_date: str,
         sis_notifications.notify(
             admin_id,
             'Student not accounted for',
-            f"{who} marked absent in {class_name} on {on_date} with no guardian report.",
+            f"{who} marked absent {where} on {on_date} with no guardian report.",
             # The attendance page is the thing to act on; '/' just reloaded a
             # dashboard (iCreate, 2026-08-26).
-            link='/classes?tab=attendance',
+            link=link,
             organization_id=org_id,
             metadata={'class_id': class_id, 'date': on_date, 'student_ids': student_ids},
         )
@@ -486,9 +615,13 @@ def daily_report(org_id: str, on_date: str) -> List[Dict[str, Any]]:
         if status == 'present' or (status not in ('absent', 'excused', 'late') and not has_plan):
             continue
         reason = (planned_by_class.get((sid, cid)) or planned_all_day.get(sid) or {}).get('reason')
+        # A daily-roll row has no class (ticket 0680d03c); the reason the
+        # staff typed on it is the reason when no guardian gave one.
+        if not cid and not reason:
+            reason = r.get('note')
         rows.append({
             'student': users.get(sid, 'Unnamed'),
-            'class': classes.get(cid, '—'),
+            'class': classes.get(cid, '—') if cid else DAILY_ROLL_LABEL,
             'status': status or 'not recorded',
             'excused': 'Excused' if (status == 'excused' or has_plan) else 'Unexcused',
             'reason': reason or '',
@@ -597,6 +730,9 @@ def student_day(org_id: str, student_user_id: str, on_date: str) -> Dict[str, An
         .eq('organization_id', org_id).eq('student_user_id', student_user_id)
         .eq('date', on_date).execute()
     ).data or []}
+    # The daily-roll mark (class_id NULL, ticket 0680d03c) is the day, not a
+    # class: it answers on its own key rather than as an "Unknown class" row.
+    daily_rec = recorded.pop(None, None)
 
     planned = {}
     for p in (admin.table('student_planned_absences').select('*')
@@ -652,7 +788,212 @@ def student_day(org_id: str, student_user_id: str, on_date: str) -> Dict[str, An
         'student_name': student_name,
         'date': on_date,
         'classes': entries,
+        'daily': ({'status': daily_rec.get('status'), 'note': daily_rec.get('note'),
+                   'arrived_at': daily_rec.get('arrived_at'),
+                   'departed_at': daily_rec.get('departed_at')}
+                  if daily_rec else None),
         'counts': counts,
         'not_taken': sum(1 for e in entries
                          if e['status'] is None and not e['attendance_optional']),
     }
+
+
+# ── Daily roll (class_id NULL) ───────────────────────────────────────────────
+# Ticket 0680d03c (Apogee Cache Valley): one whole-school roll a day, for a
+# school that does not run classes in Optio. Same table as the class roll: a
+# row with class_id NULL is the student's daily mark for that date, unique per
+# student per date (UNIQUE NULLS NOT DISTINCT, migration 20261013233000). Only
+# reachable when sis_settings.attendance.daily_roll is on; record() and every
+# class path above never write or read a NULL-class row.
+#
+# Present or late stamps arrived_at the first time; "Picked up" is departed_at
+# on a present or late row (checkout_daily); absent or excused clears both.
+_ARRIVED = ('present', 'late')
+
+
+def _daily_repo():
+    from repositories.sis_daily_roll_repository import SisDailyRollRepository
+    return SisDailyRollRepository(client=_admin())
+
+
+def daily_roster(org_id: str) -> List[Dict[str, Any]]:
+    """The school's current students, the rule the People and Students pages
+    follow (sis_service.current_students: org students, withdrawn and graduated
+    left out). Not school_enrollments 'enrolled' alone: a school that never
+    used registration (Apogee) has no enrollment rows at all."""
+    from services import sis_service
+    users = sis_service.current_students(org_id)
+    age = sis_age.ages_for(org_id)
+    out = [{'student_user_id': u['id'], 'name': _student_name(u),
+            'age': age(u.get('date_of_birth'))} for u in users]
+    out.sort(key=lambda s: s['name'].lower())
+    return out
+
+
+def _daily_rows(org_id: str, on_date: str) -> Dict[str, Dict[str, Any]]:
+    """The day's daily-roll rows by student. Paged: one row per student in the
+    school, which passes the PostgREST cap at a big enough school."""
+    return _daily_repo().rows_for_day(org_id, on_date)
+
+
+def _daily_entry(student: Dict[str, Any], rec: Optional[Dict[str, Any]],
+                 planned: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+    rec = rec or {}
+    return {
+        **student,
+        'status': rec.get('status'),
+        'note': rec.get('note'),
+        'arrived_at': rec.get('arrived_at'),
+        'departed_at': rec.get('departed_at'),
+        'planned_absence': planned,
+    }
+
+
+def get_daily(org_id: str, on_date: str) -> List[Dict[str, Any]]:
+    """Every current student with their daily mark for the date (status None =
+    not marked yet), arrival and pickup times, and a guardian's whole-day
+    report when there is one (the same annotation get_for_date gives a class)."""
+    from services import sis_planned_absence_service as planned
+    students = daily_roster(org_id)
+    rows = _daily_rows(org_id, on_date)
+    reported = planned.for_whole_day(org_id, on_date)
+    return [_daily_entry(s, rows.get(s['student_user_id']), reported.get(s['student_user_id']))
+            for s in students]
+
+
+def _clean_note(raw: Any) -> Optional[str]:
+    if not isinstance(raw, str):
+        return None
+    return raw.strip()[:NOTE_MAX] or None
+
+
+def record_daily(org_id: str, on_date: str, entries: List[Dict[str, Any]],
+                 recorded_by: str, statuses: Optional[Iterable[str]] = None) -> Dict[str, Any]:
+    """Upsert daily-roll marks for a set of students on a date.
+
+    Only the school's current students are written (anyone else is listed in
+    `refused`), and only the org's statuses (`statuses`, default all four).
+    The accountability rule is the class roll's: a student newly marked absent
+    with no whole-day guardian report raises the 'unaccounted' alert and tells
+    the office; moving off absent closes it when nothing else says missing.
+    """
+    allowed = set(statuses or ATTENDANCE_STATUSES)
+    roster_ids = {s['student_user_id'] for s in daily_roster(org_id)}
+    prior = _daily_rows(org_id, on_date)
+
+    now = _now()
+    payloads, refused, seen = [], [], set()
+    for e in entries or []:
+        status = e.get('status')
+        sid = e.get('student_user_id')
+        if status not in ATTENDANCE_STATUSES or status not in allowed or not sid or sid in seen:
+            continue
+        seen.add(sid)
+        if sid not in roster_ids:
+            refused.append(sid)
+            continue
+        before = prior.get(sid) or {}
+        was_here = before.get('status') in _ARRIVED
+        if status in _ARRIVED:
+            arrived = (before.get('arrived_at') if was_here else None) or now
+            departed = before.get('departed_at') if was_here else None
+            departed_by = before.get('departed_by') if was_here else None
+        else:
+            arrived = departed = departed_by = None
+        payloads.append({
+            'organization_id': org_id,
+            'class_id': None,
+            'student_user_id': sid,
+            'date': on_date,
+            'status': status,
+            'note': _clean_note(e.get('note')),
+            'arrived_at': arrived,
+            'departed_at': departed,
+            'departed_by': departed_by,
+            'recorded_by': recorded_by,
+            'updated_at': now,
+        })
+
+    saved = []
+    if payloads:
+        saved = _daily_repo().upsert(payloads)
+
+    newly_absent = [p['student_user_id'] for p in payloads
+                    if p['status'] == 'absent'
+                    and (prior.get(p['student_user_id']) or {}).get('status') != 'absent']
+    # A reason typed by staff means the school knows where the child is, so it
+    # accounts for the absence the way a guardian report does. Apogee (ticket
+    # 0680d03c) asked for "a comment box on Absent ... to note the reason"
+    # instead of a Sick status; alerting every admin about a child the coach
+    # just explained would be noise.
+    explained = {p['student_user_id'] for p in payloads
+                 if p['status'] == 'absent' and p['note']}
+    unaccounted = []
+    if newly_absent:
+        from services import sis_planned_absence_service as planned
+        try:
+            covered = planned.for_whole_day(org_id, on_date)
+        except Exception as e:  # noqa: BLE001 — the save must not fail here;
+            # and when in doubt, a false alert beats a missed student.
+            logger.error(f'Planned-absence lookup failed during record_daily(): {e}')
+            covered = {}
+        unaccounted = [sid for sid in newly_absent if sid not in covered
+                       and sid not in explained]
+    _record_unaccounted(org_id, None, on_date, unaccounted)
+    admins_notified = _notify_admins_of_absences(org_id, None, on_date, unaccounted)
+
+    auto_resolved = 0
+    for p in payloads:
+        before = prior.get(p['student_user_id']) or {}
+        if p['status'] == 'absent' and p['note'] and before.get('status') == 'absent' \
+                and not before.get('note'):
+            # The coach tapped Absent first and typed the reason after.
+            try:
+                if _close_daily_alert(org_id, p['student_user_id'], on_date, AUTO_NOTE_REASON):
+                    auto_resolved += 1
+            except Exception as e:  # noqa: BLE001 — the save must not fail here
+                logger.warning(f'Alert close on reason failed during record_daily(): {e}')
+        if p['status'] != 'absent' and before.get('status') == 'absent':
+            try:
+                if auto_resolve_if_accounted(org_id, p['student_user_id'], on_date,
+                                             AUTO_NOTE_TEACHER):
+                    auto_resolved += 1
+            except Exception as e:  # noqa: BLE001 — the save must not fail here
+                logger.warning(f'Alert auto-resolve failed during record_daily(): {e}')
+
+    return {'saved': saved, 'count': len(saved), 'refused': refused,
+            'absences_flagged': len(unaccounted), 'admins_notified': admins_notified,
+            'alerts_auto_resolved': auto_resolved}
+
+
+def _daily_row(org_id: str, on_date: str, student_user_id: str) -> Optional[Dict[str, Any]]:
+    return _daily_repo().row(org_id, on_date, student_user_id)
+
+
+def checkout_daily(org_id: str, on_date: str, student_user_id: str,
+                   actor_id: str) -> Dict[str, Any]:
+    """Record that a student was picked up: departed_at = now, departed_by =
+    who tapped it. Only on a present or late row (a student who never arrived
+    cannot be picked up). Tapping it twice keeps the first time."""
+    rec = _daily_row(org_id, on_date, student_user_id)
+    if not rec or rec.get('status') not in _ARRIVED:
+        return {'error': 'Mark the student present before they are picked up', 'status': 400}
+    if rec.get('departed_at'):
+        return {'record': rec}
+    fields = {'departed_at': _now(), 'departed_by': actor_id,
+              'recorded_by': actor_id, 'updated_at': _now()}
+    updated = _daily_repo().update_row(rec['id'], fields)
+    return {'record': updated or {**rec, **fields}}
+
+
+def undo_checkout_daily(org_id: str, on_date: str, student_user_id: str,
+                        actor_id: str) -> Dict[str, Any]:
+    """Take a pickup back (tapped on the wrong student): clears the time and
+    who recorded it. The present mark and its arrival time stay."""
+    rec = _daily_row(org_id, on_date, student_user_id)
+    if not rec:
+        return {'error': 'No daily roll mark for this student on this date', 'status': 404}
+    fields = {'departed_at': None, 'departed_by': None,
+              'recorded_by': actor_id, 'updated_at': _now()}
+    updated = _daily_repo().update_row(rec['id'], fields)
+    return {'record': updated or {**rec, **fields}}

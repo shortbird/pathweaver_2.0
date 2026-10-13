@@ -1062,7 +1062,8 @@
         ],
         "web": [
           "pages/sis/PointsPage.jsx",
-          "pages/FamilyPointsPage.jsx"
+          "pages/FamilyPointsPage.jsx",
+          "components/points/GivePointsPanel.jsx"
         ]
       },
       "forbid": {
@@ -1081,7 +1082,7 @@
       },
       "measured": "2026-10-08",
       "lowered_by": "new concept (Apogee Cache Valley, 2026-10-08)",
-      "use_instead": "PointsService (board, add, undo, save_buttons, history, mine, award_bounty); the one writer of entries is POST /api/sis/points/entries, and a bounty's points arrive through BountyService._award_bounty_rewards."
+      "use_instead": "PointsService (board, add, undo, save_buttons, history, mine, award_bounty); staff write entries through POST /api/sis/points/entries, a student their own through POST /mine, a points helper (sis_settings.point_helper_ids, ticket 0f401a62) other students' through POST /helper/entries (the GivePointsPanel on web and the tablet), and a bounty's points arrive through BountyService._award_bounty_rewards."
     },
     {
       "id": "external_learning_sync",

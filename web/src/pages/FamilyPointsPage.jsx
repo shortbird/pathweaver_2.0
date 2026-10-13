@@ -4,6 +4,7 @@ import Button from '../components/ui/Button'
 import { INLINE_INPUT_CLASS } from '../components/ui/Input'
 import { signed } from './sis/PointsPage'
 import { useAddMyPoints, useMyPoints } from '../hooks/api/useSisPoints'
+import GivePointsPanel from '../components/points/GivePointsPanel'
 
 /**
  * School points, as a student or their parent sees them: the balance now and
@@ -11,6 +12,11 @@ import { useAddMyPoints, useMyPoints } from '../hooks/api/useSisPoints'
  * 910668d8): they count at once, up to a daily cap, and a coach can take them
  * away in the SIS console (pages/sis/PointsPage). A parent reads each child's
  * points and cannot add.
+ *
+ * A points helper (ticket 0f401a62: "we do have a studio leader each session
+ * that tracks points") also gets a "Give points" tab: the student the admins
+ * named on the staff Points page gives points to other students from here.
+ * The server says who is a helper (is_helper on the student's own row).
  */
 
 const AddMyPoints = ({ student }) => {
@@ -58,15 +64,33 @@ const fmtDay = (iso) => new Date(iso).toLocaleDateString(undefined, { month: 'sh
 const FamilyPointsPage = () => {
   const mine = useMyPoints()
   const students = mine.isError ? [] : (mine.data ?? null)
+  const [tab, setTab] = useState('mine')
+  const isHelper = Boolean(students?.some((s) => s.is_helper))
 
   if (students === null) return <p className="text-neutral-500 p-4">Loading…</p>
   if (students.length === 0) {
     return <p className="text-neutral-500 p-4">No points yet. Staff give points for school jobs.</p>
   }
 
+  const tabClass = (on) => `px-4 py-2 text-sm font-semibold rounded-lg ${
+    on ? 'bg-optio-purple text-white' : 'bg-white text-neutral-700 border border-gray-200'}`
+
   return (
     <div className="space-y-8">
-      {students.map((s) => (
+      {isHelper && (
+        <div className="flex gap-2" role="tablist" aria-label="Points">
+          <button type="button" role="tab" aria-selected={tab === 'mine'} className={tabClass(tab === 'mine')}
+            onClick={() => setTab('mine')}>
+            My points
+          </button>
+          <button type="button" role="tab" aria-selected={tab === 'give'} className={tabClass(tab === 'give')}
+            onClick={() => setTab('give')}>
+            Give points
+          </button>
+        </div>
+      )}
+      {isHelper && tab === 'give' && <GivePointsPanel />}
+      {!(isHelper && tab === 'give') && students.map((s) => (
         <section key={s.student_id}>
           {students.length > 1 && <h2 className="text-lg font-bold text-neutral-900 mb-3">{s.name}</h2>}
           <div className="bg-white rounded-xl border border-gray-200 p-4 mb-3 flex flex-wrap items-baseline gap-x-6 gap-y-1">
@@ -85,6 +109,7 @@ const FamilyPointsPage = () => {
                     <span className="block text-sm text-neutral-900 truncate">{e.reason}</span>
                     <span className="block text-xs text-neutral-500">
                       {fmtDay(e.created_at)}{e.added_by_student ? (s.can_add ? ' · added by you' : ' · added by the student') : ''}
+                      {e.given_by_student && e.created_by_name ? ` · given by ${e.created_by_name}` : ''}
                     </span>
                   </span>
                   <span className={`text-sm font-semibold ${e.amount > 0 ? 'text-green-700' : 'text-amber-700'}`}>

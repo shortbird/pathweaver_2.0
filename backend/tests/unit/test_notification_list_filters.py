@@ -27,7 +27,8 @@ from services.notification_service import (
 )
 from utils.validation.sanitizers import pgrst_pattern
 
-# The notifications.type CHECK constraint on prod, 2026-09-28.
+# The notifications.type CHECK constraint on prod, 2026-09-28, plus
+# 'child_photo_added' (supabase/migrations/20261013231000_group_photos.sql).
 CHECK_TYPES = {
     'quest_invitation', 'quest_started', 'task_approved', 'task_revision_requested',
     'announcement', 'observer_comment', 'observer_like', 'badge_earned',
@@ -42,6 +43,7 @@ CHECK_TYPES = {
     'peer_connection_approved', 'peer_connection_declined', 'peer_comment',
     'peer_friend_added', 'peer_reaction', 'peer_text_held', 'class_quest_assigned',
     'child_task_reviewed', 'class_work_reminder', 'school_notice',
+    'child_photo_added',
 }
 
 

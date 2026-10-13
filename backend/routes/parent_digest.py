@@ -1,4 +1,5 @@
-"""Weekly parent digest: the cron trigger, and the unsubscribe a parent can use.
+"""Weekly parent digest: the cron trigger, and the unsubscribe a parent can use
+(for the digest, and with kind=photos for the group-photo email).
 
 Public (the signed token is the whole authorization — services/parent_digest_links):
   GET  /api/parent-digest/unsubscribe?token=   minimal HTML confirm page
@@ -50,20 +51,38 @@ def _repo() -> ParentDigestRepository:
     return ParentDigestRepository(client=get_supabase_admin_client())
 
 
+# What the confirm and done pages say per kind (services/parent_digest_links
+# KINDS). The digest's copy is unchanged.
+_COPY = {
+    'digest': ('Stop the weekly digest?', 'You will not receive the weekly digest again.'),
+    'photos': ('Stop photo emails?',
+               'You will not get an email when the school adds a photo of your child. '
+               'The photos still go into their journal.'),
+}
+
+
+def _kind() -> str:
+    kind = (request.args.get('kind') or request.form.get('kind')
+            or (request.get_json(silent=True) or {}).get('kind') or 'digest').strip()
+    return kind if kind in _COPY else ''
+
+
 @bp.route('/unsubscribe', methods=['GET'])
 @rate_limit(max_requests=30, window_seconds=3600)
 def unsubscribe_confirm():
     """Confirm page. GET never mutates — mail scanners prefetch every link in a
     message, and a GET that unsubscribed would opt families out silently."""
     token = (request.args.get('token') or '').strip()
-    if not parent_digest_links.user_id_from_token(token):
+    kind = _kind()
+    if not kind or not parent_digest_links.user_id_from_token(token, kind):
         return _PAGE.format(body='<p>This link is not valid.</p>'), 404
     return _PAGE.format(body=(
-        '<h2 style="margin:0 0 12px;">Stop the weekly digest?</h2>'
+        f'<h2 style="margin:0 0 12px;">{_COPY[kind][0]}</h2>'
         '<p style="color:#6b7280;">You will still receive messages your school '
         'sends you directly.</p>'
         '<form method="POST" action="/api/parent-digest/unsubscribe">'
         f'<input type="hidden" name="token" value="{escape(token)}">'
+        f'<input type="hidden" name="kind" value="{escape(kind)}">'
         '<button type="submit" style="margin-top:16px;padding:12px 28px;border:0;'
         'border-radius:8px;background:linear-gradient(90deg,#6D469B,#EF597B);'
         'color:#fff;font-size:15px;cursor:pointer;">Stop these emails</button></form>'
@@ -73,26 +92,30 @@ def unsubscribe_confirm():
 @bp.route('/unsubscribe', methods=['POST'])
 @rate_limit(max_requests=30, window_seconds=3600)
 def unsubscribe_perform():
-    """Turns the digest off for the user the token names.
+    """Turns one email off for the user the token names: the digest, or (with
+    kind=photos) the note that a photo of their child was added.
 
     Serves both the confirm-page form and the one-click POST a mail client makes
     from the List-Unsubscribe-Post header, which carries no session at all.
     """
     token = (request.args.get('token') or request.form.get('token')
              or (request.get_json(silent=True) or {}).get('token') or '').strip()
-    user_id = parent_digest_links.user_id_from_token(token)
+    kind = _kind()
+    user_id = parent_digest_links.user_id_from_token(token, kind) if kind else None
     if not user_id:
         return _PAGE.format(body='<p>This link is not valid.</p>'), 404
+    preference = (digest.NOTIFICATION_TYPE if kind == 'digest'
+                  else parent_digest_links.preference_type(kind))
     try:
-        _repo().set_preference(user_id, digest.NOTIFICATION_TYPE, False)
+        _repo().set_preference(user_id, preference, False)
     except Exception as e:  # noqa: BLE001 — tell the parent the truth if it failed
-        logger.error(f'digest unsubscribe failed for {user_id[:8]}: {e}')
+        logger.error(f'{kind} unsubscribe failed for {user_id[:8]}: {e}')
         return _PAGE.format(body=(
             '<p>Something went wrong. Please reply to the email and we will '
             'take you off the list.</p>')), 500
     return _PAGE.format(body=(
         '<h2 style="margin:0 0 12px;">Done</h2>'
-        '<p style="color:#6b7280;">You will not receive the weekly digest again. '
+        f'<p style="color:#6b7280;">{_COPY[kind][1]} '
         'Messages your school sends you directly are unaffected.</p>'
     ))
 

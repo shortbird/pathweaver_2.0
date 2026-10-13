@@ -1,6 +1,7 @@
 import { isSisAdmin, canSeeFinance, canSeeHr } from './sisRole'
 import { getPreviewTeacher } from './teacherPreview'
 import { isPathHidden } from './sisModules'
+import { dailyRollOn } from './attendanceSettings'
 
 /**
  * Who may be OFFERED a console destination.
@@ -13,6 +14,7 @@ import { isPathHidden } from './sisModules'
  *
  * Flags an item may carry (see NAV_SECTIONS for what each means):
  *   superadmin, adminOnly, teacherOnly, hideInPreview, financeOnly, hrOnly,
+ *   dailyRollOnly,
  *   and `path`, whose module may be off for the org (sisModules).
  *
  * Whether a page exists for a school is its module and nothing else
@@ -48,6 +50,9 @@ export function navItemVisible(item, ctx) {
   if (item.hideInPreview && previewing) return false
   if (item.financeOnly && !seesFinance) return false
   if (item.hrOnly && !seesHr) return false
+  // The daily roll entry exists only where the school's daily_roll setting
+  // is on (sis_settings.attendance, ticket 0680d03c).
+  if (item.dailyRollOnly && !dailyRollOn(activeOrg)) return false
   // The item's building-block module is off for this org (explicit
   // feature_flags.modules entry, or its legacy flag) -- one evaluator covers
   // the opt-outs and the opt-ins alike.

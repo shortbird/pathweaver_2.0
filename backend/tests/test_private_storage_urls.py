@@ -871,6 +871,9 @@ class TestSignedUrlsAreNeverPersisted:
             'backend/routes/helper_evidence.py': 'PortfolioService.canonical_block_content',
             'backend/routes/parent/learning_moments.py': 'canonical_stored_url',
             'backend/routes/advisor/learning_moments.py': 'canonical_stored_url',
+            # Group photos (85949de5): the SIS Photos page and Treehouse's
+            # Capture tab both write through this service.
+            'backend/services/group_photo_service.py': 'canonical_stored_url',
         }
         for rel, needle in checks.items():
             source = (REPO_ROOT / rel).read_text(encoding='utf-8')

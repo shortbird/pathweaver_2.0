@@ -2513,14 +2513,21 @@ def households_with_members(org_id: str) -> List[Dict[str, Any]]:
     return households
 
 
+def current_students(org_id: str) -> List[Dict[str, Any]]:
+    """The school's current students as user rows: withdrawn and graduated
+    left out, the rule the People and Students pages follow. Both reads page,
+    so a school past 1000 accounts still gets every student."""
+    enrollments = _enrollments_by_student(org_id)
+    return [
+        u for u in _org_students(org_id)
+        if (enrollments.get(u['id']) or {}).get('status') not in INACTIVE_ENROLLMENT_STATUSES
+    ]
+
+
 def current_student_ids(org_id: str) -> set:
     """Ids of the school's current students: withdrawn and graduated left
     out, the rule the People and Students pages follow."""
-    enrollments = _enrollments_by_student(org_id)
-    return {
-        u['id'] for u in _org_students(org_id)
-        if (enrollments.get(u['id']) or {}).get('status') not in INACTIVE_ENROLLMENT_STATUSES
-    }
+    return {u['id'] for u in current_students(org_id)}
 
 
 def students_for_individual_work(org_id: str) -> List[Dict[str, Any]]:

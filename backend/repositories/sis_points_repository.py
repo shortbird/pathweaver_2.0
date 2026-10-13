@@ -83,6 +83,23 @@ class SisPointsRepository(BaseRepository):
                 .gte('created_at', since_iso)
                 .execute()).data or []
 
+    def given_by(self, org_id: str, giver_id: str, limit: int) -> List[Dict[str, Any]]:
+        """The newest entries a points helper gave other students (ticket
+        0f401a62); their own additions are excluded. Limited, a short list."""
+        return (self.client.table(self.table_name).select('*')
+                .eq('organization_id', org_id)
+                .eq('created_by', giver_id)
+                .neq('student_user_id', giver_id)
+                .order('created_at', desc=True)
+                .limit(limit).execute()).data or []
+
+    def org_feature_flags(self, org_id: str) -> Dict[str, Any]:
+        """The org's feature_flags blob, for the points helper list."""
+        rows = (self.client.table('organizations').select('feature_flags')
+                .eq('id', org_id).limit(1).execute()).data
+        flags = rows[0].get('feature_flags') if rows else None
+        return flags if isinstance(flags, dict) else {}
+
     def org_timezone(self, org_id: str) -> Optional[str]:
         rows = (self.client.table('organizations').select('timezone')
                 .eq('id', org_id).limit(1).execute()).data

@@ -15,6 +15,7 @@ import FriendsCard from './cards/FriendsCard'
 import StudentChatCard from './cards/StudentChatCard'
 import FeaturesCard from './cards/FeaturesCard'
 import TaskXpFloorCard from './cards/TaskXpFloorCard'
+import AttendanceSettingsCard from './cards/AttendanceSettingsCard'
 import { moduleEnabled } from '../modules/moduleEnabled'
 
 /**
@@ -83,6 +84,10 @@ export const SETTINGS_CARDS = [
   // The smallest XP one of the school's own tasks may be worth (ticket
   // a6f7b429). Both surfaces: every school authors quests, console or not.
   { key: 'task-xp-floor', surfaces: ['console', 'learning'], Component: TaskXpFloorCard },
+  // How the school takes attendance: the whole-school daily roll, pickup
+  // check-out, which statuses, which weekdays (ticket 0680d03c). Console
+  // only: every attendance screen is in the SIS.
+  { key: 'attendance', module: 'attendance', surfaces: ['console'], Component: AttendanceSettingsCard },
 ]
 
 export function settingsCardsFor({ surface, org, seesFinance }) {

@@ -73,6 +73,7 @@ FEATURES: Dict[str, Tuple[str, str, str]] = {
     'bounty_management': ('teaching', 'School bounties', 'Staff post bounties for students and review what they turn in.'),
     'weekly_goals': ('teaching', 'Weekly goals', 'Coaches set goals with each student every week and check on them.'),
     'points': ('teaching', 'Points', 'Staff give students points for school jobs and take them for perks.'),
+    'group_photos': ('teaching', 'Group photos', "Staff take a photo, tap each student in it, and it goes into each student's journal with a note to their parents."),
     'registration': ('families', 'Registration', 'Families apply and enroll online, with waitlists and age limits.'),
     'catalog': ('families', 'Class catalog', 'Show your classes on your website so families can browse them.'),
     'onboarding': ('families', 'New family checklist', 'New families fill in forms and sign documents before they start.'),

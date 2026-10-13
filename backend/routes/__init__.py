@@ -462,6 +462,10 @@ def register_all(app):
     # A student's credit bank on their SIS record (routes/sis/credit_bank.py).
     from routes.sis import credit_bank
     app.register_blueprint(credit_bank.bp)
+    # Group photos: tag every student in a picture; its own blueprint with
+    # its own module tag (routes/sis/photos.py, ticket 85949de5).
+    from routes.sis import photos as sis_photos
+    app.register_blueprint(sis_photos.bp)
 
     # ── Public embeddable widgets (org catalog/schedule for external sites) ────
     from routes import embed

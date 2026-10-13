@@ -61,6 +61,8 @@ export const SIS_MODULE_BY_PATH = {
   '/family-goals': 'goals',
   '/weekly-goals': 'weekly_goals',
   '/points': 'points',
+  // Group photos (ticket 85949de5): tag every student in a picture.
+  '/photos': 'group_photos',
   '/bounties': 'bounty_management',
   '/bloomy': 'bloomy',
 }

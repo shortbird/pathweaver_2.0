@@ -126,6 +126,8 @@ const NotificationDetailModal = ({ notification, isOpen, onClose }) => {
         return 'Announcement'
       case 'school_notice':
         return 'From the school'
+      case 'child_photo_added':
+        return 'Photo from school'
       case 'badge_earned':
         return 'Badge Earned'
       case 'task_approved':

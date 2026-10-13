@@ -12,6 +12,7 @@ import { RollStatus, SubstituteControl } from '../../../components/sis/RollStatu
 import { isSisAdmin } from '../sisRole'
 import { statusTone } from '../../../components/sis/ui/statusMaps'
 import { INLINE_INPUT_CLASS } from '../../../components/ui/Input'
+import { attendanceSettingsFor, rollStatuses } from '../attendanceSettings'
 
 /**
  * Attendance — optimized for a teacher taking roll. Their assigned classes are
@@ -22,7 +23,9 @@ import { INLINE_INPUT_CLASS } from '../../../components/ui/Input'
  * TeacherClassPage and the backend's ATTENDANCE_STATUSES.
  */
 
-const ATT_STATUSES = ['present', 'absent', 'late', 'excused']
+// The buttons are the school's statuses (sis_settings.attendance.statuses,
+// ticket 0680d03c); the default is all four, so a school that never set it
+// sees exactly these, as before.
 const CARD = {
   present: 'border-gray-200 bg-white hover:border-neutral-300',
   absent: 'border-red-300 bg-red-50',
@@ -40,7 +43,10 @@ const today = () => {
 
 export default function AttendancePanel() {
   const { user } = useAuth()
-  const { orgId } = useSisOrg()
+  const { orgId, activeOrg } = useSisOrg()
+  // A guardian-reported student defaults to excused, or absent where the
+  // school turned excused off.
+  const excusedOn = attendanceSettingsFor(activeOrg).statuses.includes('excused')
   const [classes, setClasses] = useState([])
   const [classId, setClassId] = useState('')
   const [date, setDate] = useState(today())
@@ -102,14 +108,14 @@ export default function AttendancePanel() {
         // then reflected in every class for the day so the teachers don't have
         // to figure it out?" It was a label only, and untouched roll saved the
         // child present. A status already recorded loads in and wins.
-        setRoster(rows.map((s) => ({ ...s, mark: s.status || (s.planned_absence ? 'excused' : 'present') })))
+        setRoster(rows.map((s) => ({ ...s, mark: s.status || (s.planned_absence ? (excusedOn ? 'excused' : 'absent') : 'present') })))
         setAlreadyTaken(rows.some((s) => s.status != null))
         setSession(r.data?.session || null)
         setDirty(false)
       })
       .catch(() => toast.error('Failed to load roster'))
       .finally(() => setLoading(false))
-  }, [orgId, classId, date])
+  }, [orgId, classId, date, excusedOn])
 
   useEffect(() => { loadRoster() }, [loadRoster])
 
@@ -338,7 +344,7 @@ export default function AttendancePanel() {
                   )}
                 </span>
                 <span className="flex gap-1 shrink-0">
-                  {ATT_STATUSES.map((st) => (
+                  {rollStatuses(activeOrg, s.mark).map((st) => (
                     <button
                       key={st}
                       aria-label={st.charAt(0).toUpperCase() + st.slice(1)}

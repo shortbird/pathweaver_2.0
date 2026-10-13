@@ -195,3 +195,102 @@ def resolve_attendance_alert(user_id, alert_id):
     if result.get('error'):
         return jsonify({'success': False, 'error': result['error']}), 400
     return jsonify({'success': True, **result})
+
+
+# ── Daily roll (ticket 0680d03c) ─────────────────────────────────────────────
+# One whole-school roll a day, for a school that does not take attendance by
+# class. STAFF_ROLES: at Apogee the coaches (advisors) take it on their
+# phones. The blueprint's module_guard already holds every route here behind
+# the attendance module; these also answer 404 while the school's daily_roll
+# setting is off, so a school that never turned it on cannot write a NULL-class
+# row by hand.
+
+def _daily_gate(user_id, need_checkout=False):
+    """(org_id, settings, None) or (None, None, error response)."""
+    org_id, err = sis_service.org_or_error(user_id)
+    if err:
+        return None, None, err
+    settings = attendance.attendance_settings(org_id)
+    if not settings['daily_roll']:
+        return None, None, (jsonify({'success': False,
+                                     'error': 'The daily roll is not turned on for this school'}), 404)
+    if need_checkout and not settings['checkout']:
+        return None, None, (jsonify({'success': False,
+                                     'error': 'Pickup check-out is not turned on for this school'}), 404)
+    return org_id, settings, None
+
+
+def _iso_date(raw):
+    from datetime import date as _date
+    try:
+        return _date.fromisoformat(str(raw)[:10]).isoformat() if raw else None
+    except ValueError:
+        return None
+
+
+def _org_today(org_id):
+    from services.sis_attendance_sweep_service import org_today
+    return org_today(org_id).isoformat()
+
+
+@bp.route('/attendance/daily', methods=['GET'])
+@require_role(*STAFF_ROLES)
+def get_daily_roll(user_id):
+    """Every current student with their daily mark for ?date=YYYY-MM-DD, plus
+    the school's attendance settings and its own today (pickup is today only)."""
+    org_id, settings, err = _daily_gate(user_id)
+    if err:
+        return err
+    on_date = _iso_date(request.args.get('date'))
+    if not on_date:
+        return jsonify({'success': False, 'error': 'date query param is required (YYYY-MM-DD)'}), 400
+    return jsonify({'success': True, 'date': on_date, 'today': _org_today(org_id),
+                    'settings': settings,
+                    'roster': attendance.get_daily(org_id, on_date)})
+
+
+@bp.route('/attendance/daily', methods=['POST'])
+@require_role(*STAFF_ROLES)
+def record_daily_roll(user_id):
+    """{date, entries: [{student_user_id, status, note?}]}. One tap is one
+    entry; a whole-roster save works the same way."""
+    org_id, settings, err = _daily_gate(user_id)
+    if err:
+        return err
+    data = request.get_json(silent=True) or {}
+    on_date = _iso_date(data.get('date'))
+    entries = data.get('entries')
+    if not on_date:
+        return jsonify({'success': False, 'error': 'date is required (YYYY-MM-DD)'}), 400
+    if not isinstance(entries, list) or not entries:
+        return jsonify({'success': False, 'error': 'entries (list) is required'}), 400
+    result = attendance.record_daily(org_id, on_date, entries, recorded_by=user_id,
+                                     statuses=settings['statuses'])
+    return jsonify({'success': True, **result})
+
+
+@bp.route('/attendance/daily/<student_id>/checkout', methods=['POST', 'DELETE'])
+@require_role(*STAFF_ROLES)
+@require_relationship_to('student_id', allow=('org_staff',), discloses='attendance')
+def daily_checkout(user_id, student_id):
+    """POST: the student was picked up, now. DELETE: take it back.
+    {date} in the body (POST) or ?date= (either). Pickup is recorded for the
+    school's today only: the time is the moment of the tap, so a pickup on
+    another date would carry a time that never happened."""
+    org_id, _settings, err = _daily_gate(user_id, need_checkout=True)
+    if err:
+        return err
+    body = request.get_json(silent=True) or {}
+    on_date = _iso_date(body.get('date') or request.args.get('date'))
+    if not on_date:
+        return jsonify({'success': False, 'error': 'date is required (YYYY-MM-DD)'}), 400
+    if request.method == 'POST':
+        if on_date != _org_today(org_id):
+            return jsonify({'success': False,
+                            'error': 'A pickup can only be recorded on the day it happens'}), 400
+        result = attendance.checkout_daily(org_id, on_date, student_id, actor_id=user_id)
+    else:
+        result = attendance.undo_checkout_daily(org_id, on_date, student_id, actor_id=user_id)
+    if result.get('error'):
+        return jsonify({'success': False, 'error': result['error']}), result.get('status', 400)
+    return jsonify({'success': True, 'record': result['record']})

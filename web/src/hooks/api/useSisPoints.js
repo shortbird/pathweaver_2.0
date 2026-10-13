@@ -72,3 +72,55 @@ export const useSavePointButtons = (orgId) => {
     onSuccess: invalidate,
   })
 }
+
+/**
+ * Points helpers (ticket 0f401a62): students the school names to give points
+ * to other students. Staff read the list ({helpers, can_edit}); admins save
+ * it. A helper reads their own screen and gives; the server refuses everyone
+ * else, so `enabled` only saves a request that would be a 403.
+ */
+export const useSisPointHelpers = (orgId) => useQuery({
+  queryKey: queryKeys.sis.pointsHelpers(orgId),
+  queryFn: async () => (await api.get(withOrg('/api/sis/points/helpers', orgId))).data,
+  enabled: !!orgId,
+})
+
+export const useSavePointHelpers = (orgId) => {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (studentIds) => (await api.put(withOrg('/api/sis/points/helpers', orgId),
+      { student_ids: studentIds })).data,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.sis.pointsHelpers(orgId) }),
+  })
+}
+
+/** Whether the signed-in student is a points helper, from /mine's own row.
+ * For the classroom tablet, which signs one student in after another: its own
+ * key and gcTime 0, so one student's answer is never the next one's. */
+export const useIsPointsHelper = (enabled) => useQuery({
+  queryKey: [...queryKeys.sis.pointsMine, 'isHelper'],
+  queryFn: async () => Boolean(
+    (await api.get('/api/sis/points/mine')).data?.students?.some((s) => s.is_helper)),
+  enabled: !!enabled,
+  gcTime: 0,
+  retry: false,
+})
+
+export const useHelperPoints = (enabled = true) => useQuery({
+  queryKey: queryKeys.sis.pointsHelper,
+  queryFn: async () => (await api.get('/api/sis/points/helper')).data,
+  enabled,
+  // The key names no user, and the classroom tablet signs one student in
+  // after another: drop the screen when it closes, so the next helper never
+  // sees the last one's list for a moment.
+  gcTime: 0,
+})
+
+/** {student_ids, amount, reason}: positive only, capped by the server. */
+export const useHelperGivePoints = () => {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (body) => (await api.post('/api/sis/points/helper/entries', body)).data,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.sis.pointsHelper }),
+  })
+}

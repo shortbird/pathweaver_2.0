@@ -970,24 +970,10 @@ def withdraw_cohort_student(user_id, class_id, student_id):
 
 
 # ── facilitator: phone capture → tag one or many students (G1) ───────────────
-def _evidence_block(event_id, idx, media_item):
-    """Build a learning_event_evidence_blocks row from a capture media item."""
-    mtype = media_item.get('type', 'image')
-    if mtype == 'link':
-        return {'learning_event_id': event_id, 'block_type': 'link', 'order_index': idx,
-                'content': {'url': media_item.get('url'), 'title': media_item.get('title', ''), 'caption': ''}}
-    common = {
-        'learning_event_id': event_id, 'order_index': idx,
-        'file_url': media_item.get('file_url'), 'file_name': media_item.get('file_name'),
-        'file_size': media_item.get('file_size', 0),
-    }
-    if mtype in ('document', 'video'):
-        return {**common, 'block_type': mtype,
-                'content': {'url': media_item.get('file_url'), 'filename': media_item.get('file_name', ''), 'caption': ''}}
-    return {**common, 'block_type': 'image',
-            'content': {'url': media_item.get('file_url'), 'caption': '', 'alt_text': media_item.get('file_name', '')}}
-
-
+# The capture itself lives in services/group_photo_service, shared with the SIS
+# console's Photos page (ticket 85949de5). These two routes keep their gate and
+# their answers; Treehouse sends no parent notes and skips, rather than
+# refuses, a tagged id outside the org, as it always did.
 @bp.route('/capture/upload', methods=['POST'])
 @require_auth
 def facilitator_capture_upload(user_id):
@@ -1007,37 +993,13 @@ def facilitator_capture_upload(user_id):
     if not ctx['is_facilitator']:
         return jsonify({'success': False, 'error': 'Facilitator access required'}), 403
 
-    files = [f for f in request.files.getlist('files') if f and f.filename]
-    if not files:
-        return jsonify({'success': False, 'error': 'No files provided'}), 400
-
-    from services.media_upload_service import MediaUploadService
-    # admin client justified: facilitator-gated media upload into the shared evidence bucket; caller checked above
-    uploader = MediaUploadService(get_supabase_admin_client())
-    uploaded = []
-    for f in files:
-        result = uploader.upload_evidence_file(
-            f,
-            user_id=user_id,
-            context_type='event',
-            # No learning event exists yet — one is created per tagged student
-            # once the capture is saved. The facilitator is the storage owner.
-            context_id=user_id,
-        )
-        if not result.success:
-            # One bad file fails the batch: a partial upload would leave the
-            # facilitator saving a capture that is missing the photo they took.
-            status = 413 if result.error_code == 'FILE_TOO_LARGE' else 400
-            return jsonify({'success': False,
-                            'error': f"{f.filename}: {result.error_message}"}), status
-        uploaded.append({
-            'url': result.file_url,
-            'display_url': result.display_url,
-            'original_name': f.filename,
-            'stored_name': result.filename,
-            'size': result.file_size,
-            'content_type': result.content_type,
-        })
+    from services.group_photo_service import GroupPhotoError, upload_files
+    try:
+        # security_scan stays as Treehouse had it; the image safety gate runs
+        # inside MediaUploadService either way.
+        uploaded = upload_files(request.files.getlist('files'), user_id, security_scan=False)
+    except GroupPhotoError as e:
+        return jsonify({'success': False, 'error': str(e)}), e.status
     return jsonify({'success': True, 'files': uploaded}), 201
 
 
@@ -1056,41 +1018,20 @@ def facilitator_capture(user_id):
     if not ctx['is_facilitator']:
         return jsonify({'success': False, 'error': 'Facilitator access required'}), 403
     data = request.get_json() or {}
-    student_ids = [s for s in (data.get('student_ids') or []) if s]
-    description = (data.get('description') or '').strip()
-    media = data.get('media') or []
-    attached_task_id = data.get('attached_task_id')
-    if not student_ids:
-        return jsonify({'success': False, 'error': 'Tag at least one student'}), 400
-    if not description and not media:
-        return jsonify({'success': False, 'error': 'Add a caption or a photo'}), 400
 
-    # admin client justified: facilitator-gated writes of learning_events + evidence blocks into other students' portfolios; targets filtered to org membership
-    admin = get_supabase_admin_client()
-    org_ids = set(_org_student_ids(admin, ctx['org_id']))
-    created = []
-    for sid in student_ids:
-        if sid not in org_ids:
-            continue
-        event_data = {
-            'user_id': sid, 'captured_by_user_id': user_id,
-            'description': description or 'Captured by facilitator',
-            'source_type': 'advisor_captured', 'pillars': [],
-        }
-        # Only attach a task when it genuinely belongs to this student.
-        if attached_task_id:
-            owns = (admin.table('user_quest_tasks').select('id')
-                    .eq('id', attached_task_id).eq('user_id', sid).limit(1).execute())
-            if owns.data:
-                event_data['attached_task_id'] = attached_task_id
-        ev = admin.table('learning_events').insert(event_data).execute()
-        if not ev.data:
-            continue
-        eid = ev.data[0]['id']
-        blocks = [_evidence_block(eid, i, m) for i, m in enumerate(media)]
-        if blocks:
-            admin.table('learning_event_evidence_blocks').insert(blocks).execute()
-        created.append({'student_id': sid, 'event_id': eid})
+    from services.group_photo_service import GroupPhotoError, GroupPhotoService
+    try:
+        result = GroupPhotoService().create_capture(
+            ctx['org_id'], user_id, data.get('student_ids') or [],
+            description=data.get('description') or '',
+            media=data.get('media') or [],
+            attached_task_id=data.get('attached_task_id'),
+            default_description='Captured by facilitator',
+            refuse_outsiders=False,
+        )
+    except GroupPhotoError as e:
+        return jsonify({'success': False, 'error': str(e)}), e.status
+    created = result['created']
     return jsonify({'success': True, 'created': created, 'count': len(created)}), 201
 
 

@@ -57,7 +57,18 @@ const StudentDayModal = ({ studentId, studentName, date, orgId, onClose, onOpenR
           {error && <p className="text-red-600 text-sm">{error}</p>}
           {!day && !error && <p className="text-neutral-500 text-sm">Loading…</p>}
 
-          {day && !classes.length && (
+          {/* The whole-school daily roll mark (ticket 0680d03c), apart from
+              the classes: it is the day, not a class. */}
+          {day?.daily && (
+            <p className="text-sm text-neutral-700 mb-3 flex flex-wrap items-center gap-2" data-daily-mark>
+              <span className="font-medium">Daily roll:</span>
+              <StatusPill domain="attendance" status={day.daily.status} />
+              {day.daily.departed_at && <StatusPill domain="attendance" status="picked_up" />}
+              {day.daily.note && <span className="text-neutral-500">{day.daily.note}</span>}
+            </p>
+          )}
+
+          {day && !classes.length && !day.daily && (
             <p className="text-neutral-500 text-sm">
               No classes on this student's schedule for {date}.
             </p>

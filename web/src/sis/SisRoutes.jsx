@@ -6,6 +6,7 @@ import { isPathHidden, isClpEnabled, submissionsHome } from '../pages/sis/sisMod
 import { useSisOrg } from '../pages/sis/useSisOrg'
 import { canSeeFinance, canSeeHr, isSisAdmin } from '../pages/sis/sisRole'
 import { useAuth } from '../contexts/AuthContext'
+import { dailyRollOn } from '../pages/sis/attendanceSettings'
 
 // Guards a route whose building-block module is off for the active org —
 // opt-outs, opt-ins (community, prior learning, goals), and explicit
@@ -93,6 +94,19 @@ const ModuleGate = ({ path, children }) => {
   const { activeOrg } = useSisOrg()
   if (isPathHidden(path, activeOrg)) return <Navigate to="/" replace />
   return children
+}
+
+// /attendance is the daily roll for a school that turned it on (ticket
+// 0680d03c, Apogee Cache Valley: one whole-school roll a day, no classes).
+// Gated on the attendance module only, so a school with classes hidden still
+// reaches it. Off, it stays what it always was: the class roll's tab.
+export const AttendanceRoute = () => {
+  const { activeOrg } = useSisOrg()
+  if (dailyRollOn(activeOrg)) {
+    if (isPathHidden('/attendance', activeOrg)) return <Navigate to="/" replace />
+    return <DailyRollPage />
+  }
+  return <ClassesRedirect tab="attendance" />
 }
 
 // /bounties is the student side's page everywhere except a school that runs
@@ -188,6 +202,7 @@ const CommunityPage = lazy(() => import('../pages/sis/CommunityPage'))
 const SettingsPage = lazy(() => import('../pages/sis/SettingsPage'))
 const GoalsPage = lazy(() => import('../pages/sis/GoalsPage'))
 const PointsPage = lazy(() => import('../pages/sis/PointsPage'))
+const PhotosPage = lazy(() => import('../pages/sis/PhotosPage'))
 const SisBountiesPage = lazy(() => import('../pages/sis/SisBountiesPage'))
 const BloomyPage = lazy(() => import('../pages/sis/BloomyPage'))
 const BountyCreatePage = lazy(() => import('../pages/BountyCreatePage'))
@@ -195,6 +210,7 @@ const BountyDetailPage = lazy(() => import('../pages/BountyDetailPage'))
 const ReportsPage = lazy(() => import('../pages/sis/ReportsPage'))
 const PriorLearningPage = lazy(() => import('../pages/sis/PriorLearningPage'))
 const LibraryPage = lazy(() => import('../pages/sis/LibraryPage'))
+const DailyRollPage = lazy(() => import('../pages/sis/DailyRollPage'))
 
 // Teacher portal pages (advisors; admins can open them too)
 const TeacherClassPage = lazy(() => import('../pages/sis/TeacherClassPage'))
@@ -245,11 +261,12 @@ const SisRoutes = () => (
       <Route path="clp" element={<AdminRoute><ClpRoute><ModuleGate path="/clp"><ClpPage /></ModuleGate></ClpRoute></AdminRoute>} />
       <Route path="billing" element={<FinanceRoute><ModuleGate path="/billing"><BillingPage /></ModuleGate></FinanceRoute>} />
       <Route path="tuition" element={<TuitionRedirect />} />
-      <Route path="attendance" element={<ClassesRedirect tab="attendance" />} />
+      <Route path="attendance" element={<AttendanceRoute />} />
       <Route path="goals" element={<ModuleGate path="/goals"><GoalsPage /></ModuleGate>} />
       {/* Weekly Goals became the This week tab of Goals (2026-10-08). */}
       <Route path="weekly-goals" element={<Navigate to="/goals" replace />} />
       <Route path="points" element={<ModuleGate path="/points"><PointsPage /></ModuleGate>} />
+      <Route path="photos" element={<ModuleGate path="/photos"><PhotosPage /></ModuleGate>} />
       <Route path="bloomy" element={<AdminRoute><ModuleGate path="/bloomy"><BloomyPage /></ModuleGate></AdminRoute>} />
       <Route path="bounties" element={<BountiesGate><SisBountiesPage /></BountiesGate>} />
       <Route path="bounties/create" element={<BountiesGate><BountyCreatePage /></BountiesGate>} />

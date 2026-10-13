@@ -43,7 +43,7 @@ export default function KioskPage() {
     if (!silent) setBusy(true)
     try {
       const { data } = await api.post('/api/kiosk/roster', { token: t })
-      setRoster({ org: data.org || {}, students: data.students || [], journal: data.journal !== false })
+      setRoster({ org: data.org || {}, students: data.students || [], journal: data.journal !== false, points: data.points === true })
       setError('')
       try { localStorage.setItem(TOKEN_KEY, t) } catch { /* private mode */ }
       setToken(t)
@@ -124,6 +124,7 @@ export default function KioskPage() {
         studentName={activeStudent.name}
         accentColor={roster?.org?.colors?.primary || null}
         journalEnabled={roster?.journal !== false}
+        pointsEnabled={roster?.points === true}
         onFinished={signOut}
       />
     )

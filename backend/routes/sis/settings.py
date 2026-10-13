@@ -23,8 +23,9 @@ sis_catalog_service.save_time_blocks, answering with the rows too
 
 from flask import Blueprint, jsonify, request
 
-from services import (sis_catalog_service, sis_family_contacts_service,
-                      sis_incident_report_service, sis_service)
+from services import (sis_attendance_service, sis_catalog_service,
+                      sis_family_contacts_service, sis_incident_report_service,
+                      sis_service)
 from services.org_settings_service import FlagsRejected, patch_feature_flags
 from utils.auth.decorators import require_role
 from utils.sis_roles import ADMIN_ROLES
@@ -63,6 +64,16 @@ def patch_settings(user_id):
         if problem:
             return jsonify({'success': False, 'fields': [contacts_key], 'error': problem}), 400
         sis_patch[contacts_key] = cleaned or None
+    # The attendance settings (ticket 0680d03c): daily roll, pickup check-out,
+    # which statuses, which weekdays. Checked here and refused whole when a
+    # value is bad; stored as one object (merge_patch replaces it whole), so
+    # the card always sends all four keys. A null resets to the defaults.
+    attendance_key = sis_attendance_service.SETTINGS_KEY
+    if isinstance(sis_patch, dict) and sis_patch.get(attendance_key) is not None:
+        cleaned, problem = sis_attendance_service.clean_attendance_settings(sis_patch.get(attendance_key))
+        if problem:
+            return jsonify({'success': False, 'fields': [attendance_key], 'error': problem}), 400
+        sis_patch[attendance_key] = cleaned or None
     blocks = None
     wanted =sis_catalog_service.take_time_blocks(patch)
     if wanted != ():

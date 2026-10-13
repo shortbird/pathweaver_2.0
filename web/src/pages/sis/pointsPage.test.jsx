@@ -107,3 +107,68 @@ describe('PointsPage', () => {
     expect(api.delete.mock.calls[0][0]).toContain('/api/sis/points/entries/e2')
   })
 })
+
+/**
+ * Points helpers (ticket 0f401a62, Apogee Cache Valley): "We don't want all
+ * of them to have access to the point system but we do have a studio leader
+ * each session that tracks points." An admin names helpers here; a helper's
+ * entries say who gave them, so a coach can check and undo.
+ */
+describe('PointsPage points helpers', () => {
+  const helperEntry = {
+    id: 'e3', student_id: 's1', student_name: 'Ada Kid', amount: 5, reason: 'Daily job',
+    source: 'staff', added_by_student: false, given_by_student: true, created_by_name: 'Hal Kid',
+    created_at: '2026-10-13T16:00:00Z',
+  }
+
+  const serve = ({ helpers = [], canEdit = true, recent } = {}) => {
+    api.get.mockImplementation((url) => {
+      if (url.includes('/api/sis/points/helpers')) {
+        return Promise.resolve({ data: { success: true, helpers, can_edit: canEdit } })
+      }
+      const b = board()
+      if (recent) b.data.recent = recent
+      return Promise.resolve(b)
+    })
+  }
+
+  it('marks a helper entry as given by the helper, and it undoes like any entry', async () => {
+    serve({ recent: [helperEntry] })
+    render(<PointsPage />)
+    const row = (await screen.findByText(/Given by Hal Kid/)).closest('li')
+    expect(row).toHaveTextContent('Daily job')
+    expect(row).not.toHaveTextContent('Added by student')
+    fireEvent.click(row.querySelector('button'))
+    await waitFor(() => expect(api.delete).toHaveBeenCalledTimes(1))
+    expect(api.delete.mock.calls[0][0]).toContain('/api/sis/points/entries/e3')
+  })
+
+  it('shows who the helpers are', async () => {
+    serve({ helpers: [{ student_id: 's2', name: 'Ben Kid' }] })
+    render(<PointsPage />)
+    expect(await screen.findByText('Points helpers: Ben Kid')).toBeInTheDocument()
+  })
+
+  it('an admin picks helpers from the students and saves them', async () => {
+    serve({ helpers: [{ student_id: 's2', name: 'Ben Kid' }] })
+    render(<PointsPage />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Points helpers' }))
+    expect(screen.getByText(/They cannot take points/)).toBeInTheDocument()
+    const dialog = screen.getByText('Save helpers').closest('div.bg-white')
+    const ada = dialog.querySelector('input[aria-label="Select Ada Kid"]')
+    const ben = dialog.querySelector('input[aria-label="Select Ben Kid"]')
+    expect(ben).toBeChecked()
+    fireEvent.click(ada)
+    fireEvent.click(screen.getByRole('button', { name: 'Save helpers' }))
+    await waitFor(() => expect(api.put).toHaveBeenCalledTimes(1))
+    expect(api.put.mock.calls[0][0]).toContain('/api/sis/points/helpers')
+    expect(api.put.mock.calls[0][1]).toEqual({ student_ids: ['s2', 's1'] })
+  })
+
+  it('a staff member who cannot edit the list gets no button', async () => {
+    serve({ helpers: [{ student_id: 's2', name: 'Ben Kid' }], canEdit: false })
+    render(<PointsPage />)
+    expect(await screen.findByText('Points helpers: Ben Kid')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Points helpers' })).not.toBeInTheDocument()
+  })
+})

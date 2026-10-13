@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { render as rtlRender, screen, fireEvent, waitFor } from '@testing-library/react'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 
 const { api } = vi.hoisted(() => ({
   api: { get: vi.fn(), post: vi.fn() },
@@ -10,6 +11,12 @@ vi.mock('../services/authService', () => ({
 }))
 
 import KioskPage from './KioskPage'
+
+// The student session asks about points helpers through react-query (ticket 0f401a62).
+const render = (ui) => {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  return rtlRender(<QueryClientProvider client={client}>{ui}</QueryClientProvider>)
+}
 
 // This jsdom setup's localStorage lacks working methods locally (known quirk —
 // see AuthContext.test.jsx history). Use a real in-memory implementation.
@@ -104,5 +111,23 @@ describe('KioskPage', () => {
       expect(api.post).toHaveBeenCalledWith('/api/kiosk/login', { token: 'ksk_test123', student_id: 's1' })
     )
     expect(await screen.findByText('Hi, Ada!')).toBeInTheDocument()
+    // The roster said nothing about points: the session never asks.
+    expect(api.get).not.toHaveBeenCalledWith('/api/sis/points/mine')
+  })
+
+  it('where the roster says the school runs points, the session asks about helpers', async () => {
+    // Ticket 0f401a62: a points helper gets "Give points" on the tablet.
+    api.post
+      .mockResolvedValueOnce({ data: { ...rosterResponse.data, points: true } })
+      .mockResolvedValueOnce({ data: { success: true, user_id: 's1', first_name: 'Ada' } })
+    api.get.mockImplementation((url) => Promise.resolve(url === '/api/sis/points/mine'
+      ? { data: { success: true, students: [{ student_id: 's1', is_helper: true }] } }
+      : { data: { active_quests: [] } }))
+
+    render(<KioskPage />)
+    fireEvent.change(screen.getByLabelText('Device code'), { target: { value: 'ksk_test123' } })
+    fireEvent.click(screen.getByText('Set up device'))
+    fireEvent.click(await screen.findByText('Ada'))
+    expect(await screen.findByText('Give points')).toBeInTheDocument()
   })
 })

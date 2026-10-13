@@ -440,6 +440,10 @@ def kiosk_roster():
         # The tablet offers "Add to my journal" only where the school has the
         # journal; a school that switched it off sees the quest flow alone.
         'journal': module_enabled(device['organization_id'], 'journal'),
+        # Where the school runs points, the session asks whether the student
+        # who signed in is a points helper (ticket 0f401a62) and, if so,
+        # offers "Give points". The answer is the points API's, per student.
+        'points': module_enabled(device['organization_id'], 'points'),
         'students': students,
     }), 200
 

@@ -256,6 +256,7 @@ export const SIS_SURFACE_PATHS = [
   '/my-tasks',
   '/onboarding',
   '/people',
+  '/photos',
   '/prior-learning',
   '/registration',
   '/reports',

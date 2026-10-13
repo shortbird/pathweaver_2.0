@@ -101,6 +101,16 @@ class TestTheRosterGate:
         assert on['journal'] is True
         assert off['journal'] is False
 
+    def test_the_roster_says_whether_the_school_runs_points(self, client):
+        # Ticket 0f401a62: the tablet asks about points helpers only where
+        # the school has points; points is off unless the school turns it on.
+        with _kiosk({'kiosk': True}):
+            off = client.post('/api/kiosk/roster', json={'token': 'ksk_x'}).get_json()
+        with _kiosk({'kiosk': True, 'sis_enabled': True, 'modules': {'points': True}}):
+            on = client.post('/api/kiosk/roster', json={'token': 'ksk_x'}).get_json()
+        assert off['points'] is False
+        assert on['points'] is True
+
     def test_an_explicit_off_beats_the_legacy_flag(self, client):
         with _kiosk({'kiosk': True, 'modules': {'kiosk': False}}):
             res = client.post('/api/kiosk/roster', json={'token': 'ksk_x'})

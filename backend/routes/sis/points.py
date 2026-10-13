@@ -10,6 +10,12 @@ child's points through @require_relationship_to.
 
 A student adds points for themselves through POST /mine (ticket 910668d8):
 self-only, capped per day, and undone by staff like any entry.
+
+Points helpers (ticket 0f401a62): the school's admins name students who may
+give points to other students (GET/PUT /helpers). A helper, signed in as
+themselves, reads GET /helper and gives through POST /helper/entries:
+positive only, capped per entry, never to themselves. Everyone else is
+refused by the service with a 403 and nothing is written.
 """
 
 from flask import Blueprint, jsonify, request
@@ -18,7 +24,7 @@ from services import sis_service
 from services.sis_points_service import PointsError, PointsService
 from utils.auth.decorators import require_auth, require_role
 from utils.auth.relationships import require_relationship_to
-from utils.sis_roles import STAFF_ROLES
+from utils.sis_roles import ADMIN_ROLES, STAFF_ROLES
 
 bp = Blueprint('sis_points', __name__, url_prefix='/api/sis/points')
 
@@ -86,6 +92,77 @@ def save_buttons(user_id):
     except PointsError as e:
         return jsonify({'success': False, 'error': str(e)}), 400
     return jsonify({'success': True, 'buttons': buttons})
+
+
+@bp.route('/helpers', methods=['GET'])
+@require_role(*STAFF_ROLES)
+def list_helpers(user_id):
+    """The school's points helpers. Every staff member may read the list (it
+    is shown on the Points page); can_edit says whether this caller saves it."""
+    org_id, error = _org_or_400(user_id)
+    if error:
+        return error
+    return jsonify({'success': True, 'helpers': PointsService().helpers(org_id),
+                    'can_edit': sis_service.caller_is_admin(user_id)})
+
+
+@bp.route('/helpers', methods=['PUT'])
+@require_role(*ADMIN_ROLES)
+def save_helpers(user_id):
+    """Body: {student_ids: [...]}. Replaces the list; each id must be a
+    current student of this school. An empty list means no helpers."""
+    org_id, error = _org_or_400(user_id)
+    if error:
+        return error
+    service = PointsService()
+    try:
+        wanted = service.clean_helper_ids(org_id, (request.get_json(silent=True) or {}).get('student_ids'))
+    except PointsError as e:
+        return jsonify({'success': False, 'error': str(e)}), 400
+    from services.org_settings_service import FlagsRejected, patch_feature_flags
+    from services.sis_points_service import POINT_HELPERS_KEY
+    ctx = sis_service.get_user_org_context(user_id)
+    try:
+        patch_feature_flags(
+            org_id,
+            {'sis_settings': {POINT_HELPERS_KEY: wanted or None}},
+            caller_id=user_id,
+            sees_finance=sis_service.caller_sees_pay(user_id),
+            is_superadmin=ctx.get('role') == 'superadmin',
+        )
+    except FlagsRejected as rejected:
+        return jsonify({'success': False, 'error': rejected.body.get('error', 'Not saved')}), rejected.status
+    return jsonify({'success': True, 'helpers': service.helpers(org_id), 'can_edit': True})
+
+
+@bp.route('/helper', methods=['GET'])
+# As for POST /mine: superadmin passes the door and is refused by the
+# service unless acting as a student who is on the list.
+@require_role('student', 'superadmin')
+def helper_board(user_id):
+    """A points helper's screen: the other students, the give buttons, the
+    per-entry limit, and what this helper gave lately."""
+    try:
+        data = PointsService().helper_board(user_id)
+    except PermissionError as e:
+        return jsonify({'success': False, 'error': str(e)}), 403
+    return jsonify({'success': True, **data})
+
+
+@bp.route('/helper/entries', methods=['POST'])
+@require_role('student', 'superadmin')
+def helper_add(user_id):
+    """Body: {student_ids, amount, reason}. A helper gives points to other
+    students: positive only, capped per entry, never to themselves."""
+    try:
+        data = PointsService().add_as_helper(user_id, request.get_json(silent=True) or {})
+    except PermissionError as e:
+        return jsonify({'success': False, 'error': str(e)}), 403
+    except PointsError as e:
+        return jsonify({'success': False, 'error': str(e)}), 400
+    except LookupError:
+        return jsonify({'success': False, 'error': 'Student not found'}), 404
+    return jsonify({'success': True, **data})
 
 
 @bp.route('/mine', methods=['GET'])

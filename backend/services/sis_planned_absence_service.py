@@ -158,6 +158,17 @@ def for_class_date(org_id: str, class_id: str, on_date: str) -> Dict[str, Dict[s
     return out
 
 
+def for_whole_day(org_id: str, on_date: str) -> Dict[str, Dict[str, Any]]:
+    """Active whole-day reports (class_id NULL) on this date, keyed by student,
+    in the shape for_class_date answers. The daily roll's annotation: a report
+    for one class does not say the student is out of school. Paged: one row
+    per reported student, which grows with the school."""
+    from repositories.sis_daily_roll_repository import SisDailyRollRepository
+    rows = SisDailyRollRepository(client=_admin()).whole_day_reports(org_id, on_date)
+    return {r['student_user_id']: {'scope': 'day', 'reason': r.get('reason'), 'id': r['id']}
+            for r in rows}
+
+
 # ── Staff read: every upcoming absence, org-wide ─────────────────────────────
 def list_upcoming(org_id: str) -> List[Dict[str, Any]]:
     """Active guardian-reported absences from today forward, soonest first,

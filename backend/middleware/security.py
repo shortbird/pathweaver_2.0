@@ -74,6 +74,11 @@ class SecurityMiddleware:
             # (the token rides the query string either way).
             if (request.path or '') == '/api/crm/unsubscribe':
                 should_skip = True
+            # The parent-email unsubscribe (weekly digest, group photos) is the
+            # same shape: its confirm form and the one-click POST are
+            # form-encoded, and both answered 400 here until 2026-10-13.
+            if (request.path or '') == '/api/parent-digest/unsubscribe':
+                should_skip = True
             # SendGrid Inbound Parse posts the parsed email as
             # multipart/form-data. Multipart already falls through below, but
             # this is stated explicitly rather than inherited from the

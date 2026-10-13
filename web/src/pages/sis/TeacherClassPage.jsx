@@ -5,6 +5,7 @@ import { toast } from 'react-hot-toast'
 import api from '../../services/api'
 import { useSisTeacherClass } from '../../hooks/api/useSisTeacherClass'
 import { useSisOrg, withOrg } from './useSisOrg'
+import { attendanceSettingsFor, rollStatuses } from './attendanceSettings'
 import { getPreviewTeacher } from './teacherPreview'
 import { isMasquerading } from '../../services/masqueradeService'
 import StudentProgressTab from '../../components/sis/StudentProgressTab'
@@ -37,7 +38,8 @@ import SupplyBudgetCard from '../../components/sis/SupplyBudgetCard'
  * what prints does not depend on what else is on screen.
  */
 
-const ATT_STATUSES = ['present', 'absent', 'late', 'excused']
+// The roll's buttons are the school's statuses (sis_settings.attendance,
+// ticket 0680d03c); the default is all four, as before (rollStatuses).
 
 // Local date, not UTC: toISOString() rolls over at 6pm Mountain, so an evening
 // visit opened TOMORROW's roster -- the fix AttendancePanel got on 2026-09-02.
@@ -183,7 +185,9 @@ const TeacherClassPage = () => {
   // for the day so the teachers don't have to figure it out?" This page did not
   // read the report at all, so untouched roll saved the child present. Any
   // status already recorded loads into `marks` and wins over either default.
-  const markOf = (id) => marks[id] || (planned[id] ? 'excused' : 'present')
+  // Where the school turned excused off, a reported student defaults to absent.
+  const excusedOn = attendanceSettingsFor(activeOrg).statuses.includes('excused')
+  const markOf = (id) => marks[id] || (planned[id] ? (excusedOn ? 'excused' : 'absent') : 'present')
 
   const saveAttendance = async () => {
     // Record the WHOLE roster so "attendance was taken" is explicit — untouched
@@ -405,7 +409,7 @@ const TeacherClassPage = () => {
                         )}
                       </span>
                       {!noRoll && <div className="flex gap-1 shrink-0">
-                        {ATT_STATUSES.map((st) => (
+                        {rollStatuses(activeOrg, markOf(s.student_id)).map((st) => (
                           <button key={st}
                             onClick={() => setMarks((prev) => ({ ...prev, [s.student_id]: st }))}
                             className={`px-2 py-1 rounded-md text-[11px] font-semibold capitalize transition-colors ${

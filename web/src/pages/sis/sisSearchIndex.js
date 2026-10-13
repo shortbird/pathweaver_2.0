@@ -113,6 +113,7 @@ export const SUB_ENTRIES = [
   { under: '/settings', ...settingsCard('friends', 'Friends', ['friends', 'collaborate', 'friend codes', 'share a quest']) },
   { under: '/settings', ...settingsCard('student-chat', 'Student chat', ['student chat', 'turn off chat', 'class chat', 'friend messages']) },
   { under: '/settings', ...settingsCard('task-xp-floor', 'Task XP', ['smallest xp', 'minimum xp', 'xp floor', 'task xp']) },
+  { under: '/settings', path: '/attendance', ...settingsCard('attendance', 'Attendance', ['daily roll', 'pickup', 'picked up', 'check out', 'school days', 'attendance statuses']) },
 ]
 
 /**

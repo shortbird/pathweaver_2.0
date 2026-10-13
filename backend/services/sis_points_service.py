@@ -17,7 +17,7 @@ the entries it is made of. A mistake is undone by deleting the entry.
 """
 
 from datetime import datetime, time, timezone
-from typing import Any, Dict, Iterable, List, Optional
+from typing import Any, Dict, List, Optional
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from repositories.sis_points_repository import SisPointsRepository
@@ -48,6 +48,30 @@ HISTORY_ENTRIES = 100
 # joke stays small until a coach looks. Owner's default, 2026-10-12.
 STUDENT_DAILY_CAP = 20
 DEFAULT_TZ = 'America/Denver'  # matches sis_staff_service.DEFAULT_TZ
+
+# Points helpers (ticket 0f401a62, Apogee Cache Valley): "Is there a way to
+# create a separate login for students to use to track points? We don't want
+# all of them to have access to the point system but we do have a studio
+# leader each session that tracks points."
+#
+# A helper is a student the school's admins name, who signs in as themselves
+# and gives points to other students. The list lives in
+# organizations.feature_flags.sis_settings.point_helper_ids (user ids), the
+# same shape as the school inbox list (school_inbox_service.INBOX_MEMBERS_KEY),
+# so no migration. Absent or empty: nobody is a helper, which is how every
+# school worked before the list.
+#
+# A helper only gives. No take, no undo, no button editing, and never to
+# themselves (a helper's own points stay under STUDENT_DAILY_CAP through
+# add_own; giving to yourself here would walk around that cap).
+POINT_HELPERS_KEY = 'point_helper_ids'
+MAX_HELPERS = 50
+# The most a helper may give one student in one entry: the school's largest
+# give button, or HELPER_MIN_MAX when its buttons are all smaller. A helper
+# must be able to tap any button the school made; a bigger custom amount is
+# a coach's call. 10 is two "Daily job +5"s, Apogee's everyday button.
+HELPER_MIN_MAX = 10
+HELPER_RECENT = 10
 
 
 class PointsError(ValueError):
@@ -81,6 +105,32 @@ def added_by_student(row: Dict[str, Any]) -> bool:
     return bool(row.get('created_by')) and row.get('created_by') == row.get('student_user_id')
 
 
+def given_by_student(row: Dict[str, Any], people: Dict[str, Dict[str, Any]]) -> bool:
+    """An entry a points helper (ticket 0f401a62) gave another student: the
+    creator is a student who is not the recipient. Read from created_by and
+    the creator's role, like added_by_student, so no column is needed."""
+    giver = row.get('created_by')
+    if not giver or giver == row.get('student_user_id'):
+        return False
+    person = people.get(giver)
+    return person is not None and sis_service.is_student(person)
+
+
+def helpers_from_flags(feature_flags: Any) -> List[str]:
+    """The configured helper ids from a feature_flags blob ([] = nobody)."""
+    sis = (feature_flags or {}).get('sis_settings') if isinstance(feature_flags, dict) else None
+    ids = (sis or {}).get(POINT_HELPERS_KEY) if isinstance(sis, dict) else None
+    if not isinstance(ids, list):
+        return []
+    return [str(i) for i in ids if i]
+
+
+def helper_max(buttons: List[Dict[str, Any]]) -> int:
+    """The largest amount a helper may give in one entry (see HELPER_MIN_MAX)."""
+    gives = [b.get('amount') or 0 for b in buttons if (b.get('amount') or 0) > 0]
+    return max([HELPER_MIN_MAX, *gives])
+
+
 def bounty_points(bounty: Dict[str, Any]) -> int:
     """The points a bounty gives on approval: the sum of its 'points' rewards."""
     total = 0
@@ -112,12 +162,10 @@ class PointsService:
             return [dict(b) for b in DEFAULT_BUTTONS]
         return [{'id': r['id'], 'label': r['label'], 'amount': r['amount']} for r in rows]
 
-    def _names(self, user_ids: Iterable[str]) -> Dict[str, str]:
-        return {u['id']: person_name.full_name(u) for u in self.repository.users(set(user_ids))}
-
     def _entries_out(self, rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         ids = {r['student_user_id'] for r in rows} | {r['created_by'] for r in rows if r.get('created_by')}
-        names = self._names(ids)
+        people = {u['id']: u for u in self.repository.users(ids)}
+        names = {uid: person_name.full_name(u) for uid, u in people.items()}
         return [{
             'id': r['id'],
             'student_id': r['student_user_id'],
@@ -126,6 +174,9 @@ class PointsService:
             'reason': r['reason'],
             'source': 'student' if added_by_student(r) else (r.get('source') or 'staff'),
             'added_by_student': added_by_student(r),
+            # Ticket 0f401a62: a points helper's entry, so a coach can check
+            # it and undo it; the giver's name is created_by_name.
+            'given_by_student': given_by_student(r, people),
             'bounty_id': r.get('bounty_id'),
             'created_by_name': names.get(r['created_by']) if r.get('created_by') else None,
             'created_at': r['created_at'],
@@ -134,6 +185,13 @@ class PointsService:
     def board(self, org_id: str) -> Dict[str, Any]:
         """Every current student with their balance, the school's buttons, and
         the newest entries (so a wrong click can be undone)."""
+        return {
+            'students': self._balances_out(org_id),
+            'buttons': self.buttons(org_id),
+            'recent': self._entries_out(self.repository.recent_entries(org_id, RECENT_ENTRIES)),
+        }
+
+    def _balances_out(self, org_id: str) -> List[Dict[str, Any]]:
         students = self._students(org_id)
         balances = {b['student_user_id']: b for b in self.repository.balances(org_id)}
         out = [{
@@ -145,11 +203,86 @@ class PointsService:
             'spent': (balances.get(s['student_id']) or {}).get('spent') or 0,
         } for s in students]
         out.sort(key=lambda s: (s.get('name') or '').lower())
+        return out
+
+    # -- points helpers (ticket 0f401a62) --------------------------------------
+
+    def helper_ids(self, org_id: str) -> List[str]:
+        """The ids on the school's helper list, as stored ([] = nobody)."""
+        return helpers_from_flags(self.repository.org_feature_flags(org_id))
+
+    def helpers(self, org_id: str) -> List[Dict[str, Any]]:
+        """The school's helpers who are still current students, by name. An
+        id for someone withdrawn stays stored until the next save drops it
+        (clean_helper_ids takes current students only)."""
+        listed = set(self.helper_ids(org_id))
+        out = [{'student_id': s['student_id'], 'name': s.get('name')}
+               for s in self._students(org_id) if s['student_id'] in listed]
+        out.sort(key=lambda s: (s.get('name') or '').lower())
+        return out
+
+    def clean_helper_ids(self, org_id: str, raw: Any) -> List[str]:
+        """The list an admin saves: current students of this school only."""
+        if not isinstance(raw, list):
+            raise PointsError('student_ids must be a list')
+        wanted = list(dict.fromkeys(str(i) for i in raw if i))
+        if len(wanted) > MAX_HELPERS:
+            raise PointsError(f'At most {MAX_HELPERS} helpers')
+        current = {s['student_id'] for s in self._students(org_id)}
+        if any(i not in current for i in wanted):
+            raise PointsError('Only current students of this school can be points helpers')
+        return wanted
+
+    def _helper_org(self, user_id: str) -> str:
+        """The caller's school, if they are a points helper there: a student
+        of a school that runs points, on its list. Anyone else is refused."""
+        from modules.enabled import module_enabled
+
+        users = self.repository.users([user_id])
+        caller = users[0] if users else None
+        org_id = (caller or {}).get('organization_id')
+        if not caller or not org_id or not sis_service.is_student(caller):
+            raise PermissionError('Only a points helper can give points')
+        if not module_enabled(org_id, 'points'):
+            raise PermissionError('Points are off at this school')
+        if user_id not in self.helper_ids(org_id):
+            raise PermissionError('Only a points helper can give points')
+        return org_id
+
+    def helper_board(self, user_id: str) -> Dict[str, Any]:
+        """What a helper works from: every other current student with their
+        balance, the school's give buttons, the most one entry may give, and
+        the helper's own recent gives. No ages, no other entries."""
+        org_id = self._helper_org(user_id)
+        buttons = [b for b in self.buttons(org_id) if (b.get('amount') or 0) > 0]
+        students = [{'student_id': s['student_id'], 'name': s['name'], 'balance': s['balance']}
+                    for s in self._balances_out(org_id) if s['student_id'] != user_id]
         return {
-            'students': out,
-            'buttons': self.buttons(org_id),
-            'recent': self._entries_out(self.repository.recent_entries(org_id, RECENT_ENTRIES)),
+            'students': students,
+            'buttons': buttons,
+            'max_amount': helper_max(buttons),
+            'recent': self._entries_out(self.repository.given_by(org_id, user_id, HELPER_RECENT)),
         }
+
+    def add_as_helper(self, user_id: str, data: Dict[str, Any]) -> Dict[str, Any]:
+        """A helper gives points to other students: {student_ids, amount, reason}.
+
+        Ticket 0f401a62: "we do have a studio leader each session that tracks
+        points." Positive only, at most helper_max a student per entry, never
+        to themselves; the entry is created_by the helper, so the staff board
+        shows who gave it and a coach undoes it like any other."""
+        org_id = self._helper_org(user_id)
+        raw_ids = data.get('student_ids')
+        if isinstance(raw_ids, list) and user_id in {str(s) for s in raw_ids}:
+            raise PointsError('You cannot give points to yourself. A coach can.')
+        amount = _amount(data.get('amount'))
+        if amount < 0:
+            raise PointsError('Helpers can only give points. A coach takes them away.')
+        cap = helper_max(self.buttons(org_id))
+        if amount > cap:
+            raise PointsError(f'A helper can give up to {cap} points at a time.')
+        return self.add(org_id, {'student_ids': raw_ids, 'amount': amount,
+                                 'reason': data.get('reason')}, user_id)
 
     def history(self, student_id: str) -> Dict[str, Any]:
         """One student's balance and newest entries, at their own school."""
@@ -194,6 +327,9 @@ class PointsService:
                 if data['can_add']:
                     data['daily_cap'] = STUDENT_DAILY_CAP
                     data['added_today'] = self._added_today(org_id, sid)
+                # Ticket 0f401a62: the page opens "Give points" for a helper.
+                # Only ever the caller's own row; a parent is never a helper.
+                data['is_helper'] = bool(data['can_add']) and sid in self.helper_ids(org_id)
                 out.append(data)
         return out
 

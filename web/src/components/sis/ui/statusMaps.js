@@ -34,6 +34,9 @@ export const STATUS_MAPS = {
     absent: { label: 'Absent', tone: 'bg-red-100 text-red-700', solid: 'bg-red-600 text-white' },
     late: { label: 'Late', tone: 'bg-amber-100 text-amber-700', solid: 'bg-amber-500 text-white' },
     excused: { label: 'Excused', tone: 'bg-blue-100 text-blue-700', solid: 'bg-blue-600 text-white' },
+    // Not a stored status: a present or late daily-roll row with departed_at
+    // set (DailyRollPage, ticket 0680d03c). The pill the day shows after pickup.
+    picked_up: { label: 'Picked up', tone: 'bg-optio-purple/10 text-optio-purple', solid: 'bg-optio-purple text-white' },
   },
   /** Family goals (GoalsReviewPage). */
   goal: {

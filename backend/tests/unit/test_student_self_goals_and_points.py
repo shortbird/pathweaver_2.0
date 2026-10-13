@@ -267,6 +267,11 @@ class PointsRepo:
     def org_timezone(self, org_id):
         return 'America/Denver'
 
+    def org_feature_flags(self, org_id):
+        # /mine now asks whether the student is a points helper (ticket
+        # 0f401a62); these tests run at a school with no helper list.
+        return {}
+
     def self_added_since(self, org_id, student_id, since_iso):
         self.since = since_iso
         return [{'id': f'a{i}', 'amount': a} for i, a in enumerate(self._added)]
@@ -370,6 +375,8 @@ class TestPointsMine:
         out = PointsService(PointsRepo(added_today=[3])).mine(STUDENT)
         assert out[0]['can_add'] is True
         assert (out[0]['daily_cap'], out[0]['added_today']) == (20, 3)
+        # No helper list at this school: not a helper (ticket 0f401a62).
+        assert out[0]['is_helper'] is False
 
     def test_a_parent_does_not(self, module_on):
         repo = PointsRepo(users=[_student(), _parent()])

@@ -46,6 +46,9 @@ WEB_PUSH_NOTIFICATION_TYPES = {
     # parent's say-so. Either way the parent is the one who can act, and
     # the link lands on the switch (/family?friends=<child>).
     'parent_approval_required',
+    # A staff member added a photo of the parent's child to the child's
+    # journal (group photos, ticket 85949de5). The link opens that journal.
+    'child_photo_added',
 }
 
 # Notification types that should trigger mobile push notifications.
@@ -80,6 +83,8 @@ MOBILE_PUSH_NOTIFICATION_TYPES = {
     # about unfinished work. The first two did not exist at all before; the
     # third went out as 'announcement'.
     'class_quest_assigned', 'child_task_reviewed', 'class_work_reminder',
+    # A photo of their child, from the school (group photos, 85949de5).
+    'child_photo_added',
 }
 
 
@@ -92,7 +97,8 @@ MOBILE_PUSH_NOTIFICATION_TYPES = {
 # due) are all 'school_notice', so the search box is what tells them apart.
 NOTIFICATION_TYPE_GROUPS = (
     ('messages', 'New messages', ('message_received',)),
-    ('school', 'From the school', ('school_notice', 'student_absent', 'attendance_reminder')),
+    ('school', 'From the school', ('school_notice', 'student_absent', 'attendance_reminder',
+                                   'child_photo_added')),
     ('announcements', 'Announcements', ('announcement', 'advisor_note', 'system_alert')),
     ('held', 'Held messages', ('peer_text_held',)),
     ('tasks', 'Tasks and quests', (

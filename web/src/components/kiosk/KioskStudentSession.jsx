@@ -1,5 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import api from '../../services/api'
+import GivePointsPanel from '../points/GivePointsPanel'
+import { useIsPointsHelper } from '../../hooks/api/useSisPoints'
 
 /**
  * Student mode on the kiosk: after the passwordless login, greet the student,
@@ -40,6 +42,11 @@ import api from '../../services/api'
  * a topic made here is the one they see at home. It replaced a dead end: a
  * child with no quest used to see only "Ask your teacher to assign one".
  * Hidden where the school has switched the journal off (journalEnabled).
+ *
+ * A points helper (ticket 0f401a62: "we do have a studio leader each session
+ * that tracks points") who signs in here also gets "Give points": the same
+ * panel as their Points page. Asked only where the school runs points
+ * (pointsEnabled, from the roster); the points API says who is a helper.
  *
  * Defensive by design: every network step surfaces a friendly retryable error
  * instead of throwing, because this runs unattended on a shared iPad.
@@ -174,9 +181,11 @@ function shapeDashboard(data) {
   return { active, assigned }
 }
 
-export default function KioskStudentSession({ studentName, accentColor, onFinished, journalEnabled = true }) {
+export default function KioskStudentSession({
+  studentName, accentColor, onFinished, journalEnabled = true, pointsEnabled = false,
+}) {
   // step: loading | quests | tasks | newTask | capture | uploading
-  //     | journalTopic | journalCapture | journalSaving | done | error
+  //     | journalTopic | journalCapture | journalSaving | givePoints | done | error
   const [step, setStep] = useState('loading')
   const [quests, setQuests] = useState([])
   const [assigned, setAssigned] = useState([])
@@ -194,6 +203,8 @@ export default function KioskStudentSession({ studentName, accentColor, onFinish
   const [renamingId, setRenamingId] = useState(null) // topic id, or 'new'
   const [caption, setCaption] = useState('')
   const [savedTo, setSavedTo] = useState('quest') // which done message to show
+  // Asked only where the school runs points; a failed answer is "no".
+  const isHelper = useIsPointsHelper(pointsEnabled).data === true
   const doneTimer = useRef(null)
 
   // The student's quests (started + assigned) via the standard dashboard API.
@@ -513,6 +524,23 @@ export default function KioskStudentSession({ studentName, accentColor, onFinish
                 </span>
               </button>
             )}
+            {isHelper && (
+              <button
+                onClick={() => { setError(''); setStep('givePoints') }}
+                className="w-full mb-6 rounded-2xl p-5 flex items-center gap-4 text-left bg-white shadow-sm hover:shadow-md active:scale-[0.99] transition touch-manipulation border-2 border-optio-purple/30"
+              >
+                <span className="w-12 h-12 rounded-full bg-optio-purple/10 text-optio-purple flex items-center justify-center shrink-0">
+                  <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                      d="M11.48 3.5a.56.56 0 011.04 0l2.13 5.11 5.52.44a.56.56 0 01.32.99l-4.2 3.6 1.28 5.39a.56.56 0 01-.84.61L12 16.73l-4.73 2.9a.56.56 0 01-.84-.61l1.28-5.39-4.2-3.6a.56.56 0 01.32-.99l5.52-.44 2.13-5.11z" />
+                  </svg>
+                </span>
+                <span>
+                  <span className="block text-lg font-bold text-neutral-900">Give points</span>
+                  <span className="block text-sm text-neutral-500">You are a points helper</span>
+                </span>
+              </button>
+            )}
             {quests.length === 0 && assigned.length === 0 ? (
               !journalEnabled && (
                 <div className="bg-white rounded-2xl p-8 text-center">
@@ -560,6 +588,18 @@ export default function KioskStudentSession({ studentName, accentColor, onFinish
                 )}
               </>
             )}
+          </>
+        )}
+
+        {step === 'givePoints' && (
+          <>
+            <Header
+              title="Give points"
+              subtitle="A coach can undo a mistake."
+              onBack={() => setStep('quests')}
+              onSignOut={onFinished}
+            />
+            <GivePointsPanel />
           </>
         )}
 

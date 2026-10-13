@@ -70,3 +70,76 @@ describe('FamilyPointsPage', () => {
     expect(screen.getByText(/added by the student/)).toBeInTheDocument()
   })
 })
+
+/**
+ * Points helpers (ticket 0f401a62): "we do have a studio leader each session
+ * that tracks points." A student the admins named gets a Give points tab:
+ * tick several students, tap a button, done.
+ */
+describe('FamilyPointsPage give points', () => {
+  const helperBoard = {
+    success: true,
+    students: [
+      { student_id: 's2', name: 'Ben Kid', balance: 4 },
+      { student_id: 's3', name: 'Cy Kid', balance: 9 },
+    ],
+    buttons: [{ id: 'b1', label: 'Daily job', amount: 5 }],
+    max_amount: 10,
+    recent: [{ id: 'g1', student_id: 's2', student_name: 'Ben Kid', amount: 5, reason: 'Daily job',
+      created_at: '2026-10-13T15:00:00Z', given_by_student: true }],
+  }
+
+  const serveHelper = (isHelper) => api.get.mockImplementation((url) => Promise.resolve(
+    url === '/api/sis/points/helper'
+      ? { data: helperBoard }
+      : { data: { success: true, students: [student({ can_add: true, daily_cap: 20, added_today: 0, is_helper: isHelper })] } },
+  ))
+
+  it('a helper gives a quick button to several students at once', async () => {
+    serveHelper(true)
+    render(<FamilyPointsPage />)
+    fireEvent.click(await screen.findByRole('tab', { name: 'Give points' }))
+    expect(await screen.findByText('What you gave lately')).toBeInTheDocument()
+    expect(screen.getByLabelText('Cy Kid balance')).toHaveTextContent('9')
+    const daily = screen.getByRole('button', { name: /Daily job \+5/ })
+    expect(daily).toBeDisabled()
+    fireEvent.click(screen.getByLabelText('Select Ben Kid'))
+    fireEvent.click(screen.getByLabelText('Select Cy Kid'))
+    fireEvent.click(daily)
+    await waitFor(() => expect(api.post).toHaveBeenCalledTimes(1))
+    expect(api.post).toHaveBeenCalledWith('/api/sis/points/helper/entries',
+      { student_ids: ['s2', 's3'], amount: 5, reason: 'Daily job' })
+  })
+
+  it('a custom amount needs a reason and stays under the limit', async () => {
+    serveHelper(true)
+    render(<FamilyPointsPage />)
+    fireEvent.click(await screen.findByRole('tab', { name: 'Give points' }))
+    fireEvent.click(await screen.findByLabelText('Select Ben Kid'))
+    const give = screen.getByRole('button', { name: 'Give' })
+    fireEvent.change(screen.getByLabelText('Points to give'), { target: { value: '11' } })
+    fireEvent.change(screen.getAllByLabelText('What for').at(-1), { target: { value: 'Led cleanup' } })
+    expect(give).toBeDisabled()
+    expect(screen.getByText(/Up to 10 points at a time/)).toBeInTheDocument()
+    fireEvent.change(screen.getByLabelText('Points to give'), { target: { value: '8' } })
+    fireEvent.click(give)
+    await waitFor(() => expect(api.post).toHaveBeenCalledTimes(1))
+    expect(api.post).toHaveBeenCalledWith('/api/sis/points/helper/entries',
+      { student_ids: ['s2'], amount: 8, reason: 'Led cleanup' })
+  })
+
+  it('a student who is not a helper sees no tab and never asks for the helper screen', async () => {
+    serveHelper(false)
+    render(<FamilyPointsPage />)
+    expect(await screen.findByText(/left today/)).toBeInTheDocument()
+    expect(screen.queryByRole('tab', { name: 'Give points' })).not.toBeInTheDocument()
+    expect(api.get).not.toHaveBeenCalledWith('/api/sis/points/helper')
+  })
+
+  it('an entry a helper gave says who gave it', async () => {
+    serve([student({ can_add: false, entries: [{ id: 'e9', amount: 5, reason: 'Daily job',
+      created_at: '2026-10-13T15:00:00Z', given_by_student: true, created_by_name: 'Hal Kid' }] })])
+    render(<FamilyPointsPage />)
+    expect(await screen.findByText(/given by Hal Kid/)).toBeInTheDocument()
+  })
+})

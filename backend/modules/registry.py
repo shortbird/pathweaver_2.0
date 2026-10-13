@@ -209,6 +209,14 @@ def _defs() -> Tuple[ModuleDef, ...]:
         ModuleDef('points', 'Points', 'people', (),
                   default='off', parent='sis',
                   surfaces=('console', 'family')),
+        # Group photos: a coach takes or uploads a picture, taps every student
+        # in it, and it goes into each one's journal and their parents get a
+        # note (Apogee Cache Valley, ticket 85949de5, 2026-10-13). The SIS
+        # console's door onto the capture Treehouse already had
+        # (services/group_photo_service.py); opt-in, because it emails parents.
+        ModuleDef('group_photos', 'Group Photos', 'community', (),
+                  default='off', parent='sis',
+                  surfaces=('console',)),
         # The school's bounties in the console: every bounty posted to the
         # school and its claims, and any staff member may edit or review them
         # (bounty_service.can_manage). The student board stays 'bounties'.
@@ -317,6 +325,7 @@ STARTER_KEEPS = frozenset({
     # off by default already; the baseline has nothing to add
     'course_builder', 'credits', 'transcripts', 'ai', 'sis', 'goals',
     'weekly_goals', 'points', 'bounty_management', 'bloomy', 'community', 'kiosk',
+    'group_photos',
 })
 
 STARTER_BASELINE = 'starter'

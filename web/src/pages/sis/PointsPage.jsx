@@ -2,10 +2,12 @@ import React, { useMemo, useState } from 'react'
 import { toast } from 'react-hot-toast'
 import Button from '../../components/ui/Button'
 import ModalOverlay from '../../components/ui/ModalOverlay'
+import PeoplePicker from '../../components/sis/ui/PeoplePicker'
 import { INLINE_INPUT_CLASS } from '../../components/ui/Input'
 import { useSisOrg } from './useSisOrg'
 import {
-  useAddPoints, useSavePointButtons, useSisPoints, useSisPointsHistory, useUndoPoints,
+  useAddPoints, useSavePointButtons, useSavePointHelpers, useSisPointHelpers, useSisPoints,
+  useSisPointsHistory, useUndoPoints,
 } from '../../hooks/api/useSisPoints'
 
 /**
@@ -14,6 +16,11 @@ import {
  * Tick students, then click a quick button ("Daily job +5") or enter an
  * amount and a reason. The server keeps the ledger and refuses a take that
  * would leave anyone below zero; nothing here computes a balance.
+ *
+ * Points helpers (ticket 0f401a62): an admin names students who may give
+ * points to other students from their own login ("a studio leader each
+ * session that tracks points"). Their entries carry "Given by <name>" here
+ * so a coach can check them and undo a wrong one.
  */
 
 const field = INLINE_INPUT_CLASS
@@ -34,13 +41,19 @@ const EntryRow = ({ entry, showName, onUndo, undoing }) => (
       <span className="block text-xs text-neutral-500">
         {fmtWhen(entry.created_at)}
         {entry.source === 'bounty' ? ' · from a bounty'
-          : entry.added_by_student ? ''
+          : entry.added_by_student || entry.given_by_student ? ''
             : entry.created_by_name ? ` · ${entry.created_by_name}` : ''}
         {/* Ticket 910668d8: a student's own points count at once, so the
             coach needs to see which ones to inspect and, if wrong, undo. */}
         {entry.added_by_student && (
           <span className="ml-1 inline-block rounded bg-amber-100 text-amber-800 px-1.5 py-0.5 font-medium">
             Added by student
+          </span>
+        )}
+        {/* Ticket 0f401a62: a points helper's entry, named, for the same check. */}
+        {entry.given_by_student && (
+          <span className="ml-1 inline-block rounded bg-amber-100 text-amber-800 px-1.5 py-0.5 font-medium">
+            Given by {entry.created_by_name || 'a student'}
           </span>
         )}
       </span>
@@ -139,6 +152,54 @@ const ButtonsModal = ({ buttons, orgId, onClose }) => {
   )
 }
 
+const HelpersModal = ({ students, helpers, orgId, onClose }) => {
+  const [picked, setPicked] = useState(() => new Set(helpers.map((h) => h.student_id)))
+  const saveHelpers = useSavePointHelpers(orgId)
+
+  const toggle = (id) => setPicked((prev) => {
+    const next = new Set(prev)
+    if (next.has(id)) next.delete(id)
+    else next.add(id)
+    return next
+  })
+
+  const save = async () => {
+    try {
+      await saveHelpers.mutateAsync([...picked])
+      toast.success('Helpers saved')
+      onClose()
+    } catch (e) {
+      toast.error(e?.response?.data?.error || 'Could not save the helpers')
+    }
+  }
+
+  return (
+    <ModalOverlay onClose={onClose}>
+      <div className="bg-white rounded-xl w-full max-w-lg p-6">
+        <h2 className="text-xl font-bold text-neutral-900 mb-1">Points helpers</h2>
+        <p className="text-sm text-neutral-500 mb-4">
+          A helper signs in as themselves and gives points to other students from their Points page.
+          Helpers can only give, up to your largest quick button (or 10). They cannot take points,
+          undo, change buttons, or give points to themselves. You see each one as Given by, and can undo it.
+        </p>
+        <PeoplePicker
+          people={students}
+          selected={picked}
+          onToggle={toggle}
+          getId={(s) => s.student_id}
+          searchLabel="Search students"
+          placeholder="Search students"
+          emptyLabel="No students yet."
+        />
+        <div className="mt-5 flex justify-end gap-3">
+          <Button variant="secondary" onClick={onClose}>Cancel</Button>
+          <Button onClick={save} loading={saveHelpers.isPending}>Save helpers</Button>
+        </div>
+      </div>
+    </ModalOverlay>
+  )
+}
+
 const PointsPage = () => {
   const { orgId } = useSisOrg()
   const board = useSisPoints(orgId)
@@ -152,6 +213,10 @@ const PointsPage = () => {
   const [undoing, setUndoing] = useState(null)
   const [historyId, setHistoryId] = useState(null)
   const [editingButtons, setEditingButtons] = useState(false)
+  const [editingHelpers, setEditingHelpers] = useState(false)
+  const helperList = useSisPointHelpers(orgId)
+  const helpers = Array.isArray(helperList.data?.helpers) ? helperList.data.helpers : []
+  const canEditHelpers = Boolean(helperList.data?.can_edit)
 
   const data = board.isError ? { students: [], buttons: [], recent: [] } : (board.data || null)
 
@@ -211,9 +276,20 @@ const PointsPage = () => {
       <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
         <h1 className="text-2xl font-bold text-neutral-900">Points</h1>
         {data && (
-          <Button variant="secondary" size="sm" onClick={() => setEditingButtons(true)}>Edit quick buttons</Button>
+          <div className="flex flex-wrap gap-2">
+            {canEditHelpers && (
+              <Button variant="secondary" size="sm" onClick={() => setEditingHelpers(true)}>Points helpers</Button>
+            )}
+            <Button variant="secondary" size="sm" onClick={() => setEditingButtons(true)}>Edit quick buttons</Button>
+          </div>
         )}
       </div>
+
+      {data && helpers.length > 0 && (
+        <p className="text-sm text-neutral-600 -mt-4 mb-4">
+          Points helpers: {helpers.map((h) => h.name).join(', ')}
+        </p>
+      )}
 
       {data && (
         <div className="bg-white rounded-xl border border-gray-200 p-4 mb-4 space-y-3">
@@ -291,6 +367,10 @@ const PointsPage = () => {
       {historyStudent && (
         <HistoryModal student={historyStudent} orgId={orgId}
           onClose={() => setHistoryId(null)} onUndo={undo} undoing={undoing} />
+      )}
+      {editingHelpers && data && (
+        <HelpersModal students={data.students} helpers={helpers} orgId={orgId}
+          onClose={() => setEditingHelpers(false)} />
       )}
       {editingButtons && (
         <ButtonsModal buttons={data.buttons} orgId={orgId} onClose={() => setEditingButtons(false)} />

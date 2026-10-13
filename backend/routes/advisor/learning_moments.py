@@ -516,19 +516,12 @@ def delete_student_learning_moment(user_id, student_id, moment_id):
             .eq('learning_event_id', moment_id) \
             .execute()
 
-        # Delete storage files from evidence blocks
-        for block in (blocks_response.data or []):
-            file_url = block.get('file_url') or (block.get('content') or {}).get('url')
-            if file_url and 'supabase.co' in file_url:
-                try:
-                    for bucket in ['user-uploads', 'quest-evidence']:
-                        marker = f'/{bucket}/'
-                        if marker in file_url:
-                            file_path = file_url.split(marker, 1)[1].split('?')[0]
-                            supabase.storage.from_(bucket).remove([file_path])
-                            break
-                except Exception as e:
-                    logger.warning(f"Failed to delete storage file during moment deletion: {e}")
+        # Delete storage files from evidence blocks -- except a group photo's
+        # file while another student's journal still shows it. A coach deleting
+        # one student's copy of a class photo must leave the others' alone
+        # (services/group_photo_service, ticket 85949de5).
+        from services.learning_events_service import LearningEventsService
+        LearningEventsService.remove_unshared_files(supabase, moment_id, blocks_response.data or [])
 
         # Delete evidence blocks
         supabase.table('learning_event_evidence_blocks') \

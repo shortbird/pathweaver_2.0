@@ -110,6 +110,11 @@ export const queryKeys = {
     points: (orgId) => [...queryKeys.sis.all, 'points', orgId],
     pointsStudent: (orgId, studentId) => [...queryKeys.sis.all, 'points', orgId, 'student', studentId],
     pointsMine: ['sis', 'points', 'mine'],
+    // Group photos (ticket 85949de5): the students to tag and recent captures.
+    photos: (orgId) => [...queryKeys.sis.all, 'photos', orgId],
+    // Points helpers (ticket 0f401a62): the staff list, and a helper's screen.
+    pointsHelpers: (orgId) => [...queryKeys.sis.all, 'points', orgId, 'helpers'],
+    pointsHelper: ['sis', 'points', 'helper'],
     staff: (orgId) => [...queryKeys.sis.all, 'staff', orgId],
     households: (orgId) => [...queryKeys.sis.all, 'households', orgId],
     teacherClassRoster: (orgId, classId) => [...queryKeys.sis.all, 'teacherClassRoster', orgId, classId],

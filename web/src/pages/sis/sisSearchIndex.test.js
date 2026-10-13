@@ -24,7 +24,7 @@ const fullOrg = {
   feature_flags: {
     sis_enabled: true,
     sis_settings: { community_enabled: true, prior_learning_enabled: true, clp_enabled: true, post_registration_flow: 'goals' },
-    modules: { weekly_goals: true, points: true, bounty_management: true, bloomy: true },
+    modules: { weekly_goals: true, points: true, bounty_management: true, bloomy: true, group_photos: true },
   },
 }
 
@@ -36,11 +36,20 @@ beforeEach(() => { getPreviewTeacher.mockReturnValue(null) })
 describe('buildSearchIndex', () => {
   it('lists every sidebar page an admin has, then what sits under each', () => {
     const index = buildSearchIndex(navContextFor(orgAdmin, fullOrg))
-    const pages = NAV_SECTIONS.flatMap((s) => s.items).filter((i) => !i.teacherOnly)
+    // The daily roll's entry is a setting, not a module (ticket 0680d03c):
+    // fullOrg keeps the class roll, so it is checked on its own below.
+    const pages = NAV_SECTIONS.flatMap((s) => s.items).filter((i) => !i.teacherOnly && !i.dailyRollOnly)
     pages.forEach((p) => expect(ids(index)).toContain(p.path))
     // A tab sits right after its page, in nav order.
     const messaging = ids(index).indexOf('/inbox')
     expect(index[messaging + 1]).toMatchObject({ name: 'School inbox', to: '/inbox?tab=school', hint: 'Messaging · Operations', parent: 'Messaging' })
+  })
+
+  it('offers the daily roll to a teacher where the school turned it on (0680d03c)', () => {
+    const dailyOrg = { ...fullOrg, feature_flags: { ...fullOrg.feature_flags,
+      sis_settings: { ...fullOrg.feature_flags.sis_settings, attendance: { daily_roll: true } } } }
+    expect(ids(buildSearchIndex(navContextFor(teacher, dailyOrg)))).toContain('/attendance')
+    expect(ids(buildSearchIndex(navContextFor(teacher, fullOrg)))).not.toContain('/attendance')
   })
 
   it('offers a teacher only what the sidebar offers a teacher', () => {

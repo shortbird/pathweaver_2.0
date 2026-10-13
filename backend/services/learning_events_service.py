@@ -551,6 +551,45 @@ class LearningEventsService(BaseService):
             }
 
     @staticmethod
+    def remove_unshared_files(supabase, event_id: str, blocks: List[Dict[str, Any]]) -> None:
+        """Remove the storage objects behind an event's evidence blocks, except
+        any object another evidence row still names.
+
+        A group photo (services/group_photo_service) is ONE object that every
+        tagged student's journal points at. Deleting one student's moment must
+        not take the photo out of the others' journals, so the file stays while
+        any other evidence row names it (GroupPhotoRepository
+        .object_referenced_elsewhere). If the check itself fails, the file is
+        kept: an orphan costs storage, a wrong delete costs another family
+        their child's photo.
+        """
+        from repositories.group_photo_repository import GroupPhotoRepository
+        from utils.storage_urls import parse_object_ref, public_object_url
+
+        refs_repo = GroupPhotoRepository(client=supabase)
+        for block in blocks:
+            file_url = block.get('file_url') or (block.get('content') or {}).get('url')
+            # parse_object_ref resolves public, signed and legacy shapes
+            # alike. The old substring match understood only the public
+            # one, so any row that had picked up a signed URL left its
+            # object behind in storage forever.
+            ref = parse_object_ref(file_url)
+            if not ref:
+                continue
+            bucket, file_path = ref
+            try:
+                if refs_repo.object_referenced_elsewhere(
+                        [public_object_url(bucket, file_path), file_url], event_id):
+                    continue
+            except Exception as e:
+                logger.warning(f"Shared-object check failed; keeping the file: {e}")
+                continue
+            try:
+                supabase.storage.from_(bucket).remove([file_path])
+            except Exception as e:
+                logger.warning(f"Failed to delete storage file during event deletion: {e}")
+
+    @staticmethod
     def delete_learning_event(
         user_id: str,
         event_id: str
@@ -591,22 +630,8 @@ class LearningEventsService(BaseService):
                     .eq('learning_event_id', event_id) \
                     .execute()
 
-                from utils.storage_urls import parse_object_ref
-
-                for block in (blocks_response.data or []):
-                    file_url = block.get('file_url') or (block.get('content') or {}).get('url')
-                    # parse_object_ref resolves public, signed and legacy shapes
-                    # alike. The old substring match understood only the public
-                    # one, so any row that had picked up a signed URL left its
-                    # object behind in storage forever.
-                    ref = parse_object_ref(file_url)
-                    if not ref:
-                        continue
-                    bucket, file_path = ref
-                    try:
-                        supabase.storage.from_(bucket).remove([file_path])
-                    except Exception as e:
-                        logger.warning(f"Failed to delete storage file during event deletion: {e}")
+                LearningEventsService.remove_unshared_files(
+                    supabase, event_id, blocks_response.data or [])
             except Exception as e:
                 logger.warning(f"Failed to fetch evidence blocks for storage cleanup: {e}")
 
