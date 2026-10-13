@@ -10,7 +10,7 @@ const OptioAcademyAgreement = () => {
           <h1 className="text-3xl font-bold text-gray-900 mb-8">Optio Academy Participant &amp; Parent Agreement</h1>
 
           <div className="prose prose-gray max-w-none">
-            <p className="text-sm text-gray-600 mb-6">Effective Date: August 10, 2026</p>
+            <p className="text-sm text-gray-600 mb-6">Effective Date: October 12, 2026</p>
 
             <div className="bg-optio-purple/5 border-l-4 border-optio-purple p-4 mb-8">
               <p className="font-semibold text-gray-900">Important Notice</p>
@@ -95,9 +95,10 @@ const OptioAcademyAgreement = () => {
               <ul className="list-disc ml-6 mb-4">
                 <li>
                   <strong>Full-Time Academy:</strong> The Participant works with a dedicated Optio
-                  teacher through 1-on-1 video sessions. The frequency and level of teacher support
-                  — from daily working sessions to weekly check-ins — is agreed with the Parent at
-                  enrollment and reflected in the tuition described in Section 4.
+                  teacher, selected as "Optio teacher support" at registration. The teacher meets the
+                  Participant on a weekly 1-on-1 video call, plans with the family, gives feedback on the
+                  Participant&apos;s work, and answers messages between calls. Tuition is described in
+                  Section 4.
                 </li>
                 <li>
                   <strong>Parent-Supported Diploma:</strong> The Parent guides the Participant's
@@ -155,22 +156,24 @@ const OptioAcademyAgreement = () => {
 
               <h3 className="text-xl font-semibold mb-3">Tuition</h3>
               <p className="mb-4">
-                Tuition depends on the Participant's enrollment program (Section 2):
+                Tuition is billed monthly and depends on the Participant&apos;s enrollment program
+                (Section 2):
               </p>
               <ul className="list-disc ml-6 mb-4">
                 <li>
-                  <strong>Full-Time Academy:</strong> Tuition is customized to the level of teacher
-                  support agreed with the Parent and is stated in writing at enrollment, before this
-                  Agreement is signed. Tuition includes the agreed 1-on-1 teacher sessions, all
-                  curriculum materials, access to the Optio digital platform, the Participant's
-                  transcript, and the diploma pathway.
+                  <strong>Parent-Supported Diploma:</strong> $50 per month for each Participant, and
+                  no more than $150 per month for a family, however many Participants are enrolled.
+                  Tuition covers six credits a year, the pace that completes the 24-credit diploma in
+                  four years. Credits beyond that pace are $100 each, billed when the credit is begun.
+                  Tuition includes access to the Optio digital platform, curriculum structure, Academy
+                  credit review, the Participant&apos;s transcript, and the diploma pathway.
                 </li>
                 <li>
-                  <strong>Parent-Supported Diploma:</strong> Tuition is $100 per credit ($2,400 for
-                  the full 24-credit diploma), billed as credits are undertaken or on the schedule
-                  agreed at enrollment. Tuition includes access to the Optio digital platform,
-                  curriculum structure, Academy credit review, the Participant's transcript, and the
-                  diploma pathway.
+                  <strong>Full-Time Academy:</strong> $500 per month for each Participant with a
+                  dedicated Optio teacher. This includes that Participant&apos;s $50 monthly tuition; it is
+                  not added on top. It also includes everything in the Parent-Supported Diploma, the
+                  weekly teacher sessions, and all curriculum materials. The $150 family limit applies
+                  to Parent-Supported tuition only.
                 </li>
               </ul>
 
@@ -190,12 +193,12 @@ const OptioAcademyAgreement = () => {
 
               <h3 className="text-xl font-semibold mb-3">Refund Policy</h3>
               <p className="mb-4">
-                If the Participant withdraws from Optio Academy before the end of the school year:
-                Full-Time Academy tuition is refunded prorated by the number of months the Participant
-                attended, where months in which the Participant was enrolled for any part of the month
-                count as a full attended month; Parent-Supported Diploma credit fees are refunded in
-                full for credits the Participant has not yet begun, and are not refunded for credits
-                already begun or completed.
+                If the Participant withdraws from Optio Academy, monthly billing stops and no further
+                month is charged. Monthly tuition already paid is not refunded, because a month in which
+                the Participant was enrolled for any part of the month counts as a full attended month.
+                Fees for credits beyond the included pace are refunded in full for credits the
+                Participant has not yet begun, and are not refunded for credits already begun or
+                completed.
               </p>
 
               <h3 className="text-xl font-semibold mb-3">Refunds for Scholarship-Funded Tuition</h3>
@@ -219,8 +222,10 @@ const OptioAcademyAgreement = () => {
               <h3 className="text-xl font-semibold mb-3">Payment Processing</h3>
               <p className="mb-4">
                 Tuition payments are processed through Stripe or, where applicable, through the financial
-                administrator of the scholarship program funding the Participant's tuition. Payment plans
-                are available; specific terms are agreed at enrollment.
+                administrator of the scholarship program funding the Participant&apos;s tuition. The first
+                month is paid at registration, and Stripe charges the payment method on file once a month
+                after that. The Parent can see receipts and change the payment method on the Billing tab
+                of the Optio Academy page in the Optio app.
               </p>
             </section>
 

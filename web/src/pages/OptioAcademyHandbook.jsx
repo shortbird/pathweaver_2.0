@@ -9,7 +9,7 @@ const OptioAcademyHandbook = () => {
           <h1 className="text-3xl font-bold text-gray-900 mb-8">Optio Academy Participant Handbook</h1>
 
           <div className="prose prose-gray max-w-none">
-            <p className="text-sm text-gray-600 mb-6">Effective Date: August 10, 2026</p>
+            <p className="text-sm text-gray-600 mb-6">Effective Date: October 12, 2026</p>
 
             <div className="bg-gradient-to-r from-optio-purple/5 to-optio-pink/5 border-l-4 border-optio-purple p-6 mb-8">
               <h3 className="text-lg font-semibold text-gray-900 mb-2">Welcome to Optio Academy!</h3>
@@ -61,9 +61,8 @@ const OptioAcademyHandbook = () => {
               <ul className="list-disc ml-6 mb-4">
                 <li>
                   <strong>Full-Time Academy:</strong> A dedicated Optio teacher carries the
-                  accountability — goals, check-ins, follow-through, and review of your work. The level
-                  of support is tailored to you, from daily working sessions to a quick weekly
-                  check-in, and is agreed with your family at enrollment.
+                  accountability: goals, a weekly video call, follow-through, and review of your work.
+                  You can message your teacher between calls whenever you get stuck.
                 </li>
                 <li>
                   <strong>Parent-Supported Diploma:</strong> Your parent guides the learning day to
@@ -264,17 +263,18 @@ const OptioAcademyHandbook = () => {
             <section className="mb-8">
               <h2 className="text-2xl font-semibold mb-4">Tuition &amp; Refunds</h2>
               <p className="mb-4">
-                Tuition depends on your program. Full-Time Academy tuition is customized to the level
-                of teacher support your student needs — from daily working sessions to a weekly
-                check-in — and is agreed in writing at enrollment. The Parent-Supported Diploma is
-                $100 per credit, which comes to $2,400 for the full 24-credit diploma. Both include
-                curriculum materials, the Optio platform, the transcript, and the diploma pathway.
-                There are no required additional fees during the school year.
+                The Parent-Supported Diploma is $50 a month for each student, and never more than
+                $150 a month for a family. That covers six credits a year, the pace that finishes the
+                24-credit diploma in four years; credits beyond that pace are $100 each. The Full-Time
+                Academy, with a dedicated Optio teacher, is $500 a month for each student, and that
+                includes the $50. Both include the Optio platform, the transcript, and the diploma
+                pathway. There are no required additional fees during the school year.
               </p>
               <p className="mb-4">
-                If a student leaves before the end of the school year, Full-Time Academy tuition is
-                refunded prorated by the number of months attended, and Parent-Supported Diploma
-                credit fees are refunded for credits not yet begun. The full refund policy — including
+                If a student leaves, monthly billing stops and no further month is charged. Months
+                already paid are not refunded, and fees for extra credits are refunded for credits not
+                yet begun. Your parent can see receipts and change the payment method on the Billing tab
+                of the Optio Academy page. The full refund policy — including
                 how refunds work for students whose tuition is funded by a scholarship — is in Section
                 4 of the{' '}
                 <Link to="/academy-agreement" className="text-optio-purple hover:text-optio-purple-dark underline">
