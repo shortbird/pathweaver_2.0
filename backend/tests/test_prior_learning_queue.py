@@ -421,7 +421,7 @@ class TestTransferCreditCost:
         from generated.pricing import PRICING
         cost = queue.transfer_cost([self._row('r1', credits={'math': 1.5})], self.RECORDS, 'private')
         assert cost['lines'][0]['cost_cents'] == 7500                     # stored, not recomputed
-        assert cost['unaccredited_rate_cents'] == PRICING['academy']['creditCents']
+        assert cost['unaccredited_rate_cents'] == PRICING['transfer']['unaccreditedCreditCents']
 
     def test_a_record_from_before_fees_were_stored_is_priced_now(self):
         cost = queue.transfer_cost([self._row('r3')], self.RECORDS, 'licensed')
@@ -488,11 +488,13 @@ class TestPriorLearningFees:
                 return sources
         monkeypatch.setattr(queue, '_repo', lambda: R())
 
-    def test_an_academy_student_pays_the_private_price(self, monkeypatch):
+    def test_an_academy_student_pays_the_one_unaccredited_price(self, monkeypatch):
+        # Was 15000 (the $100 private credit price) until 2026-10-14, when
+        # Tanner set $25 a half credit for every student.
         monkeypatch.setattr(prior, 'academy_org_id', lambda: 'academy')
         self._funding(monkeypatch, [])
         assert queue.price_list_for({'organization_id': 'academy', 'student_user_id': 's'}) == 'private'
-        assert queue.fee_for('private', {'math': 1, 'science': 0.5}, False) == 15000
+        assert queue.fee_for('private', {'math': 1, 'science': 0.5}, False) == 7500
 
     def test_a_microschool_student_pays_the_licensed_price(self, monkeypatch):
         monkeypatch.setattr(prior, 'academy_org_id', lambda: 'academy')
@@ -511,10 +513,18 @@ class TestPriorLearningFees:
     def test_credit_from_an_accredited_transcript_is_free(self):
         assert queue.fee_for('private', {'math': 3}, True) == 0
 
-    def test_the_prices_are_the_price_lists(self):
+    def test_private_and_licensed_pay_one_unaccredited_price(self):
+        """Tanner, 2026-10-14: unaccredited transfer credit is $25 per half
+        credit for every student. Before this an Optio Academy student paid
+        the private credit price ($100 a credit) and a licensed student half
+        of it; this pinned those two prices and now pins the one."""
         from generated.pricing import PRICING
-        assert queue.credit_price_cents('private') == PRICING['academy']['creditCents']
-        assert queue.credit_price_cents('licensed') == PRICING['licensed']['creditCents']
+        price = PRICING['transfer']['unaccreditedCreditCents']
+        assert price == 5000
+        assert queue.credit_price_cents('private') == price
+        assert queue.credit_price_cents('licensed') == price
+        assert queue.fee_for('private', {'math': 0.5}, False) == 2500
+        assert queue.fee_for('licensed', {'math': 1.5}, False) == 7500
 
     def test_approve_stores_the_fee_the_reviewer_saw(self, monkeypatch):
         monkeypatch.setattr(prior, 'academy_org_id', lambda: 'o1')
@@ -535,5 +545,6 @@ class TestPriorLearningFees:
         monkeypatch.setattr(queue, '_repo', lambda: R())
         out = queue.approve('r1', 'o1', 'staff', {'school_name': 'Home', 'subject_credits': {'math': 2},
                                                   'source_accredited': False})
-        assert stored == [{'source_accredited': False, 'fee_price_list': 'private', 'fee_cents': 20000}]
-        assert out['record']['fee_cents'] == 20000
+        # 2 credits at $50 (was 20000 at the old $100 private price).
+        assert stored == [{'source_accredited': False, 'fee_price_list': 'private', 'fee_cents': 10000}]
+        assert out['record']['fee_cents'] == 10000

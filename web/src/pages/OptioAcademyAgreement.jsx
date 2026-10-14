@@ -15,7 +15,7 @@ const OptioAcademyAgreement = () => {
           <h1 className="text-3xl font-bold text-gray-900 mb-8">Optio Academy Participant &amp; Parent Agreement</h1>
 
           <div className="prose prose-gray max-w-none">
-            <p className="text-sm text-gray-600 mb-6">Effective Date: October 13, 2026</p>
+            <p className="text-sm text-gray-600 mb-6">Effective Date: October 14, 2026</p>
 
             <div className="bg-optio-purple/5 border-l-4 border-optio-purple p-4 mb-8">
               <p className="font-semibold text-gray-900">Important Notice</p>
@@ -186,11 +186,12 @@ const OptioAcademyAgreement = () => {
 
               <h3 className="text-xl font-semibold mb-3">Transfer Credit and Prior Learning</h3>
               <p className="mb-4">
-                Credit the Participant earned at an accredited school transfers at no charge when that
-                school sends an official transcript. Other learning completed before or outside the
-                Academy (homeschool courses, co-ops, and programs without accreditation) may be
-                submitted for review; credit the Academy awards for it is {P.transferUnaccreditedPrivate}{' '}
-                per credit, billed when the credit is awarded, and nothing is charged for learning the
+                Families submit records of earlier learning on the Prior Learning page. Credit the
+                Participant earned at an accredited school transfers at no charge when its official
+                transcript is submitted there. Other learning completed before or outside the Academy
+                (homeschool courses, co-ops, and programs without accreditation) may be submitted for
+                review; credit the Academy awards for it is {P.transferUnaccreditedHalfCredit} per half
+                credit, billed when the credit is awarded, and nothing is charged for learning the
                 Academy does not accept. A Participant may transfer in up to {P.maxTransferCredits}{' '}
                 credits toward the diploma.
               </p>

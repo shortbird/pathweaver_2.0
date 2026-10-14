@@ -25,12 +25,14 @@ export const PRICING = {
   },
   "transfer": {
     "accreditedCreditCents": 0,
+    "unaccreditedCreditCents": 5000,
     "maxTransferCredits": 18
   },
   "openEd": {
     "yearCents": 30000,
     "creditsIncludedPerYear": 6,
-    "priorLearningWindowDays": 90
+    "priorLearningWindowDays": 90,
+    "marketplaceFeeHalfCreditCents": 500
   },
   "optioCourseForSchools": {
     "perStudentCents": 5000
@@ -57,12 +59,15 @@ export const PRICE_TEXT = {
   "licensedHalfCredit": "$25",
   "licensePerStudentYearly": "$80",
   "transferAccredited": "free",
-  "transferUnaccreditedPrivate": "$100",
+  "transferUnaccredited": "$50",
+  "transferUnaccreditedHalfCredit": "$25",
+  "transferUnaccreditedPrivate": "$50",
   "transferUnaccreditedLicensed": "$50",
   "maxTransferCredits": "18",
   "openEdYearly": "$300",
   "openEdCreditsIncludedPerYear": "6",
   "openEdPriorLearningWindowDays": "90",
+  "openEdPriorLearningHalfCredit": "$30",
   "optioCourseForSchools": "$50",
   "cardProcessingFee": "2.9% + $0.30",
   "diplomaCredits": "24",

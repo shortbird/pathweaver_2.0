@@ -80,6 +80,7 @@ export const OFFER = {
   transferAccredited: PRICE_TEXT.transferAccredited,
   transferUnaccreditedPrivate: PRICE_TEXT.transferUnaccreditedPrivate,
   transferUnaccreditedLicensed: PRICE_TEXT.transferUnaccreditedLicensed,
+  transferUnaccreditedHalfCredit: PRICE_TEXT.transferUnaccreditedHalfCredit,
   maxTransferCredits: PRICE_TEXT.maxTransferCredits,
   // Schools: a student whose school holds an Optio license pays the licensed
   // (half) price for every credit.

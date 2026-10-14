@@ -51,12 +51,12 @@ const TUITION_POINTS = [
   `Want to finish sooner? Extra credits are ${OFFER.acceleratedPerCredit} each.`,
 ]
 
-// Prior learning (Tanner, 2026-10-13): an accredited school's official
-// transcript transfers free; anything else is reviewed by an Optio Academy
-// teacher at the private credit price.
+// Prior learning: an accredited school's official transcript transfers free;
+// anything else is reviewed by an Optio Academy teacher at one price for
+// every student (Tanner, 2026-10-14; was the private credit price).
 const TRANSFER_POINTS = [
   'Credit on an official transcript from an accredited school transfers free.',
-  `Credit from homeschool, a co-op, or a school without accreditation is reviewed by an Optio Academy teacher for ${OFFER.transferUnaccreditedPrivate} a credit.`,
+  `Credit from homeschool, a co-op, or a school without accreditation is reviewed by an Optio Academy teacher for ${OFFER.transferUnaccreditedHalfCredit} a half credit.`,
   `Bring in up to ${OFFER.maxTransferCredits} credits toward the ${OFFER.academyDiplomaCredits}-credit diploma.`,
 ]
 

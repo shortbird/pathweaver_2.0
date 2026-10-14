@@ -59,3 +59,15 @@ def test_database_copy_fills_in_prices():
         f"Tuition is {PRICE_TEXT['academyTuitionMonthly']} a month."
     assert fill_prices('{{ price.nope }}') == '{{ price.nope }}'
     assert unknown_price_tokens('{{price.nope}} {{price.fullTimeMonthly}}') == ['nope']
+
+
+def test_unaccredited_transfer_and_opened_marketplace_prices():
+    """Tanner, 2026-10-14: unaccredited prior learning is $25 a half credit
+    for everyone; OpenEd adds a $5 marketplace fee, so an OpenEd family pays
+    $30 a half credit in the marketplace. Help articles quote these names."""
+    from generated.pricing import PRICE_TEXT
+    assert PRICE_TEXT['transferUnaccreditedHalfCredit'] == '$25'
+    assert PRICE_TEXT['transferUnaccredited'] == '$50'
+    assert PRICE_TEXT['transferUnaccreditedPrivate'] == PRICE_TEXT['transferUnaccredited']
+    assert PRICE_TEXT['transferUnaccreditedLicensed'] == PRICE_TEXT['transferUnaccredited']
+    assert PRICE_TEXT['openEdPriorLearningHalfCredit'] == '$30'

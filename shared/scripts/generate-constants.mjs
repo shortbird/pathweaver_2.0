@@ -337,8 +337,8 @@ function pricingChecks() {
   }
   // Tanner, 2026-10-13: accelerated credit is priced above accrediting
   // transfer credit and is never discounted.
-  if (pricing.accelerated.creditCents < l.creditCents) {
-    problems.push('accelerated: creditCents must not be below licensed.creditCents');
+  if (pricing.accelerated.creditCents < pricing.transfer.unaccreditedCreditCents) {
+    problems.push('accelerated: creditCents must not be below transfer.unaccreditedCreditCents');
   }
   if (a.fullTimeMonthlyCents < a.tuitionMonthlyCents) {
     problems.push('academy: fullTimeMonthlyCents includes tuition, so it cannot be less than it');
@@ -354,6 +354,7 @@ function priceText() {
   const a = pricing.academy;
   const l = pricing.licensed;
   const o = pricing.openEd;
+  const t = pricing.transfer;
   const c = pricing.cardProcessing;
   const years = credits.totalCreditsRequired / a.creditsIncludedPerYear;
   return {
@@ -371,12 +372,20 @@ function priceText() {
     licensedHalfCredit: usd(l.creditCents / 2),
     licensePerStudentYearly: usd(l.licensePerStudentYearCents),
     transferAccredited: pricing.transfer.accreditedCreditCents === 0 ? 'free' : usd(pricing.transfer.accreditedCreditCents),
-    transferUnaccreditedPrivate: usd(a.creditCents),
-    transferUnaccreditedLicensed: usd(l.creditCents),
+    // One price for unaccredited prior learning since 2026-10-14. The
+    // Private/Licensed names stay because database copy (help articles, CRM
+    // funnels) already uses them, and an unknown name prints as written.
+    transferUnaccredited: usd(t.unaccreditedCreditCents),
+    transferUnaccreditedHalfCredit: usd(t.unaccreditedCreditCents / 2),
+    transferUnaccreditedPrivate: usd(t.unaccreditedCreditCents),
+    transferUnaccreditedLicensed: usd(t.unaccreditedCreditCents),
     maxTransferCredits: String(pricing.transfer.maxTransferCredits),
     openEdYearly: usd(o.yearCents),
     openEdCreditsIncludedPerYear: String(o.creditsIncludedPerYear),
     openEdPriorLearningWindowDays: String(o.priorLearningWindowDays),
+    // What an OpenEd family pays in the marketplace: Optio's price plus
+    // OpenEd's fee.
+    openEdPriorLearningHalfCredit: usd(t.unaccreditedCreditCents / 2 + o.marketplaceFeeHalfCreditCents),
     optioCourseForSchools: usd(pricing.optioCourseForSchools.perStudentCents),
     cardProcessingFee: `${c.percent}% + ${usd(c.flatCents)}`,
     diplomaCredits: String(credits.totalCreditsRequired),

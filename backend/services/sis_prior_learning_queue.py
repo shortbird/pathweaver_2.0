@@ -436,11 +436,12 @@ def _reviewable(record_id: str, org_id: str):
 
 
 # ── Fees ──────────────────────────────────────────────────────────────────────
-# What awarded prior learning costs, from shared/data/pricing.json (Tanner,
-# 2026-10-13): credit from an accredited school's official transcript is free;
-# anything else costs the student's credit price -- the private price for an
-# Optio Academy student, half that for a student whose microschool holds an
-# Optio license (any school other than Optio Academy).
+# What awarded prior learning costs, from shared/data/pricing.json: credit
+# from an accredited school's official transcript is free; anything else
+# costs transfer.unaccreditedCreditCents. Until 2026-10-14 an Optio Academy
+# student paid the private credit price and a licensed student half of it;
+# Tanner then set one price for both. The price list is
+# still recorded on each record, for the history and for OpenEd.
 #
 # OpenEd families get their own list, 'opened', which has no price at all
 # (Tanner, 2026-10-13): they buy from OpenEd's marketplace and OpenEd pays
@@ -465,7 +466,7 @@ def credit_price_cents(price_list: str) -> int:
     from generated.pricing import PRICING
     if price_list == 'opened':
         return 0
-    return int(PRICING['licensed' if price_list == 'licensed' else 'academy']['creditCents'])
+    return int(PRICING['transfer']['unaccreditedCreditCents'])
 
 
 def fee_for(price_list: str, credits: Any, accredited: bool) -> int:

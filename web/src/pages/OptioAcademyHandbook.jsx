@@ -12,7 +12,7 @@ const OptioAcademyHandbook = () => {
           <h1 className="text-3xl font-bold text-gray-900 mb-8">Optio Academy Participant Handbook</h1>
 
           <div className="prose prose-gray max-w-none">
-            <p className="text-sm text-gray-600 mb-6">Effective Date: October 12, 2026</p>
+            <p className="text-sm text-gray-600 mb-6">Effective Date: October 14, 2026</p>
 
             <div className="bg-gradient-to-r from-optio-purple/5 to-optio-pink/5 border-l-4 border-optio-purple p-6 mb-8">
               <h3 className="text-lg font-semibold text-gray-900 mb-2">Welcome to Optio Academy!</h3>
@@ -276,12 +276,14 @@ const OptioAcademyHandbook = () => {
                 diploma pathway. There are no required additional fees during the school year.
               </p>
               <p className="mb-4">
-                Credit from an accredited school transfers {P.transferAccredited} with an official
-                transcript. Other prior learning, such as homeschool courses, is reviewed by an Optio
-                Academy teacher, and each credit awarded is {P.transferUnaccreditedPrivate}{' '}
-                ({P.licensedCredit} for students whose school holds an Optio license). Up to{' '}
-                {P.maxTransferCredits} credits can transfer in. Families enrolled through OpenEd buy
-                credits through OpenEd instead, and OpenEd pays Optio Academy.
+                Families upload transcripts and other records of earlier learning on the Prior
+                Learning page. Credit from an accredited school's official transcript transfers{' '}
+                {P.transferAccredited}. Other prior learning, such as homeschool courses, is reviewed by
+                an Optio Academy teacher, and each half credit awarded is{' '}
+                {P.transferUnaccreditedHalfCredit}. Up to {P.maxTransferCredits} credits can transfer
+                in. Families enrolled through OpenEd buy this credit in the OpenEd marketplace for{' '}
+                {P.openEdPriorLearningHalfCredit} a half credit (OpenEd adds its marketplace fee), and
+                OpenEd pays Optio Academy.
               </p>
               <p className="mb-4">
                 If a student leaves, monthly billing stops and no further month is charged. Months

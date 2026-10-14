@@ -51,16 +51,18 @@
   },
 
   "transfer": {
-    "_comment": "Credit from an accredited school's official transcript is free. Credit from anywhere else (homeschool, co-ops, schools without accreditation) is reviewed and costs academy.creditCents, or licensed.creditCents for a licensed student.",
+    "_comment": "Credit from an accredited school's official transcript is free. Credit from anywhere else (homeschool, co-ops, schools without accreditation) is reviewed and costs unaccreditedCreditCents, one price for every student, private or licensed ($25 per half credit; Tanner, 2026-10-14). The family uploads the transcript on the Prior Learning page in both cases.",
     "accreditedCreditCents": 0,
+    "unaccreditedCreditCents": 5000,
     "maxTransferCredits": 18
   },
 
   "openEd": {
-    "_comment": "OpenEd families buy from OpenEd's marketplace and OpenEd pays Optio, so the platform never shows them a price (Tanner, 2026-10-13). These are the marketplace products, for reference and for the partner sheet: the year buys creditsIncludedPerYear credits at licensed.creditCents (the generator checks that), prior learning is licensed.creditCents and accelerated is accelerated.creditCents.",
+    "_comment": "OpenEd families buy from OpenEd's marketplace and OpenEd pays Optio, so the platform never shows them a price (Tanner, 2026-10-13). These are the marketplace products, for reference and for the partner sheet: the year buys creditsIncludedPerYear credits at licensed.creditCents (the generator checks that), prior learning is transfer.unaccreditedCreditCents and accelerated is accelerated.creditCents. OpenEd adds marketplaceFeeHalfCreditCents to each half credit of prior learning as its marketplace fee, so a family pays $30 a half credit there (Tanner, 2026-10-14).",
     "yearCents": 30000,
     "creditsIncludedPerYear": 6,
-    "priorLearningWindowDays": 90
+    "priorLearningWindowDays": 90,
+    "marketplaceFeeHalfCreditCents": 500
   },
 
   "optioCourseForSchools": {
