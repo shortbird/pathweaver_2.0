@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, fireEvent, waitFor, within } from '@testing-library/react'
 import React, { Suspense } from 'react'
 import { MemoryRouter, Routes, Route } from 'react-router-dom'
@@ -48,6 +48,11 @@ const ROSTER = () => [
 const rowOf = (name) => screen.getByText(name).closest('[data-student-row]')
 
 beforeEach(() => {
+  // The page defaults to today, and the fixtures are for TODAY. Freeze only
+  // the clock (real timers keep waitFor working), or the suite fails the day
+  // after it was written -- the 2026-10-14 release did exactly that.
+  vi.useFakeTimers({ toFake: ['Date'] })
+  vi.setSystemTime(new Date('2026-10-13T12:00:00'))
   vi.clearAllMocks()
   authState.user = { id: 'coach-1', role: 'org_managed', org_role: 'advisor', org_roles: ['advisor'] }
   orgState.activeOrg = null
@@ -68,6 +73,8 @@ beforeEach(() => {
 })
 
 const renderPage = () => render(<MemoryRouter><DailyRollPage /></MemoryRouter>)
+
+afterEach(() => { vi.useRealTimers() })
 
 describe('DailyRollPage', () => {
   it('offers only the school\'s statuses, with the labels the reporter asked for', async () => {
