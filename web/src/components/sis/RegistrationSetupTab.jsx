@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react'
+import { moduleKnownOff } from '../../modules/moduleEnabled'
 import { toast } from 'react-hot-toast'
 import { ArrowPathIcon } from '@heroicons/react/24/outline'
 import { CheckIcon, ClipboardIcon } from '@heroicons/react/24/solid'
@@ -126,7 +127,13 @@ const RegistrationSetupTab = ({ orgId, orgData, onUpdate }) => {
     return findParentLink(r.data?.invitations)
   }
 
+  // The linked-paperwork hint and the save-time reconcile both live in the
+  // Resources library. A school with that module off answers 404 from the
+  // ModuleGate and logs a warning per visit (ticket 9b96c2f7), so skip both.
+  const resourcesOff = moduleKnownOff(org, 'resources')
+
   const loadLinkedKeys = async () => {
+    if (resourcesOff) return
     try {
       const r = await api.get(`/api/sis/resources?organization_id=${orgId}`)
       const keys = (r.data?.resources || []).map((x) => x.paperwork_key).filter(Boolean)
@@ -391,10 +398,12 @@ const RegistrationSetupTab = ({ orgId, orgData, onUpdate }) => {
       })
       // Reconcile uploaded paperwork docs into the Resources library (single
       // source of truth). Non-fatal — the settings still saved if this hiccups.
-      try {
-        await api.post(`/api/sis/resources/reconcile-paperwork?organization_id=${orgId}`, {})
-      } catch { /* best effort */ }
-      await loadLinkedKeys()
+      if (!resourcesOff) {
+        try {
+          await api.post(`/api/sis/resources/reconcile-paperwork?organization_id=${orgId}`, {})
+        } catch { /* best effort */ }
+        await loadLinkedKeys()
+      }
       setStripeKey('')
       setStripeClear(false)
       toast.success('Registration settings saved')
