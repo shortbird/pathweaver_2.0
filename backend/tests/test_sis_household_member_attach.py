@@ -72,13 +72,30 @@ class TestAddHouseholdMemberAttach:
         attach.assert_called_once_with('org-1', 'k1', guardian_ids=['g1'], client=ANY)
         repo.add_members.assert_called_once()
 
-    def test_student_by_email_resolves_account(self, client, auth_headers, mock_verify_token):
-        resp, repo, attach = _post(client, auth_headers,
-                                   {'email': 'kid@x.com', 'relationship': 'student'},
-                                   users_rows=[{'id': 'k1'}])
+    def test_student_by_email_resolves_an_account_already_in_the_school(
+            self, client, auth_headers, mock_verify_token):
+        with patch('services.org_membership_service.classify_email',
+                   return_value={'state': 'here', 'user': {'id': 'k1'}}):
+            resp, repo, attach = _post(client, auth_headers,
+                                       {'email': 'kid@x.com', 'relationship': 'student'})
         assert resp.status_code == 201
         attach.assert_called_once_with('org-1', 'k1', guardian_ids=['g1'], client=ANY)
         repo.add_members.assert_called_once()
+
+    def test_a_platform_account_is_asked_not_claimed(self, client, auth_headers, mock_verify_token):
+        """Ticket af8469aa: this door used to pull any platform account the
+        email named straight into the school. Now it answers with the "Ask to
+        connect" offer and writes nothing."""
+        with patch('services.org_membership_service.classify_email',
+                   return_value={'state': 'connectable', 'user': {'id': 'k1', 'organization_id': None}}):
+            resp, repo, attach = _post(client, auth_headers,
+                                       {'email': 'kid@x.com', 'relationship': 'student'})
+        assert resp.status_code == 409
+        body = resp.get_json()
+        assert body['code'] == 'connectable'
+        assert body['connect'] == {'email': 'kid@x.com', 'role': 'student', 'household_id': 'h1'}
+        attach.assert_not_called()
+        repo.add_members.assert_not_called()
 
     def test_unknown_email_404s(self, client, auth_headers, mock_verify_token):
         resp, repo, _ = _post(client, auth_headers,

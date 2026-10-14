@@ -125,3 +125,31 @@ def commit_roster(user_id):
         logger.warning(f'roster_import: audit log failed: {e}')
     logger.info(f"roster_import: org {org_id} -> {outcome['counts']}")
     return jsonify({'success': True, **outcome}), 200
+
+
+@bp.route('/connect-requests', methods=['POST'])
+@require_role(*ADMIN_ROLES)
+@rate_limit(max_requests=30, window_seconds=300)
+def create_connect_request(user_id):
+    """"Ask to connect": the add wizard met an email that already has a
+    platform Optio account (ticket af8469aa). Sends the account's owner -- or
+    a minor student's parent -- a request to join this school. Nothing is
+    attached until they accept (services/org_membership_service.py).
+
+    Body: email, role (student | parent | advisor), household_id (optional:
+    the family the person was being added to).
+    """
+    from services import org_membership_service
+    org_id, err = sis_service.org_or_error(user_id)
+    if err:
+        return err
+    data = request.get_json(silent=True) or {}
+    role = data.get('role') or 'student'
+    if not sis_service.caller_may_grant(user_id, role):
+        return jsonify({'success': False, 'error': 'Only an organization admin can add another admin.'}), 403
+    try:
+        result = org_membership_service.create_request(
+            org_id, user_id, data.get('email'), role, household_id=data.get('household_id') or None)
+    except org_membership_service.ConnectRequestError as e:
+        return jsonify({'success': False, 'error': str(e), 'code': e.code}), e.status
+    return jsonify({'success': True, **result}), 201

@@ -24,6 +24,7 @@ import { useRecordDoors } from '../../components/sis/recordDoorsContext'
 import { INPUT_CLASS } from '../../components/ui/Input'
 import ClassHistorySection from '../../components/sis/ClassHistorySection'
 import { SisStudentCredits } from '../../components/sis/CreditBankPanel'
+import { SetUpSignInPanel, needsSignIn } from './people/SetUpSignIn'
 
 /**
  * Tabbed per-student management modal.
@@ -272,6 +273,7 @@ const ROLE_OPTIONS = [
 
 const AccountSection = ({ student, orgId, onSaved, onClose }) => {
   const confirm = useConfirm()
+  const [settingUp, setSettingUp] = useState(false)
   const resetPassword = async () => {
     // An email student gets a link to set their own; a username student gets
     // a new password shown here (2026-10-06: email students used to fail).
@@ -293,13 +295,23 @@ const AccountSection = ({ student, orgId, onSaved, onClose }) => {
       onSaved?.(); onClose?.()
     } catch (e) { toast.error(e?.response?.data?.error || 'Could not remove student') }
   }
+  // A profile the parent manages has no sign-in to reset (the server answers
+  // 400); it gets "Set up sign-in" instead (ticket cd61587c).
+  const managedNoSignIn = needsSignIn(student)
   return (
     <section className="border-t border-gray-100 pt-4">
       <h4 className="text-xs font-semibold uppercase tracking-wide text-neutral-400 mb-2">Account</h4>
       <div className="flex flex-wrap items-center gap-4">
-        <Button size="sm" variant="outline" onClick={resetPassword}>Reset password</Button>
+        {managedNoSignIn
+          ? <Button size="sm" variant="outline" onClick={() => setSettingUp(true)} disabled={settingUp}>Set up sign-in</Button>
+          : <Button size="sm" variant="outline" onClick={resetPassword}>Reset password</Button>}
         <button onClick={remove} className="text-sm text-red-600 font-medium hover:underline">Remove from organization</button>
       </div>
+      {managedNoSignIn && settingUp && (
+        <SetUpSignInPanel student={student} orgId={orgId}
+          onCancel={() => setSettingUp(false)}
+          onDone={() => { setSettingUp(false); onSaved?.() }} />
+      )}
     </section>
   )
 }

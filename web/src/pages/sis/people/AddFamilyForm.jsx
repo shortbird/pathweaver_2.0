@@ -4,6 +4,7 @@ import Button from '../../../components/ui/Button'
 import { INPUT_CLASS } from '../../../components/ui/Input'
 import { sisPeopleApi } from '../../../hooks/api/useSisPeople'
 import { ageFromDob } from '../../../utils/age'
+import ConnectRequestPrompt, { isConnectable } from './ConnectRequestPrompt'
 
 /**
  * "A family" in the People page's + Add wizard: the parents and the children
@@ -69,6 +70,8 @@ export default function AddFamilyForm({ orgId, onBack, onDone, onCreated, onOpen
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
   const [result, setResult] = useState(null)
+  // An email with a platform account: offer "Ask to connect" (ticket af8469aa).
+  const [connect, setConnect] = useState(null)
 
   const filledChildren = children.filter((c) => c.first_name.trim() || c.last_name.trim() || c.date_of_birth)
   const defaultName = parents[0].last_name.trim() ? `${parents[0].last_name.trim()} Family` : ''
@@ -115,7 +118,9 @@ export default function AddFamilyForm({ orgId, onBack, onDone, onCreated, onOpen
       setStep('done')
       onCreated?.()
     } catch (e) {
-      setError(e?.response?.data?.error || 'Could not create the family')
+      const d = e?.response?.data
+      setError(d?.error || 'Could not create the family')
+      setConnect(isConnectable(d) ? d.connect : null)
       setStep('form')
     } finally {
       setSaving(false)
@@ -251,7 +256,9 @@ export default function AddFamilyForm({ orgId, onBack, onDone, onCreated, onOpen
         </label>
       </section>
 
-      {error && <p className="text-sm text-red-600" role="alert">{error}</p>}
+      {connect ? (
+        <ConnectRequestPrompt connect={connect} orgId={orgId} onClose={() => { setConnect(null); setError('') }} />
+      ) : error && <p className="text-sm text-red-600" role="alert">{error}</p>}
       <div className="flex justify-between gap-2">
         <Button variant="outline" size="sm" onClick={onBack}>Back</Button>
         <Button size="sm" onClick={review}>Review</Button>

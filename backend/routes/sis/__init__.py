@@ -28,7 +28,7 @@ from services import sis_holds
 from services import sis_person_service
 from services import family_student_service
 from services import family_guardian_service
-from services import sis_attach_service
+from services import sis_attach_service, org_membership_service
 from services import emergency_contacts_service as emergency_contacts
 from repositories.household_repository import HouseholdRepository
 from database import get_supabase_admin_client
@@ -710,12 +710,10 @@ def add_household_member(user_id, household_id):
         if relationship != 'student':
             return jsonify({'success': False,
                             'error': 'Only students can be connected by email'}), 400
-        rows = (admin.table('users').select('id')
-                .eq('email', email).limit(1).execute()).data or []
-        if not rows:
-            return jsonify({'success': False,
-                            'error': 'No Optio account uses that email'}), 404
-        member_user_id = rows[0]['id']
+        # A platform account is asked to join, never claimed (ticket af8469aa).
+        member_user_id, refusal, status = org_membership_service.member_for_email(org_id, email, household_id)
+        if refusal:
+            return jsonify({'success': False, **refusal}), status
     if not member_user_id:
         return jsonify({'success': False, 'error': 'user_id is required'}), 400
 

@@ -513,7 +513,8 @@ def resend_invitation(current_user_id, current_org_id, is_superadmin, org_id, in
 
         if inv['status'] != 'pending':
             return jsonify({'error': f'Cannot resend {inv["status"]} invitation'}), 400
-
+        if (inv.get('metadata') or {}).get('invitation_type') == 'connect':  # af8469aa: the generic mail would reach a minor, not the parent
+            return jsonify({'error': 'A request to connect cannot be resent. Send a new one from People.'}), 400
         # Get organization details
         org_result = supabase.table('organizations') \
             .select('name') \
@@ -967,6 +968,9 @@ def validate_invitation_code(invitation_code):
             response_data['invitation']['class'] = {'id': cls_row['id'], 'name': cls_row['name']}
             response_data['invitation']['is_class_invitation'] = True
 
+        if metadata.get('invitation_type') == 'connect':  # ticket af8469aa
+            from services.org_membership_service import public_preview
+            response_data['invitation'].update(public_preview(inv, client=supabase))
         # For parent invitations with student_ids, fetch student info
         if metadata.get('invitation_type') == 'parent' and metadata.get('student_ids'):
             student_ids = metadata['student_ids']
@@ -1077,6 +1081,8 @@ def accept_invitation(invitation_code):
             return jsonify({'error': 'Invalid invitation code'}), 404
 
         inv = result.data
+        if (inv.get('metadata') or {}).get('invitation_type') == 'connect':  # only the named owner accepts
+            return jsonify({'error': 'Sign in and use Accept on this page.'}), 400
 
         # Check status
         if inv['status'] != 'pending':

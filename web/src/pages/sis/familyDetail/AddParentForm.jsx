@@ -4,6 +4,7 @@ import { toast } from 'react-hot-toast'
 import Button from '../../../components/ui/Button'
 import { Input } from '../../../components/ui/Input'
 import { sisFamilyApi } from '../../../hooks/api/useSisFamilyDetail'
+import ConnectRequestPrompt, { isConnectable } from '../people/ConnectRequestPrompt'
 
 /**
  * Add a parent the family has no Optio account for yet — typically the second
@@ -18,6 +19,8 @@ import { sisFamilyApi } from '../../../hooks/api/useSisFamilyDetail'
 const AddParentForm = ({ householdId, orgId, onDone, onCancel }) => {
   const [form, setForm] = useState({ first_name: '', last_name: '', email: '' })
   const [saving, setSaving] = useState(false)
+  // The email already has a platform account (ticket af8469aa).
+  const [connect, setConnect] = useState(null)
   const set = (k) => (e) => setForm({ ...form, [k]: e.target.value })
 
   const submit = async () => {
@@ -42,7 +45,9 @@ const AddParentForm = ({ householdId, orgId, onDone, onCancel }) => {
       }
       onDone?.()
     } catch (e) {
-      toast.error(e?.response?.data?.error || 'Could not add the parent')
+      const d = e?.response?.data
+      if (isConnectable(d)) { setConnect(d.connect); return }
+      toast.error(d?.error || 'Could not add the parent')
     } finally {
       setSaving(false)
     }
@@ -58,6 +63,9 @@ const AddParentForm = ({ householdId, orgId, onDone, onCancel }) => {
       <p className="text-xs text-neutral-500">
         They get their own login, connected to every child in this family. We email them a link to set a password.
       </p>
+      {connect && (
+        <ConnectRequestPrompt connect={connect} orgId={orgId} onClose={() => setConnect(null)} />
+      )}
       <div className="flex gap-2 items-center">
         <Button size="sm" onClick={submit} disabled={saving}>
           {saving ? 'Adding…' : 'Add parent'}

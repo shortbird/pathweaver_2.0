@@ -24,8 +24,10 @@ students (organization_id inherited, org_managed/student); platform parents
 produce platform students.
 
 Refuses rather than guesses: under-13 goes to the dependent path, an email that
-already has an account is reported back so the caller can tell the parent to use
-the school's connect flow instead of silently claiming a stranger's account.
+already has an account is reported back instead of silently claiming a
+stranger's account. On the school's door that report offers "Ask to connect"
+(services/org_membership_service.py, ticket af8469aa): the account's owner, or
+a minor's parent, accepts before anything is attached.
 """
 
 import secrets
@@ -338,6 +340,18 @@ def add_child_to_household(org_id: str, household_id: str, actor_id: str,
             return {'needs_confirmation': True, 'duplicates': duplicates, 'status': 409,
                     'error': f'This family already includes {names}, which looks like the '
                              'same child. They may have been registered twice. Add anyway?'}
+
+    # A 13+ child whose email already has an account: a platform account can
+    # be asked to join this family, one at another school cannot. Asked here,
+    # before create_child, because create_teen_student's own refusal tells a
+    # PARENT to "ask your school to connect it" -- and this caller is the
+    # school, which had no such door (ticket af8469aa).
+    if email and calculate_age(date_of_birth) >= 13:
+        from services import org_membership_service
+        found = org_membership_service.classify_email(org_id, email)
+        if found['state'] not in ('none', 'here'):
+            return org_membership_service.refusal_for(org_id, email, 'student', household_id) or \
+                {'error': 'That email cannot be added here.', 'status': 409}
 
     guardian_id = guardians[0]
     parent = UserRepository(client=admin).find_by_ids(

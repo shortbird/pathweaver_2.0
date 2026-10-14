@@ -12,6 +12,10 @@ from utils.auth.decorators import require_org_admin
 from utils.validation import sanitize_input
 from utils.logger import get_logger
 from middleware.rate_limiter import rate_limit
+# generate_username moved to utils.org_student_credentials (2026-10-14) so the
+# SIS "Set up sign-in" service can suggest the same usernames without a
+# service importing a route module. Re-exported here for this module's callers.
+from utils.org_student_credentials import generate_username  # noqa: F401
 import csv
 import io
 import re
@@ -159,43 +163,6 @@ def validate_row(row, row_number, existing_emails):
         errors.append(dob_result)
 
     return errors
-
-
-def _username_name_part(value):
-    """Lowercase a name and strip everything but letters/digits for username building"""
-    return re.sub(r'[^a-z0-9]', '', (value or '').lower())
-
-
-def generate_username(first_name, last_name, taken):
-    """
-    Generate a unique, kid-friendly username from a student's name.
-
-    Tries first name + last initial ("mayaj"), then first + full last name,
-    then numeric suffixes ("mayajones2"). `taken` is a set of lowercase
-    usernames already in use (existing org members plus earlier rows in the
-    same batch).
-    """
-    first = _username_name_part(first_name)
-    last = _username_name_part(last_name)
-
-    candidates = []
-    if first:
-        if last:
-            candidates.append(f"{first}{last[:1]}")
-            candidates.append(f"{first}{last}")
-        else:
-            candidates.append(first)
-
-    base = candidates[-1] if candidates else 'student'
-
-    for candidate in candidates:
-        if len(candidate) >= 3 and candidate not in taken:
-            return candidate
-
-    suffix = 2
-    while f"{base}{suffix}" in taken:
-        suffix += 1
-    return f"{base}{suffix}"
 
 
 def build_username_user_record(user_id, username, first_name, last_name, role, org_id):

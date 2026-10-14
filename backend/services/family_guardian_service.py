@@ -127,10 +127,13 @@ def add_guardian_to_household(org_id: str, household_id: str, actor_id: str,
     user = UserRepository(client=admin).find_by_email(email)
     if user:
         if user.get('organization_id') != org_id:
-            return {'error': 'An Optio account already uses that email outside this '
-                             'school. Email support@optioeducation.com and we will '
-                             'connect it.',
-                    'code': 'email_taken', 'status': 409}
+            # A platform account can be asked to join this family; one at
+            # another school cannot (ticket af8469aa -- this used to send the
+            # office to support).
+            from services import org_membership_service
+            return org_membership_service.refusal_for(org_id, email, 'parent', household_id,
+                                                      user=user) or \
+                {'error': 'That email cannot be added here.', 'code': 'email_taken', 'status': 409}
         if user.get('org_role') == 'student' or 'student' in (user.get('org_roles') or []):
             return {'error': 'That email belongs to a student at this school.',
                     'code': 'is_student', 'status': 409}

@@ -4,6 +4,7 @@ import api from '../services/api';
 import authService from '../services/authService';
 import GoogleButton from '../components/auth/GoogleButton';
 import { getPostLoginPath } from '../utils/postLoginPath';
+import ConnectRequestView from './ConnectRequestView';
 
 export default function AcceptInvitationPage() {
   const { code } = useParams();
@@ -321,6 +322,12 @@ export default function AcceptInvitationPage() {
         </div>
       </div>
     );
+  }
+
+  // A school's connect request: the signed-in owner, or a minor's parent,
+  // accepts or declines (ticket af8469aa). No password form here.
+  if (invitation?.is_connect_request) {
+    return <ConnectRequestView code={code} invitation={invitation} currentUser={currentUser} />;
   }
 
   // Success state

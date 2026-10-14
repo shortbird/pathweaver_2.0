@@ -249,7 +249,8 @@ def _org_users(org_id: str) -> List[Dict[str, Any]]:
         _admin().table('users')
         .select('id, first_name, last_name, display_name, email, username, phone_number, '
                 'role, org_role, org_roles, total_xp, last_active, created_at, date_of_birth, '
-                'preferred_name, gender, allergies, medications, sis_tuition_plan, avatar_url')
+                'preferred_name, gender, allergies, medications, sis_tuition_plan, avatar_url, '
+                'is_dependent')
         .eq('organization_id', org_id)
     ))
 
@@ -402,6 +403,10 @@ def get_roster(org_id: str) -> List[Dict[str, Any]]:
             'email': s.get('email'),
             'phone_number': s.get('phone_number'),
             'username': s.get('username'),
+            # A profile a parent manages (under 13, no email). With no username
+            # it has no sign-in of its own, and the record offers "Set up
+            # sign-in" (student_sign_in_service, ticket cd61587c).
+            'is_dependent': bool(s.get('is_dependent')),
             'avatar_url': s.get('avatar_url'),
             'total_xp': s.get('total_xp'),
             'last_active': s.get('last_active'),

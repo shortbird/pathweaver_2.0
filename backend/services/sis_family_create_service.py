@@ -54,7 +54,7 @@ def validate(org_id: str, data: Dict[str, Any]) -> Dict[str, Any]:
     Returns {'guardians', 'children', 'name'} cleaned, or {'error', 'status'}.
     """
     from repositories.user_repository import UserRepository
-    from services import sis_attach_service
+    from services import org_membership_service, sis_attach_service
     from services.family_student_service import calculate_age
     from services.registration_identity_service import parse_dob
 
@@ -96,9 +96,10 @@ def validate(org_id: str, data: Dict[str, Any]) -> Dict[str, Any]:
         if not user:
             continue
         if user.get('organization_id') != org_id:
-            return {'error': f"{g['email']} already has an Optio account outside this school. "
-                             'Email support@optioeducation.com and we will connect it.',
-                    'status': 409}
+            # A platform account can be asked to join; one at another school
+            # cannot (ticket af8469aa -- this used to send the office to support).
+            return org_membership_service.refusal_for(org_id, g['email'], 'parent', user=user) or \
+                {'error': f"{g['email']} cannot be added here.", 'status': 409}
         if user.get('org_role') == 'student' or 'student' in (user.get('org_roles') or []):
             return {'error': f"{g['email']} belongs to a student at this school.", 'status': 409}
         # A parent already in a family here gets their new children there, not
@@ -108,9 +109,16 @@ def validate(org_id: str, data: Dict[str, Any]) -> Dict[str, Any]:
                              'family to add children to it.',
                     'code': 'has_family', 'status': 409}
     for c in children:
-        if c['email'] and users.find_by_email(c['email']):
+        if not c['email']:
+            continue
+        found = org_membership_service.classify_user(org_id, users.find_by_email(c['email']))
+        if found['state'] == 'here':
             return {'error': f"{c['email']} already has an Optio account. Add {c['first_name']} "
                              "from that account's family instead.", 'status': 409}
+        if found['state'] != 'none':
+            return org_membership_service.refusal_for(org_id, c['email'], 'student',
+                                                      user=found['user']) or \
+                {'error': f"{c['email']} cannot be added here.", 'status': 409}
 
     name = (data.get('name') or '').strip() or f"{guardians[0]['last_name']} Family"
     return {'guardians': guardians, 'children': children, 'name': name}

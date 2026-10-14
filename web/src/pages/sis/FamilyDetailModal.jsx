@@ -29,6 +29,7 @@ import AddParentForm from './familyDetail/AddParentForm'
 import VolunteerHoursRow from './familyDetail/VolunteerHoursRow'
 import FamilyGroupsRow from './familyDetail/FamilyGroupsRow'
 import { INPUT_CLASS } from '../../components/ui/Input'
+import ConnectRequestPrompt, { isConnectable } from './people/ConnectRequestPrompt'
 
 const FUNDING_OPTIONS = [
   { value: '', label: 'Not set' },
@@ -310,6 +311,7 @@ const MembersSection = ({ household, orgId, members, onSaved, onOpenUser }) => {
   // family that registered under one login).
   const [addingParent, setAddingParent] = useState(false)
   const [form, setForm] = useState({ user_id: '', email: '', relationship: 'student' })
+  const [connect, setConnect] = useState(null) // a platform account: ask, never claim (af8469aa)
   const list = household.members || []
   const primaryId = household.primary_contact_user_id
 
@@ -333,6 +335,7 @@ const MembersSection = ({ household, orgId, members, onSaved, onOpenUser }) => {
         if (await confirm(d.error)) return add(true)
         return
       }
+      if (isConnectable(d)) { setConnect(d.connect); return }
       toast.error(d?.error || 'Could not add member')
     }
   }
@@ -405,6 +408,7 @@ const MembersSection = ({ household, orgId, members, onSaved, onOpenUser }) => {
           )
         })}
       </div>
+      {connect && <ConnectRequestPrompt connect={connect} orgId={orgId} onClose={() => setConnect(null)} />}
       {adding && (
         <div className="mt-2 space-y-2">
           <SearchSelect value={form.user_id} onChange={(id) => setForm({ ...form, user_id: id, email: '' })}

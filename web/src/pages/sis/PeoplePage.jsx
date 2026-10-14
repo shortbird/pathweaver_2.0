@@ -19,6 +19,7 @@ import { RemovePersonModal } from './people/RemovePersonModal'
 import PersonActionsModal from './people/PersonActionsModal'
 import AddPeopleWizard from './people/AddPeopleWizard'
 import StaffDuplicatesBanner from './people/StaffDuplicatesBanner'
+import { BulkSetUpSignInModal, needsSignIn } from './people/SetUpSignIn'
 import {
   EMPTY_FILTERS, applyFilters, sortRows, isStaff, asStaffRow,
   QUICK_VIEWS, quickViewOf, applyQuickView, withTodaysAge,
@@ -140,6 +141,8 @@ const PeoplePage = () => {
   // Ticket d11e5168: second parents who are only an emergency contact.
   const [showSecondParents, setShowSecondParents] = useState(false)
   const [resendingId, setResendingId] = useState(null)
+  // Ticket cd61587c: give every managed profile a sign-in at once.
+  const [settingUpSignIn, setSettingUpSignIn] = useState(false)
 
   const refresh = () => {
     refetch()
@@ -183,6 +186,12 @@ const PeoplePage = () => {
   const hiddenCount = roster.length - visible.length
   const studentsWithoutFamily = useMemo(
     () => roster.filter((r) => r.is_student && !r.household_id && !['withdrawn', 'graduated'].includes(r.enrollment_status)).length,
+    [roster],
+  )
+  // Students whose parent manages their profile and who cannot sign in yet
+  // (ticket cd61587c). Former students are left out: nobody is waiting on them.
+  const withoutSignIn = useMemo(
+    () => roster.filter((r) => needsSignIn(r) && !['withdrawn', 'graduated'].includes(r.enrollment_status)),
     [roster],
   )
 
@@ -246,6 +255,12 @@ const PeoplePage = () => {
       <div className="flex items-center justify-between mb-4 gap-3 flex-wrap">
         <h1 className="text-2xl font-bold text-neutral-900">People</h1>
         <div className="flex items-center gap-3">
+          {isAdmin && withoutSignIn.length > 0 && (
+            <Button variant="outline" size="sm" onClick={() => setSettingUpSignIn(true)}
+              title="Students whose parent manages their profile and who have no sign-in of their own">
+              Set up sign-in ({withoutSignIn.length})
+            </Button>
+          )}
           {isAdmin && (
             <Button variant="outline" size="sm" onClick={() => setShowSecondParents(true)} disabled={!orgId}
               title="Parents listed only as an emergency contact, with no account">Invite second parents</Button>
@@ -329,6 +344,11 @@ const PeoplePage = () => {
       {showSecondParents && (
         <InviteSecondParentsModal orgId={orgId} onClose={() => setShowSecondParents(false)}
           onDone={refresh} />
+      )}
+
+      {settingUpSignIn && (
+        <BulkSetUpSignInModal rows={withoutSignIn} orgId={orgId} orgName={activeOrg?.name}
+          onClose={() => setSettingUpSignIn(false)} onDone={refresh} />
       )}
 
       {acting && (

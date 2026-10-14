@@ -110,6 +110,12 @@ export const sisStudentApi = {
   updateEnrollment: (studentId, body) => api.patch(`/api/sis/enrollments/${studentId}`, body),
   resetPassword: (orgId, studentId) =>
     api.post(`/api/admin/organizations/${orgId}/users/${studentId}/reset-password`, {}),
+  // A profile a parent manages gets a username + generated password from the
+  // office (ticket cd61587c). GET suggests the username; POST sets it up.
+  suggestSignIn: (orgId, studentId) =>
+    api.get(`/api/admin/organizations/${orgId}/users/${studentId}/setup-sign-in`),
+  setupSignIn: (orgId, studentId, username) =>
+    api.post(`/api/admin/organizations/${orgId}/users/${studentId}/setup-sign-in`, { username }),
   removeFromOrg: (orgId, studentId) =>
     api.post(`/api/admin/organizations/${orgId}/users/remove`, { user_id: studentId }),
   addToHousehold: (householdId, studentId, orgId) =>

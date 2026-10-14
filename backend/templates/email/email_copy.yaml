@@ -414,6 +414,22 @@ emails:
       - "This link expires in {{ expiry_days }} days. If you are not {{ student_name }}'s parent or guardian, you can ignore this email."
     signature: "support"
 
+  org_connect_request:
+    subject: "{{ org_name }} asked to connect on Optio"
+    title: "A Request From {{ org_name }}"
+    salutation: "Hi {{ user_name }},"
+    paragraphs:
+      - "{{ what }}"
+      - "Nothing changes until you accept. If you accept, the account keeps all of its work and XP, and the school can see it the way it sees its other students and families."
+    cta:
+      text: "See the request"
+      url: "{{ accept_url }}"
+    link_fallback: "If the button doesn't work, copy and paste this link into your browser:"
+    closing_paragraphs:
+      - "You will sign in to Optio, then choose Accept or Decline."
+      - "This request expires in {{ expiry_days }} days. If you do not know this school, you can ignore this email."
+    signature: "support"
+
   staff_access_added:
     subject: "Your Optio account now has teacher access at {{ org_name }}"
     title: "Teacher Access Added"

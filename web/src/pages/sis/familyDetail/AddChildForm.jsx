@@ -5,6 +5,7 @@ import Button from '../../../components/ui/Button'
 import { Input } from '../../../components/ui/Input'
 import { useConfirm } from '../../../contexts/ConfirmContext'
 import { sisFamilyApi } from '../../../hooks/api/useSisFamilyDetail'
+import ConnectRequestPrompt, { isConnectable } from '../people/ConnectRequestPrompt'
 
 /**
  * Add a child the family has no Optio account for yet.
@@ -24,6 +25,8 @@ const AddChildForm = ({ householdId, orgId, onDone, onCancel }) => {
   const confirm = useConfirm()
   const [form, setForm] = useState({ first_name: '', last_name: '', date_of_birth: '', email: '' })
   const [saving, setSaving] = useState(false)
+  // The teen's email already has a platform account (ticket af8469aa).
+  const [connect, setConnect] = useState(null)
   const set = (k) => (e) => setForm({ ...form, [k]: e.target.value })
 
   // Whole years today, the question this form actually asks ("does this child
@@ -72,6 +75,7 @@ const AddChildForm = ({ householdId, orgId, onDone, onCancel }) => {
         if (await confirm(d.error)) return submit(true)
         return
       }
+      if (isConnectable(d)) { setConnect(d.connect); return }
       toast.error(d?.error || 'Could not add the child')
     } finally {
       setSaving(false)
@@ -98,6 +102,9 @@ const AddChildForm = ({ householdId, orgId, onDone, onCancel }) => {
             ? `Age ${age}: they get their own Optio login, and we email them a link to set a password.`
             : `Age ${age}: a profile their parent manages — no email, no login of their own.`}
         </p>
+      )}
+      {connect && (
+        <ConnectRequestPrompt connect={connect} orgId={orgId} onClose={() => setConnect(null)} />
       )}
       <div className="flex gap-2 items-center">
         <Button size="sm" onClick={() => submit()} disabled={saving}>

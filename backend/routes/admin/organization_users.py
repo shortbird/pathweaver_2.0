@@ -68,46 +68,20 @@ def add_users_to_organization(current_user_id, current_org_id, is_superadmin, or
         # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
         client = get_supabase_admin_client()
 
+        # The one write for "an existing account joins a school", shared with
+        # the connect requests a school admin sends (ticket af8469aa). It keeps
+        # this path's rules: a platform role carries over, a superadmin is never
+        # absorbed, and only a superadmin moves an account between schools
+        # (IDOR-H6).
+        from services.org_membership_service import attach_account_to_org
         skipped = 0
-        # Update users to join organization with org_managed pattern
         for user_id in user_ids:
-            # Get user's current role + org to preserve role and enforce scoping
-            user_data = client.table('users').select('role, organization_id').eq('id', user_id).single().execute()
-            current_role = user_data.data.get('role', 'student') if user_data.data else 'student'
-            current_user_org = user_data.data.get('organization_id') if user_data.data else None
-
-            # Don't change superadmin users
-            if current_role == 'superadmin':
-                logger.warning(f"Skipping superadmin user {user_id} - cannot add to organization")
+            why = attach_account_to_org(user_id, org_id, default_org_role,
+                                        keep_platform_role=True, allow_move=is_superadmin,
+                                        client=client)
+            if why:
+                logger.warning(f"Skipping user {user_id} - {why}")
                 skipped += 1
-                continue
-
-            # IDOR-H6 fix: never absorb a user who already belongs to a DIFFERENT
-            # org (that would pull another tenant's users + their minors' data
-            # into this org). Only a superadmin may move a user across orgs.
-            if current_user_org and current_user_org != org_id and not is_superadmin:
-                logger.warning(f"Skipping user {user_id} - belongs to a different organization")
-                skipped += 1
-                continue
-
-            # If already org_managed, just update org_id (they keep their org_role)
-            if current_role == 'org_managed':
-                client.table('users')\
-                    .update({'organization_id': org_id})\
-                    .eq('id', user_id)\
-                    .execute()
-            else:
-                # Convert platform user to org user
-                # Use their current role as org_role, or default if provided
-                org_role = current_role if current_role in ['student', 'parent', 'advisor', 'observer'] else default_org_role
-                client.table('users')\
-                    .update({
-                        'organization_id': org_id,
-                        'role': 'org_managed',
-                        'org_role': org_role
-                    })\
-                    .eq('id', user_id)\
-                    .execute()
 
         users_added = len(user_ids) - skipped
         logger.info(f"Added {users_added} users to organization {org_id} ({skipped} skipped)")
@@ -621,3 +595,79 @@ def reset_user_password(current_user_id, current_org_id, is_superadmin, org_id, 
         logger.error(f"Error resetting password for user {user_id} in org {org_id}: {e}")
         raise
 
+
+
+# ── Set up sign-in for a managed child profile (ticket cd61587c) ──────────────
+# The office's "Set up sign-in" on the student record, and the People page's
+# bulk version. services/student_sign_in_service.py holds the rules and why.
+# Gate: the front office of the student's own school (ADMIN_ROLES via
+# @require_org_front_office), or a superadmin; the service refuses a student
+# who is not in org_id, and the route refuses an org_id that is not the
+# caller's.
+
+def _sign_in_error(e):
+    return jsonify({'error': str(e)}), getattr(e, 'status', 400)
+
+
+@bp.route('/<org_id>/users/<user_id>/setup-sign-in', methods=['GET'])
+@require_org_front_office
+@require_relationship_to('user_id', allow=('org_staff',))
+def suggest_sign_in(current_user_id, current_org_id, is_superadmin, org_id, user_id):
+    """The username the Set up sign-in form offers first."""
+    from services import student_sign_in_service as svc
+    if not is_superadmin and current_org_id != org_id:
+        return jsonify({'error': 'Access denied'}), 403
+    # admin client justified: reads the auth user's email to tell a managed
+    # profile from one the parent already gave a login; front-office gated.
+    client = get_supabase_admin_client()
+    try:
+        return jsonify(svc.suggest(client, org_id, user_id)), 200
+    except svc.SignInSetupError as e:
+        return _sign_in_error(e)
+
+
+@bp.route('/<org_id>/users/<user_id>/setup-sign-in', methods=['POST'])
+@require_org_front_office
+@require_relationship_to('user_id', allow=('org_staff',))
+def setup_sign_in(current_user_id, current_org_id, is_superadmin, org_id, user_id):
+    """Give one managed child profile a username and a generated password.
+
+    Body: username (optional; generated from the name when blank).
+    Returns the password once, like create-username.
+    """
+    from services import student_sign_in_service as svc
+    if not is_superadmin and current_org_id != org_id:
+        return jsonify({'error': 'Access denied'}), 403
+    data = request.get_json(silent=True) or {}
+    # admin client justified: writes the child's auth password and username for
+    # a profile with no session of its own; front-office gated to this org.
+    client = get_supabase_admin_client()
+    try:
+        result = svc.setup(client, org_id, user_id, current_user_id, username=data.get('username'))
+    except svc.SignInSetupError as e:
+        return _sign_in_error(e)
+    return jsonify({'success': True, **result}), 200
+
+
+@bp.route('/<org_id>/users/bulk-setup-sign-in', methods=['POST'])
+@require_org_front_office
+def bulk_setup_sign_in(current_user_id, current_org_id, is_superadmin, org_id):
+    """Set up sign-in for many managed profiles at once.
+
+    Body: user_ids [str]. Returns {results: [{user_id, name, username,
+    password}], failed: [{user_id, error}], login_url} — the results in the
+    shape the login cards print.
+    """
+    from services import student_sign_in_service as svc
+    if not is_superadmin and current_org_id != org_id:
+        return jsonify({'error': 'Access denied'}), 403
+    data = request.get_json(silent=True) or {}
+    user_ids = data.get('user_ids')
+    if not isinstance(user_ids, list):
+        return jsonify({'error': 'user_ids must be a list'}), 400
+    # admin client justified: as setup_sign_in, once per student.
+    client = get_supabase_admin_client()
+    try:
+        return jsonify({'success': True, **svc.setup_many(client, org_id, user_ids, current_user_id)}), 200
+    except svc.SignInSetupError as e:
+        return _sign_in_error(e)

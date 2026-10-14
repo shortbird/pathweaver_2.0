@@ -82,7 +82,10 @@ class TestAddGuardian:
         result, admin, attach, _, _, send = _run(
             [{'id': 'p-3', 'organization_id': None, 'role': 'parent'}])
         assert result['status'] == 409
-        assert result['code'] == 'email_taken'
+        # Ticket af8469aa: a platform account is offered Ask to connect for
+        # this family -- still never claimed here.
+        assert result['code'] == 'connectable'
+        assert result['connect'] == {'email': 'andrew@example.com', 'role': 'parent', 'household_id': HH}
         attach.assert_not_called()
         admin.auth.admin.create_user.assert_not_called()
         send.assert_not_called()

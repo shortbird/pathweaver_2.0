@@ -43,6 +43,13 @@ export const sisPeopleApi = {
   // A student who signs in with a username and a generated password, no email.
   createUsernameStudent: (orgId, body) =>
     api.post(`/api/admin/organizations/${orgId}/users/create-username`, { ...body, org_role: 'student' }),
+  // "Ask to connect": a request to an existing platform account to join the
+  // school, accepted by its owner or a minor's parent (ticket af8469aa).
+  sendConnectRequest: (orgId, body) =>
+    api.post('/api/sis/connect-requests', { ...body, organization_id: orgId }),
+  // "Set up sign-in" for many profiles a parent manages (ticket cd61587c).
+  bulkSetupSignIn: (orgId, userIds) =>
+    api.post(`/api/admin/organizations/${orgId}/users/bulk-setup-sign-in`, { user_ids: userIds }),
 }
 
 export default sisPeopleApi

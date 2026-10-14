@@ -119,7 +119,10 @@ class TestRefusedBeforeAnythingIsWritten:
     def test_a_parent_at_another_school(self):
         result, m = _run({'guardians': [MUM]},
                          existing={MUM['email']: {'id': 'u9', 'organization_id': 'org-other'}})
-        assert result['status'] == 409 and 'outside this school' in result['error']
+        # Ticket af8469aa: refused without naming the school, and no longer
+        # "email support" -- a platform account is offered Ask to connect.
+        assert result['status'] == 409 and result['code'] == 'other_school'
+        assert 'another school' in result['error'] and 'org-other' not in result['error']
         m['households'].create.assert_not_called()
 
     def test_a_parent_who_already_has_a_family_here(self):
@@ -138,8 +141,11 @@ class TestRefusedBeforeAnythingIsWritten:
 
     def test_a_teen_email_that_is_taken(self):
         result, m = _run({'guardians': [MUM], 'children': [TEEN]},
-                         existing={TEEN['email']: {'id': 'u8', 'organization_id': None}})
+                         existing={TEEN['email']: {'id': 'u8', 'organization_id': None, 'role': 'student'}})
         assert result['status'] == 409
+        # A platform account: the office is offered Ask to connect (af8469aa).
+        assert result['code'] == 'connectable'
+        assert result['connect'] == {'email': TEEN['email'], 'role': 'student', 'household_id': None}
         m['households'].create.assert_not_called()
 
     def test_an_adult_already_at_this_school_without_a_family_is_fine(self):
