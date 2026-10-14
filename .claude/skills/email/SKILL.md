@@ -119,6 +119,33 @@ Write it in Tanner's email style (memory: `email-drafting-style.md` and
 - Say what changed and the click path to see it, in order.
 - No "not X, but Y" constructions.
 
+**Verify every instruction before the draft is done.** Each click path,
+button label, price, and claim about what will happen ("it moves back to his
+active quests", "you'll get an email") must be checked against the code AND
+against this reader's own data, not only against the code path in general.
+A step that is correct in general can still fail for this person, so trace
+it for their real account and records: which surface and role they are on,
+whether the button is actually rendered for their record's state, and
+whether the action does what the draft promises when it runs on their data.
+Prices come from `shared/data/pricing.json` and the reader's
+`households.funding_source`, never from memory or an old draft. A help
+article is not proof; it can be out of date.
+
+The 2026-10-14 sweep is why. A reply told Karen Boyd to click "Reopen this
+quest" to fix a quest that showed as complete. The button exists and works
+for a parent, but her quest had an open run beside an old finished one: the
+quest page showed no Reopen button, and the "complete" display was a list
+bug. The same sweep quoted a transfer process ("ask the school to send the
+transcript") and a price ($100 a credit) copied from a stale help article.
+Both were wrong, and Tanner caught them, not the review.
+
+When you cannot fully verify a step yourself (it depends on what the
+person's screen shows, the mobile app, an email arriving, a third-party
+site, or code you could not trace to the end), do not present the draft as
+ready. In the report, list each unverified instruction, say what you could
+not confirm and why, and ask Tanner to check it (give him the exact page and
+account to look at). Mark the draft "waits on your check" until he answers.
+
 **Timing.** If the answer depends on a fix that is not live yet, the draft
 says what will be true once it ships, and you tell Tanner the draft waits on
 the deploy. Do not let him send "this is fixed" while it is on local main.
@@ -133,7 +160,10 @@ End with a short summary for Tanner:
 - Which email (sender, subject, date) and what they asked, in one or two lines.
 - What you found and did: answer, root cause, commit SHA, ticket id, data
   change.
-- The draft: its Gmail link, and whether it can go now or waits on a deploy.
+- The draft: its Gmail link, and whether it can go now, waits on a deploy,
+  or waits on his check of an instruction you could not verify.
+- Each instruction in the draft you verified, and how (code, their data).
+  Each one you could not verify, and what he must look at to confirm it.
 - Anything left for him: a decision, a localhost check, a push.
 
 If the work is worth remembering for a later session (a customer decision,
