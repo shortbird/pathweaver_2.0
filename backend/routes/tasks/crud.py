@@ -67,6 +67,49 @@ def _mark_enrollment_emptied_if_last_task(user_quest_id, user_id: str) -> bool:
         return False
 
 
+def _user_who_may_edit(supabase, user_id: str, task_data: dict):
+    """The caller's users row when they may edit this task, else None.
+
+    - Superadmins can edit any task
+    - Users can edit tasks they own (user_id matches; under @student_scope a
+      parent acting for a child is the child here)
+    - Org admins/advisors can edit tasks in quests belonging to their organization
+
+    One rule for PUT /<task_id> and POST /<task_id>/duplicate, so a copy is
+    possible exactly where an edit is.
+    """
+    from utils.roles import get_effective_role
+
+    user_result = supabase.table('users')\
+        .select('role, org_role, org_roles, organization_id')\
+        .eq('id', user_id)\
+        .single()\
+        .execute()
+    if not user_result.data:
+        return None
+
+    user = user_result.data
+    user_role = get_effective_role(user)
+    user_org = user.get('organization_id')
+
+    if user_role == 'superadmin':
+        return user
+    if task_data.get('user_id') == user_id:
+        return user
+    if user_role in ('org_admin', 'advisor') and user_org:
+        # Org admin/advisor can edit tasks in their organization's quests
+        quest_id = task_data.get('quest_id')
+        if quest_id:
+            quest_result = supabase.table('quests')\
+                .select('organization_id')\
+                .eq('id', quest_id)\
+                .single()\
+                .execute()
+            if quest_result.data and quest_result.data.get('organization_id') == user_org:
+                return user
+    return None
+
+
 @bp.route('/<task_id>', methods=['PUT'])
 @require_auth
 @student_scope()
@@ -103,51 +146,15 @@ def update_task(user_id: str, task_id: str):
                 'error': 'Task not found'
             }), 404
 
-        # Get user data for permission check
-        user_result = supabase.table('users')\
-            .select('role, org_role, org_roles, organization_id')\
-            .eq('id', user_id)\
-            .single()\
-            .execute()
-
-        if not user_result.data:
-            return jsonify({
-                'success': False,
-                'error': 'User not found'
-            }), 404
-
-        user = user_result.data
-        user_role = get_effective_role(user)
-        user_org = user.get('organization_id')
-
-        # Check permission to edit this task
-        can_edit = False
-
-        if user_role == 'superadmin':
-            can_edit = True
-        elif task_data.get('user_id') == user_id:
-            can_edit = True
-        elif user_role in ('org_admin', 'advisor') and user_org:
-            # Org admin/advisor can edit tasks in their organization's quests
-            quest_id = task_data.get('quest_id')
-            if quest_id:
-                quest_result = supabase.table('quests')\
-                    .select('organization_id')\
-                    .eq('id', quest_id)\
-                    .single()\
-                    .execute()
-
-                if quest_result.data:
-                    quest_org = quest_result.data.get('organization_id')
-                    if quest_org == user_org:
-                        can_edit = True
-
-        if not can_edit:
+        # Permission check, shared with POST /<task_id>/duplicate.
+        user = _user_who_may_edit(supabase, user_id, task_data)
+        if user is None:
             logger.warning(f"User {user_id} denied permission to edit task {task_id}")
             return jsonify({
                 'success': False,
                 'error': 'You do not have permission to edit this task'
             }), 403
+        user_role = get_effective_role(user)
 
         # Get and validate update data
         data = request.get_json()
@@ -395,6 +402,109 @@ def update_task(user_id: str, task_id: str):
             'success': False,
             'error': 'Failed to update task'
         }), 500
+
+
+#: What a copy of a task keeps. Everything that describes the work, nothing
+#: that records doing it (completions and evidence live in other tables and
+#: stay with the original). diploma_subjects is listed on purpose: the column
+#: defaults to ["Electives"], so a copy that left it out would quietly move
+#: the credit to Electives.
+DUPLICATED_TASK_FIELDS = (
+    'title', 'description', 'success_criteria', 'pillar', 'xp_value',
+    'diploma_subjects', 'subject_xp_distribution', 'ai_suggested_xp',
+)
+
+
+@bp.route('/<task_id>/duplicate', methods=['POST'])
+@require_auth
+@student_scope()
+def duplicate_task(user_id: str, task_id: str):
+    """Copy a task into the same enrollment, titled "<title> (copy)".
+
+    Ticket 4476c061, Karen Boyd (parent, Optio Academy): "copy an existing task
+    to create a new one by just changing the title while keeping the same task
+    description and evidence requirements." The copy keeps the description,
+    the Definition of Done, the pillar, the XP and the diploma subjects. It is
+    not completed and carries no evidence. The client then opens the copy's
+    edit dialog so the title can change.
+
+    Allowed exactly where editing the task is (_user_who_may_edit). Refused
+    where the quest's author turned off "Let people add their own tasks", for
+    everyone but a guide, the same gate as every other family add-task path.
+    A copy added to a finished quest reopens it, as any added task does
+    (ticket 8a0beab1).
+    """
+    try:
+        from repositories.task_repository import TaskRepository
+        from repositories.quest_repository import QuestRepository
+        from utils.personalization_helpers import get_next_order_index
+        from utils.auth.relationships import current_student_scope
+        from utils.xp_permissions import is_xp_guide_user
+
+        # admin client justified: copies one user_quest_tasks row the caller may
+        # edit (checked by _user_who_may_edit) under @require_auth
+        supabase = get_supabase_admin_client()
+
+        try:
+            source = TaskRepository().find_by_id(task_id)
+        except NotFoundError:
+            source = None
+        if not source:
+            return jsonify({'success': False, 'error': 'Task not found'}), 404
+
+        user = _user_who_may_edit(supabase, user_id, source)
+        if user is None:
+            logger.warning(f"User {user_id} denied permission to duplicate task {task_id}")
+            return jsonify({
+                'success': False,
+                'error': 'You do not have permission to copy this task'
+            }), 403
+
+        if not is_xp_guide_user(user):
+            from routes.quest_personalization import _custom_tasks_blocked
+            blocked = _custom_tasks_blocked(supabase, source['quest_id'])
+            if blocked:
+                return blocked
+
+        copy = {field: source.get(field) for field in DUPLICATED_TASK_FIELDS}
+        copy['title'] = f"{(source.get('title') or 'Task').strip()} (copy)"
+        if copy.get('diploma_subjects') is None:
+            # Keep the column default out of it: no subjects stays no subjects.
+            copy['diploma_subjects'] = []
+        if copy.get('subject_xp_distribution') is None:
+            copy.pop('subject_xp_distribution')
+
+        scope = current_student_scope()
+        caller_id = scope.caller_id if scope and scope.delegated else user_id
+        owner_id = source['user_id']
+        copy.update({
+            'user_id': owner_id,
+            'quest_id': source['quest_id'],
+            'user_quest_id': source['user_quest_id'],
+            'order_index': get_next_order_index(owner_id, source['quest_id']),
+            'is_required': False,
+            'is_manual': True,
+            'approval_status': 'approved',
+            # NULL = the student themselves (migration 20260915120000).
+            'created_by_user_id': None if caller_id == owner_id else caller_id,
+            'created_at': datetime.utcnow().isoformat(),
+        })
+
+        created = TaskRepository(client=supabase).create_task(copy)
+
+        # A new task on a finished quest means it is not finished.
+        QuestRepository(client=supabase).reopen_if_finished(source['user_quest_id'])
+
+        logger.info(f"User {caller_id} duplicated task {task_id} as {created.get('id')}")
+        return jsonify({
+            'success': True,
+            'task': created,
+            'message': 'Task copied'
+        }), 201
+
+    except Exception as e:
+        logger.error(f"Error duplicating task {task_id}: {str(e)}")
+        return jsonify({'success': False, 'error': 'Failed to copy task'}), 500
 
 
 @bp.route('/<task_id>', methods=['DELETE'])

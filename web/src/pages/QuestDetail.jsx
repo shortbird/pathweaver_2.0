@@ -19,8 +19,9 @@ import ClassCurriculum from '../components/discussion/ClassCurriculum';
 import toast from 'react-hot-toast';
 import logger from '../utils/logger';
 import { useActivityTracking } from '../hooks/useActivityTracking';
-import { useDeleteEnrollment, useArchiveEnrollment } from '../hooks/api/useQuests';
+import { useArchiveEnrollment } from '../hooks/api/useQuests';
 import SaveForLaterDialog, { REASON_FOR } from '../components/quest/SaveForLaterDialog';
+import DeleteOwnQuestButton from '../components/quest/DeleteOwnQuestButton';
 import { markDoneBlocker } from '../utils/markDoneRule';
 import { ArrowPathIcon, BookmarkIcon, CheckCircleIcon } from '@heroicons/react/24/outline';
 import Spinner, { PageLoader } from '../components/ui/Spinner';
@@ -115,11 +116,8 @@ const QuestDetail = () => {
   const { scopeId, params: scopeParams, isDelegated: inFamilyScope, studentName: scopedStudentName } = useStudentScope();
   const detailKey = queryKeys.quests.detail(id, scopeId);
 
-  const deleteEnrollmentMutation = useDeleteEnrollment();
   const archiveEnrollmentMutation = useArchiveEnrollment();
   const programQuest = useProgramQuestView(quest);   // program-specific quest UI + behavior (e.g. Treehouse)
-  const [showDeleteConfirm, setShowDeleteConfirm] = React.useState(false);
-
   // Enrollment transition loading state (stays true from click through refetch)
   const [isEnrollmentLoading, setIsEnrollmentLoading] = React.useState(false);
 
@@ -353,19 +351,6 @@ const QuestDetail = () => {
     });
   };
 
-  const handleDeleteEnrollment = () => {
-    setShowDeleteConfirm(true);
-  };
-
-  const confirmDeleteEnrollment = () => {
-    setShowDeleteConfirm(false);
-    deleteEnrollmentMutation.mutate({ questId: id }, {
-      onSuccess: () => {
-        navigate('/dashboard');
-      }
-    });
-  };
-
   const handleAddMoreTasks = () => {
     setShowQuestCompletionCelebration(false);
     setShowPersonalizationWizard(true);
@@ -409,6 +394,22 @@ const QuestDetail = () => {
 
   const handleTaskUpdate = (updatedTask) => {
     if (!updatedTask?.id) return;
+    // A task this page does not know yet is a new one: "Duplicate task" in the
+    // edit dialog (ticket 4476c061). Add it to the list and select it, so the
+    // still-open edit dialog moves onto the copy for its new title. The
+    // refetch brings its server-side fields, and a quest it reopened.
+    const known = (queryClient.getQueryData(detailKey)?.quest_tasks || [])
+      .some(t => t.id === updatedTask.id);
+    if (!known) {
+      queryClient.setQueryData(detailKey, (oldData) => (
+        oldData?.quest_tasks
+          ? { ...oldData, quest_tasks: [...oldData.quest_tasks, updatedTask] }
+          : oldData
+      ));
+      setSelectedTask(updatedTask);
+      queryClient.invalidateQueries({ queryKey: queryKeys.quests.detailAll(id) });
+      return;
+    }
     setSelectedTask(prev => (prev && prev.id === updatedTask.id ? { ...prev, ...updatedTask } : prev));
     queryClient.setQueryData(detailKey, (oldData) => {
       if (!oldData?.quest_tasks) return oldData;
@@ -790,6 +791,12 @@ const QuestDetail = () => {
                 <CheckCircleIcon className="w-4 h-4" aria-hidden="true" />
                 <span>{endQuestMutation?.isPending ? 'Marking done...' : 'Mark done'}</span>
               </button>
+              <DeleteOwnQuestButton
+                questId={id}
+                enrollmentId={quest?.user_enrollment?.id}
+                scopeParams={scopeParams}
+                refreshKey={completedTasks}
+              />
             </div>
             {!canMarkDone && (
               <p id="mark-done-hint" className="text-xs text-gray-500 text-center">
@@ -868,36 +875,6 @@ const QuestDetail = () => {
           <ClassCurriculum questId={quest.id} studentId={inFamilyScope ? scopeId : undefined} className="mt-6" />
         )}
       </div>
-
-      {/* Delete enrollment confirmation */}
-      {showDeleteConfirm && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl p-6 max-w-md w-full shadow-2xl">
-            <h3
-              className="text-lg font-bold text-gray-900 mb-3"
-            >
-              Delete Enrollment?
-            </h3>
-            <p className="text-sm text-gray-600 mb-6">
-              This will permanently remove this quest and all associated tasks, evidence, and XP. This cannot be undone.
-            </p>
-            <div className="flex gap-3 justify-end">
-              <button
-                onClick={() => setShowDeleteConfirm(false)}
-                className="btn-quiet min-h-[44px] touch-manipulation"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={confirmDeleteEnrollment}
-                className="btn-danger min-h-[44px] touch-manipulation"
-              >
-                Delete
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Enrollment loading overlay */}
       {isEnrollmentLoading && (

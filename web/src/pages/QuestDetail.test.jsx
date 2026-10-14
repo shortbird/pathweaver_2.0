@@ -40,9 +40,10 @@ vi.mock('../hooks/useActivityTracking', () => ({
   })
 }))
 
-vi.mock('react-hot-toast', () => ({
-  default: { success: vi.fn(), error: vi.fn() }
-}))
+vi.mock('react-hot-toast', () => {
+  const toast = { success: vi.fn(), error: vi.fn() }
+  return { default: toast, toast }
+})
 
 vi.mock('../services/api', () => ({
   default: { get: vi.fn().mockResolvedValue({ data: { success: true, members: [] } }), delete: vi.fn(), put: vi.fn(), post: vi.fn() }
@@ -112,9 +113,14 @@ vi.mock('../components/quest/QuestMetadataCard', () => ({
 }))
 
 vi.mock('../components/quest/TaskWorkspace', () => ({
-  default: ({ tasks, onTaskSelect, onTaskComplete, onRemoveTask, onAddTask }) => (
+  default: ({ tasks, onTaskSelect, onTaskComplete, onRemoveTask, onAddTask, onTaskUpdate }) => (
     <div data-testid="task-workspace">
       {onAddTask && <button data-testid="add-task" onClick={onAddTask}>Add a task</button>}
+      {onTaskUpdate && (
+        <button data-testid="hand-up-copy" onClick={() => onTaskUpdate({ id: 'task-copy', title: 'Unit 1 - Lab 1 (copy)', is_completed: false })}>
+          Copy arrives
+        </button>
+      )}
       {tasks.map(task => (
         <div key={task.id} data-testid={`task-${task.id}`}>
           <span>{task.title}</span>
@@ -1335,6 +1341,101 @@ const CACHE_KEY = ['quests', 'detail', 'quest-123', 'me']
       expect(questDetailData.setSelectedTask).toHaveBeenCalledWith(
         expect.objectContaining({ id: 't2', title: 'Build it' }),
       )
+    })
+  })
+
+  // --- Delete quest (ticket bd1be541) ---
+  // Karen Boyd (parent, Optio Academy): "I created a couple of quests that I
+  // ended up not wanting to use... I can't see how to delete old quests." The
+  // page had a "Delete Enrollment?" dialog that no button opened.
+  describe('delete quest', () => {
+    const ownQuest = () => {
+      questDetailData.quest = {
+        id: 'quest-123',
+        title: 'Volcano model',
+        user_enrollment: { id: 'enrollment-1', quest_id: 'quest-123' },
+        completed_enrollment: null,
+        quest_tasks: [{ id: 'task-1', title: 'Sketch it', xp_value: 50, is_completed: false, pillar: 'stem' }],
+        has_template_tasks: false,
+        progress: { percentage: 0, completed_tasks: 0, total_tasks: 1 },
+      }
+      questDetailData.totalTasks = 1
+      questDetailData.completedTasks = 0
+    }
+    const deletable = (canDelete) => api.get.mockImplementation((url) => Promise.resolve(
+      url.endsWith('/own-quest')
+        ? { data: { success: true, can_delete: canDelete } }
+        : { data: { success: true, members: [] } }
+    ))
+
+    it('offers Delete quest when the server says the family made it and nothing was done', async () => {
+      ownQuest()
+      deletable(true)
+      renderQuestDetail()
+      expect(await screen.findByRole('button', { name: /Delete quest/ })).toBeInTheDocument()
+      expect(api.get).toHaveBeenCalledWith('/api/quests/quest-123/own-quest', { params: {} })
+    })
+
+    it('does not offer it otherwise; Save for later stays the exit', async () => {
+      ownQuest()
+      deletable(false)
+      renderQuestDetail()
+      await waitFor(() => expect(api.get).toHaveBeenCalledWith('/api/quests/quest-123/own-quest', { params: {} }))
+      expect(screen.queryByRole('button', { name: /Delete quest/ })).not.toBeInTheDocument()
+      expect(screen.getByRole('button', { name: /Save for later/ })).toBeInTheDocument()
+    })
+
+    it('asks first, then deletes through the own-quest route and leaves the page', async () => {
+      ownQuest()
+      deletable(true)
+      api.delete.mockResolvedValue({ data: { success: true, message: '"Volcano model" deleted' } })
+      renderQuestDetail()
+      fireEvent.click(await screen.findByRole('button', { name: /Delete quest/ }))
+
+      expect(screen.getByText('Delete this quest?')).toBeInTheDocument()
+      expect(api.delete).not.toHaveBeenCalled()
+      const buttons = screen.getAllByRole('button', { name: /Delete quest/ })
+      fireEvent.click(buttons[buttons.length - 1])
+
+      await waitFor(() => expect(api.delete).toHaveBeenCalledWith('/api/quests/quest-123/own-quest', { params: {} }))
+      await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('/dashboard'))
+    })
+
+    it("shows the server's refusal and stays", async () => {
+      ownQuest()
+      deletable(true)
+      api.delete.mockRejectedValue({ response: { status: 409, data: { error: 'This quest has finished tasks or evidence.' } } })
+      renderQuestDetail()
+      fireEvent.click(await screen.findByRole('button', { name: /Delete quest/ }))
+      const buttons = screen.getAllByRole('button', { name: /Delete quest/ })
+      fireEvent.click(buttons[buttons.length - 1])
+
+      await waitFor(() => expect(toast.error).toHaveBeenCalledWith('This quest has finished tasks or evidence.'))
+      expect(mockNavigate).not.toHaveBeenCalledWith('/dashboard')
+    })
+  })
+
+  // --- Duplicate task (ticket 4476c061) ---
+  describe('a duplicated task', () => {
+    it('is added to the list and selected, so the edit dialog moves onto it', async () => {
+      questDetailData.quest = {
+        id: 'quest-123',
+        title: 'High School Biology',
+        user_enrollment: { id: 'enrollment-1', quest_id: 'quest-123' },
+        completed_enrollment: null,
+        quest_tasks: [{ id: 'task-2', title: 'Unit 1 - Lab 1', xp_value: 150, is_completed: false, pillar: 'stem' }],
+        has_template_tasks: false,
+        progress: { percentage: 0, completed_tasks: 0, total_tasks: 1 },
+      }
+      questDetailData.totalTasks = 1
+      mockQueryClient.setQueryData(['quests', 'detail', 'quest-123', 'me'], questDetailData.quest)
+      renderQuestDetail()
+      fireEvent.click(await screen.findByTestId('hand-up-copy'))
+
+      const cached = mockQueryClient.getQueryData(['quests', 'detail', 'quest-123', 'me'])
+      expect(cached.quest_tasks.map((t) => t.id)).toEqual(['task-2', 'task-copy'])
+      expect(questDetailData.setSelectedTask).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 'task-copy', title: 'Unit 1 - Lab 1 (copy)' }))
     })
   })
 

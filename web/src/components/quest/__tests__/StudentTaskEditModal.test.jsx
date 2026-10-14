@@ -167,3 +167,62 @@ describe('StudentTaskEditModal for a learner 13 or older', () => {
     expect(screen.getByText(/Skill Pillar/)).toBeInTheDocument()
   })
 })
+
+// Ticket 03ee5c2d, Karen Boyd (parent, Optio Academy): "everything but the
+// title can be edited. It would be nice to also be able to edit the task
+// title."
+describe('StudentTaskEditModal title', () => {
+  it('shows the task title, ready to edit', () => {
+    renderModal()
+    expect(screen.getByLabelText('Title')).toHaveValue('Build a birdhouse')
+  })
+
+  it('sends the new title, trimmed', async () => {
+    const onSave = renderModal()
+    fireEvent.change(screen.getByLabelText('Title'), { target: { value: '  Build a bat house  ' } })
+    fireEvent.click(screen.getByText('Save'))
+
+    await waitFor(() => expect(onSave).toHaveBeenCalled())
+    expect(onSave.mock.calls[0][0].title).toBe('Build a bat house')
+  })
+
+  it('will not save an empty title', async () => {
+    const onSave = renderModal()
+    fireEvent.change(screen.getByLabelText('Title'), { target: { value: '   ' } })
+    fireEvent.click(screen.getByText('Save'))
+
+    expect(await screen.findByText('Give the task a title')).toBeInTheDocument()
+    expect(onSave).not.toHaveBeenCalled()
+  })
+})
+
+// Ticket 4476c061, Karen Boyd: "copy an existing task to create a new one by
+// just changing the title while keeping the same task description and
+// evidence requirements."
+describe('StudentTaskEditModal Duplicate task', () => {
+  it('asks the workspace for a copy and stays open for the new title', async () => {
+    const onSave = vi.fn().mockResolvedValue(undefined)
+    const onClose = vi.fn()
+    render(
+      <AuthContext.Provider value={{ user: { role: 'student' } }}>
+        <OrganizationContext.Provider value={{ organization: { id: 'org-1', feature_flags: {} } }}>
+          <StudentTaskEditModal task={TASK} onClose={onClose} onSave={onSave} />
+        </OrganizationContext.Provider>
+      </AuthContext.Provider>
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Duplicate task' }))
+
+    await waitFor(() => expect(onSave).toHaveBeenCalledWith({ duplicate: true }))
+    expect(onClose).not.toHaveBeenCalled()
+  })
+
+  it("shows the server's refusal", async () => {
+    const onSave = vi.fn().mockRejectedValue({
+      response: { status: 403, data: { error: "This quest doesn't allow adding your own tasks." } },
+    })
+    renderModal({ onSave })
+    fireEvent.click(screen.getByRole('button', { name: 'Duplicate task' }))
+
+    expect(await screen.findByText("This quest doesn't allow adding your own tasks.")).toBeInTheDocument()
+  })
+})

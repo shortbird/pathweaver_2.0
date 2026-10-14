@@ -153,6 +153,55 @@ def delete_enrollment(user_id, quest_id):
         raise
 
 
+@quest_lifecycle_bp.route('/quests/<quest_id>/own-quest', methods=['GET'])
+@require_auth
+@student_scope('quests')
+def own_quest_deletable(user_id, quest_id):
+    """Whether the quest page offers "Delete quest" (ticket bd1be541).
+
+    True only for a quest the student or a guardian made, with no finished
+    task and no evidence. The rule is services/own_quest_delete.py; this asks
+    it without deleting anything. `student_id` lets a parent ask about a
+    child's quest (@student_scope).
+    """
+    from services.own_quest_delete import can_delete_own_quest
+    # admin client justified: reads the caller's (or their child's, via @student_scope) own quest and enrollment, filtered by that user_id
+    admin = get_supabase_admin_client()
+    return jsonify({'success': True, 'can_delete': can_delete_own_quest(admin, user_id, quest_id)})
+
+
+@quest_lifecycle_bp.route('/quests/<quest_id>/own-quest', methods=['DELETE'])
+@require_auth
+@student_scope()
+def delete_own_quest_route(user_id, quest_id):
+    """Delete a quest the family made and never worked on (ticket bd1be541).
+
+    Karen Boyd, parent, Optio Academy: "I created a couple of quests that I
+    ended up not wanting to use... I can't see how to delete old quests."
+    Removes the student's enrollment, and the quest row too when nobody else
+    has it. Refused (409) for a school, library, course or class quest and for
+    an enrollment with finished tasks or evidence; those keep Save for later >
+    "I'm done with it". DELETE /quests/<id>/enrollment stays as it was: it
+    is the parent's "Remove quest" on mobile, which reverses XP on purpose.
+    """
+    from services.own_quest_delete import NOT_FOUND, REFUSAL_MESSAGES, delete_own_quest
+    # admin client justified: deletes the caller's (or their child's, via @student_scope) own enrollment and a private quest the family made, after the ownership rule in services/own_quest_delete.py
+    admin = get_supabase_admin_client()
+    result = delete_own_quest(admin, user_id, quest_id)
+    if not result['deleted']:
+        reason = result['reason']
+        return jsonify({
+            'success': False,
+            'reason': reason,
+            'error': REFUSAL_MESSAGES[reason],
+        }), 404 if reason == NOT_FOUND else 409
+    return jsonify({
+        'success': True,
+        'quest_deleted': result['quest_deleted'],
+        'message': f'"{result["title"]}" deleted',
+    }), 200
+
+
 @quest_lifecycle_bp.route('/quests/<quest_id>/archive', methods=['POST'])
 @require_auth
 @student_scope()

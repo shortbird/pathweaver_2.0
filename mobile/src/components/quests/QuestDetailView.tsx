@@ -910,6 +910,23 @@ export function QuestDetailView({ questId: id, studentId = null, autoOpenTaskWiz
   // "Edit pillar & subjects" button.
   const [editTask, setEditTask] = useState<any | null>(null);
   const scrollRef = React.useRef<ScrollView>(null);
+
+  // "Delete quest" (ticket bd1be541, Karen Boyd: "I created a couple of
+  // quests that I ended up not wanting to use... I can't see how to delete old
+  // quests"). Offered only for a quest the family made with no finished task
+  // and no evidence; the server decides (GET /own-quest) and checks again on
+  // delete. Everything else keeps Save for later > "I'm done with it".
+  const [canDeleteOwnQuest, setCanDeleteOwnQuest] = useState(false);
+  const activeEnrollmentId = quest?.user_enrollment?.id || null;
+  React.useEffect(() => {
+    // Without an enrollment the button is hidden by the render check below.
+    if (!id || !activeEnrollmentId) return undefined;
+    let cancelled = false;
+    api.get(`/api/quests/${id}/own-quest`, { params: studentId ? { student_id: studentId } : {} })
+      .then((res) => { if (!cancelled) setCanDeleteOwnQuest(res?.data?.can_delete === true); })
+      .catch(() => { if (!cancelled) setCanDeleteOwnQuest(false); });
+    return () => { cancelled = true; };
+  }, [id, activeEnrollmentId, studentId, quest]);
   // The note the banner's "Read feedback" opened (ticket 4ea811d6).
   const [openFeedback, setOpenFeedback] = useState<LatestFeedback | null>(null);
 
@@ -1130,6 +1147,25 @@ export function QuestDetailView({ questId: id, studentId = null, autoOpenTaskWiz
     }
   };
 
+  const confirmDeleteOwnQuest = async () => {
+    const ok = await confirmAlert({
+      title: 'Delete this quest?',
+      message: 'The quest and its tasks will be deleted. Nothing has been finished on it yet, so no work or XP is lost. This cannot be undone.',
+      confirmText: 'Delete quest',
+      destructive: true,
+    });
+    if (!ok) return;
+    try {
+      await api.delete(`/api/quests/${quest.id}/own-quest`, {
+        params: studentId ? { student_id: studentId } : {},
+      });
+      router.back();
+    } catch (e) {
+      setCanDeleteOwnQuest(false);
+      showAlert('Could not delete', extractApiError(e, 'That quest could not be deleted. Try again.').message);
+    }
+  };
+
   return (
     <SafeAreaView className="flex-1 bg-surface-50 dark:bg-dark-surface-50">
       <ScrollView
@@ -1322,11 +1358,14 @@ export function QuestDetailView({ questId: id, studentId = null, autoOpenTaskWiz
                         canComplete={canComplete}
                         canRemove={canRemoveTasks}
                         offersCredit={offersTaskCredit({ task, quest, viewer: authUser, studentId })}
-                        // Editing a moment or a task's pillar/subjects writes as
-                        // the caller, and neither endpoint delegates — a parent
-                        // gets neither control rather than one that 403s.
+                        // Editing a moment writes as the caller and does not
+                        // delegate, so a parent gets no control rather than one
+                        // that 403s. The task editor does: PUT /api/tasks/<id>
+                        // and its duplicate are @student_scope, and the editor
+                        // names the child (tickets 03ee5c2d, 4476c061 came from
+                        // a parent working in her son's account).
                         onEditMoment={studentId ? undefined : handleEditMoment}
-                        onEditTask={studentId ? undefined : setEditTask}
+                        onEditTask={setEditTask}
                         onFeedbackRead={refetch}
                       />
                     ))}
@@ -1434,11 +1473,26 @@ export function QuestDetailView({ questId: id, studentId = null, autoOpenTaskWiz
                         {markDoneHint}
                       </UIText>
                     )}
+                    {canDeleteOwnQuest && !!activeEnrollmentId && (
+                      <Pressable
+                        testID="delete-own-quest-btn"
+                        onPress={confirmDeleteOwnQuest}
+                        accessibilityRole="button"
+                        accessibilityLabel="Delete quest"
+                        className="py-3 items-center"
+                        style={{ minHeight: 44, justifyContent: 'center' }}
+                      >
+                        <UIText size="sm" className="text-red-400">Delete quest</UIText>
+                      </Pressable>
+                    )}
                   </>
                 )}
 
-                {/* A parent's "Remove quest" -- the one that deletes. */}
-                {studentId && (
+                {/* A parent's "Remove quest" -- the one that deletes. Hidden
+                    when "Delete quest" is offered: that quest has no work, so
+                    the XP reversal adds nothing, and two delete buttons only
+                    confuse (ticket bd1be541). */}
+                {studentId && !(canDeleteOwnQuest && !!activeEnrollmentId) && (
                   <>
                     <Divider className="mt-4" />
                     <Pressable
@@ -1532,6 +1586,7 @@ export function QuestDetailView({ questId: id, studentId = null, autoOpenTaskWiz
         studentId={studentId}
         onClose={() => setEditTask(null)}
         onSaved={() => { setEditTask(null); refetch(); }}
+        onDuplicated={(copy) => { setEditTask(copy); refetch(); }}
       />
     </SafeAreaView>
   );

@@ -387,7 +387,12 @@ BASELINES = {
     # quest link opens it (services/quest_visibility_service.py).
     # 2026-10-02: 146 -> 145. utils/oea_rules.py's settings read went with the
     # Hearthwood/OEA program.
-    'utils': 145,
+    # 2026-10-14: 145 -> 147, ticket sweep. utils/student_created reads the
+    # creator's enrollments to tell a parent-made quest from a student-made one
+    # (41a29c4f), and utils/personalization_helpers.get_or_create_enrollment
+    # reopens a finished enrollment when a task is added (8a0beab1); utils/ may
+    # not import the repository that owns either write.
+    'utils': 147,
     'jobs': 7,
     'middleware': 2,
     'modules': 1,

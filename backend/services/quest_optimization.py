@@ -237,8 +237,16 @@ class QuestOptimizationService(BaseService):
             completed_enrollment = quest_enrollments.get('completed')
             active_enrollment = quest_enrollments.get('active')
 
-            # Handle completed quest
-            if completed_enrollment:
+            # Handle completed quest (only if no active enrollment).
+            #
+            # The active run wins, as it does on the quest page
+            # (routes/quest/detail.py). A family that finished a quest and then
+            # added a task got a second, active enrollment, and every list kept
+            # showing the quest as complete because the completed row was
+            # checked first (ticket 8a0beab1, Karen Boyd: "Once a quest is
+            # marked complete, there doesn't appear to be a way to re-activate
+            # it... the quest still displays as complete").
+            if completed_enrollment and not active_enrollment:
                 quest['completed_enrollment'] = completed_enrollment
                 enrollment_id = completed_enrollment['id']
 
@@ -270,7 +278,7 @@ class QuestOptimizationService(BaseService):
                 quest['pillar_breakdown'] = pillar_breakdown
                 logger.debug(f"[PILLAR DEBUG] Final breakdown for quest {quest_id[:8]}: {pillar_breakdown}")
 
-            # Handle active quest (only if no completed enrollment)
+            # Handle active quest
             elif active_enrollment:
                 quest['user_enrollment'] = active_enrollment
                 enrollment_id = active_enrollment['id']

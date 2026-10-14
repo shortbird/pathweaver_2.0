@@ -774,10 +774,8 @@ def reopen_quest(user_id: str, quest_id: str):
 
         # Reactivate the most-recent (completed) enrollment.
         target = enrollment.data[0]
-        supabase.table('user_quests')\
-            .update({'is_active': True, 'completed_at': None})\
-            .eq('id', target['id'])\
-            .execute()
+        from repositories.quest_repository import QuestRepository
+        QuestRepository(client=supabase).reopen_enrollment(target['id'])
 
         logger.info(f"[quest reopen] User {user_id[:8]} reopened quest {quest_id[:8]}")
 

@@ -297,6 +297,44 @@ class QuestRepository(BaseRepository):
             logger.error(f"Error setting aside enrollment {user_quest_id}: {e}")
             raise DatabaseError("Failed to set the quest aside") from e
 
+    def reopen_enrollment(self, user_quest_id: str) -> bool:
+        """Put a finished enrollment back in progress: active, no completed_at.
+
+        The one reopen write. POST /api/quests/<id>/reopen calls it, and so does
+        every path that adds a task to a student's own quest
+        (utils.personalization_helpers.get_or_create_enrollment, the task
+        library), because a new task on a finished quest means it is not
+        finished (ticket 8a0beab1, Karen Boyd: "Once a quest is marked
+        complete, there doesn't appear to be a way to re-activate it").
+        Both columns, or the quest stays hidden: active-quest reads filter on
+        is_active, the quest page and the lists on completed_at.
+        """
+        try:
+            response = (
+                self.client.table('user_quests')
+                .update({'is_active': True, 'completed_at': None})
+                .eq('id', user_quest_id)
+                .execute()
+            )
+            return bool(response.data)
+        except APIError as e:
+            logger.error(f"Error reopening enrollment {user_quest_id}: {e}")
+            raise DatabaseError("Failed to reopen the quest") from e
+
+    def reopen_if_finished(self, user_quest_id: str) -> bool:
+        """reopen_enrollment, when this enrollment has a completed_at. For the
+        add-task paths that already know which enrollment the task joins.
+        Returns True when it reopened something."""
+        rows = (
+            self.client.table('user_quests')
+            .select('id, completed_at')
+            .eq('id', user_quest_id)
+            .execute()
+        ).data or []
+        if rows and rows[0].get('completed_at'):
+            return self.reopen_enrollment(user_quest_id)
+        return False
+
     # ── Save for later / Resume (ticket e17134c6, 2026-10-07) ───────────────
     #
     # "Paused" is every enrollment that is inactive and not completed. Three

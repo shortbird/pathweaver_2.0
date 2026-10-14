@@ -200,16 +200,33 @@ def get_or_create_enrollment(user_id: str, quest_id: str,
     # admin client justified: shared utility — operates on caller-supplied IDs; caller enforces access control
     supabase = get_supabase_admin_client()
 
-    # Check if already enrolled
-    existing_enrollment = supabase.table('user_quests')\
-        .select('id, is_active')\
+    # Every enrollment this student has on this quest, newest first. One read,
+    # bounded by one student and one quest.
+    existing = supabase.table('user_quests')\
+        .select('id, is_active, completed_at')\
         .eq('user_id', user_id)\
         .eq('quest_id', quest_id)\
-        .eq('is_active', True)\
-        .execute()
+        .order('created_at', desc=True)\
+        .execute().data or []
 
-    if existing_enrollment.data:
-        return existing_enrollment.data[0]['id']
+    # A task added to a finished quest goes into the finished run and reopens
+    # it, the same write as POST /api/quests/<id>/reopen. This used to look
+    # for an ACTIVE row only, so the first task added after "Mark done" made a
+    # second, empty enrollment beside the finished one, and the quest went on
+    # showing as complete (ticket 8a0beab1, Karen Boyd: "I forgot to add a
+    # task... the quest still displays as complete").
+    # The write mirrors QuestRepository.reopen_enrollment (utils/ may not
+    # import repositories/); keep the two in step.
+    active = next((e for e in existing if e.get('is_active')), None)
+    finished = next((e for e in existing if e.get('completed_at')), None)
+    target = active or finished
+    if target:
+        if target.get('completed_at'):
+            supabase.table('user_quests')\
+                .update({'is_active': True, 'completed_at': None})\
+                .eq('id', target['id'])\
+                .execute()
+        return target['id']
 
     # Create new enrollment
     enrollment = supabase.table('user_quests')\

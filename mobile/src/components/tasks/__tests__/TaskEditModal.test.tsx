@@ -58,6 +58,7 @@ describe('TaskEditModal Definition of Done', () => {
     fireEvent.press(utils.getByLabelText('Save changes'));
 
     await waitFor(() => expect(api.put).toHaveBeenCalledWith('/api/tasks/task-7', {
+      title: 'Play chess',
       pillar: 'stem',
       diploma_subjects: ['Math'],
       success_criteria: ['You played 5 games', 'You named an opening'],
@@ -74,6 +75,7 @@ describe('TaskEditModal Definition of Done', () => {
 
     fireEvent.press(utils.getByLabelText('Save changes'));
     await waitFor(() => expect(api.put).toHaveBeenCalledWith('/api/tasks/task-7', {
+      title: 'Play chess',
       pillar: 'stem',
       diploma_subjects: ['Math'],
     }));
@@ -122,5 +124,58 @@ describe('TaskEditModal for a learner 13 or older', () => {
     const utils = renderModal();
     await waitFor(() => expect(api.get).toHaveBeenCalled());
     expect(utils.getByText('PILLAR')).toBeTruthy();
+  });
+});
+
+// Ticket 03ee5c2d, Karen Boyd (parent, Optio Academy): "everything but the
+// title can be edited. It would be nice to also be able to edit the task
+// title."
+describe('TaskEditModal title', () => {
+  it('prefills the title and sends the edited one, trimmed', async () => {
+    const utils = renderModal();
+    expect(utils.getByLabelText('Task title').props.value).toBe('Play chess');
+    fireEvent.changeText(utils.getByLabelText('Task title'), '  Play chess online  ');
+    fireEvent.press(utils.getByLabelText('Save changes'));
+
+    await waitFor(() => expect(api.put).toHaveBeenCalled());
+    expect((api.put as jest.Mock).mock.calls[0][1].title).toBe('Play chess online');
+  });
+
+  it('will not save an empty title', async () => {
+    const utils = renderModal();
+    fireEvent.changeText(utils.getByLabelText('Task title'), '   ');
+    fireEvent.press(utils.getByLabelText('Save changes'));
+
+    expect(await utils.findByText('Give the task a title.')).toBeTruthy();
+    expect(api.put).not.toHaveBeenCalled();
+  });
+
+  it('names the child in parent mode, so the delegated save is not refused', async () => {
+    const utils = renderModal({ studentId: 'kid-1' });
+    fireEvent.press(utils.getByLabelText('Save changes'));
+
+    await waitFor(() => expect(api.put).toHaveBeenCalled());
+    expect((api.put as jest.Mock).mock.calls[0][1].student_id).toBe('kid-1');
+  });
+});
+
+// Ticket 4476c061, Karen Boyd: "copy an existing task to create a new one by
+// just changing the title while keeping the same task description and
+// evidence requirements."
+describe('TaskEditModal Duplicate task', () => {
+  it('copies through the server and hands the copy to the screen', async () => {
+    const copy = { ...task, id: 'task-8', title: 'Play chess (copy)' };
+    (api.post as jest.Mock).mockResolvedValue({ data: { success: true, task: copy } });
+    const onDuplicated = jest.fn();
+    const utils = renderModal({ studentId: 'kid-1', onDuplicated });
+    fireEvent.press(utils.getByLabelText('Duplicate task'));
+
+    await waitFor(() => expect(onDuplicated).toHaveBeenCalledWith(copy));
+    expect(api.post).toHaveBeenCalledWith('/api/tasks/task-7/duplicate', { student_id: 'kid-1' });
+  });
+
+  it('is not offered without a screen to open the copy', () => {
+    const utils = renderModal();
+    expect(utils.queryByLabelText('Duplicate task')).toBeNull();
   });
 });

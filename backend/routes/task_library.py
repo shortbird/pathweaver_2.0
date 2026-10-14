@@ -154,13 +154,13 @@ def select_library_task(user_id, quest_id):
         enrollment = user_quest_response.data[0]
         user_quest_id = enrollment['id']
 
-        # If quest is inactive (completed), reactivate it when adding new tasks
-        if not enrollment.get('is_active'):
+        # A new task on an inactive or finished quest reopens it. This used to
+        # set is_active only, leaving completed_at, so the quest kept showing
+        # as complete (ticket 8a0beab1). The shared reopen write clears both.
+        if not enrollment.get('is_active') or enrollment.get('completed_at'):
             logger.info(f"Reactivating completed quest {quest_id} for user {user_id} (adding new tasks)")
-            supabase.table('user_quests') \
-                .update({'is_active': True}) \
-                .eq('id', user_quest_id) \
-                .execute()
+            from repositories.quest_repository import QuestRepository
+            QuestRepository(client=supabase).reopen_enrollment(user_quest_id)
 
         # Check if task already exists for this user
         existing_task = supabase.table('user_quest_tasks') \

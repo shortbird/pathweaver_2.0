@@ -1,6 +1,13 @@
 /**
- * TaskEditModal - Edit a quest task's pillar, diploma (transcript) subjects and
- * Definition of Done (success_criteria).
+ * TaskEditModal - Edit a quest task's title, pillar, diploma (transcript)
+ * subjects and Definition of Done (success_criteria), or make a copy of it.
+ *
+ * Title: ticket 03ee5c2d, Karen Boyd (parent, Optio Academy): "everything but
+ * the title can be edited." Duplicate: ticket 4476c061, "copy an existing task
+ * to create a new one by just changing the title while keeping the same task
+ * description and evidence requirements" (POST /api/tasks/:id/duplicate). Both
+ * name the child (`student_id`) in parent mode, which PUT and duplicate accept
+ * through @student_scope.
  *
  * Feature: "Allow me to edit the pillar and diploma subject on a task." Saves via
  * PUT /api/tasks/:id (which supports pillar, diploma_subjects, success_criteria).
@@ -9,7 +16,7 @@
  */
 
 import React, { useState } from 'react';
-import { View, Modal, Pressable, ScrollView, Platform } from 'react-native';
+import { View, Modal, Pressable, ScrollView, Platform, TextInput } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import api from '@/src/services/api';
 import { extractApiError } from '@/src/services/apiError';
@@ -38,11 +45,14 @@ interface TaskEditModalProps {
   studentId?: string | null;
   onClose: () => void;
   onSaved: () => void;
+  /** The copy "Duplicate task" made. The screen opens the editor on it so the
+   *  title can change. Without it the button is not offered. */
+  onDuplicated?: (copy: { id: string; [key: string]: unknown }) => void;
 }
 
 export const CRITERIA_LOCKED_NOTE = 'Locked because this task was sent for credit';
 
-export function TaskEditModal({ visible, task, studentId = null, onClose, onSaved }: TaskEditModalProps) {
+export function TaskEditModal({ visible, task, studentId = null, onClose, onSaved, onDuplicated }: TaskEditModalProps) {
   const c = useThemeColors();
   const { rules } = useTaskAuthoringRules({
     studentId, taskId: task?.id ?? null, enabled: visible && !!task?.id,
@@ -60,12 +70,16 @@ export function TaskEditModal({ visible, task, studentId = null, onClose, onSave
   const [subjects, setSubjects] = useState<string[]>(
     subjectNames(task?.diploma_subjects ?? task?.school_subjects)
   );
+  const [title, setTitle] = useState<string>(task?.title || '');
   const [saving, setSaving] = useState(false);
+  const [copying, setCopying] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const scopeBody = studentId ? { student_id: studentId } : {};
 
   // Re-seed local state whenever a different task is opened.
   React.useEffect(() => {
     if (task) {
+      setTitle(task.title || '');
       setPillar(task.pillar || 'stem');
       setSubjects(subjectNames(task.diploma_subjects ?? task.school_subjects));
       setCriteria(criteriaForEditing(task.success_criteria));
@@ -81,6 +95,11 @@ export function TaskEditModal({ visible, task, studentId = null, onClose, onSave
 
   const handleSave = async () => {
     if (!task || saving) return;
+    const trimmedTitle = title.trim();
+    if (!trimmedTitle) {
+      setError('Give the task a title.');
+      return;
+    }
     const cleaned = cleanCriteria(criteria);
     if (!criteriaLocked && rules.requiresSuccessCriteria && cleaned.length === 0) {
       setCriteriaError('Your school asks for a Definition of Done. Add at least one line.');
@@ -91,11 +110,13 @@ export function TaskEditModal({ visible, task, studentId = null, onClose, onSave
     setCriteriaError(null);
     try {
       await api.put(`/api/tasks/${task.id}`, {
+        title: trimmedTitle,
         ...(hidePillars ? {} : { pillar }),
         diploma_subjects: subjects,
         // A locked Definition of Done is not sent at all: the server refuses
         // any write to it once the task went for credit.
         ...(criteriaLocked ? {} : { success_criteria: cleaned }),
+        ...scopeBody,
       });
       onSaved();
     } catch (e) {
@@ -111,6 +132,21 @@ export function TaskEditModal({ visible, task, studentId = null, onClose, onSave
       }
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleDuplicate = async () => {
+    if (!task || copying || !onDuplicated) return;
+    setCopying(true);
+    setError(null);
+    try {
+      const res = await api.post(`/api/tasks/${task.id}/duplicate`, { ...scopeBody });
+      const copy = res?.data?.task;
+      if (copy) onDuplicated(copy);
+    } catch (e) {
+      setError(extractApiError(e, 'Could not copy the task. Please try again.').message);
+    } finally {
+      setCopying(false);
     }
   };
 
@@ -130,11 +166,16 @@ export function TaskEditModal({ visible, task, studentId = null, onClose, onSave
           </HStack>
 
           <ScrollView contentContainerStyle={{ paddingHorizontal: 24, paddingBottom: 16 }}>
-            {task?.title ? (
-              <UIText size="sm" className="text-typo-500 dark:text-dark-typo-500 mb-4" numberOfLines={2}>
-                {task.title}
-              </UIText>
-            ) : null}
+            <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400 font-poppins-semibold mb-2">TITLE</UIText>
+            <TextInput
+              value={title}
+              onChangeText={setTitle}
+              maxLength={200}
+              accessibilityLabel="Task title"
+              placeholderTextColor={c.textFaint}
+              className="bg-surface-50 dark:bg-dark-surface-50 border border-surface-200 dark:border-dark-surface-300 rounded-xl p-3 text-sm mb-5"
+              style={{ fontFamily: 'Poppins_400Regular' }}
+            />
 
             {/* Pillar — single select. Hidden for a learner 13+. */}
             {!hidePillars && (
@@ -205,6 +246,20 @@ export function TaskEditModal({ visible, task, studentId = null, onClose, onSave
                 <UIText className="text-white font-poppins-semibold">Save changes</UIText>
               </ButtonText>
             </Button>
+            {onDuplicated ? (
+              <Pressable
+                onPress={handleDuplicate}
+                disabled={copying || saving}
+                accessibilityRole="button"
+                accessibilityLabel="Duplicate task"
+                className="py-3 items-center"
+                style={{ minHeight: 44, justifyContent: 'center', opacity: copying ? 0.5 : 1 }}
+              >
+                <UIText size="sm" className="text-optio-purple font-poppins-medium">
+                  {copying ? 'Copying...' : 'Duplicate task'}
+                </UIText>
+              </Pressable>
+            ) : null}
           </View>
         </View>
       </View>

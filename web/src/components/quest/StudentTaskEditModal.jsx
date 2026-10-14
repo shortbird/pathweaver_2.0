@@ -60,14 +60,17 @@ export default function StudentTaskEditModal({ task, onClose, onSave, isClassQue
   const criteriaRequired = Boolean(rules?.requires_success_criteria);
   const [criteria, setCriteria] = useState(['']);
   const [criteriaError, setCriteriaError] = useState('');
+  const [title, setTitle] = useState('');
   const [pillar, setPillar] = useState('stem');
   const [xpValue, setXpValue] = useState(100);
   const [subjects, setSubjects] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [copying, setCopying] = useState(false);
   const [error, setError] = useState('');
 
   useEffect(() => {
     if (task) {
+      setTitle(task.title || '');
       setPillar(task.pillar || 'stem');
       setXpValue(task.xp_value || 100);
       setSubjects(subjectsFromTask(task));
@@ -83,6 +86,15 @@ export default function StudentTaskEditModal({ task, onClose, onSave, isClassQue
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
+
+    // The title was the one thing this dialog could not change (ticket
+    // 03ee5c2d, Karen Boyd: "everything but the title can be edited"). The
+    // server refuses an empty title, so ask here first.
+    const trimmedTitle = title.trim();
+    if (!trimmedTitle) {
+      setError('Give the task a title');
+      return;
+    }
 
     const xp = parseInt(xpValue, 10);
     if (canEditXp && (!Number.isFinite(xp) || xp < 1 || xp > MAX_STUDENT_XP)) {
@@ -108,7 +120,7 @@ export default function StudentTaskEditModal({ task, onClose, onSave, isClassQue
       //  - xp_value: omitted where the org has locked XP to teachers;
       //  - diploma_subjects: omitted for class quests, whose credit is locked
       //    to the class subject.
-      const payload = {};
+      const payload = { title: trimmedTitle };
       if (!hidePillars) payload.pillar = pillar;
       if (canEditXp) payload.xp_value = xp;
       if (!isClassQuest) payload.diploma_subjects = subjects;
@@ -118,15 +130,29 @@ export default function StudentTaskEditModal({ task, onClose, onSave, isClassQue
       if (!criteriaLocked && !sameLines(cleanedCriteria, cleanCriteria(criteriaFromTask(task)))) {
         payload.success_criteria = cleanedCriteria;
       }
-      // Every field can be off at once (a class quest at a school that hides
-      // pillars and locks XP). There is nothing to save, and an empty PUT is a
-      // 400 — close instead.
-      if (Object.keys(payload).length > 0) await onSave(payload);
+      await onSave(payload);
       onClose();
     } catch (err) {
       setError(err?.response?.data?.error || err?.message || 'Failed to save task');
     } finally {
       setLoading(false);
+    }
+  };
+
+  // "Duplicate task" (ticket 4476c061, Karen Boyd: "copy an existing task to
+  // create a new one by just changing the title while keeping the same task
+  // description and evidence requirements"). The server copies the saved task
+  // (POST /api/tasks/<id>/duplicate); the workspace then selects the copy, so
+  // this dialog stays open on it, titled "<title> (copy)", ready to rename.
+  const handleDuplicate = async () => {
+    setError('');
+    setCopying(true);
+    try {
+      await onSave({ duplicate: true });
+    } catch (err) {
+      setError(err?.response?.data?.error || err?.message || 'Could not copy the task');
+    } finally {
+      setCopying(false);
     }
   };
 
@@ -139,6 +165,20 @@ export default function StudentTaskEditModal({ task, onClose, onSave, isClassQue
     >
       <form onSubmit={handleSubmit} className="space-y-6">
         {error && <Alert variant="error">{error}</Alert>}
+
+        <div>
+          <label htmlFor="edit-task-title" className="block text-sm font-semibold text-gray-700 mb-2">
+            Title
+          </label>
+          <input
+            type="text"
+            id="edit-task-title"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            maxLength={200}
+            className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-optio-purple focus:border-optio-purple min-h-[44px]"
+          />
+        </div>
 
         <SuccessCriteriaEditor
           idPrefix="edit-task-dod"
@@ -245,6 +285,20 @@ export default function StudentTaskEditModal({ task, onClose, onSave, isClassQue
               </p>
             </>
           )}
+        </div>
+
+        <div className="flex flex-col sm:flex-row sm:items-center gap-2 pt-2 border-t border-gray-100">
+          <button
+            type="button"
+            onClick={handleDuplicate}
+            disabled={loading || copying}
+            className="px-4 py-2 text-sm font-medium text-optio-purple bg-optio-purple/10 hover:bg-optio-purple/20 rounded-lg transition-colors min-h-[44px] disabled:opacity-50"
+          >
+            {copying ? 'Copying...' : 'Duplicate task'}
+          </button>
+          <p className="text-xs text-gray-500">
+            Makes a new task with the same description, Definition of Done and credit. Unsaved changes here are not copied.
+          </p>
         </div>
 
         <FormFooter
