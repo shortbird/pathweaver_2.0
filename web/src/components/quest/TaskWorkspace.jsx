@@ -97,6 +97,13 @@ const TaskWorkspace = ({
   const [isTogglingPortfolio, setIsTogglingPortfolio] = useState(false);
   // The moment open in the moment editor, fetched whole (see handleEditMoment).
   const [editMomentEvent, setEditMomentEvent] = useState(null);
+  // Evidence the student added that the server did not store (ticket
+  // a9d3cedb). Its files are already uploaded, so the items keep their storage
+  // URLs and "Try again" re-sends them without a second upload.
+  const [unsavedEvidence, setUnsavedEvidence] = useState([]);
+  // Counts evidence saves; only the newest one may write its answer into the
+  // list, so a slow earlier save cannot overwrite a later change.
+  const saveSeqRef = useRef(0);
 
   // Drag sensors for task reordering
   const sensors = useSensors(
@@ -109,6 +116,7 @@ const TaskWorkspace = ({
     setIsDescriptionExpanded(false);
     setCreditStatus(null);
     setPortfolioPick(null);
+    setUnsavedEvidence([]);
     if (task?.id) {
       loadEvidence();
       // A moment has no task completion, so no credit or portfolio row.
@@ -321,6 +329,7 @@ const TaskWorkspace = ({
     if (!task?.id) return { success: false };
 
     setIsSaving(true);
+    const seq = ++saveSeqRef.current;
     try {
       const cleanedBlocks = blocks.map((block, index) => {
         // Normalize type field - database returns block_type, frontend uses type
@@ -335,19 +344,26 @@ const TaskWorkspace = ({
 
       const result = await evidenceDocumentService.saveDocument(task.id, cleanedBlocks, status, { studentId });
 
-      if (result.success && result.blocks && result.blocks.length > 0) {
-        setEvidenceBlocks(prevBlocks =>
-          prevBlocks.map((block, index) => {
-            const savedBlock = result.blocks.find(sb => sb.order_index === index);
-            if (savedBlock?.id && savedBlock.id !== block.id) {
-              return { ...block, id: savedBlock.id };
-            }
-            return block;
-          })
-        );
+      // After a save the list shows what the server stored (ticket a9d3cedb):
+      // the blocks this call sent, carrying the ids the server gave them (a
+      // save replaces every row, so every id is new). If the server holds a
+      // different number of blocks than were sent, read the document back
+      // rather than show a list that is not what a reload would show.
+      if (result?.success && seq === saveSeqRef.current) {
+        const saved = Array.isArray(result.blocks) ? result.blocks : null;
+        if (saved && saved.length === blocks.length) {
+          setEvidenceBlocks(
+            blocks.map((block, index) => {
+              const savedBlock = saved.find(sb => sb.order_index === index);
+              return savedBlock?.id ? { ...block, id: savedBlock.id } : block;
+            })
+          );
+        } else {
+          loadEvidence();
+        }
       }
 
-      return result;
+      return result || { success: false };
     } catch (err) {
       logger.error('Failed to save evidence:', err);
       return { success: false, error: err.message };
@@ -465,15 +481,37 @@ const TaskWorkspace = ({
 
     if (uploadToastId) toast.loading('Saving evidence...', { id: uploadToastId, duration: Infinity });
 
-    const updatedBlocks = [...evidenceBlocks, ...validProcessedItems];
+    const previousBlocks = evidenceBlocks;
+    const updatedBlocks = [...previousBlocks, ...validProcessedItems];
     setEvidenceBlocks(updatedBlocks);
 
     const result = await saveEvidence(updatedBlocks);
     if (uploadToastId) toast.dismiss(uploadToastId);
     if (!result.success) {
-      toast.error('Failed to save evidence');
+      // Ticket a9d3cedb: the new item stayed in the list after a failed save,
+      // so it looked saved until the page was reloaded and it was gone. Put the
+      // list back to what the server holds and keep the new items, with their
+      // uploaded URLs, under "Not saved" so Try again needs no second upload.
+      setEvidenceBlocks(previousBlocks);
+      setUnsavedEvidence(prev => [...prev, ...validProcessedItems]);
+      toast.error('Your evidence was not saved. Press Try again.');
     } else if (validProcessedItems.length > 0) {
       toast.success('Evidence saved');
+    }
+  };
+
+  const handleRetryUnsavedEvidence = async () => {
+    if (unsavedEvidence.length === 0) return;
+    const items = unsavedEvidence;
+    setUnsavedEvidence([]);
+    await handleSaveEvidence(items);
+  };
+
+  const handleDiscardUnsavedEvidence = () => {
+    const urls = unsavedEvidence.flatMap(item => collectStorageUrls(item.content));
+    setUnsavedEvidence([]);
+    if (urls.length > 0) {
+      evidenceDocumentService.deleteStorageUrls(urls);
     }
   };
 
@@ -695,9 +733,23 @@ const TaskWorkspace = ({
     }
   };
 
-  const handleSaveTaskEdit = async ({ pillar, xp_value, diploma_subjects, success_criteria }) => {
+  const handleSaveTaskEdit = async ({ duplicate, title, pillar, xp_value, diploma_subjects, success_criteria }) => {
     if (!task?.id) return;
+    // "Duplicate task" in the edit dialog (ticket 4476c061). The copy goes up
+    // through onTaskUpdate as a task the quest page does not know yet; the
+    // page adds it and selects it, so the open dialog moves onto the copy.
+    if (duplicate) {
+      const response = await api.post(`/api/tasks/${task.id}/duplicate`, { ...scopeParams });
+      const copy = response?.data?.task;
+      if (copy && onTaskUpdate) {
+        onTaskUpdate({ ...copy, is_completed: false });
+      }
+      toast.success('Task copied. Give the copy its own title.');
+      return;
+    }
     const payload = { pillar, xp_value };
+    // The title (ticket 03ee5c2d). The modal sends it trimmed and non-empty.
+    if (title !== undefined) payload.title = title;
     if (diploma_subjects !== undefined) payload.diploma_subjects = diploma_subjects;
     // The Definition of Done. The server answers 409 success_criteria_locked
     // or 400 success_criteria_required; the modal shows its message.
@@ -791,6 +843,43 @@ const TaskWorkspace = ({
                 setIsStepsModalOpen={setIsStepsModalOpen}
                 setIsEditModalOpen={setIsEditModalOpen}
               />
+
+              {unsavedEvidence.length > 0 && (
+                <div
+                  role="alert"
+                  data-testid="unsaved-evidence"
+                  className="mx-3 sm:mx-6 mt-4 p-3 rounded-lg border border-red-200 bg-red-50 text-sm text-red-800"
+                >
+                  <p className="font-semibold">Not saved</p>
+                  <ul className="mt-1 list-disc pl-5">
+                    {unsavedEvidence.map((item, i) => (
+                      <li key={item.id || i} className="break-all">
+                        {item.type === 'text'
+                          ? (item.content?.text || 'Text').slice(0, 80)
+                          : (item.content?.items || []).map(ci => ci.filename || ci.title || ci.url).join(', ')}
+                      </li>
+                    ))}
+                  </ul>
+                  <div className="mt-2 flex gap-2">
+                    <button
+                      type="button"
+                      onClick={handleRetryUnsavedEvidence}
+                      disabled={isSaving}
+                      className="px-3 py-1.5 rounded-lg bg-optio-purple text-white font-medium min-h-[36px] disabled:opacity-50"
+                    >
+                      Try again
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleDiscardUnsavedEvidence}
+                      disabled={isSaving}
+                      className="px-3 py-1.5 rounded-lg border border-red-300 text-red-800 font-medium min-h-[36px] disabled:opacity-50"
+                    >
+                      Discard
+                    </button>
+                  </div>
+                </div>
+              )}
 
               <TaskEvidenceSection
                 task={task} evidenceBlocks={evidenceBlocks}

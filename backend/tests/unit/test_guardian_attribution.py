@@ -42,6 +42,9 @@ class _Recorder:
         def chain(*args, **kwargs):
             if name in ('insert', 'update', 'delete'):
                 self._log.append((name, self._table, args[0] if args else None))
+            elif name == 'rpc':
+                # (op, function name, params)
+                self._log.append((name, args[0], args[1] if len(args) > 1 else None))
             return self
         return chain
 
@@ -157,7 +160,9 @@ def _blocks_written(uploader, blocks):
     client = _Recorder({'evidence_document_blocks': []}, log)
     with patch.object(ed, '_sync_paired_learning_event'):
         ed.update_document_blocks(client, 'doc-1', blocks, uploader=uploader)
-    inserted = [payload for op, table, payload in log if op == 'insert' and table == 'evidence_document_blocks']
+    # Blocks are written by one rpc since ticket a9d3cedb, not a table insert.
+    inserted = [payload['p_blocks'] for op, fn, payload in log
+                if op == 'rpc' and fn == 'replace_evidence_document_blocks']
     return inserted[0] if inserted else []
 
 
@@ -191,7 +196,8 @@ def test_a_parent_resaving_the_students_block_does_not_claim_it():
         ed.update_document_blocks(client, 'doc-1',
                                   [{'id': 'b-1', 'type': 'text', 'content': {'text': 'edited'}}],
                                   uploader=DELEGATED)
-    inserted = [payload for op, table, payload in log if op == 'insert' and table == 'evidence_document_blocks'][0]
+    inserted = [payload['p_blocks'] for op, fn, payload in log
+                if op == 'rpc' and fn == 'replace_evidence_document_blocks'][0]
     assert inserted[0]['uploaded_by_role'] == 'student'
     assert inserted[0]['uploaded_by_user_id'] is None
 

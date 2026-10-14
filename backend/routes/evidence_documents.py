@@ -614,8 +614,15 @@ def _canonical_block_content(content: Dict[str, Any]) -> Dict[str, Any]:
 def update_document_blocks(supabase, document_id: str, blocks: List[Dict], uploader=None):
     """
     Update the content blocks for a document.
-    Uses delete-and-reinsert strategy to avoid unique constraint violations
-    on (document_id, order_index) when reordering blocks.
+
+    The swap is one call to the Postgres function
+    replace_evidence_document_blocks (migration 20261014120000), which deletes
+    the old rows and inserts the new list in a single transaction. It used to
+    be a DELETE request followed by an INSERT request: when the insert failed,
+    the delete had already committed, so the student saw an error AND lost
+    every block saved before (ticket a9d3cedb -- Brock's "Scavenger Hunt"
+    document sat at 0 blocks with his files still in storage). Do not split
+    this back into two requests.
 
     After block updates land, syncs a paired learning_events row so this
     evidence shows up in the student's journal on upload (not just on completion).
@@ -643,16 +650,9 @@ def update_document_blocks(supabase, document_id: str, blocks: List[Dict], uploa
             for block in existing_blocks.data
         }
 
-        # Delete ALL existing blocks for this document to avoid order_index conflicts
-        if existing_blocks.data:
-            supabase.table('evidence_document_blocks')\
-                .delete()\
-                .eq('document_id', document_id)\
-                .execute()
-
         # Prepare all blocks for insert
         blocks_to_insert = []
-        for index, block in enumerate(blocks):
+        for block in blocks:
             block_id = block.get('id')
             is_existing = block_id and not str(block_id).startswith(('legacy-', 'temp-', 'new-')) and block_id in existing_block_map
 
@@ -678,11 +678,10 @@ def update_document_blocks(supabase, document_id: str, blocks: List[Dict], uploa
                 except Exception as meta_err:
                     logger.warning(f"Could not fetch metadata for URL: {meta_err}")
 
+            # order_index is the array position; the function assigns it.
             block_data = {
-                'document_id': document_id,
                 'block_type': block['type'],
                 'content': content,
-                'order_index': index,
                 'is_private': block.get('is_private', False)
             }
 
@@ -700,11 +699,12 @@ def update_document_blocks(supabase, document_id: str, blocks: List[Dict], uploa
 
             blocks_to_insert.append(block_data)
 
-        # Batch insert all blocks
-        if blocks_to_insert:
-            supabase.table('evidence_document_blocks')\
-                .insert(blocks_to_insert)\
-                .execute()
+        # Replace every block in one transaction (see the docstring). An empty
+        # list is sent too: it clears the document, as the old delete did.
+        supabase.rpc('replace_evidence_document_blocks', {
+            'p_document_id': document_id,
+            'p_blocks': blocks_to_insert,
+        }).execute()
 
         # Sync paired learning_event for the journal (failure here must not
         # block save). error-level on purpose: this failing silently for weeks
