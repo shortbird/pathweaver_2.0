@@ -73,6 +73,10 @@ def patch_settings(user_id):
         cleaned, problem = sis_attendance_service.clean_attendance_settings(sis_patch.get(attendance_key))
         if problem:
             return jsonify({'success': False, 'fields': [attendance_key], 'error': problem}), 400
+        # Per-student days (54b29e8a) are edited on the daily roll, not on
+        # the Settings card; a save that does not name them keeps the stored ones.
+        cleaned = sis_attendance_service.with_stored_student_days(
+            org_id, cleaned, sis_patch.get(attendance_key))
         sis_patch[attendance_key] = cleaned or None
     blocks = None
     wanted =sis_catalog_service.take_time_blocks(patch)

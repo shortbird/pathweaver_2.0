@@ -5,6 +5,7 @@ import { useSisOrg, withOrg } from './useSisOrg'
 import { useAuth } from '../../contexts/AuthContext'
 import { isSisAdmin, isCampusCoordinator } from './sisRole'
 import { isPathHidden } from './sisModules'
+import { dailyRollOn } from './attendanceSettings'
 import { getPreviewTeacher } from './teacherPreview'
 import { range12h } from '../../utils/timeFormat'
 import TeacherDashboard from './TeacherDashboard'
@@ -53,8 +54,11 @@ const StatCard = ({ label, value, accent, note }) => (
  * response can't render a tile that leads to a page the org turned off.
  */
 const ATTENTION_TILES = [
+  // A daily-roll school (ticket 0680d03c) resolves its alerts on the daily
+  // roll page, and may have no classes at all; the class roll tab was the
+  // wrong door for it (54b29e8a).
   { key: 'attendance_alerts', label: 'Not accounted for', to: '/classes?tab=attendance',
-    module: '/attendance', urgent: true },
+    dailyRollTo: '/attendance', module: '/attendance', urgent: true },
   { key: 'tasks_overdue', label: 'Overdue tasks', to: '/tasks?tab=assigned',
     module: '/tasks', urgent: true },
   { key: 'signatures_pending', label: 'Signatures pending', to: '/tasks?tab=assigned',
@@ -88,7 +92,7 @@ const ATTENTION_TILES = [
  * office opens a class many times a day and writes to families a few times a
  * week, and the list had it the other way round. */
 const QUICK_ACTIONS = [
-  { label: 'Take attendance', to: '/classes?tab=attendance', module: '/attendance' },
+  { label: 'Take attendance', to: '/classes?tab=attendance', dailyRollTo: '/attendance', module: '/attendance' },
   { label: 'Classes', to: '/classes', module: '/classes' },
   { label: 'Add a family', to: '/people?add=family' },
   // Named for where it lands. It said "Message families" and opened the
@@ -182,10 +186,13 @@ const SisDashboard = () => {
   const finance = data?.finance
   const invoices = finance?.invoices
 
+  const dailyRoll = dailyRollOn(activeOrg)
   const tiles = ATTENTION_TILES
     .filter((t) => (attention[t.key] || 0) > 0)
     .filter((t) => !t.module || !isPathHidden(t.module, activeOrg))
+    .map((t) => (dailyRoll && t.dailyRollTo ? { ...t, to: t.dailyRollTo } : t))
   const actions = QUICK_ACTIONS.filter((a) => !a.module || !isPathHidden(a.module, activeOrg))
+    .map((a) => (dailyRoll && a.dailyRollTo ? { ...a, to: a.dailyRollTo } : a))
   // The backend leaves these sections out when their module is off; this
   // filters a second time, like the tiles, so a stale or cached response can
   // never show money, a roll or a substitute to a school without the block
@@ -348,7 +355,7 @@ const SisDashboard = () => {
                     <div className="text-xs text-neutral-500">Excused / reported out</div>
                   </div>
                 </div>
-                <Link to="/classes?tab=attendance" className="block mt-3 text-sm font-semibold text-optio-purple hover:underline">
+                <Link to={dailyRoll ? '/attendance' : '/classes?tab=attendance'} className="block mt-3 text-sm font-semibold text-optio-purple hover:underline">
                   Open attendance →
                 </Link>
               </DashboardCard>

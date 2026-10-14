@@ -28,7 +28,7 @@ vi.mock('./useSisOrg', () => ({
 }))
 
 const { api } = vi.hoisted(() => ({
-  api: { get: vi.fn(), post: vi.fn(), delete: vi.fn() },
+  api: { get: vi.fn(), post: vi.fn(), delete: vi.fn(), put: vi.fn() },
 }))
 vi.mock('../../services/api', () => ({ default: api }))
 
@@ -151,6 +151,74 @@ describe('DailyRollPage', () => {
     api.get.mockResolvedValue({ data: { roster, settings: SETTINGS, today: TODAY } })
     renderPage()
     expect(await screen.findByText('Parent reported out: Family trip')).toBeInTheDocument()
+  })
+})
+
+describe('per-student days (ticket 54b29e8a)', () => {
+  // Apogee (Mandie): "we have a few students that only come 2 days per week."
+  // TODAY (2026-10-13) is a Tuesday; Ada comes Mondays and Wednesdays.
+  const withAdaOff = () => {
+    const roster = ROSTER()
+    roster[0] = { ...roster[0], days: [1, 3], scheduled: false }
+    api.get.mockResolvedValue({ data: { roster, settings: SETTINGS, today: TODAY, date: TODAY } })
+  }
+  const adminUser = { id: 'mandie', role: 'org_managed', org_role: 'org_admin', org_roles: ['org_admin'] }
+
+  it('puts a student who is not scheduled today in a collapsed group', async () => {
+    withAdaOff()
+    renderPage()
+    await screen.findByText('Ada Ant')
+    const group = screen.getByText('Not scheduled today (1)').closest('[data-not-scheduled]')
+    expect(group.tagName).toBe('DETAILS')
+    expect(group.open).toBe(false)
+    expect(within(group).getByText('Ada Ant')).toBeInTheDocument()
+    expect(within(group).queryByText('Bo Bee')).toBeNull()
+    expect(within(rowOf('Ada Ant')).getByText('Comes Mon, Wed')).toBeInTheDocument()
+  })
+
+  it('leaves the unscheduled student out of Not marked', async () => {
+    withAdaOff()
+    renderPage()
+    await screen.findByText('Ada Ant')
+    const counts = screen.getByText('Here').closest('[data-roll-counts]')
+    expect(within(counts).getByText('Not marked').nextSibling.textContent).toBe('0')
+  })
+
+  it('still lets staff mark an unscheduled student who turns up', async () => {
+    withAdaOff()
+    renderPage()
+    await screen.findByText('Ada Ant')
+    fireEvent.click(within(rowOf('Ada Ant')).getByRole('button', { name: 'Present' }))
+    await waitFor(() => expect(api.post).toHaveBeenCalled())
+    expect(api.post.mock.calls[0][1].entries).toEqual([{ student_user_id: 's1', status: 'present', note: null }])
+  })
+
+  it('shows no group when every student is scheduled', async () => {
+    renderPage()
+    await screen.findByText('Ada Ant')
+    expect(screen.queryByText(/Not scheduled today/)).toBeNull()
+  })
+
+  it('an admin sets a student\'s days from the row, and the row moves', async () => {
+    authState.user = adminUser
+    api.put.mockResolvedValue({ data: { days: [1, 3] } })
+    renderPage()
+    await screen.findByText('Ada Ant')
+    fireEvent.click(within(rowOf('Ada Ant')).getByRole('button', { name: 'Days Ada Ant comes' }))
+    const row = within(rowOf('Ada Ant'))
+    // The school's days (Mon-Thu) all start ticked; keep Mon and Wed.
+    fireEvent.click(row.getByLabelText('Tue'))
+    fireEvent.click(row.getByLabelText('Thu'))
+    fireEvent.click(row.getByRole('button', { name: 'Save days' }))
+    await waitFor(() => expect(api.put).toHaveBeenCalledWith(
+      '/api/sis/attendance/daily/s1/days?organization_id=org-1', { days: [1, 3] }))
+    await waitFor(() => expect(screen.getByText('Not scheduled today (1)')).toBeInTheDocument())
+  })
+
+  it('offers no Days button to a coach', async () => {
+    renderPage()
+    await screen.findByText('Ada Ant')
+    expect(within(rowOf('Ada Ant')).queryByRole('button', { name: 'Days Ada Ant comes' })).toBeNull()
   })
 })
 

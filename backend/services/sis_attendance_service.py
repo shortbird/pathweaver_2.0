@@ -31,11 +31,24 @@ DEFAULT_SCHOOL_DAYS = (1, 2, 3, 4, 5)  # ISO weekdays, Monday = 1
 DAILY_ROLL_LABEL = 'Daily roll'
 NOTE_MAX = 500
 
+# Per-student attending days (ticket 54b29e8a, Apogee Cache Valley, Mandie):
+# "Can you get rid of the 'not accounted for' option? I don't want to have to
+# fill that out every day and we have a few students that only come 2 days per
+# week." Stored in the same attendance object as
+# student_days = {student_user_id: [ISO weekdays]}, no migration. A student
+# missing from the map attends every school day, which is how every school
+# worked before the key existed. On a weekday a student is not scheduled, the
+# daily roll lists them apart, leaves them out of "Not marked", and an absent
+# mark raises no 'unaccounted' alert: nobody is missing who was never due.
+STUDENT_DAYS_KEY = 'student_days'
+MAX_STUDENT_DAYS = 5000  # well above any school's roster; bounds the blob
+
 
 def default_attendance_settings() -> Dict[str, Any]:
     return {'daily_roll': False, 'checkout': False,
             'statuses': list(ATTENDANCE_STATUSES),
-            'school_days': list(DEFAULT_SCHOOL_DAYS)}
+            'school_days': list(DEFAULT_SCHOOL_DAYS),
+            STUDENT_DAYS_KEY: {}}
 
 
 def _clean_statuses(raw: Any) -> Optional[List[str]]:
@@ -56,6 +69,42 @@ def _clean_days(raw: Any) -> Optional[List[int]]:
     return sorted(set(raw))
 
 
+def _clean_student_days(raw: Any) -> Dict[str, List[int]]:
+    """The per-student days map with every unreadable entry dropped (54b29e8a).
+
+    An entry survives only with a non-empty string key and a non-empty list
+    of weekdays 1-7. An entry that is dropped reads as "every school day", the
+    default, so a bad value can never hide a student from the roll's alert."""
+    if not isinstance(raw, dict):
+        return {}
+    out: Dict[str, List[int]] = {}
+    for sid, days in raw.items():
+        if len(out) >= MAX_STUDENT_DAYS:
+            break
+        if not isinstance(sid, str) or not sid.strip():
+            continue
+        cleaned = _clean_days(days)
+        if cleaned:
+            out[sid] = cleaned
+    return out
+
+
+def is_scheduled(student_days: Optional[Dict[str, List[int]]], student_user_id: str,
+                 on_date: str) -> bool:
+    """Whether the student is due on `on_date` (54b29e8a). A student missing
+    from the map, or an unreadable date, counts as due: when in doubt, the
+    roll keeps expecting them and the alert keeps working."""
+    days = (student_days or {}).get(student_user_id)
+    if not days:
+        return True
+    from datetime import date as _date
+    try:
+        weekday = _date.fromisoformat(str(on_date)[:10]).isoweekday()
+    except (TypeError, ValueError):
+        return True
+    return weekday in days
+
+
 def parse_attendance_settings(raw: Any) -> Dict[str, Any]:
     """A stored value as settings. Every missing or unreadable key reads as its
     default, so a half-written blob never changes what an untouched school sees."""
@@ -71,6 +120,7 @@ def parse_attendance_settings(raw: Any) -> Dict[str, Any]:
     days = _clean_days(raw.get('school_days'))
     if days:
         out['school_days'] = days
+    out[STUDENT_DAYS_KEY] = _clean_student_days(raw.get(STUDENT_DAYS_KEY))
     return out
 
 
@@ -98,7 +148,66 @@ def clean_attendance_settings(raw: Any):
         if not days:
             return None, 'Pick at least one school day'
         cleaned['school_days'] = days
+    if STUDENT_DAYS_KEY in raw:
+        value = raw[STUDENT_DAYS_KEY]
+        if value is not None and not isinstance(value, dict):
+            return None, 'Student days must be an object of student ids to weekdays'
+        student_days = _clean_student_days(value)
+        if student_days:
+            cleaned[STUDENT_DAYS_KEY] = student_days
     return cleaned, None
+
+
+def _stored_attendance(org_id: str) -> Dict[str, Any]:
+    """The org's attendance settings from a fresh read of the organizations
+    row: the same read patch_feature_flags merges onto, not the request's
+    cached module-gate row. Resolved at call time so a test that patches the
+    repository class sees it."""
+    from repositories import organization_repository
+    row = organization_repository.OrganizationRepository().find_by_id(org_id)
+    return attendance_settings(row if isinstance(row, dict) else {})
+
+
+def with_stored_student_days(org_id: str, cleaned: Optional[Dict[str, Any]],
+                             submitted: Any) -> Optional[Dict[str, Any]]:
+    """Carry the stored per-student days through a settings save that did not
+    name them (54b29e8a). The settings PATCH replaces the attendance object
+    whole, and the Settings card sends only its four keys; without this, saving
+    the school days would silently wipe every student's schedule."""
+    if isinstance(submitted, dict) and STUDENT_DAYS_KEY in submitted:
+        return cleaned
+    stored = _stored_attendance(org_id).get(STUDENT_DAYS_KEY) or {}
+    if not stored:
+        return cleaned
+    return {**(cleaned or {}), STUDENT_DAYS_KEY: stored}
+
+
+def student_days_blob(org_id: str, student_user_id: str, days: Any):
+    """The whole attendance object to store after setting one student's days:
+    (blob, None) or (None, problem). `days` None, empty, or every weekday
+    clears the student's entry (they attend every school day). Only a current
+    student of the school may have an entry (54b29e8a)."""
+    roster_ids = {s['student_user_id'] for s in daily_roster(org_id)}
+    if student_user_id not in roster_ids:
+        return None, 'Not a current student of this school'
+    if days is None or days == []:
+        wanted = None
+    else:
+        wanted = _clean_days(days)
+        if not wanted:
+            return None, 'Days must be weekdays 1 (Monday) to 7 (Sunday)'
+        if wanted == list(range(1, 8)):
+            wanted = None
+    current = _stored_attendance(org_id)
+    student_days = dict(current.get(STUDENT_DAYS_KEY) or {})
+    if wanted:
+        student_days[student_user_id] = wanted
+    else:
+        student_days.pop(student_user_id, None)
+    blob = {k: v for k, v in current.items() if k != STUDENT_DAYS_KEY}
+    if student_days:
+        blob[STUDENT_DAYS_KEY] = student_days
+    return blob, None
 
 
 def attendance_settings(org: Any) -> Dict[str, Any]:
@@ -837,7 +946,8 @@ def _daily_rows(org_id: str, on_date: str) -> Dict[str, Dict[str, Any]]:
 
 
 def _daily_entry(student: Dict[str, Any], rec: Optional[Dict[str, Any]],
-                 planned: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+                 planned: Optional[Dict[str, Any]],
+                 days: Optional[List[int]] = None, scheduled: bool = True) -> Dict[str, Any]:
     rec = rec or {}
     return {
         **student,
@@ -846,18 +956,40 @@ def _daily_entry(student: Dict[str, Any], rec: Optional[Dict[str, Any]],
         'arrived_at': rec.get('arrived_at'),
         'departed_at': rec.get('departed_at'),
         'planned_absence': planned,
+        # 54b29e8a: the student's own weekdays (None = every school day) and
+        # whether this date is one of them.
+        'days': days,
+        'scheduled': scheduled,
     }
 
 
-def get_daily(org_id: str, on_date: str) -> List[Dict[str, Any]]:
+def _student_days_for(org_id: str, given: Optional[Dict[str, List[int]]]) -> Dict[str, List[int]]:
+    """The per-student days map: the caller's copy when it has one (the route
+    already read the settings), else the org's. A failed read is "no map",
+    which is the old behaviour: everyone due, every alert still raised."""
+    if given is not None:
+        return _clean_student_days(given)
+    try:
+        return attendance_settings(org_id).get(STUDENT_DAYS_KEY) or {}
+    except Exception as e:  # noqa: BLE001 — the roll must load and save regardless
+        logger.warning(f'Student-days lookup failed: {e}')
+        return {}
+
+
+def get_daily(org_id: str, on_date: str,
+              student_days: Optional[Dict[str, List[int]]] = None) -> List[Dict[str, Any]]:
     """Every current student with their daily mark for the date (status None =
     not marked yet), arrival and pickup times, and a guardian's whole-day
-    report when there is one (the same annotation get_for_date gives a class)."""
+    report when there is one (the same annotation get_for_date gives a class).
+    Each entry also says whether the student is scheduled that day (54b29e8a)."""
     from services import sis_planned_absence_service as planned
     students = daily_roster(org_id)
     rows = _daily_rows(org_id, on_date)
     reported = planned.for_whole_day(org_id, on_date)
-    return [_daily_entry(s, rows.get(s['student_user_id']), reported.get(s['student_user_id']))
+    days_map = _student_days_for(org_id, student_days)
+    return [_daily_entry(s, rows.get(s['student_user_id']), reported.get(s['student_user_id']),
+                         days_map.get(s['student_user_id']),
+                         is_scheduled(days_map, s['student_user_id'], on_date))
             for s in students]
 
 
@@ -868,7 +1000,8 @@ def _clean_note(raw: Any) -> Optional[str]:
 
 
 def record_daily(org_id: str, on_date: str, entries: List[Dict[str, Any]],
-                 recorded_by: str, statuses: Optional[Iterable[str]] = None) -> Dict[str, Any]:
+                 recorded_by: str, statuses: Optional[Iterable[str]] = None,
+                 student_days: Optional[Dict[str, List[int]]] = None) -> Dict[str, Any]:
     """Upsert daily-roll marks for a set of students on a date.
 
     Only the school's current students are written (anyone else is listed in
@@ -876,6 +1009,8 @@ def record_daily(org_id: str, on_date: str, entries: List[Dict[str, Any]],
     The accountability rule is the class roll's: a student newly marked absent
     with no whole-day guardian report raises the 'unaccounted' alert and tells
     the office; moving off absent closes it when nothing else says missing.
+    A student not scheduled that day (`student_days`, 54b29e8a) raises no
+    alert when marked absent: they were never due.
     """
     allowed = set(statuses or ATTENDANCE_STATUSES)
     roster_ids = {s['student_user_id'] for s in daily_roster(org_id)}
@@ -937,8 +1072,13 @@ def record_daily(org_id: str, on_date: str, entries: List[Dict[str, Any]],
             # and when in doubt, a false alert beats a missed student.
             logger.error(f'Planned-absence lookup failed during record_daily(): {e}')
             covered = {}
+        # Ticket 54b29e8a (Apogee, Mandie): a student who comes two days a
+        # week is not missing on the other two. Absent on a day they are not
+        # scheduled is a record, not an alarm.
+        days_map = _student_days_for(org_id, student_days)
         unaccounted = [sid for sid in newly_absent if sid not in covered
-                       and sid not in explained]
+                       and sid not in explained
+                       and is_scheduled(days_map, sid, on_date)]
     _record_unaccounted(org_id, None, on_date, unaccounted)
     admins_notified = _notify_admins_of_absences(org_id, None, on_date, unaccounted)
 

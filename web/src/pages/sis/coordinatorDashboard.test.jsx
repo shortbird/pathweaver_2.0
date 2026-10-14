@@ -137,6 +137,20 @@ describe('coordinator dashboard', () => {
     expect(screen.queryByRole('button', { name: 'Report an incident' })).not.toBeInTheDocument()
   })
 
+  // Ticket 54b29e8a: a daily-roll school's coordinator opens the daily roll.
+  it('opens the daily roll from the attendance card for a daily-roll school', async () => {
+    activeOrg = { id: 'org-1', feature_flags: { sis_settings: { attendance: { daily_roll: true } } } }
+    renderPage()
+    const open = await screen.findByText(/Open attendance/)
+    expect(open.closest('a')).toHaveAttribute('href', '/attendance')
+  })
+
+  it('keeps the class attendance door without the daily roll', async () => {
+    renderPage()
+    const open = await screen.findByText(/Open attendance/)
+    expect(open.closest('a')).toHaveAttribute('href', '/classes?tab=attendance')
+  })
+
   it('still gives an org admin the school dashboard', async () => {
     authState = { user: { id: 'a1', role: 'org_managed', org_roles: ['org_admin'] } }
     api.get.mockImplementation((url) => {

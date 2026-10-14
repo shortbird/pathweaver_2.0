@@ -89,6 +89,18 @@ export function stepSchoolDay(fromIso, schoolDays, step) {
   return nearestSchoolDay(localIso(d), schoolDays, step)
 }
 
+/** ISO weekday (Monday = 1 ... Sunday = 7) of a local YYYY-MM-DD. */
+export function weekdayOf(iso) {
+  const [y, m, dd] = iso.split('-').map(Number)
+  return isoWeekday(new Date(y, m - 1, dd))
+}
+
+/** Whether a student with these attending days (ticket 54b29e8a; null =
+ *  every school day) is due on `iso`. Mirrors the backend's is_scheduled. */
+export function isScheduledOn(days, iso) {
+  return !days?.length || days.includes(weekdayOf(iso))
+}
+
 export function isSchoolDay(iso, schoolDays) {
   const [y, m, dd] = iso.split('-').map(Number)
   return (schoolDays?.length ? schoolDays : DEFAULT_SCHOOL_DAYS).includes(isoWeekday(new Date(y, m - 1, dd)))

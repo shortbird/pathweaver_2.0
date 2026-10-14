@@ -246,7 +246,8 @@ def get_daily_roll(user_id):
         return jsonify({'success': False, 'error': 'date query param is required (YYYY-MM-DD)'}), 400
     return jsonify({'success': True, 'date': on_date, 'today': _org_today(org_id),
                     'settings': settings,
-                    'roster': attendance.get_daily(org_id, on_date)})
+                    'roster': attendance.get_daily(org_id, on_date,
+                                                   student_days=settings.get('student_days'))})
 
 
 @bp.route('/attendance/daily', methods=['POST'])
@@ -265,8 +266,48 @@ def record_daily_roll(user_id):
     if not isinstance(entries, list) or not entries:
         return jsonify({'success': False, 'error': 'entries (list) is required'}), 400
     result = attendance.record_daily(org_id, on_date, entries, recorded_by=user_id,
-                                     statuses=settings['statuses'])
+                                     statuses=settings['statuses'],
+                                     student_days=settings.get('student_days'))
     return jsonify({'success': True, **result})
+
+
+@bp.route('/attendance/daily/<student_id>/days', methods=['PUT'])
+@require_role(*ADMIN_ROLES)
+@require_relationship_to('student_id', allow=('org_staff',), discloses='attendance')
+def set_daily_student_days(user_id, student_id):
+    """{days: [ISO weekdays] | null}. The weekdays this student attends
+    (ticket 54b29e8a, Apogee Cache Valley: "we have a few students that only
+    come 2 days per week"). null, [] or all seven clears it: the student
+    attends every school day again.
+
+    ADMIN_ROLES, the Settings page's tier: it writes the school's settings
+    blob. Stored in sis_settings.attendance.student_days through the same
+    patch_feature_flags the settings PATCH uses, as the whole attendance
+    object (merge_patch replaces it whole), so the other attendance keys are
+    written back exactly as they were read. The service refuses a student who
+    is not a current student of this school."""
+    org_id, _settings, err = _daily_gate(user_id)
+    if err:
+        return err
+    body = request.get_json(silent=True) or {}
+    if 'days' not in body:
+        return jsonify({'success': False, 'error': 'days is required (a list of weekdays, or null)'}), 400
+    blob, problem = attendance.student_days_blob(org_id, student_id, body.get('days'))
+    if problem:
+        return jsonify({'success': False, 'error': problem}), 400
+    from services.org_settings_service import FlagsRejected, patch_feature_flags
+    ctx = sis_service.get_user_org_context(user_id)
+    try:
+        patch_feature_flags(
+            org_id, {'sis_settings': {attendance.SETTINGS_KEY: blob}},
+            caller_id=user_id,
+            sees_finance=sis_service.caller_sees_pay(user_id),
+            is_superadmin=ctx.get('role') == 'superadmin',
+        )
+    except FlagsRejected as rejected:
+        return jsonify({'success': False, 'error': rejected.body.get('error', 'Not saved')}), rejected.status
+    days = (blob.get(attendance.STUDENT_DAYS_KEY) or {}).get(student_id)
+    return jsonify({'success': True, 'student_user_id': student_id, 'days': days})
 
 
 @bp.route('/attendance/daily/<student_id>/checkout', methods=['POST', 'DELETE'])

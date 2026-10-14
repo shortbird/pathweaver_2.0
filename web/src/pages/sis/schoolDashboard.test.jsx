@@ -68,6 +68,14 @@ describe('the queues', () => {
       .toHaveAttribute('href', '/registration?tab=queues')
   })
 
+  it('sends a daily-roll school\'s alerts tile to the daily roll (54b29e8a)', async () => {
+    orgState.activeOrg = { id: 'org-1', feature_flags: { sis_enabled: true,
+      sis_settings: { attendance: { daily_roll: true } } } }
+    renderPage({ attention: { attendance_alerts: 2 } })
+    const alerts = await screen.findByText('Not accounted for')
+    expect(alerts.closest('a')).toHaveAttribute('href', '/attendance')
+  })
+
   it('says so plainly when nothing is waiting', async () => {
     renderPage({ attention: { attendance_alerts: 0, requests_unassigned: 0 } })
     expect(await screen.findByText(/All caught up/)).toBeInTheDocument()
@@ -150,6 +158,24 @@ describe('today and the snapshot', () => {
     expect(screen.getByText('20')).toBeInTheDocument()
     // Excused + reported out share one figure.
     expect(screen.getByText('4')).toBeInTheDocument()
+  })
+
+  // Ticket 54b29e8a: a daily-roll school (Apogee) hides Classes, so every
+  // attendance door on this page must open the daily roll, not /classes.
+  it('opens the daily roll from every attendance door for a daily-roll school', async () => {
+    orgState.activeOrg = { id: 'org-1', feature_flags: { sis_enabled: true,
+      sis_settings: { attendance: { daily_roll: true } } } }
+    renderPage({ today: { date: '2026-08-14', attendance: { recorded: { present: 1 } } } })
+    const open = await screen.findByText(/Open attendance/)
+    expect(open.closest('a')).toHaveAttribute('href', '/attendance')
+    expect(screen.getByText('Take attendance').closest('a')).toHaveAttribute('href', '/attendance')
+  })
+
+  it('keeps the class attendance doors for a school without the daily roll', async () => {
+    renderPage({ today: { date: '2026-08-14', attendance: { recorded: { present: 1 } } } })
+    const open = await screen.findByText(/Open attendance/)
+    expect(open.closest('a')).toHaveAttribute('href', '/classes?tab=attendance')
+    expect(screen.getByText('Take attendance').closest('a')).toHaveAttribute('href', '/classes?tab=attendance')
   })
 
   it('keeps the census, demoted under the queues', async () => {
