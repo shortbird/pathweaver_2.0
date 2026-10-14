@@ -61,6 +61,30 @@ class TestTransientTransportFailures:
 
 
 @pytest.mark.unit
+class TestSupabaseGatewayBlip:
+    """Tickets 6d408708, 0185c113, e9832f8d, 1b98e9a7: a Supabase blip made
+    PostgREST raise APIError code 502 "JSON could not be generated". It was
+    classified permanent, so it was neither retried nor downgraded, and every
+    dropped analytics row became a Sentry issue."""
+
+    @staticmethod
+    def _gateway_error():
+        from postgrest.exceptions import APIError
+        return APIError({'code': 502, 'message': 'JSON could not be generated',
+                         'details': '502 Bad Gateway', 'hint': None})
+
+    def test_a_502_is_retried(self):
+        table, log = _run([self._gateway_error(), Mock(data=[{'id': 'e1'}])])
+        assert table.execute.call_count == 2
+        log.error.assert_not_called()
+
+    def test_a_502_that_survives_the_retry_is_a_warning(self):
+        _, log = _run(self._gateway_error())
+        log.error.assert_not_called()
+        assert log.warning.called
+
+
+@pytest.mark.unit
 class TestRealDefectsStillSurface:
     def test_a_schema_error_keeps_its_error_level(self):
         """A column that doesn't exist is our bug and must reach Sentry."""

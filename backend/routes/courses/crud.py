@@ -34,135 +34,134 @@ def register_routes(bp):
             - status: Filter by status (draft/published/archived)
             - created_by: Filter by creator ID
         """
-        try:
-            user_id = session_manager.get_effective_user_id()
-            # admin client justified: course CRUD under @require_auth; cross-user/cross-org reads on courses + writes scoped to caller after ownership/org-admin/superadmin verification
-            # admin client justified: course CRUD under @require_auth; cross-user/cross-org reads on courses + writes scoped to caller after ownership/org-admin/superadmin verification
-            client = get_supabase_admin_client()
+        # No try/except here: handle_generic_error logs, classifies and reports
+        # the failure once. A logger.error before the re-raise filed a second
+        # Sentry issue for every Supabase blip (tickets 6d408708, e9832f8d).
+        user_id = session_manager.get_effective_user_id()
+        # admin client justified: course CRUD under @require_auth; cross-user/cross-org reads on courses + writes scoped to caller after ownership/org-admin/superadmin verification
+        # admin client justified: course CRUD under @require_auth; cross-user/cross-org reads on courses + writes scoped to caller after ownership/org-admin/superadmin verification
+        client = get_supabase_admin_client()
 
-            # Get user's organization
-            user_result = client.table('users').select('organization_id, role, org_role').eq('id', user_id).execute()
-            if not user_result.data:
-                return jsonify({'error': 'User not found'}), 404
+        # Get user's organization
+        user_result = client.table('users').select('organization_id, role, org_role').eq('id', user_id).execute()
+        if not user_result.data:
+            return jsonify({'error': 'User not found'}), 404
 
-            user_data = user_result.data[0]
-            org_id = user_data['organization_id']
-            user_role = get_effective_role(user_data)
+        user_data = user_result.data[0]
+        org_id = user_data['organization_id']
+        user_role = get_effective_role(user_data)
 
-            # Build query - include org courses AND public courses from other orgs
-            # Use filter parameter to control:
-            #   'org_only' - shows only org courses
-            #   'admin_all' - shows all published courses + org drafts (for org admin visibility management)
-            #   'all' (default) - shows org courses + public published courses from other orgs
-            filter_mode = request.args.get('filter', 'all')
+        # Build query - include org courses AND public courses from other orgs
+        # Use filter parameter to control:
+        #   'org_only' - shows only org courses
+        #   'admin_all' - shows all published courses + org drafts (for org admin visibility management)
+        #   'all' (default) - shows org courses + public published courses from other orgs
+        filter_mode = request.args.get('filter', 'all')
 
-            if filter_mode == 'mine':
-                # Only show courses authored by the caller (for "classes I'm teaching" view).
-                # Skips org-wide exposure so drafts stay private until published.
-                query = client.table('courses').select('*').eq('created_by', user_id)
-            elif filter_mode == 'org_only':
-                # Only show courses from user's organization
-                if org_id:
-                    query = client.table('courses').select('*').eq('organization_id', org_id)
-                else:
-                    # User has no org - show only public published courses
-                    query = client.table('courses').select('*').eq('visibility', 'public').eq('status', 'published')
-            elif filter_mode == 'admin_all' and user_role == 'superadmin':
-                # For org admins managing course availability - show all courses they could potentially access:
-                # 1. All courses from their own org (any status)
-                # 2. All published courses from other orgs (for toggling availability)
-                if org_id:
-                    query = client.table('courses').select('*').or_(
-                        f'organization_id.eq.{pgrst_uuid(org_id, "organization_id")},'
-                        f'status.eq.published'
-                    )
-                else:
-                    # Superadmin with no org - show all courses
-                    query = client.table('courses').select('*')
+        if filter_mode == 'mine':
+            # Only show courses authored by the caller (for "classes I'm teaching" view).
+            # Skips org-wide exposure so drafts stay private until published.
+            query = client.table('courses').select('*').eq('created_by', user_id)
+        elif filter_mode == 'org_only':
+            # Only show courses from user's organization
+            if org_id:
+                query = client.table('courses').select('*').eq('organization_id', org_id)
             else:
-                # Show org courses + published public courses from other orgs + Optio global courses
-                if org_id:
-                    # Include: org courses, Optio global courses (null org_id), and public published from other orgs
-                    query = client.table('courses').select('*').or_(
-                        f'organization_id.eq.{pgrst_uuid(org_id, "organization_id")},'
-                        f'organization_id.is.null,'
-                        f'and(visibility.eq.public,status.eq.published)'
-                    )
-                else:
-                    # User has no org - show Optio global courses + public published courses
-                    query = client.table('courses').select('*').or_(
-                        "organization_id.is.null,and(visibility.eq.public,status.eq.published)"
-                    )
+                # User has no org - show only public published courses
+                query = client.table('courses').select('*').eq('visibility', 'public').eq('status', 'published')
+        elif filter_mode == 'admin_all' and user_role == 'superadmin':
+            # For org admins managing course availability - show all courses they could potentially access:
+            # 1. All courses from their own org (any status)
+            # 2. All published courses from other orgs (for toggling availability)
+            if org_id:
+                query = client.table('courses').select('*').or_(
+                    f'organization_id.eq.{pgrst_uuid(org_id, "organization_id")},'
+                    f'status.eq.published'
+                )
+            else:
+                # Superadmin with no org - show all courses
+                query = client.table('courses').select('*')
+        else:
+            # Show org courses + published public courses from other orgs + Optio global courses
+            if org_id:
+                # Include: org courses, Optio global courses (null org_id), and public published from other orgs
+                query = client.table('courses').select('*').or_(
+                    f'organization_id.eq.{pgrst_uuid(org_id, "organization_id")},'
+                    f'organization_id.is.null,'
+                    f'and(visibility.eq.public,status.eq.published)'
+                )
+            else:
+                # User has no org - show Optio global courses + public published courses
+                query = client.table('courses').select('*').or_(
+                    "organization_id.is.null,and(visibility.eq.public,status.eq.published)"
+                )
 
-            if request.args.get('status'):
-                query = query.eq('status', request.args.get('status'))
-            if request.args.get('created_by'):
-                query = query.eq('created_by', request.args.get('created_by'))
+        if request.args.get('status'):
+            query = query.eq('status', request.args.get('status'))
+        if request.args.get('created_by'):
+            query = query.eq('created_by', request.args.get('created_by'))
 
-            result = query.order('created_at', desc=True).execute()
+        result = query.order('created_at', desc=True).execute()
 
-            # Get quest counts for each course
-            courses = result.data if result.data else []
-            if courses:
-                course_ids = [c['id'] for c in courses]
-                # Get counts from course_quests table (only published quests)
-                quest_counts = client.table('course_quests').select('course_id, is_published').in_('course_id', course_ids).execute()
+        # Get quest counts for each course
+        courses = result.data if result.data else []
+        if courses:
+            course_ids = [c['id'] for c in courses]
+            # Get counts from course_quests table (only published quests)
+            quest_counts = client.table('course_quests').select('course_id, is_published').in_('course_id', course_ids).execute()
 
-                # Count only published quests per course
-                count_map = {}
-                for cq in (quest_counts.data or []):
-                    if cq.get('is_published') is False:
-                        continue  # Skip unpublished quests
-                    cid = cq['course_id']
-                    count_map[cid] = count_map.get(cid, 0) + 1
+            # Count only published quests per course
+            count_map = {}
+            for cq in (quest_counts.data or []):
+                if cq.get('is_published') is False:
+                    continue  # Skip unpublished quests
+                cid = cq['course_id']
+                count_map[cid] = count_map.get(cid, 0) + 1
 
-                # Get enrollment status for current user
-                enrollments = client.table('course_enrollments').select('course_id, status').eq(
-                    'user_id', user_id
-                ).in_('course_id', course_ids).execute()
-                enrollment_map = {e['course_id']: e for e in (enrollments.data or [])}
+            # Get enrollment status for current user
+            enrollments = client.table('course_enrollments').select('course_id, status').eq(
+                'user_id', user_id
+            ).in_('course_id', course_ids).execute()
+            enrollment_map = {e['course_id']: e for e in (enrollments.data or [])}
 
-                # Get progress for enrolled courses using CourseProgressService
-                progress_service = CourseProgressService(client)
+            # Get progress for enrolled courses using CourseProgressService
+            progress_service = CourseProgressService(client)
 
-                courses_to_check = list(set(e['course_id'] for e in (enrollments.data or [])))
-                for course in courses:
-                    if course['created_by'] == user_id and course['id'] not in courses_to_check:
-                        courses_to_check.append(course['id'])
+            courses_to_check = list(set(e['course_id'] for e in (enrollments.data or [])))
+            for course in courses:
+                if course['created_by'] == user_id and course['id'] not in courses_to_check:
+                    courses_to_check.append(course['id'])
 
-                progress_results = progress_service.calculate_bulk_progress(user_id, courses_to_check)
-                progress_map = {
-                    cid: {
-                        'earned_xp': progress.earned_xp,
-                        'total_xp': progress.total_xp,
-                        'percentage': progress.percentage,
-                        'is_completed': progress.is_completed
-                    }
-                    for cid, progress in progress_results.items()
+            progress_results = progress_service.calculate_bulk_progress(user_id, courses_to_check)
+            progress_map = {
+                cid: {
+                    'earned_xp': progress.earned_xp,
+                    'total_xp': progress.total_xp,
+                    'percentage': progress.percentage,
+                    'is_completed': progress.is_completed
                 }
+                for cid, progress in progress_results.items()
+            }
 
-                # Add quest_count, is_enrolled, is_external, and progress to each course
-                for course in courses:
-                    course['quest_count'] = count_map.get(course['id'], 0)
-                    # Creator is always considered enrolled
-                    course['is_enrolled'] = course['id'] in enrollment_map or course['created_by'] == user_id
-                    # Mark courses from other organizations as external
-                    course['is_external'] = course.get('organization_id') != org_id
-                    if course['id'] in progress_map:
-                        course['progress'] = progress_map[course['id']]
+            # Add quest_count, is_enrolled, is_external, and progress to each course
+            for course in courses:
+                course['quest_count'] = count_map.get(course['id'], 0)
+                # Creator is always considered enrolled
+                course['is_enrolled'] = course['id'] in enrollment_map or course['created_by'] == user_id
+                # Mark courses from other organizations as external
+                course['is_external'] = course.get('organization_id') != org_id
+                if course['id'] in progress_map:
+                    course['progress'] = progress_map[course['id']]
 
-            user_data_with_id = {**user_data, 'id': user_id}
+        user_data_with_id = {**user_data, 'id': user_id}
 
-            return jsonify({
-                'success': True,
-                'courses': courses,
-                'count': len(courses),
-                'can_create_course': can_create_course(user_data_with_id)
-            }), 200
+        return jsonify({
+            'success': True,
+            'courses': courses,
+            'count': len(courses),
+            'can_create_course': can_create_course(user_data_with_id)
+        }), 200
 
-        except Exception as e:
-            logger.error(f"Error listing courses: {str(e)}")
-            raise
 
 
     @bp.route('/', methods=['POST'])

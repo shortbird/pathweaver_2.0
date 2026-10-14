@@ -397,9 +397,9 @@ class ActivityTracker:
             # idle, so "Server disconnected" on the first write after a lull is
             # routine rather than exceptional (Sentry OPTIO-BACKEND-6M).
             #
-            # Deliberately not with_connection_retry: that helper logs its own
-            # logger.error when the attempts run out, which would recreate the
-            # Sentry issue this is meant to stop.
+            # Deliberately not with_connection_retry: one retry is enough for a
+            # stale socket, and a dropped analytics row is not worth the
+            # helper's backoff on this thread.
             try:
                 supabase.table('user_activity_events').insert(insert_data).execute()
             except Exception as first:  # noqa: BLE001

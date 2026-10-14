@@ -89,12 +89,31 @@ RETRYABLE_EXCEPTIONS = (
     IOError,
 ) + _httpx_transport_errors() + _auth_retryable_errors()
 
+# Upstream gateway statuses. PostgREST's client turns a non-JSON error body
+# (Cloudflare's or Kong's HTML page during a Supabase blip) into
+# APIError({'code': 502, 'message': 'JSON could not be generated',
+# 'details': "...502 Bad Gateway..."}). The code is an int there and a str in
+# other client paths, so both are matched.
+_GATEWAY_STATUS_CODES = {'502', '503', '504'}
+
+
+def _is_gateway_api_error(error: Exception) -> bool:
+    """A PostgREST APIError that carries a gateway status (tickets 6d408708,
+    0185c113, e9832f8d, 1b98e9a7). Matched by attribute, not by type, so a
+    wrapped or mocked error with the same shape counts too."""
+    code = getattr(error, 'code', None)
+    return code is not None and str(code).strip() in _GATEWAY_STATUS_CODES
+
+
 def is_retryable_error(error: Exception) -> bool:
     """Check if an error is retryable"""
     error_message = str(error).lower()
     
     # Check exception type
     if isinstance(error, RETRYABLE_EXCEPTIONS):
+        return True
+
+    if _is_gateway_api_error(error):
         return True
     
     # Check error message patterns
@@ -130,6 +149,11 @@ def is_retryable_error(error: Exception) -> bool:
         # deliberately not in the type list above, so it is matched here by
         # wording (Sentry OPTIO-BACKEND-97: a lost FERPA access-log row).
         'streaminputs',
+        # A Supabase gateway blip: PostgREST answered with an HTML 502 page
+        # instead of JSON (tickets 6d408708, 0185c113, e9832f8d, 1b98e9a7).
+        'bad gateway',
+        'gateway timeout',
+        'json could not be generated',
     ]
     
     return any(pattern in error_message for pattern in retryable_patterns)
@@ -326,7 +350,11 @@ def with_connection_retry(operation: Callable, max_retries: int = 3, base_delay:
 
             # Don't retry on the last attempt
             if attempt >= max_retries - 1:
-                logger.error(
+                # Warning, not error: the exception is re-raised, and the
+                # caller decides whether it is an incident. Logging error here
+                # made every Supabase blip a Sentry issue before the caller
+                # even answered 503 (tickets 6d408708, 0185c113).
+                logger.warning(
                     f"All {max_retries} retry attempts failed for {name}: {str(e)}"
                 )
                 raise

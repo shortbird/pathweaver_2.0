@@ -184,7 +184,11 @@ def get_org_secret(organization_id: str, name: str) -> Optional[str]:
     except Exception as e:
         # Never log the value, and never log enough to identify the credential
         # beyond which org/name failed.
-        logger.error(f"[OrgSecrets] read failed for org={str(organization_id)[:8]} name={name}: {e}")
+        # A Supabase blip is a warning: the caller already turns None into a
+        # clean refusal (tickets 6d408708, 1b98e9a7).
+        from utils.retry_handler import is_retryable_error
+        log = logger.warning if is_retryable_error(e) else logger.error
+        log(f"[OrgSecrets] read failed for org={str(organization_id)[:8]} name={name}: {e}")
         return None
     stored = (rows[0].get('value') or None) if rows else None
     if stored is None:

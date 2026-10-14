@@ -17,6 +17,7 @@ from services.notification_service import (
     resolve_type_filter,
 )
 from utils.logger import get_logger
+from utils.retry_handler import is_retryable_error
 
 logger = get_logger(__name__)
 
@@ -146,7 +147,13 @@ def get_unread_count(user_id: str):
         }), 200
 
     except Exception as e:
-        logger.error(f"Error fetching unread count: {str(e)}")
+        # The badge polls this every few seconds, so a Supabase blip used to
+        # file a Sentry issue per poll (tickets 6d408708, 0185c113). A
+        # transient failure is a warning; anything else is a real defect.
+        if is_retryable_error(e):
+            logger.warning(f"Unread count unavailable (transient): {str(e)}")
+        else:
+            logger.error(f"Error fetching unread count: {str(e)}")
         return jsonify({'error': 'Failed to fetch unread count'}), 500
 
 

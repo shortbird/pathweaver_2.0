@@ -137,3 +137,26 @@ def test_a_malformed_key_raises_instead_of_writing_plaintext():
         with pytest.raises(ValueError):
             org_secrets.set_org_secret(ORG, NAME, SECRET)
     client.table.return_value.upsert.assert_not_called()
+
+
+def test_a_supabase_blip_on_read_is_a_warning(monkeypatch):
+    """Tickets 6d408708, 1b98e9a7: a PostgREST 502 during a Supabase blip was
+    logged at error level, which filed a Sentry issue, though the caller
+    already turns None into a clean refusal."""
+    from unittest.mock import MagicMock
+    from postgrest.exceptions import APIError
+    import utils.org_secrets as mod
+
+    err = APIError({'code': 502, 'message': 'JSON could not be generated',
+                    'details': '502 Bad Gateway', 'hint': None})
+    client = MagicMock()
+    client.table.return_value.select.return_value.eq.return_value.eq.return_value \
+        .limit.return_value.execute.side_effect = err
+    monkeypatch.setattr(mod, '_admin', lambda: client)
+    log = MagicMock()
+    monkeypatch.setattr(mod, 'logger', log)
+
+    assert mod.get_org_secret('11111111-1111-1111-1111-111111111111',
+                              sorted(mod.KNOWN_SECRETS)[0]) is None
+    log.error.assert_not_called()
+    assert log.warning.called

@@ -193,8 +193,50 @@ class ErrorHandler:
         response = format_error_response(app_error)
         return jsonify(response), error.code
     
+    # Seconds a client should wait after a transient upstream failure.
+    TRANSIENT_RETRY_AFTER_SECONDS = 15
+
+    def handle_transient_error(self, error):
+        """A transient upstream failure (Supabase gateway blip, dropped socket)
+        that survived any retries. It is not our defect: answer 503 with
+        Retry-After, log a warning, and keep it out of Sentry.
+
+        Tickets 6d408708, 0185c113, e9832f8d, 1b98e9a7: a PostgREST 502
+        ("JSON could not be generated") was answered 500 and captured as a
+        new Sentry issue on every route it touched.
+        """
+        request_info = self.get_request_info()
+        logger.warning(json.dumps({
+            'error_type': type(error).__name__,
+            'error_message': str(error)[:500],
+            'transient': True,
+            'method': request_info.get('method'),
+            'path': request_info.get('path'),
+            'user_id': request_info.get('user_id'),
+        }))
+        # No original_error: the response body must not carry exception text
+        # (tests/unit/test_no_exception_text_in_5xx.py).
+        app_error = ExternalServiceError(
+            'Database', 'The service is briefly unavailable. Please try again.')
+        resp = jsonify(format_error_response(app_error))
+        resp.headers['Retry-After'] = str(self.TRANSIENT_RETRY_AFTER_SECONDS)
+        return resp, 503
+
     def handle_generic_error(self, error):
         """Handle unexpected errors"""
+        try:
+            from utils.retry_handler import is_retryable_error
+            # is_retryable_error counts every OSError (IOError) as transient.
+            # A missing file or a permission error is our defect, not a blip,
+            # so it keeps the 500 and the Sentry capture.
+            transient = is_retryable_error(error) and not isinstance(error, (
+                FileNotFoundError, FileExistsError, PermissionError,
+                IsADirectoryError, NotADirectoryError))
+        except Exception:
+            transient = False
+        if transient:
+            return self.handle_transient_error(error)
+
         # Check for specific external service errors
         error_str = str(error).lower()
 
