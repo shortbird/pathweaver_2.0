@@ -656,6 +656,14 @@ def create_user_quest(user_id: str):
             'created_by': user_id,  # Track who created the quest
             'created_at': datetime.utcnow().isoformat()
         }
+        if enrolled_by:
+            # The quest is the child's, but a guardian made it. Record who, so
+            # the "Student-created" badge (utils.student_created) does not claim
+            # the child wrote it. Ticket 41a29c4f.
+            quest_data['metadata'] = {
+                'created_by_user_id': enrolled_by,
+                'created_via': scope.via,
+            }
 
         # Insert quest
         quest_result = supabase.table('quests').insert(quest_data).execute()
