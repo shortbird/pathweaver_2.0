@@ -40,6 +40,8 @@ from utils.timestamps import now_iso
 logger = get_logger(__name__)
 
 PLATFORM = 'bloomy'
+# How the platform is named on a completion it verified.
+SOURCE_LABEL = 'Bloomy'
 MODULE_KEY = 'bloomy'
 PACIFIC = ZoneInfo('America/Los_Angeles')
 REPLAY_DAYS = 7
@@ -459,6 +461,7 @@ def _make_task(repo: ExternalLearningRepository, org_id: str, user_id: str, subj
     """Create the day's task and complete it. Returns the user_quest_task id."""
     from repositories.task_repository import TaskCompletionRepository
     from services.sis_quest_authoring import clean_subjects
+    from services.external_learning_verification import platform_verified_fields
     from services.xp_service import XPService
 
     spec = SUBJECTS[subject]
@@ -490,6 +493,8 @@ def _make_task(repo: ExternalLearningRepository, org_id: str, user_id: str, subj
     })
     task_id = task['id']
 
+    # Bloomy verified the mastery itself, so the completion is born verified
+    # and never waits in a teacher's Verifications queue (ticket 1237ae13).
     TaskCompletionRepository(client=repo.client).create_completion({
         'user_id': user_id,
         'quest_id': quest_id,
@@ -501,6 +506,7 @@ def _make_task(repo: ExternalLearningRepository, org_id: str, user_id: str, subj
         'completed_by_user_id': None,
         'diploma_status': 'none',
         'revision_number': 1,
+        **platform_verified_fields(SOURCE_LABEL),
     })
     if not XPService().award_xp(user_id, spec['pillar'], xp, f'task_completion:{task_id}'):
         logger.error(f'Bloomy task {task_id} completed but XP award failed')
