@@ -8,7 +8,7 @@ Allows microschools to quickly onboard multiple students/staff.
 from flask import Blueprint, request, jsonify
 from database import get_supabase_admin_client
 from generated.pillars import PILLAR_KEYS
-from utils.auth.decorators import require_org_admin
+from utils.auth.decorators import require_org_admin, require_org_front_office
 from utils.validation import sanitize_input
 from utils.logger import get_logger
 from middleware.rate_limiter import rate_limit
@@ -188,7 +188,10 @@ def build_username_user_record(user_id, username, first_name, last_name, role, o
 
 
 @bp.route('/<org_id>/users/bulk-create-username', methods=['POST'])
-@require_org_admin
+# Front office, like the one-at-a-time create-username route beside it: the
+# SIS People page's "+ Add > Many students" runs this for coordinators too.
+# No role it accepts (student/parent/advisor/observer) reaches org_admin.
+@require_org_front_office
 @rate_limit(max_requests=5, window_seconds=300)
 def bulk_create_username_users(current_user_id, current_org_id, is_superadmin, org_id):
     """
@@ -237,7 +240,7 @@ def bulk_create_username_users(current_user_id, current_org_id, is_superadmin, o
     if org_role not in ['student', 'parent', 'advisor', 'observer']:
         return jsonify({'error': 'org_role must be one of: student, parent, advisor, observer'}), 400
 
-    # admin client justified: admin-only route (@require_org_admin) — creates org member accounts, needs RLS bypass
+    # admin client justified: front-office route (@require_org_front_office) — creates org member accounts, needs RLS bypass
     supabase = get_supabase_admin_client()
 
     org_result = supabase.table('organizations').select('id, slug, name').eq('id', org_id).single().execute()

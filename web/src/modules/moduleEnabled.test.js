@@ -69,8 +69,18 @@ describe('moduleEnabled', () => {
     expect(moduleEnabled(o, 'catalog')).toBe(true)
   })
 
-  it('parent cascade: sis off silences every SIS module', () => {
-    const o = org({ modules: { community: true } })
+  it('every org is an SIS org (2026-10-15): no flags at all means sis on', () => {
+    expect(moduleEnabled(org({}), 'sis')).toBe(true)
+    expect(moduleEnabled(org({}), 'billing')).toBe(true)
+    // The retired flag decides nothing, either way.
+    expect(moduleEnabled(org({ sis_enabled: false }), 'sis')).toBe(true)
+    expect(effectiveModules(org({ sis_enabled: true }))).toEqual(effectiveModules(org({})))
+    // 'on', not 'core': no org is never an SIS org.
+    expect(moduleEnabled(null, 'sis')).toBe(false)
+  })
+
+  it('parent cascade: an explicit sis off silences every SIS module', () => {
+    const o = org({ modules: { community: true, sis: false } })
     expect(moduleEnabled(o, 'community')).toBe(false)
     expect(moduleEnabled(o, 'billing')).toBe(false)
   })
@@ -101,7 +111,7 @@ describe('moduleEnabled', () => {
     expect(moduleEnabled(org({ kiosk: true }), 'kiosk')).toBe(true)
     expect(moduleEnabled(org({ modules: { kiosk: true } }), 'kiosk')).toBe(true)
     expect(moduleEnabled(org({ kiosk: true, modules: { kiosk: false } }), 'kiosk')).toBe(false)
-    expect(effectiveModules(org({ kiosk: true }))).not.toContain('sis')
+    expect(effectiveModules(org({ kiosk: true, modules: { sis: false } }))).not.toContain('sis')
   })
 
   it('unknown key fails loudly', () => {
@@ -149,8 +159,8 @@ describe('moduleEnabled: the starter baseline', () => {
     expect(moduleEnabled(o, 'calendar')).toBe(true)
   })
 
-  it('does not turn on the console', () => {
-    expect(moduleEnabled(org({ module_baseline: 'starter' }), 'sis')).toBe(false)
+  it('keeps the console on without any flag (every org is an SIS org, 2026-10-15)', () => {
+    expect(moduleEnabled(org({ module_baseline: 'starter' }), 'sis')).toBe(true)
   })
 
   it('leaves orgs without the key exactly as before (iCreate, Horizon)', () => {
@@ -190,12 +200,12 @@ describe('moduleKnownOff', () => {
 
   it('cannot tell from a payload carrying neither, so it does not say off', () => {
     // The /api/sis/parent/context org shape: no feature_flags at all. Negating
-    // moduleEnabled here would report EVERY sis module off, because the
-    // fallback finds no sis_enabled in {} to satisfy the parent cascade.
-    expect(moduleKnownOff({ organization_id: 'o1' }, 'onboarding')).toBe(false)
+    // moduleEnabled here would report every opt-in module off, because the
+    // fallback finds nothing in {} that turns it on.
+    expect(moduleKnownOff({ organization_id: 'o1' }, 'community')).toBe(false)
     // OrganizationContext's degraded shape when /api/auth/me could not load it.
-    expect(moduleKnownOff({ id: 'o1' }, 'classes')).toBe(false)
-    expect(moduleEnabled({ id: 'o1' }, 'classes')).toBe(false) // the trap it avoids
+    expect(moduleKnownOff({ id: 'o1' }, 'community')).toBe(false)
+    expect(moduleEnabled({ id: 'o1' }, 'community')).toBe(false) // the trap it avoids
   })
 
   it('cannot tell without an org either', () => {

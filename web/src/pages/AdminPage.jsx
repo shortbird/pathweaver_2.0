@@ -8,7 +8,6 @@ const AdminQuests = lazy(() => import('../components/admin/AdminQuests'))
 const AdminUsers = lazy(() => import('../components/admin/AdminUsers'))
 const FlaggedTasksPanel = lazy(() => import('../components/admin/FlaggedTasksPanel'))
 const OrganizationDashboard = lazy(() => import('./admin/OrganizationDashboard'))
-const OrganizationManagement = lazy(() => import('./admin/OrganizationManagement'))
 const CourseGeneratorWizard = lazy(() => import('./admin/CourseGeneratorWizard'))
 const CourseGenerationQueue = lazy(() => import('./admin/CourseGenerationQueue'))
 const TransferCreditForm = lazy(() => import('./admin/TransferCreditForm'))
@@ -104,7 +103,6 @@ const AdminPage = () => {
           <Route path="user/:userId/transfer-credits" element={<TransferCreditForm />} />
           <Route path="user/:userId/transcript" element={<TranscriptGeneratorPage />} />
           <Route path="organizations" element={<OrganizationDashboard />} />
-          <Route path="organizations/:orgId" element={<OrganizationManagement />} />
           <Route path="generate-course" element={<CourseGeneratorWizard />} />
           <Route path="generate-course/:courseId" element={<CourseGeneratorWizard />} />
           <Route path="course-generation-queue" element={<CourseGenerationQueue />} />

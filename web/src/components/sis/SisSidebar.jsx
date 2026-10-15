@@ -104,6 +104,14 @@ export const NAV_SECTIONS = [
       { name: 'Photos', path: '/photos', d: ICONS.camera, keywords: ['pictures', 'camera', 'tag', 'group photo', 'journal', 'capture'] },
       // The school's bounties: chores, jobs and their rewards; opt-in.
       { name: 'Bounties', path: '/bounties', d: ICONS.clipboard, keywords: ['chores', 'school jobs', 'rewards', 'perks', 'points'] },
+      // The org stage of credit review (2026-10-15): a student's credit
+      // request waits here for the school's approval before Optio reviews
+      // it. It lived only on the organization console, which the web sidebar
+      // hid from SIS schools, so 299 requests sat unseen. Not a module: every
+      // school approves first unless Optio reviews its credit directly
+      // (creditReviewOnly, sisNavVisibility). Not adminOnly: coordinators and
+      // teachers approve too (2026-10-15); a teacher's queue is their students.
+      { name: 'Credit Review', path: '/credit-review', creditReviewOnly: true, d: ICONS.check, keywords: ['credit', 'approve credit', 'diploma', 'grade', 'grow this', 'credit requests'] },
       // Bloomy Math and Reading coming in as quest tasks; opt-in, needs the school's key.
       { name: 'Bloomy', path: '/bloomy', adminOnly: true, d: ICONS.books, keywords: ['bloomy', 'math', 'reading', 'integration', 'sync'] },
     ],

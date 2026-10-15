@@ -108,11 +108,21 @@ describe('sisModules', () => {
     expect(isPathHidden('/', org)).toBe(false)
   })
 
-  it('the parent cascade: an org without the SIS has every module off', () => {
-    const noSis = { feature_flags: { sis_settings: { community_enabled: true } } }
-    expect(isPathHidden('/billing', noSis)).toBe(true)
-    expect(isCommunityEnabled(noSis)).toBe(false)
-    expect(getHiddenModules(noSis).has('billing')).toBe(true)
+  // Every org is an SIS org since 2026-10-15: a missing sis_enabled flag no
+  // longer turns the SIS modules off. The cascade itself stays, for an
+  // explicit modules.sis = false.
+  it('an org without the old sis_enabled flag keeps its SIS modules', () => {
+    const noFlag = { feature_flags: { sis_settings: { community_enabled: true } } }
+    expect(isPathHidden('/billing', noFlag)).toBe(false)
+    expect(isCommunityEnabled(noFlag)).toBe(true)
+    expect(getHiddenModules(noFlag).has('billing')).toBe(false)
+  })
+
+  it('the parent cascade: an explicit sis off turns every SIS module off', () => {
+    const off = { feature_flags: { modules: { sis: false }, sis_settings: { community_enabled: true } } }
+    expect(isPathHidden('/billing', off)).toBe(true)
+    expect(isCommunityEnabled(off)).toBe(false)
+    expect(getHiddenModules(off).has('billing')).toBe(true)
   })
 
   it('an explicit feature_flags.modules entry beats the legacy answer', () => {

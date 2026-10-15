@@ -1,4 +1,4 @@
-import { isSisAdmin, canSeeFinance, canSeeHr } from './sisRole'
+import { isSisAdmin, canSeeFinance, canSeeHr, canReviewCredit, schoolReviewsCredit, isOrgAdminTier } from './sisRole'
 import { getPreviewTeacher } from './teacherPreview'
 import { isPathHidden } from './sisModules'
 import { dailyRollOn } from './attendanceSettings'
@@ -14,7 +14,7 @@ import { dailyRollOn } from './attendanceSettings'
  *
  * Flags an item may carry (see NAV_SECTIONS for what each means):
  *   superadmin, adminOnly, teacherOnly, hideInPreview, financeOnly, hrOnly,
- *   dailyRollOnly,
+ *   dailyRollOnly, creditReviewOnly, orgAdminOnly,
  *   and `path`, whose module may be off for the org (sisModules).
  *
  * Whether a page exists for a school is its module and nothing else
@@ -38,11 +38,17 @@ export function navContextFor(user, activeOrg) {
     // iCreate, 2026-08-09).
     seesFinance: canSeeFinance(user) && !previewing,
     seesHr: canSeeHr(user) && !previewing,
+    // The school stage of credit review: every staff role since 2026-10-15
+    // (teachers see only their own students; the backend scopes the queue).
+    reviewsCredit: canReviewCredit(user) && !previewing,
+    // Pages whose endpoints are require_org_admin (the student progress
+    // report): org_admin and superadmin, not a coordinator.
+    isOrgAdmin: isOrgAdminTier(user) && !previewing,
   }
 }
 
 export function navItemVisible(item, ctx) {
-  const { activeOrg, previewing, isSuperadmin, isAdmin, seesFinance, seesHr } = ctx
+  const { activeOrg, previewing, isSuperadmin, isAdmin, seesFinance, seesHr, reviewsCredit, isOrgAdmin } = ctx
   if (item.superadmin && !isSuperadmin) return false
   if (item.adminOnly && !isAdmin) return false
   if (item.teacherOnly && isAdmin) return false
@@ -53,6 +59,11 @@ export function navItemVisible(item, ctx) {
   // The daily roll entry exists only where the school's daily_roll setting
   // is on (sis_settings.attendance, ticket 0680d03c).
   if (item.dailyRollOnly && !dailyRollOn(activeOrg)) return false
+  // Credit Review: for the roles that can approve, at a school that approves
+  // its own students' requests first (not one whose credit Optio reviews
+  // directly). Not a module: the org stage applies to every other school.
+  if (item.orgAdminOnly && !isOrgAdmin) return false
+  if (item.creditReviewOnly && !(reviewsCredit && schoolReviewsCredit(activeOrg))) return false
   // The item's building-block module is off for this org (explicit
   // feature_flags.modules entry, or its legacy flag) -- one evaluator covers
   // the opt-outs and the opt-ins alike.

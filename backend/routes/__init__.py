@@ -225,9 +225,6 @@ def register_all(app):
     # Org-scoped account enable/disable (blocks P2).
     from routes.admin import org_member_status
     app.register_blueprint(org_member_status.bp, url_prefix='/api/admin/organizations')
-    # Withdraw a student / reinstate, for schools without the SIS console.
-    from routes.admin import org_member_standing
-    app.register_blueprint(org_member_standing.bp, url_prefix='/api/admin/organizations')
     # Optio's own invoices (/admin/billing) on Optio's Stripe account.
     from routes.admin import optio_billing
     app.register_blueprint(optio_billing.bp)

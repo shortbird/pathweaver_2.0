@@ -2,6 +2,7 @@
 // public, and copy the share link. Everything here is owner-only or
 // route-dependent, which is why the page passes so much of itself in.
 import React from 'react';
+import { switchSurfaceInApp } from '../../utils/appSurface';
 
 const DiplomaShareControls = ({
   copyShareLink, fromOrgProgress, handlePrivacyToggle, isOwner, linkCopied,
@@ -13,8 +14,10 @@ const DiplomaShareControls = ({
     <button
       onClick={() => {
         if (fromOrgProgress && sourceOrgId) {
-          // Navigate back to org management with progress tab active
-          navigate(`/admin/organizations/${sourceOrgId}`, { state: { activeTab: 'progress' } });
+          // Back to the school's student-progress report, which lives in the
+          // SIS console (Reports) since the web organization console was
+          // removed on 2026-10-15.
+          switchSurfaceInApp('sis', `/reports?report=student-progress&organization_id=${encodeURIComponent(sourceOrgId)}`);
         } else {
           navigate('/dashboard');
         }

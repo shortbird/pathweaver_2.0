@@ -567,6 +567,20 @@ export default function ClassFieldsEditor({
       </Band>
       )}
 
+      {/* The XP a student earns in the class's quests to complete the class;
+          it drives the student's "class complete" percentage. Only the
+          organization console could set it until 2026-10-15. 0 = the class
+          never completes on XP. Blank on a new class takes the default (100). */}
+      <Band title="Progress">
+        <Field label="XP to complete">
+          <input type="number" min={0} step={1} className={cell} placeholder="100" value={d.xp_threshold ?? ''}
+            aria-label="XP to complete the class" onChange={(e) => set({ xp_threshold: e.target.value })} />
+        </Field>
+        <p className="sm:col-span-1 lg:col-span-3 self-end text-xs text-neutral-500 leading-snug pb-2">
+          A student completes the class when they earn this much XP in its quests. 0 means the class never completes on XP.
+        </p>
+      </Band>
+
       <Band title="Internal notes">
         {/* Notes take what the two checkboxes leave of the four columns. */}
         <Field label="Staff only — families never see these"

@@ -8,6 +8,7 @@ import PersonPhoto from './PersonPhoto'
 import ProfilePanel from './staffRecord/ProfilePanel'
 import EmploymentPanel from './staffRecord/EmploymentPanel'
 import AccountPanel from './staffRecord/AccountPanel'
+import StudentsPanel, { showsStudentsTab } from './staffRecord/StudentsPanel'
 
 /**
  * A staff member's record, the way the student and family records are one
@@ -29,8 +30,13 @@ const TABS = [
   { id: 'account', label: 'Account' },
 ]
 
+// A teacher's assigned students (moved from the web organization console,
+// 2026-10-15). Only for someone who can be assigned students.
+const STUDENTS_TAB = { id: 'students', label: 'Students' }
+
 export default function StaffDetailModal({ orgId, staff, onClose, onSaved, onViewPortal, onRemoved, initialTab = 'profile' }) {
-  const [tab, setTab] = useState(TABS.some((t) => t.id === initialTab) ? initialTab : 'profile')
+  const tabs = showsStudentsTab(staff) ? [...TABS.slice(0, 2), STUDENTS_TAB, TABS[2]] : TABS
+  const [tab, setTab] = useState(tabs.some((t) => t.id === initialTab) ? initialTab : 'profile')
   // The employment profile row carries the phone the Profile tab edits and
   // the position the header summarises; the Employment tab reads it again
   // for its own form.
@@ -70,12 +76,13 @@ export default function StaffDetailModal({ orgId, staff, onClose, onSaved, onVie
         </div>
 
         <div className="px-4 pt-3 pb-1">
-          <GlassTabBar align="start" aria-label="Staff record sections" tabs={TABS} active={tab} onSelect={setTab} />
+          <GlassTabBar align="start" aria-label="Staff record sections" tabs={tabs} active={tab} onSelect={setTab} />
         </div>
 
         <div className="p-4 overflow-y-auto">
           {tab === 'profile' && <ProfilePanel orgId={orgId} staff={staff} profile={profile} onSaved={onSaved} />}
           {tab === 'employment' && <EmploymentPanel orgId={orgId} staff={staff} onSaved={onSaved} />}
+          {tab === 'students' && showsStudentsTab(staff) && <StudentsPanel orgId={orgId} staff={staff} />}
           {tab === 'account' && (
             <AccountPanel orgId={orgId} staff={staff} onSaved={onSaved} onViewPortal={onViewPortal} onRemoved={onRemoved} />
           )}

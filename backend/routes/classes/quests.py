@@ -565,15 +565,11 @@ def get_available_quests(user_id, org_id):
         # admin client justified: org-aware quest catalog read with visibility-policy filter
         supabase = get_supabase_admin_client()
 
-        # Get organization visibility policy
-        org = supabase.table('organizations')\
-            .select('quest_visibility_policy')\
-            .eq('id', org_id)\
-            .execute()
-
-        policy = 'all_optio'
-        if org.data:
-            policy = org.data[0].get('quest_visibility_policy', 'all_optio')
+        # The organization's visibility policy, and for 'curated' the granted
+        # quest ids. One rule shared with the SIS assign doors
+        # (services/org_quest_visibility).
+        from services.org_quest_visibility import library_scope
+        policy, curated_ids = library_scope(supabase, org_id)
 
         quests = []
 
@@ -612,22 +608,21 @@ def get_available_quests(user_id, org_id):
                     q['source'] = 'optio'
                 quests.extend(global_quests.data)
 
-        elif policy == 'curated':
+        elif policy == 'curated' and curated_ids:
             # Only include explicitly granted quests
-            curated_query = supabase.table('organization_quest_access')\
-                .select('quests(id, title, description, quest_type, is_active, organization_id)')\
-                .eq('organization_id', org_id)\
+            curated_query = supabase.table('quests')\
+                .select('id, title, description, quest_type, is_active, organization_id')\
+                .in_('id', curated_ids)\
+                .eq('is_active', True)\
                 .limit(limit - len(quests))
 
+            if search:
+                curated_query = curated_query.ilike('title', f'%{search}%')
+
             curated = curated_query.execute()
-            if curated.data:
-                for item in curated.data:
-                    if item.get('quests'):
-                        quest = item['quests']
-                        if quest.get('is_active'):
-                            if not search or search.lower() in quest.get('title', '').lower():
-                                quest['source'] = 'curated'
-                                quests.append(quest)
+            for quest in curated.data or []:
+                quest['source'] = 'curated'
+                quests.append(quest)
 
         # policy == 'private_only' means no external quests
 

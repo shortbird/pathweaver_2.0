@@ -39,6 +39,7 @@ import uuid
 
 from flask import Blueprint, request, jsonify
 
+from services.org_quest_visibility import may_assign, picker_library_quests
 from utils.auth.decorators import require_auth, validate_uuid_param
 from utils.logger import get_logger
 from utils.quest_completion import is_quest_done
@@ -444,9 +445,9 @@ def assignable_quests(user_id, class_id):
     org_quests = _q(admin.table('quests')
                     .select('id, title, description, quest_type, organization_id, created_by')
                     .eq('organization_id', org_id).eq('is_active', True))
-    lib_quests = _q(admin.table('quests')
-                    .select('id, title, description, quest_type, organization_id, created_by')
-                    .is_('organization_id', 'null').eq('is_active', True).eq('is_public', True))
+    # The Optio library only as far as the school's quest visibility policy lets
+    # it in (until 2026-10-15 it offered all of it): services/org_quest_visibility.
+    lib_quests = picker_library_quests(admin, org_id, search=search or None, limit=limit)
 
     merged = []
     seen = set()
@@ -508,9 +509,8 @@ def assign_quest(user_id, class_id):
     # only live ones. A draft (or a retired quest) is inactive: the picker never
     # offered one, but this route did not check, so a stale id or a hand-made
     # request put an unpublished quest in front of a class (P6, 2026-09-23).
-    if not quest or not quest.get('is_active') or not (
-            quest.get('organization_id') == org_id
-            or (quest.get('organization_id') is None and quest.get('is_public'))):
+    # The library part follows the school's quest visibility policy (2026-10-15).
+    if not may_assign(admin, org_id, quest):
         return jsonify({'success': False, 'error': 'That quest is not available to assign.'}), 404
 
     # A release date, a due date and an audience can all be set at assign time.

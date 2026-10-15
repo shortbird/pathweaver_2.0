@@ -11,9 +11,9 @@ import { Spinner } from '../../components/ui/Spinner'
 /**
  * SIS Settings page — the console surface of the ONE settings registry
  * (settings/settingsRegistry.jsx, blocks P3). Cards render when their module
- * is on for the org and the caller's tier allows them; the same registry
- * drives the learning app's /organization Settings tab, so a control added
- * there appears here (and vice versa) without a second implementation.
+ * is on for the org and the caller's tier allows them. Until 2026-10-15 the
+ * same registry also drove the learning app's /organization Settings tab;
+ * that page is gone and this is the school's only settings page.
  * Resolves the org through the SIS picker so superadmins can operate across
  * any organization, consistent with every other SIS page.
  *
@@ -32,6 +32,9 @@ const SettingsPage = () => {
   // kiosks. The backend agrees (utils/org_finance_flags.py); this only decides
   // whether to render a card that would come back empty and save nothing.
   const seesOrgCard = canSeeFinance(user)
+  // The slug and "diplomas through Optio Academy" are Optio's to set, not the
+  // school's; the backend refuses both from anyone else.
+  const isSuperadmin = user?.role === 'superadmin'
   const { refreshOrganization } = useOrganization()
   const { data: orgData, loading, reload: fetchOrg } = useOrgSettings(orgId)
 
@@ -74,6 +77,8 @@ const SettingsPage = () => {
           orgId={orgId}
           orgData={orgData}
           seesFinance={seesOrgCard}
+          canEditSlug={isSuperadmin}
+          canEditAccreditation={isSuperadmin}
           onUpdate={fetchOrg}
           onLogoChange={refreshOrganization}
         />

@@ -46,7 +46,7 @@ def _school_context(user_id, guardian_orgs=(), member_org=None, sis_enabled=True
     with patch.object(parent, 'context',
                       return_value={'orgs': list(guardian_orgs)}), \
          patch('services.sis_service.member_org_id', return_value=member_org), \
-         patch.object(parent, 'org_has_feature', return_value=sis_enabled), \
+         patch.object(parent, '_sis_org', return_value=sis_enabled), \
          patch.object(parent, '_admin',
                       return_value=_admin_returning(list(org_rows))), \
          patch('services.sis_billing_service.family_billing_views', return_value={}):
@@ -54,6 +54,13 @@ def _school_context(user_id, guardian_orgs=(), member_org=None, sis_enabled=True
 
 
 ICREATE = {'organization_id': 'org-1', 'organization_name': 'iCreate', 'students': []}
+
+# An org row with no feature_flags is an SIS org since 2026-10-15, so every
+# default-on family module is on, plus friends (on unless a school turns it
+# off, 2026-09-16). Until that day this list was just ['friends'].
+NO_FLAGS_FAMILY_MODULES = ['attendance', 'billing', 'calendar', 'classes', 'friends',
+                           'onboarding', 'registration', 'resources', 'sis', 'tasks',
+                           'training']
 ICREATE_ROW = {'id': 'org-1', 'name': 'iCreate',
                'branding_config': {'logo_url': 'data:image/png;base64,x'}}
 
@@ -66,11 +73,9 @@ class TestWhichSchoolAmIIn:
         assert ctx['orgs'] == [{'organization_id': 'org-1',
                                 'organization_name': 'iCreate',
                                 'is_guardian': True,
-                                # this fixture row has no feature_flags, so
-                                # every SIS family module is off; friends is
-                                # the one family-surface module that is on
-                                # unless a school turns it off (2026-09-16)
-                                'modules': ['friends'],
+                                # this fixture row has no feature_flags:
+                                # every org is an SIS org (2026-10-15)
+                                'modules': NO_FLAGS_FAMILY_MODULES,
                                 'family_first_home': False,
                                 'post_registration_flow': 'schedule',
                                 'prior_learning_enabled': False,
@@ -89,9 +94,8 @@ class TestWhichSchoolAmIIn:
         assert ctx['orgs'] == [{'organization_id': 'org-1',
                                 'organization_name': 'iCreate',
                                 'is_guardian': False,
-                                # no feature_flags: SIS family modules off,
-                                # friends on by default (see above)
-                                'modules': ['friends'],
+                                # no feature_flags (see above)
+                                'modules': NO_FLAGS_FAMILY_MODULES,
                                 'family_first_home': False,
                                 'post_registration_flow': 'schedule',
                                 'prior_learning_enabled': False,
@@ -194,7 +198,7 @@ class TestMembershipCheck:
              patch('services.sis_service.member_org_id', return_value=member_org), \
              patch('services.sis_service.get_user_org_context',
                    return_value={'role': role, 'organization_id': member_org}), \
-             patch.object(parent, 'org_has_feature', return_value=sis_enabled):
+             patch.object(parent, '_sis_org', return_value=sis_enabled):
             return parent._is_org_member('user-1', 'org-1')
 
     def test_a_guardian_is_a_member(self):
@@ -289,7 +293,7 @@ class TestSuperadminPreviewListing:
         assert out['orgs'][0] == {'organization_id': 'org-1',
                                   'organization_name': 'iCreate',
                                   'is_guardian': False,
-                                  'modules': ['friends'],
+                                  'modules': NO_FLAGS_FAMILY_MODULES,
                                 'family_first_home': False,
                                   'post_registration_flow': 'schedule',
                                   'prior_learning_enabled': False,
@@ -365,7 +369,7 @@ class TestMySchedule:
     def _schedule(self, member_org='org-1', sis_enabled=True, classes=None,
                   settings=None):
         with patch('services.sis_service.member_org_id', return_value=member_org), \
-             patch.object(parent, 'org_has_feature', return_value=sis_enabled), \
+             patch.object(parent, '_sis_org', return_value=sis_enabled), \
              patch.object(parent, '_enrolled_classes',
                           return_value=list(classes or [])), \
              patch.object(parent.catalog, 'time_blocks',

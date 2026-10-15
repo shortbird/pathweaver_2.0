@@ -45,6 +45,13 @@ describe('buildSearchIndex', () => {
     expect(index[messaging + 1]).toMatchObject({ name: 'School inbox', to: '/inbox?tab=school', hint: 'Messaging · Operations', parent: 'Messaging' })
   })
 
+  it('sends Submissions to /submissions, which finds the inbox wherever it is (bc68a12e)', () => {
+    // It said /classes?tab=submissions, the link that bounced Apogee Cache
+    // Valley's admin to the dashboard with classes hidden.
+    const entry = buildSearchIndex(navContextFor(orgAdmin, fullOrg)).find((e) => e.name === 'Submissions')
+    expect(entry.to).toBe('/submissions')
+  })
+
   it('offers the daily roll to a teacher where the school turned it on (0680d03c)', () => {
     const dailyOrg = { ...fullOrg, feature_flags: { ...fullOrg.feature_flags,
       sis_settings: { ...fullOrg.feature_flags.sis_settings, attendance: { daily_roll: true } } } }

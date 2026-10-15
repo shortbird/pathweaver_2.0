@@ -23,8 +23,7 @@ from services import sis_holds
 from services import sis_tuition_service as tuition
 from utils.db_fetch import fetch_all_rows
 from utils import person_name
-from utils.org_features import org_has_feature
-from modules.enabled import effective_modules_for_row, module_enabled_for_row
+from modules.enabled import effective_modules_for_row, module_enabled, module_enabled_for_row
 from modules.registry import surface_keys
 from utils.logger import get_logger
 from services.class_quest_enrollment import enroll_in_class_quests as _enroll_in_class_quests
@@ -41,6 +40,15 @@ from config.constants import GUARDIAN_RELATIONSHIPS  # noqa: E402,F401
 #   write targets the STUDENT's rows rather than the caller's; _can_register()
 #   proves the household link first
 from utils.admin_client import admin_client as _admin
+
+
+def _sis_org(org_id: Optional[str]) -> bool:
+    """Is this org on the SIS? Every org is since 2026-10-15 ('sis' defaults on
+    in modules/registry.py), so this is "a real org we could read"; an explicit
+    feature_flags.modules.sis=false written before that day still says no. It
+    replaced six reads of the retired flags.sis_enabled; one helper so tests
+    patch one name."""
+    return module_enabled(org_id, 'sis')
 
 
 def _student_name(u: Dict[str, Any]) -> str:
@@ -144,7 +152,7 @@ def registerable_students(guardian_user_id: str) -> List[Dict[str, Any]]:
     out: List[Dict[str, Any]] = []
     for (sid, oid), v in found.items():
         if oid not in org_enabled:
-            org_enabled[oid] = org_has_feature(oid, 'sis_enabled')
+            org_enabled[oid] = _sis_org(oid)
         if not org_enabled[oid]:
             continue
         out.append({**v, 'name': _student_name(users_map.get(sid, {})),
@@ -164,7 +172,7 @@ def self_as_student(user_id: str, org_id: str) -> List[Dict[str, Any]]:
     me = UserRepository(client=_admin()).find_by_id(user_id)
     if (not me or me.get('organization_id') != org_id
             or get_effective_role(me) != 'student'
-            or not org_has_feature(org_id, 'sis_enabled')):
+            or not _sis_org(org_id)):
         return []
     return [{'student_id': user_id, 'org_id': org_id, 'household_id': None,
              'name': _student_name(me), 'date_of_birth': me.get('date_of_birth')}]
@@ -283,7 +291,7 @@ def school_context(user_id: str) -> Dict[str, Any]:
 
     member_org = sis_service.member_org_id(user_id)
     if member_org and member_org not in guardian_org_ids \
-            and org_has_feature(member_org, 'sis_enabled'):
+            and _sis_org(member_org):
         org_ids.append(member_org)
 
     if not org_ids:
@@ -409,7 +417,7 @@ def _is_org_member(user_id: str, org_id: str) -> bool:
     if _has_org_access(user_id, org_id):
         return True
     if (sis_service.member_org_id(user_id) == org_id
-            and org_has_feature(org_id, 'sis_enabled')):
+            and _sis_org(org_id)):
         return True
     # Last, so a real member never pays for this lookup.
     return sis_service.get_user_org_context(user_id).get('role') == 'superadmin'
@@ -441,7 +449,7 @@ def is_guardian_or_staff(user_id: str, org_id: str) -> bool:
         return False
     from utils.sis_roles import STAFF_ROLES
     staff = set(STAFF_ROLES) & set(sis_service._user_org_roles(ctx))
-    return bool(staff) and org_has_feature(org_id, 'sis_enabled')
+    return bool(staff) and _sis_org(org_id)
 
 
 def _can_register(user_id: str, org_id: str, student_user_id: str) -> bool:
@@ -780,7 +788,7 @@ def my_schedule(user_id: str) -> Dict[str, Any]:
     returns only what a student may see about their own week: each class's
     name, meetings, teacher and room, plus the org's time blocks."""
     org_id = sis_service.member_org_id(user_id)
-    if not org_id or not org_has_feature(org_id, 'sis_enabled'):
+    if not org_id or not _sis_org(org_id):
         return {'classes': [], 'time_blocks': []}
     classes = [{
         'id': c['id'],

@@ -6,8 +6,9 @@ route cap. It no longer needs one.
 
 The seam is membership vs. the organization record itself. What moved here adds
 and removes members, mints username-login student accounts, and resets their
-passwords. What stayed is the org row, its settings and secrets, quest/course
-grants, and analytics.
+passwords. What stayed is the org row and its settings and secrets. (The
+quest/course grant and analytics routes that also stayed were deleted on
+2026-10-15 with the web organization console, their only caller.)
 
 This is a SEPARATE blueprint at the SAME url_prefix, which is the pattern this
 file's earlier splits already established (organization_courses, org_modules,
@@ -176,69 +177,6 @@ def remove_user_from_organization(current_user_id, current_org_id, is_superadmin
             }), 200
     except Exception as e:
         logger.error(f"Error removing user from org {org_id}: {e}")
-        raise
-
-
-@bp.route('/<org_id>/users/bulk-remove', methods=['POST'])
-@require_org_admin
-def bulk_remove_users_from_organization(current_user_id, current_org_id, is_superadmin, org_id):
-    """Remove multiple users from organization (superadmin or org admin)
-
-    Users become platform users (organization_id = NULL) with their org_role as direct role.
-    """
-    try:
-        # Verify access
-        if not is_superadmin and current_org_id != org_id:
-            return jsonify({'error': 'Access denied'}), 403
-
-        data = request.get_json()
-        user_ids = data.get('user_ids', [])
-
-        if not user_ids:
-            return jsonify({'error': 'No user IDs provided'}), 400
-
-        if len(user_ids) > 50:
-            return jsonify({'error': 'Maximum 50 users can be removed at once'}), 400
-
-        # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
-        client = get_supabase_admin_client()
-
-        removed = []
-        failed = []
-
-        for user_id in user_ids:
-            try:
-                # Get user's current org_role to use as their platform role
-                user_data = client.table('users').select('org_role').eq('id', user_id).single().execute()
-                platform_role = user_data.data.get('org_role', 'student') if user_data.data else 'student'
-
-                # Convert to platform user: NULL org, direct role, clear org_role
-                client.table('users')\
-                    .update({
-                        'organization_id': None,
-                        'role': platform_role,
-                        'org_role': None,
-                        'is_org_admin': False
-                    })\
-                    .eq('id', user_id)\
-                    .eq('organization_id', org_id)\
-                    .execute()
-                removed.append(user_id)
-            except Exception as e:
-                logger.error(f"Failed to remove user {user_id} from org {org_id}: {e}")
-                failed.append({'id': user_id, 'error': str(e)[:100]})
-
-        logger.info(f"Bulk removed {len(removed)} users from organization {org_id}")
-
-        return jsonify({
-            'success': True,
-            'removed': len(removed),
-            'failed': len(failed),
-            'removed_ids': removed,
-            'failed_details': failed
-        }), 200
-    except Exception as e:
-        logger.error(f"Error bulk removing users from org {org_id}: {e}")
         raise
 
 

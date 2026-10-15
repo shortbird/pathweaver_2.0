@@ -2,7 +2,7 @@
 SIS attendance sweep — the scheduled job behind start-of-class reminders + gap alerts.
 
 Runs every ~10 min (Render cron -> secured endpoint /api/sis/internal/attendance-sweep).
-For each sis_enabled org, in the org's local timezone:
+For each SIS org (every org since 2026-10-15), in the org's local timezone:
   - reminds a class's advisors to take attendance when a meeting is starting and its
     roster hasn't been recorded yet,
   - alerts org admins + the guardian when a student was present for an earlier class
@@ -105,11 +105,15 @@ def org_today(org_id: str) -> date:
     return org_now(org_id).date()
 
 
-def _sis_enabled_org_ids() -> List[str]:
+def _sis_org_ids() -> List[str]:
+    # Every org is an SIS org since 2026-10-15; the module answer (not the
+    # retired flags.sis_enabled) decides, so an explicit modules.sis=false
+    # written before that day still keeps an org out.
+    from modules.enabled import ORG_ROW_COLUMNS, module_enabled_for_row
     rows = (
-        _admin().table('organizations').select('id, feature_flags').execute()
+        _admin().table('organizations').select(ORG_ROW_COLUMNS).execute()
     ).data or []
-    return [r['id'] for r in rows if (r.get('feature_flags') or {}).get('sis_enabled')]
+    return [r['id'] for r in rows if module_enabled_for_row(r, 'sis')]
 
 
 def _org_admins(org_id: str) -> List[str]:
@@ -178,9 +182,9 @@ def _class_advisor_ids(class_ids: List[str]) -> Dict[str, set]:
 
 
 def run_sweep() -> Dict[str, Any]:
-    """Process every sis_enabled org. Returns per-org counts."""
+    """Process every SIS org (every org since 2026-10-15). Returns per-org counts."""
     summary = {'orgs': 0, 'gap_alerts': 0, 'class_reminders': 0}
-    for org_id in _sis_enabled_org_ids():
+    for org_id in _sis_org_ids():
         summary['orgs'] += 1
         try:
             counts = _sweep_org(org_id)

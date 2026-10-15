@@ -4,7 +4,7 @@ import SisLayout from '../components/sis/SisLayout'
 import { goToLearningSurface, LEARNING_SURFACE_PATHS, sisEquivalentPath } from '../utils/appSurface'
 import { isPathHidden, isClpEnabled, submissionsHome } from '../pages/sis/sisModules'
 import { useSisOrg } from '../pages/sis/useSisOrg'
-import { canSeeFinance, canSeeHr, isSisAdmin } from '../pages/sis/sisRole'
+import { canSeeFinance, canSeeHr, isSisAdmin, canReviewCredit, schoolReviewsCredit } from '../pages/sis/sisRole'
 import { useAuth } from '../contexts/AuthContext'
 import { dailyRollOn } from '../pages/sis/attendanceSettings'
 
@@ -37,7 +37,7 @@ const ClassesRedirect = ({ tab }) => {
 // The inbox is a tab on Classes and on Students (2026-10-08). A school with
 // classes off reaches it from Students, so a /submissions link (a credit
 // message, a notification) goes wherever the inbox is.
-const SubmissionsRedirect = () => {
+export const SubmissionsRedirect = () => {
   const { search } = useLocation()
   const { activeOrg } = useSisOrg()
   const params = new URLSearchParams(search)
@@ -90,9 +90,21 @@ const LibraryDocsRedirect = ({ docs }) => {
   return <Navigate to={`/library?${params.toString()}`} replace />
 }
 
-const ModuleGate = ({ path, children }) => {
+export const ModuleGate = ({ path, children }) => {
   const { activeOrg } = useSisOrg()
-  if (isPathHidden(path, activeOrg)) return <Navigate to="/" replace />
+  const { search } = useLocation()
+  if (isPathHidden(path, activeOrg)) {
+    // A /classes?tab=submissions link at a school with classes off is a link to
+    // the inbox, which lives on Students there. It bounced to the dashboard
+    // (ticket bc68a12e, Apogee Cache Valley: "When I click on submissions to
+    // review it takes me to my school dashboard instead"). The links now say
+    // /submissions; this catches the ones already sent (emails, bookmarks).
+    if (path === '/classes' && new URLSearchParams(search).get('tab') === 'submissions') {
+      const home = submissionsHome(activeOrg)
+      if (home !== '/classes') return <Navigate to={`${home}${search}`} replace />
+    }
+    return <Navigate to="/" replace />
+  }
   return children
 }
 
@@ -173,6 +185,19 @@ const AdminRoute = ({ children }) => {
   return children
 }
 
+// The school stage of credit review (2026-10-15). Same chrome-guard idea as the
+// three above: the nav offers it to every staff role (admins, coordinators,
+// teachers) at a school that approves its own students' credit first, and this
+// bounces a bookmark or typed URL that the nav would not have offered. The
+// backend's require_role(*STAFF_ROLES) plus its per-student scope (a teacher's
+// own students) is the real gate. Not inside AdminRoute: teachers review too.
+export const CreditReviewRoute = ({ children }) => {
+  const { user } = useAuth()
+  const { activeOrg } = useSisOrg()
+  if (!canReviewCredit(user) || !schoolReviewsCredit(activeOrg)) return <Navigate to="/" replace />
+  return children
+}
+
 // Family-facing links (registration invitations) belong on the Learning app.
 // If one is opened on the SIS host anyway — e.g. an old link copied before the
 // www fix — bounce it to the same path on the learning surface instead of
@@ -211,6 +236,7 @@ const ReportsPage = lazy(() => import('../pages/sis/ReportsPage'))
 const PriorLearningPage = lazy(() => import('../pages/sis/PriorLearningPage'))
 const LibraryPage = lazy(() => import('../pages/sis/LibraryPage'))
 const DailyRollPage = lazy(() => import('../pages/sis/DailyRollPage'))
+const CreditReviewPage = lazy(() => import('../pages/sis/CreditReviewPage'))
 
 // Teacher portal pages (advisors; admins can open them too)
 const TeacherClassPage = lazy(() => import('../pages/sis/TeacherClassPage'))
@@ -224,9 +250,11 @@ const TasksPage = lazy(() => import('../pages/sis/TasksPage'))
 // components' internal links keep working on the SIS host. Same lazy chunks as the
 // web platform (Vite dedupes); the files are not physically moved (low-risk MVP).
 // NOTE: the org-management page was retired from the SIS — its functionality now
-// lives natively in Settings, Users, Staff, Families, Classes, and Messaging. The
-// page still exists on the web platform (App.jsx /organization) for platform-only
-// tabs (Quests, Bounties, Credit Review, credit-classes).
+// lives natively in Settings, People, Classes, Library, Reports and Messaging.
+// Every org is an SIS org since 2026-10-15 and the web page (App.jsx
+// /organization) was removed that day: its Credit Review is /credit-review
+// here, its student progress a report, its checklist and partner classes on
+// the dashboard. /organization on the learning app now hops to /sis-launch.
 const AdvisorCheckinPage = lazy(() => import('../pages/AdvisorCheckinPage'))
 const TeacherVerificationPage = lazy(() => import('../pages/TeacherVerificationPage'))
 const PartnerEnrollStudentPage = lazy(() => import('../pages/PartnerEnrollStudentPage'))
@@ -275,6 +303,9 @@ const SisRoutes = () => (
       <Route path="submissions" element={<SubmissionsRedirect />} />
       <Route path="prior-learning" element={<AdminRoute><ModuleGate path="/prior-learning"><PriorLearningPage /></ModuleGate></AdminRoute>} />
       <Route path="reports" element={<AdminRoute><ModuleGate path="/reports"><ReportsPage /></ModuleGate></AdminRoute>} />
+      {/* The org stage of credit review; the queue and grader are the
+          organization console's, scoped to the org in view (2026-10-15). */}
+      <Route path="credit-review" element={<CreditReviewRoute><CreditReviewPage /></CreditReviewRoute>} />
       {/* The HR document store is a view of the Library's Documents area
           (moved off Tasks on 2026-09-24); this is an old door to it. */}
       <Route path="secure-documents" element={<HrRoute><Navigate to="/library?tab=documents&docs=secure" replace /></HrRoute>} />

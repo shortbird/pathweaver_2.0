@@ -13,6 +13,11 @@ one is in use and a way to put it somewhere from there.
   PATCH/GET/POST/PUT/DELETE
        /api/sis/quests/<quest_id>[/tasks...]    edit the quest and its tasks
   POST /api/sis/quests/<quest_id>/duplicate     copy it, tasks and all
+  POST /api/sis/quests/<quest_id>/active        unpublish / publish again
+  GET  /api/sis/optio-quests                    the Optio library, marked
+                                                available or not for this school
+  PUT  /api/sis/quest-visibility                the school's quest visibility policy
+  PUT  /api/sis/optio-quests/access             grant / revoke Optio quests (curated)
 
 Why a page of its own. Quests were reachable only through the curriculum that
 carried them: open Curriculum, expand an entry, find the quest. A quest on no
@@ -61,6 +66,7 @@ from postgrest.exceptions import APIError
 from repositories.sis_quest_library_repository import SisQuestLibraryRepository
 from services import sis_service
 from services.class_quest_enrollment import enroll_students_in_quests
+from services.org_quest_visibility import may_assign
 from services.sis_curriculum_sync import attach_quest_to_curriculum
 from services import sis_quest_task_editing as task_editing
 from services.sis_quest_authoring import (
@@ -121,9 +127,20 @@ def list_org_quests(user_id):
     repo = _repo()
 
     quests = repo.list_org_quests(org_id, search=search or None)
+    # Quests the school published and then took down (Unpublish below). They
+    # are inactive like a draft, so they fell out of this list and every other
+    # one; without them here, Unpublish would be a one-way door.
+    from services.sis_quest_authoring import is_draft
+    unpublished = [{
+        'id': q['id'],
+        'title': q.get('title') or 'Untitled quest',
+        'description': (q.get('description') or '')[:280],
+        'updated_at': q.get('updated_at'),
+    } for q in repo.list_unpublished_org_quests(org_id) if not is_draft(q)]
     ids = [q['id'] for q in quests]
     if not ids:
-        return jsonify({'success': True, 'quests': [], 'curricula': [], 'classes': []})
+        return jsonify({'success': True, 'quests': [], 'curricula': [], 'classes': [],
+                        'unpublished': unpublished})
 
     curricula = repo.org_curricula(org_id)
     classes = repo.org_classes(org_id)
@@ -178,6 +195,7 @@ def list_org_quests(user_id):
     return jsonify({
         'success': True,
         'quests': out,
+        'unpublished': unpublished,
         # The pickers on the assign dialog, so the page is one request.
         'curricula': [{'id': c['id'], 'title': c['title']} for c in curricula],
         'classes': [{'id': c['id'], 'name': c['name']} for c in classes if c.get('status') != 'archived'],
@@ -313,10 +331,9 @@ def put_quest_on_curriculum(user_id, quest_id):
         return jsonify({'success': False, 'error': 'Curriculum not found'}), 404
 
     quest = repo.find_quest_for_assign(quest_id)
-    # The school's own, or the shared Optio library. Never another school's.
-    if not quest or not quest.get('is_active') or not (
-            quest.get('organization_id') == org_id
-            or (quest.get('organization_id') is None and quest.get('is_public'))):
+    # The school's own, or the shared Optio library as far as the school's
+    # quest visibility policy lets it in. Never another school's.
+    if not may_assign(_admin(), org_id, quest):
         return jsonify({'success': False, 'error': 'That quest is not available to assign.'}), 404
 
     result = attach_quest_to_curriculum(_admin(), org_id, curriculum_id, quest_id, user_id,
@@ -415,9 +432,7 @@ def give_quest_to_students(user_id, quest_id):
 
     repo = _repo()
     quest = repo.find_quest_for_assign(quest_id)
-    if not quest or not quest.get('is_active') or not (
-            quest.get('organization_id') == org_id
-            or (quest.get('organization_id') is None and quest.get('is_public'))):
+    if not may_assign(_admin(), org_id, quest):
         return jsonify({'success': False, 'error': 'That quest is not available to assign.'}), 404
 
     known = set(repo.students_of_org(org_id, student_ids))
@@ -624,3 +639,178 @@ def delete_library_quest_task(user_id, quest_id, task_id):
     if err:
         return err
     return _edit(task_editing.delete_task, quest_id, task_id)
+
+
+# --- taking a published quest down, and putting it back --------------------
+
+
+@bp.route('/quests/<quest_id>/active', methods=['POST'])
+@require_role(*ADMIN_ROLES)
+def set_library_quest_active(user_id, quest_id):
+    """Unpublish (active=false) or publish again (active=true) a school quest.
+
+    Body: {active: bool}. The org console had this as its Deactivate toggle
+    (PUT /api/admin/quests/<id> {is_active}); the SIS had Publish for drafts
+    and nothing for a quest already out (2026-10-15, the org console's move
+    into the SIS). Unpublished, the quest leaves every picker and is not
+    given to anyone new; students who have it keep it and their work, and
+    its class and curriculum links stay, so publishing again restores it as
+    it was. Only the school's own quest (_own_quest): an Optio-library quest
+    is shared, and the school hides one of those with its quest visibility
+    policy instead. Publishing again applies the activation rule the console
+    applied (utils.quest_validation.can_activate_quest).
+    """
+    _org_id, quest, err = _own_quest(user_id, quest_id)
+    if err:
+        return err
+    active = (request.get_json(silent=True) or {}).get('active')
+    if not isinstance(active, bool):
+        return jsonify({'success': False, 'error': 'active must be true or false'}), 400
+    if active:
+        from utils.quest_validation import can_activate_quest
+        ok, why = can_activate_quest(quest_id)
+        if not ok:
+            return jsonify({'success': False, 'error': why}), 400
+    _repo().set_active(quest_id, active)
+    return jsonify({'success': True, 'quest_id': quest_id, 'is_active': active,
+                    'title': quest.get('title')})
+
+
+# --- the Optio library, as this school sees it ------------------------------
+#
+# The org console's quest visibility settings (QuestVisibilityManager), moved
+# into Library > Quests (2026-10-15: every org becomes an SIS org and the org
+# console goes). The policy is organizations.quest_visibility_policy; the
+# curated grants are organization_quest_access; the rule every assign door
+# applies is services/org_quest_visibility.
+
+OPTIO_PAGE_SIZE = 25
+
+
+@bp.route('/optio-quests', methods=['GET'])
+@require_role(*ADMIN_ROLES)
+def list_optio_quests(user_id):
+    """One page of the Optio library, each quest marked available or not.
+
+    ?search= on the title, ?type=optio|course, ?show=all|available|unavailable,
+    ?page= (1-based). Returns the school's policy with the page, so the page
+    reads one response.
+    """
+    org_id, err = sis_service.org_or_error(user_id)
+    if err:
+        return err
+    from repositories.org_quest_visibility_repository import OrgQuestVisibilityRepository
+    from services.org_quest_visibility import org_quest_policy
+    vis = OrgQuestVisibilityRepository(client=_admin())
+    policy = org_quest_policy(_admin(), org_id)
+    granted = vis.granted_quest_ids(org_id)
+    granted_set = set(granted)
+
+    search = (request.args.get('search') or '').strip()[:100] or None
+    quest_type = request.args.get('type')
+    quest_type = quest_type if quest_type in ('optio', 'course') else None
+    show = request.args.get('show') or 'all'
+    try:
+        page = max(1, int(request.args.get('page') or 1))
+    except (TypeError, ValueError):
+        page = 1
+
+    # What "available" means depends on the policy: everything, the granted
+    # ones, or nothing.
+    only_ids = exclude_ids = None
+    if show == 'available':
+        if policy == 'private_only':
+            only_ids = []
+        elif policy == 'curated':
+            only_ids = granted
+    elif show == 'unavailable':
+        if policy == 'all_optio':
+            only_ids = []
+        elif policy == 'curated':
+            exclude_ids = granted
+
+    rows, total = vis.library_page(search=search, quest_type=quest_type, only_ids=only_ids,
+                                   exclude_ids=exclude_ids,
+                                   offset=(page - 1) * OPTIO_PAGE_SIZE, limit=OPTIO_PAGE_SIZE)
+
+    def available(qid):
+        return policy == 'all_optio' or (policy == 'curated' and qid in granted_set)
+
+    return jsonify({
+        'success': True,
+        'policy': policy,
+        'granted_count': len(granted),
+        'page': page,
+        'per_page': OPTIO_PAGE_SIZE,
+        'total': total,
+        'quests': [{
+            'id': q['id'],
+            'title': q.get('title') or 'Untitled quest',
+            'description': (q.get('description') or '')[:280],
+            'quest_type': q.get('quest_type'),
+            'image_url': q.get('header_image_url') or q.get('image_url'),
+            'granted': q['id'] in granted_set,
+            'available': available(q['id']),
+        } for q in rows],
+    })
+
+
+@bp.route('/quest-visibility', methods=['PUT'])
+@require_role(*ADMIN_ROLES)
+def set_quest_visibility(user_id):
+    """Set the school's quest visibility policy. Body: {policy}.
+
+    Switching away from curated keeps the grants, so switching back restores
+    the school's list as it was.
+    """
+    org_id, err = sis_service.org_or_error(user_id)
+    if err:
+        return err
+    from repositories.org_quest_visibility_repository import OrgQuestVisibilityRepository
+    from services.org_quest_visibility import POLICIES
+    policy = (request.get_json(silent=True) or {}).get('policy')
+    if policy not in POLICIES:
+        return jsonify({'success': False,
+                        'error': f"policy must be one of: {', '.join(POLICIES)}"}), 400
+    OrgQuestVisibilityRepository(client=_admin()).set_policy(org_id, policy)
+    logger.info(f"Org {org_id[:8]} quest policy set to {policy} by {user_id[:8]}")
+    return jsonify({'success': True, 'policy': policy})
+
+
+@bp.route('/optio-quests/access', methods=['PUT'])
+@require_role(*ADMIN_ROLES)
+def set_optio_quest_access(user_id):
+    """Grant or revoke Optio quests for a curated school, one or many.
+
+    Body: {quest_ids: [...], available: bool}. Only under the curated policy,
+    as in the org console (OrganizationService.grant_quest_access), and only
+    live public Optio-library quests: never a school's own.
+    """
+    org_id, err = sis_service.org_or_error(user_id)
+    if err:
+        return err
+    from repositories.org_quest_visibility_repository import OrgQuestVisibilityRepository
+    from services.org_quest_visibility import org_quest_policy
+    data = request.get_json(silent=True) or {}
+    raw_ids = data.get('quest_ids')
+    available = data.get('available')
+    if not isinstance(raw_ids, list) or not raw_ids or not isinstance(available, bool):
+        return jsonify({'success': False,
+                        'error': 'Send quest_ids (a list) and available (true or false).'}), 400
+    quest_ids = list(dict.fromkeys(str(i).strip() for i in raw_ids if i))
+    if len(quest_ids) > 200 or any(_bad_uuid(i) for i in quest_ids):
+        return jsonify({'success': False, 'error': 'Invalid quest ids'}), 400
+    if org_quest_policy(_admin(), org_id) != 'curated':
+        return jsonify({'success': False,
+                        'error': 'Pick "Only the ones we choose" first. Quests are chosen one by one '
+                                 'only under that setting.'}), 409
+    vis = OrgQuestVisibilityRepository(client=_admin())
+    if available:
+        valid = vis.library_quest_ids(quest_ids)
+        if len(valid) != len(quest_ids):
+            return jsonify({'success': False,
+                            'error': 'Only quests from the Optio library can be chosen here.'}), 400
+        vis.grant(org_id, valid, user_id)
+    else:
+        vis.revoke(org_id, quest_ids)
+    return jsonify({'success': True, 'quest_ids': quest_ids, 'available': available})

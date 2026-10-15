@@ -335,7 +335,7 @@ describe('QuestsPanel (was QuestLibraryPage)', () => {
     expect(screen.queryByRole('button', { name: 'Edit' })).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: 'Actions for Watercolor Basics' }))
     expect(screen.getAllByRole('menuitem').map((b) => b.textContent))
-      .toEqual(['Edit', 'Assign', 'Attachments', 'Duplicate', 'Delete'])
+      .toEqual(['Edit', 'Assign', 'Attachments', 'Duplicate', 'Unpublish', 'Delete'])
   })
 
   it('opens any quest\'s attachments from its row, task by task', async () => {

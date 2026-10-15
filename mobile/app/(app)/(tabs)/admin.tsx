@@ -13,7 +13,7 @@ import { router } from 'expo-router';
 import { useAuthStore } from '@/src/stores/authStore';
 import { useBreakpoint } from '@/src/hooks/useBreakpoint';
 import { useThemeColors } from '@/src/hooks/useThemeColors';
-import { useAdminUsers, useAdminQuests, useAdminOrganizations, useOrgDetail, type AdminUser } from '@/src/hooks/useAdmin';
+import { useAdminUsers, useAdminQuests, useAdminOrganizations, type AdminUser } from '@/src/hooks/useAdmin';
 import { CreateQuestModal } from '@/src/components/admin/CreateQuestModal';
 import { UserConnectionsTab } from '@/src/components/admin/UserConnectionsTab';
 import { UserChatLogs } from '@/src/components/admin/UserChatLogs';
@@ -24,21 +24,22 @@ import {
 } from '@/src/components/ui';
 import { extractApiError } from '@/src/services/apiError';
 
-type AdminTab = 'users' | 'quests' | 'orgs' | 'emails' | 'bulk' | 'docs';
+type AdminTab = 'users' | 'quests' | 'emails' | 'bulk' | 'docs';
 
 const tabs: { key: AdminTab; label: string; icon: keyof typeof Ionicons.glyphMap }[] = [
   { key: 'users', label: 'Users', icon: 'people-outline' },
   { key: 'quests', label: 'Quests', icon: 'rocket-outline' },
-  { key: 'orgs', label: 'Organizations', icon: 'business-outline' },
   { key: 'emails', label: 'Emails', icon: 'mail-outline' },
   { key: 'bulk', label: 'Bulk Generate', icon: 'layers-outline' },
   { key: 'docs', label: 'Docs', icon: 'document-text-outline' },
 ];
 
 // Only the Users tab is currently exposed in the admin panel. The other admin
-// surfaces (Quests, Organizations, Emails, Bulk Generate, Docs) are hidden
-// until they're polished for mobile/dark mode — add their keys back here to
-// re-enable them.
+// surfaces (Quests, Emails, Bulk Generate, Docs) are hidden until they're
+// polished for mobile/dark mode — add their keys back here to re-enable them.
+// The hidden Organizations tab (org list + an org management view) was
+// deleted on 2026-10-15 with the web organization console: schools are run
+// from the SIS console, and the web /admin/organizations page creates them.
 const VISIBLE_TAB_KEYS: AdminTab[] = ['users'];
 
 // ── Users Tab ──
@@ -962,363 +963,6 @@ function QuestsPanel() {
   );
 }
 
-// ── Organizations Tab ──
-
-// ── Org Management View ──
-
-function OrgManageView({ orgId, onBack }: { orgId: string; onBack: () => void }) {
-  const c = useThemeColors();
-  const { org, users, loading, refetch } = useOrgDetail(orgId);
-  const [orgTab, setOrgTab] = useState<'settings' | 'people' | 'content'>('settings');
-  const [editName, setEditName] = useState('');
-  const [editSlug, setEditSlug] = useState('');
-  const [saving, setSaving] = useState(false);
-  const [addEmail, setAddEmail] = useState('');
-  const [addingUser, setAddingUser] = useState(false);
-
-  useEffect(() => {
-    if (org) {
-      setEditName(org.name || '');
-      setEditSlug(org.slug || '');
-    }
-  }, [org?.id]);
-
-  const handleSaveSettings = async () => {
-    setSaving(true);
-    try {
-      await api.put(`/api/admin/organizations/${orgId}`, { name: editName, slug: editSlug });
-      refetch();
-    } catch { /* error */ }
-    finally { setSaving(false); }
-  };
-
-  const handleToggleActive = async () => {
-    try {
-      await api.put(`/api/admin/organizations/${orgId}`, { is_active: !org.is_active });
-      refetch();
-    } catch { /* error */ }
-  };
-
-  const handleSetPolicy = async (policy: string) => {
-    try {
-      await api.put(`/api/admin/organizations/${orgId}`, { quest_visibility_policy: policy });
-      refetch();
-    } catch { /* error */ }
-  };
-
-  const handleAddUser = async () => {
-    if (!addEmail.trim()) return;
-    setAddingUser(true);
-    try {
-      await api.post(`/api/admin/organizations/${orgId}/users/add`, { email: addEmail.trim() });
-      setAddEmail('');
-      refetch();
-    } catch { /* error */ }
-    finally { setAddingUser(false); }
-  };
-
-  const handleRemoveUser = async (userId: string) => {
-    try {
-      await api.post(`/api/admin/organizations/${orgId}/users/remove`, { user_id: userId });
-      refetch();
-    } catch { /* error */ }
-  };
-
-  const handleChangeOrgRole = async (userId: string, orgRole: string) => {
-    try {
-      await api.put(`/api/admin/users/${userId}/org-role`, { org_role: orgRole });
-      refetch();
-    } catch { /* error */ }
-  };
-
-  if (loading) {
-    return (
-      <VStack space="md">
-        <Skeleton className="h-10 w-48 rounded" />
-        <Skeleton className="h-40 rounded-xl" />
-        <Skeleton className="h-60 rounded-xl" />
-      </VStack>
-    );
-  }
-
-  if (!org) {
-    return (
-      <VStack space="md">
-        <UIText className="text-typo-500 dark:text-dark-typo-500">Organization not found.</UIText>
-        <Button variant="outline" onPress={onBack}><ButtonText>Back</ButtonText></Button>
-      </VStack>
-    );
-  }
-
-  const orgTabs = [
-    { key: 'settings' as const, label: 'Settings', icon: 'settings-outline' as keyof typeof Ionicons.glyphMap },
-    { key: 'people' as const, label: `People (${users.length})`, icon: 'people-outline' as keyof typeof Ionicons.glyphMap },
-    { key: 'content' as const, label: 'Content', icon: 'library-outline' as keyof typeof Ionicons.glyphMap },
-  ];
-
-  return (
-    <VStack space="md">
-      {/* Header */}
-      <HStack className="items-center gap-3">
-        <Pressable onPress={onBack} className="w-9 h-9 rounded-lg bg-surface-100 items-center justify-center active:bg-surface-200 dark:bg-dark-surface-200">
-          <Ionicons name="arrow-back" size={18} color={c.icon} />
-        </Pressable>
-        <VStack className="flex-1">
-          <Heading size="lg">{org.name}</Heading>
-          <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">/{org.slug}</UIText>
-        </VStack>
-        <Badge action={org.is_active ? 'success' : 'error'}>
-          <BadgeText className={org.is_active ? 'text-green-700' : 'text-red-700'}>
-            {org.is_active ? 'Active' : 'Inactive'}
-          </BadgeText>
-        </Badge>
-      </HStack>
-
-      {/* Sub-tabs */}
-      <HStack className="bg-surface-100 rounded-lg p-1 dark:bg-dark-surface-200" space="xs">
-        {orgTabs.map((t) => (
-          <Pressable key={t.key} onPress={() => setOrgTab(t.key)} className={`flex-1 flex-row items-center justify-center gap-1.5 py-2.5 rounded-md ${orgTab === t.key ? 'bg-white dark:bg-dark-surface-100' : ''}`}>
-            <Ionicons name={t.icon} size={14} color={orgTab === t.key ? c.brand : c.iconMuted} />
-            <UIText size="xs" className={orgTab === t.key ? 'font-poppins-semibold text-optio-purple' : 'text-typo-500 dark:text-dark-typo-500'}>{t.label}</UIText>
-          </Pressable>
-        ))}
-      </HStack>
-
-      {/* Settings tab */}
-      {orgTab === 'settings' && (
-        <VStack space="md">
-          <Card variant="elevated" size="md">
-            <VStack space="sm">
-              <UIText size="xs" className="text-typo-400 font-poppins-medium dark:text-dark-typo-400">Organization Name</UIText>
-              <Input><InputField value={editName} onChangeText={setEditName} /></Input>
-              <UIText size="xs" className="text-typo-400 font-poppins-medium dark:text-dark-typo-400">Slug</UIText>
-              <Input><InputField value={editSlug} onChangeText={(t) => setEditSlug(t.toLowerCase().replace(/[^a-z0-9-]/g, '-'))} /></Input>
-              <Button onPress={handleSaveSettings} loading={saving} disabled={!editName.trim() || !editSlug.trim()}>
-                <ButtonText>Save</ButtonText>
-              </Button>
-            </VStack>
-          </Card>
-
-          <Card variant="elevated" size="md">
-            <VStack space="sm">
-              <UIText size="xs" className="text-typo-400 font-poppins-medium dark:text-dark-typo-400">Quest Visibility Policy</UIText>
-              <View className="flex flex-row flex-wrap gap-2">
-                {['all_optio', 'curated', 'private_only'].map((p) => (
-                  <Pressable key={p} onPress={() => handleSetPolicy(p)}>
-                    <View className={`px-4 py-2.5 rounded-lg ${org.quest_visibility_policy === p ? 'bg-optio-purple' : 'bg-surface-100 active:bg-surface-200 dark:bg-dark-surface-200'}`}>
-                      <UIText size="xs" className={`font-poppins-medium capitalize ${org.quest_visibility_policy === p ? 'text-white' : 'text-typo-500 dark:text-dark-typo-500'}`}>
-                        {p.replace(/_/g, ' ')}
-                      </UIText>
-                    </View>
-                  </Pressable>
-                ))}
-              </View>
-            </VStack>
-          </Card>
-
-          <Pressable onPress={handleToggleActive} className="flex-row items-center justify-between px-4 py-3 bg-surface-50 rounded-xl active:bg-surface-100 dark:bg-dark-surface-50">
-            <VStack>
-              <UIText size="sm" className="font-poppins-medium">Organization Status</UIText>
-              <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">
-                {org.is_active ? 'Organization is active and visible' : 'Organization is deactivated'}
-              </UIText>
-            </VStack>
-            <Badge action={org.is_active ? 'success' : 'error'}>
-              <BadgeText className={org.is_active ? 'text-green-700' : 'text-red-700'}>
-                {org.is_active ? 'Active' : 'Inactive'}
-              </BadgeText>
-            </Badge>
-          </Pressable>
-        </VStack>
-      )}
-
-      {/* People tab */}
-      {orgTab === 'people' && (
-        <VStack space="md">
-          {/* Add user */}
-          <Card variant="outline" size="md">
-            <VStack space="sm">
-              <UIText size="xs" className="text-typo-400 font-poppins-medium dark:text-dark-typo-400">Add User by Email</UIText>
-              <HStack className="gap-2">
-                <View className="flex-1">
-                  <Input><InputField placeholder="user@example.com" value={addEmail} onChangeText={setAddEmail} keyboardType="email-address" autoCapitalize="none" /></Input>
-                </View>
-                <Button onPress={handleAddUser} loading={addingUser} disabled={!addEmail.trim()}>
-                  <ButtonText>Add</ButtonText>
-                </Button>
-              </HStack>
-            </VStack>
-          </Card>
-
-          {/* User list */}
-          {users.length > 0 ? (
-            <Card variant="elevated" size="sm" className="overflow-hidden">
-              <View style={{ flexDirection: 'row', paddingHorizontal: 16, paddingVertical: 8, backgroundColor: c.background, borderBottomWidth: 1, borderBottomColor: c.border }}>
-                <View style={{ flex: 3 }}><UIText size="xs" className="text-typo-400 font-poppins-medium dark:text-dark-typo-400">User</UIText></View>
-                <View style={{ flex: 2 }}><UIText size="xs" className="text-typo-400 font-poppins-medium dark:text-dark-typo-400">Email</UIText></View>
-                <View style={{ flex: 1.5 }}><UIText size="xs" className="text-typo-400 font-poppins-medium dark:text-dark-typo-400">Org Role</UIText></View>
-                <View style={{ flex: 1, alignItems: 'flex-end' }}><UIText size="xs" className="text-typo-400 font-poppins-medium dark:text-dark-typo-400">Actions</UIText></View>
-              </View>
-              {users.map((u: any) => {
-                const initials = `${u.first_name?.[0] || ''}${u.last_name?.[0] || ''}`.toUpperCase();
-                const orgRole = u.org_role || 'student';
-                return (
-                  <React.Fragment key={u.id}>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 10 }}>
-                      <View style={{ flex: 3, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                        <Avatar size="xs"><AvatarFallbackText>{initials}</AvatarFallbackText></Avatar>
-                        <UIText size="sm" className="font-poppins-medium" numberOfLines={1}>
-                          {u.display_name || `${u.first_name || ''} ${u.last_name || ''}`}
-                        </UIText>
-                      </View>
-                      <View style={{ flex: 2 }}>
-                        <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400" numberOfLines={1}>{u.email}</UIText>
-                      </View>
-                      <View style={{ flex: 1.5 }}>
-                        <Pressable
-                          onPress={() => {
-                            const roles = ['student', 'parent', 'advisor', 'org_admin'];
-                            const currentIdx = roles.indexOf(orgRole);
-                            const nextRole = roles[(currentIdx + 1) % roles.length];
-                            handleChangeOrgRole(u.id, nextRole);
-                          }}
-                        >
-                          <RoleBadge role={orgRole} />
-                        </Pressable>
-                      </View>
-                      <View style={{ flex: 1, alignItems: 'flex-end' }}>
-                        <Pressable
-                          onPress={() => { if (confirm(`Remove ${u.email} from organization?`)) handleRemoveUser(u.id); }}
-                          className="w-8 h-8 rounded-lg bg-red-50 items-center justify-center active:bg-red-100"
-                        >
-                          <Ionicons name="person-remove-outline" size={14} color="#EF4444" />
-                        </Pressable>
-                      </View>
-                    </View>
-                    <Divider />
-                  </React.Fragment>
-                );
-              })}
-            </Card>
-          ) : (
-            <Card variant="filled" size="lg" className="items-center py-8">
-              <Ionicons name="people-outline" size={36} color={c.iconMuted} />
-              <UIText size="sm" className="text-typo-500 mt-2 dark:text-dark-typo-500">No users in this organization</UIText>
-            </Card>
-          )}
-        </VStack>
-      )}
-
-      {/* Content tab */}
-      {orgTab === 'content' && (
-        <VStack space="md">
-          <Card variant="filled" size="md">
-            <VStack space="sm" className="items-center py-4">
-              <Ionicons name="library-outline" size={36} color={c.iconMuted} />
-              <UIText size="sm" className="text-typo-500 dark:text-dark-typo-500">Content management coming soon</UIText>
-              <UIText size="xs" className="text-typo-400 text-center dark:text-dark-typo-400">
-                Grant/revoke quests and courses for this organization
-              </UIText>
-            </VStack>
-          </Card>
-        </VStack>
-      )}
-    </VStack>
-  );
-}
-
-// ── Organizations Panel ──
-
-function OrganizationsPanel() {
-  const c = useThemeColors();
-  const { orgs, loading, createOrg, deleteOrg } = useAdminOrganizations();
-  const [showCreate, setShowCreate] = useState(false);
-  const [managingOrgId, setManagingOrgId] = useState<string | null>(null);
-  const [newName, setNewName] = useState('');
-  const [newSlug, setNewSlug] = useState('');
-
-  const handleCreate = async () => {
-    if (!newName.trim() || !newSlug.trim()) return;
-    await createOrg({ name: newName.trim(), slug: newSlug.trim() });
-    setNewName('');
-    setNewSlug('');
-    setShowCreate(false);
-  };
-
-  // Show manage view when an org is selected
-  if (managingOrgId) {
-    return <OrgManageView orgId={managingOrgId} onBack={() => setManagingOrgId(null)} />;
-  }
-
-  return (
-    <VStack space="md">
-      <HStack className="items-center justify-between">
-        <Heading size="md">Organizations</Heading>
-        <Button size="sm" onPress={() => setShowCreate(!showCreate)}>
-          <ButtonText>{showCreate ? 'Cancel' : '+ New Org'}</ButtonText>
-        </Button>
-      </HStack>
-
-      {showCreate && (
-        <Card variant="outline" size="md">
-          <VStack space="sm">
-            <Input><InputField placeholder="Organization name" value={newName} onChangeText={setNewName} /></Input>
-            <Input><InputField placeholder="Slug (URL-friendly)" value={newSlug} onChangeText={(t) => setNewSlug(t.toLowerCase().replace(/[^a-z0-9-]/g, '-'))} /></Input>
-            <Button size="sm" onPress={handleCreate} disabled={!newName.trim() || !newSlug.trim()}>
-              <ButtonText>Create</ButtonText>
-            </Button>
-          </VStack>
-        </Card>
-      )}
-
-      {loading ? (
-        <VStack space="sm">{[1, 2, 3].map((i) => <Skeleton key={i} className="h-20 rounded-xl" />)}</VStack>
-      ) : orgs.length > 0 ? (
-        <View className="flex flex-col md:flex-row md:flex-wrap gap-4">
-          {orgs.map((org) => (
-            <View key={org.id} className="md:w-[calc(50%-8px)]">
-              <Card variant="elevated" size="md">
-                <HStack className="items-center justify-between">
-                  <VStack>
-                    <Heading size="sm">{org.name}</Heading>
-                    <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">/{org.slug}</UIText>
-                    <HStack className="items-center gap-2 mt-1">
-                      <Badge action={org.is_active ? 'success' : 'error'}>
-                        <BadgeText className={org.is_active ? 'text-green-700' : 'text-red-700'}>
-                          {org.is_active ? 'Active' : 'Inactive'}
-                        </BadgeText>
-                      </Badge>
-                      <Badge action="muted">
-                        <BadgeText className="text-typo-500 capitalize dark:text-dark-typo-500">{org.quest_visibility_policy?.replace(/_/g, ' ') || 'all'}</BadgeText>
-                      </Badge>
-                    </HStack>
-                  </VStack>
-                  <HStack className="gap-2">
-                    <Button size="xs" variant="outline" onPress={() => setManagingOrgId(org.id)}>
-                      <ButtonText>Manage</ButtonText>
-                    </Button>
-                    <Pressable
-                      onPress={() => { if (confirm(`Delete "${org.name}"?`)) deleteOrg(org.id); }}
-                      className="w-8 h-8 rounded-lg bg-red-50 items-center justify-center active:bg-red-100"
-                    >
-                      <Ionicons name="trash-outline" size={16} color="#EF4444" />
-                    </Pressable>
-                  </HStack>
-                </HStack>
-              </Card>
-            </View>
-          ))}
-        </View>
-      ) : (
-        <Card variant="filled" size="lg" className="items-center py-10">
-          <Ionicons name="business-outline" size={40} color={c.iconMuted} />
-          <Heading size="sm" className="text-typo-500 mt-3 dark:text-dark-typo-500">No organizations</Heading>
-        </Card>
-      )}
-    </VStack>
-  );
-}
-
 // ── Emails Tab ──
 
 const automatedEmails = [
@@ -1609,7 +1253,6 @@ export default function AdminScreen() {
           {/* Tab content */}
           {activeTab === 'users' && <UsersPanel />}
           {activeTab === 'quests' && <QuestsPanel />}
-          {activeTab === 'orgs' && <OrganizationsPanel />}
           {activeTab === 'emails' && <EmailsPanel />}
           {activeTab === 'bulk' && <BulkGeneratePanel />}
           {activeTab === 'docs' && <DocsPanel />}

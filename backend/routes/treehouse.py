@@ -1142,8 +1142,8 @@ def kiosk_roster():
         logger.warning(f"Kiosk roster cohort grouping failed (falling back to flat list): {e}")
         cohorts = []
 
-    # Org name + logo for kiosk branding (logo is uploaded via /organization →
-    # branding_config.logo_url; may be absent until set).
+    # Org name + logo for kiosk branding (logo is uploaded in the SIS console's
+    # Settings -> branding_config.logo_url; may be absent until set).
     org = (admin.table('organizations').select('name, branding_config')
            .eq('id', device['organization_id']).limit(1).execute())
     org_name, org_logo = None, None

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import api from '../../services/api'
 import { useSisOrg, withOrg } from './useSisOrg'
 import { useAuth } from '../../contexts/AuthContext'
@@ -17,6 +17,8 @@ import LeavingSoon from '../../components/sis/LeavingSoon'
 import { RollStatus, SubstituteControl } from '../../components/sis/RollStatus'
 import { fmtEventWhen } from '../../utils/timeFormat'
 import { formatCents as money } from '../../utils/money'
+import GettingStartedChecklist from '../../components/organization/GettingStartedChecklist'
+import PartnerClassesCard from '../../components/partner/PartnerClassesCard'
 
 /**
  * The School Dashboard — what is waiting on the office, then what is happening
@@ -82,6 +84,10 @@ const ATTENTION_TILES = [
   { key: 'bounties_to_review', label: 'Bounties to review', to: '/bounties', module: '/bounties' },
   { key: 'bloomy_inactive', label: 'No Bloomy work this week', to: '/bloomy', module: '/bloomy' },
   { key: 'students_no_family', label: 'Students not in a family', to: '/people?role=student&family=none' },
+  // The org stage of credit review: requests the school approves before
+  // Optio's final review. Not a module -- the backend sends the count only to
+  // the roles that can approve, and only where the school reviews first.
+  { key: 'credits_to_approve', label: 'Credit requests to approve', to: '/credit-review' },
 ]
 
 /** Quick actions — the handful of things an admin starts from a cold open,
@@ -131,6 +137,7 @@ export const eventTime = fmtEventWhen
 
 const SisDashboard = () => {
   const { user } = useAuth()
+  const navigate = useNavigate()
   const { orgId, loading: orgLoading, activeOrg } = useSisOrg()
   const admin = isSisAdmin(user)
   // A coordinator's morning is operational (today's campus, attendance,
@@ -230,6 +237,12 @@ const SisDashboard = () => {
 
       {data && (
         <>
+          {/* A new school's setup steps, each a door to the SIS page that does
+              it. Renders nothing once every step is done or the admin closes
+              it. It lived on the organization console until 2026-10-15. */}
+          <GettingStartedChecklist orgId={orgId} org={activeOrg}
+            onNavigate={(_tab, to) => navigate(to)} />
+
           <section>
             <h2 className="text-xs font-semibold uppercase tracking-wide text-neutral-400 mb-2">
               Needs attention
@@ -246,6 +259,11 @@ const SisDashboard = () => {
               </div>
             )}
           </section>
+
+          {/* A credit-class partner's classes: the buyer link, students added
+              by hand, and who has the class. Renders nothing for a school
+              that sells no class. Moved from the organization console. */}
+          <PartnerClassesCard orgId={orgId} />
 
           {resourcesOn && pinnedLinks.length > 0 && (
             <section className="mb-6">

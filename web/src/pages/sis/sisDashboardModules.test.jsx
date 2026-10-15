@@ -21,6 +21,9 @@ vi.mock('../../contexts/AuthContext', () => ({
   useAuth: () => ({ user: { id: 'a-1', role: 'org_admin', first_name: 'Ada' } }),
 }))
 vi.mock('./SisOrgPicker', () => ({ default: () => null }))
+// The partner card reads through react-query (no provider here); it has its
+// own suite (components/partner/partnerClassesCard.test.jsx).
+vi.mock('../../components/partner/PartnerClassesCard', () => ({ default: () => null }))
 vi.mock('./useSisOrg', () => ({
   useSisOrg: () => ({
     orgId: 'org-1', setOrgId: vi.fn(), orgs: [], isSuperadmin: false,

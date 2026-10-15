@@ -5,6 +5,9 @@ import { useOrganization } from '../../contexts/OrganizationContext'
 import * as orgStore from './sisOrgStore'
 import { canViewAs, isSisAdmin } from './sisRole'
 
+// The ?organization_id= this page load already applied (see useSisOrg).
+let adoptedFromUrl = null
+
 /**
  * Resolves the organization the SIS console operates on.
  * - org_admin / advisor: locked to their own organization (from OrganizationContext).
@@ -36,6 +39,21 @@ export function useSisOrg() {
         .catch(() => orgStore.setOrgs([]))
     }
   }, [organization?.id, isSuperadmin, snap.fetched, snap.loading])
+
+  // A superadmin arriving from a link that names a school (?organization_id=,
+  // built by appSurface.sisConsoleHref -- the org dashboard's Manage, the
+  // activity table, setup links) lands on that school. Adopted once per
+  // value, so picking another school afterwards is not undone by the next
+  // page that mounts while the old query string is still in the address bar.
+  useEffect(() => {
+    if (!isSuperadmin || organization?.id) return
+    let wanted = null
+    try { wanted = new URLSearchParams(window.location.search).get('organization_id') } catch { /* ignore */ }
+    if (wanted && wanted !== adoptedFromUrl) {
+      adoptedFromUrl = wanted
+      orgStore.setOrgId(wanted)
+    }
+  }, [isSuperadmin, organization?.id])
 
   // Org staff are pinned to their own org; superadmins use the shared selection.
   const orgId = organization?.id || snap.orgId

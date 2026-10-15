@@ -96,69 +96,27 @@ describe('OrganizationDashboard', () => {
     })
   })
 
-  describe('SIS toggle', () => {
-    it('renders an Enable SIS toggle per org with correct state', async () => {
-      render(<OrganizationDashboard />)
-      await waitFor(() => {
-        expect(screen.getAllByText('Enable SIS').length).toBe(2)
-      })
-      expect(screen.getByRole('switch', { name: 'Enable SIS for Springfield Academy' })).toHaveAttribute('aria-checked', 'false')
-      expect(screen.getByRole('switch', { name: 'Enable SIS for Riverside School' })).toHaveAttribute('aria-checked', 'true')
-    })
-
-    it('enables SIS through the modules endpoint and refetches', async () => {
+  describe('no SIS switch', () => {
+    // Every org is an SIS org since 2026-10-15; the backend refuses a 'sis'
+    // module change, so the dashboard offers no switch for it.
+    it('offers no Enable SIS toggle and never writes the sis module', async () => {
       render(<OrganizationDashboard />)
       await waitFor(() => {
         expect(screen.getByText('Springfield Academy')).toBeInTheDocument()
       })
-
-      fireEvent.click(screen.getByRole('switch', { name: 'Enable SIS for Springfield Academy' }))
-
-      // The SIS switch is the 'sis' block: a server-side merge via
-      // PATCH .../modules, never a browser round-trip of the blob.
-      await waitFor(() => {
-        expect(api.patch).toHaveBeenCalledWith('/api/admin/organizations/org-1/modules', {
-          sis: true
-        })
-      })
-      // initial fetch + refetch after toggle
-      await waitFor(() => {
-        expect(api.get).toHaveBeenCalledTimes(2)
-      })
+      expect(screen.queryByText('Enable SIS')).not.toBeInTheDocument()
+      expect(screen.queryByRole('switch')).not.toBeInTheDocument()
+      expect(api.patch).not.toHaveBeenCalled()
     })
 
-    it('disables SIS without round-tripping the other feature flags', async () => {
+    it('Manage opens the SIS console on that school', async () => {
       render(<OrganizationDashboard />)
       await waitFor(() => {
-        expect(screen.getByText('Riverside School')).toBeInTheDocument()
+        expect(screen.getAllByText('Manage').length).toBe(2)
       })
-
-      fireEvent.click(screen.getByRole('switch', { name: 'Enable SIS for Riverside School' }))
-
-      // Only the toggled key travels; the server merges into the stored blob,
-      // so hide_public_bounties cannot be clobbered by this write at all.
-      await waitFor(() => {
-        expect(api.patch).toHaveBeenCalledWith('/api/admin/organizations/org-2/modules', {
-          sis: false
-        })
-      })
-    })
-
-    it('shows an alert when the update fails', async () => {
-      api.patch.mockRejectedValue({ response: { data: { error: 'Update failed' } } })
-      const alertSpy = vi.spyOn(window, 'alert').mockImplementation(() => {})
-
-      render(<OrganizationDashboard />)
-      await waitFor(() => {
-        expect(screen.getByText('Springfield Academy')).toBeInTheDocument()
-      })
-
-      fireEvent.click(screen.getByRole('switch', { name: 'Enable SIS for Springfield Academy' }))
-
-      await waitFor(() => {
-        expect(alertSpy).toHaveBeenCalledWith('Update failed')
-      })
-      alertSpy.mockRestore()
+      // jsdom is not an Optio host, so the link is the same-origin form.
+      expect(screen.getAllByText('Manage')[0].closest('a'))
+        .toHaveAttribute('href', '/?organization_id=org-1&app=sis')
     })
   })
 
@@ -254,8 +212,8 @@ describe('OrganizationDashboard', () => {
       expect(screen.getByText('Restore')).toBeInTheDocument()
       expect(screen.getByText('Delete')).toBeInTheDocument()
       expect(screen.queryByText('Manage')).not.toBeInTheDocument()
-      // SIS is an operational toggle; a retired org has no operations.
-      expect(screen.queryByText('Enable SIS')).not.toBeInTheDocument()
+      // A retired org has no operations, so no Blocks either.
+      expect(screen.queryByText('Blocks')).not.toBeInTheDocument()
     })
 
     it('restores via POST and refetches', async () => {

@@ -38,7 +38,8 @@ export const SUB_ENTRIES = [
   // old paths' modules so an org that hid them stays hidden.
   { under: '/classes', name: 'My classes', to: '/classes?tab=mine', keywords: ['teach', 'my students', 'class page', 'quest builder'] },
   { under: '/classes', name: 'My schedule', to: '/classes?tab=schedule', keywords: ['my week', 'timetable', 'when do I teach'] },
-  { under: '/classes', name: 'Submissions', to: '/classes?tab=submissions', path: '/submissions', keywords: ['student work', 'review', 'grade', 'evidence', 'turned in'] },
+  // `to` is /submissions, which lands wherever the inbox is (ticket bc68a12e).
+  { under: '/classes', name: 'Submissions', to: '/submissions', path: '/submissions', keywords: ['student work', 'review', 'grade', 'evidence', 'turned in'] },
   { under: '/classes', name: 'Class catalog', to: '/classes?tab=all', adminOnly: true, keywords: ['all classes', 'create class', 'new class', 'rosters', 'enroll in class'] },
   { under: '/classes', name: 'Optio courses', to: '/classes?tab=courses', adminOnly: true, keywords: ['online courses', 'course library'] },
   { under: '/classes', name: 'Attendance', to: '/classes?tab=attendance', adminOnly: true, path: '/attendance', keywords: ['present', 'absent', 'roll call', 'check in', 'late', 'excused'] },
@@ -92,6 +93,7 @@ export const SUB_ENTRIES = [
     name: r.title,
     to: r.key === 'overview' ? '/reports' : `/reports?report=${r.key}`,
     financeOnly: Boolean(r.money),
+    orgAdminOnly: Boolean(r.orgAdmin),
     keywords: [r.key.replace(/-/g, ' '), 'report'],
   })),
 
@@ -113,6 +115,10 @@ export const SUB_ENTRIES = [
   { under: '/settings', ...settingsCard('friends', 'Friends', ['friends', 'collaborate', 'friend codes', 'share a quest']) },
   { under: '/settings', ...settingsCard('student-chat', 'Student chat', ['student chat', 'turn off chat', 'class chat', 'friend messages']) },
   { under: '/settings', ...settingsCard('task-xp-floor', 'Task XP', ['smallest xp', 'minimum xp', 'xp floor', 'task xp']) },
+  // On the console since 2026-10-15, when the organization console's
+  // settings moved over.
+  { under: '/settings', ...settingsCard('pillars', 'Pillars', ['pillars', 'hide pillars', 'five pillars', 'learning pillars']) },
+  { under: '/settings', ...settingsCard('bloomy-inbox', 'Bloomy work in the inbox', ['bloomy', 'skip bloomy', 'bloomy submissions', 'already verified']) },
   { under: '/settings', path: '/attendance', ...settingsCard('attendance', 'Attendance', ['daily roll', 'pickup', 'picked up', 'check out', 'school days', 'attendance statuses']) },
 ]
 

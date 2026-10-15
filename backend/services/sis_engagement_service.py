@@ -2,7 +2,7 @@
 SIS engagement sweep — quest-inactivity alerts for teachers.
 
 Runs on a cron (Render cron -> secured endpoint /api/sis/internal/engagement-sweep,
-same auth pattern as the attendance sweep). For each sis_enabled org, per class and
+same auth pattern as the attendance sweep). For each SIS org (every org), per class and
 enrolled student, it raises two alert types into sis_engagement_alerts:
 
   - 'unfinished_next_released': a later class quest has released (publish_at <= now,
@@ -56,11 +56,15 @@ from utils.admin_client import admin_client as _admin
 from utils.timestamps import utcnow as _now  # noqa: E402
 
 
-def _sis_enabled_org_ids() -> List[str]:
+def _sis_org_ids() -> List[str]:
+    # Every org is an SIS org since 2026-10-15; the module answer (not the
+    # retired flags.sis_enabled) decides, so an explicit modules.sis=false
+    # written before that day still keeps an org out.
+    from modules.enabled import ORG_ROW_COLUMNS, module_enabled_for_row
     rows = (
-        _admin().table('organizations').select('id, feature_flags').execute()
+        _admin().table('organizations').select(ORG_ROW_COLUMNS).execute()
     ).data or []
-    return [r['id'] for r in rows if (r.get('feature_flags') or {}).get('sis_enabled')]
+    return [r['id'] for r in rows if module_enabled_for_row(r, 'sis')]
 
 
 def _parse_ts(value: Any) -> Optional[datetime]:
@@ -141,9 +145,9 @@ def _is_last_school_day(org_id: str, admin, class_ids: List[str]) -> bool:
 
 
 def run_sweep() -> Dict[str, Any]:
-    """Process every sis_enabled org. Returns per-alert-type counts."""
+    """Process every SIS org (every org since 2026-10-15). Returns per-alert-type counts."""
     summary = {'orgs': 0, 'new_alerts': 0}
-    for org_id in _sis_enabled_org_ids():
+    for org_id in _sis_org_ids():
         summary['orgs'] += 1
         try:
             summary['new_alerts'] += _sweep_org(org_id)

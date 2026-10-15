@@ -10,8 +10,8 @@ never round-trips the blob here, so this write cannot clobber settings, and the
 blob write path restores `modules` against stale tabs (guard_org_flags_write in
 utils/org_finance_flags.py). The validation, the dependency check (409 naming
 the conflict) and the legacy-flag mirror live in modules/toggle.py, shared with
-the school setup form. Core modules and the AI master (dedicated consent
-columns) refuse politely.
+the school setup form. Core modules, the AI master (dedicated consent
+columns) and 'sis' (included for every org since 2026-10-15) refuse politely.
 ARCHITECTURE_BLOCKS sections 4.2 and 4.7.
 """
 
@@ -29,6 +29,7 @@ def _module_rows(org):
     """Every registry module with its config value and effective answer for
     this org row -- the Blocks panel's data."""
     from modules import MODULES, module_enabled_for_row
+    from modules.toggle import UNTOGGLEABLE
     raw = (org.get('feature_flags') or {}).get('modules') or {}
     rows = {}
     for key, m in MODULES.items():
@@ -42,6 +43,9 @@ def _module_rows(org):
             'requires_any': list(m.requires_any),
             'min_tier': m.min_tier,
             'gate': m.gate,
+            # False for 'sis': every org is an SIS org (2026-10-15), and the
+            # PATCH below refuses it, so the panel shows no switch.
+            'toggleable': m.default != 'core' and key not in UNTOGGLEABLE,
             'raw': raw.get(key) if key in raw else None,
             'effective': module_enabled_for_row(org, key),
             'blocked_by_parent': bool(m.parent) and not module_enabled_for_row(org, m.parent),

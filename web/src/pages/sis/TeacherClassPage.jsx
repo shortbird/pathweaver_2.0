@@ -56,7 +56,7 @@ const today = () => {
 // 'activity' is the learning app's This Week tab (components/classes/
 // ClassActivityTab), mounted here as well. Arete's admin used it for Friday
 // check-ins from the learning app's class page; when the school's staff were
-// front-doored into this console (sis_enabled, 2026-09-10) the page she knew
+// front-doored into this console (the SIS switch, 2026-09-10) the page she knew
 // dropped out of her navigation and the tab went with it (2026-09-15: "now I
 // don't see where I can locate the xp they earned that week"). Student Progress
 // is not a substitute: it reads the quests assigned to the class, and a class

@@ -56,13 +56,31 @@ describe('SIS surface hops', () => {
     })).toBe('/sis-launch')
   })
 
-  it('keeps non-SIS staff in the learning app', () => {
+  it('sends staff of an org with no flags to the console (every org is an SIS org, 2026-10-15)', () => {
     expect(getPostLoginPath({
       role: 'org_managed', org_role: 'org_admin', organization: PLAIN_ORG,
-    })).toBe('/dashboard')
+    })).toBe('/sis-launch')
     expect(getPostLoginPath({
       role: 'org_managed', org_role: 'advisor', organization: PLAIN_ORG,
+    })).toBe('/sis-launch')
+  })
+
+  it('keeps a platform advisor with no org in the learning app', () => {
+    expect(getPostLoginPath({ role: 'advisor' })).toBe('/dashboard')
+    expect(getPostLoginPath({ role: 'advisor', organization: null })).toBe('/dashboard')
+  })
+
+  it('keeps staff in the learning app where sis is explicitly off', () => {
+    expect(getPostLoginPath({
+      role: 'org_managed', org_role: 'org_admin', organization: { feature_flags: { modules: { sis: false } } },
     })).toBe('/dashboard')
+  })
+
+  it('still sends the simplified partner org admin to /onfire', () => {
+    expect(getPostLoginPath({
+      role: 'org_managed', org_role: 'org_admin',
+      organization: { feature_flags: { simplified_partner_dashboard: true } },
+    })).toBe('/onfire')
   })
 
   it('never hops SIS families to the console', () => {

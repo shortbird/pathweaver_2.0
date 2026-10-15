@@ -30,8 +30,19 @@ def test_a_module_without_a_hidden_list_gate_never_touches_the_list():
 
 
 def test_the_legacy_flags_are_mirrored():
-    flags = apply_changes(org(), {'sis': True, 'kiosk': True})
-    assert flags['sis_enabled'] is True and flags['kiosk'] is True
+    flags = apply_changes(org(), {'kiosk': True})
+    assert flags['kiosk'] is True
+    assert 'sis_enabled' not in flags
+
+
+@pytest.mark.parametrize('value', [True, False])
+def test_the_sis_cannot_be_toggled(value):
+    """Every org is an SIS org (2026-10-15): the Blocks panel and the school
+    setup form may not switch it, either way, with a plain 400."""
+    with pytest.raises(ModuleChangeError) as err:
+        apply_changes(org(), {'sis': value})
+    assert err.value.status == 400
+    assert 'every school' in err.value.message
 
 
 def test_an_introduced_dependency_break_is_refused():

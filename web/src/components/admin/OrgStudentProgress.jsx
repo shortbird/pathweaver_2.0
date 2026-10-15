@@ -10,7 +10,10 @@ import SortHeader from '../ui/SortHeader';
  * Student progress analytics tab for org admins.
  * Shows per-student metrics with filtering, sorting, and CSV export.
  */
-export default function OrgStudentProgress({ orgId }) {
+// `returnTo`: where the student overview's Back goes. The SIS Reports page
+// passes its own address; without it Back goes to the overview's default.
+// `hideHeading`: the host already titles the report (SIS Reports).
+export default function OrgStudentProgress({ orgId, returnTo = null, hideHeading = false }) {
   const navigate = useNavigate();
   const [students, setStudents] = useState([]);
   const [summary, setSummary] = useState(null);
@@ -25,7 +28,8 @@ export default function OrgStudentProgress({ orgId }) {
 
   const handleStudentClick = (studentId) => {
     // Navigate to student overview page with orgId in URL for reliable back navigation
-    navigate(`/admin/organizations/${orgId}/student/${studentId}?tab=progress`);
+    const query = returnTo ? `?returnTo=${encodeURIComponent(returnTo)}` : '?tab=progress';
+    navigate(`/admin/organizations/${orgId}/student/${studentId}${query}`);
   };
 
   useEffect(() => {
@@ -133,12 +137,14 @@ export default function OrgStudentProgress({ orgId }) {
     <div className="space-y-6">
       {/* Header */}
       <div className="flex flex-wrap justify-between items-start gap-4">
+        {hideHeading ? <span /> : (
         <div>
           <h2 className="text-xl font-bold text-gray-900">Student Progress</h2>
           <p className="text-sm text-gray-600 mt-1">
             Track student engagement and learning progress
           </p>
         </div>
+        )}
         <button
           onClick={handleExportCSV}
           disabled={exporting || students.length === 0}

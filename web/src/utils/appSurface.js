@@ -23,7 +23,6 @@ const SIS_PROD_URL = 'https://sis.optioeducation.com'
 // every family-facing link built here must name the host that serves the SPA.
 const LEARNING_PROD_URL = PROD_APP_URL
 const SURFACE_KEY = 'optio_surface'
-const SIS_FLAG_KEY = 'optio_sis_flag'
 
 function safeGet(key) {
   try { return window.localStorage.getItem(key) } catch { return null }
@@ -73,20 +72,9 @@ export function getLearningOrigin() {
   return isRealOptioHost() ? LEARNING_PROD_URL : window.location.origin
 }
 
-/**
- * Local-dev override for the per-org `sis_enabled` flag, so the carve-out can be
- * tested without writing the flag to a real org. Toggle via ?sisflag=1 / ?sisflag=0.
- * Has NO effect on production hosts (real flag comes from organizations.feature_flags).
- */
-export function getSisFlagOverride() {
-  if (typeof window === 'undefined') return false
-  if (isRealOptioHost()) return false
-  const params = new URLSearchParams(window.location.search)
-  const q = params.get('sisflag')
-  if (q === '1') safeSet(SIS_FLAG_KEY, '1')
-  if (q === '0') safeRemove(SIS_FLAG_KEY)
-  return safeGet(SIS_FLAG_KEY) === '1'
-}
+// getSisFlagOverride (?sisflag=1, a local-dev stand-in for the per-org
+// sis_enabled flag) was removed on 2026-10-15: every org is an SIS org, so
+// there is no flag left to fake.
 
 // ── Reactive surface switching (same-origin, no full reload) ──────────────────
 // When the Learning app and SIS console share one origin (the `?app=sis` override
@@ -133,6 +121,26 @@ export function learningSurfaceHref(path = '/') {
   }
   safeRemove(SURFACE_KEY)
   return path
+}
+
+/**
+ * An href that opens the SIS console at `path`, optionally on one school.
+ *
+ * For a plain link from the learning app into the console, now that the web
+ * organization console is gone (2026-10-15) and every school is run from the
+ * SIS. `orgId` rides along as ?organization_id=, which useSisOrg adopts for a
+ * superadmin (org staff are pinned to their own school, so it changes nothing
+ * for them). Prod: the SIS host's absolute URL. Same origin (local/dev): the
+ * path with ?app=sis, which getAppSurface persists as the override on load.
+ */
+export function sisConsoleHref(path = '/', orgId = null) {
+  const [base, query = ''] = String(path || '/').split('?')
+  const params = new URLSearchParams(query)
+  if (orgId) params.set('organization_id', orgId)
+  if (!isRealOptioHost()) params.set('app', 'sis')
+  const qs = params.toString()
+  const rel = `${base || '/'}${qs ? `?${qs}` : ''}`
+  return isRealOptioHost() && !isSisHost() ? SIS_PROD_URL + rel : rel
 }
 
 /** Navigate to the SIS surface (prod: change host; local/dev: set override + reload). */
@@ -240,6 +248,8 @@ export const SIS_SURFACE_PATHS = [
   '/classes',
   '/clp',
   '/community',
+  // The org stage of credit review (2026-10-15).
+  '/credit-review',
   '/curriculum',
   '/quest-library',
   '/directory',

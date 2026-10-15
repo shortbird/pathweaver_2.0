@@ -3,7 +3,7 @@ Effective-module evaluation for an organization.
 
 The config is a veneer (docs/ARCHITECTURE_BLOCKS.md section 4.2): an explicit
 `feature_flags.modules[key]` wins; an absent key derives from the module's
-legacy gate (`sis_enabled`, `hidden_modules`, the opt-in booleans, goals mode);
+legacy gate (`hidden_modules`, the opt-in booleans, goals mode);
 absent everywhere, the registry default decides. An org whose
 `feature_flags.module_baseline` is 'starter' answers off for the STARTER_OFF
 modules before the legacy source is consulted. An org with neither key
@@ -58,8 +58,8 @@ def _raw_value(entry: ModuleDef, flags: Dict) -> bool:
 
     sis_settings = flags.get('sis_settings') or {}
     legacy = entry.legacy
-    if legacy == 'sis_enabled':
-        return bool(flags.get('sis_enabled'))
+    # 'sis' has no legacy source since 2026-10-15 (every org is an SIS org):
+    # flags.sis_enabled is no longer read, and the registry default answers.
     if legacy == 'hidden_modules':
         hidden = sis_settings.get('hidden_modules')
         return not (isinstance(hidden, list) and entry.key in hidden)

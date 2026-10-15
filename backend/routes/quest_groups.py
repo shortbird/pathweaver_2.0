@@ -24,7 +24,12 @@ bp = Blueprint('quest_groups', __name__, url_prefix='/api/organizations')
 def _org_access(user_id, org_id):
     """
     Caller may manage this org's quest groups: superadmin, or an org_admin /
-    advisor belonging to the org.
+    campus_coordinator / advisor belonging to the org.
+
+    campus_coordinator since 2026-10-15: the groups moved from the web org
+    console into the SIS console's Library > Quests, which is the front
+    office's (utils.sis_roles.ADMIN_ROLES), and a coordinator is the front
+    office minus the money.
     """
     # admin client justified: this role/org lookup IS the auth check every quest-group route gates on (superadmin or org_admin/advisor of the org)
     admin = get_supabase_admin_client()
@@ -40,7 +45,7 @@ def _org_access(user_id, org_id):
         roles.add(user['org_role'])
     if isinstance(user.get('org_roles'), list):
         roles.update(user['org_roles'])
-    return user.get('organization_id') == org_id and bool(roles & {'org_admin', 'advisor'})
+    return user.get('organization_id') == org_id and bool(roles & {'org_admin', 'campus_coordinator', 'advisor'})
 
 
 def _get_group_in_org(admin, group_id, org_id):

@@ -35,8 +35,8 @@ const treehouseIcon = (
  * Programs keyed by the member organization's slug. Each declares its sidebar
  * tab. `navVisibleToOrgAdmin` replaces the former hardcoded `slug === 'treehouse'`
  * special-case: programs whose in-app page serves staff too (Treehouse's
- * facilitator view) set it true; diploma programs managed from /organization
- * leave it false so the tab is hidden from org admins.
+ * facilitator view) set it true; diploma programs managed from the SIS
+ * console leave it false so the tab is hidden from org admins.
  */
 export const PROGRAMS = {
   treehouse: {

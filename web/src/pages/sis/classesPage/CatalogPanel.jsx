@@ -1,5 +1,5 @@
 import React, { useDeferredValue, useEffect, useState, useCallback, useMemo } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { toast } from 'react-hot-toast'
 import { Squares2X2Icon, TableCellsIcon, ArrowPathIcon, ArrowDownTrayIcon } from '@heroicons/react/24/outline'
 import Button from '../../../components/ui/Button'
@@ -723,11 +723,20 @@ export default function CatalogPanel({ section = 'classes', onCounts = null }) {
       )}
 
       {/* Optio-course billing notice — Optio invoices the school per enrollment */}
+      {/* "Register a Student" opens the standalone enrollment form (new or
+          existing student, then the courses). It was the organization
+          console's Courses tab button until 2026-10-15. */}
       {tab === 'courses' && (
-        <div className="mb-5 rounded-lg bg-optio-purple/5 border border-optio-purple/20 px-4 py-3 text-sm text-neutral-700">
-          Enrolling a student in an Optio course costs{' '}
-          <span className="font-semibold text-neutral-900">{OPTIO_COURSE_FEE} per student</span>.
-          Optio invoices the school for each enrollment when the student is added.
+        <div className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-lg bg-optio-purple/5 border border-optio-purple/20 px-4 py-3 text-sm text-neutral-700">
+          <p className="min-w-0 flex-1">
+            Enrolling a student in an Optio course costs{' '}
+            <span className="font-semibold text-neutral-900">{OPTIO_COURSE_FEE} per student</span>.
+            Optio invoices the school for each enrollment when the student is added.
+          </p>
+          <Link to="/enroll-students"
+            className="shrink-0 inline-flex items-center px-4 py-2 bg-gradient-primary text-white font-medium rounded-lg hover:opacity-90 transition-opacity whitespace-nowrap">
+            Register a Student
+          </Link>
         </div>
       )}
 

@@ -37,8 +37,9 @@ GATES = ('flags', 'ai_columns', 'optio_diploma')
 
 # Legacy sources: where the gate's answer comes from when feature_flags.modules
 # has no explicit entry for the key. None = the registry default decides.
+# 'sis_enabled' (flat flags.sis_enabled) left this list on 2026-10-15, when
+# every org became an SIS org; nothing reads the flag as a switch any more.
 LEGACY_SOURCES = (
-    'sis_enabled',              # flat flags.sis_enabled
     'hidden_modules',           # on unless listed in sis_settings.hidden_modules
     'community_enabled',        # sis_settings.community_enabled is True
     'prior_learning_enabled',   # sis_settings.prior_learning_enabled is True
@@ -138,11 +139,19 @@ def _defs() -> Tuple[ModuleDef, ...]:
         # ------------------------------------------------------------------
         # SIS add-on (parent 'sis' cascades at read time)
         # ------------------------------------------------------------------
+        # Every org is an SIS org (Tanner, 2026-10-15): the console is part of
+        # what a school gets, not an add-on. 'on' with no legacy source, so any
+        # org row answers True; NOT 'core', because core answers True with no
+        # org at all, and a platform user (organization_id NULL, a platform
+        # advisor say) must never pass an SIS staff gate. It is not toggleable
+        # either (modules/toggle.check_changes refuses it); an explicit
+        # feature_flags.modules.sis entry written before that day still wins.
+        # Until 2026-10-15 this was default='off', legacy='sis_enabled'.
         ModuleDef('sis', 'School Information System', 'people',
                   ('Roster & Households', 'Student Records',
                    'Five Ways to Add People', 'Teacher Dashboards'),
-                  default='off', min_tier='admin',
-                  surfaces=('console', 'family'), legacy='sis_enabled'),
+                  default='on', min_tier='admin',
+                  surfaces=('console', 'family')),
         ModuleDef('classes', 'Classes & Scheduling', 'operations',
                   ('Classes & Scheduling', 'Schedule Assistant'),
                   parent='sis', surfaces=('console', 'family'),
@@ -322,8 +331,9 @@ STARTER_KEEPS = frozenset({
     'classes', 'attendance', 'submissions', 'curriculum', 'calendar', 'reports',
     'individual_work',
     'prior_learning',   # on only where the diploma is Optio Academy's anyway
+    'sis',              # every org is an SIS org (2026-10-15)
     # off by default already; the baseline has nothing to add
-    'course_builder', 'credits', 'transcripts', 'ai', 'sis', 'goals',
+    'course_builder', 'credits', 'transcripts', 'ai', 'goals',
     'weekly_goals', 'points', 'bounty_management', 'bloomy', 'community', 'kiosk',
     'group_photos',
 })

@@ -30,6 +30,9 @@ def new_org_row(name: str, slug: str, policy: str, **fields: Any) -> Dict[str, A
             # reports are off until the school or Optio turns them on.
             # modules/registry.py
             # MICROSCHOOL_OFF / MICROSCHOOL_ON; docs/sis/SIS_SIMPLIFICATION.md.
+            # The SIS console itself needs no flag here: every org is an SIS
+            # org since 2026-10-15 ('sis' defaults on in the registry), so
+            # this row writes no sis_enabled and no modules.sis.
             'module_baseline': 'microschool',
         }
     }

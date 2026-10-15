@@ -91,7 +91,7 @@ describe('OrgActivitySection', () => {
     await waitFor(() => expect(region).toHaveTextContent('1 of 3 need a look'))
     expect(api.get).toHaveBeenCalledWith('/api/admin/platform-metrics/orgs', { params: { days: 30 } })
     expect(within(region).getByRole('link', { name: 'Williamsburg' }))
-      .toHaveAttribute('href', '/admin/organizations/b')
+      .toHaveAttribute('href', '/?organization_id=b&app=sis')
     expect(region).toHaveTextContent('few people active, no tasks done')
     // Only the columns that say whether to reach out (2026-10-12).
     const headers = within(region).getAllByRole('columnheader').map(h => h.textContent.replace(/ [↑↓]$/, ''))

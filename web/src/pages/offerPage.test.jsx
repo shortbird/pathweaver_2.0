@@ -21,6 +21,10 @@ import OfferPage from './OfferPage'
 const auth = { isAuthenticated: false, user: null, loading: false }
 vi.mock('../contexts/AuthContext', () => ({ useAuth: () => auth }))
 vi.mock('../services/api', () => ({ default: { get: vi.fn(), post: vi.fn() } }))
+const { switchSurfaceInApp } = vi.hoisted(() => ({ switchSurfaceInApp: vi.fn() }))
+vi.mock('../utils/appSurface', async (importOriginal) => ({
+  ...(await importOriginal()), switchSurfaceInApp,
+}))
 vi.mock('react-hot-toast', () => {
   const toast = { success: vi.fn(), error: vi.fn() }
   return { default: toast, toast }
@@ -41,7 +45,6 @@ const mount = () => {
           <Route path="/offer/:slug" element={<OfferPage />} />
           <Route path="/register" element={<div>register page</div>} />
           <Route path="/my-classes" element={<div>my classes page</div>} />
-          <Route path="/organization" element={<div>organization page</div>} />
         </Routes>
       </MemoryRouter>
     </QueryClientProvider>
@@ -108,7 +111,10 @@ describe('OfferPage', () => {
     expect(localStorage.getItem('optioPendingOffer')).toBeNull()
   })
 
-  it('the partner opening their own link is sent to the class on their organization page', async () => {
+  // The class is a quest in the school's Library, in the SIS console. It was
+  // the organization page's Quests tab until that page was retired
+  // (2026-10-15: every org is an SIS org).
+  it('the partner opening their own link is sent to the class in their SIS Library', async () => {
     // Sentry: Raleigh, an org admin, opened /offer/latticework to see his class.
     const user = userEvent.setup()
     Object.assign(auth, { isAuthenticated: true, user: { id: 'u1', role: 'org_managed', org_role: 'org_admin' } })
@@ -117,7 +123,7 @@ describe('OfferPage', () => {
     mount()
     expect(await screen.findByRole('alert')).toHaveTextContent('student account')
     await user.click(screen.getByRole('button', { name: 'See your class' }))
-    expect(await screen.findByText('organization page')).toBeInTheDocument()
+    expect(switchSurfaceInApp).toHaveBeenCalledWith('sis', '/library?tab=quests')
   })
 
   it('a parent opening the link gets the refusal and no button', async () => {

@@ -57,6 +57,14 @@ vi.mock('../../services/masqueradeService', () => ({
   exitMasquerade: (...args) => exitMasquerade(...args),
 }))
 
+// The SIS-bound items hand off through switchSurfaceInApp; record the path
+// they ask for and leave everything else in appSurface real.
+const { switchSurfaceInApp } = vi.hoisted(() => ({ switchSurfaceInApp: vi.fn() }))
+vi.mock('../../utils/appSurface', async (importOriginal) => ({
+  ...(await importOriginal()),
+  switchSurfaceInApp,
+}))
+
 vi.mock('../admin/MasqueradeBanner', () => ({
   default: ({ targetUser, onExit }) => (
     <div data-testid="masquerade-banner">
@@ -300,7 +308,9 @@ describe('Sidebar — the teaching section', () => {
     // Without these the teacher depends on TeacherHome tiles to reach the
     // tools they use every day.
     authState.user = teacher()
-    orgState = { organization: { id: 'org-1', slug: 'lms', feature_flags: {} }, school: null }
+    // Every org is an SIS org since 2026-10-15; the LMS-only shape is now an
+    // org with an explicit modules.sis=false.
+    orgState = { organization: { id: 'org-1', slug: 'lms', feature_flags: { modules: { sis: false } } }, school: null }
     renderSidebar()
     expect(screen.getByRole('link', { name: /^my classes$/i })).toHaveAttribute('href', '/org-classes')
     expect(screen.getByRole('link', { name: /^verifications$/i })).toHaveAttribute('href', '/advisor/verification')
@@ -308,8 +318,9 @@ describe('Sidebar — the teaching section', () => {
   })
 
   it('moves class work to the console for a SIS teacher, review queue included', () => {
-    // On a SIS org, classes and invitations live in the console, and the review
-    // queue item is "Submissions", which opens the console's Submissions tab.
+    // On a SIS org, classes, invitations and the Submissions inbox all live in
+    // the console. The learning sidebar's "Submissions" hop was removed on
+    // 2026-10-15 (Tanner: it is an SIS feature); the launcher is the door.
     authState.user = teacher()
     orgState = {
       organization: { id: 'org-1', slug: 'sis', feature_flags: { sis_enabled: true } },
@@ -319,8 +330,18 @@ describe('Sidebar — the teaching section', () => {
     expect(screen.queryByRole('link', { name: /^my classes$/i })).not.toBeInTheDocument()
     expect(screen.queryByRole('link', { name: /^quest invitations$/i })).not.toBeInTheDocument()
     expect(screen.queryByRole('link', { name: /^verifications$/i })).not.toBeInTheDocument()
-    expect(screen.getByRole('link', { name: /^submissions$/i })).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: /^submissions$/i })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: /school admin/i })).toBeInTheDocument()
+  })
+
+  it('gives an org member no Submissions item, whatever their org flags say', () => {
+    // Every org is an SIS org since 2026-10-15: an org with no flags at all
+    // still keeps its review inbox in the console.
+    authState.user = teacher()
+    orgState = { organization: { id: 'org-1', slug: 'any', feature_flags: {} }, school: null }
+    renderSidebar()
+    expect(screen.queryByRole('link', { name: /^submissions$/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: /^verifications$/i })).not.toBeInTheDocument()
   })
 
   it('gives a student none of it', () => {
@@ -334,7 +355,7 @@ describe('Sidebar — the teaching section', () => {
     // (org_admin, no advisor role) created her own classes and then had no nav
     // into them (2026-09-11).
     authState.user = teacher({ org_role: 'org_admin', org_roles: ['org_admin'], is_org_admin: true })
-    orgState = { organization: { id: 'org-1', slug: 'lms', feature_flags: {} }, school: null }
+    orgState = { organization: { id: 'org-1', slug: 'lms', feature_flags: { modules: { sis: false } } }, school: null }
     renderSidebar()
     expect(screen.getByRole('link', { name: /^my classes$/i })).toHaveAttribute('href', '/org-classes')
     expect(screen.getByRole('link', { name: /^verifications$/i })).toHaveAttribute('href', '/advisor/verification')
@@ -349,7 +370,7 @@ describe('Sidebar — the teaching section', () => {
     }
     renderSidebar()
     expect(screen.queryByRole('link', { name: /^my classes$/i })).not.toBeInTheDocument()
-    expect(screen.getByRole('link', { name: /^submissions$/i })).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: /^submissions$/i })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: /school admin/i })).toBeInTheDocument()
   })
 

@@ -374,9 +374,10 @@ const BountyBoardPage = () => {
   const confirm = useConfirm()
   const navigate = useNavigate()
   const location = useLocation()
-  // Where "back" from create/detail/edit should land. The board is also
-  // embedded in the org management page (/admin/organizations/:id?tab=bounties),
-  // so pass the actual current URL along rather than assuming /bounties.
+  // Where "back" from create/detail/edit should land. Pass the actual current
+  // URL along rather than assuming /bounties: the board has been mounted under
+  // more than one path (the web org console's ?tab=bounties until 2026-10-15,
+  // the SIS console's /bounties now).
   const from = location.pathname + location.search
   const [searchParams] = useSearchParams()
   const { user, effectiveRole } = useAuth()
@@ -384,9 +385,10 @@ const BountyBoardPage = () => {
   // Parents are posters, not claimers: land them on their own bounties (posts +
   // review queue) rather than the student-style browse-to-claim board. Students,
   // advisors, and superadmin keep the Browse default.
-  // Only honor a ?tab= param that names one of this page's own tabs -- when
-  // embedded in /organization the URL carries ?tab=bounties (the org page's
-  // tab), which would otherwise leave this board on an unknown tab and blank.
+  // Only honor a ?tab= param that names one of this page's own tabs -- a page
+  // that embeds the board may carry its own ?tab= (the removed web org
+  // console's ?tab=bounties did), which would otherwise leave this board on an
+  // unknown tab and blank.
   const [tab, setTab] = useState(() => {
     const urlTab = searchParams.get('tab')
     if (['browse', 'active', 'my-bounties', 'review'].includes(urlTab)) return urlTab

@@ -16,19 +16,21 @@ import StudentChatCard from './cards/StudentChatCard'
 import FeaturesCard from './cards/FeaturesCard'
 import TaskXpFloorCard from './cards/TaskXpFloorCard'
 import AttendanceSettingsCard from './cards/AttendanceSettingsCard'
+import BloomyInboxCard from './cards/BloomyInboxCard'
 import { moduleEnabled } from '../modules/moduleEnabled'
 
 /**
  * The one settings registry (ARCHITECTURE_BLOCKS section 4.4, blocks P3).
  *
- * Both settings surfaces — the SIS console's Settings page ('console') and the
- * learning app's /organization Settings tab ('learning') — render THIS list,
- * filtered by surface, the org's enabled modules, and the caller's tier.
- * Before it existed the two surfaces were hand-maintained twins that had
- * already diverged (step printing and the program video only on the legacy
- * tab; rooms, blocks and kiosks only on the console; weekly XP goals on one
- * XP card but not the other). A control added here appears on every surface
- * it declares — adding to only one is no longer possible.
+ * The SIS console's Settings page ('console') renders THIS list, filtered by
+ * surface, the org's enabled modules, and the caller's tier. It was built to
+ * end two hand-maintained twins that had already diverged (step printing and
+ * the program video only on the legacy tab; rooms, blocks and kiosks only on
+ * the console). The second surface, the learning app's /organization Settings
+ * tab ('learning'), was removed on 2026-10-15 when every org became an SIS
+ * org; its cards were all console cards by then (pillars was the last to
+ * move). `surfaces` stays so a card can name where it renders if a second
+ * surface ever returns.
  *
  * Every Component receives the same props: { orgId, org, orgData, onUpdate,
  * onLogoChange }. Cards take what they need and ignore the rest.
@@ -44,8 +46,8 @@ import { moduleEnabled } from '../modules/moduleEnabled'
 const LoginLinkCard = ({ org }) => (org?.slug ? <SchoolLoginLinkCard slug={org.slug} /> : null)
 
 export const SETTINGS_CARDS = [
-  { key: 'org', minTier: 'finance', surfaces: ['console', 'learning'], Component: SisOrgSettings },
-  { key: 'login-link', surfaces: ['console', 'learning'], Component: LoginLinkCard },
+  { key: 'org', minTier: 'finance', surfaces: ['console'], Component: SisOrgSettings },
+  { key: 'login-link', surfaces: ['console'], Component: LoginLinkCard },
   // The school's own feature switches (MICROSCHOOL_FIRST_PLAN part 3). No
   // `module` gate: the card is how a school turns its features on. Console
   // only, since nearly every feature on it lives in the console. Org admins
@@ -68,26 +70,29 @@ export const SETTINGS_CARDS = [
   // reports on class work with due dates, which is a school's business, and the
   // people who decide whether a school emails its families sit in the SIS.
   { key: 'parent-digest', module: 'classes', surfaces: ['console'], Component: ParentDigestCard },
-  // Both surfaces: the kiosk block has no SIS parent, so an LMS-only school
-  // provisions its classroom devices from the web app's Organization tab.
-  { key: 'kiosk', module: 'kiosk', surfaces: ['console', 'learning'], Component: KioskDevicesCard },
-  { key: 'pillars', surfaces: ['learning'], Component: PillarsCard },
-  { key: 'step-printing', surfaces: ['console', 'learning'], Component: StepPrintingCard },
-  // The school's Friends default for students with no parent linked. Both
-  // surfaces: an LMS-only school (Apogee Odessa) needs it as much as a
-  // console school does, and until 2026-09-30 neither had a screen for it.
-  { key: 'friends', module: 'friends', surfaces: ['console', 'learning'], Component: FriendsCard },
+  // The kiosk block has no SIS parent: any school provisions its classroom
+  // devices here, whatever else it has on.
+  { key: 'kiosk', module: 'kiosk', surfaces: ['console'], Component: KioskDevicesCard },
+  { key: 'pillars', surfaces: ['console'], Component: PillarsCard },
+  { key: 'step-printing', surfaces: ['console'], Component: StepPrintingCard },
+  // The school's Friends default for students with no parent linked. Until
+  // 2026-09-30 no school had a screen for it.
+  { key: 'friends', module: 'friends', surfaces: ['console'], Component: FriendsCard },
   // The school's Student Chat switch (ticket 81cc92e6, Horizon). No `module`
   // gate on purpose: the card is how a school turns the module back on. Org
   // admins only; the card renders nothing for anyone the API refuses.
-  { key: 'student-chat', surfaces: ['console', 'learning'], Component: StudentChatCard },
+  { key: 'student-chat', surfaces: ['console'], Component: StudentChatCard },
   // The smallest XP one of the school's own tasks may be worth (ticket
-  // a6f7b429). Both surfaces: every school authors quests, console or not.
-  { key: 'task-xp-floor', surfaces: ['console', 'learning'], Component: TaskXpFloorCard },
+  // a6f7b429). Every school authors quests.
+  { key: 'task-xp-floor', surfaces: ['console'], Component: TaskXpFloorCard },
   // How the school takes attendance: the whole-school daily roll, pickup
   // check-out, which statuses, which weekdays (ticket 0680d03c). Console
   // only: every attendance screen is in the SIS.
   { key: 'attendance', module: 'attendance', surfaces: ['console'], Component: AttendanceSettingsCard },
+  // Leave work Bloomy already verified out of the Submissions inbox (ticket
+  // bc68a12e, Apogee Cache Valley). Console only, where the inbox is; only
+  // where Bloomy is on, since the switch means nothing anywhere else.
+  { key: 'bloomy-inbox', module: 'bloomy', surfaces: ['console'], Component: BloomyInboxCard },
 ]
 
 export function settingsCardsFor({ surface, org, seesFinance }) {

@@ -17,6 +17,9 @@ vi.mock('react-hot-toast', () => ({
   default: { success: vi.fn(), error: vi.fn() },
 }))
 vi.mock('./SisOrgPicker', () => ({ default: () => null }))
+// The partner card reads through react-query (no provider here); it has its
+// own suite (components/partner/partnerClassesCard.test.jsx).
+vi.mock('../../components/partner/PartnerClassesCard', () => ({ default: () => null }))
 let activeOrg = null
 vi.mock('./useSisOrg', () => ({
   useSisOrg: () => ({ orgId: 'org-1', setOrgId: vi.fn(), orgs: [], isSuperadmin: false, loading: false, activeOrg }),

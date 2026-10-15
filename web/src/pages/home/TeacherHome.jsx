@@ -24,9 +24,10 @@ import MyEnrolledQuests from '../../components/home/MyEnrolledQuests'
  *
  * TWO CLASS MODELS, ONE PAGE. Optio's advisor/student relationship (quest
  * invitations, the LMS class pages under /org-classes) and the SIS's class
- * model overlap. The rule: an org with sis_enabled defaults to its SIS
+ * model overlap. The rule: an org on the 'sis' module defaults to its SIS
  * features — class cards hop to the console — and the LMS-only advisor
- * features are kept for programs that don't run the SIS.
+ * features are kept for a teacher with no org (a platform advisor). Every org
+ * is an SIS org since 2026-10-15, so the LMS-only branch is the no-org one.
  *
  * The hook and the two sections are exported because SchoolAdminHome renders
  * them too: an org admin holds every capability a teacher holds, and at a
@@ -108,9 +109,12 @@ export function useTeacherHomeData(userId, sisEnabled) {
  */
 function QueueLink({ sisEnabled, completionId, className, children }) {
   if (sisEnabled) {
+    // /submissions finds the inbox wherever the school keeps it: Classes, or
+    // Students with classes off, where /classes bounced to the dashboard
+    // (ticket bc68a12e). completion_id rides along.
     const path = completionId
-      ? `/classes?tab=submissions&completion_id=${completionId}`
-      : '/classes?tab=submissions'
+      ? `/submissions?completion_id=${completionId}`
+      : '/submissions'
     return (
       <button type="button" onClick={() => switchSurfaceInApp('sis', path)}
         className={`text-left w-full ${className}`}>

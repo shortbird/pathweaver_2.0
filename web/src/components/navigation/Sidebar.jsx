@@ -5,7 +5,7 @@ import { useAuth } from '../../contexts/AuthContext'
 import { useOrganization } from '../../contexts/OrganizationContext'
 import { useFamilyScope, userHasFamily, worksThroughFamily } from '../../contexts/FamilyScopeContext'
 import ProfileSwitcher from '../parent/ProfileSwitcher'
-import { getSisFlagOverride, switchSurfaceInApp } from '../../utils/appSurface'
+import { switchSurfaceInApp } from '../../utils/appSurface'
 import MasqueradeBanner from '../admin/MasqueradeBanner'
 import { getMasqueradeState, exitMasquerade } from '../../services/masqueradeService'
 import api from '../../services/api'
@@ -42,6 +42,31 @@ const FAMILY_ICON = (
   </svg>
 )
 
+// A student's own pages at their school, one per opt-in module (ticket
+// bfe06a17). The paths are school tabs (App.jsx, inside SchoolShell).
+const STUDENT_SCHOOL_PAGES = [
+  {
+    module: 'points',
+    name: 'Points',
+    path: '/points',
+    icon: (
+      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.48 3.499a.562.562 0 011.04 0l2.125 5.111a.563.563 0 00.475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 00-.182.557l1.285 5.385a.562.562 0 01-.84.61l-4.725-2.885a.563.563 0 00-.586 0L6.982 20.54a.562.562 0 01-.84-.61l1.285-5.386a.562.562 0 00-.182-.557l-4.204-3.602a.563.563 0 01.321-.988l5.518-.442a.563.563 0 00.475-.345L11.48 3.5z" />
+      </svg>
+    ),
+  },
+  {
+    module: 'weekly_goals',
+    name: 'Weekly Goals',
+    path: '/weekly-goals',
+    icon: (
+      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+      </svg>
+    ),
+  },
+]
+
 const Sidebar = ({ isOpen, onClose, isCollapsed, isPinned, onTogglePin, isHovered, onHoverChange }) => {
   const location = useLocation()
   const { user, logout, isAuthenticated, effectiveRole } = useAuth()
@@ -55,13 +80,14 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, isPinned, onTogglePin, isHovere
   // Family scope: which child a parent is working for. In scope the student
   // surfaces (Home, Quests, Journal, Portfolio) point at that child.
   const { isScoped: inFamilyScope, selectedChild } = useFamilyScope()
-  // SIS carve-out: when the user's org has the sis module (or the local dev
-  // override is set), the school-management surfaces move to the SIS console — so
-  // hide them here and surface a launcher instead. Reversible per-org; default
-  // off. moduleEnabled is a pure function over the loaded org (no extra hook),
-  // so this stays trivially mockable; it prefers the server-computed
-  // effective_modules and falls back to legacy flags (sis_enabled).
-  const sisEnabled = (organization ? moduleEnabled(organization, 'sis') : false) || getSisFlagOverride()
+  // SIS carve-out: when the user's org has the sis module, the
+  // school-management surfaces move to the SIS console — so hide them here and
+  // surface a launcher instead. Every org is an SIS org since 2026-10-15, so in
+  // practice this is "the user has an org"; a platform user (no org) keeps the
+  // learning-app surfaces. moduleEnabled is a pure function over the loaded
+  // org (no extra hook), so this stays trivially mockable; it prefers the
+  // server-computed effective_modules.
+  const sisEnabled = organization ? moduleEnabled(organization, 'sis') : false
   const [masqueradeBannerExpanded, setMasqueradeBannerExpanded] = useState(false)
   const [masqueradeState, setMasqueradeState] = useState(null)
 
@@ -188,9 +214,9 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, isPinned, onTogglePin, isHovere
   // sidebar is expanded; collapsed mode shows a divider between sections.
 
   // "Home" is /dashboard for every role — RoleHome renders each role's own
-  // home there (role-homes rewrite, 2026-08-10). Family and Organization are
-  // separate management surfaces with their own nav items below; the path
-  // dedupe no longer needs to absorb them into Home.
+  // home there (role-homes rewrite, 2026-08-10). Family is a separate
+  // management surface with its own nav item below; the path dedupe no longer
+  // needs to absorb it into Home.
   //
   // A parent's home is the family dashboard (/family, 2026-09-15). Once they
   // have picked a child there, /dashboard is that CHILD's home and it appears
@@ -265,8 +291,8 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, isPinned, onTogglePin, isHovere
     })
   }
 
-  // Org admins reach bounties (view + create for their org's students) from a
-  // tab inside /organization, so it's kept out of their sidebar.
+  // Org admins reach bounties (view + create for their org's students) in the
+  // SIS console (/bounties there), so it's kept out of their sidebar.
   if (role !== 'org_admin') {
     learningItems.push({
       name: 'Bounties',
@@ -426,6 +452,23 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, isPinned, onTogglePin, isHovere
     })
   }
 
+  // A student's own school pages: Points and Weekly Goals, wherever the school
+  // runs the module. Both pages answer a student with their own record (and a
+  // points helper with the Give points tab). Until now a student reached them
+  // only through the school door, which a student gets only at a school whose
+  // page is the front door -- so at a school without one (Apogee Cache Valley,
+  // ticket bfe06a17: "I added Afton as a points helper today but the points
+  // bar is not showing up on her student account") there was no way in at
+  // all. Read from the school context's module list, the one the school's
+  // own tabs read; skipped when the school's tabs already list the page.
+  if (isStudent && Array.isArray(schoolOrg?.modules)) {
+    for (const page of STUDENT_SCHOOL_PAGES) {
+      if (schoolOrg.modules.includes(page.module) && !schoolTabs.some((t) => t.path === page.path)) {
+        communityItems.push({ name: page.name, path: page.path, icon: page.icon })
+      }
+    }
+  }
+
   // School-specific program tab for members of a partner organization. The
   // program registry (src/programs/registry.jsx) owns which slug maps to which
   // tab, its icon, and whether org admins see it — core stays program-agnostic.
@@ -475,8 +518,11 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, isPinned, onTogglePin, isHovere
 
   // Teaching (blocks P2): the LMS-only teacher's daily surfaces, so an advisor
   // is not dependent on TeacherHome tiles to reach their own tools. On SIS orgs
-  // class work lives in the console (the launcher below), so the review queue
-  // item hops to the console's Submissions tab. The LMS verification page never
+  // -- every org since 2026-10-15 -- class work, the Submissions inbox
+  // included, lives in the console (the launcher below), so the section is
+  // empty for org staff. The "Submissions" item that used to hop there was
+  // removed on 2026-10-15 (Tanner: it is an SIS feature). What remains is for
+  // an advisor whose org has the console off: the LMS verification page never
   // listed an org-managed student's work, so it was an empty page for them.
   //
   // An org admin holds every capability a teacher holds, so the section is
@@ -499,10 +545,9 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, isPinned, onTogglePin, isHovere
         )
       })
     }
-    teachingItems.push({
-      name: sisEnabled ? 'Submissions' : 'Verifications',
+    if (!sisEnabled) teachingItems.push({
+      name: 'Verifications',
       path: '/advisor/verification',
-      sisPath: sisEnabled ? '/classes?tab=submissions' : null,
       icon: (
         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
@@ -524,21 +569,13 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, isPinned, onTogglePin, isHovere
 
   const adminItems = []
 
-  // Organization console for org admins or platform admins with an organization
-  if (hasOrgAdminAccess && user?.organization_id) {
-    adminItems.push({
-      name: 'Organization',
-      path: '/organization',
-      icon: (
-        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-        </svg>
-      )
-    })
-  }
+  // No "Organization" item: the web organization console was removed on
+  // 2026-10-15, when every org became an SIS org. Org staff run the school
+  // from the SIS console through the "School Admin" launcher below.
 
   // Credit Review — superadmins use it as part of the Optio review step.
-  // Org admins reach the same dashboard as a tab inside /organization instead.
+  // Org admins do the org stage of the same review in the SIS console
+  // (/credit-review there), never here.
   if (user?.role === 'superadmin') {
     adminItems.push({
       name: 'Credit Review',
@@ -568,11 +605,11 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, isPinned, onTogglePin, isHovere
     { key: 'admin', title: 'Admin', items: adminItems },
   ]
 
-  // Carve-out: when SIS is enabled for this org, the school-management items live
-  // in the SIS console (sis.optioeducation.com), not the learning sidebar. Remove
-  // them here. The global platform "Admin" panel (mixed LMS content) is intentionally
+  // Carve-out: for an org member the school-management items live in the SIS
+  // console (sis.optioeducation.com), not the learning sidebar. Remove them
+  // here. The global platform "Admin" panel (mixed LMS content) is intentionally
   // NOT removed. A "School Admin" launcher (below) links staff to the SIS surface.
-  const SIS_MOVED_ITEMS = new Set(['Organization', 'Credit Review'])
+  const SIS_MOVED_ITEMS = new Set(['Credit Review'])
   if (sisEnabled) {
     navSections = navSections.map((section) => ({
       ...section,
@@ -581,7 +618,7 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, isPinned, onTogglePin, isHovere
   }
 
   // Dedupe by path, keeping the first occurrence. This is what lets "Home"
-  // absorb Family (parents), Organization (org admins) or Teacher (advisors)
+  // absorb Family (parents) or Teacher (advisors)
   // instead of listing the same destination twice.
   const seenPaths = new Set()
   navSections = navSections.map((section) => ({

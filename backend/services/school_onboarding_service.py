@@ -368,12 +368,14 @@ OLD_FORM_PICKS: Dict[str, str] = {
 
 def module_changes(answers: Dict[str, Any],
                    start_modules: Optional[List[str]] = None) -> Dict[str, bool]:
-    """The module toggles for a new school: the console, plus what each yes
-    needs. Every other module keeps its microschool-baseline answer, so a new
-    admin sees a short sidebar and adds the rest from Settings > Features."""
+    """The module toggles for a new school: what each yes needs. Every other
+    module keeps its microschool-baseline answer, so a new admin sees a short
+    sidebar and adds the rest from Settings > Features. The console itself is
+    not a toggle: every org is an SIS org since 2026-10-15 (until then this
+    started from {'sis': True})."""
     yes = {q for q in QUESTION_MODULES if answers.get(q) == 'yes'}
     yes |= {OLD_FORM_PICKS[f] for f in (answers.get('features') or []) if f in OLD_FORM_PICKS}
-    changes = {'sis': True}
+    changes: Dict[str, bool] = {}
     # What Optio turned on for this school when it made the link.
     for m in (start_modules or []):
         changes[m] = True
@@ -387,8 +389,11 @@ def _new_school_flags(answers: Dict[str, Any],
                       start_modules: Optional[List[str]] = None) -> Dict[str, Any]:
     """feature_flags for a school made by this form."""
     from modules.toggle import apply_changes
-    return apply_changes(new_org_row('', '', 'all_optio'),
-                         module_changes(answers, start_modules))
+    row = new_org_row('', '', 'all_optio')
+    changes = module_changes(answers, start_modules)
+    # No yes and no start modules: the baseline row as it is (apply_changes
+    # refuses an empty change set).
+    return apply_changes(row, changes) if changes else dict(row['feature_flags'])
 
 
 def _org_roles(user: Dict[str, Any]) -> List[str]:

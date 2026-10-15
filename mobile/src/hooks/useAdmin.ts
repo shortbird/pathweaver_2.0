@@ -164,44 +164,7 @@ export function useAdminOrganizations() {
 
   useEffect(() => { fetchOrgs(); }, [fetchOrgs]);
 
-  const createOrg = async (orgData: { name: string; slug: string; quest_visibility_policy?: string }) => {
-    await api.post('/api/admin/organizations', orgData);
-    await fetchOrgs();
-  };
-
-  const deleteOrg = async (orgId: string) => {
-    await api.delete(`/api/admin/organizations/${orgId}`);
-    await fetchOrgs();
-  };
-
-  return { orgs, loading, refetch: fetchOrgs, createOrg, deleteOrg };
-}
-
-export function useOrgDetail(orgId: string | null) {
-  const [org, setOrg] = useState<any>(null);
-  const [users, setUsers] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  const fetchOrg = useCallback(async () => {
-    if (!orgId) { setLoading(false); return; }
-    try {
-      setLoading(true);
-      const [orgRes, usersRes] = await Promise.allSettled([
-        api.get(`/api/admin/organizations/${orgId}`),
-        api.get(`/api/admin/organizations/${orgId}/users`),
-      ]);
-      if (orgRes.status === 'fulfilled') setOrg(orgRes.value.data.organization || orgRes.value.data);
-      if (usersRes.status === 'fulfilled') setUsers(usersRes.value.data.users || usersRes.value.data || []);
-    } catch {
-      // Error
-    } finally {
-      setLoading(false);
-    }
-  }, [orgId]);
-
-  useEffect(() => { fetchOrg(); }, [fetchOrg]);
-
-  return { org, users, loading, refetch: fetchOrg };
+  return { orgs, loading, refetch: fetchOrgs };
 }
 
 // ── Flagged Tasks ──

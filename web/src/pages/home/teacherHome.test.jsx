@@ -241,7 +241,10 @@ describe('TeacherHome for an SIS org', () => {
     expect(await screen.findByText('1 submission waiting for review')).toBeInTheDocument()
     expect(api.get).not.toHaveBeenCalledWith('/api/teacher/pending-verifications')
     await userEvent.click(screen.getByText('Write a sonnet'))
-    expect(switchSurfaceInApp).toHaveBeenCalledWith('sis', '/classes?tab=submissions&completion_id=c-1')
+    // /submissions, not /classes?tab=submissions: a school with classes off
+    // keeps the inbox on Students, and the Classes link bounced to the
+    // dashboard (ticket bc68a12e). The console route picks the right page.
+    expect(switchSurfaceInApp).toHaveBeenCalledWith('sis', '/submissions?completion_id=c-1')
   })
 
   it('hides the waiting strip when the only remaining feed errors', async () => {

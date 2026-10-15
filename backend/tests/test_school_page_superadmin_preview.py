@@ -69,7 +69,11 @@ class TestSchoolContextForOrg:
             'orgs': [{'organization_id': 'org-1',
                       'organization_name': 'iCreate',
                       'is_guardian': False,
-                      'modules': ['friends'],
+                      # Every org is an SIS org (2026-10-15); goals rides on
+                      # the post_registration_flow above.
+                      'modules': ['attendance', 'billing', 'calendar', 'classes',
+                                  'friends', 'goals', 'onboarding', 'registration',
+                                  'resources', 'sis', 'tasks', 'training'],
                       'family_first_home': False,
                       'post_registration_flow': 'goals',
                       'prior_learning_enabled': False,

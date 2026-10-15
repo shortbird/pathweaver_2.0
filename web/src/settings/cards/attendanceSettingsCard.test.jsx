@@ -78,7 +78,5 @@ describe('AttendanceSettingsCard', () => {
     expect(keys({ sis_enabled: true, modules: { attendance: true } })).toContain('attendance')
     expect(keys({ sis_enabled: true, modules: { attendance: false }, sis_settings: { hidden_modules: ['attendance'] } }))
       .not.toContain('attendance')
-    expect(settingsCardsFor({ surface: 'learning', org: { id: 'o', feature_flags: {} }, seesFinance: true })
-      .map((c) => c.key)).not.toContain('attendance')
   })
 })

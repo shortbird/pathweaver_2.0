@@ -3,6 +3,7 @@ import { useQuery, keepPreviousData } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 import api from '../../services/api'
 import { timeAgo } from '../../utils/timeFormat'
+import { sisConsoleHref } from '../../utils/appSurface'
 import { RangeToggle } from './PlatformMetricsSection'
 
 /**
@@ -219,15 +220,25 @@ export default function OrgActivitySection() {
             </thead>
             <tbody className="divide-y divide-gray-100">
               {visible.map(r => {
-                const to = r.organization_id ? `/admin/organizations/${r.organization_id}` : '/admin/users'
+                // A school opens in the SIS console on that school (the web
+                // organization console was removed 2026-10-15); the no-org
+                // row is the platform's own users. A plain <a>, because the
+                // console is another surface and a router Link cannot cross.
+                const href = r.organization_id ? sisConsoleHref('/', r.organization_id) : null
                 const members = Number(r.members) || 0
                 return (
                   <tr key={r.organization_id || 'none'} className="hover:bg-gray-50">
                     <td className="px-5 py-2">
                       <span className="flex items-center gap-2 flex-wrap">
-                        <Link to={to} className="font-medium text-gray-900 hover:text-optio-purple">
-                          {String(r.name || '').trim()}
-                        </Link>
+                        {href ? (
+                          <a href={href} className="font-medium text-gray-900 hover:text-optio-purple">
+                            {String(r.name || '').trim()}
+                          </a>
+                        ) : (
+                          <Link to="/admin/users" className="font-medium text-gray-900 hover:text-optio-purple">
+                            {String(r.name || '').trim()}
+                          </Link>
+                        )}
                         <span className="text-xs text-gray-400">{members.toLocaleString('en')}</span>
                         {r.reasons.length > 0 && (
                           <span className="inline-flex items-center gap-1 rounded-full bg-red-50 px-2 py-0.5 text-[11px] font-medium text-red-700">

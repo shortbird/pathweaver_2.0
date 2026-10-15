@@ -32,7 +32,9 @@ describe('SisSidebar', () => {
     state = { user: ADMIN, org: APOGEE }
     render(<MemoryRouter><SisSidebar /></MemoryRouter>)
     expect(names()).toEqual(['Dashboard', 'People', 'Students', 'Prior Learning', 'Goals',
-      'Points', 'Bounties', 'Bloomy', 'Messaging', 'Settings', 'My Profile', 'Add features'])
+      // Credit Review is not a block: every school approves its students'
+      // credit before Optio does, unless Optio reviews its credit directly.
+      'Points', 'Bounties', 'Credit Review', 'Bloomy', 'Messaging', 'Settings', 'My Profile', 'Add features'])
   })
 
   it('takes an admin to the Features card', () => {

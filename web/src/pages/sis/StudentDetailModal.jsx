@@ -10,7 +10,7 @@ import { classLabel, byDayAndTime } from '../../components/sis/classLabel'
 import { switchSurfaceInApp } from '../../utils/appSurface'
 import { useSisOrg } from './useSisOrg'
 import { AuthContext } from '../../contexts/AuthContext'
-import { canGrantAdmin, canEditRolesOf } from './sisRole'
+import { canGrantAdmin, canEditRolesOf, isSisAdmin } from './sisRole'
 import { useConfirm } from '../../contexts/ConfirmContext'
 import {
   useStudentContacts, useStudentRecord, useStudentClasses,
@@ -25,6 +25,7 @@ import { INPUT_CLASS } from '../../components/ui/Input'
 import ClassHistorySection from '../../components/sis/ClassHistorySection'
 import { SisStudentCredits } from '../../components/sis/CreditBankPanel'
 import { SetUpSignInPanel, needsSignIn } from './people/SetUpSignIn'
+import { AssignedTeachers, LinkedParents } from './people/StudentConnections'
 
 /**
  * Tabbed per-student management modal.
@@ -144,6 +145,8 @@ const StudentDetailModal = ({ student, orgId, onClose, onSaved }) => {
               <ProfileFields form={form} set={setField} isStudent={isStudent} schoolName={schoolName}
                 rolesEditable={mayEditRoles} adminGrantable={canGrantAdmin(viewer)} />
               {isStudent && <FamilySection student={student} orgId={orgId} onSaved={onSaved} />}
+              {isStudent && isSisAdmin(viewer) && <LinkedParents student={student} orgId={orgId} onSaved={onSaved} />}
+              {isStudent && isSisAdmin(viewer) && <AssignedTeachers student={student} orgId={orgId} />}
               {isStudent && <ContactsSection student={student} orgId={orgId} />}
               <AccountSection student={student} orgId={orgId} onSaved={onSaved} onClose={onClose} />
             </div>
@@ -307,6 +310,7 @@ const AccountSection = ({ student, orgId, onSaved, onClose }) => {
           : <Button size="sm" variant="outline" onClick={resetPassword}>Reset password</Button>}
         <button onClick={remove} className="text-sm text-red-600 font-medium hover:underline">Remove from organization</button>
       </div>
+
       {managedNoSignIn && settingUp && (
         <SetUpSignInPanel student={student} orgId={orgId}
           onCancel={() => setSettingUp(false)}

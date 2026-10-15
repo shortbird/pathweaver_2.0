@@ -164,7 +164,6 @@ _reviewed(
 _reviewed(
     'org_admin gate plus an explicit "student is in this organization" check '
     'in the view',
-    'org_connections.unassign_advisor_from_student',
     'org_connections.unassign_org_student_from_advisor',
 )
 _reviewed(

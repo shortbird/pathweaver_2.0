@@ -16,6 +16,9 @@ let orgState = { orgId: 'org-1', activeOrg: { id: 'org-1', feature_flags: { sis_
 
 vi.mock('../../contexts/AuthContext', () => ({ useAuth: () => authState }))
 vi.mock('./SisOrgPicker', () => ({ default: () => null }))
+// The partner card reads through react-query (no provider here); it has its
+// own suite (components/partner/partnerClassesCard.test.jsx).
+vi.mock('../../components/partner/PartnerClassesCard', () => ({ default: () => null }))
 vi.mock('./useSisOrg', () => ({
   useSisOrg: () => ({
     orgId: orgState.orgId, setOrgId: vi.fn(), orgs: [], isSuperadmin: false,

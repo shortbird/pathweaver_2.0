@@ -50,7 +50,7 @@ def _who(ctx, guardian=False, sis_enabled=True):
     return [
         patch.object(parent, '_has_org_access', return_value=guardian),
         patch.object(sis_service, 'get_user_org_context', return_value=ctx),
-        patch.object(parent, 'org_has_feature', return_value=sis_enabled),
+        patch.object(parent, '_sis_org', return_value=sis_enabled),
     ]
 
 

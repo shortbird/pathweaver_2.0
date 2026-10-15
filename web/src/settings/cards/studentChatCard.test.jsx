@@ -53,6 +53,6 @@ describe('settingsCardsFor: the Student chat card', () => {
   it('is on the SIS Settings page whether the module is on or off', () => {
     expect(keys('console', { feature_flags: {}, effective_modules: ['student_chat'] })).toContain('student-chat')
     expect(keys('console', { feature_flags: {}, effective_modules: [] })).toContain('student-chat')
-    expect(keys('learning', { feature_flags: {} })).toContain('student-chat')
+    expect(keys('console', { feature_flags: {} })).toContain('student-chat')
   })
 })

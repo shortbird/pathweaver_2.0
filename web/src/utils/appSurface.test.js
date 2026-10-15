@@ -1,7 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import {
   getAppSurface,
-  getSisFlagOverride,
   isSisHost,
   goToSisSurface,
   goToLearningSurface,
@@ -56,19 +55,8 @@ describe('appSurface', () => {
     expect(getAppSurface()).toBe('learning')
   })
 
-  it('getSisFlagOverride reflects localStorage on non-prod hosts', () => {
-    expect(getSisFlagOverride()).toBe(false)
-    setLocation({ search: '?sisflag=1' })
-    expect(getSisFlagOverride()).toBe(true)
-    setLocation({ search: '?sisflag=0' })
-    expect(getSisFlagOverride()).toBe(false)
-  })
-
-  it('ignores the flag override on the real prod host', () => {
-    localStorage.setItem('optio_sis_flag', '1')
-    setLocation({ hostname: 'www.optioeducation.com' })
-    expect(getSisFlagOverride()).toBe(false)
-  })
+  // The ?sisflag override tests left with getSisFlagOverride on 2026-10-15:
+  // every org is an SIS org, so there is no per-org flag to fake.
 
   it('goToSisSurface sets the override + navigates locally', () => {
     const assign = setLocation()

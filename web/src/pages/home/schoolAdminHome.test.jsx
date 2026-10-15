@@ -98,14 +98,16 @@ describe('SchoolAdminHome', () => {
     renderPage()
 
     expect(screen.getByRole('heading', { name: /welcome back, dana/i })).toBeInTheDocument()
-    expect(screen.getByText('Organization Console')).toBeInTheDocument()
+    expect(screen.getByText('School Admin')).toBeInTheDocument()
     expect(screen.getByText('Classes')).toBeInTheDocument()
     expect(screen.getByText('People')).toBeInTheDocument()
     expect(screen.getByText('Announcements')).toBeInTheDocument()
 
-    expect(screen.getByText('Organization Console').closest('a')).toHaveAttribute('href', '/organization')
+    // The school is run from the SIS console since 2026-10-15; jsdom is not an
+    // Optio host, so the links take the same-origin ?app=sis form.
+    expect(screen.getByText('School Admin').closest('a')).toHaveAttribute('href', '/?app=sis')
     expect(screen.getByText('Classes').closest('a')).toHaveAttribute('href', '/org-classes')
-    expect(screen.getByText('People').closest('a')).toHaveAttribute('href', '/organization?tab=people')
+    expect(screen.getByText('People').closest('a')).toHaveAttribute('href', '/people?app=sis')
     expect(screen.getByText('Announcements').closest('a')).toHaveAttribute('href', '/school')
   })
 
@@ -124,7 +126,7 @@ describe('SchoolAdminHome', () => {
     expect(screen.getByText('Awaiting credit review').closest('a')).toHaveTextContent('4')
   })
 
-  it('deep-links each stat tile into the console', async () => {
+  it('deep-links each stat tile into the SIS console', async () => {
     mockHappyApi()
     renderPage()
 
@@ -132,10 +134,10 @@ describe('SchoolAdminHome', () => {
       expect(screen.getByText('Students')).toBeInTheDocument()
     })
 
-    expect(screen.getByText('Students').closest('a')).toHaveAttribute('href', '/organization?tab=people')
-    expect(screen.getByText('Teachers').closest('a')).toHaveAttribute('href', '/organization?tab=people')
+    expect(screen.getByText('Students').closest('a')).toHaveAttribute('href', '/people?app=sis')
+    expect(screen.getByText('Teachers').closest('a')).toHaveAttribute('href', '/people?app=sis')
     expect(screen.getByText('Active classes').closest('a')).toHaveAttribute('href', '/org-classes')
-    expect(screen.getByText('Awaiting credit review').closest('a')).toHaveAttribute('href', '/organization?tab=credit-review')
+    expect(screen.getByText('Awaiting credit review').closest('a')).toHaveAttribute('href', '/credit-review?app=sis')
   })
 
   it('shows the admin their own teaching: the queue and the classes they instruct', async () => {
@@ -167,7 +169,7 @@ describe('SchoolAdminHome', () => {
 
     // The page is still useful: greeting + doors
     expect(screen.getByRole('heading', { name: /welcome back, dana/i })).toBeInTheDocument()
-    expect(screen.getByText('Organization Console')).toBeInTheDocument()
+    expect(screen.getByText('School Admin')).toBeInTheDocument()
   })
 
   it('keeps a failed source hidden while healthy sources still render', async () => {
@@ -204,6 +206,6 @@ describe('SchoolAdminHome', () => {
     const orgCalls = api.get.mock.calls.filter(([url]) => !accountScoped.some((p) => url.startsWith(p)))
     expect(orgCalls).toEqual([])
     expect(screen.queryByTestId('home-stat-skeleton')).not.toBeInTheDocument()
-    expect(screen.getByText('Organization Console')).toBeInTheDocument()
+    expect(screen.getByText('School Admin')).toBeInTheDocument()
   })
 })

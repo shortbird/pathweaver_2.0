@@ -1,4 +1,5 @@
 import React, { useState } from 'react'
+import { getLearningOrigin } from '../../utils/appSurface'
 import api from '../../services/api'
 
 /**
@@ -51,7 +52,7 @@ export default function CreateUsernameStudentModal({ orgId, orgSlug, onClose, on
       setCreatedCredentials({
         username: response.data.login_credentials.username,
         password: response.data.login_credentials.password,
-        loginUrl: `${window.location.origin}${response.data.login_credentials.login_url}`,
+        loginUrl: `${getLearningOrigin()}${response.data.login_credentials.login_url}`,
         studentName: `${formData.first_name} ${formData.last_name}`,
         linkedToParent: response.data.linked_to_parent === true
       })

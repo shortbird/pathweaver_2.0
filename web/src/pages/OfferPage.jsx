@@ -6,6 +6,7 @@ import api from '../services/api'
 import { useAuth } from '../contexts/AuthContext'
 import { queryKeys } from '../utils/queryKeys'
 import { clearPendingOffer, getPendingOffer, setPendingOffer } from '../utils/pendingOffer'
+import { switchSurfaceInApp } from '../utils/appSurface'
 
 /**
  * /offer/:slug -- the link a credit-class partner gives its buyers.
@@ -154,9 +155,10 @@ export default function OfferPage() {
             </form>
           ) : problem?.code === 'not_a_student' && isOrgAdmin ? (
             // The partner testing their own buyer link: the class itself is
-            // on their organization page, under Quests.
+            // a quest in their school's Library, in the SIS console. It was
+            // the organization page's Quests tab until 2026-10-15.
             <button
-              onClick={() => navigate('/organization?tab=quests')}
+              onClick={() => switchSurfaceInApp('sis', '/library?tab=quests')}
               className="w-full px-4 py-2.5 text-sm font-medium text-white bg-gradient-primary rounded-lg hover:opacity-90"
             >
               See your class

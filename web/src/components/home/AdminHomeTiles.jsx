@@ -13,6 +13,11 @@ import { Link } from 'react-router-dom'
  *
  * HomeDoorGrid: the door tiles into the role's surfaces (extracted from the
  * original stub pages so both homes keep the identical canonical-card look).
+ *
+ * A tile or door with `href` instead of `to`/`path` is a plain <a>: it leaves
+ * the learning app for the SIS console (appSurface.sisConsoleHref), which is
+ * another surface -- on the same origin in dev -- that a router Link cannot
+ * reach, because the surface is only chosen on a full page load.
  */
 
 /** Compact display for large counts: 1,284 / 12.9K. Strings pass through. */
@@ -25,7 +30,7 @@ export function formatStatValue(value) {
   return value.toLocaleString('en')
 }
 
-export function HomeStatTile({ to, label, value, isLoading }) {
+export function HomeStatTile({ to, href, label, value, isLoading }) {
   if (isLoading) {
     return (
       <div
@@ -44,15 +49,16 @@ export function HomeStatTile({ to, label, value, isLoading }) {
   const display = formatStatValue(value)
   if (display == null) return null // source failed or missing: degrade silently
 
-  return (
-    <Link
-      to={to}
-      className="block bg-white rounded-xl border border-gray-200 shadow-sm p-4 hover:border-optio-purple/60 hover:shadow-sm transition-all"
-    >
+  const className = 'block bg-white rounded-xl border border-gray-200 shadow-sm p-4 hover:border-optio-purple/60 hover:shadow-sm transition-all'
+  const body = (
+    <>
       <span className="block text-2xl font-bold text-gray-900">{display}</span>
       <span className="block text-xs text-gray-500 mt-1">{label}</span>
-    </Link>
+    </>
   )
+  return href
+    ? <a href={href} className={className}>{body}</a>
+    : <Link to={to} className={className}>{body}</Link>
 }
 
 /**
@@ -75,21 +81,23 @@ export function HomeStatSection({ stats, ariaLabel, className = '' }) {
 export function HomeDoorGrid({ doors, ariaLabel }) {
   return (
     <nav aria-label={ariaLabel} className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 mt-6">
-      {doors.map(({ name, path, description, Icon }) => (
-        <Link
-          key={path}
-          to={path}
-          className="group flex items-center gap-3 bg-white border border-gray-200 rounded-xl px-3.5 py-3 hover:border-optio-purple/60 hover:shadow-sm transition-all"
-        >
-          <span className="w-9 h-9 rounded-lg bg-optio-purple/10 flex items-center justify-center flex-shrink-0 group-hover:bg-gradient-primary transition-colors">
-            <Icon className="w-5 h-5 text-optio-purple group-hover:text-white transition-colors" />
-          </span>
-          <span className="min-w-0">
-            <span className="block text-sm font-semibold text-gray-900 group-hover:text-optio-purple truncate">{name}</span>
-            <span className="block text-xs text-gray-500 truncate">{description}</span>
-          </span>
-        </Link>
-      ))}
+      {doors.map(({ name, path, href, description, Icon }) => {
+        const className = 'group flex items-center gap-3 bg-white border border-gray-200 rounded-xl px-3.5 py-3 hover:border-optio-purple/60 hover:shadow-sm transition-all'
+        const body = (
+          <>
+            <span className="w-9 h-9 rounded-lg bg-optio-purple/10 flex items-center justify-center flex-shrink-0 group-hover:bg-gradient-primary transition-colors">
+              <Icon className="w-5 h-5 text-optio-purple group-hover:text-white transition-colors" />
+            </span>
+            <span className="min-w-0">
+              <span className="block text-sm font-semibold text-gray-900 group-hover:text-optio-purple truncate">{name}</span>
+              <span className="block text-xs text-gray-500 truncate">{description}</span>
+            </span>
+          </>
+        )
+        return href
+          ? <a key={href} href={href} className={className}>{body}</a>
+          : <Link key={path} to={path} className={className}>{body}</Link>
+      })}
     </nav>
   )
 }

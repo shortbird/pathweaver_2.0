@@ -19,6 +19,12 @@ from modules.enabled import module_enabled_for_row
 from modules.registry import MODULES
 
 
+# Every org is an SIS org (Tanner, 2026-10-15). The console is part of what a
+# school gets, so no panel or form may switch it; the SIS modules inside it
+# stay toggleable one by one.
+UNTOGGLEABLE = frozenset({'sis'})
+
+
 class ModuleChangeError(Exception):
     def __init__(self, message: str, status: int = 400, violations: Optional[List[str]] = None):
         super().__init__(message)
@@ -44,8 +50,8 @@ def requires_violations(org_row: Dict[str, Any]) -> List[str]:
 def mirror_legacy_flags(flags: Dict[str, Any], sis_settings: Dict[str, Any],
                         changes: Dict[str, bool]) -> None:
     """Transition-window mirroring (dropped in P4): these keys have legacy
-    flags with live readers not yet on the module system (sis_enabled sweeps
-    and parent-service checks, routes/kiosk.py, the prior-learning and
+    flags with live readers not yet on the module system (routes/kiosk.py,
+    the prior-learning and
     community bespoke gates, the goals family flow). The module map stays
     authoritative -- an explicit entry beats the legacy answer -- the mirror
     just keeps un-migrated readers agreeing in the meantime.
@@ -55,9 +61,9 @@ def mirror_legacy_flags(flags: Dict[str, Any], sis_settings: Dict[str, Any],
     the map: a module switched on leaves the list, one switched off joins it."""
     hidden = list(sis_settings.get('hidden_modules') or [])
     for key, value in changes.items():
-        if key == 'sis':
-            flags['sis_enabled'] = value
-        elif key == 'kiosk':
+        # 'sis' is not toggleable (check_changes), so it has nothing to mirror;
+        # flags.sis_enabled has had no reader since 2026-10-15.
+        if key == 'kiosk':
             flags['kiosk'] = value
         elif key == 'community':
             sis_settings['community_enabled'] = value
@@ -93,6 +99,9 @@ def check_changes(changes: Any) -> Dict[str, bool]:
         if MODULES[key].gate == 'ai_columns':
             raise ModuleChangeError('AI tools are controlled by the AI settings '
                                     '(parental-consent columns), not the module map')
+        if key in UNTOGGLEABLE:
+            raise ModuleChangeError(f'{MODULES[key].name} is included for every '
+                                    'school and cannot be turned on or off')
     return changes
 
 

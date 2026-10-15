@@ -57,6 +57,7 @@ function renderAt(path) {
             <Route path="/family/billing" element={<Where />} />
             <Route path="/family/forms" element={<Where />} />
             <Route path="/courses-and-credits" element={<Where />} />
+            <Route path="/points" element={<Where />} />
           </Route>
         </Routes>
       </MemoryRouter>
@@ -118,6 +119,19 @@ describe('SchoolShell', () => {
     expect(screen.getByRole('heading', { level: 1, name: 'iCreate' })).toBeInTheDocument()
     await waitFor(() => expect(screen.getByTestId('where')).toHaveTextContent('/school'))
     expect(screen.queryByRole('tablist')).not.toBeInTheDocument()
+  })
+
+  it('opens /points for a student at a school with no homepage', async () => {
+    // Ticket bfe06a17: the sidebar now gives every student at a points school
+    // a Points link. The shell must render the page for them -- no guardian
+    // rows, no school homepage -- rather than redirect or blank it.
+    authState = { user: { id: 's1', role: 'org_managed', org_role: 'student' }, effectiveRole: 'student' }
+    orgState = { school: { id: 'org-1', name: 'iCreate', homepage: false } }
+    memberContext = { success: true, orgs: [{ ...GUARDIAN_ORG, is_guardian: false, students: [], modules: ['points'] }] }
+    parentContext = { orgs: [] }
+    renderAt('/points')
+    await waitFor(() => expect(screen.getByTestId('where')).toHaveTextContent('/points'))
+    expect(screen.getByRole('heading', { level: 1, name: 'iCreate' })).toBeInTheDocument()
   })
 
   it('opens Courses and Credits, not an empty feed, at a family-first school', async () => {

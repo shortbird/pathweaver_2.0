@@ -179,6 +179,10 @@ export default function OrgBlocksPanel({ organization, onClose, onChanged }) {
                     </div>
                     {isCore ? (
                       <span className="text-[11px] font-semibold uppercase tracking-wide text-gray-400">Core</span>
+                    ) : row.toggleable === false ? (
+                      // The SIS is included for every org (2026-10-15); the
+                      // server refuses a change, so there is no switch.
+                      <span className="text-[11px] font-semibold uppercase tracking-wide text-gray-400">Included</span>
                     ) : isAi ? (
                       <span className="text-[11px] text-gray-400">AI settings</span>
                     ) : (

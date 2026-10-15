@@ -90,9 +90,28 @@ def test_gryffin_shape_goals_mode_and_kiosk():
     assert {'clp', 'forms', 'onboarding', 'timesheets'} & got == set()  # timesheets: no such module any more
 
 
-def test_lms_only_shape_no_sis_modules_at_all():
-    row = org({})
-    got = effective_modules_for_row(row)
+def test_every_org_is_an_sis_org():
+    """Tanner, 2026-10-15: an org row with no flags at all is on the SIS,
+    with every default-on SIS module. The retired sis_enabled flag no longer
+    decides anything, either way."""
+    got = effective_modules_for_row(org({}))
+    assert got == CORE | LMS_ON | {'ai', 'sis'} | SIS_DEFAULT_ON
+    assert module_enabled_for_row(org({}), 'sis')
+    assert module_enabled_for_row(org({'sis_enabled': False}), 'sis')
+    assert effective_modules_for_row(org({'sis_enabled': True})) == got
+
+
+def test_no_org_row_is_not_an_sis_org():
+    """'sis' is 'on', not 'core': a platform user (organization_id NULL)
+    has no org row and must never pass an SIS staff gate."""
+    assert module_enabled_for_row(None, 'sis') is False
+    assert 'sis' not in effective_modules_for_row(None)
+
+
+def test_an_explicit_sis_off_still_silences_every_sis_module():
+    """Nothing writes modules.sis any more, but an entry stored before
+    2026-10-15 still wins, and the parent cascade still holds."""
+    got = effective_modules_for_row(org({'modules': {'sis': False}}))
     assert got == CORE | LMS_ON | {'ai'}
     assert not any(MODULES[k].parent == 'sis' or k == 'sis' for k in got)
 
@@ -101,10 +120,12 @@ def test_hearthwood_shape_oea_enabled_grants_credits():
     row = org({'oea_enabled': True, 'registration': {'fee_cents': 0}})
     assert module_enabled_for_row(row, 'credits')
     assert not module_enabled_for_row(row, 'transcripts')  # opt-in, no legacy
-    assert not module_enabled_for_row(row, 'sis')
+    assert module_enabled_for_row(row, 'sis')
     # P0 finding: a registration config dict must NOT enable the module
     # when sis itself is off.
-    assert not module_enabled_for_row(row, 'registration')
+    off = org({'oea_enabled': True, 'registration': {'fee_cents': 0},
+               'modules': {'sis': False}})
+    assert not module_enabled_for_row(off, 'registration')
 
 
 # ---------------------------------------------------------------------------
@@ -122,7 +143,7 @@ def test_explicit_modules_entry_beats_the_legacy_answer():
 
 
 def test_parent_cascade_silences_children_regardless_of_their_entry():
-    row = org({'modules': {'community': True}})  # sis absent -> off
+    row = org({'modules': {'community': True, 'sis': False}})
     assert not module_enabled_for_row(row, 'community')
 
     row = org({'modules': {'sis': True}})
@@ -166,7 +187,7 @@ def test_kiosk_is_a_platform_block_with_no_sis_parent():
     assert module_enabled_for_row(org({'kiosk': True}), 'kiosk')
     assert module_enabled_for_row(org({'modules': {'kiosk': True}}), 'kiosk')
     assert not module_enabled_for_row(org({'kiosk': True, 'modules': {'kiosk': False}}), 'kiosk')
-    got = effective_modules_for_row(org({'modules': {'kiosk': True}}))
+    got = effective_modules_for_row(org({'modules': {'kiosk': True, 'sis': False}}))
     assert 'kiosk' in got and 'sis' not in got
 
 
@@ -223,9 +244,12 @@ def test_the_baseline_beats_the_legacy_hidden_modules_answer():
     assert module_enabled_for_row(row, 'calendar')
 
 
-def test_the_baseline_does_not_turn_on_the_console():
+def test_the_baseline_keeps_the_console_without_any_flag():
+    """Every org is an SIS org (2026-10-15): a starter org with no
+    sis_enabled gets exactly what one with the old flag got."""
     row = org({'module_baseline': 'starter'})
-    assert effective_modules_for_row(row) == CORE | LMS_ON | {'ai'}
+    assert effective_modules_for_row(row) == \
+        CORE | LMS_ON | {'ai', 'sis'} | (SIS_DEFAULT_ON - STARTER_OFF_KEYS)
 
 
 def test_an_unknown_baseline_value_changes_nothing():

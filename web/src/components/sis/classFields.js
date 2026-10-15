@@ -120,6 +120,8 @@ export const toDraft = (c = {}) => {
     exclude_from_pay: !!c.exclude_from_pay,
     // A class that takes no roll: at-home days, independent study (29dff954).
     attendance_optional: !!c.attendance_optional,
+    // The class XP goal (org_classes.xp_threshold, NOT NULL, default 100).
+    xp_threshold: c.xp_threshold != null ? String(c.xp_threshold) : '',
   }
 }
 
@@ -157,4 +159,8 @@ export const draftToPayload = (d) => ({
   internal_notes: (d.internal_notes || '').trim() || null,
   exclude_from_pay: !!d.exclude_from_pay,
   attendance_optional: !!d.attendance_optional,
+  // Blank is left out, never null: the column is NOT NULL, so a new class
+  // takes its default (100) and an edit keeps what it had.
+  xp_threshold: d.xp_threshold === '' || d.xp_threshold == null
+    ? undefined : Math.max(0, Math.round(Number(d.xp_threshold))),
 })

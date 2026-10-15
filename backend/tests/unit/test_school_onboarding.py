@@ -202,7 +202,8 @@ def test_the_form_never_sets_accreditation_or_raw_flags():
     org = orgs.rows[0]
     assert 'accreditation_source' not in org
     flags = org['feature_flags']
-    assert 'kiosk' not in flags and flags['modules'] == {'sis': True}
+    # No modules entry at all: the console needs none since 2026-10-15.
+    assert 'kiosk' not in flags and 'modules' not in flags
     assert repo.link['answers']['accreditation'] == 'Cognia'
     assert 'accreditation_source' not in repo.link['answers']
     assert 'feature_flags' not in repo.link['answers']
@@ -218,7 +219,8 @@ def test_every_school_gets_the_console_on_the_microschool_baseline():
     flags = org['feature_flags']
     assert flags['module_baseline'] == 'microschool'
     assert flags['due_dates'] is True   # the shared new-org defaults survive
-    assert flags['modules'] == {'sis': True}
+    # Every org is an SIS org (2026-10-15): on with no modules entry.
+    assert 'modules' not in flags and 'sis_enabled' not in flags
     assert module_enabled_for_row(org, 'sis')
     for key in ('registration', 'catalog', 'billing', 'tasks', 'onboarding', 'clp',
                 'resources', 'training', 'classes', 'attendance', 'calendar',
@@ -239,7 +241,7 @@ def test_interest_picks_are_recorded_and_turn_nothing_on():
     orgs, repo = FakeOrgRepo(), FakeRepo()
     run(repo, orgs, answers(features=['attendance', 'weekly_goals', 'credits', 'kiosk']))
     org = orgs.rows[0]
-    assert org['feature_flags']['modules'] == {'sis': True}
+    assert 'modules' not in org['feature_flags']
     assert 'kiosk' not in org['feature_flags']
     for key in ('attendance', 'weekly_goals', 'credits', 'kiosk'):
         assert not module_enabled_for_row(org, key), key
@@ -253,7 +255,8 @@ def test_collecting_tuition_turns_on_billing_and_the_registration_it_needs():
     org = orgs.rows[0]
     modules = org['feature_flags']['modules']
     assert modules['billing'] is True and modules['registration'] is True
-    assert modules['sis'] is True
+    assert 'sis' not in modules
+    assert module_enabled_for_row(org, 'sis')
     assert module_enabled_for_row(org, 'billing')
     assert module_enabled_for_row(org, 'registration')
     assert not module_enabled_for_row(org, 'catalog')

@@ -113,7 +113,6 @@ const CommunicationPage = lazy(() => import('./pages/CommunicationPage'))
 // Admin & Special Pages
 const AdminPage = lazy(() => import('./pages/AdminPage'))
 const MobileDemoPage = lazy(() => import('./pages/MobileDemoPage'))
-const OrganizationManagement = lazy(() => import('./pages/admin/OrganizationManagement'))
 const PartnerEnrollStudentPage = lazy(() => import('./pages/PartnerEnrollStudentPage'))
 const OnFireDashboard = lazy(() => import('./pages/OnFireDashboard'))
 const FamilyGroupDashboardPage = lazy(() => import('./pages/FamilyGroupDashboardPage'))
@@ -810,14 +809,12 @@ function App() {
                 <Route path="course-plan/:sessionId" element={<CoursePlanMode />} />
               </Route>
 
-              {/* Organization Management - accessible to org admins and platform admins.
-                  The guard was a bare <PrivateRoute />, so any signed-in user could
-                  open the page; its first call is GET /api/admin/organizations/:id
-                  behind @require_org_admin, so they got a broken page and a Sentry
-                  403 (OPTIO-WEB-N). is_org_admin covers campus_coordinator too, so
-                  this matches the backend gate exactly. */}
+              {/* The web organization console was removed on 2026-10-15: every
+                  org is an SIS org and the school is run from the SIS console.
+                  An old bookmark to /organization hops there instead of landing
+                  on the catch-all. */}
               <Route element={<PrivateRoute requiredRole={["org_admin", "superadmin"]} />}>
-                <Route path="organization" element={<OrganizationManagement />} />
+                <Route path="organization" element={<Navigate to="/sis-launch" replace />} />
               </Route>
 
               {/* Partner course-purchase registration form - org admins + superadmin */}

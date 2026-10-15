@@ -4,7 +4,7 @@ import { toast } from 'react-hot-toast'
 import api from '../../services/api'
 import { useSisOrg, withOrg } from './useSisOrg'
 import { useAuth } from '../../contexts/AuthContext'
-import { canSeeFinance } from './sisRole'
+import { canSeeFinance, isOrgAdminTier } from './sisRole'
 import { moduleKnownOff } from '../../modules/moduleEnabled'
 import shapeReport from './reportsPage/shapeReport'
 import { printElement } from '../../utils/printView'
@@ -20,6 +20,7 @@ import ReportTable from './reportsPage/ReportTable'
 import OverviewStats from './reportsPage/OverviewStats'
 import FamilyLocations, { familyLocationsSummary } from './reportsPage/FamilyLocations'
 import AnswerFilters from './reportsPage/AnswerFilters'
+import OrgStudentProgress from '../../components/admin/OrgStudentProgress'
 import {
   ANSWER_SORTS, EMPTY_ANSWER_FILTERS, answerRowCells, filterAnswerRows,
 } from './reportsPage/answerFilterRules'
@@ -208,7 +209,11 @@ const ReportsPage = () => {
   // (MICROSCHOOL_FIRST_PLAN part 2); attendance likewise owns its overview row.
   const seesMoney = canSeeFinance(user) && !moduleKnownOff(activeOrg, 'billing')
   const seesAttendance = !moduleKnownOff(activeOrg, 'attendance')
-  const reports = useMemo(() => visibleReports(seesMoney, activeOrg), [seesMoney, activeOrg])
+  // The student progress report reads an org-admin endpoint, which a campus
+  // coordinator cannot call (require_org_admin).
+  const orgAdmin = isOrgAdminTier(user)
+  const reports = useMemo(() => visibleReports(seesMoney, activeOrg, orgAdmin),
+    [seesMoney, activeOrg, orgAdmin])
   const requested = searchParams.get('report')
   const active = reports.find((r) => r.key === requested) || reportByKey('overview')
   const pickReport = (key) => setSearchParams(key === 'overview' ? {} : { report: key }, { replace: true })
@@ -604,6 +609,13 @@ const ReportsPage = () => {
             {active.key === 'overview' ? (
               <OverviewStats enrollment={enrollment} revenue={revenue} attendance={attendance}
                 seesMoney={seesMoney} seesAttendance={seesAttendance} />
+            ) : active.key === 'student-progress' ? (
+              // Its own date range, summary, sortable table and CSV. A
+              // student's name opens their overview, and Back returns here.
+              orgId && (
+                <OrgStudentProgress orgId={orgId} hideHeading
+                  returnTo="/reports?report=student-progress" />
+              )
             ) : (
               <>
                 {options && (

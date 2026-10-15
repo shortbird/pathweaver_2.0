@@ -100,7 +100,7 @@ class TestRegisterableStudents:
     def test_household_student_is_registerable_when_sis_enabled(self):
         with patch('services.sis_parent_service._admin',
                    return_value=_fake_admin(_resolver)), \
-             patch('services.sis_parent_service.org_has_feature', return_value=True):
+             patch('services.sis_parent_service._sis_org', return_value=True):
             students = parent.registerable_students('g1')
         assert len(students) == 1
         assert students[0]['student_id'] == 'stu1'
@@ -110,19 +110,19 @@ class TestRegisterableStudents:
     def test_excluded_when_org_not_sis_enabled(self):
         with patch('services.sis_parent_service._admin',
                    return_value=_fake_admin(_resolver)), \
-             patch('services.sis_parent_service.org_has_feature', return_value=False):
+             patch('services.sis_parent_service._sis_org', return_value=False):
             assert parent.registerable_students('g1') == []
 
     def test_non_guardian_has_no_students(self):
         with patch('services.sis_parent_service._admin',
                    return_value=_fake_admin(_resolver)), \
-             patch('services.sis_parent_service.org_has_feature', return_value=True):
+             patch('services.sis_parent_service._sis_org', return_value=True):
             assert parent.registerable_students('stranger') == []
 
     def test_approved_link_makes_a_guardian_without_a_household(self):
         with patch('services.sis_parent_service._admin',
                    return_value=_fake_admin(_linked_resolver)), \
-             patch('services.sis_parent_service.org_has_feature', return_value=True):
+             patch('services.sis_parent_service._sis_org', return_value=True):
             students = parent.registerable_students('g2')
         assert len(students) == 1
         assert students[0]['student_id'] == 'stu2'
@@ -138,13 +138,13 @@ class TestRegisterableStudents:
 
         with patch('services.sis_parent_service._admin',
                    return_value=_fake_admin(pending)), \
-             patch('services.sis_parent_service.org_has_feature', return_value=True):
+             patch('services.sis_parent_service._sis_org', return_value=True):
             assert parent.registerable_students('g2') == []
 
     def test_context_groups_students_by_org(self):
         with patch('services.sis_parent_service._admin',
                    return_value=_fake_admin(_resolver)), \
-             patch('services.sis_parent_service.org_has_feature', return_value=True):
+             patch('services.sis_parent_service._sis_org', return_value=True):
             ctx = parent.context('g1')
         assert len(ctx['orgs']) == 1
         assert ctx['orgs'][0]['organization_name'] == 'Micro School'
@@ -321,7 +321,7 @@ class TestContextCarriesEffectiveModules:
     def _context(self, flags):
         with patch('services.sis_parent_service._admin',
                    return_value=_fake_admin(self._resolver_with_flags(flags))), \
-             patch('services.sis_parent_service.org_has_feature', return_value=True):
+             patch('services.sis_parent_service._sis_org', return_value=True):
             return parent.context('g1')
 
     def test_a_hidden_module_is_absent_from_the_list(self):
@@ -335,9 +335,15 @@ class TestContextCarriesEffectiveModules:
         ctx = self._context({'sis_enabled': True})
         assert 'onboarding' in ctx['orgs'][0]['effective_modules']
 
-    def test_a_non_sis_org_gets_only_core(self):
-        # The parent cascade: sis off silences every module under it.
+    def test_an_org_with_no_flags_is_an_sis_org(self):
+        # Every org is an SIS org since 2026-10-15.
         modules = self._context({})['orgs'][0]['effective_modules']
+        assert 'sis' in modules
+        assert 'onboarding' in modules
+
+    def test_an_explicit_sis_off_gets_only_core(self):
+        # The parent cascade: sis off silences every module under it.
+        modules = self._context({'modules': {'sis': False}})['orgs'][0]['effective_modules']
         assert 'sis' not in modules
         assert 'onboarding' not in modules
 

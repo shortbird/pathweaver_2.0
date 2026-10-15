@@ -13,6 +13,7 @@ import ClassWaitlist from './ClassWaitlist'
 import CLASS_TABS from './CLASS_TABS'
 import GlassTabBar from '../../../components/ui/GlassTabBar'
 import { moduleKnownOff } from '../../../modules/moduleEnabled'
+import ClassInviteLink from '../../../components/classes/ClassInviteLink'
 
 const ClassDetailModal = ({ cls, staff, timeBlocks = [], rooms = [], roomOccupancy = {}, orgId, initialTab = 'details', onClose, onSubmit, onToggleRegistration, onArchive, onRestore, onRosterChanged, org = null }) => {
   // Without the registration module there is no open/closed switch and no
@@ -101,7 +102,24 @@ const ClassDetailModal = ({ cls, staff, timeBlocks = [], rooms = [], roomOccupan
             </div>
           )}
 
-          {tab === 'roster' && <ClassRoster classId={cls.id} className={cls.name} orgId={orgId} onChanged={onRosterChanged} />}
+          {tab === 'roster' && (
+            <>
+              {/* The class's standing join link: whoever opens it joins the
+                  school as a student and lands in this class. It lived only on
+                  the organization console's class page until 2026-10-15. The
+                  backend refuses a link for an archived class. `relative`
+                  anchors the link's pop-out row. */}
+              {!isArchived && orgId && (
+                <div className="relative mb-4 flex items-center justify-between gap-3">
+                  <p className="text-xs text-neutral-500">
+                    Share a link that adds a student to the school and to this class.
+                  </p>
+                  <ClassInviteLink orgId={orgId} classId={cls.id} />
+                </div>
+              )}
+              <ClassRoster classId={cls.id} className={cls.name} orgId={orgId} onChanged={onRosterChanged} />
+            </>
+          )}
           {showRegistration && tab === 'waitlist' && <ClassWaitlist classId={cls.id} orgId={orgId} cls={cls} onChanged={onRosterChanged} />}
         </div>
       </div>

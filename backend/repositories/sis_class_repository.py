@@ -46,6 +46,10 @@ SIS_CLASS_FIELDS = (
     # ticket 29dff954). Left out of every missing-roll alert and the rate.
     # Staff-only for the same reason as exclude_from_pay.
     'attendance_optional',
+    # The XP a student earns in the class's quests to complete the class
+    # (class_service.calculate_student_class_progress). 0 = never auto-completes.
+    # The organization console wrote it; the SIS console does since 2026-10-15.
+    'xp_threshold',
 )
 
 

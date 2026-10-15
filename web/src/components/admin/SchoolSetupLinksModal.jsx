@@ -6,6 +6,7 @@ import { Modal } from '../ui/Modal'
 import { INPUT_CLASS } from '../ui/Input'
 import { queryKeys } from '../../utils/queryKeys'
 import { useConfirm } from '../../contexts/ConfirmContext'
+import { sisConsoleHref } from '../../utils/appSurface'
 
 /**
  * Superadmin: single-use links that let a new school's operator create their
@@ -185,7 +186,7 @@ export default function SchoolSetupLinksModal({ onClose }) {
                         {openId === link.id ? 'Hide answers' : 'Answers'}
                       </button>
                       {link.organization_id && (
-                        <a href={`/admin/organizations/${link.organization_id}`} className="text-optio-purple hover:underline">
+                        <a href={sisConsoleHref('/', link.organization_id)} className="text-optio-purple hover:underline">
                           Open school
                         </a>
                       )}

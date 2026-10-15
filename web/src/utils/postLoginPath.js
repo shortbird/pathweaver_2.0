@@ -47,16 +47,18 @@ export function parentHomePath(_user, _school = null) {
  *   first-visit state).
  *
  * The only remaining forks hop SURFACES, not pages:
- * - staff of SIS-enabled orgs (org_admin, advisor, campus_coordinator) work
- *   in the SIS console, so they front-door through /sis-launch;
+ * - staff of an org (org_admin, advisor, campus_coordinator) work in the SIS
+ *   console, so they front-door through /sis-launch -- every org is an SIS
+ *   org since 2026-10-15; a platform advisor with no org stays on /dashboard;
  * - simplified partner orgs keep their dedicated /onfire dashboard;
  * - parents land on the family dashboard, which is their home (2026-09-15;
  *   it used to be Optio Academy parents only, see config/optioAcademy.js).
  */
 export function getPostLoginPath(user) {
   const role = effectiveRole(user)
-  // 'sis' is the add-on switch in the module system; /me embeds the org with
-  // its server-computed effective_modules (legacy sis_enabled is the fallback).
+  // 'sis' is on for every org since 2026-10-15 (an explicit modules.sis=false
+  // still wins); /me embeds the org with its server-computed effective_modules.
+  // No org (a platform user) means no SIS.
   const sisEnabled = user?.organization
     ? moduleEnabled(user.organization, 'sis')
     : false

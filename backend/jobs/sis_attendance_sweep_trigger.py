@@ -3,7 +3,7 @@ SIS Attendance Sweep Cron Trigger
 
 Lightweight standalone script executed by Render's cron service every ~10 min during
 the day. POSTs to the SIS sweep endpoint, which sends check-in reminders + attendance
-gap alerts for every sis_enabled org (each org's school-hours window is enforced
+gap alerts for every SIS org -- every org since 2026-10-15 (each org's school-hours window is enforced
 server-side, so a wide cron window is fine).
 
 Required env vars:

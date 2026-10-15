@@ -401,6 +401,16 @@ describe('adding', () => {
     expect(await screen.findByRole('button', { name: '+ Add a second parent' })).toBeInTheDocument()
   })
 
+  // The dashboard's Getting started checklist (2026-10-15) links to the
+  // other jobs the same way.
+  it('?add=staff opens the staff form and ?add=roster the spreadsheet import', async () => {
+    const { unmount } = render(<PeoplePage />, { route: '/people?add=staff' })
+    expect(await screen.findByText('NEW TEACHER placeholders:1')).toBeInTheDocument()
+    unmount()
+    render(<PeoplePage />, { route: '/people?add=roster' })
+    expect(await screen.findByText('Add people from a spreadsheet')).toBeInTheDocument()
+  })
+
   it('exports the rows on screen', async () => {
     render(<PeoplePage />)
     await screen.findByText('Ada Ant')

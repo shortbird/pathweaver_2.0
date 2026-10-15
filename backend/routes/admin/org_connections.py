@@ -2,12 +2,18 @@
 Organization Connections Routes
 
 Handles advisor-student and parent-student connections scoped to an organization.
-Accessible to org_admin users for their own organization.
+
+Front office (utils.sis_roles.ADMIN_ROLES: org_admin, campus_coordinator,
+superadmin) since 2026-10-15, when the SIS console took these over from the
+web organization console. A coordinator already ran the same relationships
+through families (adding a guardian to a household links them to its
+children); who teaches whom and who is whose parent is campus work, not money
+and not an admin grant.
 """
 
 from flask import Blueprint, request, jsonify
 from database import get_supabase_admin_client
-from utils.auth.decorators import require_org_admin
+from utils.auth.decorators import require_org_front_office
 from utils.auth.relationships import require_relationship_to
 from utils.roles import get_effective_role, has_any_role
 from datetime import datetime
@@ -26,7 +32,7 @@ def _guard_org(current_org_id, is_superadmin, org_id):
     in the path (roster/PII disclosure, cross-org advisor/parent-link writes,
     even binding themselves as guardian of another org's minor).
 
-    @require_org_admin injects `current_org_id` (the caller's real org) and
+    @require_org_front_office injects `current_org_id` (the caller's real org) and
     `is_superadmin`; compare them here. Returns an error response tuple on
     violation, else None. Uses 404 (not 403) so the response does not confirm
     whether the target org exists.
@@ -40,73 +46,8 @@ def _guard_org(current_org_id, is_superadmin, org_id):
     return None
 
 
-@bp.route('/<org_id>/advisors', methods=['GET'])
-@require_org_admin
-def get_org_advisors(current_user_id, current_org_id, is_superadmin, org_id):
-    """Get list of advisors and org_admins in the organization with their assigned student counts"""
-    guard = _guard_org(current_org_id, is_superadmin, org_id)
-    if guard:
-        return guard
-    # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
-    supabase = get_supabase_admin_client()
-
-    try:
-        # Get all users with advisor or org_admin role in this organization
-        # Note: Org users have role='org_managed' with actual role in org_role
-        advisors = supabase.table('users')\
-            .select('id, display_name, first_name, last_name, email, role, org_role, created_at')\
-            .eq('organization_id', org_id)\
-            .in_('org_role', ['advisor', 'org_admin'])\
-            .order('display_name')\
-            .execute()
-
-        # Get all active assignments for students in this org
-        org_students = supabase.table('users')\
-            .select('id')\
-            .eq('organization_id', org_id)\
-            .eq('org_role', 'student')\
-            .execute()
-
-        org_student_ids = [s['id'] for s in org_students.data]
-
-        if org_student_ids:
-            all_assignments = supabase.table('advisor_student_assignments')\
-                .select('advisor_id')\
-                .eq('is_active', True)\
-                .in_('student_id', org_student_ids)\
-                .execute()
-        else:
-            all_assignments = type('obj', (object,), {'data': []})()
-
-        # Build a count map for efficient lookup
-        assignment_counts = {}
-        for assignment in all_assignments.data:
-            advisor_id = assignment['advisor_id']
-            assignment_counts[advisor_id] = assignment_counts.get(advisor_id, 0) + 1
-
-        # Build advisor list with counts
-        advisor_list = []
-        for advisor in advisors.data:
-            advisor_list.append({
-                **advisor,
-                # Map org_role to role for frontend compatibility
-                'role': advisor.get('org_role', advisor.get('role')),
-                'assigned_students_count': assignment_counts.get(advisor['id'], 0)
-            })
-
-        return jsonify({
-            'success': True,
-            'advisors': advisor_list,
-            'total': len(advisor_list)
-        })
-
-    except Exception as e:
-        logger.error(f"Error in get_org_advisors: {str(e)}", exc_info=True)
-        return jsonify({'success': False, 'error': 'Failed to retrieve advisors'}), 500
-
-
 @bp.route('/<org_id>/advisors/<advisor_id>/students', methods=['GET'])
-@require_org_admin
+@require_org_front_office
 def get_org_advisor_students(current_user_id, current_org_id, is_superadmin, org_id, advisor_id):
     """Get list of students assigned to a specific advisor (scoped to org)"""
     guard = _guard_org(current_org_id, is_superadmin, org_id)
@@ -195,7 +136,7 @@ def get_org_advisor_students(current_user_id, current_org_id, is_superadmin, org
 
 
 @bp.route('/<org_id>/advisors/<advisor_id>/students', methods=['POST'])
-@require_org_admin
+@require_org_front_office
 def assign_org_student_to_advisor(current_user_id, current_org_id, is_superadmin, org_id, advisor_id):
     """Assign a student to an advisor (both must be in the org)"""
     guard = _guard_org(current_org_id, is_superadmin, org_id)
@@ -213,7 +154,7 @@ def assign_org_student_to_advisor(current_user_id, current_org_id, is_superadmin
 
         # Verify advisor belongs to org
         advisor = supabase.table('users')\
-            .select('id, role, org_role, organization_id')\
+            .select('id, role, org_role, org_roles, organization_id')\
             .eq('id', advisor_id)\
             .single()\
             .execute()
@@ -224,8 +165,10 @@ def assign_org_student_to_advisor(current_user_id, current_org_id, is_superadmin
         if advisor.data.get('organization_id') != org_id and not is_superadmin:
             return jsonify({'success': False, 'error': 'Advisor not in this organization'}), 403
 
-        effective_advisor_role = get_effective_role(advisor.data)
-        if effective_advisor_role not in ['advisor', 'org_admin', 'superadmin']:
+        # Every role they hold, not the primary one: staff are often parents
+        # at their own school, and a teacher stored as ['parent', 'advisor']
+        # read as a parent here and could not be given a student.
+        if not has_any_role(advisor.data, ['advisor', 'org_admin', 'superadmin']):
             return jsonify({'success': False, 'error': 'User is not an advisor or admin'}), 400
 
         # Verify student belongs to org
@@ -298,7 +241,7 @@ def assign_org_student_to_advisor(current_user_id, current_org_id, is_superadmin
 
 
 @bp.route('/<org_id>/advisors/<advisor_id>/students/<student_id>', methods=['DELETE'])
-@require_org_admin
+@require_org_front_office
 def unassign_org_student_from_advisor(current_user_id, current_org_id, is_superadmin, org_id, advisor_id, student_id):
     """Remove a student assignment from an advisor"""
     guard = _guard_org(current_org_id, is_superadmin, org_id)
@@ -346,7 +289,7 @@ def unassign_org_student_from_advisor(current_user_id, current_org_id, is_supera
 
 
 @bp.route('/<org_id>/students/advisor-assignments', methods=['GET'])
-@require_org_admin
+@require_org_front_office
 def get_org_students_with_advisors(current_user_id, current_org_id, is_superadmin, org_id):
     """Get all students in the org with their assigned advisors list.
 
@@ -435,7 +378,7 @@ def get_org_students_with_advisors(current_user_id, current_org_id, is_superadmi
 
 
 @bp.route('/<org_id>/students/<student_id>/advisors', methods=['GET'])
-@require_org_admin
+@require_org_front_office
 @require_relationship_to('student_id', allow=('org_staff',))
 def get_student_advisors(current_user_id, current_org_id, is_superadmin, org_id, student_id):
     """Get all advisors assigned to a specific student"""
@@ -509,110 +452,8 @@ def get_student_advisors(current_user_id, current_org_id, is_superadmin, org_id,
         return jsonify({'success': False, 'error': 'Failed to retrieve student advisors'}), 500
 
 
-@bp.route('/<org_id>/students/<student_id>/advisors/<advisor_id>', methods=['DELETE'])
-@require_org_admin
-def unassign_advisor_from_student(current_user_id, current_org_id, is_superadmin, org_id, student_id, advisor_id):
-    """Remove a specific advisor assignment from a student"""
-    guard = _guard_org(current_org_id, is_superadmin, org_id)
-    if guard:
-        return guard
-    # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
-    supabase = get_supabase_admin_client()
-
-    try:
-        # Verify student belongs to org
-        student = supabase.table('users')\
-            .select('id, organization_id')\
-            .eq('id', student_id)\
-            .single()\
-            .execute()
-
-        if not student.data or (student.data.get('organization_id') != org_id and not is_superadmin):
-            return jsonify({'success': False, 'error': 'Student not in this organization'}), 403
-
-        # Find the assignment
-        assignment = supabase.table('advisor_student_assignments')\
-            .select('id')\
-            .eq('advisor_id', advisor_id)\
-            .eq('student_id', student_id)\
-            .eq('is_active', True)\
-            .execute()
-
-        if not assignment.data or len(assignment.data) == 0:
-            return jsonify({'success': False, 'error': 'Assignment not found'}), 404
-
-        # Deactivate the assignment
-        supabase.table('advisor_student_assignments')\
-            .update({'is_active': False})\
-            .eq('id', assignment.data[0]['id'])\
-            .execute()
-
-        return jsonify({
-            'success': True,
-            'message': 'Advisor unassigned from student successfully'
-        })
-
-    except Exception as e:
-        logger.error(f"Error in unassign_advisor_from_student: {str(e)}", exc_info=True)
-        return jsonify({'success': False, 'error': 'Failed to unassign advisor'}), 500
-
-
-@bp.route('/<org_id>/students/unassigned', methods=['GET'])
-@require_org_admin
-def get_org_unassigned_students(current_user_id, current_org_id, is_superadmin, org_id):
-    """Get list of students in the org who are not assigned to any advisor"""
-    guard = _guard_org(current_org_id, is_superadmin, org_id)
-    if guard:
-        return guard
-    # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
-    supabase = get_supabase_admin_client()
-
-    try:
-        # Get all students in this org (org users have role='org_managed', actual role in org_role)
-        all_students = supabase.table('users')\
-            .select('id, display_name, first_name, last_name, email')\
-            .eq('organization_id', org_id)\
-            .eq('org_role', 'student')\
-            .order('display_name')\
-            .execute()
-
-        student_ids = [s['id'] for s in all_students.data]
-
-        if not student_ids:
-            return jsonify({
-                'success': True,
-                'students': [],
-                'total': 0
-            })
-
-        # Get all active assignments for these students
-        assignments = supabase.table('advisor_student_assignments')\
-            .select('student_id')\
-            .eq('is_active', True)\
-            .in_('student_id', student_ids)\
-            .execute()
-
-        assigned_student_ids = {a['student_id'] for a in assignments.data}
-
-        # Filter to only unassigned students
-        unassigned_students = [
-            student for student in all_students.data
-            if student['id'] not in assigned_student_ids
-        ]
-
-        return jsonify({
-            'success': True,
-            'students': unassigned_students,
-            'total': len(unassigned_students)
-        })
-
-    except Exception as e:
-        logger.error(f"Error in get_org_unassigned_students: {str(e)}", exc_info=True)
-        return jsonify({'success': False, 'error': 'Failed to retrieve unassigned students'}), 500
-
-
 @bp.route('/<org_id>/parent-connections/links', methods=['GET'])
-@require_org_admin
+@require_org_front_office
 def get_org_parent_links(current_user_id, current_org_id, is_superadmin, org_id):
     """Get all parent-student connections for students in this organization"""
     guard = _guard_org(current_org_id, is_superadmin, org_id)
@@ -630,6 +471,12 @@ def get_org_parent_links(current_user_id, current_org_id, is_superadmin, org_id)
             .execute()
 
         student_ids = [s['id'] for s in org_students.data]
+
+        # ?student_id= narrows the list to one student's parents (the SIS
+        # student record). Still only a student of this org.
+        only = request.args.get('student_id')
+        if only:
+            student_ids = [sid for sid in student_ids if sid == only]
 
         if not student_ids:
             return jsonify({
@@ -676,7 +523,7 @@ def get_org_parent_links(current_user_id, current_org_id, is_superadmin, org_id)
 
 
 @bp.route('/<org_id>/parent-connections/links/<link_id>', methods=['DELETE'])
-@require_org_admin
+@require_org_front_office
 def disconnect_org_parent_link(current_user_id, current_org_id, is_superadmin, org_id, link_id):
     """Disconnect a parent-student link"""
     guard = _guard_org(current_org_id, is_superadmin, org_id)
@@ -719,102 +566,3 @@ def disconnect_org_parent_link(current_user_id, current_org_id, is_superadmin, o
     except Exception as e:
         logger.error(f"Error in disconnect_org_parent_link: {str(e)}", exc_info=True)
         return jsonify({'success': False, 'error': 'Failed to disconnect link'}), 500
-
-
-@bp.route('/<org_id>/parent-connections/manual-link', methods=['POST'])
-@require_org_admin
-def create_org_manual_parent_link(current_user_id, current_org_id, is_superadmin, org_id):
-    """Create a manual parent-student connection"""
-    guard = _guard_org(current_org_id, is_superadmin, org_id)
-    if guard:
-        return guard
-    # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
-    supabase = get_supabase_admin_client()
-
-    try:
-        data = request.json
-        parent_user_id = data.get('parent_user_id')
-        student_user_id = data.get('student_user_id')
-        admin_notes = data.get('admin_notes', '')
-
-        if not parent_user_id or not student_user_id:
-            return jsonify({'success': False, 'error': 'parent_user_id and student_user_id are required'}), 400
-
-        # Verify student is in this org
-        student = supabase.table('users')\
-            .select('id, organization_id, role, org_role')\
-            .eq('id', student_user_id)\
-            .single()\
-            .execute()
-
-        if not student.data:
-            return jsonify({'success': False, 'error': 'Student not found'}), 404
-
-        if student.data.get('organization_id') != org_id and not is_superadmin:
-            return jsonify({'success': False, 'error': 'Student not in this organization'}), 403
-
-        effective_student_role = get_effective_role(student.data)
-        if effective_student_role != 'student':
-            return jsonify({'success': False, 'error': 'User is not a student'}), 400
-
-        # Verify parent exists and has parent role (supports multiple roles)
-        parent = supabase.table('users')\
-            .select('id, role, org_role, org_roles, last_name')\
-            .eq('id', parent_user_id)\
-            .single()\
-            .execute()
-
-        if not parent.data:
-            return jsonify({'success': False, 'error': 'Parent not found'}), 404
-
-        # Check if user has parent role (supports users with multiple roles like ['advisor', 'parent'])
-        if not has_any_role(parent.data, ['parent']):
-            return jsonify({'success': False, 'error': 'User is not a parent'}), 400
-
-        # Check if link already exists
-        existing = supabase.table('parent_student_links')\
-            .select('id')\
-            .eq('parent_user_id', parent_user_id)\
-            .eq('student_user_id', student_user_id)\
-            .execute()
-
-        if existing.data and len(existing.data) > 0:
-            return jsonify({'success': False, 'error': 'Connection already exists'}), 409
-
-        # Create verified link using RPC function
-        link_response = supabase.rpc('create_verified_parent_link', {
-            'p_parent_id': parent_user_id,
-            'p_student_id': student_user_id,
-            'p_admin_id': current_user_id,
-            'p_notes': admin_notes
-        }).execute()
-
-        logger.info(f"Org admin {current_user_id} created link between parent {parent_user_id} and student {student_user_id}")
-
-        # Family surfaces (Schedule Builder, SIS parent context) resolve a
-        # parent's children from household membership, not parent_student_links,
-        # so also ensure the pair shares a household in this org. Best-effort:
-        # the LMS link above is the source of truth for the parent dashboard.
-        try:
-            from routes.admin.organization_management import _ensure_shared_household
-            _ensure_shared_household(
-                supabase, org_id, parent_user_id,
-                parent.data.get('last_name'), student_user_id
-            )
-        except Exception as household_err:
-            logger.warning(
-                f"Parent link created but household sync failed for parent "
-                f"{parent_user_id} / student {student_user_id}: {household_err}"
-            )
-
-        return jsonify({
-            'success': True,
-            'message': 'Parent-student connection created',
-            'link_id': link_response.data
-        })
-
-    except Exception as e:
-        logger.error(f"Error in create_org_manual_parent_link: {str(e)}", exc_info=True)
-        return jsonify({'success': False, 'error': 'Failed to create connection'}), 500
-
-

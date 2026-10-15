@@ -51,6 +51,28 @@ class SisQuestLibraryRepository(BaseRepository):
             logger.error(f"Error listing org quests for {org_id}: {e}")
             raise DatabaseError("Failed to list quests") from e
 
+    def list_unpublished_org_quests(self, org_id: str, limit: int = 200) -> List[Dict[str, Any]]:
+        """The org's inactive, unarchived quests, with metadata so the caller
+        can drop drafts (services.sis_quest_authoring.is_draft): what is left
+        is a quest somebody published and then took down."""
+        try:
+            return (self.client.table(self.table_name)
+                    .select(_QUEST_COLUMNS + ', is_active, metadata')
+                    .eq('organization_id', org_id).eq('is_active', False).is_('archived_at', 'null')
+                    .order('updated_at', desc=True).limit(limit).execute()).data or []
+        except APIError as e:
+            logger.error(f"Error listing unpublished quests for {org_id}: {e}")
+            raise DatabaseError("Failed to list quests") from e
+
+    def set_active(self, quest_id: str, active: bool) -> None:
+        """Publish (True) or take down (False) one quest. deactivated_at says
+        when it came down, and clears when it goes back up."""
+        from datetime import datetime, timezone
+        self.client.table(self.table_name).update({
+            'is_active': active,
+            'deactivated_at': None if active else datetime.now(timezone.utc).isoformat(),
+        }).eq('id', quest_id).execute()
+
     def started_count(self, quest_id: str) -> int:
         """How many learners have this quest (user_quests rows). A count, not
         a row read, so it is exact past the PostgREST cap."""

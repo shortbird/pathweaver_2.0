@@ -120,6 +120,7 @@ const LibraryPage = () => {
     else params.set('tab', next)
     // Deep-link state belongs to its own tab.
     if (next !== 'curriculum') params.delete('curriculum')
+    if (next !== 'quests') params.delete('quests')
     if (next !== 'documents') { params.delete('highlight'); params.delete('docs') }
     setSearchParams(params, { replace: true })
   }

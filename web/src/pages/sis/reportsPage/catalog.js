@@ -11,6 +11,10 @@
  * `autoRun`: a report with nothing to choose runs the moment it is picked.
  * The ones that need a choice (which classes, which question) wait for it.
  * `money`: finance tier only; the campus coordinator never sees it listed.
+ * `orgAdmin`: org admins and superadmins only -- the endpoint is the
+ * organization console's (require_org_admin), which a coordinator cannot call.
+ * `custom`: the report draws its own options, sheet and CSV (the student
+ * progress table), so the page renders it whole instead of its generic sheet.
  * `module`: the building block the report reads; it hides when the school has
  * that block off (docs/MICROSCHOOL_FIRST_PLAN.md part 2). `modules` is a list
  * of which any one suffices. A group left with no reports hides with them
@@ -34,6 +38,13 @@ export const REPORTS = [
   {
     key: 'overview', group: 'overview', title: 'At a glance', autoRun: false,
     description: 'How many students are in classes, how attendance is running, and what has been billed and collected.',
+  },
+  {
+    // The organization console's Progress tab (OrgStudentProgress), moved here
+    // on 2026-10-15. Every school has students earning XP, so no module.
+    key: 'student-progress', group: 'overview', title: 'Student progress', autoRun: false,
+    orgAdmin: true, custom: true,
+    description: 'Every student’s XP, quests and tasks done in a date range, and when they were last active. Sort any column or download the sheet.',
   },
   {
     key: 'rosters', module: 'classes', group: 'rosters', title: 'Class rosters', autoRun: false,
@@ -109,8 +120,9 @@ export const reportByKey = (key) => REPORTS.find((r) => r.key === key) || REPORT
 // rule as the nav.
 const moduleOn = (org, key) => !moduleKnownOff(org, key)
 
-export const visibleReports = (seesMoney, org = null) => REPORTS.filter((r) => (
+export const visibleReports = (seesMoney, org = null, orgAdmin = true) => REPORTS.filter((r) => (
   (seesMoney || !r.money)
+  && (orgAdmin || !r.orgAdmin)
   && (!r.module || moduleOn(org, r.module))
   && (!r.modules || r.modules.some((m) => moduleOn(org, m)))
 ))

@@ -2,8 +2,8 @@
 
 A partner (Raleigh Williams, 2026-09-30) sells a course; Optio turns it into a
 credit class (quest_type='class', one transcript_subject, a 1,000 XP goal). The
-partner keeps one TEMPLATE class in its org and edits it from /organization ->
-Quests. Every buyer gets their own copy, because a class's review status lives
+partner keeps one TEMPLATE class in its org and edits it from the SIS console's
+Library. Every buyer gets their own copy, because a class's review status lives
 on the quests row: students sharing one class would share one review result.
 
 Two doors reach provision():

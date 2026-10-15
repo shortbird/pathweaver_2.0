@@ -113,7 +113,7 @@ These have modals embedded in page components:
 24. ❌ web/src/components/admin/AdminConnections.jsx
 25. ❌ web/src/components/admin/UnifiedQuestForm.jsx
 26. ❌ web/src/components/quests/QuestPersonalizationWizard.jsx
-27. ❌ web/src/pages/admin/OrganizationManagement.jsx
+27. ✅ ~~web/src/pages/admin/OrganizationManagement.jsx~~ (deleted 2026-10-15 with the web organization console)
 28. ❌ web/src/pages/admin/OrganizationDashboard.jsx
 29. ❌ web/src/pages/admin/SubjectReviewPage.jsx
 30. ❌ web/src/pages/TaskLibraryBrowser.jsx

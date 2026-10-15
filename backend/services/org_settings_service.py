@@ -28,6 +28,7 @@ from typing import Any, Dict, Optional, Tuple
 
 from repositories import organization_repository
 from utils.org_finance_flags import guard_org_flags_write
+from services.external_learning_verification import SKIP_BLOOMY_IN_INBOX_KEY
 from utils.org_task_xp import SETTING_KEY as MIN_TASK_XP_KEY, invalid_min_task_xp
 from utils.org_secrets import (
     STRIPE_SECRET_KEY,
@@ -48,7 +49,9 @@ from utils.registration_config import (
 PATCHABLE_TOP_KEYS = frozenset({
     'sis_settings', 'registration',
     'hide_pillars', 'step_printing', 'hide_public_bounties', 'lock_xp_editing',
-    'xp_goals', 'sis_enabled', 'community_enabled',
+    'xp_goals', 'community_enabled',
+    # 'sis_enabled' left on 2026-10-15: every org is an SIS org and nothing
+    # reads the flag, so a settings screen has no reason to write it.
 })
 
 _STRIPE_KEY_RE = re.compile(r'^(sk|rk)_[A-Za-z0-9_]{20,}$')
@@ -113,6 +116,15 @@ def clean_feature_flags(
             raise FlagsRejected(400, {'error': error,
                                       'fields': ['sis_settings.' + MIN_TASK_XP_KEY]})
 
+    # The school's "skip work Bloomy already verified" switch (ticket
+    # bc68a12e) empties part of the Submissions inbox, so only a real
+    # true/false may be stored. Checked only when it changes, like the floor.
+    skip = _sis_value(flags, SKIP_BLOOMY_IN_INBOX_KEY)
+    if skip is not None and not isinstance(skip, bool) \
+            and skip != _sis_value(stored, SKIP_BLOOMY_IN_INBOX_KEY):
+        raise FlagsRejected(400, {'error': 'Skip work Bloomy already verified must be on or off.',
+                                  'fields': ['sis_settings.' + SKIP_BLOOMY_IN_INBOX_KEY]})
+
     # The Stripe secret key is submitted through the same feature_flags blob
     # the settings UI round-trips, but it must never be STORED there:
     # organizations.feature_flags is anon-readable by row policy (RLS filters
@@ -170,6 +182,11 @@ def clean_feature_flags(
 def _inbox_members(flags: Optional[Dict[str, Any]]):
     sis = (flags or {}).get('sis_settings') if isinstance(flags, dict) else None
     return (sis or {}).get('school_inbox_member_ids') if isinstance(sis, dict) else None
+
+
+def _sis_value(flags: Optional[Dict[str, Any]], key: str):
+    sis = (flags or {}).get('sis_settings') if isinstance(flags, dict) else None
+    return (sis or {}).get(key) if isinstance(sis, dict) else None
 
 
 def _min_task_xp(flags: Optional[Dict[str, Any]]):

@@ -22,9 +22,6 @@ vi.mock('../components/admin/FlaggedTasksPanel', () => ({
 vi.mock('./admin/OrganizationDashboard', () => ({
   default: () => <div data-testid="org-dashboard">Org Dashboard</div>
 }))
-vi.mock('./admin/OrganizationManagement', () => ({
-  default: () => <div>Org Management</div>
-}))
 vi.mock('./admin/CourseGeneratorWizard', () => ({
   default: () => <div>Course Generator</div>
 }))

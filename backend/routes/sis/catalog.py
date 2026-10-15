@@ -104,9 +104,13 @@ def _validate_class_fields(data):
     # A class that takes no roll (ticket 29dff954).
     if 'attendance_optional' in data and not isinstance(data['attendance_optional'], bool):
         return 'attendance_optional must be true or false'
-    for k in ('capacity', 'price_cents', 'min_age', 'max_age'):
+    # The class XP goal is NOT NULL (default 100); 0 is how a class says "never
+    # completes on XP", so an explicit null is refused rather than 500ing.
+    if 'xp_threshold' in data and data['xp_threshold'] is None:
+        return 'xp_threshold must be a non-negative integer'
+    for k in ('capacity', 'price_cents', 'min_age', 'max_age', 'xp_threshold'):
         v = data.get(k)
-        if v is not None and (not isinstance(v, int) or v < 0):
+        if v is not None and (isinstance(v, bool) or not isinstance(v, int) or v < 0):
             return f'{k} must be a non-negative integer'
     if data.get('min_age') is not None and data.get('max_age') is not None \
             and data['min_age'] > data['max_age']:
@@ -220,6 +224,16 @@ def update_class(user_id, class_id):
             new_instructor, 'New class assignment',
             f'You are now the teacher for {existing.get("name") or "a class"}.',
             link='/my-classes', organization_id=org_id)
+    # A new class XP goal moves who has completed the class: a student over the
+    # new bar completes, one under it is active again. The organization console
+    # did this through ClassService.update_class; the SIS PATCH writes the
+    # column directly, so it asks for the same recompute. Never fails the save.
+    if 'xp_threshold' in data and data.get('xp_threshold') != existing.get('xp_threshold'):
+        try:
+            from services.class_service import ClassService
+            ClassService()._check_and_update_completions(class_id)
+        except Exception as e:  # noqa: BLE001
+            logger.warning(f'Could not recompute class completions for {class_id}: {e}')
     # Raising capacity can open seats — alert admins to offer them to the
     # waitlist (self-gates on there being waiters + a genuinely open seat).
     if 'capacity' in data:

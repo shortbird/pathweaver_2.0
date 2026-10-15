@@ -52,3 +52,29 @@ describe('GettingStartedChecklist', () => {
     expect(localStorage.getItem(KEY)).toBeNull()
   })
 })
+
+// The SIS dashboard mounts this since 2026-10-15; its onNavigate takes the
+// SIS page as the second argument (the console's took the tab, the first).
+describe('GettingStartedChecklist in the SIS console', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    localStorage.clear()
+    sessionStorage.clear()
+    api.get.mockResolvedValue({ data: { success: true, counts: COUNTS } })
+  })
+
+  it('hands onNavigate the console tab and the SIS page', async () => {
+    const onNavigate = vi.fn()
+    render(<GettingStartedChecklist orgId="org-1" onNavigate={onNavigate} />)
+    await userEvent.click(await screen.findByText('Invite parents'))
+    expect(onNavigate).toHaveBeenCalledWith('people', '/people?add=family')
+  })
+
+  it('sends "Assign a quest" to the classes when the Library has no Quests tab', async () => {
+    const onNavigate = vi.fn()
+    const org = { id: 'org-1', effective_modules: ['sis', 'classes'] }
+    render(<GettingStartedChecklist orgId="org-1" org={org} onNavigate={onNavigate} />)
+    await userEvent.click(await screen.findByText('Assign a quest'))
+    expect(onNavigate).toHaveBeenCalledWith('classes', '/classes?tab=all')
+  })
+})

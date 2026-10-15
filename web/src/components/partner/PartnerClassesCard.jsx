@@ -8,7 +8,7 @@ import {
 } from '../../hooks/api/usePartnerOfferings'
 
 /**
- * A credit-class partner's classes, on its organization page.
+ * A credit-class partner's classes, on its SIS console dashboard.
  *
  * For each class: the link to give buyers, an "Add a student" form for
  * orders the partner enters by hand, and the students who have the class.

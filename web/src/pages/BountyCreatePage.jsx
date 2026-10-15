@@ -101,9 +101,9 @@ const BountyCreatePage = () => {
   const offerPoints = Boolean(organization) && moduleEnabled(organization, 'points')
   const navigate = useNavigate()
   const location = useLocation()
-  // The bounty board passes its own URL as state.from -- it may be embedded in
-  // the org management page (/admin/organizations/:id?tab=bounties), so "back"
-  // should return there rather than always to /bounties.
+  // The bounty board passes its own URL as state.from -- it may be mounted
+  // under another path (the SIS console's /bounties), so "back" should return
+  // there rather than always to the learning app's /bounties.
   const backTo = location.state?.from || '/bounties'
   const { bountyId } = useParams()
   const isEdit = !!bountyId

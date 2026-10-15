@@ -1,12 +1,12 @@
 import React, { useCallback, useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { toast } from 'react-hot-toast'
 import { BookOpenIcon, EllipsisVerticalIcon, PlusIcon } from '@heroicons/react/24/outline'
 import { useSisOrg } from '../useSisOrg'
 import {
   useSisQuestLibrary, useAddQuestToCurriculum, useAssignQuestToClass,
   useGiveQuestToStudents, useDuplicateLibraryQuest, useDeleteLibraryQuest, useQuestHolders,
-  useRemoveQuestFromCurriculum, useUnassignQuestFromClass,
+  useRemoveQuestFromCurriculum, useUnassignQuestFromClass, useSetLibraryQuestActive,
 } from '../../../hooks/api/useSisQuestLibrary'
 import { useConfirm } from '../../../contexts/ConfirmContext'
 import { useRefreshAfterQuestEdit } from '../../../hooks/api/useQuestEditor'
@@ -21,6 +21,8 @@ import EmptyState from '../../../components/ui/EmptyState'
 import Button from '../../../components/ui/Button'
 import PopMenu from '../../../components/sis/ui/PopMenu'
 import SortHeader from '../../../components/ui/SortHeader'
+import OptioQuestsPanel from './OptioQuestsPanel'
+import QuestGroupsPanel, { questGroupsOn } from './QuestGroupsPanel'
 
 /**
  * QuestsPanel -- every quest the school owns, in one list, with where each
@@ -406,7 +408,8 @@ export const sortQuests = (rows, sort) => {
   })
 }
 
-function QuestTable({ rows, sort, onSort, onAssign, onAttach, onEdit, onDuplicate, duplicatingId, onDelete, deletingId }) {
+function QuestTable({ rows, sort, onSort, onAssign, onAttach, onEdit, onDuplicate, duplicatingId, onDelete, deletingId,
+  onUnpublish }) {
   // Which row's actions menu is open. One kebab per row instead of four links:
   // the links wrapped into a ragged block on every row and read as clutter
   // (owner, 2026-09-22).
@@ -497,6 +500,10 @@ function QuestTable({ rows, sort, onSort, onAssign, onAttach, onEdit, onDuplicat
                       { label: 'Attachments', onClick: () => onAttach(q.id) },
                       { label: duplicatingId === q.id ? 'Copying…' : 'Duplicate',
                         onClick: () => onDuplicate(q.id), disabled: duplicatingId === q.id },
+                      // The org console's Deactivate (2026-10-15). Unlike
+                      // Delete it works on a quest students started: they
+                      // keep it, nobody new gets it.
+                      { label: 'Unpublish', onClick: () => onUnpublish(q) },
                       // Molly, iCreate, 2026-10-08 (a10c42f7): "Can't delete
                       // quests." The server refuses one a student started.
                       { label: 'Delete', danger: true, onClick: () => onDelete(q) },
@@ -514,10 +521,83 @@ function QuestTable({ rows, sort, onSort, onAssign, onAttach, onEdit, onDuplicat
   )
 }
 
+/**
+ * Quests the school published and then took down, with the way back. A
+ * draft is unpublished too but lives in Drafts; these are not drafts.
+ */
+function UnpublishedQuests({ rows, onPublish, busyId }) {
+  if (!rows.length) return null
+  return (
+    <section aria-label="Unpublished quests">
+      <h2 className="text-sm font-semibold text-neutral-900 mb-1">
+        Unpublished <span className="font-normal text-neutral-400">({rows.length})</span>
+      </h2>
+      <p className="text-xs text-neutral-500 mb-2">
+        Taken down: no picker offers them and nobody new gets them. Students who have one keep it.
+      </p>
+      <ul className="bg-white rounded-xl border border-gray-200 divide-y divide-gray-100">
+        {rows.map((q) => (
+          <li key={q.id} className="flex items-center justify-between gap-3 px-4 py-3">
+            <div className="min-w-0">
+              <div className="font-medium text-neutral-700 truncate">{q.title}</div>
+              {q.updated_at && <div className="text-xs text-neutral-400">Updated {when(q.updated_at)}</div>}
+            </div>
+            <Button size="xs" variant="secondary" onClick={() => onPublish(q)} disabled={busyId === q.id}
+              className="shrink-0">
+              {busyId === q.id ? 'Publishing…' : 'Publish again'}
+            </Button>
+          </li>
+        ))}
+      </ul>
+    </section>
+  )
+}
+
+// Library > Quests has up to three views: the school's own quests, the
+// shared Optio library (with the school's quest visibility setting), and
+// quest groups for a school that uses them. The two after the first came
+// from the web org console on 2026-10-15. ?quests= keeps the view in the URL.
+const VIEWS = [
+  ['ours', 'Our quests'],
+  ['optio', 'Optio quests'],
+  ['groups', 'Quest groups'],
+]
+
 export default function QuestsPanel() {
+  const { activeOrg } = useSisOrg()
+  const [searchParams, setSearchParams] = useSearchParams()
+  const views = VIEWS.filter(([key]) => key !== 'groups' || questGroupsOn(activeOrg))
+  const raw = searchParams.get('quests')
+  const view = views.some(([k]) => k === raw) ? raw : 'ours'
+  const pick = (next) => {
+    const params = new URLSearchParams(searchParams)
+    if (next === 'ours') params.delete('quests')
+    else params.set('quests', next)
+    setSearchParams(params, { replace: true })
+  }
+  return (
+    <div>
+      <div className="inline-flex rounded-lg border border-gray-200 p-0.5 bg-white mb-5" role="group" aria-label="Quests">
+        {views.map(([key, label]) => (
+          <button key={key} type="button" onClick={() => pick(key)} aria-pressed={view === key}
+            className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+              view === key ? 'bg-optio-purple text-white' : 'text-neutral-600 hover:bg-neutral-50'}`}>
+            {label}
+          </button>
+        ))}
+      </div>
+      {view === 'ours' && <OurQuests />}
+      {view === 'optio' && <OptioQuestsPanel />}
+      {view === 'groups' && <QuestGroupsPanel />}
+    </div>
+  )
+}
+
+function OurQuests() {
   const { orgId } = useSisOrg()
   const { data, isLoading, isError, error } = useSisQuestLibrary(orgId)
   const quests = data?.quests || []
+  const unpublished = data?.unpublished || []
   const curricula = data?.curricula || []
   const classes = data?.classes || []
   const loading = !!orgId && isLoading
@@ -570,6 +650,37 @@ export default function QuestsPanel() {
       setDeletingId(null)
     }
   }
+  const setActive = useSetLibraryQuestActive(orgId)
+  const [activatingId, setActivatingId] = useState(null)
+  const onUnpublish = async (quest) => {
+    if (!(await confirm({
+      title: `Unpublish "${quest.title}"?`,
+      body: 'No picker offers it and nobody new gets it. Students who have it keep it and their work. '
+        + 'You can publish it again from the Unpublished list below.',
+      confirmLabel: 'Unpublish',
+      cancelLabel: 'Keep it',
+    }))) return
+    setActivatingId(quest.id)
+    try {
+      await setActive.mutateAsync({ questId: quest.id, active: false })
+      toast.success(`Unpublished “${quest.title}”`)
+    } catch (e) {
+      toast.error(e?.response?.data?.error || 'Could not unpublish that quest')
+    } finally {
+      setActivatingId(null)
+    }
+  }
+  const onPublishAgain = async (quest) => {
+    setActivatingId(quest.id)
+    try {
+      await setActive.mutateAsync({ questId: quest.id, active: true })
+      toast.success(`Published “${quest.title}”`)
+    } catch (e) {
+      toast.error(e?.response?.data?.error || 'Could not publish that quest')
+    } finally {
+      setActivatingId(null)
+    }
+  }
   const [adding, setAdding] = useState(false)
   // A draft being resumed: {id, context, target_id}.
   const [resuming, setResuming] = useState(null)
@@ -612,7 +723,8 @@ export default function QuestsPanel() {
         for next term, or assign it straight to a class. Edit changes anything about it: its
         picture, tasks, files and links, and the XP to finish.
         Duplicate copies the whole thing, which is how you change one without changing it for
-        everyone already on it. Delete removes a quest no student has started yet.
+        everyone already on it. Delete removes a quest no student has started yet. Unpublish takes
+        one down without deleting it.
       </p>
 
       <div className="flex flex-wrap items-center gap-3 mb-4">
@@ -681,9 +793,15 @@ export default function QuestsPanel() {
               )}
               <QuestTable rows={sectionRows} sort={sort} onSort={toggleSort} onAssign={setAssigning} onAttach={setAttaching}
                 onEdit={setEditing} onDuplicate={onDuplicate} duplicatingId={duplicatingId}
-                onDelete={onDelete} deletingId={deletingId} />
+                onDelete={onDelete} deletingId={deletingId} onUnpublish={onUnpublish} />
             </section>
           ))}
+        </div>
+      )}
+
+      {!loading && !isError && (
+        <div className="mt-6">
+          <UnpublishedQuests rows={unpublished} onPublish={onPublishAgain} busyId={activatingId} />
         </div>
       )}
 

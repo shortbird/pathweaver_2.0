@@ -16,9 +16,10 @@ import AdvisorStudentOverviewContent from '../../components/advisor/AdvisorStude
  * Route: /admin/organizations/:orgId/student/:studentId
  *        /admin/students/:studentId  (a platform student, who has no org)
  *
- * `?returnTo=` sends Back somewhere other than the org's People tab: the
+ * `?returnTo=` sends Back somewhere other than the SIS People page: the
  * credit grader links here with the queue's place in it, so Back reopens the
- * same item. Only an in-app path is honoured.
+ * same item, and the SIS student progress report sends its own address. Only
+ * an in-app path is honoured.
  */
 export default function OrgStudentOverviewPage() {
   const { orgId, studentId } = useParams();
@@ -29,7 +30,6 @@ export default function OrgStudentOverviewPage() {
 
   // Org admins and superadmins can edit student information
   const canEdit = isAdmin || isSuperadmin;
-  const returnTab = searchParams.get('tab') || 'people';
   const returnTo = safeReturnTo(searchParams.get('returnTo'));
   // A school that runs the SIS console keeps the student's record there
   // (profile, family, contacts, schedule); this page is their learning
@@ -38,8 +38,14 @@ export default function OrgStudentOverviewPage() {
   // No org, no school record to open.
   const sisRecord = Boolean(orgId) && (isSuperadmin || (organization?.id === orgId && moduleEnabled(organization, 'sis')));
 
+  // Without a returnTo, Back goes to the school's People page in the SIS
+  // console. It went to the organization console's tab (/organization?tab=),
+  // which was removed when every org became an SIS org on 2026-10-15.
+  // switchSurfaceInApp works from either surface: on the console it is an
+  // in-app navigation, on the learning app it crosses over.
   const handleBack = () => {
-    navigate(returnTo || `/organization?tab=${returnTab}`);
+    if (returnTo) navigate(returnTo);
+    else switchSurfaceInApp('sis', '/people');
   };
   const backLabel = returnTo?.startsWith('/credit-dashboard') || returnTo?.includes('cr_item=')
     ? 'Back to grading'

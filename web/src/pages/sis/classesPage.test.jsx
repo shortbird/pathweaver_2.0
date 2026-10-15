@@ -698,3 +698,22 @@ describe('the ?class= deep link', () => {
     await waitFor(() => expect(modalIsOpen()).toBe(false))
   })
 })
+
+// The organization console's Courses tab had "Register a Student", the door to
+// the standalone enrollment form. It moved here on 2026-10-15, when every org
+// became an SIS org.
+describe('the Optio courses tab', () => {
+  it('links to the Register a Student form', async () => {
+    render(<ClassesPage />)
+    await screen.findByText('Pottery')
+    fireEvent.click(screen.getByRole('tab', { name: /Optio courses/i }))
+    const link = await screen.findByRole('link', { name: 'Register a Student' })
+    expect(link).toHaveAttribute('href', '/enroll-students')
+  })
+
+  it('is not on the class catalog tab', async () => {
+    render(<ClassesPage />)
+    await screen.findByText('Pottery')
+    expect(screen.queryByRole('link', { name: 'Register a Student' })).toBeNull()
+  })
+})

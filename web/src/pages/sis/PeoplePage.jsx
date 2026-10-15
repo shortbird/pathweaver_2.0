@@ -20,6 +20,7 @@ import PersonActionsModal from './people/PersonActionsModal'
 import AddPeopleWizard from './people/AddPeopleWizard'
 import StaffDuplicatesBanner from './people/StaffDuplicatesBanner'
 import { BulkSetUpSignInModal, needsSignIn } from './people/SetUpSignIn'
+import { ReprintLoginCardsModal, hasUsernameSignIn } from './people/LoginCards'
 import {
   EMPTY_FILTERS, applyFilters, sortRows, isStaff, asStaffRow,
   QUICK_VIEWS, quickViewOf, applyQuickView, withTodaysAge,
@@ -143,6 +144,12 @@ const PeoplePage = () => {
   const [resendingId, setResendingId] = useState(null)
   // Ticket cd61587c: give every managed profile a sign-in at once.
   const [settingUpSignIn, setSettingUpSignIn] = useState(false)
+  // Reprint login cards for username students (moved from the web
+  // organization console, 2026-10-15). New passwords are an account action,
+  // so org admins only -- the route is @require_org_admin. canViewAs is that
+  // exact tier (sisRole: an admin who is not only a campus coordinator).
+  const [printingCards, setPrintingCards] = useState(false)
+  const mayResetPasswords = canViewAs
 
   const refresh = () => {
     refetch()
@@ -160,8 +167,10 @@ const PeoplePage = () => {
     if (!orgId) return
     const next = new URLSearchParams(params)
     let changed = false
-    if (params.get('add') === 'family') {
-      setAdding('family')
+    // ?add=staff|student|roster open the other jobs the same way: the
+    // dashboard's Getting started checklist links to them (2026-10-15).
+    if (['family', 'staff', 'student', 'roster'].includes(params.get('add'))) {
+      setAdding(params.get('add'))
       next.delete('add')
       changed = true
     }
@@ -192,6 +201,11 @@ const PeoplePage = () => {
   // (ticket cd61587c). Former students are left out: nobody is waiting on them.
   const withoutSignIn = useMemo(
     () => roster.filter((r) => needsSignIn(r) && !['withdrawn', 'graduated'].includes(r.enrollment_status)),
+    [roster],
+  )
+
+  const usernameStudents = useMemo(
+    () => roster.filter((r) => hasUsernameSignIn(r) && !['withdrawn', 'graduated'].includes(r.enrollment_status)),
     [roster],
   )
 
@@ -259,6 +273,12 @@ const PeoplePage = () => {
             <Button variant="outline" size="sm" onClick={() => setSettingUpSignIn(true)}
               title="Students whose parent manages their profile and who have no sign-in of their own">
               Set up sign-in ({withoutSignIn.length})
+            </Button>
+          )}
+          {mayResetPasswords && usernameStudents.length > 0 && (
+            <Button variant="outline" size="sm" onClick={() => setPrintingCards(true)}
+              title="New passwords and printable cards for students who sign in with a username">
+              Login cards
             </Button>
           )}
           {isAdmin && (
@@ -349,6 +369,11 @@ const PeoplePage = () => {
       {settingUpSignIn && (
         <BulkSetUpSignInModal rows={withoutSignIn} orgId={orgId} orgName={activeOrg?.name}
           onClose={() => setSettingUpSignIn(false)} onDone={refresh} />
+      )}
+
+      {printingCards && (
+        <ReprintLoginCardsModal rows={usernameStudents} orgId={orgId} orgName={activeOrg?.name}
+          orgSlug={activeOrg?.slug} onClose={() => setPrintingCards(false)} />
       )}
 
       {acting && (

@@ -28,9 +28,9 @@ function rawValue(def, key, flags) {
     if (def.microschool === 'on') return true
   }
   const ss = flags.sis_settings || {}
+  // 'sis' has no legacy source since 2026-10-15 (every org is an SIS org):
+  // flags.sis_enabled is no longer read, and the registry default answers.
   switch (def.legacy) {
-    case 'sis_enabled':
-      return Boolean(flags.sis_enabled)
     case 'hidden_modules':
       return !(Array.isArray(ss.hidden_modules) && ss.hidden_modules.includes(key))
     case 'community_enabled':
@@ -86,8 +86,9 @@ export function effectiveModules(org) {
  * negated, and the difference is the whole point: moduleEnabled answers a
  * boolean for any input, so a payload carrying neither `effective_modules` nor
  * `feature_flags` gets the fallback's derivation over an empty object — which
- * reports every SIS module off, because there is no `sis_enabled` in {} to
- * satisfy the parent cascade. Two payloads look exactly like that:
+ * reports every opt-in module off, because nothing in {} turns it on (until
+ * 2026-10-15 it reported every SIS module off too, for want of `sis_enabled`).
+ * Two payloads look exactly like that:
  *
  *   - /api/sis/parent/context, which lists orgs WITHOUT their feature_flags;
  *   - OrganizationContext's degraded `{ id }`, set when /api/auth/me could not

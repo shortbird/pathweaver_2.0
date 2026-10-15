@@ -80,7 +80,7 @@ describe('Sidebar — Credit Review link visibility', () => {
     expect(link).toHaveAttribute('href', '/credit-dashboard')
   })
 
-  it('does NOT show Credit Review link for org_admin (moved to /organization tab)', () => {
+  it('does NOT show Credit Review link for org_admin (the org stage is in the SIS console)', () => {
     authState.user = {
       id: 'u1',
       role: 'org_managed',
@@ -169,14 +169,23 @@ describe('Sidebar — SIS carve-out (org feature flag)', () => {
     expect(screen.queryByRole('link', { name: /^organization$/i })).not.toBeInTheDocument()
   })
 
-  it('keeps the organization console reachable and shows no launcher for an unflagged org_admin', () => {
+  it('shows the launcher for an org_admin whose org carries no flags (every org is an SIS org, 2026-10-15)', () => {
     authState.user = { id: 'u1', role: 'org_managed', org_role: 'org_admin', organization_id: 'org-1', email: 'a@example.com' }
     orgState = { organization: { id: 'org-1', slug: 'test', feature_flags: {} } }
     renderSidebar()
+    expect(screen.getByText('School Admin')).toBeInTheDocument()
+  })
+
+  it('never offers the removed organization console, even where sis is explicitly off', () => {
+    // The web organization console was removed on 2026-10-15. A legacy
+    // explicit modules.sis=false (none exist in prod) shows no launcher, and
+    // must not resurrect a link to a page that no longer exists.
+    authState.user = { id: 'u1', role: 'org_managed', org_role: 'org_admin', organization_id: 'org-1', email: 'a@example.com' }
+    orgState = { organization: { id: 'org-1', slug: 'test', feature_flags: { modules: { sis: false } } } }
+    renderSidebar()
     expect(screen.queryByText('School Admin')).not.toBeInTheDocument()
-    // Home is the role home (/dashboard); the console is its own item.
     expect(screen.getByRole('link', { name: /^home$/i })).toHaveAttribute('href', '/dashboard')
-    expect(screen.getByRole('link', { name: /^organization$/i })).toHaveAttribute('href', '/organization')
+    expect(screen.queryByRole('link', { name: /^organization$/i })).not.toBeInTheDocument()
   })
 
   it('always shows the School Admin launcher for superadmin (no org flag needed)', () => {

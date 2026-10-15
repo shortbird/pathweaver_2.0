@@ -6,17 +6,20 @@ import api from '../../services/api'
 import { HomeStatSection, HomeDoorGrid } from '../../components/home/AdminHomeTiles'
 import MyEnrolledQuests from '../../components/home/MyEnrolledQuests'
 import { moduleEnabled } from '../../modules/moduleEnabled'
+import { sisConsoleHref } from '../../utils/appSurface'
 import { useTeacherHomeData, WaitingOnYou, MyClasses } from './TeacherHome'
 
 /**
- * School Home — the non-SIS org admin's landing (rendered by RoleHome at
- * /dashboard). SIS-org admins front-door the SIS console via /sis-launch;
- * simplified partner orgs keep /onfire.
+ * School Home — an org admin's home in the learning app (rendered by RoleHome
+ * at /dashboard). Org admins sign in to the SIS console via /sis-launch; they
+ * reach this page from the console's "Switch to Learning app", and simplified
+ * partner orgs keep /onfire.
  *
  * "Is the school healthy": a snapshot row (students, teachers, active classes,
- * work awaiting credit review) that deep-links into the organization console,
- * then the doors. Every snapshot source reuses an endpoint the console already
- * calls and degrades silently on failure.
+ * work awaiting credit review) that deep-links into the SIS console -- the
+ * school is run from there since the web organization console was removed on
+ * 2026-10-15 -- then the doors. Every snapshot source degrades silently on
+ * failure.
  *
  * Below the doors, the teacher's own home: the queue waiting on them and the
  * classes they instruct. An org admin holds every capability a teacher holds,
@@ -26,15 +29,15 @@ import { useTeacherHomeData, WaitingOnYou, MyClasses } from './TeacherHome'
  */
 const DOORS = [
   {
-    name: 'Organization Console', path: '/organization', Icon: BuildingLibraryIcon,
-    description: 'Members, quests, courses and settings.',
+    name: 'School Admin', href: sisConsoleHref('/'), Icon: BuildingLibraryIcon,
+    description: 'People, classes, quests and settings.',
   },
   {
     name: 'Classes', path: '/org-classes', Icon: AcademicCapIcon,
     description: 'Your organization’s classes and rosters.',
   },
   {
-    name: 'People', path: '/organization?tab=people', Icon: UsersIcon,
+    name: 'People', href: sisConsoleHref('/people'), Icon: UsersIcon,
     description: 'Students, teachers and families.',
   },
   {
@@ -59,7 +62,7 @@ export default function SchoolAdminHome() {
   const sisEnabled = user?.organization ? moduleEnabled(user.organization, 'sis') : false
   const teaching = useTeacherHomeData(user?.id, sisEnabled)
 
-  // Same payload the organization console loads (users + quests + courses).
+  // The org payload (users + quests + courses), for the people counts.
   const orgQuery = useQuery({
     queryKey: ['home', 'school-admin', 'org', orgId],
     queryFn: async () => (await api.get(`/api/admin/organizations/${orgId}`)).data,
@@ -97,14 +100,14 @@ export default function SchoolAdminHome() {
       label: 'Students',
       value: countByOrgRole(orgUsers, 'student'),
       isLoading: orgQuery.isLoading,
-      to: '/organization?tab=people',
+      href: sisConsoleHref('/people'),
     },
     {
       key: 'teachers',
       label: 'Teachers',
       value: countByOrgRole(orgUsers, 'advisor'),
       isLoading: orgQuery.isLoading,
-      to: '/organization?tab=people',
+      href: sisConsoleHref('/people'),
     },
     {
       key: 'classes',
@@ -120,7 +123,8 @@ export default function SchoolAdminHome() {
         ? creditQuery.data.pending_org_approval
         : null,
       isLoading: creditQuery.isLoading,
-      to: '/organization?tab=credit-review',
+      // The org stage of credit review is the console's /credit-review.
+      href: sisConsoleHref('/credit-review'),
     },
   ]
 

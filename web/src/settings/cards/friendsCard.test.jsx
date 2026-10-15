@@ -52,14 +52,13 @@ describe('FriendsCard', () => {
 describe('settingsCardsFor: the Friends card', () => {
   const keys = (surface, org) => settingsCardsFor({ surface, org, seesFinance: true }).map((c) => c.key)
 
-  it('is on both surfaces when the Friends block is on', () => {
+  it('is on the SIS Settings page when the Friends block is on', () => {
     const org = { feature_flags: {}, effective_modules: ['friends'] }
-    expect(keys('learning', org)).toContain('friends')
     expect(keys('console', org)).toContain('friends')
   })
 
   it('is gone when the school turned the Friends block off', () => {
     const org = { feature_flags: {}, effective_modules: [] }
-    expect(keys('learning', org)).not.toContain('friends')
+    expect(keys('console', org)).not.toContain('friends')
   })
 })

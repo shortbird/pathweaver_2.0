@@ -20,6 +20,8 @@ export const useSisQuestLibrary = (orgId, options = {}) => useQuery({
     const res = await api.get(withOrg('/api/sis/quests', orgId))
     return {
       quests: res.data?.quests || [],
+      // Published and then taken down (Unpublish); drafts are not in it.
+      unpublished: res.data?.unpublished || [],
       curricula: res.data?.curricula || [],
       classes: res.data?.classes || [],
     }
@@ -162,3 +164,20 @@ export const useUnassignQuestFromClass = (orgId) => {
 }
 
 export default useSisQuestLibrary
+
+/**
+ * Unpublish (active=false) or publish again (active=true) one of the school's
+ * own quests. The org console's Deactivate toggle, moved to Library > Quests
+ * on 2026-10-15. Either way the quest moves between the library's main list
+ * and its Unpublished list, so the library is re-read.
+ */
+export const useSetLibraryQuestActive = (orgId) => {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ questId, active }) => {
+      const res = await api.post(withOrg(`/api/sis/quests/${questId}/active`, orgId), { active })
+      return res.data
+    },
+    onSuccess: () => invalidateLibrary(queryClient, orgId),
+  })
+}

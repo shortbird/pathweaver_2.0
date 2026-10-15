@@ -228,6 +228,9 @@ describe('the grid earns its space', () => {
       { title: 'Basics', cols: 4, rows: 2 },
       { title: 'Schedule', cols: 5, rows: 1 },
       { title: 'Enrollment & money', cols: 5, rows: 1 },
+      // The class XP goal (2026-10-15), its explanation filling the rest of
+      // the row.
+      { title: 'Progress', cols: 4, rows: 1 },
       { title: 'Internal notes', cols: 4, rows: 1 },
     ])
   })

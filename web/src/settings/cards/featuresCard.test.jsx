@@ -136,7 +136,6 @@ describe('settingsCardsFor: the Features card', () => {
 
   it('is on the SIS Settings page only, whatever is switched on', () => {
     expect(keys('console', { feature_flags: {}, effective_modules: [] })).toContain('features')
-    expect(keys('learning', { feature_flags: {} })).not.toContain('features')
   })
 })
 

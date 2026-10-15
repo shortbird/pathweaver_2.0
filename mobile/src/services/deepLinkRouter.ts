@@ -68,7 +68,6 @@ const LEARNING_ONLY_PREFIXES = [
   '/advisor',
   '/invitations',
   '/credit-dashboard',
-  '/credit-review',
   // The family portal ("/family/portal", "/family/required-documents") is the
   // most common notification link for SIS orgs — onboarding + signatures — and
   // it is family-facing, so it lives on www, not the staff console.
@@ -106,6 +105,10 @@ const SIS_ONLY_PREFIXES = [
   '/classes',
   '/clp',
   '/community',
+  // The org stage of credit review (credit_messages.py links staff here). It
+  // was a tab of the learning app's /organization until that page was removed
+  // on 2026-10-15; only the SIS console serves it now.
+  '/credit-review',
   '/curriculum',
   '/quest-library',
   '/directory',

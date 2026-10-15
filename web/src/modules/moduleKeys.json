@@ -326,9 +326,9 @@
     "microschool": "off"
   },
   "sis": {
-    "default": "off",
+    "default": "on",
     "gate": "flags",
-    "legacy": "sis_enabled",
+    "legacy": null,
     "parent": null,
     "requires": [],
     "requires_any": [],

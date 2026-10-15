@@ -713,14 +713,15 @@ def org_uses_school_inbox(org: Dict[str, Any]) -> bool:
     """Does this school answer members in the shared inbox, or in each admin's
     own Messages?
 
-    The inbox is a SIS-console surface, so sis_enabled is the honest test.
+    The inbox is a SIS-console surface, so the 'sis' module is the honest test.
     iCreate runs its front office there and wants every message in one place,
-    answered as the school. Hearthwood never opens the console — a forward left
-    in that inbox would sit unread — so its admins get the message as a normal
-    DM instead. Fails closed to the DM route, which always reaches a person.
+    answered as the school. Every org is an SIS org since 2026-10-15, so this
+    is True for any real org (the flags.sis_enabled test it replaced kept
+    console-less schools such as Hearthwood on the DM route). Fails closed to
+    the DM route, which always reaches a person, when the org cannot be read.
     """
-    from utils.org_features import org_has_feature
-    return org_has_feature(org.get('id'), 'sis_enabled')
+    from modules.enabled import module_enabled
+    return module_enabled(org.get('id'), 'sis')
 
 
 def email_admins_of_forwarded_message(org: Dict[str, Any],

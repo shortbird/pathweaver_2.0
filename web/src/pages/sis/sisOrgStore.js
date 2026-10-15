@@ -61,26 +61,17 @@ const preferredDefault = (orgs) =>
   ?? null
 
 /**
- * Only orgs running the SIS belong in this picker. The list the superadmin
- * fetches is every active organization on the platform, and most of them have
- * never opened the console — offering them made the picker a long list of orgs
- * whose every SIS page is empty by definition.
+ * Store the fetched org list; default the selection to iCreate, else the first org.
  *
- * Turning SIS on is not done here (it is the toggle on the admin organization
- * dashboard), so filtering the picker cannot strand a new school: it appears
- * the moment the flag is set.
+ * Every org the superadmin fetches is on offer. Until 2026-10-15 the picker
+ * kept only orgs with the SIS switched on; every org is an SIS org now, so a
+ * filter here would only hide a school the console can serve.
  */
-const isSisOrg = (o) =>
-  Array.isArray(o?.effective_modules)
-    ? o.effective_modules.includes('sis')
-    : Boolean(o?.feature_flags?.sis_enabled)
-
-/** Store the fetched org list; default the selection to iCreate, else the first org. */
 export function setOrgs(list) {
-  const orgs = (Array.isArray(list) ? list : []).filter(isSisOrg)
+  const orgs = Array.isArray(list) ? list : []
   // A remembered selection survives only while it is still on offer — an org
-  // that has since had SIS turned off would otherwise stay selected while its
-  // name was absent from the dropdown, which reads as a broken picker.
+  // that has since left the list would otherwise stay selected while its name
+  // was absent from the dropdown, which reads as a broken picker.
   const keep = state.orgId && orgs.some((o) => o.id === state.orgId)
   const orgId = keep ? state.orgId : preferredDefault(orgs)
   persist(orgId)

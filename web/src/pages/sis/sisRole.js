@@ -111,3 +111,30 @@ export const canEditRolesOf = (user, roles) =>
  * gate can be widened on the other's behalf.
  */
 export const canSeeHr = (user) => isSisAdmin(user) && !isCampusCoordinator(user)
+
+/**
+ * The school stage of credit review (/credit-review): approving a student's
+ * credit request, or sending it back. Since 2026-10-15 every staff role
+ * reviews: org admins and coordinators for the whole school, teachers for the
+ * students they teach (the backend scopes the queue and refuses the rest:
+ * routes/credit_dashboard/school_review.py, require_role(*STAFF_ROLES)).
+ * Approval finalizes the credit when the student's transcript is the school's
+ * own, and sends it on to Optio when it is under Optio's accreditation.
+ */
+export const canReviewCredit = (user) => isSisStaff(user)
+
+/**
+ * Whether a school approves its students' credit requests before Optio does.
+ * Every school does, except one whose credit Optio reviews directly
+ * (feature_flags.credit_review_by_optio; routes/tasks/credit.py). A null org
+ * (superadmin before picking one) answers true, like the module gates.
+ */
+export const schoolReviewsCredit = (org) => !org?.feature_flags?.credit_review_by_optio
+
+/**
+ * The organization-admin pages that came over from the organization console
+ * and whose endpoints are `require_org_admin` (org_admin or superadmin, not a
+ * coordinator): the student progress report, the setup checklist, the
+ * partner offerings card.
+ */
+export const isOrgAdminTier = (user) => isSisAdmin(user) && !isCampusCoordinator(user)

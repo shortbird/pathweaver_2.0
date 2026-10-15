@@ -55,13 +55,16 @@ OPT_OUT_MODULES = (
 # useOrgFeature semantics: truthy = on). 'registration'/'icreate_registration'
 # hold config dicts; truthiness here means "funnel configured".
 FLAT_GATES = (
-    'sis_enabled', 'scheduled_publish', 'due_dates', 'lock_xp_editing',
+    'scheduled_publish', 'due_dates', 'lock_xp_editing',
     'xp_goals', 'kiosk', 'hide_public_bounties', 'step_printing',
     'email_reply_to', 'registration', 'icreate_registration',
 )
 
 # Top-level keys that are known and deliberately not booleans.
-KNOWN_TOP_LEVEL = set(FLAT_GATES) | {'sis_settings', 'oea_settings', 'modules', 'friends_settings'}
+# 'sis_enabled' is known but retired (2026-10-15): every org is an SIS org, so
+# the flag is no longer a gate; rows that still carry it are not drift.
+KNOWN_TOP_LEVEL = set(FLAT_GATES) | {'sis_settings', 'oea_settings', 'modules',
+                                     'friends_settings', 'sis_enabled'}
 
 ORG_COLUMNS = (
     'id, name, slug, is_active, archived_at, feature_flags, '
@@ -79,7 +82,10 @@ def org_record(row):
     hidden = sorted(hidden_raw) if isinstance(hidden_raw, list) else []
     unknown_hidden = sorted(set(hidden) - set(OPT_OUT_MODULES))
 
-    sis_enabled = bool(flags.get('sis_enabled'))
+    # The module answer, not flags.sis_enabled: every org is on the SIS since
+    # 2026-10-15 unless an explicit modules.sis=false says otherwise.
+    from modules.enabled import module_enabled_for_row
+    sis_enabled = module_enabled_for_row(row, 'sis')
     opt_ins = {
         'community': sis_settings.get('community_enabled') is True,
         'prior_learning': sis_settings.get('prior_learning_enabled') is True,

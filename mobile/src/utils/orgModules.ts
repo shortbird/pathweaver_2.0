@@ -2,8 +2,9 @@
  * Which building blocks the user's organization has switched on.
  *
  * /api/auth/me embeds `organization` with its server-computed
- * `effective_modules` (ARCHITECTURE_BLOCKS 4.1); `feature_flags.sis_enabled`
- * is the legacy fallback for a payload built before that list existed. A
+ * `effective_modules` (ARCHITECTURE_BLOCKS 4.1). Every org is an SIS org
+ * (2026-10-15), so a payload built before that list existed still answers
+ * 'sis' true for any org; `feature_flags.sis_enabled` is no longer read. A
  * platform user with no organization has only the core modules, so every
  * add-on answers false for them.
  */
@@ -17,7 +18,8 @@ type OrgLike = {
 export function orgHasModule(org: OrgLike, key: string): boolean {
   if (!org) return false;
   if (Array.isArray(org.effective_modules)) return org.effective_modules.includes(key);
-  if (key === 'sis') return Boolean(org.feature_flags?.sis_enabled);
+  // An explicit modules.sis entry still wins, as on the backend.
+  if (key === 'sis') return org.feature_flags?.modules?.sis !== false;
   return false;
 }
 

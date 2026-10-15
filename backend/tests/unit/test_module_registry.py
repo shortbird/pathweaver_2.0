@@ -13,8 +13,8 @@ import os
 import pytest
 
 from modules.registry import (
-    CATEGORIES, DEFAULTS, GATES, MICROSCHOOL_OFF, MICROSCHOOL_ON, MODULES, STARTER_KEEPS,
-    STARTER_OFF, TIERS,
+    CATEGORIES, DEFAULTS, GATES, LEGACY_SOURCES, MICROSCHOOL_OFF, MICROSCHOOL_ON, MODULES,
+    STARTER_KEEPS, STARTER_OFF, TIERS,
 )
 
 # The 12 opt-out keys are a promise already made: they are the values orgs
@@ -74,9 +74,13 @@ def test_core_modules_carry_no_legacy_or_parent():
             assert m.parent is None, f'{m.key} is core but has a parent'
 
 
-def test_the_sis_switch_and_money_floors_hold():
-    assert MODULES['sis'].default == 'off'
-    assert MODULES['sis'].legacy == 'sis_enabled'
+def test_the_sis_is_on_for_every_org_and_money_floors_hold():
+    # Every org is an SIS org (2026-10-15): on by default, no legacy flag.
+    # Deliberately NOT 'core' -- core answers True with no org, and a
+    # platform user must never pass an SIS staff gate.
+    assert MODULES['sis'].default == 'on'
+    assert MODULES['sis'].legacy is None
+    assert 'sis_enabled' not in LEGACY_SOURCES
     assert MODULES['billing'].min_tier == 'finance'
     assert MODULES['secure_documents'].min_tier == 'hr'
 
@@ -127,6 +131,8 @@ ON_BY_DEFAULT_ALLOWLIST = {
     'clp', 'courses', 'curriculum', 'friends', 'individual_work', 'journal', 'observer',
     'onboarding', 'prior_learning', 'registration', 'reports', 'resources',
     'secure_documents', 'student_chat', 'submissions', 'tasks', 'training',
+    # Every org is an SIS org (Tanner, 2026-10-15).
+    'sis',
 }
 
 

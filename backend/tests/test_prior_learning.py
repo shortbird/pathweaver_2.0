@@ -796,7 +796,7 @@ class TestSelfAsStudent:
                 return type('R', (), {'data': [row] if row else []})()
 
         monkeypatch.setattr(parent, '_admin', lambda: type('A', (), {'table': lambda s, n: _Q()})())
-        monkeypatch.setattr(parent, 'org_has_feature', lambda oid, flag: sis)
+        monkeypatch.setattr(parent, '_sis_org', lambda oid: sis)
         return parent
 
     def test_a_student_of_the_school_acts_for_themselves(self, monkeypatch):

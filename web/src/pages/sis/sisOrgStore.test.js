@@ -10,7 +10,7 @@ async function freshStore() {
   return await import('./sisOrgStore')
 }
 
-const sis = (o) => ({ ...o, feature_flags: { sis_enabled: true } })
+const sis = (o) => ({ ...o, feature_flags: {} })
 
 const ORGS = [
   sis({ id: 'org-a', name: 'Aardvark Academy', slug: 'aardvark' }),
@@ -47,23 +47,24 @@ describe('sisOrgStore default selection', () => {
   })
 })
 
-describe('sisOrgStore only offers orgs running the SIS', () => {
+describe('sisOrgStore offers every org (every org is an SIS org since 2026-10-15)', () => {
   beforeEach(() => localStorage.clear())
 
-  it('leaves out an org that has never enabled the SIS', async () => {
+  it('lists an org that never carried the old sis_enabled flag', async () => {
     const store = await freshStore()
-    store.setOrgs([...ORGS, { id: 'org-x', name: 'No SIS Here', slug: 'nosis' }])
-    expect(store.getSnapshot().orgs.map((o) => o.id)).toEqual(['org-a', 'org-i'])
+    store.setOrgs([...ORGS, { id: 'org-x', name: 'No Flags Here', slug: 'noflags' }])
+    expect(store.getSnapshot().orgs.map((o) => o.id)).toEqual(['org-a', 'org-i', 'org-x'])
   })
 
-  it('treats an explicit sis_enabled false as not enabled', async () => {
+  it('lists an org whose old sis_enabled flag is false', async () => {
     const store = await freshStore()
     store.setOrgs([{ id: 'org-x', name: 'Off', feature_flags: { sis_enabled: false } }])
-    expect(store.getSnapshot().orgs).toEqual([])
+    expect(store.getSnapshot().orgs.map((o) => o.id)).toEqual(['org-x'])
+    expect(store.getSnapshot().orgId).toBe('org-x')
   })
 
-  it('drops a remembered selection whose org no longer runs the SIS', async () => {
-    localStorage.setItem('optio_sis_org_id', 'org-x')
+  it('drops a remembered selection whose org is no longer in the list', async () => {
+    localStorage.setItem('optio_sis_org_id', 'org-gone')
     const store = await freshStore()
     store.setOrgs(ORGS)
     // Falls back to the normal default rather than staying on an org the
@@ -79,10 +80,10 @@ describe('sisOrgStore only offers orgs running the SIS', () => {
     expect(store.getSnapshot().orgId).toBe('org-a')
   })
 
-  it('selects nothing, and forgets the old id, when no org runs the SIS', async () => {
+  it('selects nothing, and forgets the old id, when the list is empty', async () => {
     localStorage.setItem('optio_sis_org_id', 'org-a')
     const store = await freshStore()
-    store.setOrgs([{ id: 'org-x', name: 'No SIS Here' }])
+    store.setOrgs([])
     expect(store.getSnapshot().orgId).toBeNull()
     expect(localStorage.getItem('optio_sis_org_id')).toBeNull()
   })
