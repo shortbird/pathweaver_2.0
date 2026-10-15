@@ -4,6 +4,7 @@ import api from '../../services/api'
 import SearchSelect from '../ui/SearchSelect'
 import { withOrg } from '../../pages/sis/useSisOrg'
 import { getMasqueradeState, startMasquerade, exitMasquerade } from '../../services/masqueradeService'
+import { beginMasqueradeTransition } from '../../services/masqueradeGate'
 
 /**
  * "Viewing as" — for the front office (superadmin, org_admin,
@@ -44,8 +45,16 @@ const PICKER_ROLES = ['superadmin', 'org_admin', 'campus_coordinator']
 const hasPersonPicker = (realRoles = []) => realRoles.some((r) => PICKER_ROLES.includes(r))
 
 
+// A role view swaps the session's identity exactly as a masquerade does, so it
+// takes the same gate between the POST and the navigation: queries pause, 403s
+// from the old page stay out of Sentry, and a back/forward-cache restore of
+// this page reloads instead of rendering as the account it no longer is.
+// Without it, an admin who opened "Parent (my own family)" and pressed Back
+// got the cached console back, still drawn as an admin, with every admin call
+// answering 403 to the parent session (OPTIO-WEB-3J/3K/3M/3N/3P, 2026-10-15).
 export const startRoleView = async (role, orgId = null, landing = '/') => {
   await api.post(`/api/role-view/${role}`, orgId ? { organization_id: orgId } : {})
+  beginMasqueradeTransition()
   // Full reload: /me must re-answer with the narrowed profile before any
   // chrome renders, and cached queries from the old view must go. `landing`
   // is a path the console hands to the learning app when it owns it
@@ -55,6 +64,7 @@ export const startRoleView = async (role, orgId = null, landing = '/') => {
 
 export const exitRoleView = async () => {
   await api.post('/api/role-view/exit', {})
+  beginMasqueradeTransition()
   window.location.href = '/'
 }
 

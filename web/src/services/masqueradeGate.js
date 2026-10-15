@@ -17,6 +17,9 @@
  * stays quiet about 403s. A back/forward-cache restore of that page is
  * reloaded, because the frozen page still thinks it is the admin's.
  *
+ * Role views (RoleViewSwitcher startRoleView / exitRoleView) swap the
+ * identity the same way and take the same gate.
+ *
  * Deliberately free of api.ts imports: api.ts reads this module, and
  * masqueradeService imports api.ts.
  */
