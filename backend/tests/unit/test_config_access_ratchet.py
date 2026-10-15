@@ -94,11 +94,20 @@ def _env_reads(path: Path) -> int:
     return sum(1 for node in ast.walk(tree) if _is_env_read(node))
 
 
+def _not_backend_code(rel: Path) -> bool:
+    """Caches, tests, and a local virtualenv. backend/.venv is gitignored but
+    holds every installed package; counting their env reads failed this locally
+    with ~500 reads CI never sees."""
+    if '__pycache__' in rel.parts or 'tests' in rel.parts:
+        return True
+    return 'site-packages' in rel.parts or rel.parts[0] in {'.venv', 'venv'}
+
+
 def _scanned_files() -> list[Path]:
     files = []
     for path in BACKEND.rglob('*.py'):
         rel = path.relative_to(BACKEND)
-        if '__pycache__' in rel.parts or 'tests' in rel.parts:
+        if _not_backend_code(rel):
             continue
         if rel.parts[0] in APP_LAYERS or path.name in BOOTSTRAP:
             continue
@@ -149,7 +158,7 @@ def test_the_two_halves_account_for_every_backend_directory():
     uncovered_dirs = set()
     for path in BACKEND.rglob('*.py'):
         rel = path.relative_to(BACKEND)
-        if '__pycache__' in rel.parts or 'tests' in rel.parts:
+        if _not_backend_code(rel):
             continue
         if len(rel.parts) == 1:
             continue
