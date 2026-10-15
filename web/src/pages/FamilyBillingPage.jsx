@@ -6,6 +6,8 @@ import { ChevronDownIcon, CreditCardIcon, PencilSquareIcon } from '@heroicons/re
 import { formatCents as money } from '../utils/money'
 import { methodLabel } from './sis/billingPage/payLabel'
 import { isFamilyFirstHubOrg } from '../config/optioAcademy'
+import { useSisParentContext } from '../hooks/api/useSchoolContext'
+import { familyModuleKnownOff } from '../modules/moduleEnabled'
 import { PaidInFull, StripePlan } from './familyBilling/AcademyBillingPanel'
 
 /**
@@ -460,7 +462,20 @@ const FamilyBillingPage = () => {
     .then((r) => setHouseholds(r.data?.households || []))
     .catch(() => { toast.error('Could not load your billing'); setHouseholds([]) })
 
-  useEffect(() => { loadBilling() }, [])
+  // The ledger is the `billing` module's, and the read names no school: it
+  // answers across the family's households. So it is skipped only when every
+  // school this family is in is known not to run billing (Sentry: ModuleGate
+  // warnings from Arete Academy, billing off); otherwise it is asked, as
+  // before. Waits for the shared guardian-context read to answer.
+  const { orgs: familyOrgs, loading: familyOrgsLoading } = useSisParentContext()
+  const billingOff = Boolean(familyOrgs?.length)
+    && familyOrgs.every((o) => familyModuleKnownOff(o, 'billing'))
+
+  useEffect(() => {
+    if (familyOrgsLoading) return
+    if (billingOff) { setHouseholds([]); return }
+    loadBilling()
+  }, [familyOrgsLoading, billingOff])
 
   // Returning from Stripe. Three flows share this handler:
   //   ?payment=return&pay_invoice=<id>   single invoice paid in full

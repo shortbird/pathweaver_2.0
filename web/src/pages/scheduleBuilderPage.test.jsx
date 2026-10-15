@@ -697,3 +697,21 @@ describe('ScheduleBuilderPage', () => {
     )
   })
 })
+
+describe('a school without the classes module', () => {
+  // Every read and write here is gated on `classes`; Optio Academy has it off,
+  // and opening the builder read its schedule anyway (a ModuleGate warning).
+  it('offers only the schools that run it, so a family at none sees the empty state', async () => {
+    api.get.mockImplementation(mockApi({ orgs: [{ ...ORG, effective_modules: ['sis', 'billing'] }] }))
+    render(<ScheduleBuilderPage />)
+    expect(await screen.findByText(/No school schedules to manage/)).toBeInTheDocument()
+    expect(api.get.mock.calls.some(([url]) => url.includes('/schedule') || url.includes('/parent/classes'))).toBe(false)
+  })
+
+  it('still builds the schedule at a school that runs it', async () => {
+    api.get.mockImplementation(mockApi({ orgs: [{ ...ORG, effective_modules: ['sis', 'classes'] }] }))
+    render(<ScheduleBuilderPage />)
+    await waitFor(() => expect(api.get).toHaveBeenCalledWith(
+      '/api/sis/parent/students/s1/schedule?organization_id=org1'))
+  })
+})

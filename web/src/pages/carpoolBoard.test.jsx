@@ -27,6 +27,9 @@ vi.mock('./sis/useSisOrg', () => ({
 vi.mock('../services/api', () => ({
   default: { get: vi.fn(), post: vi.fn(), delete: vi.fn() },
 }))
+vi.mock('../hooks/api/useSchoolContext', () => ({
+  useSchoolContext: () => ({ orgs: [{ organization_id: 'org-1', modules: ['community'] }], loading: false }),
+}))
 import api from '../services/api'
 import CarpoolPage from './CarpoolPage'
 

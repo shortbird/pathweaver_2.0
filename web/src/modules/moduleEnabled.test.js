@@ -5,7 +5,7 @@
  */
 
 import { describe, expect, it } from 'vitest'
-import { effectiveModules, moduleEnabled, moduleKnownOff } from './moduleEnabled'
+import { effectiveModules, familyModuleKnownOff, moduleEnabled, moduleKnownOff } from './moduleEnabled'
 
 const org = (flags = {}, extra = {}) => ({
   id: 'org-1',
@@ -215,6 +215,36 @@ describe('moduleKnownOff', () => {
 
   it('never reports a core module off', () => {
     expect(moduleKnownOff(org({}, { effective_modules: [] }), 'quests')).toBe(false)
+  })
+})
+
+describe('familyModuleKnownOff', () => {
+  it('reads a parent-context entry (effective_modules)', () => {
+    const entry = { organization_id: 'o1', effective_modules: ['sis', 'billing'] }
+    expect(familyModuleKnownOff(entry, 'training')).toBe(true)
+    expect(familyModuleKnownOff(entry, 'billing')).toBe(false)
+  })
+
+  it('reads a school-context entry (modules, the family-surface set)', () => {
+    const entry = { organization_id: 'o1', modules: ['calendar'] }
+    expect(familyModuleKnownOff(entry, 'community')).toBe(true)
+    expect(familyModuleKnownOff(entry, 'calendar')).toBe(false)
+  })
+
+  it('asks when the entry cannot answer', () => {
+    // school_context sends modules: null when it could not read the org row.
+    expect(familyModuleKnownOff({ organization_id: 'o1', modules: null }, 'calendar')).toBe(false)
+    expect(familyModuleKnownOff({ organization_id: 'o1' }, 'calendar')).toBe(false)
+    expect(familyModuleKnownOff(null, 'calendar')).toBe(false)
+  })
+
+  it('lets effective_modules win over a modules list', () => {
+    const entry = { effective_modules: ['sis', 'community'], modules: [] }
+    expect(familyModuleKnownOff(entry, 'community')).toBe(false)
+  })
+
+  it('never reports a core module off', () => {
+    expect(familyModuleKnownOff({ modules: [] }, 'quests')).toBe(false)
   })
 })
 

@@ -117,7 +117,8 @@ const ClassDetailModal = ({ cls, staff, timeBlocks = [], rooms = [], roomOccupan
                   <ClassInviteLink orgId={orgId} classId={cls.id} />
                 </div>
               )}
-              <ClassRoster classId={cls.id} className={cls.name} orgId={orgId} onChanged={onRosterChanged} />
+              <ClassRoster classId={cls.id} className={cls.name} orgId={orgId} onChanged={onRosterChanged}
+                siblingSections={showRegistration} />
             </>
           )}
           {showRegistration && tab === 'waitlist' && <ClassWaitlist classId={cls.id} orgId={orgId} cls={cls} onChanged={onRosterChanged} />}

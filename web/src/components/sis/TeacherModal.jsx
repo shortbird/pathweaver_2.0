@@ -4,6 +4,7 @@ import { toast } from 'react-hot-toast'
 import api from '../../services/api'
 import { AuthContext } from '../../contexts/AuthContext'
 import { canGrantAdmin } from '../../pages/sis/sisRole'
+import { moduleKnownOff } from '../../modules/moduleEnabled'
 import { ModalOverlay } from '../ui'
 
 /**
@@ -48,7 +49,7 @@ const STAFF_ROLES = [
   { key: 'org_admin', label: 'Admin', hint: 'The whole console, including tuition, invoices and pay rates.' },
 ]
 
-export default function TeacherModal({ orgId, onClose, onSaved, onBack, placeholders = [] }) {
+export default function TeacherModal({ orgId, org = null, onClose, onSaved, onBack, placeholders = [] }) {
   // Context directly, not useAuth(): this modal is rendered bare in tests.
   const mayGrantAdmin = canGrantAdmin(useContext(AuthContext)?.user)
   const roleOptions = mayGrantAdmin ? STAFF_ROLES : STAFF_ROLES.filter((r) => r.key !== 'org_admin')
@@ -68,6 +69,11 @@ export default function TeacherModal({ orgId, onClose, onSaved, onBack, placehol
   const [linkTarget, setLinkTarget] = useState('')
   const [error, setError] = useState('')
   const [submitting, setSubmitting] = useState(false)
+  // The checklist templates are served behind tasks OR onboarding
+  // (require_module any_of). A school with both off has no checklist to
+  // assign, and the request was a ModuleGate "would block" every time the add
+  // form opened (Apogee Cache Valley), so the picker is not offered.
+  const checklistsOff = moduleKnownOff(org, 'tasks') && moduleKnownOff(org, 'onboarding')
 
   useEffect(() => {
     return () => {
@@ -78,7 +84,7 @@ export default function TeacherModal({ orgId, onClose, onSaved, onBack, placehol
   // Load the org's staff onboarding checklists so the admin can assign one at
   // add-time (the whole point of wiring onboarding into the flow).
   useEffect(() => {
-    if (!orgId) return
+    if (!orgId || checklistsOff) return
     let active = true
     api.get(`/api/sis/staff-admin/onboarding/templates?organization_id=${orgId}`)
       .then((r) => {
@@ -91,7 +97,7 @@ export default function TeacherModal({ orgId, onClose, onSaved, onBack, placehol
       })
       .catch(() => { /* non-fatal: the picker just stays empty */ })
     return () => { active = false }
-  }, [orgId])
+  }, [orgId, checklistsOff])
 
   const handleChange = (e) => {
     const { name, value } = e.target
@@ -447,31 +453,33 @@ export default function TeacherModal({ orgId, onClose, onSaved, onBack, placehol
             )}
 
             {/* Onboarding checklist */}
-            <div>
-              <label htmlFor="onboarding_template" className="block text-sm font-medium text-gray-700 mb-1">
-                Onboarding checklist
-              </label>
-              {templates.length ? (
-                <>
-                  <select id="onboarding_template" value={onboardingTemplateId}
-                    onChange={(e) => setOnboardingTemplateId(e.target.value)} className={inputClass}>
-                    <option value="">No onboarding tasks</option>
-                    {templates.map((t) => (
-                      <option key={t.id} value={t.id}>
-                        {t.name}{t.role_type ? ` (${t.role_type})` : ''}
-                      </option>
-                    ))}
-                  </select>
-                  <p className="text-xs text-gray-400 mt-1">
-                    Assigned when they are added; they’ll see it in their portal.
+            {!checklistsOff && (
+              <div>
+                <label htmlFor="onboarding_template" className="block text-sm font-medium text-gray-700 mb-1">
+                  Onboarding checklist
+                </label>
+                {templates.length ? (
+                  <>
+                    <select id="onboarding_template" value={onboardingTemplateId}
+                      onChange={(e) => setOnboardingTemplateId(e.target.value)} className={inputClass}>
+                      <option value="">No onboarding tasks</option>
+                      {templates.map((t) => (
+                        <option key={t.id} value={t.id}>
+                          {t.name}{t.role_type ? ` (${t.role_type})` : ''}
+                        </option>
+                      ))}
+                    </select>
+                    <p className="text-xs text-gray-400 mt-1">
+                      Assigned when they are added; they’ll see it in their portal.
+                    </p>
+                  </>
+                ) : (
+                  <p className="text-xs text-gray-400">
+                    No staff onboarding checklists yet. Create one on the Onboarding page to assign it here.
                   </p>
-                </>
-              ) : (
-                <p className="text-xs text-gray-400">
-                  No staff onboarding checklists yet. Create one on the Onboarding page to assign it here.
-                </p>
-              )}
-            </div>
+                )}
+              </div>
+            )}
 
             {error && <p className="text-sm text-red-600" role="alert">{error}</p>}
           </div>

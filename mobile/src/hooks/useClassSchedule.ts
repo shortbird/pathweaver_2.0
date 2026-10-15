@@ -22,6 +22,7 @@ import { useState, useEffect, useCallback } from 'react';
 import api from '@/src/services/api';
 import { useAuthStore } from '@/src/stores/authStore';
 import { useMyChildren } from './useParent';
+import { moduleKnownOff } from '@/src/utils/orgModules';
 
 export interface ClassMeeting {
   day_of_week: number | null;
@@ -163,7 +164,17 @@ function bySchedulePresence(a: ScheduledClass, b: ScheduledClass) {
   return (a.name || '').localeCompare(b.name || '');
 }
 
-export function useClassSchedule(organizationId?: string | null) {
+/**
+ * `classesOff` — the caller knows the school runs no classes module (the hub
+ * passes its context row's answer). The guardian route is gated on
+ * 'classes', so a school without it gets no per-child reads at all; the
+ * user's own organization answers the same question when it is the org being
+ * read (an org-member parent on a child's page, where there is no hub row).
+ */
+export function useClassSchedule(
+  organizationId?: string | null,
+  opts?: { classesOff?: boolean },
+) {
   const user = useAuthStore((s) => s.user);
   const { children, loading: childrenLoading } = useMyChildren();
   const [schedules, setSchedules] = useState<StudentSchedule[]>([]);
@@ -172,6 +183,9 @@ export function useClassSchedule(organizationId?: string | null) {
   const role = (user as any)?.org_role || (user as any)?.role;
   const isStudent = role === 'student';
   const orgId = organizationId || (user as any)?.organization_id;
+  const ownOrg = (user as any)?.organization;
+  const classesOff = Boolean(opts?.classesOff)
+    || (Boolean(orgId) && ownOrg?.id === orgId && moduleKnownOff(ownOrg, 'classes'));
 
   const load = useCallback(async () => {
     if (!user) { setLoading(false); return; }
@@ -187,7 +201,7 @@ export function useClassSchedule(organizationId?: string | null) {
         return;
       }
 
-      if (!children.length || !orgId) { setSchedules([]); return; }
+      if (classesOff || !children.length || !orgId) { setSchedules([]); return; }
       // One request per child, and one slow child must not blank the rest.
       const results = await Promise.all(children.map(async (kid: any) => {
         try {
@@ -210,7 +224,7 @@ export function useClassSchedule(organizationId?: string | null) {
     } finally {
       setLoading(false);
     }
-  }, [user, isStudent, orgId, children]);
+  }, [user, isStudent, orgId, children, classesOff]);
 
   useEffect(() => {
     if (!isStudent && childrenLoading) return;

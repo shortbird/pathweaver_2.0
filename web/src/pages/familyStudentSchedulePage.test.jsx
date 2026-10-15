@@ -176,3 +176,19 @@ describe('FamilyStudentSchedulePage', () => {
     expect(screen.queryByText('Pottery')).not.toBeInTheDocument()
   })
 })
+
+describe('a school without the classes module', () => {
+  // The schedule read is gated on `classes`; Optio Academy has it off and
+  // logged a ModuleGate warning per visit. It now answers as no school does.
+  it('does not ask for the schedule', async () => {
+    api.get.mockImplementation((url) => {
+      if (url.includes('/parent/context')) {
+        return Promise.resolve({ data: { orgs: [{ ...contextPayload.orgs[0], effective_modules: ['sis'] }] } })
+      }
+      return Promise.resolve({ data: schedulePayload })
+    })
+    renderPage()
+    expect(await screen.findByText(/not enrolled at a school that uses schedules/)).toBeInTheDocument()
+    expect(api.get.mock.calls.some(([url]) => url.includes('/schedule'))).toBe(false)
+  })
+})

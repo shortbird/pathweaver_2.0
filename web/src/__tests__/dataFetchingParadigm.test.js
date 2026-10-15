@@ -198,7 +198,11 @@ const COMPONENTS = path.resolve(__dirname, '../components')
 // /api/interest-tracks (no user id in it) is exactly how the previous child's
 // topics would appear on the next child's screen. Fetch-per-session is the
 // safe shape there.
-const CALL_SITE_BASELINE = 701
+// 701 -> 657 on 2026-10-15, the module-gate sweep (OPTIO-BACKEND-A4 and
+// siblings): family and console pages stopped calling endpoints for modules
+// their school has off, and several reads moved behind the hooks that already
+// knew the school's modules.
+const CALL_SITE_BASELINE = 657
 const SLACK = 40
 
 const USES_HOOK = /useQuery|useMutation|hooks\/api/

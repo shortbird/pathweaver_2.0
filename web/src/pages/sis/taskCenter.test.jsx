@@ -32,6 +32,8 @@ const render = (ui) => {
  */
 
 const authState = { user: { id: 'admin-1', role: 'org_managed', org_roles: ['org_admin'] } }
+// The org in view; null (the default) answers no module question.
+const orgHolder = { activeOrg: null }
 vi.mock('../../contexts/AuthContext', () => ({ useAuth: () => authState }))
 vi.mock('react-hot-toast', () => ({
   toast: { success: vi.fn(), error: vi.fn() },
@@ -39,7 +41,7 @@ vi.mock('react-hot-toast', () => ({
 }))
 vi.mock('./SisOrgPicker', () => ({ default: () => null }))
 vi.mock('./useSisOrg', () => ({
-  useSisOrg: () => ({ orgId: 'org-1', setOrgId: vi.fn(), orgs: [], isSuperadmin: false, activeOrg: null }),
+  useSisOrg: () => ({ orgId: 'org-1', setOrgId: vi.fn(), orgs: [], isSuperadmin: false, activeOrg: orgHolder.activeOrg }),
   withOrg: (url, orgId) => `${url}${url.includes('?') ? '&' : '?'}organization_id=${orgId}`,
 }))
 vi.mock('./teacherPreview', () => ({
@@ -202,6 +204,7 @@ const fmtWhen = (iso) => new Date(iso).toLocaleString(undefined,
 beforeEach(() => {
   vi.clearAllMocks()
   authState.user = { id: 'admin-1', role: 'org_managed', org_roles: ['org_admin'] }
+  orgHolder.activeOrg = null
   api.post.mockResolvedValue({ data: {} })
   api.patch.mockResolvedValue({ data: {} })
   mockGets()
@@ -356,6 +359,16 @@ describe('which door the page uses', () => {
     renderPage()
     await waitFor(() => expect(endpointsCalled().length).toBeGreaterThan(0))
     expect(endpointsCalled()[0]).toContain('/api/sis/staff-admin/signature-requests')
+  })
+
+  // The HR store is the secure_documents module's. Apogee NoCo has it off, and
+  // the HR read was a ModuleGate "would block" on every Assigned visit: an HR
+  // admin there works the front-office door, which the tasks module serves.
+  it('an HR administrator uses the front-office store where secure documents is off', async () => {
+    orgHolder.activeOrg = { id: 'org-1', effective_modules: ['sis', 'tasks'] }
+    renderPage()
+    await waitFor(() => expect(endpointsCalled().length).toBeGreaterThan(0))
+    expect(endpointsCalled().every((u) => u.startsWith('/api/sis/staff-admin/signature-requests'))).toBe(true)
   })
 
   it('a coordinator reminds through the front-office door', async () => {

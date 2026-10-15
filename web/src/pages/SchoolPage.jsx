@@ -7,6 +7,7 @@ import { useAuth } from '../contexts/AuthContext'
 import { roleHomePath } from '../utils/postLoginPath'
 import { useSisOrg } from './sis/useSisOrg'
 import { isFamilyFirstHubOrg } from '../config/optioAcademy'
+import { familyModuleKnownOff, moduleKnownOff } from '../modules/moduleEnabled'
 import { cardGroupsFor, cardsFor } from './school/schoolCards'
 import MySchoolTraining from '../components/school/MySchoolTraining'
 import MySchoolTodo from '../components/school/MySchoolTodo'
@@ -103,7 +104,7 @@ export default function SchoolPage() {
   const [error, setError] = useState(null)
   const [search, setSearch] = useState('')
   const [query, setQuery] = useState('')
-  const { school, loading: orgLoading } = useOrganization()
+  const { school, organization, loading: orgLoading } = useOrganization()
   const { effectiveRole } = useAuth()
   // Superadmins belong to no school, so membership answers nothing for them.
   // They preview one org at a time instead, through the same shared selection
@@ -118,6 +119,9 @@ export default function SchoolPage() {
   const previewParams = previewOrgId ? { organization_id: previewOrgId, view_as: viewAs } : null
   const [feed, setFeed] = useState(null)
   const [schoolOrg, setSchoolOrg] = useState(null)
+  // Whether the school context below has answered (or failed). The module
+  // reads on this page wait for it: see schoolModuleOff.
+  const [contextReady, setContextReady] = useState(false)
   const debounceRef = useRef(null)
   // Archive ids already reported as read this session — read receipts are
   // per-person facts, so nothing is reported from the superadmin preview.
@@ -171,21 +175,39 @@ export default function SchoolPage() {
   // silently degrades to the feed rather than an error.
   useEffect(() => {
     let active = true
+    setContextReady(false)
     api.get('/api/sis/school/context', previewParams ? { params: previewParams } : undefined)
       .then(({ data }) => {
         if (!active || !data?.success) return
         setSchoolOrg((data.orgs || [])[0] || null)
       })
       .catch(() => { /* not a SIS school, or the lookup is down */ })
+      .finally(() => { if (active) setContextReady(true) })
     return () => { active = false }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- previewParams derives from these
   }, [previewOrgId, viewAs])
 
+  // Is this module known to be off for the school this page shows? The school
+  // context's module list answers for everyone, a platform parent included
+  // (whose `organization` is null), and the signed-in member's own org payload
+  // answers too. Only meaningful once the context has answered: before that
+  // nothing is known, and asking anyway is what logged the ModuleGate warnings
+  // this exists to stop (the community feed at Apogee NoCo, student training
+  // at Optio Academy -- whose /school redirects to its first tab, but only
+  // after this page had mounted and fired its reads).
+  const schoolModuleOff = (key) => familyModuleKnownOff(schoolOrg, key)
+    || (!previewOrgId && moduleKnownOff(organization, key))
+  const moduleReadsReady = contextReady && (Boolean(previewOrgId) || !orgLoading)
+  const communityOff = schoolModuleOff('community')
+
   // The community board, loaded once. A failure here is silent: the archive is
   // still the feed, the board items are the extra. Nothing on this page writes
   // to the board any more — the carpool board lives on /carpool, which the rail
-  // links to — so there is no refetch to arrange.
+  // links to — so there is no refetch to arrange. A school without the
+  // community module has no board, so it is not asked for one.
   useEffect(() => {
+    if (!moduleReadsReady) return undefined
+    if (communityOff) { setFeed(null); return undefined }
     let active = true
     api.get('/api/sis/community/feed', previewParams ? { params: previewParams } : undefined)
       .then(({ data }) => {
@@ -196,7 +218,7 @@ export default function SchoolPage() {
       .catch(() => { /* no board for this user */ })
     return () => { active = false }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- previewParams derives from these
-  }, [previewOrgId, viewAs])
+  }, [previewOrgId, viewAs, moduleReadsReady, communityOff])
 
   const onSearchChange = (value) => {
     setSearch(value)
@@ -350,12 +372,13 @@ export default function SchoolPage() {
               view_as=student to read enrollments for. (A guardian's children's
               classes were here too, 2026-09-10 to 2026-09-16; they are on the
               Schedule tab now, under the week, where a parent looks for a
-              class.) */}
-          {!previewOrgId && <MyClassMaterials />}
+              class.) Each of these two waits for the school's module list
+              and is not mounted where its module is off (schoolModuleOff). */}
+          {!previewOrgId && moduleReadsReady && !schoolModuleOff('classes') && <MyClassMaterials />}
           {/* Videos and documents the school set for its students, with a Done
               button (ae16c5da). Empty -- so nothing -- for anyone who is not a
               student, and hidden in the preview for the same reason as above. */}
-          {!previewOrgId && <MySchoolTraining />}
+          {!previewOrgId && moduleReadsReady && !schoolModuleOff('training') && <MySchoolTraining />}
           {/* The student's own tasks from the school, done in place. Empty --
               so nothing -- for anyone who is not a student, and hidden in the
               preview for the same reason as above. */}

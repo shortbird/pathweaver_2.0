@@ -348,6 +348,7 @@ const PeoplePage = () => {
         <AddPeopleWizard
           orgId={orgId}
           orgName={activeOrg?.name}
+          org={activeOrg}
           placeholders={placeholders}
           initialPath={adding === true ? null : adding}
           onClose={() => setAdding(false)}

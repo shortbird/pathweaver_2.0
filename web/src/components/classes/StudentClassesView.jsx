@@ -16,6 +16,9 @@ import { toast } from 'react-hot-toast'
 import classService from '../../services/classService'
 import api from '../../services/api'
 import { useAuth } from '../../contexts/AuthContext'
+import { useOrganization } from '../../contexts/OrganizationContext'
+import { useSisParentContext } from '../../hooks/api/useSchoolContext'
+import { familyModuleKnownOff, moduleKnownOff } from '../../modules/moduleEnabled'
 import { useStudentScope } from '../../hooks/useStudentScope'
 import { dueStatus, dueChipClasses } from '../../utils/dueDate'
 import CreateQuestModal from '../CreateQuestModal'
@@ -283,9 +286,46 @@ function StudentClassDetail({ classData: initialClassData, classId: propClassId,
 
   const classId = initialClassData?.id || propClassId
 
+  // Handouts are the SIS `classes` module's (routes/sis/class_materials.py).
+  // A school without it can still have classes here, and asking it for their
+  // handouts logged a ModuleGate warning per class opened (Sentry: Optio
+  // Academy and Apogee Central Florida, classes off). Which school answers
+  // depends on who is asking: in family scope the child's school, from the
+  // guardian context; otherwise the signed-in student's own org. Both have to
+  // have loaded first, or the read fires before the answer arrives (the race
+  // QuestDetail's ClassCurriculum guard documents).
+  const { organization, loading: orgLoading } = useOrganization()
+  const { orgs: guardianOrgs, loading: guardianLoading } = useSisParentContext({ enabled: Boolean(studentId) })
+  const materialsReady = studentId ? !guardianLoading : !orgLoading
+  const classesOff = studentId
+    ? familyModuleKnownOff((guardianOrgs || []).find((o) => o.organization_id === orgId), 'classes')
+    : moduleKnownOff(organization, 'classes')
+
   useEffect(() => {
     fetchDetails()
   }, [classId, studentId])
+
+  useEffect(() => {
+    if (!classId || !materialsReady) return undefined
+    if (classesOff) { setMaterials([]); return undefined }
+    let active = true
+    // Family scope reads the CHILD's handouts through the guardian route.
+    // The class-id route answers "are you in this class?", which a parent
+    // never is, so it 403'd and the handouts were hidden from every parent
+    // working for a child (ticket fcac4a83, Sentry 7788402508). The
+    // guardian route groups by class; keep this class's group.
+    const read = studentId
+      ? api.get(`/api/sis/parent/students/${studentId}/materials`, { expect403: true })
+        .then((r) => {
+          const group = (r.data?.classes || []).find((g) => g.class_id === classId)
+          return { success: Boolean(r.data?.success), materials: group?.materials || [] }
+        })
+      : api.get(`/api/sis/classes/${classId}/materials`).then((r) => r.data)
+    read
+      .then((res) => { if (active && res?.success) setMaterials(res.materials || []) })
+      .catch(() => { /* handouts are a bonus; the class page stands without them */ })
+    return () => { active = false }
+  }, [classId, studentId, materialsReady, classesOff])
 
   const fetchDetails = async () => {
     try {
@@ -307,20 +347,7 @@ function StudentClassDetail({ classData: initialClassData, classId: propClassId,
         classService.getClassQuests(orgId, classId, scope).catch(() => ({ success: false })),
         classService.getClassAdvisors(orgId, classId, scope).catch(() => ({ success: false })),
         classService.getClassCourses(orgId, classId, scope).catch(() => ({ success: false })),
-        // Family scope reads the CHILD's handouts through the guardian route.
-        // The class-id route answers "are you in this class?", which a parent
-        // never is, so it 403'd and the handouts were hidden from every parent
-        // working for a child (ticket fcac4a83, Sentry 7788402508). The
-        // guardian route groups by class; keep this class's group.
-        studentId
-          ? api.get(`/api/sis/parent/students/${studentId}/materials`, { expect403: true })
-            .then((r) => {
-              const group = (r.data?.classes || []).find((g) => g.class_id === classId)
-              return { success: Boolean(r.data?.success), materials: group?.materials || [] }
-            })
-            .catch(() => ({ success: false }))
-          : api.get(`/api/sis/classes/${classId}/materials`)
-            .then((r) => r.data).catch(() => ({ success: false })),
+        // Handouts load in their own effect above, once the module is known.
       ]
 
       // If we don't have classData yet, fetch student classes to get progress
@@ -332,7 +359,7 @@ function StudentClassDetail({ classData: initialClassData, classId: propClassId,
 
       const results = await Promise.all(requests)
 
-      const [questsRes, advisorsRes, coursesRes, materialsRes] = results
+      const [questsRes, advisorsRes, coursesRes] = results
       if (questsRes.success) {
         setQuests(questsRes.quests || [])
       }
@@ -342,13 +369,10 @@ function StudentClassDetail({ classData: initialClassData, classId: propClassId,
       if (coursesRes?.success) {
         setCourses(coursesRes.courses || [])
       }
-      if (materialsRes?.success) {
-        setMaterials(materialsRes.materials || [])
-      }
 
       // Set class data from student classes response if needed
-      if (!initialClassData && results[4]?.success) {
-        const cls = (results[4].classes || []).find(c => c.id === classId)
+      if (!initialClassData && results[3]?.success) {
+        const cls = (results[3].classes || []).find(c => c.id === classId)
         if (cls) {
           setClassData(cls)
           setProgress(cls.progress || {})

@@ -45,6 +45,7 @@ import { TodoTab } from '@/src/components/school/TodoTab';
 import { VolunteerHoursCard, WhoToContactCard } from '@/src/components/school/FamilySchoolCards';
 import { useAuthStore } from '@/src/stores/authStore';
 import { effectiveRoleOf } from '@/src/utils/effectiveRole';
+import { schoolModuleKnownOff } from '@/src/utils/orgModules';
 
 /** A door that still opens on the web (Goal Setting, Prior Learning) — a
  *  chip on the Feed tab, not a tab, since a tab that launches a browser is a
@@ -80,7 +81,11 @@ export default function SchoolScreen() {
   const school = useSchool();
   const { org, feed, messages, carpool, loading, refreshing, refresh, schoolName } =
     useSchoolHub({ markRead: true });
-  const { resources } = useSchoolResources(org?.organization_id);
+  // A school with the resources module off has no Library: nothing is read
+  // (the module gate 404s it once enforcement is on), so no Library tab.
+  const { resources } = useSchoolResources(
+    schoolModuleKnownOff(org, 'resources') ? null : org?.organization_id,
+  );
   const params = useLocalSearchParams<{ tab?: string; student?: string; task?: string }>();
   // The context row knows guardianship only; being a student is the account's
   // own role. A guardian who is somehow also a student gets the family list.
@@ -266,6 +271,7 @@ export default function SchoolScreen() {
           {activeTab === 'schedule' && (
             <ScheduleTab
               organizationId={org?.organization_id}
+              modules={org?.modules}
               initialStudentId={typeof params.student === 'string' ? params.student : null}
             />
           )}

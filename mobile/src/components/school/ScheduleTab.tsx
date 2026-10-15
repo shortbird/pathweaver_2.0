@@ -27,6 +27,7 @@ import { useSchoolAbsences, groupAbsenceRuns } from '@/src/hooks/useSchool';
 import { useClassSchedule, type StudentSchedule } from '@/src/hooks/useClassSchedule';
 import { StudentDays, PrintScheduleButton } from './ClassSchedule';
 import { AbsenceReportSheet } from './AbsenceReportSheet';
+import { schoolModuleKnownOff } from '@/src/utils/orgModules';
 
 function ChildChip({ schedule, selected, onPress }: {
   schedule: StudentSchedule; selected: boolean; onPress: () => void;
@@ -54,14 +55,30 @@ function ChildChip({ schedule, selected, onPress }: {
   );
 }
 
-export function ScheduleTab({ organizationId, initialStudentId }: {
+export function ScheduleTab({ organizationId, modules, initialStudentId }: {
   organizationId?: string | null;
+  /** The school's family modules, from the hub's context row. The tab shows
+   *  for a school that runs classes OR attendance; the half it does not run
+   *  is never read (the module gate 404s it once enforcement is on). */
+  modules?: string[] | null;
   /** A child's profile page can deep-link straight to that child. */
   initialStudentId?: string | null;
 }) {
   const c = useThemeColors();
-  const { schedules, loading, refresh } = useClassSchedule(organizationId);
-  const absences = useSchoolAbsences(organizationId);
+  const classesOff = schoolModuleKnownOff({ modules }, 'classes');
+  const attendanceOff = schoolModuleKnownOff({ modules }, 'attendance');
+  const classSchedule = useClassSchedule(organizationId, { classesOff });
+  const absences = useSchoolAbsences(organizationId, { attendanceOff });
+  // An attendance-only school has no weeks to show, but the children still
+  // need a picker for the absence report: they come from the absence context
+  // instead, each with an empty week.
+  const absenceStudents = absences.students;
+  const childrenOnly = useMemo<StudentSchedule[]>(() => (
+    absenceStudents.map((s) => ({ student_id: s.student_id, student_name: s.name, classes: [] }))
+  ), [absenceStudents]);
+  const schedules = classesOff ? childrenOnly : classSchedule.schedules;
+  const loading = classesOff ? absences.loading : classSchedule.loading;
+  const { refresh } = classSchedule;
   const [pickedId, setPickedId] = useState<string | null>(initialStudentId || null);
   const [reporting, setReporting] = useState(false);
 
@@ -149,7 +166,7 @@ export function ScheduleTab({ organizationId, initialStudentId }: {
           </UIText>
         )}
 
-        {!loading && selected && selected.classes.length === 0 && (
+        {!loading && !classesOff && selected && selected.classes.length === 0 && (
           <UIText size="sm" className="text-typo-400 dark:text-dark-typo-400 py-8 text-center"
             testID="schedule-no-classes">
             {isOwn

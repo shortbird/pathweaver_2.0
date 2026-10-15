@@ -3,6 +3,7 @@ import { toast } from 'react-hot-toast'
 import api from '../services/api'
 import ModalOverlay from '../components/ui/ModalOverlay'
 import useSchoolContext from '../hooks/useSchoolContext'
+import { familyModuleKnownOff } from '../modules/moduleEnabled'
 import AnnouncementBody from '../components/announcements/AnnouncementBody'
 import EventRsvp from '../components/school/EventRsvp'
 import { XMarkIcon, ClockIcon, MapPinIcon } from '@heroicons/react/24/outline'
@@ -54,7 +55,16 @@ const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June',
 const DOW = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 
 const FamilyCalendarPage = () => {
-  const { orgs } = useSchoolContext()
+  const { orgs: schoolOrgs } = useSchoolContext()
+  // Only the schools that keep a calendar. The events read is gated on the
+  // `calendar` module, and a school without it was asked anyway whenever this
+  // page was opened from an old link or a notification (Sentry: ModuleGate
+  // warnings from Optio Academy, calendar off). Not offered in the nav there
+  // (school/schoolCards), so this is the typed-URL case.
+  const orgs = useMemo(
+    () => (schoolOrgs ? schoolOrgs.filter((o) => !familyModuleKnownOff(o, 'calendar')) : null),
+    [schoolOrgs],
+  )
   const [orgId, setOrgId] = useState(null)
   const [events, setEvents] = useState(null)
   const [openDay, setOpenDay] = useState(null) // 'YYYY-MM-DD' whose events are shown
@@ -158,7 +168,9 @@ const FamilyCalendarPage = () => {
       )}
 
       {orgs === null && <p className="text-gray-500">Loading…</p>}
-      {orgs?.length === 0 && <p className="text-gray-500">Your account isn&apos;t linked to a school yet.</p>}
+      {orgs?.length === 0 && (schoolOrgs?.length
+        ? <p className="text-gray-500">{schoolOrgs[0].organization_name || 'Your school'} doesn&apos;t keep a calendar here.</p>
+        : <p className="text-gray-500">Your account isn&apos;t linked to a school yet.</p>)}
 
       {orgId && (
         <>

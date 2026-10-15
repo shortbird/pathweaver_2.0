@@ -497,6 +497,7 @@ export default function SubmissionsPanel() {
           onUnreview={unreview}
           onXpChanged={setXp}
           decisionRef={decisionRef}
+          xpAdjustable={classesOn}
         />
       )}
 

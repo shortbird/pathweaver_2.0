@@ -149,3 +149,17 @@ describe('StudentClasses', () => {
     expect(await screen.findByText("Ada's classes")).toBeInTheDocument()
   })
 })
+
+describe('a school without the classes module', () => {
+  // Both reads (schedule, handouts) are gated on `classes`; Optio Academy has
+  // it off and logged a ModuleGate warning for each. Not asked, nothing shown.
+  it('asks for neither and renders nothing', async () => {
+    vi.clearAllMocks()
+    answers({ context: { data: { orgs: [{ ...CONTEXT.data.orgs[0], effective_modules: ['sis'] }] } } })
+    const { container } = withClient(<StudentClasses studentId="kid-1" />)
+    await waitFor(() => expect(api.get).toHaveBeenCalledWith('/api/sis/parent/context'))
+    await new Promise((r) => setTimeout(r, 0))
+    expect(api.get.mock.calls.some(([url]) => url.includes('/schedule') || url.includes('/materials'))).toBe(false)
+    expect(container).toBeEmptyDOMElement()
+  })
+})

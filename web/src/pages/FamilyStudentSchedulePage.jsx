@@ -5,6 +5,7 @@ import api from '../services/api'
 import WeeklySchedule from '../components/schedule/WeeklySchedule'
 import ScheduleByDay from '../components/schedule/ScheduleByDay'
 import { useSisParentContext } from '../hooks/api/useSchoolContext'
+import { familyModuleKnownOff } from '../modules/moduleEnabled'
 
 /**
  * A printable copy of one student's class schedule.
@@ -58,7 +59,10 @@ const FamilyStudentSchedulePage = () => {
     if (ctxLoading) return
     if (ctxError) { setError('Could not load the schedule'); return }
     const org = (orgs || []).find((o) => (o.students || []).some((s) => s.student_id === studentId))
-    if (!org) {
+    // A school without the `classes` module has no schedule to print, and
+    // the read is gated on it (Sentry: ModuleGate warnings from Optio Academy,
+    // classes off), so it answers the same as no school.
+    if (!org || familyModuleKnownOff(org, 'classes')) {
       setError('This student is not enrolled at a school that uses schedules.')
       return
     }

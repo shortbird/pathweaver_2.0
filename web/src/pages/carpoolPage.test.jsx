@@ -17,6 +17,9 @@ vi.mock('../contexts/OrganizationContext', () => ({
 }))
 let sisOrg = { orgId: null, setOrgId: vi.fn(), orgs: [], loading: false }
 vi.mock('./sis/useSisOrg', () => ({ useSisOrg: () => sisOrg }))
+// The school context's first org decides whether the board exists at all.
+let schoolCtx = { orgs: [{ organization_id: 'org-1', modules: ['community'] }], loading: false }
+vi.mock('../hooks/api/useSchoolContext', () => ({ useSchoolContext: () => schoolCtx }))
 const get = vi.fn()
 vi.mock('../services/api', () => ({ default: { get: (...a) => get(...a), post: vi.fn(), delete: vi.fn() } }))
 
@@ -43,6 +46,7 @@ beforeEach(() => {
   vi.clearAllMocks()
   authState = { user: { id: 'u1' }, effectiveRole: 'parent' }
   sisOrg = { orgId: null, setOrgId: vi.fn(), orgs: [], loading: false }
+  schoolCtx = { orgs: [{ organization_id: 'org-1', modules: ['community'] }], loading: false }
   get.mockResolvedValue(feedResponse())
 })
 
@@ -73,5 +77,40 @@ describe('the carpool page', () => {
     expect(get).toHaveBeenCalledWith('/api/sis/community/feed', {
       params: { organization_id: 'org-i', view_as: 'parent' },
     })
+  })
+})
+
+describe('the community module', () => {
+  // The board is the community feed. A school without the module has none,
+  // and asking logged a ModuleGate warning per visit (Apogee NoCo).
+  it('does not ask a school with community off, and says the board is not there', async () => {
+    schoolCtx = { orgs: [{ organization_id: 'org-1', modules: ['calendar'] }], loading: false }
+    renderPage()
+    expect(await screen.findByText(/isn’t available for your account yet/)).toBeInTheDocument()
+    expect(get).not.toHaveBeenCalled()
+  })
+
+  it('waits for the school context before asking', () => {
+    schoolCtx = { orgs: null, loading: true }
+    renderPage()
+    expect(get).not.toHaveBeenCalled()
+  })
+
+  it('asks when the context cannot answer (no module list)', async () => {
+    schoolCtx = { orgs: [{ organization_id: 'org-1', modules: null }], loading: false }
+    renderPage()
+    await screen.findByText('Two seats from Lehi, Tue & Thu mornings.')
+    expect(get).toHaveBeenCalledWith('/api/sis/community/feed', undefined)
+  })
+
+  it("follows the previewed org's modules for a superadmin", async () => {
+    authState = { user: { id: 'sa' }, effectiveRole: 'superadmin' }
+    sisOrg = {
+      orgId: 'org-i', setOrgId: vi.fn(), orgs: [], loading: false,
+      activeOrg: { id: 'org-i', effective_modules: ['sis'] },
+    }
+    renderPage()
+    expect(await screen.findByText(/isn’t available for your account yet/)).toBeInTheDocument()
+    expect(get).not.toHaveBeenCalled()
   })
 })

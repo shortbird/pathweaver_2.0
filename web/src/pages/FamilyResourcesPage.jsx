@@ -1,7 +1,8 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import { toast } from 'react-hot-toast'
 import api from '../services/api'
 import useSchoolContext from '../hooks/useSchoolContext'
+import { familyModuleKnownOff } from '../modules/moduleEnabled'
 import BackToSchool from '../components/navigation/BackToSchool'
 
 /**
@@ -13,7 +14,15 @@ import BackToSchool from '../components/navigation/BackToSchool'
  * used to bootstrap from, which told students they had no school.
  */
 const FamilyResourcesPage = () => {
-  const { orgs } = useSchoolContext()
+  const { orgs: schoolOrgs } = useSchoolContext()
+  // Only the schools that keep a library. The read is gated on the `resources`
+  // module, and a school without it was asked anyway whenever this page was
+  // opened from an old link (Sentry: ModuleGate warnings from Optio Academy,
+  // resources off). The nav does not offer it there (school/schoolCards).
+  const orgs = useMemo(
+    () => (schoolOrgs ? schoolOrgs.filter((o) => !familyModuleKnownOff(o, 'resources')) : null),
+    [schoolOrgs],
+  )
   const [orgId, setOrgId] = useState(null)
   const [resources, setResources] = useState(null)
 
@@ -55,7 +64,9 @@ const FamilyResourcesPage = () => {
       )}
 
       {(orgs === null || (orgId && resources === null)) && <p className="text-gray-500">Loading…</p>}
-      {orgs?.length === 0 && <p className="text-gray-500">Your account isn't linked to a school yet.</p>}
+      {orgs?.length === 0 && (schoolOrgs?.length
+        ? <p className="text-gray-500">{schoolOrgs[0].organization_name || 'Your school'} doesn&apos;t keep a library here.</p>
+        : <p className="text-gray-500">Your account isn&apos;t linked to a school yet.</p>)}
       {resources?.length === 0 && <p className="text-gray-500">{org?.organization_name || 'Your school'} hasn't added anything to its library yet.</p>}
 
       {Object.entries(grouped).map(([category, items]) => (

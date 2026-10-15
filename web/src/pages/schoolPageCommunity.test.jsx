@@ -198,3 +198,33 @@ describe('the unified school feed', () => {
     expect(screen.queryByText('Student spotlight')).not.toBeInTheDocument()
   })
 })
+
+describe('a school without the community module', () => {
+  // The feed read is gated on `community`; Apogee NoCo has it off, and every
+  // visit to /school logged a ModuleGate warning for it. The page waits for
+  // the school context and does not ask a school whose module list leaves it
+  // out. The archive is still the feed.
+  const withContext = (modules) => {
+    const base = api.get.getMockImplementation()
+    api.get.mockImplementation((url, ...rest) => (url === '/api/sis/school/context'
+      ? Promise.resolve({ data: { success: true, orgs: [
+        { organization_id: 'org-1', organization_name: 'iCreate', is_guardian: false, modules },
+      ] } })
+      : base(url, ...rest)))
+  }
+
+  it('does not ask for the board, and still shows the sent messages', async () => {
+    withContext(['calendar'])
+    renderPage()
+    expect(await screen.findByText('Fall Newsletter')).toBeInTheDocument()
+    await screen.findByRole('link', { name: /Calendar/ })
+    expect(api.get.mock.calls.some(([url]) => url === '/api/sis/community/feed')).toBe(false)
+    expect(screen.queryByText('Early dismissal')).not.toBeInTheDocument()
+  })
+
+  it('asks once the context says the school runs it', async () => {
+    withContext(['calendar', 'community'])
+    renderPage()
+    expect(await screen.findByText('Early dismissal')).toBeInTheDocument()
+  })
+})

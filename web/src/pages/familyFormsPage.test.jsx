@@ -171,6 +171,27 @@ describe('a school that does not run tasks', () => {
   })
 })
 
+describe('the context payload the server actually sends', () => {
+  // /api/sis/parent/context names the school's modules as effective_modules;
+  // `modules` is the school context's field. Reading only `modules` found
+  // nothing, so every module's read went out -- the training one logged a
+  // ModuleGate warning for Apogee NoCo, which has training off.
+  it('does not ask for training links when the school has training off', async () => {
+    mockApi({ org: { ...ORG, effective_modules: ['sis', 'tasks'] }, tasks: [TASK] })
+    render(<FamilyFormsPage />)
+    expect(await screen.findByText('Student Behavior Agreement Form')).toBeInTheDocument()
+    expect(calledUrl(api.get, '/parent/training')).toBe(false)
+  })
+
+  it('does not ask for tasks when neither tasks nor onboarding is on', async () => {
+    mockApi({ org: { ...ORG, effective_modules: ['sis', 'training'] }, tasks: [TASK] })
+    render(<FamilyFormsPage />)
+    expect(await screen.findByText('Nothing to do right now.')).toBeInTheDocument()
+    expect(calledUrl(api.get, '/api/sis/tasks/mine')).toBe(false)
+    expect(calledUrl(api.get, '/parent/training')).toBe(true)
+  })
+})
+
 describe('the old Checklists path', () => {
   // Notifications sent before 2026-09-16 (onboarding, signatures, secure
   // documents: sis_onboarding_service, sis_tasks_service, secure_documents.py)

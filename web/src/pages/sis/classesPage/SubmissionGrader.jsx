@@ -41,14 +41,17 @@ export const REVIEW_LABEL = {
 /**
  * Inline XP adjustment. Calls PUT /api/sis/completions/<id>/xp (built by the
  * gradebook endpoint) with {xp_value, reason}; hides itself when the endpoint
- * is missing (404/501).
+ * is missing (404/501). `adjustable` is false where the classes module is off:
+ * the route is on the engagement blueprint, gated 'classes', and a save there
+ * was a ModuleGate "would block" (Apogee Central Florida). The XP still shows.
  */
-const XpAdjust = ({ completionId, orgId, xpValue, onChanged }) => {
+const XpAdjust = ({ completionId, orgId, xpValue, onChanged, adjustable = true }) => {
   const [open, setOpen] = useState(false)
   const [value, setValue] = useState(xpValue ?? 0)
   const [reason, setReason] = useState('')
   const [saving, setSaving] = useState(false)
-  const [available, setAvailable] = useState(true)
+  const [found, setFound] = useState(true)
+  const available = found && adjustable
 
   useEffect(() => {
     setOpen(false)
@@ -71,7 +74,7 @@ const XpAdjust = ({ completionId, orgId, xpValue, onChanged }) => {
     } catch (e) {
       const status = e.response?.status
       if (status === 404 || status === 501) {
-        setAvailable(false)
+        setFound(false)
         toast.error('XP adjustment is not available')
       } else {
         toast.error(e.response?.data?.error || 'Could not update XP')
@@ -141,7 +144,7 @@ const XpAdjust = ({ completionId, orgId, xpValue, onChanged }) => {
  * student. Registers accept / growThis on `decisionRef` so the a and g keys
  * and the buttons go through one code path, as in the credit grader.
  */
-const SubmissionDecision = ({ sub, orgId, onDecide, onUnreview, onXpChanged, decisionRef }) => {
+const SubmissionDecision = ({ sub, orgId, onDecide, onUnreview, onXpChanged, decisionRef, xpAdjustable }) => {
   const [note, setNote] = useState('')
   const [busy, setBusy] = useState(false)
   const noteRef = useRef(null)
@@ -202,6 +205,7 @@ const SubmissionDecision = ({ sub, orgId, onDecide, onUnreview, onXpChanged, dec
             orgId={orgId}
             xpValue={sub.task?.xp_value}
             onChanged={(xp) => onXpChanged(sub.completion_id, xp)}
+            adjustable={xpAdjustable}
           />
 
           <div>
@@ -250,7 +254,7 @@ const SubmissionDecision = ({ sub, orgId, onDecide, onUnreview, onXpChanged, dec
 
 const SubmissionGrader = ({
   sub, orgId, index, total, onPrev, onNext, onExit, onShowShortcuts,
-  onDecide, onUnreview, onXpChanged, decisionRef,
+  onDecide, onUnreview, onXpChanged, decisionRef, xpAdjustable = true,
 }) => {
   const context = [sub.class_name, sub.quest_title].filter(Boolean).join(' · ')
   return (
@@ -325,6 +329,7 @@ const SubmissionGrader = ({
           onUnreview={onUnreview}
           onXpChanged={onXpChanged}
           decisionRef={decisionRef}
+          xpAdjustable={xpAdjustable}
         />
       )}
     />

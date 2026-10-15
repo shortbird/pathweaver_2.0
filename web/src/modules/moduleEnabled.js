@@ -109,3 +109,21 @@ export function moduleKnownOff(org, key) {
   if (org.feature_flags) return !moduleEnabled(org, key)
   return false
 }
+
+/**
+ * moduleKnownOff for an org entry from the family context reads, which come in
+ * two shapes: /api/sis/parent/context orgs carry `effective_modules`, and
+ * /api/sis/school/context orgs carry `modules` -- the same effective set
+ * intersected with the family surface (modules/registry.surface_keys), and
+ * null when the server could not read the org row.
+ *
+ * Only for family-surface keys: `modules` leaves out every other key, so it
+ * cannot tell an off console module from one it never lists. Same disposition
+ * as moduleKnownOff otherwise -- a payload that cannot answer means "ask".
+ */
+export function familyModuleKnownOff(org, key) {
+  if (moduleKnownOff(org, key)) return true
+  if (KEYS[key].default === 'core' || !org) return false
+  if (Array.isArray(org.effective_modules) || org.feature_flags) return false
+  return Array.isArray(org.modules) && !org.modules.includes(key)
+}

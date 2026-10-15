@@ -17,6 +17,7 @@ import { useAuthStore } from '@/src/stores/authStore';
 import { useIsObserver } from '@/src/hooks/useStartSomething';
 import { useRefetchOnForeground } from './useRefetchOnForeground';
 import { extractApiError, apiErrorBodyMessage } from '@/src/services/apiError';
+import { schoolModuleKnownOff } from '@/src/utils/orgModules';
 
 // ── Types (server shapes, family-safe projections) ──
 
@@ -418,6 +419,21 @@ export function useSchoolHub(opts?: { markRead?: boolean }) {
     }
   }, [markRead]);
 
+  // No board where the school runs no community module: feed === null is
+  // already how the hub says "no board" (no Carpool, no Calendar tab). A
+  // context that could not be read cannot say the module is off, so the feed
+  // is still asked for then.
+  const readFeedUnlessOff = useCallback(
+    async (first: SchoolOrg | null, params: Record<string, string> | null) => {
+      if (schoolModuleKnownOff(first, 'community')) {
+        setFeed(null);
+        return;
+      }
+      await fetchFeed(params);
+    },
+    [fetchFeed],
+  );
+
   const loadAll = useCallback(async () => {
     if (isSuperadmin) {
       // Sequential on purpose: the feed read can't be issued until the
@@ -428,14 +444,21 @@ export function useSchoolHub(opts?: { markRead?: boolean }) {
         : null;
       if (first) {
         await Promise.all([
-          fetchFeed(feedParamsRef.current),
+          readFeedUnlessOff(first, feedParamsRef.current),
           fetchMessages(feedParamsRef.current),
         ]);
       }
     } else {
-      await Promise.all([fetchContext(), fetchFeed(), fetchMessages()]);
+      // The feed waits for the context: a school with the community module
+      // off has no board, and its feed read is one the module gate 404s once
+      // enforcement is on (Apogee NoCo, 2026-10-15). The archive does not
+      // wait, so the hub still fills while the context call is in flight.
+      await Promise.all([
+        fetchContext().then((first) => readFeedUnlessOff(first, null)),
+        fetchMessages(),
+      ]);
     }
-  }, [isSuperadmin, fetchContext, fetchFeed, fetchMessages]);
+  }, [isSuperadmin, fetchContext, readFeedUnlessOff, fetchMessages]);
 
   useEffect(() => {
     let active = true;
@@ -560,17 +583,30 @@ export function useSchoolArchive(options?: { organizationId?: string }) {
 
 // ── Absences: guardian context + report/cancel ──
 
-export function useSchoolAbsences(preferredOrgId?: string | null) {
+/**
+ * `attendanceOff` — the hub's school runs no attendance module (its context
+ * row says so; see schoolModuleKnownOff). Nothing is read then: every
+ * /api/sis/parent/absences call is one the module gate 404s once enforcement
+ * is on (Optio Academy, 2026-10-15), and with no students the Schedule tab
+ * offers no report.
+ */
+export function useSchoolAbsences(
+  preferredOrgId?: string | null,
+  opts?: { attendanceOff?: boolean },
+) {
+  const attendanceOff = Boolean(opts?.attendanceOff);
   const [orgs, setOrgs] = useState<any[]>([]);
   const [orgId, setOrgId] = useState<string>('');
   const [studentIds, setStudentIds] = useState<string[]>([]);
   // Per-child data for every child in the org, so toggling a chip never waits
   // on a fetch. {student_id: {absences, classes}}.
   const [byStudent, setByStudent] = useState<Record<string, { absences: Absence[]; classes: AbsenceClass[] }>>({});
-  const [loading, setLoading] = useState(true);
+  // Nothing loads when attendance is off, so there is nothing to wait for.
+  const [loading, setLoading] = useState(!attendanceOff);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    if (attendanceOff) return undefined;
     let active = true;
     api.get('/api/sis/parent/context')
       .then((r) => {
@@ -609,7 +645,7 @@ export function useSchoolAbsences(preferredOrgId?: string | null) {
   }, [students]);
 
   const loadAbsences = useCallback(async () => {
-    if (!orgId || !students.length) { setByStudent({}); return; }
+    if (attendanceOff || !orgId || !students.length) { setByStudent({}); return; }
     try {
       const entries = await Promise.all(students.map(async (s) => {
         const r = await api.get(`/api/sis/parent/absences?organization_id=${orgId}&student_user_id=${s.student_id}`);
@@ -622,7 +658,7 @@ export function useSchoolAbsences(preferredOrgId?: string | null) {
     } catch {
       setError('Could not load absences');
     }
-  }, [orgId, students]);
+  }, [attendanceOff, orgId, students]);
 
   useEffect(() => { loadAbsences(); }, [loadAbsences]);
 

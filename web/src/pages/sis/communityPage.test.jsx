@@ -150,3 +150,34 @@ describe('CommunityPage', () => {
     )
   })
 })
+
+/**
+ * Events are the school calendar's. Arete Academy runs Community with the
+ * calendar off, and the Events tab's /api/sis/events request was a ModuleGate
+ * "would block": the tab and the Highlights events card follow the calendar.
+ */
+describe('CommunityPage and the calendar module', () => {
+  const eventCalls = () => api.get.mock.calls.filter(([url]) => url.startsWith('/api/sis/events'))
+
+  it('offers no Events tab or events card, and never asks for events, with the calendar off', async () => {
+    orgState = { organization: { id: 'org-1', name: 'Org', effective_modules: ['sis', 'community'] } }
+    rtlRender(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter initialEntries={['/community?tab=events']}><CommunityPage /></MemoryRouter>
+      </QueryClientProvider>,
+    )
+    // A stale ?tab=events link lands on Highlights.
+    expect(await screen.findByText('Early dismissal')).toBeInTheDocument()
+    expect(screen.queryByRole('tab', { name: 'Events' })).toBeNull()
+    expect(screen.queryByText("This week's events")).toBeNull()
+    expect(eventCalls()).toHaveLength(0)
+  })
+
+  it('keeps the Events tab when the calendar is on', async () => {
+    orgState = { organization: { id: 'org-1', name: 'Org', effective_modules: ['sis', 'community', 'calendar'] } }
+    render(<CommunityPage />)
+    fireEvent.click(screen.getByRole('tab', { name: 'Events' }))
+    expect(await screen.findAllByText('Field trip')).not.toHaveLength(0)
+    expect(eventCalls()).toHaveLength(1)
+  })
+})

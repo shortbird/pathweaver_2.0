@@ -13,6 +13,7 @@ import SearchSelect from '../../components/ui/SearchSelect'
 import { useSisOrg } from './useSisOrg'
 import { useAuth } from '../../contexts/AuthContext'
 import { isSisAdmin } from './sisRole'
+import { isPathHidden } from './sisModules'
 import BoardAnnouncementsTab from '../../components/sis/BoardAnnouncementsTab'
 import { htmlToText } from '../../utils/richText'
 import { useConfirm } from '../../contexts/ConfirmContext'
@@ -62,13 +63,19 @@ const fmtDate = (v) => (isDateOnly(v) ? fmtDateOnly(v) : fmtLongDate(v))
  */
 const CommunityPage = () => {
   const { user } = useAuth()
-  const { orgId } = useSisOrg()
+  const { orgId, activeOrg } = useSisOrg()
   const admin = isSisAdmin(user)
+  // Events are the school calendar's (/api/sis/events, the calendar module).
+  // A school with Community on and the calendar off (Arete Academy) has no
+  // events to list, and the tab's request was a ModuleGate "would block", so
+  // the tab and the Highlights events card go with the calendar.
+  const calendarOff = isPathHidden('/calendar', activeOrg)
+  const tabs = TABS.filter((t) => t.key !== 'events' || !calendarOff)
   // The tab rides in the URL (?tab=lost-found), so the header search and a
   // shared link can land on one. Highlights is the page itself: no param.
   const [searchParams, setSearchParams] = useSearchParams()
   const rawTab = searchParams.get('tab')
-  const tab = TABS.some((t) => t.key === rawTab) ? rawTab : 'highlights'
+  const tab = tabs.some((t) => t.key === rawTab) ? rawTab : 'highlights'
   const setTab = (t) => setSearchParams(t === 'highlights' ? {} : { tab: t }, { replace: true })
 
   return (
@@ -82,7 +89,7 @@ const CommunityPage = () => {
 
       <GlassTabBar
         align="start" size="md" className="mb-6" aria-label="Community sections"
-        tabs={TABS.map((t) => ({ id: t.key, label: t.label }))}
+        tabs={tabs.map((t) => ({ id: t.key, label: t.label }))}
         active={tab} onSelect={setTab}
       />
 
@@ -90,7 +97,7 @@ const CommunityPage = () => {
         <p className="text-neutral-500">Select an organization to view its community.</p>
       ) : (
         <>
-          {tab === 'highlights' && <HighlightsTab orgId={orgId} onNavigate={setTab} />}
+          {tab === 'highlights' && <HighlightsTab orgId={orgId} onNavigate={setTab} showEvents={!calendarOff} />}
           {tab === 'announcements' && <BoardAnnouncementsTab orgId={orgId} admin={admin} />}
           {tab === 'lost-found' && <LostFoundTab orgId={orgId} admin={admin} />}
           {tab === 'recognition' && <RecognitionTab orgId={orgId} />}
@@ -113,7 +120,7 @@ const SectionCard = ({ title, children, action }) => (
   </div>
 )
 
-const HighlightsTab = ({ orgId, onNavigate }) => {
+const HighlightsTab = ({ orgId, onNavigate, showEvents = true }) => {
   const { data, isPending, isError } = useCommunityHighlights(orgId)
 
   useEffect(() => { if (isError) toast.error('Failed to load highlights') }, [isError])
@@ -121,7 +128,8 @@ const HighlightsTab = ({ orgId, onNavigate }) => {
   if (isPending) return <p className="text-neutral-500">Loading…</p>
   if (!data) return null
 
-  const { announcements = [], events = [], lost_found = [], recognition = [], birthdays = [] } = data
+  const { announcements = [], lost_found = [], recognition = [], birthdays = [] } = data
+  const events = showEvents ? (data.events || []) : []
   const empty = !announcements.length && !events.length && !lost_found.length && !recognition.length && !birthdays.length
 
   if (empty) {
@@ -166,20 +174,22 @@ const HighlightsTab = ({ orgId, onNavigate }) => {
         ) : <p className="text-sm text-neutral-400">No announcements.</p>}
       </SectionCard>
 
-      <SectionCard title="This week's events" action={<Link to="/calendar" className="text-xs font-medium text-optio-purple hover:underline">Calendar</Link>}>
-        {events.length ? (
-          <ul className="space-y-3">
-            {events.map((e) => (
-              <li key={e.id} className="text-sm">
-                <div className="font-medium text-neutral-900">{e.title}</div>
-                <div className="text-xs text-neutral-500">
-                  {fmtEventWhen(e)}{e.location ? ` · ${e.location}` : ''}
-                </div>
-              </li>
-            ))}
-          </ul>
-        ) : <p className="text-sm text-neutral-400">No upcoming events.</p>}
-      </SectionCard>
+      {showEvents && (
+        <SectionCard title="This week's events" action={<Link to="/calendar" className="text-xs font-medium text-optio-purple hover:underline">Calendar</Link>}>
+          {events.length ? (
+            <ul className="space-y-3">
+              {events.map((e) => (
+                <li key={e.id} className="text-sm">
+                  <div className="font-medium text-neutral-900">{e.title}</div>
+                  <div className="text-xs text-neutral-500">
+                    {fmtEventWhen(e)}{e.location ? ` · ${e.location}` : ''}
+                  </div>
+                </li>
+              ))}
+            </ul>
+          ) : <p className="text-sm text-neutral-400">No upcoming events.</p>}
+        </SectionCard>
+      )}
 
       <SectionCard title="Lost & Found" action={lost_found.length ? link('lost-found') : null}>
         {lost_found.length ? (

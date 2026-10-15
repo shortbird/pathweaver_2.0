@@ -8,8 +8,9 @@ import { useSisParentContext } from './useSchoolContext'
  * was written out by hand in StudentSchedulePreview and again in
  * FamilyStudentSchedulePage; a third copy is where they would start to drift.
  *
- * Returns { organizationId, organizationName } or null when the student is not
- * in a SIS school — which is the common case platform-wide and is not an error.
+ * Returns { organizationId, organizationName, org } or null when the student is
+ * not in a SIS school — which is the common case platform-wide and is not an
+ * error. `org` is the context's own entry, for its module list.
  */
 export const useFamilyStudentOrg = (studentId, options = {}) => {
   // Derived from the one shared context read (useSchoolContext) rather than
@@ -20,7 +21,7 @@ export const useFamilyStudentOrg = (studentId, options = {}) => {
   const pending = Boolean(studentId) && orgs === null
   return {
     data: !studentId || orgs === null ? undefined
-      : org ? { organizationId: org.organization_id, organizationName: org.organization_name } : null,
+      : org ? { organizationId: org.organization_id, organizationName: org.organization_name, org } : null,
     isLoading: loading,
     isPending: pending,
     isError,

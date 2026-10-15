@@ -6,6 +6,7 @@ import api from '../services/api'
 import TaskCard from '../components/sis/tasks/TaskCard'
 import { taskApi } from '../hooks/api/useTasks'
 import { useFamilyOrgSelection } from '../hooks/api/useSchoolContext'
+import { familyModuleKnownOff } from '../modules/moduleEnabled'
 import { useEndMemberQuest } from '../hooks/api/useFamilyQuests'
 import { useArchiveEnrollment } from '../hooks/api/useQuests'
 import { markDoneBlocker } from '../utils/markDoneRule'
@@ -45,10 +46,13 @@ const questProgressStyle = (p) => {
   return 'bg-amber-100 text-amber-800'
 }
 
-// The org entry from /api/sis/parent/context names which family-surface
-// modules the school runs. An older payload without the list means "show
-// everything", the same fallback the school hub uses (school/schoolCards).
-const moduleOn = (org, key) => !Array.isArray(org?.modules) || org.modules.includes(key)
+// The org entry from /api/sis/parent/context names which modules the school
+// runs. It carries them as `effective_modules`; this read `modules` (the
+// school context's name for the list) until 2026-10-15, found nothing, and so
+// called every module's endpoint -- the training read logged a ModuleGate
+// warning for Apogee NoCo, which has training off. A payload that cannot
+// answer still means "show everything".
+const moduleOn = (org, key) => !familyModuleKnownOff(org, key)
 
 
 // The quest page's Mark done rule on a row of /api/sis/parent/quests.
