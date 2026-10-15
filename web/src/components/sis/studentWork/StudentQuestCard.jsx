@@ -5,13 +5,15 @@ import { useConfirm } from '../../../contexts/ConfirmContext'
 import Button from '../../ui/Button'
 import { INPUT_CLASS, INLINE_INPUT_CLASS } from '../../ui/Input'
 import { studentWorkApi } from '../../../hooks/api/useStudentWork'
+import CaptureSheet from './CaptureSheet'
 
 /**
  * One quest on a student's page: where it came from, how far they are, every
  * task (done or not, with its submission one click away), and what a teacher
- * can do about it for this one student -- write them a task, take back a task
- * someone added, and, on a quest given to them by name, change its due date
- * or take it back.
+ * can do about it for this one student -- add their work to a task (and mark
+ * it done; ticket 77637c3a), write them a task, take back a task someone
+ * added, and, on a quest given to them by name, change its due date or take
+ * it back.
  *
  * A quest that reaches them through a class is the class's to change; this
  * card only adds tasks to it.
@@ -36,6 +38,7 @@ export default function StudentQuestCard({ orgId, student, quest: q, onChanged, 
   const [adding, setAdding] = useState(false)
   const [draft, setDraft] = useState({ title: '', description: '', xp_value: 50 })
   const [openTaskId, setOpenTaskId] = useState(null)
+  const [capturing, setCapturing] = useState(null)   // the task getting work added
   const individual = q.individual
   const due = dueLabel(individual?.due_date)
   const active = !q.completed_at && !q.set_aside
@@ -152,6 +155,12 @@ export default function StudentQuestCard({ orgId, student, quest: q, onChanged, 
                         {openTaskId === t.id ? 'Hide' : 'Details'}
                       </button>
                     )}
+                    {active && (
+                      <button type="button" onClick={() => setCapturing(t)}
+                        className="text-xs font-medium text-optio-purple hover:underline">
+                        Add work
+                      </button>
+                    )}
                     {t.removable && (
                       <button type="button" onClick={() => removeTask(t)} disabled={busy}
                         className="text-xs text-neutral-400 hover:text-red-600 disabled:opacity-40">
@@ -213,6 +222,11 @@ export default function StudentQuestCard({ orgId, student, quest: q, onChanged, 
             </div>
           )}
         </div>
+      )}
+      {capturing && (
+        <CaptureSheet orgId={orgId} student={student} task={capturing}
+          onCancel={() => setCapturing(null)}
+          onSaved={async () => { setCapturing(null); await onChanged?.() }} />
       )}
     </article>
   )

@@ -245,6 +245,8 @@ export const SIS_SURFACE_PATHS = [
   '/billing',
   '/bloomy',
   '/calendar',
+  // A teacher photographs a student's work onto a task (ticket 77637c3a).
+  '/capture',
   '/classes',
   '/clp',
   '/community',

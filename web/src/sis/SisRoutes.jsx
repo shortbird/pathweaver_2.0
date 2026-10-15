@@ -242,6 +242,7 @@ const CreditReviewPage = lazy(() => import('../pages/sis/CreditReviewPage'))
 const TeacherClassPage = lazy(() => import('../pages/sis/TeacherClassPage'))
 const StudentWorkPage = lazy(() => import('../pages/sis/StudentWorkPage'))
 const StudentsPage = lazy(() => import('../pages/sis/StudentsPage'))
+const CapturePage = lazy(() => import('../pages/sis/CapturePage'))
 const MyProfilePage = lazy(() => import('../pages/sis/MyProfilePage'))
 const DirectoryPage = lazy(() => import('../pages/sis/DirectoryPage'))
 const TasksPage = lazy(() => import('../pages/sis/TasksPage'))
@@ -335,6 +336,8 @@ const SisRoutes = () => (
       <Route path="my-classes/:classId" element={<ModuleGate path="/my-classes"><TeacherClassPage /></ModuleGate>} />
       <Route path="students" element={<ModuleGate path="/students"><StudentsPage /></ModuleGate>} />
       <Route path="student-work/:studentId" element={<ModuleGate path="/student-work"><StudentWorkPage /></ModuleGate>} />
+      {/* A teacher photographs a student's work onto a task (ticket 77637c3a). */}
+      <Route path="capture" element={<ModuleGate path="/capture"><CapturePage /></ModuleGate>} />
       <Route path="my-schedule" element={<ClassesRedirect tab="schedule" />} />
       <Route path="my-profile" element={<MyProfilePage />} />
       <Route path="directory" element={<DirectoryPage />} />

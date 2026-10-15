@@ -31,7 +31,9 @@ describe('SisSidebar', () => {
   it("shows Apogee exactly its blocks, with Operations holding only Messaging", () => {
     state = { user: ADMIN, org: APOGEE }
     render(<MemoryRouter><SisSidebar /></MemoryRouter>)
-    expect(names()).toEqual(['Dashboard', 'People', 'Students', 'Prior Learning', 'Goals',
+    // Capture work rides the Students block (individual_work): a teacher
+    // photographs a student's work onto a task (ticket 77637c3a, Apogee's own ask).
+    expect(names()).toEqual(['Dashboard', 'People', 'Students', 'Capture work', 'Prior Learning', 'Goals',
       // Credit Review is not a block: every school approves its students'
       // credit before Optio does, unless Optio reviews its credit directly.
       'Points', 'Bounties', 'Credit Review', 'Bloomy', 'Messaging', 'Settings', 'My Profile', 'Add features'])
