@@ -287,7 +287,10 @@ describe('which web host a handoff points at', () => {
     );
     const block = appSurface.match(/export const SIS_SURFACE_PATHS = \[([\s\S]*?)\]/);
     expect(block).toBeTruthy();
-    const webPaths = Array.from(block![1].matchAll(/'([^']+)'/g)).map((m) => m[1]);
+    // Comments out first: an apostrophe in one ("a student's work") pairs with
+    // the next path's quote and turns the rest of the list into garbage.
+    const entries = block![1].replace(/\/\/.*$/gm, '');
+    const webPaths = Array.from(entries.matchAll(/'([^']+)'/g)).map((m) => m[1]);
     expect(webPaths.length).toBeGreaterThan(10);
     const missed = webPaths.filter((p) => !isSisSurfacePath(p) && !(p in OWNED_BY_THE_APP));
     expect(missed).toEqual([]);
