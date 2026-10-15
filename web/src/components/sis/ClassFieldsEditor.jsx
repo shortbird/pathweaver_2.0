@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react'
-import { PhotoIcon, XMarkIcon } from '@heroicons/react/24/outline'
+import { ChevronRightIcon, PhotoIcon, XMarkIcon } from '@heroicons/react/24/outline'
 import SearchSelect from '../ui/SearchSelect'
 import {
   DAY_OPTIONS, hhmm, fmt12ap, blockMinutes, blockEndOptions, addMin, minutesBetween,
@@ -36,6 +36,12 @@ import { moduleKnownOff } from '../../modules/moduleEnabled'
  * only hidden -- it stays in the draft, so a save sends back the value the
  * class already had rather than clearing it. A null org (no org in hand)
  * shows everything, as before.
+ *
+ * `collapseExtras` is for creating a class. The create dialog showed every
+ * field at once, most of them iCreate's (assistants, rooms, ages, money, pay),
+ * and a school making its first class could not tell what it had to fill in.
+ * It keeps name, teacher, description, image, days and time in view and folds
+ * everything else under "Additional options", still one click away.
  */
 
 // py-2 so a plain input is the same height as a SearchSelect (which sets its
@@ -108,11 +114,27 @@ export default function ClassFieldsEditor({
   onTimeErrorChange = null,
   // The org whose modules decide which fields show (see the header).
   org = null,
+  // Fold the secondary fields under "Additional options" (see the header).
+  collapseExtras = false,
+  // Rendered first inside "Additional options" (the create form's
+  // registration choice). Ignored without collapseExtras.
+  extrasLead = null,
 }) {
   const set = (patch) => onChange(patch)
   const showBilling = !moduleKnownOff(org, 'billing')
   const showRegistration = !moduleKnownOff(org, 'registration')
   const pickable = timeBlocks.filter((b) => !b.label)
+  const [extrasOpen, setExtrasOpen] = useState(false)
+  // What is in there, so a closed section is not a mystery box.
+  const extrasHint = [
+    extrasLead && 'registration',
+    staff.length > 0 && 'assistant teachers',
+    'classroom',
+    showRegistration && 'enrollment',
+    showBilling && 'pricing',
+    'XP goal',
+    'notes',
+  ].filter(Boolean).join(', ')
 
   // Custom time: a class that meets outside the school's teaching blocks.
   // iCreate, 2026-09-30 (4b38bb72): "I'm creating a teacher assignment ...
@@ -204,325 +226,179 @@ export default function ClassFieldsEditor({
     return names.length ? ` — in use (${names.slice(0, 2).join(', ')}${names.length > 2 ? `, +${names.length - 2}` : ''})` : ' — in use'
   }
 
-  return (
-    <div className="space-y-4">
-      <Band title="Basics" aside={headerAside}>
-        <Field label="Name" className="sm:col-span-2">
-          <input className={cell} value={d.name} placeholder={namePlaceholder}
-            aria-label="Class name" onChange={(e) => set({ name: e.target.value })} />
-        </Field>
-
-        {/* Always rendered, even before any staff exist: a school setting up
-            its catalog needs to see that a class can stand without a teacher.
-            Hiding the field left the only teacher-less path looking broken
-            (iCreate: "I want to NOT assign a teacher, but that's not an
-            option. We don't have any placeholders any more since I deleted
-            them!"). */}
-        <Field label="Teacher (optional)">
-          <SearchSelect
-            value={d.primary_instructor_id}
-            onChange={(id) => set({ primary_instructor_id: id })}
-            options={staff} getId={(s) => s.id} getLabel={(s) => s.name}
-            placeholder={staff.length ? 'Search staff…' : 'No staff to assign yet'}
-            emptyLabel="No teacher yet"
-          />
-        </Field>
-
-        {staff.length > 0 && (
-          <Field label="Assistant teacher(s)">
-            {d.assistant_instructor_ids.length > 0 && (
-              <div className="flex flex-wrap gap-2 mb-1.5">
-                {d.assistant_instructor_ids.map((id) => {
-                  const s = staff.find((x) => x.id === id)
-                  return (
-                    <span key={id} className="inline-flex items-center gap-1 rounded-full bg-optio-purple/10 text-optio-purple text-xs font-medium px-2.5 py-1">
-                      {s?.name || 'Staff member'}
-                      <button type="button" aria-label={`Remove ${s?.name || 'assistant'}`}
-                        onClick={() => set({
-                          assistant_instructor_ids: d.assistant_instructor_ids.filter((x) => x !== id),
-                        })}
-                        className="hover:text-optio-pink font-bold leading-none">×</button>
-                    </span>
-                  )
-                })}
-              </div>
-            )}
-            <SearchSelect
-              value=""
-              onChange={(id) => {
-                if (!id || d.assistant_instructor_ids.includes(id) || id === d.primary_instructor_id) return
-                set({ assistant_instructor_ids: [...d.assistant_instructor_ids, id] })
-              }}
-              options={staff.filter((s) => s.id !== d.primary_instructor_id
-                && !d.assistant_instructor_ids.includes(s.id))}
-              getId={(s) => s.id} getLabel={(s) => s.name}
-              placeholder="Add an assistant…"
-            />
-            {/* Only worth asking once there is somebody to hide. Staff views
-                always show assistants regardless. */}
-            {d.assistant_instructor_ids.length > 0 && (
-              <label className="mt-1.5 flex items-center gap-2 text-xs text-neutral-500 cursor-pointer">
-                <input type="checkbox" checked={d.show_assistants}
-                  onChange={(e) => set({ show_assistants: e.target.checked })}
-                  className="rounded border-gray-300 text-optio-purple focus:ring-optio-purple" />
-                <span>Show the assistant to families in the class catalog</span>
-              </label>
-            )}
-          </Field>
-        )}
-
-        {/* Row two: the description and, beside it, the image. The description
-            is the tall field, so the row's height comes from it and the image
-            tile stretches to match rather than sitting in a short box with
-            empty space under it. */}
-        <Field label="Description" className="sm:col-span-2 lg:col-span-3">
-          <textarea className={`${cell} resize-y h-full min-h-[76px]`} value={d.description}
-            aria-label="Class description"
-            placeholder="What students will do in this class"
-            onChange={(e) => set({ description: e.target.value })} />
-        </Field>
-
-        {onImageChange && (
-          <Field label="Class image">
-            {imagePreview ? (
-              <div className="relative flex-1">
-                <img src={imagePreview} alt="Class" className="w-full h-full min-h-[76px] object-cover rounded-md border border-gray-200" />
-                <button type="button" onClick={onImageRemove} aria-label="Remove class image"
-                  className="absolute top-1 right-1 p-1 bg-white/90 text-gray-600 hover:text-gray-900 rounded-full shadow">
-                  <XMarkIcon className="w-3.5 h-3.5" />
-                </button>
-              </div>
-            ) : (
-              <label className="flex flex-1 items-center justify-center gap-1.5 min-h-[76px] border border-dashed border-gray-300 rounded-md cursor-pointer hover:border-optio-purple hover:bg-gray-50 transition-colors">
-                <PhotoIcon className="w-4 h-4 text-gray-400" />
-                <span className="text-xs text-gray-500">Add image</span>
-                <input type="file" accept="image/*" className="hidden"
-                  aria-label="Class image"
-                  onChange={(e) => e.target.files?.[0] && onImageChange(e.target.files[0])} />
-              </label>
-            )}
-          </Field>
-        )}
-      </Band>
-
-      <Band title="Schedule" cols={5}>
-        <Field label="Days">
-          <div className="inline-flex gap-1">
-            {DAY_OPTIONS.map((day) => {
-              const selected = d.days_of_week.includes(day.dow)
-              return (
-                <button key={day.dow} type="button" aria-pressed={selected}
-                  aria-label={day.label}
+  const assistantsField = staff.length > 0 && (
+    <Field label="Assistant teacher(s)">
+      {d.assistant_instructor_ids.length > 0 && (
+        <div className="flex flex-wrap gap-2 mb-1.5">
+          {d.assistant_instructor_ids.map((id) => {
+            const s = staff.find((x) => x.id === id)
+            return (
+              <span key={id} className="inline-flex items-center gap-1 rounded-full bg-optio-purple/10 text-optio-purple text-xs font-medium px-2.5 py-1">
+                {s?.name || 'Staff member'}
+                <button type="button" aria-label={`Remove ${s?.name || 'assistant'}`}
                   onClick={() => set({
-                    days_of_week: selected
-                      ? d.days_of_week.filter((x) => x !== day.dow)
-                      : [...d.days_of_week, day.dow],
+                    assistant_instructor_ids: d.assistant_instructor_ids.filter((x) => x !== id),
                   })}
-                  className={`w-7 h-7 rounded text-xs font-semibold border transition-colors ${
-                    selected
-                      ? 'bg-optio-purple text-white border-transparent'
-                      : 'bg-white text-neutral-400 border-gray-200 hover:border-optio-purple'}`}>
-                  {day.short}
-                </button>
-              )
-            })}
-          </div>
-        </Field>
+                  className="hover:text-optio-pink font-bold leading-none">×</button>
+              </span>
+            )
+          })}
+        </div>
+      )}
+      <SearchSelect
+        value=""
+        onChange={(id) => {
+          if (!id || d.assistant_instructor_ids.includes(id) || id === d.primary_instructor_id) return
+          set({ assistant_instructor_ids: [...d.assistant_instructor_ids, id] })
+        }}
+        options={staff.filter((s) => s.id !== d.primary_instructor_id
+          && !d.assistant_instructor_ids.includes(s.id))}
+        getId={(s) => s.id} getLabel={(s) => s.name}
+        placeholder="Add an assistant…"
+      />
+      {/* Only worth asking once there is somebody to hide. Staff views
+          always show assistants regardless. */}
+      {d.assistant_instructor_ids.length > 0 && (
+        <label className="mt-1.5 flex items-center gap-2 text-xs text-neutral-500 cursor-pointer">
+          <input type="checkbox" checked={d.show_assistants}
+            onChange={(e) => set({ show_assistants: e.target.checked })}
+            className="rounded border-gray-300 text-optio-purple focus:ring-optio-purple" />
+          <span>Show the assistant to families in the class catalog</span>
+        </label>
+      )}
+    </Field>
+  )
 
-        <Field label="Time">
-          {pickable.length ? (
-            <div className="flex flex-col gap-1.5">
-              <div className="flex items-center gap-1">
-                <select className={`${cell} px-1`} value={customTime ? '__custom__' : hhmm(d.start_time)}
-                  aria-label="Start block"
-                  onChange={(e) => {
-                    if (e.target.value === '__custom__') {
-                      // Keep whatever time was there, so the inputs open on
-                      // the block's hours as a starting point.
-                      setTimeMode('custom')
-                      setCustomEnd(savedEnd || null)
-                      return
-                    }
-                    const b = pickable.find((x) => hhmm(x.start) === e.target.value)
-                    if (b) {
-                      setTimeMode('block')
-                      setCustomEnd(null)
-                      set({ start_time: hhmm(b.start), duration_minutes: String(blockMinutes(b)) })
-                    }
-                  }}>
-                  <option value="" disabled>Start</option>
-                  {pickable.map((b, i) => <option key={i} value={hhmm(b.start)}>{fmt12ap(b.start)}</option>)}
-                  <option value="__custom__">Custom time…</option>
-                </select>
-                {!customTime && (
-                  <>
-                    <span className="text-neutral-300">–</span>
-                    <select className={`${cell} px-1`} value={addMin(d.start_time, d.duration_minutes)} aria-label="End time"
-                      disabled={!d.start_time}
-                      onChange={(e) => set({ duration_minutes: String(minutesBetween(d.start_time, e.target.value)) })}>
-                      {blockEndOptions(timeBlocks, d.start_time, addMin(d.start_time, d.duration_minutes)).map((end) => (
-                        <option key={end} value={end}>{fmt12ap(end)}</option>
-                      ))}
-                    </select>
-                  </>
-                )}
-              </div>
-              {customTime && (
-                <>
-                  <input type="time" className={cell} value={hhmm(d.start_time)} aria-label="Start time"
-                    onChange={(e) => setCustomStart(e.target.value)} />
-                  <input type="time" className={cell} value={shownEnd} aria-label="End time"
-                    aria-invalid={customTimeError ? true : undefined}
-                    onChange={(e) => setCustomEndTime(e.target.value)} />
-                  {customTimeError && (
-                    <p role="alert" className="text-[11px] text-red-600 leading-tight">{customTimeError}</p>
-                  )}
-                </>
-              )}
-            </div>
-          ) : (
-            /* Stacked, not side by side: in the five-across Schedule band the
-               column is ~115px, and a native time input's minimum width alone
-               fills it — the duration box next to it was squeezed invisible
-               (Gryffin, 2026-08-22: "I added a start time and I don't see
-               where duration is"). */
-            <div className="flex flex-col gap-1.5">
-              <input type="time" className={cell} value={d.start_time} aria-label="Start time"
-                onChange={(e) => set({ start_time: e.target.value })} />
-              <div className="relative">
-                <input type="number" className={`${cell} pr-10`} min={5} step={5} placeholder="Length"
-                  aria-label="Duration (minutes)" value={d.duration_minutes}
-                  onChange={(e) => set({ duration_minutes: e.target.value })} />
-                <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-neutral-400 pointer-events-none">min</span>
-              </div>
-            </div>
-          )}
-        </Field>
+  const classroomField = (
+    <Field label="Classroom">
+      {normalizedRooms.length > 0 ? (
+        <div className="space-y-1">
+          <select
+            className={cell}
+            value={customRoom ? '__custom__' : (d.location || '')}
+            aria-label="Classroom"
+            onChange={(e) => {
+              if (e.target.value === '__custom__') {
+                setCustomRoom(true)
+              } else {
+                setCustomRoom(false)
+                set({ location: e.target.value })
+              }
+            }}
+          >
+            <option value="">No room assigned</option>
+            {normalizedRooms.map((r) => (
+              <option key={r.name} value={r.name}>
+                {r.name}{r.description ? ` (${r.description})` : ''}{busyLabel(r.name)}
+              </option>
+            ))}
+            <option value="__custom__">Custom / Other room...</option>
+          </select>
 
-        <Field label="Classroom">
-          {normalizedRooms.length > 0 ? (
-            <div className="space-y-1">
-              <select
-                className={cell}
-                value={customRoom ? '__custom__' : (d.location || '')}
-                aria-label="Classroom"
-                onChange={(e) => {
-                  if (e.target.value === '__custom__') {
-                    setCustomRoom(true)
-                  } else {
-                    setCustomRoom(false)
-                    set({ location: e.target.value })
-                  }
-                }}
-              >
-                <option value="">No room assigned</option>
-                {normalizedRooms.map((r) => (
-                  <option key={r.name} value={r.name}>
-                    {r.name}{r.description ? ` (${r.description})` : ''}{busyLabel(r.name)}
-                  </option>
-                ))}
-                <option value="__custom__">Custom / Other room...</option>
-              </select>
-
-              {/* Rooms beyond the primary one. A pottery class is in the art
-                  room AND the kiln shed; both are booked for its hour, and the
-                  double-booking check now reads all of them (43625a45). */}
-              {normalizedRooms.length > 1 && (
-                <div className="pt-1">
-                  {(d.additional_locations || []).length > 0 && (
-                    <div className="flex flex-wrap gap-1 mb-1">
-                      {d.additional_locations.map((r) => (
-                        <span key={r}
-                          className="inline-flex items-center gap-1 rounded-full bg-optio-purple/10 px-2 py-0.5 text-xs text-optio-purple">
-                          {r}{busyRooms[r] ? ' — in use' : ''}
-                          <button type="button" aria-label={`Remove ${r}`}
-                            onClick={() => set({
-                              additional_locations: d.additional_locations.filter((x) => x !== r),
-                            })}
-                            className="text-optio-purple/60 hover:text-red-600">×</button>
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                  <select className={`${cell} px-1 text-xs`} value=""
-                    aria-label="Also uses room"
-                    onChange={(e) => {
-                      const room = e.target.value
-                      if (room && !(d.additional_locations || []).includes(room)) {
-                        set({ additional_locations: [...(d.additional_locations || []), room] })
-                      }
-                    }}>
-                    <option value="">
-                      {(d.additional_locations || []).length ? 'Also uses…' : 'Uses another room too…'}
-                    </option>
-                    {normalizedRooms
-                      .filter((r) => r.name !== d.location
-                        && !(d.additional_locations || []).includes(r.name))
-                      .map((r) => (
-                        <option key={r.name} value={r.name}>
-                          {r.name}{busyLabel(r.name)}
-                        </option>
-                      ))}
-                  </select>
+          {/* Rooms beyond the primary one. A pottery class is in the art
+              room AND the kiln shed; both are booked for its hour, and the
+              double-booking check now reads all of them (43625a45). */}
+          {normalizedRooms.length > 1 && (
+            <div className="pt-1">
+              {(d.additional_locations || []).length > 0 && (
+                <div className="flex flex-wrap gap-1 mb-1">
+                  {d.additional_locations.map((r) => (
+                    <span key={r}
+                      className="inline-flex items-center gap-1 rounded-full bg-optio-purple/10 px-2 py-0.5 text-xs text-optio-purple">
+                      {r}{busyRooms[r] ? ' — in use' : ''}
+                      <button type="button" aria-label={`Remove ${r}`}
+                        onClick={() => set({
+                          additional_locations: d.additional_locations.filter((x) => x !== r),
+                        })}
+                        className="text-optio-purple/60 hover:text-red-600">×</button>
+                    </span>
+                  ))}
                 </div>
               )}
-
-              {!customRoom && busyRooms[d.location] && (
-                // Advisory, never a block: a school may genuinely want two
-                // things in the gym, and the office is the judge of that.
-                <p className="text-xs text-amber-700">
-                  {d.location} is already booked at this time by{' '}
-                  {[...new Set(busyRooms[d.location].map((c) => c.class_name).filter(Boolean))].join(', ')}.
-                </p>
-              )}
-
-              {customRoom && (
-                <input
-                  className={cell}
-                  placeholder="Enter custom room"
-                  value={d.location || ''}
-                  aria-label="Custom classroom name"
-                  onChange={(e) => set({ location: e.target.value })}
-                />
-              )}
-
-              {!customRoom && matchedRoom?.description && (
-                <p className="text-[11px] text-neutral-500 leading-tight">
-                  {matchedRoom.description}
-                </p>
-              )}
+              <select className={`${cell} px-1 text-xs`} value=""
+                aria-label="Also uses room"
+                onChange={(e) => {
+                  const room = e.target.value
+                  if (room && !(d.additional_locations || []).includes(room)) {
+                    set({ additional_locations: [...(d.additional_locations || []), room] })
+                  }
+                }}>
+                <option value="">
+                  {(d.additional_locations || []).length ? 'Also uses…' : 'Uses another room too…'}
+                </option>
+                {normalizedRooms
+                  .filter((r) => r.name !== d.location
+                    && !(d.additional_locations || []).includes(r.name))
+                  .map((r) => (
+                    <option key={r.name} value={r.name}>
+                      {r.name}{busyLabel(r.name)}
+                    </option>
+                  ))}
+              </select>
             </div>
-          ) : (
-            <input className={cell} placeholder="Room" value={d.location || ''} aria-label="Classroom"
-              onChange={(e) => set({ location: e.target.value })} />
           )}
-        </Field>
 
-        {/* A rule about which days a student must fill — a schedule constraint,
-            so it sits with the schedule. Only registration enforces it. */}
-        {showRegistration && (
-        <Field label="Full-day program">
-          <label className="inline-flex items-center gap-2 cursor-pointer h-[38px]">
-            <input type="checkbox" checked={d.requires_full_day}
-              aria-label="Requires a full day of classes"
-              onChange={(e) => set({ requires_full_day: e.target.checked })}
-              className="h-4 w-4 rounded border-gray-300 text-optio-purple focus:ring-optio-purple" />
-            <span className="text-xs text-neutral-500 leading-tight">Must fill its meeting days</span>
-          </label>
-        </Field>
-        )}
+          {!customRoom && busyRooms[d.location] && (
+            // Advisory, never a block: a school may genuinely want two
+            // things in the gym, and the office is the judge of that.
+            <p className="text-xs text-amber-700">
+              {d.location} is already booked at this time by{' '}
+              {[...new Set(busyRooms[d.location].map((c) => c.class_name).filter(Boolean))].join(', ')}.
+            </p>
+          )}
 
-        <Field label="Parent visibility">
-          <label className="inline-flex items-center gap-2 cursor-pointer h-[38px]">
-            <input type="checkbox" checked={d.is_visible_to_parents}
-              aria-label="Show class to parents"
-              onChange={(e) => set({ is_visible_to_parents: e.target.checked })}
-              className="h-4 w-4 rounded border-gray-300 text-optio-purple focus:ring-optio-purple" />
-            <span className="text-xs text-neutral-500 leading-tight">Show to parents on schedule</span>
-          </label>
-        </Field>
-      </Band>
+          {customRoom && (
+            <input
+              className={cell}
+              placeholder="Enter custom room"
+              value={d.location || ''}
+              aria-label="Custom classroom name"
+              onChange={(e) => set({ location: e.target.value })}
+            />
+          )}
 
+          {!customRoom && matchedRoom?.description && (
+            <p className="text-[11px] text-neutral-500 leading-tight">
+              {matchedRoom.description}
+            </p>
+          )}
+        </div>
+      ) : (
+        <input className={cell} placeholder="Room" value={d.location || ''} aria-label="Classroom"
+          onChange={(e) => set({ location: e.target.value })} />
+      )}
+    </Field>
+  )
+
+  {/* A rule about which days a student must fill — a schedule constraint,
+      so it sits with the schedule. Only registration enforces it. */}
+  const fullDayField = showRegistration && (
+    <Field label="Full-day program">
+      <label className="inline-flex items-center gap-2 cursor-pointer h-[38px]">
+        <input type="checkbox" checked={d.requires_full_day}
+          aria-label="Requires a full day of classes"
+          onChange={(e) => set({ requires_full_day: e.target.checked })}
+          className="h-4 w-4 rounded border-gray-300 text-optio-purple focus:ring-optio-purple" />
+        <span className="text-xs text-neutral-500 leading-tight">Must fill its meeting days</span>
+      </label>
+    </Field>
+  )
+
+  const parentVisibilityField = (
+    <Field label="Parent visibility">
+      <label className="inline-flex items-center gap-2 cursor-pointer h-[38px]">
+        <input type="checkbox" checked={d.is_visible_to_parents}
+          aria-label="Show class to parents"
+          onChange={(e) => set({ is_visible_to_parents: e.target.checked })}
+          className="h-4 w-4 rounded border-gray-300 text-optio-purple focus:ring-optio-purple" />
+        <span className="text-xs text-neutral-500 leading-tight">Show to parents on schedule</span>
+      </label>
+    </Field>
+  )
+
+  // Who can take it, what it costs, how it completes, and the staff notes.
+  const secondaryBands = (
+    <>
       {(showRegistration || showBilling) && (
       <Band title={showRegistration && showBilling ? 'Enrollment & money' : showBilling ? 'Money' : 'Enrollment'} cols={5}>
         {showRegistration && (
@@ -610,18 +486,216 @@ export default function ClassFieldsEditor({
             attendance? Like this would be useful for our At Home days and
             independent study." Nobody is chased for a roll in these. */}
         <Field label="Attendance">
-          <label className="inline-flex items-center gap-2 cursor-pointer h-[38px]">
+          {/* Grows downward from the checkbox. A fixed 38px row, like its
+              one-line neighbours, centred the three-line hint and pushed it up
+              over the field label. */}
+          <label className="inline-flex items-start gap-2 cursor-pointer min-h-[38px] pt-2.5">
             <input type="checkbox" checked={!!d.attendance_optional}
               aria-label="Attendance not taken"
               onChange={(e) => set({ attendance_optional: e.target.checked })}
-              className="h-4 w-4 rounded border-gray-300 text-optio-purple focus:ring-optio-purple" />
-            <span className="text-xs text-neutral-500 leading-tight">
+              className="h-4 w-4 shrink-0 rounded border-gray-300 text-optio-purple focus:ring-optio-purple" />
+            <span className="text-xs text-neutral-500 leading-snug">
               Attendance not taken
-              <span className="block text-neutral-400">For at-home days and independent study. No roll reminders.</span>
+              <span className="block mt-0.5 text-[11px] text-neutral-400">For at-home days and independent study. No roll reminders.</span>
             </span>
           </label>
         </Field>
       </Band>
+    </>
+  )
+
+  return (
+    <div className="space-y-4">
+      <Band title="Basics" aside={headerAside}>
+        <Field label="Name" className={collapseExtras ? 'sm:col-span-2 lg:col-span-3' : 'sm:col-span-2'}>
+          <input className={cell} value={d.name} placeholder={namePlaceholder}
+            aria-label="Class name" onChange={(e) => set({ name: e.target.value })} />
+        </Field>
+
+        {/* Always rendered, even before any staff exist: a school setting up
+            its catalog needs to see that a class can stand without a teacher.
+            Hiding the field left the only teacher-less path looking broken
+            (iCreate: "I want to NOT assign a teacher, but that's not an
+            option. We don't have any placeholders any more since I deleted
+            them!"). */}
+        <Field label="Teacher (optional)">
+          <SearchSelect
+            value={d.primary_instructor_id}
+            onChange={(id) => set({ primary_instructor_id: id })}
+            options={staff} getId={(s) => s.id} getLabel={(s) => s.name}
+            placeholder={staff.length ? 'Search staff…' : 'No staff to assign yet'}
+            emptyLabel="No teacher yet"
+          />
+        </Field>
+
+        {!collapseExtras && assistantsField}
+
+        {/* Row two: the description and, beside it, the image. The description
+            is the tall field, so the row's height comes from it and the image
+            tile stretches to match rather than sitting in a short box with
+            empty space under it. */}
+        <Field label="Description" className="sm:col-span-2 lg:col-span-3">
+          <textarea className={`${cell} resize-y h-full min-h-[76px]`} value={d.description}
+            aria-label="Class description"
+            placeholder="What students will do in this class"
+            onChange={(e) => set({ description: e.target.value })} />
+        </Field>
+
+        {onImageChange && (
+          <Field label="Class image">
+            {imagePreview ? (
+              <div className="relative flex-1">
+                <img src={imagePreview} alt="Class" className="w-full h-full min-h-[76px] object-cover rounded-md border border-gray-200" />
+                <button type="button" onClick={onImageRemove} aria-label="Remove class image"
+                  className="absolute top-1 right-1 p-1 bg-white/90 text-gray-600 hover:text-gray-900 rounded-full shadow">
+                  <XMarkIcon className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            ) : (
+              <label className="flex flex-1 items-center justify-center gap-1.5 min-h-[76px] border border-dashed border-gray-300 rounded-md cursor-pointer hover:border-optio-purple hover:bg-gray-50 transition-colors">
+                <PhotoIcon className="w-4 h-4 text-gray-400" />
+                <span className="text-xs text-gray-500">Add image</span>
+                <input type="file" accept="image/*" className="hidden"
+                  aria-label="Class image"
+                  onChange={(e) => e.target.files?.[0] && onImageChange(e.target.files[0])} />
+              </label>
+            )}
+          </Field>
+        )}
+      </Band>
+
+      <Band title="Schedule" cols={collapseExtras ? 4 : 5}>
+        <Field label="Days">
+          <div className="inline-flex gap-1">
+            {DAY_OPTIONS.map((day) => {
+              const selected = d.days_of_week.includes(day.dow)
+              return (
+                <button key={day.dow} type="button" aria-pressed={selected}
+                  aria-label={day.label}
+                  onClick={() => set({
+                    days_of_week: selected
+                      ? d.days_of_week.filter((x) => x !== day.dow)
+                      : [...d.days_of_week, day.dow],
+                  })}
+                  className={`w-7 h-7 rounded text-xs font-semibold border transition-colors ${
+                    selected
+                      ? 'bg-optio-purple text-white border-transparent'
+                      : 'bg-white text-neutral-400 border-gray-200 hover:border-optio-purple'}`}>
+                  {day.short}
+                </button>
+              )
+            })}
+          </div>
+        </Field>
+
+        {/* With the extras folded away the band holds only Days and Time, so
+            Time takes two columns and its inputs sit side by side. */}
+        <Field label={pickable.length ? 'Time' : 'Start time'} className={collapseExtras ? 'lg:col-span-2' : ''}>
+          {pickable.length ? (
+            <div className="flex flex-col gap-1.5">
+              <div className="flex items-center gap-1">
+                <select className={`${cell} px-1`} value={customTime ? '__custom__' : hhmm(d.start_time)}
+                  aria-label="Start block"
+                  onChange={(e) => {
+                    if (e.target.value === '__custom__') {
+                      // Keep whatever time was there, so the inputs open on
+                      // the block's hours as a starting point.
+                      setTimeMode('custom')
+                      setCustomEnd(savedEnd || null)
+                      return
+                    }
+                    const b = pickable.find((x) => hhmm(x.start) === e.target.value)
+                    if (b) {
+                      setTimeMode('block')
+                      setCustomEnd(null)
+                      set({ start_time: hhmm(b.start), duration_minutes: String(blockMinutes(b)) })
+                    }
+                  }}>
+                  <option value="" disabled>Start</option>
+                  {pickable.map((b, i) => <option key={i} value={hhmm(b.start)}>{fmt12ap(b.start)}</option>)}
+                  <option value="__custom__">Custom time…</option>
+                </select>
+                {!customTime && (
+                  <>
+                    <span className="text-neutral-300">–</span>
+                    <select className={`${cell} px-1`} value={addMin(d.start_time, d.duration_minutes)} aria-label="End time"
+                      disabled={!d.start_time}
+                      onChange={(e) => set({ duration_minutes: String(minutesBetween(d.start_time, e.target.value)) })}>
+                      {blockEndOptions(timeBlocks, d.start_time, addMin(d.start_time, d.duration_minutes)).map((end) => (
+                        <option key={end} value={end}>{fmt12ap(end)}</option>
+                      ))}
+                    </select>
+                  </>
+                )}
+              </div>
+              {customTime && (
+                <>
+                  <div className={collapseExtras ? 'flex items-center gap-1' : 'flex flex-col gap-1.5'}>
+                    <input type="time" className={cell} value={hhmm(d.start_time)} aria-label="Start time"
+                      onChange={(e) => setCustomStart(e.target.value)} />
+                    {collapseExtras && <span className="text-neutral-300">–</span>}
+                    <input type="time" className={cell} value={shownEnd} aria-label="End time"
+                      aria-invalid={customTimeError ? true : undefined}
+                      onChange={(e) => setCustomEndTime(e.target.value)} />
+                  </div>
+                  {customTimeError && (
+                    <p role="alert" className="text-[11px] text-red-600 leading-tight">{customTimeError}</p>
+                  )}
+                </>
+              )}
+            </div>
+          ) : (
+            /* Stacked, not side by side: in the five-across Schedule band the
+               column is ~115px, and a native time input's minimum width alone
+               fills it — the duration box next to it was squeezed invisible
+               (Gryffin, 2026-08-22: "I added a start time and I don't see
+               where duration is"). The two-column create layout has the room. */
+            <div className={collapseExtras ? 'flex items-center gap-2' : 'flex flex-col gap-1.5'}>
+              <input type="time" className={cell} value={d.start_time} aria-label="Start time"
+                onChange={(e) => set({ start_time: e.target.value })} />
+              <div className={collapseExtras ? 'relative w-32 shrink-0' : 'relative'}>
+                <input type="number" className={`${cell} pr-10`} min={5} step={5} placeholder="Duration"
+                  aria-label="Duration (minutes)" value={d.duration_minutes}
+                  onChange={(e) => set({ duration_minutes: e.target.value })} />
+                <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-neutral-400 pointer-events-none">min</span>
+              </div>
+            </div>
+          )}
+        </Field>
+
+        {!collapseExtras && (
+          <>
+            {classroomField}
+            {fullDayField}
+            {parentVisibilityField}
+          </>
+        )}
+      </Band>
+
+      {collapseExtras ? (
+        <section className="border-t border-gray-100 pt-3">
+          <button type="button" onClick={() => setExtrasOpen((v) => !v)} aria-expanded={extrasOpen}
+            className="flex w-full items-center gap-2 text-left text-sm font-medium text-gray-700 hover:text-optio-purple">
+            <ChevronRightIcon className={`w-4 h-4 shrink-0 transition-transform ${extrasOpen ? 'rotate-90' : ''}`} />
+            <span>Additional options</span>
+            {!extrasOpen && (
+              <span className="truncate text-xs font-normal text-neutral-400">{extrasHint}</span>
+            )}
+          </button>
+          {extrasOpen && (
+            <div className="mt-3 space-y-4">
+              {extrasLead}
+              <Band title="Details">
+                {assistantsField}
+                {classroomField}
+                {fullDayField}
+                {parentVisibilityField}
+              </Band>
+              {secondaryBands}
+            </div>
+          )}
+        </section>
+      ) : secondaryBands}
     </div>
   )
 }

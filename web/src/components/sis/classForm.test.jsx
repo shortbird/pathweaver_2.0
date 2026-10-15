@@ -64,3 +64,66 @@ describe('ClassForm holds Save while the custom time is refused', () => {
     expect(screen.getByRole('button', { name: 'Save changes' })).toBeEnabled()
   })
 })
+
+describe('ClassForm on create folds the secondary fields away', () => {
+  const STAFF = [{ id: 's1', name: 'Jane Doe' }, { id: 's2', name: 'Alex Assistant' }]
+
+  it('shows the essentials and hides the rest under Additional options', () => {
+    render(<ClassForm onSubmit={vi.fn()} staff={STAFF} onImageChange={vi.fn()} />)
+    for (const label of ['Class name', 'Class description', 'Start time', 'Duration (minutes)']) {
+      expect(screen.getByLabelText(label)).toBeInTheDocument()
+    }
+    expect(screen.getByText('Teacher (optional)')).toBeInTheDocument()
+    expect(screen.getByText('Start time')).toBeInTheDocument()
+    expect(screen.getByPlaceholderText('Duration')).toBeInTheDocument()
+    expect(screen.queryByText('Open for registration')).not.toBeInTheDocument()
+    for (const label of ['Classroom', 'Capacity', 'Tuition', 'Internal notes', 'XP to complete the class']) {
+      expect(screen.queryByLabelText(label)).not.toBeInTheDocument()
+    }
+    expect(screen.queryByText('Assistant teacher(s)')).not.toBeInTheDocument()
+
+    const toggle = screen.getByRole('button', { name: /Additional options/ })
+    expect(toggle).toHaveAttribute('aria-expanded', 'false')
+    fireEvent.click(toggle)
+    expect(toggle).toHaveAttribute('aria-expanded', 'true')
+    for (const label of ['Classroom', 'Capacity', 'Tuition', 'Internal notes', 'XP to complete the class']) {
+      expect(screen.getByLabelText(label)).toBeInTheDocument()
+    }
+    expect(screen.getByText('Assistant teacher(s)')).toBeInTheDocument()
+    expect(screen.getByText('Open for registration')).toBeInTheDocument()
+  })
+
+  it('sends the registration choice from inside the section, open by default', async () => {
+    const onSubmit = vi.fn().mockResolvedValue(undefined)
+    render(<ClassForm onSubmit={onSubmit} />)
+    fireEvent.change(screen.getByLabelText('Class name'), { target: { value: 'Drawing' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Create Class' }))
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1))
+    expect(onSubmit.mock.calls[0][0].registration_status).toBe('open')
+
+    fireEvent.click(screen.getByRole('button', { name: /Additional options/ }))
+    fireEvent.click(screen.getByRole('checkbox', { name: /Open for registration/ }))
+    fireEvent.click(screen.getByRole('button', { name: 'Create Class' }))
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(2))
+    expect(onSubmit.mock.calls[1][0].registration_status).toBe('closed')
+  })
+
+  it('keeps a value entered in the section after it is folded again', async () => {
+    const onSubmit = vi.fn().mockResolvedValue(undefined)
+    render(<ClassForm onSubmit={onSubmit} />)
+    fireEvent.change(screen.getByLabelText('Class name'), { target: { value: 'Drawing' } })
+    const toggle = screen.getByRole('button', { name: /Additional options/ })
+    fireEvent.click(toggle)
+    fireEvent.change(screen.getByLabelText('Capacity'), { target: { value: '14' } })
+    fireEvent.click(toggle)
+    fireEvent.click(screen.getByRole('button', { name: 'Create Class' }))
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1))
+    expect(onSubmit.mock.calls[0][0]).toMatchObject({ name: 'Drawing', capacity: 14 })
+  })
+
+  it('editing an existing class still shows every field', () => {
+    render(<ClassForm initial={LUNCH_MONITOR} onSubmit={vi.fn()} />)
+    expect(screen.getByLabelText('Classroom')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Additional options/ })).not.toBeInTheDocument()
+  })
+})

@@ -86,6 +86,23 @@ export default function ClassForm({ onCancel = null, onSubmit, initial = null, s
     }
   }
 
+  // Without the registration module (the families' Schedule Builder) there is
+  // nothing to open: the class keeps today's default (open) and the choice is
+  // not offered. It sits under "Additional options" with the other extras.
+  const registrationChoice = !isEdit && !moduleKnownOff(org, 'registration') && (
+    <label className="flex items-start gap-2.5 cursor-pointer">
+      <input type="checkbox" checked={registrationOpen}
+        onChange={(e) => setRegistrationOpen(e.target.checked)}
+        className="mt-0.5 h-4 w-4 rounded border-gray-300 text-optio-purple focus:ring-optio-purple" />
+      <span>
+        <span className="block text-sm font-medium text-gray-700">Open for registration</span>
+        <span className="block text-xs text-gray-500">
+          Uncheck to keep this class hidden from families until you open it from the Classes list.
+        </span>
+      </span>
+    </label>
+  )
+
   return (
     <form onSubmit={handleSubmit} className={inline ? '' : 'flex flex-col min-h-0 flex-1'}>
       <div className={inline ? 'space-y-4' : 'p-4 space-y-4 overflow-y-auto'}>
@@ -101,23 +118,9 @@ export default function ClassForm({ onCancel = null, onSubmit, initial = null, s
           onImageRemove={removeImage}
           onTimeErrorChange={setTimeError}
           org={org}
+          collapseExtras={!isEdit}
+          extrasLead={registrationChoice}
         />
-
-        {/* Without the registration module there is nothing to open: the class
-            keeps today's default (open) and the choice is not offered. */}
-        {!isEdit && !moduleKnownOff(org, 'registration') && (
-          <label className="flex items-start gap-2.5 cursor-pointer">
-            <input type="checkbox" checked={registrationOpen}
-              onChange={(e) => setRegistrationOpen(e.target.checked)}
-              className="mt-0.5 h-4 w-4 rounded border-gray-300 text-optio-purple focus:ring-optio-purple" />
-            <span>
-              <span className="block text-sm font-medium text-gray-700">Open for registration</span>
-              <span className="block text-xs text-gray-500">
-                Uncheck to keep this class hidden from families until you open it from the Classes list.
-              </span>
-            </span>
-          </label>
-        )}
 
         {error && <p className="text-sm text-red-600" role="alert">{error}</p>}
       </div>
