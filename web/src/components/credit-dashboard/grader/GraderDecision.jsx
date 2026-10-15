@@ -8,6 +8,7 @@ import SaveXpExample from './SaveXpExample'
 import XpCalibrationModal from './XpCalibrationPanel'
 import { AI_ACTION_META, formatConfidence } from '../aiReview'
 import XpSizeInput from '../XpSizeInput'
+import Kbd from './Kbd'
 import { isXpSize, XP_SIZES_TEXT } from '../xpSizes'
 
 const STATUS_NOTICE = {
@@ -35,7 +36,7 @@ const GraderDecision = ({
   const {
     feedback, setFeedback, editedSubjects, updateSubjects,
     xp, applyXp, aiSuggestLoading,
-    isSuperadmin, canOrgAdminAct, canAct, canEditSubjects, canApplyXp,
+    isSuperadmin, canOrgAdminAct, canAct, canEditSubjects, canApplyXp, schoolFinalizes,
     ai, aiReview, showAi, aiXp, claimedXp, aiSubjects, applyAiSubjects,
     applyDraft, suggestFeedback, approve, growThis, acceptAi,
   } = decision
@@ -83,9 +84,9 @@ const GraderDecision = ({
 
           {canOrgAdminAct && !isSuperadmin && (
             <p className="text-xs text-gray-600 bg-optio-purple/5 border border-optio-purple/10 rounded-lg px-3 py-2">
-              Your school reviews this request first. Approving sends it to Optio
-              for final credit approval. Use Grow This to return it to the student
-              with feedback instead.
+              {schoolFinalizes
+                ? 'Your school makes the final call on this request. Approving adds it to the student\'s transcript. Use Grow This to return it to the student with feedback instead.'
+                : 'Your school reviews this request first. Approving sends it to Optio for final credit approval. Use Grow This to return it to the student with feedback instead.'}
             </p>
           )}
 
@@ -166,7 +167,7 @@ const GraderDecision = ({
               onClick={() => approve()}
               className={`${canAcceptAi ? 'btn-quiet' : 'btn-primary'} flex-1 min-h-[44px]`}
             >
-              {canOrgAdminAct && !isSuperadmin
+              {canOrgAdminAct && !isSuperadmin && !schoolFinalizes
                 ? 'Approve for Optio Review'
                 : `Approve at ${effectiveXp} XP`}
               {!canAcceptAi && <Kbd>a</Kbd>}
@@ -214,16 +215,6 @@ const GraderDecision = ({
     </div>
   )
 }
-
-
-const Kbd = ({ children }) => (
-  <kbd
-    aria-hidden="true"
-    className="hidden md:inline-flex items-center justify-center ml-2 min-w-[20px] h-5 px-1 text-[10px] font-mono rounded border border-current opacity-60"
-  >
-    {children}
-  </kbd>
-)
 
 
 const DraftChip = ({ label, onClick }) => (

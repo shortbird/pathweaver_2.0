@@ -1,6 +1,15 @@
 import React, { useState } from 'react'
 import api from '../../services/api'
 import { toast } from 'react-hot-toast'
+import { orgApproveFinalized } from './useCreditDecision'
+
+/** "Added 3 to the transcript. Sent 2 to Optio for review." */
+export const bulkApproveMessage = (added, sent) => {
+  const parts = []
+  if (added) parts.push(`Added ${added} to the transcript.`)
+  if (sent) parts.push(`Sent ${sent} to Optio for review.`)
+  return parts.join(' ') || 'Nothing here was waiting on you.'
+}
 
 const BulkActionBar = ({ selectedCount, items, selectedIds, effectiveRole, onDeselectAll, onMerge, onRefresh }) => {
   const [bulkLoading, setBulkLoading] = useState(false)
@@ -20,17 +29,24 @@ const BulkActionBar = ({ selectedCount, items, selectedIds, effectiveRole, onDes
   const handleBulkApprove = async () => {
     try {
       setBulkLoading(true)
-      let approvedCount = 0
+      // What each approval did: the school stage either puts the credit on
+      // the transcript or sends it to Optio (the server says which), and
+      // Optio's own approval always puts it on the transcript.
+      let added = 0
+      let sent = 0
       for (const item of selectedItems) {
         if (effectiveRole === 'org_admin' && item.diploma_status === 'pending_org_approval') {
-          await api.post(`/api/credit-dashboard/items/${item.completion_id}/org-approve`, {})
-          approvedCount++
-        } else if (item.diploma_status === 'pending_review') {
+          const res = await api.post(`/api/credit-dashboard/items/${item.completion_id}/org-approve`, {})
+          if (orgApproveFinalized(res)) added++
+          else sent++
+        } else if (effectiveRole !== 'org_admin' && item.diploma_status === 'pending_review') {
+          // Optio's queue: the school-stage seat (org_admin, which the SIS
+          // console passes for every school reviewer) cannot approve here.
           await api.post(`/api/credit-dashboard/items/${item.completion_id}/approve`, {})
-          approvedCount++
+          added++
         }
       }
-      toast.success(`Approved ${approvedCount} items`)
+      toast.success(bulkApproveMessage(added, sent))
       onDeselectAll()
       onRefresh()
     } catch (err) {

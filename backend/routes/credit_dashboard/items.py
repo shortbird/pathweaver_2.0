@@ -26,6 +26,7 @@ from utils.auth.org_scope import caller_can_access_user
 from utils.api_response_v1 import success_response, error_response
 from utils.pagination import fetch_page, get_pagination_params
 from utils.roles import get_effective_roles
+from utils.sis_roles import ADMIN_ROLES, STAFF_ROLES
 
 from utils.logger import get_logger
 from utils.storage_urls import sign_in_place
@@ -39,9 +40,11 @@ from . import bp
 # what an unrecognized role fell through to -- see the docstring below.
 UNRESTRICTED = object()
 
-# Roles that review their whole organization's queue. Coordinators sit with
-# org admins: the coordinator restriction is financial, not scope-based.
-ORG_WIDE_ROLES = ('org_admin', 'campus_coordinator')
+# Roles that review their whole organization's queue: the SIS front office.
+# Coordinators sit with org admins: the coordinator restriction is financial,
+# not scope-based. Teachers (advisors) review only the students they teach
+# (school_review.teacher_student_ids). Superadmin is handled before this is read.
+ORG_WIDE_ROLES = ADMIN_ROLES
 
 
 def resolve_user_name(user_data):
@@ -114,15 +117,14 @@ def _scoped_student_ids(admin, user_id, user_data, org_id_filter):
         # org_id param is ignored on purpose: they can never widen their scope.
         return _org_student_ids(admin, user_data.get('organization_id'))
     if 'advisor' in roles:
-        rows = admin.table('advisor_student_assignments') \
-            .select('student_id').eq('advisor_id', user_id) \
-            .eq('is_active', True).execute()
-        return [a['student_id'] for a in (rows.data or [])]
+        # A teacher: their class rosters and formal advisees, in their school.
+        from .school_review import teacher_student_ids
+        return teacher_student_ids(admin, user_id, user_data.get('organization_id'))
     return []
 
 
 @bp.route('/items', methods=['GET'])
-@require_role('superadmin', 'org_admin')
+@require_role(*STAFF_ROLES)
 def get_dashboard_items(user_id: str):
     """Get credit review items filtered by role and query params."""
     try:
@@ -238,6 +240,13 @@ def get_dashboard_items(user_id: str):
             students_map = {s['id']: s for s in (students.data or [])}
         org_names = _org_names(admin_supabase,
                                [s.get('organization_id') for s in students_map.values()])
+        # Who makes the final call on each row: the school, or Optio (the
+        # student's transcript is under Optio's accreditation). Two reads for
+        # the page.
+        from .school_review import final_reviewers_for
+        final_reviewers = final_reviewers_for(
+            admin_supabase, {sid: (students_map.get(sid) or {}).get('organization_id')
+                             for sid in c_student_ids})
 
         # Batch fetch tasks
         tasks_map = {}
@@ -315,6 +324,7 @@ def get_dashboard_items(user_id: str):
                 'is_org_student': bool(student.get('organization_id')),
                 'organization_id': student.get('organization_id'),
                 'organization_name': org_names.get(student.get('organization_id')),
+                'final_reviewer': final_reviewers.get(c['user_id']),
             })
 
         # AI verdicts for this page, in one query. Superadmin only.
@@ -337,7 +347,7 @@ def get_dashboard_items(user_id: str):
 
 
 @bp.route('/items/<completion_id>', methods=['GET'])
-@require_role('superadmin', 'org_admin')
+@require_role(*STAFF_ROLES)
 def get_dashboard_item_detail(user_id: str, completion_id: str):
     """Get full detail for a credit review item including evidence and review history."""
     try:
@@ -412,6 +422,11 @@ def get_dashboard_item_detail(user_id: str, completion_id: str):
             student_org = student.data.get('organization_id')
             if not caller_org or caller_org != student_org:
                 return error_response(code='FORBIDDEN', message='Not authorized to view this student', status=403)
+            # A teacher sees only the students they teach (the queue's scope).
+            from .school_review import reviews_whole_school, teacher_student_ids
+            if not reviews_whole_school(get_effective_roles(caller_data)) \
+                    and student_id not in teacher_student_ids(admin_supabase, user_id, caller_org):
+                return error_response(code='FORBIDDEN', message='Not authorized to view this student', status=403)
 
         # Get evidence blocks
         evidence_blocks_data = []
@@ -473,8 +488,14 @@ def get_dashboard_item_detail(user_id: str, completion_id: str):
             'review_rounds': rounds.data or [],
             'suggested_subjects': subjects,
             'student_subject_xp': student_subject_xp.data or [],
-            'is_org_student': bool(student_data.get('organization_id'))
+            'is_org_student': bool(student_data.get('organization_id')),
         }
+        # Who makes the final call: the school, or Optio. Asked only while the
+        # school stage is open, which is the only time the grader reads it.
+        if completion_data.get('diploma_status') == 'pending_org_approval':
+            from .school_review import final_reviewer_for
+            payload['final_reviewer'] = final_reviewer_for(
+                admin_supabase, student_id, student_data.get('organization_id'))
 
         # The AI review, for superadmins only. Absent entirely for anyone else,
         # so an org admin's payload is what it was before the feature existed.
@@ -489,7 +510,7 @@ def get_dashboard_item_detail(user_id: str, completion_id: str):
 
 
 @bp.route('/stats', methods=['GET'])
-@require_role('superadmin', 'org_admin')
+@require_role(*STAFF_ROLES)
 def get_dashboard_stats(user_id: str):
     """Get aggregate counts for dashboard overview."""
     try:
@@ -555,7 +576,7 @@ def get_dashboard_stats(user_id: str):
 
 
 @bp.route('/student-context/<student_id>', methods=['GET'])
-@require_role('superadmin', 'org_admin')
+@require_role(*STAFF_ROLES)
 @require_relationship_to('student_id', allow=('org_staff',), discloses='credits')
 def get_student_context(user_id: str, student_id: str):
     """Get student's diploma progress and pending items for context panel."""
@@ -576,6 +597,10 @@ def get_student_context(user_id: str, student_id: str):
         # IDOR-H11 fix: org_admins may only view their own org's students
         # (mirror get_dashboard_item_detail). Superadmin exempt.
         if not caller_can_access_user(admin_supabase, user_id, student_id):
+            return error_response(code='FORBIDDEN', message='Not authorized to view this student', status=403)
+        # Same org is not enough for a teacher: only the students they teach.
+        from .school_review import caller_may_review_student
+        if not caller_may_review_student(admin_supabase, user_id, student_id):
             return error_response(code='FORBIDDEN', message='Not authorized to view this student', status=403)
 
         # Inject resolved display_name

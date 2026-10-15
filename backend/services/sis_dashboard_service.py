@@ -62,6 +62,7 @@ from services import sis_class_session_service as sessions
 from services import sis_onboarding_service as onboarding
 from services.sis_staff_service import _org_now, pinned_links_for
 from utils.logger import get_logger
+from utils.sis_roles import ADMIN_ROLES
 
 logger = get_logger(__name__)
 
@@ -84,6 +85,10 @@ ATTENTION_KEYS = (
     'submissions_new', 'weekly_goals_unset', 'weekly_checkins_due',
     'bounties_to_review', 'bloomy_inactive',
     'students_no_family',
+    # Credit requests waiting on the school's own approval before Optio sees
+    # them (diploma_status 'pending_org_approval'). 299 sat unseen in prod on
+    # 2026-10-15 because nothing in the console read them.
+    'credits_to_approve',
 )
 
 
@@ -179,6 +184,13 @@ def _prior_learning_pending(org_id: str) -> Optional[int]:
         return None
     counts = prior.queue_counts(org_id)
     return sum(v for k, v in counts.items() if k in ('submitted', 'under_review'))
+
+
+def _credits_to_approve(org_id: str) -> int:
+    """Credit requests from this school's students that wait on the school's
+    approval (the org stage of credit review, /credit-review in the console)."""
+    from repositories.credit_review_queue_repository import CreditReviewQueueRepository
+    return CreditReviewQueueRepository(client=_admin()).pending_org_approval_count(org_id)
 
 
 def _attendance_board(org_id: str, today: str) -> Dict[str, Any]:
@@ -292,7 +304,8 @@ def _invoice_totals(org_id: str) -> Dict[str, Any]:
 
 def _build_jobs(org_id: str, *, caller_id: str, hidden: set, settings: Dict[str, Any],
                 now, sees_hr: bool, sees_all_audiences: bool,
-                sees_finance: bool) -> Dict[str, Tuple[Callable[[], Any], Any]]:
+                sees_finance: bool,
+                reviews_credit: bool = False) -> Dict[str, Tuple[Callable[[], Any], Any]]:
     """Every source this caller's dashboard needs, as {name: (build, default)}.
 
     A source that isn't in here never runs and never appears in the payload —
@@ -399,6 +412,15 @@ def _build_jobs(org_id: str, *, caller_id: str, hidden: set, settings: Dict[str,
     if 'calendar' not in hidden and now:
         jobs['events'] = (lambda: _upcoming_events(org_id, now, sees_all_audiences), [])
 
+    # The org stage of credit review. Not a module: every school whose credit
+    # Optio does not review directly approves its own students' requests first
+    # (routes/tasks/credit.py). The whole school's count, so it is for the
+    # roles that review the whole school (ADMIN_ROLES: admins, coordinators).
+    # This dashboard is ADMIN_ROLES-only; teachers, who review only their own
+    # students, have their own dashboard and no tile.
+    if reviews_credit:
+        jobs['credits_to_approve'] = (lambda: _credits_to_approve(org_id), None)
+
     if sees_finance and 'billing' not in hidden:
         from services import sis_tuition_service as tuition
         jobs['invoices'] = (lambda: _invoice_totals(org_id), None)
@@ -423,11 +445,15 @@ def get_admin_dashboard(org_id: str, caller_id: str) -> Dict[str, Any]:
     sees_finance = _safe('finance_role',
                          lambda: sis_service.caller_sees_pay(caller_id), False)
     now = _safe('clock', lambda: _org_now(org_id))
+    # Orgs whose credit Optio reviews directly (feature_flags.
+    # credit_review_by_optio) skip the org stage, so they have no queue.
+    reviews_credit = bool(roles & set(ADMIN_ROLES)) and not (
+        org_row.get('feature_flags') or {}).get('credit_review_by_optio')
 
     r = _gather(_build_jobs(org_id, caller_id=caller_id, hidden=hidden,
                             settings=settings, now=now,
                             sees_hr=sees_hr, sees_all_audiences=is_full_admin,
-                            sees_finance=sees_finance))
+                            sees_finance=sees_finance, reviews_credit=reviews_credit))
 
     # 'tasks' is the one source answering two tiles; flatten it in with the
     # rest, and read the alert count off the board that already computed it. A

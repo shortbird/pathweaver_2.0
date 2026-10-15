@@ -1,11 +1,35 @@
 """
-Credit Dashboard - Org Admin action endpoints.
+Credit Dashboard - the school stage of credit review.
 
-Org admins review credit requests from students in their organization
-before they are escalated to superadmin (Optio) for final approval.
+A student's credit request at an org without feature_flags.credit_review_by_optio
+waits at diploma_status 'pending_org_approval' for the school
+(routes/tasks/credit.py). The school approves it or sends it back here.
+
+Who may act (since 2026-10-15): org admins, campus coordinators and teachers
+(advisors), plus superadmins. Admins and coordinators act on any student in
+their school; a teacher acts only on the students they teach. The scope rules
+live in school_review.py (verify_org_scope).
+
+What an approval does depends on the student's transcript
+(school_review.final_reviewer_for, from utils.accreditation):
+
+- Transcript under the school's own accreditation, or none ('self' / 'none'):
+  the school is the final reviewer. Approval FINALIZES the credit -- it goes on
+  the transcript -- and the reviewer may set the final XP, because there is no
+  second reviewer to be surprised by it. The review round records the school
+  reviewer in both the org_reviewer_* and the reviewer_* seats. No superadmin
+  is notified.
+- Transcript under Optio's accreditation ('optio': an Optio Academy enrollment,
+  or an Academy-extension org): approval hands the request to Optio's queue at
+  'pending_review' and notifies the superadmins. The XP is Optio's call there,
+  so an xp_value in the body is refused (403 XP_ADJUST_FORBIDDEN).
+- A superadmin is both seats at once, so their approval always finalizes.
+
+The response's diploma_status says which happened ('finalized' or
+'pending_review'), and final_reviewer says whose call it was.
 
 Endpoints:
-- POST /api/credit-dashboard/items/<completion_id>/org-approve    - Approve for Optio review
+- POST /api/credit-dashboard/items/<completion_id>/org-approve    - Approve (finalize, or send to Optio)
 - POST /api/credit-dashboard/items/<completion_id>/org-grow-this  - Return to student with feedback
 """
 
@@ -14,6 +38,7 @@ from database import get_supabase_admin_singleton
 from utils.auth.decorators import require_role
 from utils.api_response_v1 import success_response, error_response
 from utils.roles import get_effective_role
+from utils.sis_roles import STAFF_ROLES
 from datetime import datetime
 
 from utils.logger import get_logger
@@ -21,51 +46,19 @@ from utils.logger import get_logger
 logger = get_logger(__name__)
 
 from . import bp
-from .reviewer_xp import apply_reviewer_xp, record_ai_outcome
-
-
-def verify_org_scope(admin_supabase, reviewer_id, student_id):
-    """
-    Verify the reviewer has org_admin access to the student's organization.
-    Superadmins bypass org scoping.
-    Returns the student's organization_id or raises an error.
-    """
-    reviewer = admin_supabase.table('users') \
-        .select('role, organization_id') \
-        .eq('id', reviewer_id) \
-        .single() \
-        .execute()
-
-    if not reviewer.data:
-        raise PermissionError('Reviewer not found')
-
-    # Superadmin bypasses org scoping
-    if reviewer.data.get('role') == 'superadmin':
-        return None
-
-    reviewer_org = reviewer.data.get('organization_id')
-
-    student = admin_supabase.table('users') \
-        .select('organization_id') \
-        .eq('id', student_id) \
-        .single() \
-        .execute()
-
-    if not student.data:
-        raise ValueError('Student not found')
-
-    student_org = student.data.get('organization_id')
-
-    if not reviewer_org or not student_org or reviewer_org != student_org:
-        raise PermissionError('Not authorized to review students outside your organization')
-
-    return student_org
+from .school_review import (  # noqa: F401 -- verify_org_scope re-exported for callers of the old home
+    FINAL_OPTIO,
+    FINAL_SCHOOL,
+    final_reviewer_for,
+    finalize_credit,
+    verify_org_scope,
+)
 
 
 @bp.route('/items/<completion_id>/org-approve', methods=['POST'])
-@require_role('org_admin', 'superadmin')
+@require_role(*STAFF_ROLES)
 def org_approve_credit(user_id: str, completion_id: str):
-    """Org admin approves a credit request, escalating it to Optio (superadmin) review."""
+    """The school approves a credit request: finalize it, or send it to Optio."""
     try:
         admin_supabase = get_supabase_admin_singleton()
         data = request.get_json() or {}
@@ -87,9 +80,9 @@ def org_approve_credit(user_id: str, completion_id: str):
                 status=400
             )
 
-        # Verify org scoping
+        # Verify org (and, for a teacher, class) scoping. None means superadmin.
         try:
-            verify_org_scope(admin_supabase, user_id, completion.data['user_id'])
+            student_org = verify_org_scope(admin_supabase, user_id, completion.data['user_id'])
         except PermissionError as e:
             return error_response(code='FORBIDDEN', message=str(e), status=403)
         except ValueError as e:
@@ -99,40 +92,39 @@ def org_approve_credit(user_id: str, completion_id: str):
         feedback = (data.get('feedback') or '').strip()
         override_subjects = data.get('subjects')
 
-        # If org_admin overrode the subject distribution, save it on the task
+        # If the reviewer overrode the subject distribution, save it on the task
         if override_subjects and isinstance(override_subjects, dict) and completion.data.get('user_quest_task_id'):
             admin_supabase.table('user_quest_tasks').update({
                 'subject_xp_distribution': override_subjects
             }).eq('id', completion.data['user_quest_task_id']).execute()
 
-        # Detect whether the reviewer is a superadmin. A superadmin is both
-        # the org approver AND the final reviewer, so forcing them through
-        # two stages (pending_org_approval → pending_review → finalized)
-        # only duplicates their click. Collapse to one action.
-        reviewer_role_check = admin_supabase.table('users') \
-            .select('role') \
-            .eq('id', user_id) \
-            .single() \
-            .execute()
-        is_superadmin = (
-            bool(reviewer_role_check.data)
-            and reviewer_role_check.data.get('role') == 'superadmin'
-        )
+        # Who makes the final call. A superadmin is both the school's seat and
+        # Optio's, so forcing them through two stages only duplicates their
+        # click. Otherwise it follows the student's transcript: Optio's
+        # accreditation needs Optio's stamp; the school's own (or none) is the
+        # school's to give.
+        is_superadmin = student_org is None
+        if is_superadmin:
+            final_reviewer = FINAL_OPTIO
+        else:
+            final_reviewer = final_reviewer_for(
+                admin_supabase, completion.data['user_id'], student_org)
+        finalizes = is_superadmin or final_reviewer == FINAL_SCHOOL
 
-        # The final XP is Optio's call. A partner org admin approving on the way
-        # through must not change what the work is worth -- the second reviewer
-        # would then be looking at a number they did not set and cannot see the
-        # reason for.
-        if data.get('xp_value') is not None and not is_superadmin:
+        # On the way to Optio the final XP is Optio's call: a second reviewer
+        # would otherwise be looking at a number they did not set and cannot
+        # see the reason for. When this approval IS the final call there is no
+        # second reviewer, so the XP is the reviewer's to set.
+        if data.get('xp_value') is not None and not finalizes:
             return error_response(
                 code='XP_ADJUST_FORBIDDEN',
                 message='Only Optio sets the final XP for a credit request.',
                 status=403,
             )
 
-        # Update the latest review round. For superadmins we also record the
-        # Optio-side action in the same row so the audit trail shows both
-        # stages were authorized by the reviewer.
+        # Update the latest review round. When this approval is the final
+        # call, the same reviewer also fills the final seat, so the audit trail
+        # shows who put the credit on the transcript.
         latest_round = admin_supabase.table('diploma_review_rounds') \
             .select('id') \
             .eq('completion_id', completion_id) \
@@ -147,8 +139,7 @@ def org_approve_credit(user_id: str, completion_id: str):
                 'org_reviewer_feedback': feedback if feedback else None,
                 'org_reviewed_at': now,
             }
-            if is_superadmin:
-                # Same reviewer is acting in the Optio/advisor seat too.
+            if finalizes:
                 round_update.update({
                     'reviewer_id': user_id,
                     'reviewer_action': 'approved',
@@ -159,90 +150,30 @@ def org_approve_credit(user_id: str, completion_id: str):
                 round_update
             ).eq('id', latest_round.data[0]['id']).execute()
 
-        if is_superadmin:
-            # Superadmin approval is the final stamp -- Optio is platform
-            # accredited, so we finalize the credit directly here (no
-            # separate accreditor confirmation step).
-            from routes.tasks import (
-                finalize_subject_xp,
-                get_subject_xp_distribution,
-                pending_subjects_for_completion,
-                remove_pending_subject_xp,
-            )
+        if finalizes:
+            result, error = finalize_credit(
+                admin_supabase, completion=completion.data, reviewer_id=user_id,
+                data=data, feedback=feedback, override_subjects=override_subjects,
+                now=now)
+            if error:
+                return error
 
-            task_result = admin_supabase.table('user_quest_tasks') \
-                .select('id, quest_id, pillar, title, diploma_subjects, '
-                        'subject_xp_distribution, xp_value') \
-                .eq('id', completion.data['user_quest_task_id']) \
-                .single() \
-                .execute()
-            task_data = task_result.data or {}
-            xp_value = task_data.get('xp_value', 0)
-
-            # An accepted XP change lands before the split is computed, for the
-            # same reason as in superadmin_actions: the split is derived from
-            # the task's XP, so computing it first credits the old number.
-            xp_result, xp_error = apply_reviewer_xp(
-                admin_supabase, data,
-                completion=completion.data, task=task_data,
-                student_id=completion.data['user_id'], reviewer_id=user_id)
-            if xp_error:
-                return xp_error
-            if xp_result:
-                xp_value = xp_result.xp_after
-                task_data = {**task_data, 'xp_value': xp_value,
-                             'subject_xp_distribution': xp_result.subjects_after}
-
-            approved_subjects = (
-                override_subjects
-                if override_subjects and isinstance(override_subjects, dict)
-                else get_subject_xp_distribution(task_data, xp_value)
-            )
-            original_subjects = pending_subjects_for_completion(
-                admin_supabase, completion_id, task_data, xp_value)
-            try:
-                remove_pending_subject_xp(
-                    admin_supabase, completion.data['user_id'], original_subjects,
-                )
-            except Exception as xp_err:
-                logger.warning(f"Could not remove pending XP before collapsed finalize: {xp_err}")
-            total_xp_finalized = finalize_subject_xp(
-                admin_supabase, completion.data['user_id'], approved_subjects,
-            )
-
-            admin_supabase.table('quest_task_completions').update({
-                'diploma_status': 'finalized',
-                'org_reviewer_id': user_id,
-                'credit_reviewer_id': user_id,
-                'finalized_at': now,
-            }).eq('id', completion_id).execute()
-
-            if completion.data.get('user_quest_task_id'):
-                admin_supabase.table('user_quest_tasks').update({
-                    'latest_feedback': feedback if feedback else 'Diploma credit approved!',
-                    'feedback_at': now,
-                }).eq('id', completion.data['user_quest_task_id']).execute()
-
-            record_ai_outcome(admin_supabase, completion_id, data, xp_result)
-
-            # Deliberately no student notification here, same as the
-            # superadmin approve route: batch grading used to fire one
-            # "Diploma Credit Approved" ping per task at the same student.
-            # The task's latest_feedback carries the approval instead.
-
+            # No superadmin notification: nothing waits on Optio.
+            who = 'Superadmin' if is_superadmin else 'School reviewer'
             logger.info(
-                f"Superadmin {user_id[:8]} finalized credit {completion_id[:8]} "
-                f"in one click, {total_xp_finalized} XP finalized"
+                f"{who} {user_id[:8]} finalized credit {completion_id[:8]}, "
+                f"{result['xp_finalized']} XP finalized"
             )
             return success_response(data={
                 'completion_id': completion_id,
                 'diploma_status': 'finalized',
-                'approved_subjects': approved_subjects,
-                'xp_finalized': total_xp_finalized,
-                'collapsed': True,
+                'final_reviewer': FINAL_OPTIO if is_superadmin else FINAL_SCHOOL,
+                'approved_subjects': result['approved_subjects'],
+                'xp_finalized': result['xp_finalized'],
+                'collapsed': is_superadmin,
             })
 
-        # Hand off to superadmin review (non-superadmin path).
+        # Hand off to Optio's review (the student's transcript is Optio's).
         admin_supabase.table('quest_task_completions').update({
             'diploma_status': 'pending_review',
             'org_reviewer_id': user_id
@@ -289,7 +220,7 @@ def org_approve_credit(user_id: str, completion_id: str):
                     user_id=sa['id'],
                     notification_type='org_approved_credit',
                     title='Org-Approved Credit Ready for Review',
-                    message=f'{student_name}\'s credit for "{task_title}" was approved by their org admin and is ready for your review.',
+                    message=f'{student_name}\'s credit for "{task_title}" was approved by their school and is ready for your review.',
                     link='/credit-dashboard',
                     metadata={
                         'student_id': completion.data['user_id'],
@@ -300,11 +231,12 @@ def org_approve_credit(user_id: str, completion_id: str):
         except Exception as notify_err:
             logger.warning(f"Failed to notify superadmin of org approval: {notify_err}")
 
-        logger.info(f"Org admin {user_id[:8]} approved credit {completion_id[:8]} for Optio review")
+        logger.info(f"School reviewer {user_id[:8]} sent credit {completion_id[:8]} to Optio review")
 
         return success_response(data={
             'completion_id': completion_id,
-            'diploma_status': 'pending_review'
+            'diploma_status': 'pending_review',
+            'final_reviewer': FINAL_OPTIO,
         })
 
     except Exception as e:
@@ -313,9 +245,9 @@ def org_approve_credit(user_id: str, completion_id: str):
 
 
 @bp.route('/items/<completion_id>/org-grow-this', methods=['POST'])
-@require_role('org_admin', 'superadmin')
+@require_role(*STAFF_ROLES)
 def org_grow_this(user_id: str, completion_id: str):
-    """Org admin returns a credit request to the student with feedback."""
+    """The school returns a credit request to the student with feedback."""
     try:
         admin_supabase = get_supabase_admin_singleton()
         data = request.get_json() or {}
@@ -433,7 +365,7 @@ def org_grow_this(user_id: str, completion_id: str):
         except Exception as notify_err:
             logger.warning(f"Failed to notify student of org grow-this: {notify_err}")
 
-        logger.info(f"Org admin {user_id[:8]} returned credit {completion_id[:8]} with feedback")
+        logger.info(f"School reviewer {user_id[:8]} returned credit {completion_id[:8]} with feedback")
 
         return success_response(data={
             'completion_id': completion_id,

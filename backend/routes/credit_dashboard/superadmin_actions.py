@@ -23,6 +23,7 @@ from database import get_supabase_admin_singleton
 from utils.auth.decorators import require_role
 from utils.api_response_v1 import success_response, error_response
 from utils.roles import get_effective_role
+from utils.sis_roles import STAFF_ROLES
 from datetime import datetime
 
 from utils.logger import get_logger
@@ -365,7 +366,7 @@ def grow_this(user_id: str, completion_id: str):
 
 
 @bp.route('/items/<completion_id>/suggest-feedback', methods=['POST'])
-@require_role('superadmin', 'org_admin')
+@require_role(*STAFF_ROLES)
 def suggest_grow_this_feedback(user_id: str, completion_id: str):
     """
     Ask Gemini to draft Grow This feedback for this completion. The reviewer
@@ -376,37 +377,25 @@ def suggest_grow_this_feedback(user_id: str, completion_id: str):
     textarea.
     """
     try:
-        # Org admins can only ask for feedback on items in their own org.
+        # A school reviewer may only ask about a student they may review: their
+        # own org, and for a teacher, a student they teach (school_review).
         admin_supabase = get_supabase_admin_singleton()
-        caller = admin_supabase.table('users') \
-            .select('role, organization_id') \
-            .eq('id', user_id) \
+        completion = admin_supabase.table('quest_task_completions') \
+            .select('user_id') \
+            .eq('id', completion_id) \
             .single() \
             .execute()
-        caller_data = caller.data or {}
-        if caller_data.get('role') != 'superadmin':
-            completion = admin_supabase.table('quest_task_completions') \
-                .select('user_id') \
-                .eq('id', completion_id) \
-                .single() \
-                .execute()
-            if not completion.data:
-                return error_response(
-                    code='NOT_FOUND', message='Completion not found', status=404,
-                )
-            student = admin_supabase.table('users') \
-                .select('organization_id') \
-                .eq('id', completion.data['user_id']) \
-                .single() \
-                .execute()
-            student_org = (student.data or {}).get('organization_id')
-            caller_org = caller_data.get('organization_id')
-            if not caller_org or caller_org != student_org:
-                return error_response(
-                    code='FORBIDDEN',
-                    message='Not authorized to draft feedback for this student',
-                    status=403,
-                )
+        if not completion.data:
+            return error_response(
+                code='NOT_FOUND', message='Completion not found', status=404,
+            )
+        from .school_review import caller_may_review_student
+        if not caller_may_review_student(admin_supabase, user_id, completion.data['user_id']):
+            return error_response(
+                code='FORBIDDEN',
+                message='Not authorized to draft feedback for this student',
+                status=403,
+            )
 
         from services.credit_feedback_ai_service import CreditFeedbackAIService
         service = CreditFeedbackAIService()

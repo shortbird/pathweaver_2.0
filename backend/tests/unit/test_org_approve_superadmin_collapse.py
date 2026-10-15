@@ -177,12 +177,18 @@ def _post(client, reviewer_id, body=None):
 
 
 def test_org_admin_approval_advances_to_pending_review(client):
-    """Non-superadmin path: org admin approval hands off to superadmin review."""
+    """Non-superadmin path: org admin approval hands off to superadmin review.
+
+    Only for a student whose transcript is under Optio's accreditation since
+    2026-10-15; a school-transcript student is finalized by the school
+    (tests/unit/test_school_credit_review.py)."""
     supabase, captures = _build_supabase(
         reviewer_role='org_managed', reviewer_id=ORG_ADMIN_ID, reviewer_org=ORG_ID,
     )
     with patch('routes.credit_dashboard.org_admin_actions.get_supabase_admin_singleton',
                return_value=supabase), \
+         patch('routes.credit_dashboard.org_admin_actions.final_reviewer_for',
+               return_value='optio'), \
          patch('database.get_supabase_admin_client', return_value=supabase):
         resp = _post(client, ORG_ADMIN_ID)
 

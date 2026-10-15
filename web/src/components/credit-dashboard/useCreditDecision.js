@@ -12,6 +12,19 @@ export const XP_REASON_DEFAULT = 'Adjusted during credit review'
 export const MIN_XP = 25
 
 /**
+ * What an org-stage approval did, from the server's answer: it either put the
+ * credit on the transcript (the school, or a superadmin, made the final call)
+ * or sent it to Optio's queue (the student's transcript is under Optio's
+ * accreditation).
+ */
+export const orgApproveFinalized = (res) =>
+  (res?.data?.data?.diploma_status ?? res?.data?.diploma_status) === 'finalized'
+
+export const orgApproveMessage = (res) => (
+  orgApproveFinalized(res) ? 'Added to the transcript' : 'Sent to Optio for review'
+)
+
+/**
  * Everything a reviewer can decide about one credit request, in one place.
  *
  * The grader's buttons, the page's keyboard shortcuts and the "take the AI's
@@ -83,13 +96,20 @@ export default function useCreditDecision({
   const canOrgAdminAct = isOrgAdmin && completion.diploma_status === 'pending_org_approval'
   const canAdvisorAct = isAdvisor && completion.diploma_status === 'pending_review'
   const canAct = canOrgAdminAct || canAdvisorAct
+  // Who makes the final call on this request (backend school_review.py): the
+  // school when the student's transcript is the school's own, Optio when it is
+  // under Optio's accreditation. Unknown reads as Optio, the cautious answer.
+  const finalReviewer = detail?.final_reviewer || item?.final_reviewer || null
+  const schoolFinalizes = canOrgAdminAct && !isSuperadmin && finalReviewer === 'school'
 
   // The AI review is superadmin-only: the backend omits it entirely for anyone
   // else, so this resolves to a not_run shape and nothing AI-shaped renders.
   const ai = latestAi(detail)
   const aiReview = ai?.status === 'complete' ? ai.review : null
   const showAi = isSuperadmin
-  const canApplyXp = isSuperadmin && canAct
+  // The final reviewer sets the XP: a superadmin, or a school whose approval
+  // is the final call. On the way to Optio the server refuses an XP change.
+  const canApplyXp = (isSuperadmin || schoolFinalizes) && canAct
   const aiXp = aiReview?.xp?.changed ? aiReview.xp.recommended : null
 
   /**
@@ -256,8 +276,8 @@ export default function useCreditDecision({
     setFeedback('')
     onAdvance?.(completionId)
     try {
-      await post(completionId, body)
-      toast.success(successMessage)
+      const res = await post(completionId, body)
+      toast.success(typeof successMessage === 'function' ? successMessage(res) : successMessage)
     } catch (err) {
       toast.error(err.response?.data?.message || 'Failed to approve')
       onRefresh?.()
@@ -269,7 +289,7 @@ export default function useCreditDecision({
     if (canOrgAdminAct) {
       return submitApprove(
         (id, body) => api.post(`/api/credit-dashboard/items/${id}/org-approve`, body),
-        isSuperadmin ? 'Credit approved' : 'Approved for Optio review', options)
+        orgApproveMessage, options)
     }
     return submitApprove(
       (id, body) => api.post(`/api/credit-dashboard/items/${id}/approve`, body),
@@ -397,7 +417,7 @@ export default function useCreditDecision({
     xp, xpReason, applyXp,
     aiSuggestLoading,
     // derived
-    isSuperadmin, canOrgAdminAct, canAdvisorAct, canAct,
+    isSuperadmin, canOrgAdminAct, canAdvisorAct, canAct, schoolFinalizes,
     canEditSubjects: canAct, canApplyXp,
     ai, aiReview, showAi, aiXp, claimedXp, aiSubjects, applyAiSubjects,
     // actions

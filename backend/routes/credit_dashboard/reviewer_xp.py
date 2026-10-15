@@ -11,10 +11,12 @@ because the split is derived from the task's XP.
 the only honest measure of whether the AI is earning its cost, and it has to come
 from the approve call because nothing else knows what the reviewer clicked.
 
-Both are superadmin-only paths by the time they are reached. Org admins cannot
-send ``xp_value``: their stage is the first of two, the final XP is Optio's call,
-and letting a partner trim a student's XP on the way through would make the
-second reviewer's number a surprise.
+Both run only where the approval is the final call: a superadmin, or (since
+2026-10-15) a school whose student's transcript is the school's own
+(school_review.final_reviewer_for). A school reviewer approving on the way to
+Optio cannot send ``xp_value``: the final XP is Optio's call there, and letting
+the school trim a student's XP on the way through would make the second
+reviewer's number a surprise.
 """
 
 from __future__ import annotations

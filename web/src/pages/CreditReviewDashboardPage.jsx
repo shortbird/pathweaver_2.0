@@ -21,8 +21,8 @@ import { clearDraft, stashDraft } from '../components/credit-dashboard/reviewDra
 
 // The queue's place lives in the URL -- filters, page, the item open in the
 // grader -- so a reviewer who leaves for a student's profile comes back to the
-// same item, not the top of the list. Prefixed because this page also renders
-// inside /organization, whose own `tab` parameter must survive.
+// same item, not the top of the list. Prefixed so a page that embeds this one
+// keeps its own `tab` parameter (the web org console did, until 2026-10-15).
 const FILTER_KEYS = ['status', 'student', 'subject', 'date_from', 'date_to', 'ai']
 // "No status filter" is a choice, and has to be told apart from "never set",
 // which falls back to the role's default.
@@ -63,12 +63,18 @@ export const studentProfilePath = (item) => (
  * an item puts the grader over the whole screen; deciding it drops the row and
  * moves to the next, so a reviewer can work a queue without touching the list.
  *
- * orgId is set when this page is embedded in the org management screen
- * (/admin/organizations/:orgId > Credit Review tab). It scopes the queue to
+ * orgId is set when this page is embedded in the SIS console (/credit-review,
+ * pages/sis/CreditReviewPage.jsx). It scopes the queue to
  * that org's students -- without it a superadmin sees the platform-wide queue.
  */
-const CreditReviewDashboardPage = ({ orgId = null }) => {
-  const { effectiveRole } = useAuth()
+const CreditReviewDashboardPage = ({ orgId = null, reviewerRole = null }) => {
+  // `reviewerRole` is set by the SIS console's mount (pages/sis/
+  // CreditReviewPage.jsx). The singular effectiveRole is only the first of an
+  // account's org roles, so an org admin stored as ['advisor', 'org_admin']
+  // would read as an advisor here and lose the org-stage approve. The SIS
+  // route already decided this reader approves at the org stage.
+  const { effectiveRole: authRole } = useAuth()
+  const effectiveRole = reviewerRole || authRole
   const isMobile = useIsMobile()
   const navigate = useNavigate()
   const { pathname } = useLocation()

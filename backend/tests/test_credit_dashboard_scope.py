@@ -50,6 +50,11 @@ class _Query:
             self._sink[col] = val
         return self
 
+    def in_(self, col, vals):
+        if self._sink is not None:
+            self._sink[f'{col}__in'] = list(vals)
+        return self
+
     def execute(self):
         return _Result(self._rows)
 
@@ -66,16 +71,27 @@ class _Admin:
         if name == 'users':
             _Query([], sink=self.filters)
             # Resolve rows lazily against whatever org was filtered on
+            self.filters.pop('id__in', None)
+
             class _OrgQuery(_Query):
                 def execute(_self):
                     org = self.filters.get('organization_id')
-                    return _Result(
-                        [{'id': sid} for sid in self._org_students.get(org, [])]
-                    )
+                    ids = self._org_students.get(org, [])
+                    wanted = self.filters.get('id__in')
+                    if wanted is not None:
+                        ids = [i for i in ids if i in wanted]
+                    return _Result([{'id': sid} for sid in ids])
             return _OrgQuery([], sink=self.filters)
         if name == 'advisor_student_assignments':
             return _Query(self._assignments)
         raise AssertionError(f'unexpected table {name}')
+
+
+def _teaches(student_ids):
+    """Stand in for the class-roster half of a teacher's students."""
+    from unittest.mock import patch
+    return patch('utils.class_membership.students_taught_by',
+                 return_value=set(student_ids))
 
 
 def _org_user(org, org_role=None, org_roles=None):
@@ -141,9 +157,11 @@ class TestMultiRole:
         assert _scoped_student_ids(admin, 'u', user, None) == ['s1', 's2']
 
     def test_a_parent_who_is_also_an_advisor_is_scoped_as_the_advisor(self):
-        admin = _Admin(assignments=[{'student_id': 's3'}])
+        admin = _Admin(org_students={ORG_A: ['s1', 's3']},
+                       assignments=[{'student_id': 's3'}])
         user = _org_user(ORG_A, 'parent', ['parent', 'advisor'])
-        assert _scoped_student_ids(admin, 'u', user, None) == ['s3']
+        with _teaches(set()):
+            assert _scoped_student_ids(admin, 'u', user, None) == ['s3']
 
     def test_role_order_does_not_change_the_scope(self):
         admin = _Admin(org_students={ORG_A: ['s1']})
@@ -166,12 +184,31 @@ class TestSuperadmin:
 
 
 class TestAdvisor:
-    def test_advisor_sees_only_assigned_students(self):
-        admin = _Admin(assignments=[{'student_id': 's4'}, {'student_id': 's5'}])
-        user = _org_user(ORG_A, 'advisor')
-        assert _scoped_student_ids(admin, 'u', user, None) == ['s4', 's5']
+    """A teacher reviews the students they teach (2026-10-15): their class
+    rosters (utils.class_membership.students_taught_by) plus their formal
+    advisor assignments, limited to their own school."""
 
-    def test_advisor_with_no_assignments_gets_nothing(self):
-        admin = _Admin(assignments=[])
+    def test_advisor_sees_assigned_students(self):
+        admin = _Admin(org_students={ORG_A: ['s4', 's5', 's6']},
+                       assignments=[{'student_id': 's4'}, {'student_id': 's5'}])
         user = _org_user(ORG_A, 'advisor')
-        assert _scoped_student_ids(admin, 'u', user, None) == []
+        with _teaches(set()):
+            assert _scoped_student_ids(admin, 'u', user, None) == ['s4', 's5']
+
+    def test_advisor_sees_their_class_rosters(self):
+        admin = _Admin(org_students={ORG_A: ['s4', 's6', 's7']}, assignments=[])
+        user = _org_user(ORG_A, 'advisor')
+        with _teaches({'s6', 's7'}):
+            assert _scoped_student_ids(admin, 'u', user, None) == ['s6', 's7']
+
+    def test_a_taught_student_in_another_school_is_left_out(self):
+        admin = _Admin(org_students={ORG_A: ['s6'], ORG_B: ['s9']}, assignments=[])
+        user = _org_user(ORG_A, 'advisor')
+        with _teaches({'s6', 's9'}):
+            assert _scoped_student_ids(admin, 'u', user, None) == ['s6']
+
+    def test_advisor_with_no_students_gets_nothing(self):
+        admin = _Admin(org_students={ORG_A: ['s1']}, assignments=[])
+        user = _org_user(ORG_A, 'advisor')
+        with _teaches(set()):
+            assert _scoped_student_ids(admin, 'u', user, None) == []

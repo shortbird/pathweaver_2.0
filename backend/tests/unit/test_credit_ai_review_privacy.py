@@ -83,13 +83,16 @@ class TestOrgAdminsNeverSeeIt:
             '@bp.route')[-1]
 
     def test_an_org_admin_cannot_set_the_final_xp(self):
-        """Optio sets it. A partner trimming it on the way through would leave
-        the second reviewer looking at a number they cannot see the reason for."""
+        """Optio sets it when Optio makes the final call. A school trimming it
+        on the way through would leave the second reviewer looking at a number
+        they cannot see the reason for. Since 2026-10-15 a school that IS the
+        final reviewer (its own transcript) sets it; the 403 stays on the
+        Optio-bound path (tests/unit/test_school_credit_review.py)."""
         from routes.credit_dashboard import org_admin_actions
 
         source = inspect.getsource(org_admin_actions.org_approve_credit)
         assert 'XP_ADJUST_FORBIDDEN' in source
-        assert "data.get('xp_value') is not None and not is_superadmin" in source
+        assert "data.get('xp_value') is not None and not finalizes" in source
 
 
 @pytest.mark.unit

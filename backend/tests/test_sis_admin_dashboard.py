@@ -38,7 +38,8 @@ def _table_mock(counts, rows):
     the row list and exact count configured for that table name."""
     def _table(name):
         t = Mock()
-        for chained in ('select', 'eq', 'in_', 'gte', 'lt', 'or_', 'order', 'limit', 'not_', 'is_'):
+        for chained in ('select', 'eq', 'in_', 'gte', 'lt', 'or_', 'order', 'limit', 'not_', 'is_',
+                        'range'):
             getattr(t, chained).return_value = t
         t.execute.return_value = Mock(data=rows.get(name, []), count=counts.get(name, 0))
         return t
@@ -290,6 +291,8 @@ class TestTheRestOfThePayload:
             'waitlist_waiting': 0, 'students_no_family': 0,
             # The submissions inbox is on by default, so its queue is asked.
             'submissions_new': 0,
+            # The org stage of credit review is every school's, not a module's.
+            'credits_to_approve': 0,
         }
 
     def test_settings_are_echoed_so_the_frontend_filters_with_sismodules(self):
@@ -581,3 +584,38 @@ class TestSchoolActivity:
             data = _run()
         assert 'activity' not in data
         assert 'sign_in_trouble' not in data
+
+
+@pytest.mark.unit
+class TestCreditsWaitingOnTheSchool:
+    """The org stage of credit review (diploma_status 'pending_org_approval').
+
+    299 requests sat there in prod on 2026-10-15 (Gryffin 222, the oldest from
+    March) because no console page read them. The tile is the door to
+    /credit-review.
+    """
+
+    def test_an_admin_sees_the_count_of_the_schools_students_requests(self):
+        data = _run(rows={'users': [{'id': 's1'}, {'id': 's2'}]},
+                    counts={'quest_task_completions': 5})
+        assert data['attention']['credits_to_approve'] == 5
+
+    def test_a_coordinator_sees_the_count_too(self):
+        """Coordinators approve credit since 2026-10-15, for the whole school."""
+        data = _run(roles=('campus_coordinator',), sees_pay=False,
+                    rows={'users': [{'id': 's1'}]}, counts={'quest_task_completions': 5})
+        assert data['attention']['credits_to_approve'] == 5
+
+    def test_a_school_whose_credit_optio_reviews_has_no_org_stage(self):
+        row = {'id': ORG, 'name': 'Org', 'slug': 'org',
+               'feature_flags': {'credit_review_by_optio': True, 'sis_settings': {}}}
+        data = _run(rows={'organizations': [row], 'users': [{'id': 's1'}]},
+                    counts={'quest_task_completions': 5})
+        assert 'credits_to_approve' not in data['attention']
+
+    def test_the_ids_go_to_postgres_in_chunks_and_the_counts_add_up(self):
+        from repositories.credit_review_queue_repository import ID_CHUNK
+        ids = [{'id': f's{i}'} for i in range(ID_CHUNK + 1)]
+        data = _run(rows={'users': ids}, counts={'quest_task_completions': 2})
+        # Two chunks, each answering 2.
+        assert data['attention']['credits_to_approve'] == 4
