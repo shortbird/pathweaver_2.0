@@ -1246,3 +1246,52 @@ class TestThumbnails:
             'user-photos/kid/photo.jpg?token=abc&w=96'
         )
         assert parse_object_ref(signed) == ('user-photos', 'kid/photo.jpg')
+
+
+class TestSubmissionsInboxBlockShape:
+    """Ticket d0cc8d45 (Arete, 2026-10-14): a reviewer on SIS Submissions saw a
+    broken image and a file name for Maci's "screenshot".
+
+    The signer was suspected first and is NOT the cause; these pin that. The
+    inbox signs through PortfolioService.sign_evidence_blocks_on, which walks
+    content.items and signs a custom-domain /object/public/ URL. The broken
+    block was a Link holding a path on the student's Chromebook (file:///...),
+    which was never uploaded: it must pass through untouched, with no storage
+    call, and the reviewer screen explains it (SubmissionsPanel isDeviceOnlyUrl).
+    """
+
+    UPLOADED = (f'{PUBLIC_BASE}/quest-evidence/evidence-tasks/aa0f3d00-9bdb-41be-aed8-e210ee52c787/'
+                '9696fee9-8bf6-4e6c-8bfc-57d590aaa531_20260908_133326_unnamed_1.webp')
+    DEVICE = ('file:///home/chronos/u-1ac4883df0affc63cfcb2da294ba28f9ccdf2b9f/MyFiles/'
+              'Downloads/Screenshot%202026-07-23%208.43.22%20AM.png')
+
+    def _sign_on(self, storage_client, monkeypatch, items):
+        from services import portfolio_service as ps
+        monkeypatch.setattr(
+            ps, 'sign_stored_urls',
+            lambda values, bucket=None, expires_in=None, **kwargs: sign_stored_urls(
+                values, bucket, expires_in, client=storage_client),
+        )
+        ps.PortfolioService(client=MagicMock()).sign_evidence_blocks_on(items, key='evidence_blocks')
+        return items
+
+    def test_an_uploaded_image_in_content_items_comes_back_signed(self, storage_client, monkeypatch):
+        items = [{'evidence_blocks': [{'block_type': 'image', 'content': {'items': [
+            {'url': self.UPLOADED, 'title': 'unnamed (1).webp', 'filename': 'unnamed (1).webp'}]}}]}]
+        self._sign_on(storage_client, monkeypatch, items)
+
+        url = items[0]['evidence_blocks'][0]['content']['items'][0]['url']
+        assert url.startswith(f'{SIGN_BASE}/quest-evidence/evidence-tasks/aa0f3d00-')
+        assert '?token=' in url
+        store = storage_client.storage.from_('quest-evidence')
+        assert store.create_signed_urls.call_args[0][0] == [
+            self.UPLOADED.split('/quest-evidence/', 1)[1]]
+
+    def test_a_device_only_link_passes_through_without_a_storage_call(self, storage_client, monkeypatch):
+        items = [{'evidence_blocks': [{'block_type': 'link', 'content': {'items': [
+            {'url': self.DEVICE, 'title': ''}]}}]}]
+        self._sign_on(storage_client, monkeypatch, items)
+
+        assert items[0]['evidence_blocks'][0]['content']['items'][0]['url'] == self.DEVICE
+        assert storage_client.storage.from_.call_count == 0
+        assert parse_object_ref(self.DEVICE) is None

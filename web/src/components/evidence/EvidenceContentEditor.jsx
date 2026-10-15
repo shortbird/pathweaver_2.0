@@ -16,6 +16,7 @@ import { IMAGE_ACCEPT_STRING, DOCUMENT_ACCEPT_STRING, VIDEO_ACCEPT_STRING, IMAGE
 import { detectMediaType, validateFileSize, CAMERA_ACCEPT_STRING } from '../../utils/mediaUtils';
 import DocumentScannerModal from '../scan/DocumentScannerModal';
 import CameraCaptureButton from './CameraCaptureButton';
+import { isLocalFilePath, LOCAL_FILE_PATH_MESSAGE } from '../../utils/localFilePath';
 
 export const EVIDENCE_TYPES = [
   { id: 'text', label: 'Text', Icon: DocumentTextIcon, description: 'Write notes or reflections' },
@@ -106,7 +107,17 @@ const EvidenceContentEditor = ({ onSave, onCancel, onUpdate, editingBlock = null
     }
   };
 
+  // A path on the student's own computer pasted as a link (ticket d0cc8d45):
+  // it would save, and the teacher would get nothing. Never let it through.
+  const currentLinkHasLocalPath = () =>
+    currentItem?.type === 'link'
+    && (currentItem.content.items || []).some(i => isLocalFilePath(i.url));
+
   const handleAddAnother = () => {
+    if (currentLinkHasLocalPath()) {
+      toast.error(LOCAL_FILE_PATH_MESSAGE);
+      return;
+    }
     if (!isCurrentItemValid()) {
       toast.error('Please fill in the current item before adding another');
       return;
@@ -147,6 +158,10 @@ const EvidenceContentEditor = ({ onSave, onCancel, onUpdate, editingBlock = null
   };
 
   const handleSaveAll = () => {
+    if (currentLinkHasLocalPath()) {
+      toast.error(LOCAL_FILE_PATH_MESSAGE);
+      return;
+    }
     // Edit mode - update single block
     if (isEditMode && currentItem) {
       if (!isCurrentItemValid()) {
@@ -188,10 +203,11 @@ const EvidenceContentEditor = ({ onSave, onCancel, onUpdate, editingBlock = null
     switch (currentItem.type) {
       case 'text':
         return currentItem.content.text?.trim().length > 0;
+      case 'link':
+        return currentItem.content.items?.length > 0 && !currentLinkHasLocalPath();
       case 'camera':
       case 'image':
       case 'video':
-      case 'link':
       case 'document':
         return currentItem.content.items?.length > 0;
       default:
@@ -489,7 +505,11 @@ const EvidenceContentEditor = ({ onSave, onCancel, onUpdate, editingBlock = null
               onChange={(e) => handleUpdateUrlItem(index, 'url', e.target.value)}
               className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-optio-purple text-sm"
               placeholder="https://example.com"
+              aria-invalid={isLocalFilePath(item.url) || undefined}
             />
+            {isLocalFilePath(item.url) && (
+              <p role="alert" className="text-xs text-red-600">{LOCAL_FILE_PATH_MESSAGE}</p>
+            )}
             <input
               type="text"
               value={item.title || ''}

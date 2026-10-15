@@ -14,6 +14,7 @@ import { EvidenceBlockRenderer } from './EvidenceBlockRenderer';
 import { EvidenceToolbar, ConnectedSaveStatus } from './EvidenceToolbar';
 import { EvidenceMediaHandlers } from './EvidenceMediaHandlers';
 import InlineBlockAdder from './InlineBlockAdder';
+import { isLocalFilePath, LOCAL_FILE_PATH_MESSAGE } from '../../utils/localFilePath';
 
 // Sortable Block Wrapper Component
 const SortableBlock = ({ block, children }) => {
@@ -85,6 +86,7 @@ const MultiFormatEvidenceEditorInner = forwardRef(({ hideHeader = false }, ref) 
     collapsedBlocks,
     autoSaverRef,
     cleanBlocksForSave,
+    isSavedLocalPath,
     taskId,
     onComplete,
     onError,
@@ -219,6 +221,24 @@ const MultiFormatEvidenceEditorInner = forwardRef(({ hideHeader = false }, ref) 
       if (blocks.length === 0) {
         if (onError) {
           onError('At least one piece of evidence is required to complete a task. Please add text, images, links, or documents to your evidence.');
+        }
+        setIsLoading(false);
+        return;
+      }
+
+      // A link typed this session that is really a path on the student's
+      // computer would submit as nothing (ticket d0cc8d45). Stop and say so.
+      // One saved before the editor opened is left alone; it shows its own
+      // "never uploaded" warning.
+      const typedLocalPath = (url) => isLocalFilePath(url) && !isSavedLocalPath?.(url);
+      const hasLocalPathLink = blocks.some(block =>
+        block.type === 'link'
+        && (typedLocalPath(block.content?.url)
+          || (block.content?.items || []).some(item => typedLocalPath(item?.url)))
+      );
+      if (hasLocalPathLink) {
+        if (onError) {
+          onError(LOCAL_FILE_PATH_MESSAGE);
         }
         setIsLoading(false);
         return;

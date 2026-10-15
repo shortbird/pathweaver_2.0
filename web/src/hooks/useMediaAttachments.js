@@ -4,6 +4,7 @@ import {
   validateFileSize,
   isValidUrl,
 } from '../utils/mediaUtils';
+import { isLocalFilePath, LOCAL_FILE_PATH_MESSAGE } from '../utils/localFilePath';
 
 /**
  * Shared hook for managing media attachments and links.
@@ -109,6 +110,10 @@ export default function useMediaAttachments({ skipVideoSizeLimit = false } = {})
   const addLink = useCallback(() => {
     const trimmed = linkInput.trim();
     if (!trimmed) return { success: false, error: 'No URL entered' };
+    // A path on this computer opens nothing for anyone else (ticket d0cc8d45).
+    if (isLocalFilePath(trimmed)) {
+      return { success: false, error: LOCAL_FILE_PATH_MESSAGE };
+    }
     if (!isValidUrl(trimmed)) {
       return { success: false, error: 'Please enter a valid URL (e.g., https://example.com)' };
     }

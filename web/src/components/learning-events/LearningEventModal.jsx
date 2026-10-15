@@ -10,6 +10,7 @@ import TrackSelector from '../interest-tracks/TrackSelector';
 import { validateFileSize, detectMediaType, CAMERA_ACCEPT_STRING, DOCUMENT_ACCEPT_STRING } from '../../utils/mediaUtils';
 import useHidePillars from '../../hooks/useHidePillars';
 import { useStudentScope } from '../../hooks/useStudentScope';
+import { isLocalFilePath, LOCAL_FILE_PATH_MESSAGE } from '../../utils/localFilePath';
 
 const PILLAR_CONFIG = {
   art: {
@@ -312,6 +313,12 @@ const LearningEventModal = ({
       toast.error('Please describe what you learned');
       return;
     }
+    // A path on the student's computer typed as a link would save as nothing
+    // anyone can open (ticket d0cc8d45). The field already says why.
+    if (evidenceBlocks.some(b => b.block_type === 'link' && isLocalFilePath(b.content?.url))) {
+      toast.error(LOCAL_FILE_PATH_MESSAGE);
+      return;
+    }
 
     setIsSubmitting(true);
     try {
@@ -533,7 +540,11 @@ const LearningEventModal = ({
         onChange={(e) => updateBlock(block.id, { url: e.target.value })}
         className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-optio-purple focus:border-transparent text-base bg-white"
         placeholder="https://example.com"
+        aria-invalid={isLocalFilePath(block.content.url) || undefined}
       />
+      {isLocalFilePath(block.content.url) && (
+        <p role="alert" className="text-xs text-red-600">{LOCAL_FILE_PATH_MESSAGE}</p>
+      )}
       <input
         type="text"
         value={block.content.title || ''}

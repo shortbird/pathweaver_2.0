@@ -17,6 +17,7 @@ import {
 } from '@heroicons/react/24/outline';
 import SwipeableBlock from '../ui/mobile/SwipeableBlock';
 import UndoToast from '../ui/mobile/UndoToast';
+import { isLocalFilePath, neverUploadedMessage } from '../../utils/localFilePath';
 
 const EVIDENCE_ICONS = {
   text: DocumentTextIcon,
@@ -298,6 +299,16 @@ const EvidenceBlock = ({ block, onDelete, onDeleteItem, onUpdateBlock, onEdit, d
       <div className="space-y-2">
         {items.map((item, index) => (
           <div key={index} className="flex items-center gap-2 group/item">
+            {/* A path on the student's own computer saved as a link (ticket
+                d0cc8d45): it opens nothing, so say the file never uploaded. */}
+            {isLocalFilePath(item.url) ? (
+              <p
+                role="note"
+                className="flex-1 p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-800 break-words"
+              >
+                {neverUploadedMessage(item)}
+              </p>
+            ) : (
             <a
               href={item.url}
               target="_blank"
@@ -316,6 +327,7 @@ const EvidenceBlock = ({ block, onDelete, onDeleteItem, onUpdateBlock, onEdit, d
               )}
               <p className="text-xs text-optio-purple mt-1 truncate">{item.url}</p>
             </a>
+            )}
             {onDeleteItem && (
               <button
                 onClick={() => handleDeleteItem(index)}

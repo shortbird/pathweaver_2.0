@@ -15,6 +15,8 @@
 import React, { useState } from 'react'
 import { safeHref } from '../../utils/safeHref'
 import { isImageUrl, itemLabel } from '../../utils/evidenceItems'
+import { isLocalFilePath } from '../../utils/localFilePath'
+import { DeviceOnlyFile, EvidenceImage } from './EvidenceImage'
 import {
   getVideoEmbedUrl,
   getVideoAspectClass,
@@ -98,6 +100,14 @@ const renderVideoItem = (item) => {
   )
 }
 
+// A path on the student's own computer saved as evidence (ticket d0cc8d45:
+// a Chromebook student pasted file:///home/chronos/.../Screenshot.png into
+// the Link picker). The browser will not load it and it exists only on that
+// machine, so a reviewer got a broken image or a dead frame. DeviceOnlyFile
+// says what happened instead; EvidenceImage also turns a picture that fails
+// to load into a text link. Both live in EvidenceImage.jsx, shared with the
+// SIS Submissions review.
+
 // Renders just the inner content of a block (text, image, link, etc).
 // Used for both the live block and the "previous version" peek for modified
 // blocks. Stays a plain function so callers can drop it inside any wrapper.
@@ -112,19 +122,7 @@ const renderBlockBody = (block) => {
       return (
         <div className="space-y-2">
           {getBlockItems(block.content).map((item, j) => (
-            <div key={j}>
-              <a href={safeHref(item.url)} target="_blank" rel="noopener noreferrer" className="block">
-                <img
-                  src={item.url}
-                  alt={item.alt || 'Evidence'}
-                  className="max-w-full max-h-72 md:max-h-none object-contain rounded border"
-                  loading="lazy"
-                />
-              </a>
-              {item.caption && (
-                <p className="text-xs text-gray-500 mt-1">{item.caption}</p>
-              )}
-            </div>
+            <EvidenceImage key={j} item={item} />
           ))}
         </div>
       )
@@ -135,18 +133,10 @@ const renderBlockBody = (block) => {
               block_type here showed reviewers a 200-character storage URL where
               the evidence belonged (Gryffin, 2026-09-02). */}
           {getBlockItems(block.content).map((item, j) => (
-            isImageUrl(item.url) ? (
-              <div key={j}>
-                <a href={safeHref(item.url)} target="_blank" rel="noopener noreferrer" className="block">
-                  <img
-                    src={item.url}
-                    alt={item.alt || itemLabel(item, 'Evidence')}
-                    className="max-w-full max-h-72 md:max-h-none object-contain rounded border"
-                    loading="lazy"
-                  />
-                </a>
-                {item.caption && <p className="text-xs text-gray-500 mt-1">{item.caption}</p>}
-              </div>
+            isLocalFilePath(item.url) ? (
+              <DeviceOnlyFile key={j} item={item} />
+            ) : isImageUrl(item.url) ? (
+              <EvidenceImage key={j} item={item} />
             ) : getVideoEmbedUrl(item.url) || isVideoSharingLink(item.url) ? (
               <div key={j}>
                 {renderVideoItem(item)}

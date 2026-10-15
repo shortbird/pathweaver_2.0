@@ -24,6 +24,7 @@
 import { useState } from 'react'
 import PropTypes from 'prop-types'
 import { uploadViaSignedUrl } from '../../services/signedUpload'
+import { isLocalFilePath, LOCAL_FILE_PATH_MESSAGE } from '../../utils/localFilePath'
 
 const SOFT_VIDEO_WARN_BYTES = 100 * 1024 * 1024 // 100MB — warn, never block
 
@@ -88,9 +89,14 @@ export default function LtiEvidenceEditor({
   // Students paste bare domains ("example.com") — store a usable URL.
   const normalizeUrl = (u) => (/^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(u) ? u : `https://${u}`)
 
+  // A path on the student's own computer is not a link: it would save, and
+  // the teacher would get nothing (ticket d0cc8d45). Check the raw draft —
+  // normalizeUrl would dress "/home/..." up as "https:///home/...".
+  const linkDraftIsLocalPath = isLocalFilePath(linkDraft)
+
   const addLink = () => {
     const u = linkDraft.trim()
-    if (!u) return
+    if (!u || linkDraftIsLocalPath) return
     add({ type: 'link', content: { url: normalizeUrl(u) } })
     setLinkDraft('')
   }
@@ -264,8 +270,12 @@ export default function LtiEvidenceEditor({
         onChange={(e) => setLinkDraft(e.target.value)}
         placeholder="…or paste a link (https://)"
         data-testid="lti-evidence-link"
+        aria-invalid={linkDraftIsLocalPath || undefined}
         className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-optio-purple focus:outline-none focus:ring-1 focus:ring-optio-purple"
       />
+      {linkDraftIsLocalPath && (
+        <p role="alert" className="text-xs text-red-600">{LOCAL_FILE_PATH_MESSAGE}</p>
+      )}
 
       <div className="flex items-center justify-between gap-2">
         <button
@@ -291,6 +301,7 @@ export default function LtiEvidenceEditor({
             type="button"
             disabled={submitting || busy !== null || pendingCount === 0}
             onClick={async () => {
+              if (linkDraftIsLocalPath) return
               setErr(null)
               setSubmitting(true)
               try {

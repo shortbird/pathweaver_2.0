@@ -60,6 +60,8 @@ import type { LatestFeedback } from '@/src/hooks/useQuestDetail';
 import { TaskCreditControl } from '@/src/components/quests/TaskCreditControl';
 import { offersTaskCredit } from '@/src/hooks/useTaskCredit';
 import { TaskDueChip } from '@/src/components/quests/TaskDueChip';
+import { isLocalFilePath } from '@/src/utils/localFilePath';
+import { NeverUploadedNotice } from '@/src/components/capture/NeverUploadedNotice';
 import type { LearningEvent } from '@/src/hooks/useJournal';
 import { useThemeColors } from '@/src/hooks/useThemeColors';
 import { showAlert, confirmAlert } from '@/src/utils/alerts';
@@ -109,7 +111,7 @@ function UploaderLabel({ block }: { block: any }) {
   );
 }
 
-function EvidenceBlockDisplay({ block }: { block: any }) {
+export function EvidenceBlockDisplay({ block }: { block: any }) {
   const blockType = block.block_type || block.type;
   const content = block.content || {};
   const c = useThemeColors();
@@ -144,6 +146,11 @@ function EvidenceBlockDisplay({ block }: { block: any }) {
         </View>
       </Pressable>
     );
+  }
+
+  // A path on the student's own device saved as a link (ticket d0cc8d45).
+  if (blockType === 'link' && isLocalFilePath(url)) {
+    return <NeverUploadedNotice item={{ url, title: content.title, filename: content.filename }} />;
   }
 
   if (blockType === 'link' && url) {

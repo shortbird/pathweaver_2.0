@@ -20,6 +20,7 @@ import { ResponsiveGrid } from '../ui/mobile/ResponsiveGrid';
 import { useIsMobile } from '../../hooks/useSwipeGesture';
 import toast from 'react-hot-toast';
 import { useConfirm } from '../../contexts/ConfirmContext'
+import { isLocalFilePath, LOCAL_FILE_PATH_MESSAGE, neverUploadedMessage } from '../../utils/localFilePath'
 
 const blockTypes = {
   text: {
@@ -115,7 +116,8 @@ export const EvidenceBlockRenderer = ({
     toggleBlockCollapse,
     uploadingBlocks,
     uploadErrors,
-    setBlocks
+    setBlocks,
+    isSavedLocalPath
   } = useEvidenceEditor();
 
   const fileInputRef = useRef(null);
@@ -204,6 +206,10 @@ export const EvidenceBlockRenderer = ({
         return items.length === 1 ? (items[0].title || items[0].url || 'No video URL') : `${items.length} videos`;
       case 'link':
         if (items.length === 0) return 'No links added';
+        // Ticket d0cc8d45: a path on the student's computer saved as a link.
+        if (items.length === 1 && isLocalFilePath(items[0].url)) {
+          return <span className="text-red-600">{neverUploadedMessage(items[0])}</span>;
+        }
         return items.length === 1 ? (items[0].title || items[0].url || 'No link URL') : `${items.length} links`;
       case 'document':
         if (items.length === 0) return 'No documents uploaded';
@@ -526,6 +532,7 @@ export const EvidenceBlockRenderer = ({
                 onChange={(e) => updateItem(itemIndex, { url: e.target.value })}
                 className="flex-1 px-3 py-2 border-2 border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#6d469b] focus:border-transparent text-sm"
                 placeholder="https://example.com/your-work"
+                aria-invalid={isLocalFilePath(item.url) || undefined}
               />
               <button
                 onClick={() => removeItem(itemIndex)}
@@ -549,7 +556,16 @@ export const EvidenceBlockRenderer = ({
               rows={2}
               placeholder="Description (optional)"
             />
-            {item.url && (
+            {/* A path on the student's own computer (ticket d0cc8d45): say
+                so, and show no link, because it would open nothing. */}
+            {isLocalFilePath(item.url) && isSavedLocalPath?.(item.url) ? (
+              // Saved before this visit: autosave keeps it, so say what it is.
+              <p role="note" className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-lg p-2 break-words">
+                {neverUploadedMessage(item)}
+              </p>
+            ) : isLocalFilePath(item.url) ? (
+              <p role="alert" className="text-xs text-red-600">{LOCAL_FILE_PATH_MESSAGE}</p>
+            ) : item.url && (
               <a
                 href={item.url}
                 target="_blank"

@@ -23,6 +23,7 @@ import { useState } from 'react';
 import { Platform, Image } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { uploadViaSignedUrl } from '@/src/services/signedUpload';
+import { isLocalFilePath, LOCAL_FILE_PATH_MESSAGE } from '@/src/utils/localFilePath';
 import { describeMediaError } from '@/src/utils/mediaErrors';
 import {
   VStack, HStack, UIText, Button, ButtonText, Input, InputField, Badge, BadgeText,
@@ -80,9 +81,13 @@ export function LtiEvidenceEditor({
     setTextDraft('');
   };
 
+  // A path on the student's own device is not a link: it would save, and
+  // the teacher would get nothing (ticket d0cc8d45).
+  const linkDraftIsLocalPath = isLocalFilePath(linkDraft);
+
   const addLink = () => {
     const u = linkDraft.trim();
-    if (!u) return;
+    if (!u || linkDraftIsLocalPath) return;
     add({ type: 'link', content: { url: u } });
     setLinkDraft('');
   };
@@ -230,6 +235,11 @@ export function LtiEvidenceEditor({
           testID="lti-evidence-link"
         />
       </Input>
+      {linkDraftIsLocalPath && (
+        <UIText size="xs" className="text-error-600" accessibilityRole="alert" testID="local-file-path-message">
+          {LOCAL_FILE_PATH_MESSAGE}
+        </UIText>
+      )}
       <HStack className="justify-between items-center">
         <Button size="xs" variant="outline" onPress={addLink} disabled={!linkDraft.trim()}>
           <ButtonText>Add link</ButtonText>

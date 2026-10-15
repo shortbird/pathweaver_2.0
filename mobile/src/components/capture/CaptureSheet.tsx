@@ -35,6 +35,7 @@ import { InlineTopicPicker } from './InlineTopicPicker';
 import { assignMomentToTopic, type UnifiedTopic } from '@/src/hooks/useJournal';
 import { VoiceRecorder, AudioClipPreview } from './VoiceRecorder';
 import { extractApiError } from '@/src/services/apiError';
+import { isLocalFilePath, LOCAL_FILE_PATH_MESSAGE } from '@/src/utils/localFilePath';
 
 // File size limits (must match backend constants).
 // Signed-upload path: videos go direct-to-Supabase and can be up to 500MB.
@@ -348,8 +349,13 @@ export function CaptureSheet({ visible, onClose, onCaptured, studentIds, pickStu
       ? studentIds
       : (pickStudents ? selectedStudentIds : undefined);
 
+  // A path on the device typed as a link would save, and no one else could
+  // open it (ticket d0cc8d45). The field says why.
+  const linkIsLocalPath = isLocalFilePath(linkUrl);
+
   const handleSave = async () => {
     if (!description.trim() && !title.trim() && media.length === 0 && !linkUrl.trim()) return;
+    if (linkIsLocalPath) return;
     if (pickStudents && (!effectiveStudentIds || effectiveStudentIds.length === 0)) {
       showAlert('Pick a child', 'Select at least one child to capture this moment for.');
       return;
@@ -606,6 +612,11 @@ export function CaptureSheet({ visible, onClose, onCaptured, studentIds, pickStu
                 className="flex-1 py-3 text-base font-poppins text-typo dark:text-dark-typo"
               />
             </View>
+            {linkIsLocalPath && (
+              <UIText size="xs" className="text-red-600 dark:text-red-400" accessibilityRole="alert" testID="local-file-path-message">
+                {LOCAL_FILE_PATH_MESSAGE}
+              </UIText>
+            )}
 
             {/* Media previews — real thumbnails / audio playback chips */}
             {media.length > 0 && (

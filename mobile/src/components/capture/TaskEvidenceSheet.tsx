@@ -17,6 +17,7 @@ import api from '@/src/services/api';
 import { showAlert } from '@/src/utils/alerts';
 import { describeMediaError, isCancelledMediaError } from '@/src/utils/mediaErrors';
 import { uploadViaSignedUrl } from '@/src/services/signedUpload';
+import { isLocalFilePath, LOCAL_FILE_PATH_MESSAGE } from '@/src/utils/localFilePath';
 import { haptic } from '@/src/utils/haptics';
 import { captureException, captureMessage } from '@/src/services/sentry';
 import { recordAction } from '@/src/services/diagnostics';
@@ -350,8 +351,12 @@ export function TaskEvidenceSheet({
   const hasAnything =
     media.length > 0 || textNote.trim().length > 0 || linkUrl.trim().length > 0;
 
+  // A path on the student's own device typed as a link would save, and the
+  // teacher would get nothing (ticket d0cc8d45). The field says why.
+  const linkIsLocalPath = isLocalFilePath(linkUrl);
+
   const handleSave = async () => {
-    if (!hasAnything || saving) return;
+    if (!hasAnything || saving || linkIsLocalPath) return;
     setSaving(true);
     recordAction('evidence:save-start', { mediaCount: media.length });
     // The upload safety check's sentence (backend upload_safety_service),
@@ -689,6 +694,11 @@ export function TaskEvidenceSheet({
               className="flex-1 py-3 text-base font-poppins"
             />
           </View>
+          {linkIsLocalPath && (
+            <UIText size="xs" className="text-red-600 dark:text-red-400" accessibilityRole="alert" testID="local-file-path-message">
+              {LOCAL_FILE_PATH_MESSAGE}
+            </UIText>
+          )}
         </VStack>
 
         {/* Save */}

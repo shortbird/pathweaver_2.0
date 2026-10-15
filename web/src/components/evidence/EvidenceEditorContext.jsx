@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useRef, useEffect, useCallb
 import { evidenceDocumentService } from '../../services/evidenceDocumentService';
 import { useUploadQueue } from '../../hooks/useUploadQueue';
 import logger from '../../utils/logger';
+import { isLocalFilePath } from '../../utils/localFilePath';
 
 const EvidenceEditorContext = createContext(null);
 
@@ -35,6 +36,16 @@ export const EvidenceEditorProvider = ({
   const [hasLegacyEvidence, setHasLegacyEvidence] = useState(false); // Track if we loaded legacy Spark evidence
   const [deletedBlocks, setDeletedBlocks] = useState([]); // Blocks deleted with undo support
   const autoSaverRef = useRef(null);
+  // Local-path link URLs that were already saved when the editor loaded
+  // (ticket d0cc8d45). Autosave leaves these alone: deleting them would
+  // silently remove the student's record, and the reviewer's "saved only on
+  // the student's device" note with it. Only a path typed in this session is
+  // refused.
+  const savedLocalPathUrlsRef = useRef(new Set());
+  const isSavedLocalPath = useCallback(
+    (url) => isLocalFilePath(url) && savedLocalPathUrlsRef.current.has(url),
+    []
+  );
   const skipNextAutoSaveRef = useRef(false); // Skip auto-save after manual save
 
   // Upload queue hook - replaces uploadingBlocks Set with full queue management
@@ -48,6 +59,21 @@ export const EvidenceEditorProvider = ({
       // Keep permanent Supabase URLs
       if (cleanedContent.url && cleanedContent.url.startsWith('blob:')) {
         delete cleanedContent.url;
+      }
+
+      // A path on the student's own computer typed into a link block is not
+      // evidence: the file never left the device and no one else can open
+      // it (ticket d0cc8d45). The editor shows the student why; never save a
+      // new one. One that was already saved before the editor opened stays.
+      if (block.type === 'link') {
+        const typedLocalPath = (url) =>
+          isLocalFilePath(url) && !savedLocalPathUrlsRef.current.has(url);
+        if (typedLocalPath(cleanedContent.url)) {
+          delete cleanedContent.url;
+        }
+        if (Array.isArray(cleanedContent.items)) {
+          cleanedContent.items = cleanedContent.items.filter(item => !typedLocalPath(item?.url));
+        }
       }
 
       // Remove upload status flags and retry file references
@@ -83,6 +109,15 @@ export const EvidenceEditorProvider = ({
             is_private: block.is_private || false // Support private evidence blocks
           }));
 
+          savedLocalPathUrlsRef.current = new Set(
+            transformedBlocks
+              .filter(block => block.type === 'link' && block.content)
+              .flatMap(block => [
+                block.content.url,
+                ...(Array.isArray(block.content.items) ? block.content.items.map(item => item?.url) : []),
+              ])
+              .filter(isLocalFilePath)
+          );
           setBlocks(transformedBlocks);
           if (response.document.updated_at) {
             setLastSaved(new Date(response.document.updated_at));
@@ -330,6 +365,7 @@ export const EvidenceEditorProvider = ({
 
     // Methods
     cleanBlocksForSave,
+    isSavedLocalPath,
     loadDocument,
     toggleBlockCollapse,
     deleteBlockWithUndo,

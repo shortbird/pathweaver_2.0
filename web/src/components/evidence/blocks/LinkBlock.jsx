@@ -5,6 +5,7 @@
 
 import React from 'react';
 import PropTypes from 'prop-types';
+import { isLocalFilePath, neverUploadedMessage } from '../../../utils/localFilePath';
 
 const LinkBlock = ({ block, displayMode = 'full' }) => {
   const { content } = block;
@@ -27,6 +28,20 @@ const LinkBlock = ({ block, displayMode = 'full' }) => {
 
     if (!url) {
       return null;
+    }
+
+    // A path on the student's own computer saved as a link (ticket d0cc8d45).
+    // It opens nothing for anyone, so say the file never uploaded.
+    if (isLocalFilePath(url)) {
+      return (
+      <p
+        key={index}
+        role="note"
+        className="w-full bg-amber-50 border border-amber-200 rounded-lg p-4 text-sm text-amber-800 break-words"
+      >
+        {neverUploadedMessage(item)}
+      </p>
+      );
     }
 
     return (

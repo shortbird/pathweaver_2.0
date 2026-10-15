@@ -23,6 +23,8 @@ import { showAlert, confirmAlert } from '@/src/utils/alerts';
 import { useMediaUploadStore } from '@/src/stores/mediaUploadStore';
 import { displayImageUrl } from '@/src/services/imageUrl';
 import { extractApiError } from '@/src/services/apiError';
+import { isLocalFilePath } from '@/src/utils/localFilePath';
+import { NeverUploadedNotice } from '@/src/components/capture/NeverUploadedNotice';
 
 const evidenceIcons: Record<string, keyof typeof Ionicons.glyphMap> = {
   text: 'document-text-outline',
@@ -539,6 +541,15 @@ function LearningEventCardImpl({ event, onPress, onDeleted, onEdit, topics, onAs
           {linkBlocks.map((b, i) => {
             const linkUrl = getLinkUrl(b)!;
             const linkTitle = (b as any).content?.title;
+            // A path on the student's own device saved as a link (ticket d0cc8d45).
+            if (isLocalFilePath(linkUrl)) {
+              return (
+                <NeverUploadedNotice
+                  key={`link-${i}`}
+                  item={{ url: linkUrl, title: linkTitle }}
+                />
+              );
+            }
             return (
               <Pressable
                 key={`link-${i}`}

@@ -17,6 +17,7 @@ import {
 import { pillarKeys, getPillar } from '@/src/config/pillars';
 import { useThemeColors } from '@/src/hooks/useThemeColors';
 import { extractApiError } from '@/src/services/apiError';
+import { isLocalFilePath, LOCAL_FILE_PATH_MESSAGE } from '@/src/utils/localFilePath';
 
 // File size limits (must match backend constants)
 // Mirrors SIGNED_EVIDENCE_SIZE_LIMITS in backend/config/constants.py, because
@@ -133,8 +134,13 @@ export function CaptureModal({ visible, onClose, onCaptured }: CaptureModalProps
     });
   };
 
+  // A path on the computer typed as a link would save, and no one else could
+  // open it (ticket d0cc8d45). The field says why.
+  const hasLocalPathLink = evidenceBlocks.some((b) => b.type === 'link' && isLocalFilePath(b.content));
+
   const handleSave = async () => {
     if (!description.trim() && files.length === 0) return;
+    if (hasLocalPathLink) return;
 
     setSaving(true);
     try {
@@ -236,7 +242,7 @@ export function CaptureModal({ visible, onClose, onCaptured }: CaptureModalProps
     }
   };
 
-  const canSave = description.trim().length > 0 || files.length > 0 || evidenceBlocks.some((b) => b.content.trim().length > 0);
+  const canSave = !hasLocalPathLink && (description.trim().length > 0 || files.length > 0 || evidenceBlocks.some((b) => b.content.trim().length > 0));
 
   if (!visible) return null;
 
@@ -401,7 +407,8 @@ export function CaptureModal({ visible, onClose, onCaptured }: CaptureModalProps
             {evidenceBlocks.length > 0 && (
               <VStack space="xs">
                 {evidenceBlocks.map((block, idx) => (
-                  <HStack key={idx} className="items-start gap-2" style={{ backgroundColor: c.background, padding: 12, borderRadius: 12, borderWidth: 1, borderColor: c.border }}>
+                  <VStack key={idx} space="xs">
+                  <HStack className="items-start gap-2" style={{ backgroundColor: c.background, padding: 12, borderRadius: 12, borderWidth: 1, borderColor: c.border }}>
                     <Ionicons
                       name={block.type === 'link' ? 'link-outline' : 'document-text-outline'}
                       size={18}
@@ -430,6 +437,12 @@ export function CaptureModal({ visible, onClose, onCaptured }: CaptureModalProps
                       <Ionicons name="close-circle" size={20} color={c.iconMuted} />
                     </Pressable>
                   </HStack>
+                  {block.type === 'link' && isLocalFilePath(block.content) && (
+                    <UIText size="xs" className="text-red-600 dark:text-red-400" accessibilityRole="alert" testID="local-file-path-message">
+                      {LOCAL_FILE_PATH_MESSAGE}
+                    </UIText>
+                  )}
+                  </VStack>
                 ))}
               </VStack>
             )}
