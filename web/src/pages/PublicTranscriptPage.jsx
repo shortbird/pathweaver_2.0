@@ -198,12 +198,7 @@ const PublicTranscriptPage = () => {
                       {row.status === 'Completed' ? (
                         <span className="font-bold text-gray-900">{row.grade || 'A'}</span>
                       ) : (
-                        <span className={`text-xs font-medium px-2 py-0.5 rounded ${
-                          row.status === 'In Progress' ? 'bg-amber-100 text-amber-800 print:bg-transparent print:text-gray-600 print:italic'
-                          : 'bg-gray-100 text-gray-500'
-                        }`}>
-                          {row.status}
-                        </span>
+                        <span className="text-xs italic text-gray-600">{row.status}</span>
                       )}
                     </td>
                   </tr>
@@ -224,12 +219,7 @@ const PublicTranscriptPage = () => {
                   {row.status === 'Completed' ? (
                     <span className="text-sm font-bold text-gray-900 flex-shrink-0 ml-2">{row.grade || 'A'}</span>
                   ) : (
-                    <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded flex-shrink-0 ml-2 ${
-                      row.status === 'In Progress' ? 'bg-amber-100 text-amber-800'
-                      : 'bg-gray-100 text-gray-500'
-                    }`}>
-                      {row.status}
-                    </span>
+                    <span className="text-xs italic text-gray-600 flex-shrink-0 ml-2">{row.status}</span>
                   )}
                 </div>
                 <p className="text-xs text-gray-700">{row.course}</p>

@@ -129,11 +129,15 @@ describe('transcript generator sections render after the split', () => {
       expect(rowFor(subject)).not.toHaveClass('no-print')
     }
 
-    // Nothing printable carries an unfinished status.
+    // Nothing printable is dropped or marked not printed. The one unfinished
+    // status that prints is Optio credit part way through a numbered course
+    // (Tanner, 2026-10-15): Science's 0.5 class credit is half of Science 1.
     const printable = screen.getAllByTestId('transcript-row').filter(r => !r.classList.contains('no-print'))
     printable.forEach(r => {
-      expect(r.textContent).not.toMatch(/In Progress|Dropped/)
+      expect(r.textContent).not.toMatch(/Dropped|not printed/)
     })
+    expect(printable.filter(r => r.textContent.includes('In Progress')).map(r => r.textContent))
+      .toEqual(['ScienceScience 1Optio0.50In Progress'])
   })
 
   it('the planned-credit form does not offer Completed (ticket 9200a103)', async () => {
@@ -162,18 +166,19 @@ describe('transcript generator sections render after the split', () => {
     expect(within(transferRow).getByTitle('Break into individual courses')).toBeInTheDocument()
   })
 
-  // Ticket 9200a103, item 4 (Tanner, 2026-10-13): the transcript prints
-  // conventional course names. Optio credit no longer prints as "Optio
-  // Competency-Based", and a class no longer prints its own title.
-  it('ticket 9200a103: unnamed Optio and class credit print under the subject name', async () => {
+  // Ticket 9200a103, item 4, then Tanner 2026-10-15: unnamed Optio credit
+  // prints as numbered courses named for the subject. It no longer prints as
+  // "Optio Competency-Based", and a class no longer prints its own title.
+  it('ticket 9200a103: unnamed Optio and class credit print as numbered subject courses', async () => {
     renderPage()
     await screen.findByText('Lovelace, Ada')
     expect(screen.queryByText('Optio Competency-Based')).toBeNull()
     expect(screen.queryByText('Biology')).toBeNull()
-    expect(within(rowFor('Science')).getAllByText('Science')).toHaveLength(2)
+    expect(within(rowFor('Science')).getByText('Science 1')).toBeInTheDocument()
+    expect(within(rowFor('Mathematics')).getByText('Mathematics 1')).toBeInTheDocument()
   })
 
-  it('ticket 9200a103: the office splits Optio credit into named courses; the rest prints under the subject', async () => {
+  it('ticket 9200a103: the office splits Optio credit into named courses; the rest is numbered', async () => {
     const api = (await import('../../../../services/api')).default
     renderPage()
     await screen.findByText('Lovelace, Ada')
@@ -188,7 +193,7 @@ describe('transcript generator sections render after the split', () => {
     const algebra = (await screen.findByText('Algebra I')).closest('tr')
     expect(algebra.textContent).toContain('0.75')
     const rest = screen.getAllByTestId('transcript-row')
-      .find(r => r.textContent.startsWith('MathematicsMathematics'))
+      .find(r => r.textContent.startsWith('MathematicsMathematics 1'))
     expect(rest.textContent).toContain('0.25')
     await waitFor(() => expect(api.put).toHaveBeenCalledWith(
       '/api/admin/transcript/u1/overrides',

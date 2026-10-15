@@ -162,15 +162,15 @@ describe('only finished courses are on the transcript (ticket 9200a103, item 1)'
 
     renderFor({ role: 'superadmin' })
 
-    // Unnamed Optio credit prints under the subject's name (item 4).
-    expect(await screen.findAllByText('Mathematics')).toHaveLength(2)
+    // Unnamed Optio credit prints as a numbered course (Tanner, 2026-10-15).
+    expect(await screen.findByText('Mathematics 1')).toBeInTheDocument()
     expect(screen.queryByText('First Aid')).toBeNull()
     expect(screen.queryByText('Ceramics I')).toBeNull()
     expect(screen.queryByText('Chemistry')).toBeNull()
     expect(screen.queryByText('In Progress')).toBeNull()
     expect(screen.queryByText(/In Progress:/)).toBeNull()
-    // Totals and GPA come from completed credit only.
-    expect(screen.getByText('1.0')).toBeInTheDocument()
+    // The total is what prints; GPA comes from completed credit only.
+    expect(screen.getByText(/Credits:/)).toHaveTextContent('Credits: 1.00')
     expect(screen.getByText('4.00')).toBeInTheDocument()
   })
 })

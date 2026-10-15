@@ -5,29 +5,36 @@
  * (TranscriptSection). Each used to build its own copy, which is how a rule
  * lands on one screen and not the others.
  *
- * Course names (ticket 9200a103, item 4, settled with Tanner 2026-09-22 and
- * 2026-10-13): the transcript prints conventional course names, never quest
- * or class titles, and Optio's office sets every one.
+ * Course names and credit (ticket 9200a103 item 4, then Tanner 2026-10-15,
+ * for every student): Optio credit prints the way a school records it.
  *
  *  - Optio credit for a subject is the student's earned subject credit plus
  *    the credit of the classes they were awarded in that subject.
- *  - Unnamed, it prints under the subject's own name ("Mathematics"). This
- *    replaced "Optio Competency-Based" and, for classes, the joined class
- *    titles. A name the office already typed on that row still wins.
- *  - The office can break a subject's Optio credit into named courses
- *    (overrides[`optio_courses_<subject>`] = [{ name, credits }]), the same
- *    breakdown transfer credit has had. The courses replace the earned and
- *    class rows for that subject.
- *  - Credit the named courses do not hold prints as one more row under the
- *    subject's name, because it is earned and the totals must add up. Earned
- *    credit keeps growing after the office names courses, so this is normal.
- *    If credit ever falls below what the courses claim, the later courses
- *    are cut down so the transcript never prints more than was earned.
+ *  - It prints in quarter credits, rounded down, so a subject appears only
+ *    once it reaches 0.25 and then grows a quarter at a time. The student
+ *    keeps every bit they earned; only the printed figure waits.
+ *  - It prints as numbered courses named for the subject: "Language Arts 1",
+ *    "Language Arts 2". Each course is one credit, except that a subject
+ *    requiring less than a whole credit, or ending on a half (Fine Arts at
+ *    1.5), ends its requirement with a half-credit course. Past the
+ *    requirement the courses are whole credits again.
+ *  - A course not yet full prints with its credit so far, as In Progress.
+ *  - Transfer credit prints as the other school recorded it, unrounded and
+ *    under its own names, and Optio's numbering continues from it.
+ *  - A name the office set still wins: a breakdown into named courses
+ *    (overrides[`optio_courses_<subject>`] = [{ name, credits }]) or a name
+ *    typed on the earned or class row. Named credit prints first, rounded
+ *    down to a quarter like the rest, and the remainder is numbered from
+ *    where it leaves off.
  */
+
+import { CREDIT_REQUIREMENTS } from '@shared/credits';
 
 export const optioCoursesKey = (subject) => `optio_courses_${subject}`;
 
-const EPSILON = 0.005;
+// Credit is counted in whole quarters so the arithmetic is exact.
+const toQuarters = (credits) => Math.floor((Number(credits) || 0) * 4 + 1e-6);
+const fromQuarters = (q) => q / 4;
 
 function fieldFrom(overrides) {
   return (key, fallback) => (
@@ -44,8 +51,32 @@ export function optioBreakdown(overrides, subject) {
     .filter((c) => c.name && c.credits > 0);
 }
 
-function optioRows(earnedCredits, classCredits, overrides) {
+/**
+ * The size, in quarters, of the subject's nth course (0-based): whole credits
+ * up to the requirement, a final half where the requirement ends on one, then
+ * whole credits again.
+ */
+function courseQuarters(subject, n) {
+  const required = toQuarters(CREDIT_REQUIREMENTS[subject]?.credits || 0);
+  const whole = Math.floor(required / 4);
+  if (n < whole) return 4;
+  if (n === whole && required % 4) return required % 4;
+  return 4;
+}
+
+function transferCreditBySubject(transferCredits) {
+  const bySubject = {};
+  (transferCredits || []).forEach((tc) => {
+    Object.entries(tc.subjects || {}).forEach(([subject, info]) => {
+      bySubject[subject] = (bySubject[subject] || 0) + (Number(info?.credits) || 0);
+    });
+  });
+  return bySubject;
+}
+
+function optioRows(earnedCredits, classCredits, transferCredits, overrides) {
   const field = fieldFrom(overrides);
+  const transferred = transferCreditBySubject(transferCredits);
   const bySubject = {};
   const entry = (subject, displayName) => {
     if (!bySubject[subject]) bySubject[subject] = { displayName, earned: 0, classes: [] };
@@ -61,38 +92,70 @@ function optioRows(earnedCredits, classCredits, overrides) {
   const rows = [];
   Object.entries(bySubject).forEach(([subject, s]) => {
     const classTotal = s.classes.reduce((sum, c) => sum + c.credits, 0);
-    const total = s.earned + classTotal;
+    const total = toQuarters(s.earned + classTotal);
+    if (total === 0) return;
     const base = {
       subject: s.displayName,
       subjectKey: subject,
       source: 'Optio',
-      status: 'Completed',
-      totalSubjectCredits: total,
+      totalSubjectCredits: fromQuarters(total),
     };
 
+    // Named credit first, never more than the subject holds.
+    let left = total;
+    const take = (credits) => {
+      const q = Math.min(toQuarters(credits), left);
+      left -= q;
+      return q;
+    };
     const courses = optioBreakdown(overrides, subject);
     if (courses.length > 0) {
-      let left = total;
       courses.forEach((course) => {
-        const credits = Math.min(course.credits, Math.max(left, 0));
-        left -= credits;
-        if (credits > EPSILON) {
-          rows.push({ ...base, type: 'optio', course: course.name, credits, hasCourseBreakdown: true });
+        const q = take(course.credits);
+        if (q > 0) {
+          rows.push({ ...base, type: 'optio', status: 'Completed', course: course.name, credits: fromQuarters(q), hasCourseBreakdown: true });
         }
       });
-      if (left > EPSILON) {
-        rows.push({ ...base, type: 'optio', course: s.displayName, credits: left, hasCourseBreakdown: true, unassigned: true });
-      }
-      return;
+    } else {
+      const named = [
+        { type: 'earned', key: `earned_course_${subject}`, credits: s.earned },
+        { type: 'class', key: `class_courses_${subject}`, credits: classTotal },
+      ];
+      named.forEach(({ type, key, credits }) => {
+        const name = field(key, null);
+        if (!name || credits <= 0) return;
+        const q = take(credits);
+        if (q > 0) {
+          rows.push({ ...base, type, status: 'Completed', course: name, courseOverrideKey: key, credits: fromQuarters(q) });
+        }
+      });
     }
 
-    if (s.earned > 0) {
-      const key = `earned_course_${subject}`;
-      rows.push({ ...base, type: 'earned', course: field(key, s.displayName), courseOverrideKey: key, credits: s.earned });
+    // The rest is numbered, picking up where the credit printed ahead of it
+    // (transfer, then named) leaves off: a course that credit only part
+    // filled is finished first, under its number.
+    const ahead = toQuarters(transferred[subject] || 0) + (total - left);
+    let n = 0;
+    let edge = 0;
+    while (edge + courseQuarters(subject, n) <= ahead) {
+      edge += courseQuarters(subject, n);
+      n += 1;
     }
-    if (classTotal > 0) {
-      const key = `class_courses_${subject}`;
-      rows.push({ ...base, type: 'class', course: field(key, s.displayName), courseOverrideKey: key, credits: classTotal });
+    let filled = ahead - edge;
+    while (left > 0) {
+      const room = courseQuarters(subject, n) - filled;
+      const q = Math.min(room, left);
+      left -= q;
+      rows.push({
+        ...base,
+        type: 'optio',
+        status: q === room ? 'Completed' : 'In Progress',
+        course: `${s.displayName} ${n + 1}`,
+        credits: fromQuarters(q),
+        numbered: true,
+      });
+      n += 1;
+      filled = 0;
     }
   });
   return rows;
@@ -166,15 +229,18 @@ function plannedRows(plannedCredits) {
  *   (ticket 9200a103, item 1)
  */
 export function buildTranscriptRows(data, overrides, { includePlanned = false } = {}) {
+  // Transfer credit comes before Optio's within a subject, because Optio's
+  // numbering continues from it. The sort is stable, so each subject keeps
+  // that order and its courses stay in number order, In Progress included.
+  // Planned credit, which never prints, goes last.
   const rows = [
-    ...optioRows(data?.earned_credits, data?.class_credits, overrides),
     ...transferRows(data?.transfer_credits, overrides),
+    ...optioRows(data?.earned_credits, data?.class_credits, data?.transfer_credits, overrides),
     ...(includePlanned ? plannedRows(data?.planned_credits) : []),
   ];
   rows.sort((a, b) => {
-    if (a.status === 'Completed' && b.status !== 'Completed') return -1;
-    if (a.status !== 'Completed' && b.status === 'Completed') return 1;
-    return a.subject.localeCompare(b.subject);
+    const planned = (a.type === 'planned') - (b.type === 'planned');
+    return planned || a.subject.localeCompare(b.subject);
   });
   return rows;
 }
