@@ -5,6 +5,7 @@ import StatusPill from '../StatusPill'
 import GraderTaskCard from './GraderTaskCard'
 import GraderEvidence from './GraderEvidence'
 import GraderDecision from './GraderDecision'
+import GraderFrame from './GraderFrame'
 import useCreditDecision from '../useCreditDecision'
 import { aiItemSummary, evidenceAnchorId, resolveEvidenceRef } from '../aiReview'
 
@@ -37,22 +38,6 @@ const GraderView = ({
   const highlightedEvidence = highlight.id === item?.completion_id ? highlight.blockId : null
   const highlightTimer = useRef(null)
   useEffect(() => () => clearTimeout(highlightTimer.current), [])
-
-  // The page underneath must not scroll while the grader is up: a trackpad
-  // flick that reaches the queue behind a full-screen pane is disorienting.
-  useEffect(() => {
-    const previous = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
-    return () => { document.body.style.overflow = previous }
-  }, [])
-
-  // Everything below is keyed on the item, so a new item starts at the top.
-  const mainRef = useRef(null)
-  const asideRef = useRef(null)
-  useEffect(() => {
-    mainRef.current?.scrollTo?.(0, 0)
-    asideRef.current?.scrollTo?.(0, 0)
-  }, [item?.completion_id])
 
   // `detail` lags `item` by one fetch. Until it catches up, the previous
   // student's evidence is what would render under this student's name.
@@ -91,26 +76,17 @@ const GraderView = ({
   const taskTitle = item?.task_title || (ready && detail.task?.title) || ''
 
   return (
-    // Not role="dialog": the confirm dialogs that open over this are, and a
-    // test (or a screen reader) asking for "the dialog" should get those.
-    <section
-      aria-label="Credit grader"
-      className="fixed inset-0 z-50 flex flex-col bg-neutral-50"
-    >
-      <header className="shrink-0 flex items-center gap-2 md:gap-3 px-3 md:px-4 h-14 bg-white border-b border-gray-200">
-        <button
-          type="button"
-          onClick={onExit}
-          className="btn-quiet shrink-0 px-3"
-          aria-label="Back to queue"
-        >
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-          </svg>
-          <span className="hidden sm:inline">Queue</span>
-        </button>
-
-        <div className="flex-1 min-w-0 flex items-center gap-2">
+    <GraderFrame
+      label="Credit grader"
+      itemKey={item?.completion_id}
+      index={index}
+      total={total}
+      onPrev={onPrev}
+      onNext={onNext}
+      onExit={onExit}
+      onShowShortcuts={onShowShortcuts}
+      heading={(
+        <>
           {onOpenStudent && item?.student_id ? (
             <button
               type="button"
@@ -146,102 +122,49 @@ const GraderView = ({
           )}
           <StatusPill status={item?.diploma_status} size="xs" className="hidden md:inline-flex" />
           {decision.showAi && <AiBadge size="xs" {...aiItemSummary(item)} className="hidden md:inline-flex" />}
+        </>
+      )}
+      main={ready ? (
+        <div className="max-w-3xl space-y-8">
+          <GraderTaskCard
+            task={detail.task}
+            quest={detail.quest}
+            student={detail.student}
+            completion={detail.completion}
+            isOrgStudent={detail.is_org_student || item?.is_org_student || false}
+            aiReview={aiReview}
+            onJumpToEvidence={jumpToEvidence}
+            readableRefs={readableRefs}
+          />
+          <GraderEvidence
+            completionId={item?.completion_id}
+            evidenceBlocks={evidenceBlocks}
+            reviewRounds={detail.review_rounds}
+            aiByRound={detail.ai_by_round}
+            showAi={decision.showAi}
+            highlightedEvidence={highlightedEvidence}
+          />
         </div>
-
-        <div className="shrink-0 flex items-center gap-1">
-          <button
-            type="button"
-            onClick={onPrev}
-            disabled={index <= 0}
-            className="btn-quiet px-2.5"
-            aria-label="Previous item"
-            title="Previous (k)"
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-            </svg>
-          </button>
-          <span className="text-sm text-gray-500 tabular-nums px-1 whitespace-nowrap" aria-live="polite">
-            {index >= 0 ? index + 1 : '–'} / {total}
-          </span>
-          <button
-            type="button"
-            onClick={onNext}
-            disabled={index >= total - 1}
-            className="btn-quiet px-2.5"
-            aria-label="Next item"
-            title="Next (j)"
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-            </svg>
-          </button>
-          {onShowShortcuts && (
-            <button
-              type="button"
-              onClick={onShowShortcuts}
-              className="btn-quiet px-2.5 text-gray-500 hidden md:inline-flex"
-              aria-label="Keyboard shortcuts"
-              title="Keyboard shortcuts (?)"
-            >
-              ?
-            </button>
-          )}
-        </div>
-      </header>
-
-      <div className="flex-1 min-h-0 overflow-y-auto lg:overflow-hidden lg:grid lg:grid-rows-[minmax(0,1fr)] lg:grid-cols-[minmax(0,1fr)_440px] xl:grid-cols-[minmax(0,1fr)_480px]">
-        <main ref={mainRef} className="lg:min-h-0 lg:overflow-y-auto px-4 py-5 md:px-8 md:py-6">
-          {ready ? (
-            <div className="max-w-3xl space-y-8">
-              <GraderTaskCard
-                task={detail.task}
-                quest={detail.quest}
-                student={detail.student}
-                completion={detail.completion}
-                isOrgStudent={detail.is_org_student || item?.is_org_student || false}
-                aiReview={aiReview}
-                onJumpToEvidence={jumpToEvidence}
-                readableRefs={readableRefs}
-              />
-              <GraderEvidence
-                completionId={item?.completion_id}
-                evidenceBlocks={evidenceBlocks}
-                reviewRounds={detail.review_rounds}
-                aiByRound={detail.ai_by_round}
-                showAi={decision.showAi}
-                highlightedEvidence={highlightedEvidence}
-              />
-            </div>
-          ) : (
-            <PageLoader label="Loading submission" />
-          )}
-        </main>
-
-        <aside
-          ref={asideRef}
-          aria-label="Decision"
-          className="lg:min-h-0 lg:overflow-y-auto bg-white border-t lg:border-t-0 lg:border-l border-gray-200"
-        >
-          {ready ? (
-            <GraderDecision
-              item={item}
-              detail={detail}
-              decision={decision}
-              studentContext={studentContext}
-              contextLoading={loading}
-              onRerunAi={onRerunAi}
-              rerunAiLoading={rerunAiLoading}
-              onJumpToEvidence={jumpToEvidence}
-              feedbackTextareaRef={feedbackTextareaRef}
-              onOpenStory={onOpenStory}
-            />
-          ) : (
-            <PageLoader label="Loading decision" className="min-h-[30vh]" />
-          )}
-        </aside>
-      </div>
-    </section>
+      ) : (
+        <PageLoader label="Loading submission" />
+      )}
+      aside={ready ? (
+        <GraderDecision
+          item={item}
+          detail={detail}
+          decision={decision}
+          studentContext={studentContext}
+          contextLoading={loading}
+          onRerunAi={onRerunAi}
+          rerunAiLoading={rerunAiLoading}
+          onJumpToEvidence={jumpToEvidence}
+          feedbackTextareaRef={feedbackTextareaRef}
+          onOpenStory={onOpenStory}
+        />
+      ) : (
+        <PageLoader label="Loading decision" className="min-h-[30vh]" />
+      )}
+    />
   )
 }
 

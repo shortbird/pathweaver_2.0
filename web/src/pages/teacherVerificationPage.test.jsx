@@ -38,13 +38,15 @@ describe('TeacherVerificationPage', () => {
     renderPage()
     await waitFor(() =>
       expect(switchSurfaceInApp).toHaveBeenCalledWith('sis', SIS_SUBMISSIONS_PATH))
-    expect(SIS_SUBMISSIONS_PATH).toBe('/classes?tab=submissions')
+    // Was /classes?tab=submissions, which bounced to the dashboard at a school
+    // with classes off (ticket bc68a12e); /submissions finds the inbox.
+    expect(SIS_SUBMISSIONS_PATH).toBe('/submissions')
     expect(api.get).not.toHaveBeenCalled()
     expect(screen.queryByText('Task Verification')).toBeNull()
   })
 
-  it('shows the queue at a school without the SIS', async () => {
-    authState = { user: { id: 't', organization: { feature_flags: {} } } }
+  it('shows the queue to a teacher with no school (every org is an SIS org since 2026-10-15)', async () => {
+    authState = { user: { id: 't', organization: null } }
     renderPage()
     expect(await screen.findByText('Task Verification')).toBeTruthy()
     expect(api.get).toHaveBeenCalledWith('/api/teacher/pending-verifications')

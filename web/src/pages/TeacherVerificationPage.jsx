@@ -12,7 +12,10 @@ import { switchSurfaceInApp } from '../utils/appSurface'
 // A SIS school reviews in the console's Submissions tab, the queue its
 // teachers' classes feed. The sidebar and the home strip already send them
 // there; a bookmark or an old link to this page still landed here.
-export const SIS_SUBMISSIONS_PATH = '/classes?tab=submissions'
+// /submissions rather than /classes?tab=submissions: a school with classes off
+// keeps the inbox on Students, and the Classes link bounced it to the
+// dashboard (ticket bc68a12e).
+export const SIS_SUBMISSIONS_PATH = '/submissions'
 
 // Quick Approve accepts the suggested split as it stands, so it is offered
 // only when that split exists and adds up to the task's XP -- the same bar the

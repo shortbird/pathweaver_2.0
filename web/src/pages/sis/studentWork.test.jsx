@@ -216,6 +216,17 @@ describe("one student's page", () => {
       '/api/sis/student-work/students/s1/tasks/t2?organization_id=org-1'))
   })
 
+  it('links a finished task to its submission through /submissions', async () => {
+    // Ticket bc68a12e: this said /classes?tab=submissions, which bounced to the
+    // dashboard at a school with classes off -- the schools most likely to be
+    // on this page. /submissions lands wherever the inbox is.
+    render(<StudentWorkPage />)
+    const card = await screen.findByRole('article', { name: 'Fractions' })
+    fireEvent.click(within(card).getByText('Fractions'))
+    expect(within(card).getByRole('link', { name: 'Fold paper' }))
+      .toHaveAttribute('href', '/submissions?completion_id=c1')
+  })
+
   it('opens the quest editor for a new quest written for this student', async () => {
     render(<StudentWorkPage />)
     fireEvent.click(await screen.findByText('Write a new quest'))

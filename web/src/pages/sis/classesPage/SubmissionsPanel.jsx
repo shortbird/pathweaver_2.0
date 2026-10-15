@@ -3,39 +3,47 @@ import { Link, useSearchParams } from 'react-router-dom'
 import { ArrowLeftIcon } from '@heroicons/react/24/outline'
 import { toast } from 'react-hot-toast'
 import api from '../../../services/api'
-import { safeHref } from '../../../utils/safeHref'
-import { blockItems, isImageUrl, itemLabel } from '../../../utils/evidenceItems'
-import { getPillarName } from '../../../utils/pillarMappings'
 import { useSisOrg, withOrg } from '../useSisOrg'
 import { isPathHidden } from '../sisModules'
 import SearchSelect from '../../../components/ui/SearchSelect'
 import { classLabel } from '../../../components/sis/classLabel'
-import CreditFeedbackThread from '../../../components/credit/CreditFeedbackThread'
+import ReviewQueueTable, { QueueHeader } from '../../../components/credit-dashboard/ReviewQueueTable'
+import FloatingActionBar from '../../../components/credit-dashboard/FloatingActionBar'
+import ShortcutHelp from '../../../components/credit-dashboard/ShortcutHelp'
+import useKeyboardShortcuts from '../../../hooks/useKeyboardShortcuts'
+import SubmissionGrader, { REVIEW_LABEL, timeAgo } from './SubmissionGrader'
+
+// The evidence picture and its device-only rule moved into the credit
+// grader's shared evidence card (ticket d0cc8d45); re-exported here for the
+// callers and tests that found them on this panel.
+export { EvidenceImage, isDeviceOnlyUrl } from '../../../components/credit-dashboard/EvidenceImage'
 
 /**
  * Submissions inbox — one unified queue of everything newly submitted by
- * students in the teacher's classes. Left rail lists the queue (New/Reviewed,
- * filterable by class); the main pane shows the selected submission with its
- * evidence, the feedback thread, an XP adjustment control, and Accept — which
- * marks it reviewed and auto-advances to the next item. j/k also navigate.
+ * students in the teacher's classes, reviewed the way credit is reviewed
+ * (Tanner, 2026-10-15): the queue as a table with bulk select and a bulk
+ * Accept, and a row opening the full-screen grader with the student's work,
+ * the feedback thread, the XP, and Accept or Grow This. Deciding moves on to
+ * the next submission. j/k move, a/g decide, Esc goes back to the queue.
+ *
+ * It shares the credit dashboard's components (ReviewQueueTable, GraderFrame,
+ * GraderEvidence, EvidenceBlockCard, the bulk bar, ShortcutHelp) and none of
+ * its endpoints: a review here is a sis_submission_reviews row written through
+ * /api/sis/submissions, never a credit decision.
  */
 
 // One page of the queue. The server's default is 50 too; sending it keeps
 // offset arithmetic for Load more on the client's side of the contract.
 const PAGE_SIZE = 50
 
-const timeAgo = (iso) => {
-  if (!iso) return ''
-  const s = Math.max(0, (Date.now() - new Date(iso).getTime()) / 1000)
-  if (s < 60) return 'just now'
-  const m = Math.floor(s / 60)
-  if (m < 60) return `${m}m ago`
-  const h = Math.floor(m / 60)
-  if (h < 24) return `${h}h ago`
-  const d = Math.floor(h / 24)
-  if (d < 7) return `${d}d ago`
-  return new Date(iso).toLocaleDateString()
-}
+const SHORTCUTS = [
+  { key: 'j', description: 'Next submission (opens the grader from the queue)' },
+  { key: 'k', description: 'Previous submission' },
+  { key: 'a', description: 'Accept, with the note as written' },
+  { key: 'g', description: 'Grow This (send back with the note; focuses the note if empty)' },
+  { key: 'Esc', description: 'Back to the queue / close dialog' },
+  { key: '?', description: 'Toggle this help overlay' },
+]
 
 const listParams = (scope, classId, search, offset) => {
   const p = new URLSearchParams({ scope, limit: String(PAGE_SIZE), offset: String(offset) })
@@ -44,163 +52,16 @@ const listParams = (scope, classId, search, offset) => {
   return p.toString()
 }
 
-// Evidence block content mirrors the credit dashboard's shapes: content is a
-// string or an object ({text} / {url,...} / {items: [...]}). The dashboard's
-// full renderer is credit-dashboard/EvidenceBlockCard.jsx; this is a compact
-// read-only equivalent.
-const blockText = (content) => {
-  if (typeof content === 'string') return content
-  if (content && typeof content === 'object') return content.text || content.url || JSON.stringify(content)
-  return String(content ?? '')
-}
-
-const EvidenceImage = ({ item }) => (
-  <div>
-    <a href={safeHref(item.url)} target="_blank" rel="noopener noreferrer" className="block">
-      <img src={item.url} alt={item.alt || itemLabel(item, 'Evidence')} loading="lazy"
-           className="max-w-full max-h-72 object-contain rounded border" />
-    </a>
-    {item.caption && <p className="text-xs text-gray-500 mt-1">{item.caption}</p>}
-  </div>
-)
-
-// break-all matters as much as the label does: a storage URL is one
-// unbreakable 200-character word, and without it the pane grows to fit and
-// carries the Accept button off the right of the screen.
-const EvidenceLink = ({ item, prefix }) => (
-  <a href={safeHref(item.url)} target="_blank" rel="noopener noreferrer"
-     className="block text-sm text-optio-purple hover:underline break-all">
-    {prefix}{itemLabel(item)}
-  </a>
-)
-
-const EvidenceBlock = ({ block }) => {
-  const items = blockItems(block.content)
-  switch (block.block_type) {
-    case 'text':
-      return <p className="text-sm text-gray-700 whitespace-pre-wrap break-words">{blockText(block.content)}</p>
-    case 'image':
-      return (
-        <div className="space-y-2">
-          {items.map((item, j) => <EvidenceImage key={j} item={item} />)}
-        </div>
-      )
-    case 'video':
-      return (
-        <div className="space-y-2">
-          {items.map((item, j) => <EvidenceLink key={j} item={item} prefix="Video: " />)}
-        </div>
-      )
-    case 'link':
-    case 'file':
-    case 'document':
-      // The picker the student opened is not a fact about the file they
-      // attached. Show a photo as a photo even when it arrived in a Link block.
-      return (
-        <div className="space-y-2">
-          {items.map((item, j) => (
-            isImageUrl(item.url)
-              ? <EvidenceImage key={j} item={item} />
-              : <EvidenceLink key={j} item={item} />
-          ))}
-        </div>
-      )
-    default:
-      return <p className="text-sm text-gray-500 whitespace-pre-wrap break-words">{blockText(block.content)}</p>
+const StatusChip = ({ review }) => {
+  if (!review) {
+    return <span className="rounded-full bg-yellow-100 px-2 py-0.5 text-xs font-medium text-yellow-800">New</span>
   }
-}
-
-/**
- * Inline XP adjustment. Calls PUT /api/sis/completions/<id>/xp (built by the
- * gradebook endpoint) with {xp_value, reason}; hides itself when the endpoint
- * is missing (404/501).
- */
-const XpAdjust = ({ completionId, orgId, xpValue, onChanged }) => {
-  const [open, setOpen] = useState(false)
-  const [value, setValue] = useState(xpValue ?? 0)
-  const [reason, setReason] = useState('')
-  const [saving, setSaving] = useState(false)
-  const [available, setAvailable] = useState(true)
-
-  useEffect(() => {
-    setOpen(false)
-    setValue(xpValue ?? 0)
-    setReason('')
-  }, [completionId, xpValue])
-
-  const save = async () => {
-    if (!reason.trim()) { toast.error('A reason is required'); return }
-    setSaving(true)
-    try {
-      const { data } = await api.put(`/api/sis/completions/${completionId}/xp`, {
-        xp_value: Number(value),
-        reason: reason.trim(),
-        organization_id: orgId,
-      })
-      onChanged(data?.xp_value ?? Number(value))
-      toast.success('XP updated')
-      setOpen(false)
-    } catch (e) {
-      const status = e.response?.status
-      if (status === 404 || status === 501) {
-        setAvailable(false)
-        toast.error('XP adjustment is not available')
-      } else {
-        toast.error(e.response?.data?.error || 'Could not update XP')
-      }
-    } finally {
-      setSaving(false)
-    }
-  }
-
+  const sentBack = review.action === 'grow_this'
   return (
-    <div className="flex flex-wrap items-center gap-2">
-      <span className="text-sm font-semibold text-gray-900">{xpValue ?? 0} XP</span>
-      {available && !open && (
-        <button
-          type="button"
-          onClick={() => setOpen(true)}
-          className="text-xs text-optio-purple hover:text-optio-pink underline"
-        >
-          Adjust XP
-        </button>
-      )}
-      {available && open && (
-        <div className="flex flex-wrap items-center gap-2">
-          <input
-            type="number"
-            min="0"
-            value={value}
-            onChange={(e) => setValue(e.target.value)}
-            aria-label="New XP value"
-            className="w-24 rounded-lg border border-gray-300 px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-optio-purple"
-          />
-          <input
-            type="text"
-            value={reason}
-            onChange={(e) => setReason(e.target.value)}
-            placeholder="Reason (required)"
-            aria-label="Reason for XP change"
-            className="w-52 rounded-lg border border-gray-300 px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-optio-purple"
-          />
-          <button
-            type="button"
-            onClick={save}
-            disabled={saving || !reason.trim()}
-            className="rounded-lg bg-gradient-primary px-3 py-1 text-xs font-semibold text-white disabled:opacity-40"
-          >
-            {saving ? 'Saving…' : 'Save XP'}
-          </button>
-          <button
-            type="button"
-            onClick={() => setOpen(false)}
-            className="text-xs text-neutral-500 hover:text-neutral-700"
-          >
-            Cancel
-          </button>
-        </div>
-      )}
-    </div>
+    <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+      sentBack ? 'bg-orange-100 text-orange-800' : 'bg-green-100 text-green-800'}`}>
+      {REVIEW_LABEL[review.action] || 'Reviewed'}
+    </span>
   )
 }
 
@@ -216,9 +77,9 @@ export default function SubmissionsPanel() {
   // 2026-08-27: "a submissions tab should be under student progress. It is hard
   // to figure out where to find that").
   const [classId, setClassId] = useState(searchParams.get('class_id') || '')
-  // Deep link from a task row in Student Progress: open THIS submission. The
-  // completion may already be reviewed, so if the New list doesn't hold it we
-  // flip to Reviewed once before giving up.
+  // Deep link from a task row in Student Progress: open THIS submission in
+  // the grader. The completion may already be reviewed, so if the New list
+  // doesn't hold it we flip to Reviewed once before giving up.
   const targetCompletion = useRef(searchParams.get('completion_id') || null)
   // Only the class page sends ?from=progress, so picking a class from the
   // filter below never invents a "back" link to somewhere you have not been.
@@ -231,7 +92,13 @@ export default function SubmissionsPanel() {
   const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(false)
   const [loadingMore, setLoadingMore] = useState(false)
-  const [selectedId, setSelectedId] = useState(null)
+  // The submission open in the grader; null is the queue.
+  const [openId, setOpenId] = useState(null)
+  // Rows ticked for the bulk bar.
+  const [checked, setChecked] = useState([])
+  const [bulkBusy, setBulkBusy] = useState(false)
+  const [showShortcuts, setShowShortcuts] = useState(false)
+  const decisionRef = useRef(null)
   // Search by student name, task title or quest title. iCreate, ticket
   // 0e6cb0fc (2026-09-23): "It would be nice to have a search bar to be able
   // to find a past reviewed task easily." Reviewed stopped at the newest 50
@@ -264,10 +131,12 @@ export default function SubmissionsPanel() {
         setSubmissions(list)
         setCounts(r.data?.counts || { new: 0, reviewed: 0 })
         setTotal(r.data?.total ?? list.length)
+        const have = new Set(list.map((s) => s.completion_id))
+        setChecked((ids) => ids.filter((id) => have.has(id)))
         const target = targetCompletion.current
-        if (target && list.some((s) => s.completion_id === target)) {
+        if (target && have.has(target)) {
           targetCompletion.current = null
-          setSelectedId(target)
+          setOpenId(target)
           return
         }
         if (target && scope === 'new') {
@@ -275,8 +144,9 @@ export default function SubmissionsPanel() {
           return
         }
         targetCompletion.current = null
-        setSelectedId((prev) =>
-          list.some((s) => s.completion_id === prev) ? prev : (list[0]?.completion_id || null))
+        // A quiet refresh keeps the grader where it is while the item is
+        // still there; a new list closes it.
+        setOpenId((prev) => (prev && have.has(prev) ? prev : null))
       })
       .catch(() => toast.error('Failed to load submissions'))
       .finally(() => { if (!quiet) setLoading(false) })
@@ -324,32 +194,27 @@ export default function SubmissionsPanel() {
     }
   }, [load])
 
-  const selected = useMemo(
-    () => submissions.find((s) => s.completion_id === selectedId) || null,
-    [submissions, selectedId],
+  const open = useMemo(
+    () => submissions.find((s) => s.completion_id === openId) || null,
+    [submissions, openId],
   )
-  const selectedIndex = submissions.findIndex((s) => s.completion_id === selectedId)
+  const openIndex = submissions.findIndex((s) => s.completion_id === openId)
 
+  // Move through the queue. From the queue itself, j opens the first one,
+  // as in the credit grader.
   const move = useCallback((delta) => {
     if (!submissions.length) return
-    const idx = submissions.findIndex((s) => s.completion_id === selectedId)
-    const next = Math.min(Math.max((idx < 0 ? 0 : idx) + delta, 0), submissions.length - 1)
-    setSelectedId(submissions[next].completion_id)
-  }, [submissions, selectedId])
-
-  // j/k keyboard navigation (ignored while typing)
-  useEffect(() => {
-    const onKey = (e) => {
-      const t = e.target
-      if (t && (['INPUT', 'TEXTAREA', 'SELECT'].includes(t.tagName) || t.isContentEditable)) return
-      if (e.key === 'j') move(1)
-      if (e.key === 'k') move(-1)
+    const idx = submissions.findIndex((s) => s.completion_id === openId)
+    if (idx < 0) {
+      setOpenId(submissions[0].completion_id)
+      return
     }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [move])
+    const next = submissions[idx + delta]
+    if (next) setOpenId(next.completion_id)
+  }, [submissions, openId])
 
-  // Accept: mark reviewed, drop it from the New queue, advance to the next item.
+  // A decision (Accept or Grow This): write the review, take the submission
+  // out of the New queue, and open the next one.
   //
   // Unless it was the last one. Working a queue, the next submission is the
   // answer; arriving on ONE submission from a student's progress row, it is not
@@ -359,28 +224,29 @@ export default function SubmissionsPanel() {
   // tasks, there isn't any change until I refresh my page then it shows as
   // reviewed" (Nicole Connole, 2026-09-04). So the last one stays on screen,
   // wearing the state it just earned.
-  const accept = async (sub) => {
+  const decide = async (sub, action, note) => {
     try {
-      const r = await api.post(`/api/sis/submissions/${sub.completion_id}/review`, {
-        action: 'accepted',
-        organization_id: orgId,
-      })
+      const body = { action, organization_id: orgId }
+      if (note) body.feedback = note
+      const r = await api.post(`/api/sis/submissions/${sub.completion_id}/review`, body)
       const idx = submissions.findIndex((s) => s.completion_id === sub.completion_id)
       const rest = submissions.filter((s) => s.completion_id !== sub.completion_id)
       setTotal((t) => Math.max(0, t - 1))
+      setChecked((ids) => ids.filter((id) => id !== sub.completion_id))
       if (rest.length) {
         setSubmissions(rest)
-        setSelectedId(rest[Math.min(idx, rest.length - 1)]?.completion_id || null)
+        setOpenId(rest[Math.min(idx, rest.length - 1)]?.completion_id || null)
       } else {
         // The review row the server just wrote, so the panel reads back exactly
         // what a reload would have shown it.
-        setSubmissions([{ ...sub, review: r.data?.review || { action: 'accepted' } }])
-        setSelectedId(sub.completion_id)
+        setSubmissions([{ ...sub, review: r.data?.review || { action } }])
+        setOpenId(sub.completion_id)
       }
       setCounts((c) => ({ new: Math.max(0, c.new - 1), reviewed: c.reviewed + 1 }))
-      toast.success('Accepted')
+      toast.success(action === 'grow_this' ? 'Sent back to grow' : 'Accepted')
     } catch (e) {
-      toast.error(e.response?.data?.error || 'Could not accept submission')
+      toast.error(e.response?.data?.error
+        || (action === 'grow_this' ? 'Could not send it back' : 'Could not accept submission'))
     }
   }
 
@@ -399,7 +265,7 @@ export default function SubmissionsPanel() {
         const next = submissions.filter((s) => s.completion_id !== sub.completion_id)
         setTotal((t) => Math.max(0, t - 1))
         setSubmissions(next)
-        setSelectedId(next[Math.min(idx, next.length - 1)]?.completion_id || null)
+        setOpenId(next[Math.min(idx, next.length - 1)]?.completion_id || null)
       }
       setCounts((c) => ({ new: c.new + 1, reviewed: Math.max(0, c.reviewed - 1) }))
       toast.success('Moved back to New')
@@ -408,10 +274,49 @@ export default function SubmissionsPanel() {
     }
   }
 
+  // Bulk accept: one request for the whole selection. The server checks each
+  // one against this teacher's inbox and skips any already accepted, so the
+  // list is read again rather than guessed at.
+  const bulkAccept = async () => {
+    if (!checked.length || bulkBusy) return
+    setBulkBusy(true)
+    try {
+      const r = await api.post('/api/sis/submissions/bulk-review', {
+        completion_ids: checked, action: 'accepted', organization_id: orgId,
+      })
+      const done = r.data?.reviewed?.length ?? 0
+      const skipped = r.data?.skipped?.length ?? 0
+      toast.success(skipped
+        ? `Accepted ${done}. ${skipped} skipped: already accepted or not in your classes.`
+        : `Accepted ${done}`)
+      setChecked([])
+      load({ quiet: true })
+    } catch (e) {
+      toast.error(e.response?.data?.error || 'Bulk accept failed')
+    } finally {
+      setBulkBusy(false)
+    }
+  }
+
   const setXp = (completionId, xp) => {
     setSubmissions((subs) => subs.map((s) =>
       s.completion_id === completionId ? { ...s, task: { ...s.task, xp_value: xp } } : s))
   }
+
+  // The same keys as the credit grader. a and g belong to the grader, which
+  // registers them on decisionRef; nothing here decides anything itself.
+  const shortcuts = useMemo(() => ({
+    j: () => move(1),
+    k: () => move(-1),
+    a: () => decisionRef.current?.accept(),
+    g: () => decisionRef.current?.growThis(),
+    Escape: () => {
+      if (showShortcuts) setShowShortcuts(false)
+      else setOpenId(null)
+    },
+    '?': () => setShowShortcuts((s) => !s),
+  }), [move, showShortcuts])
+  useKeyboardShortcuts(shortcuts)
 
   // 'individual' lists only work on quests a teacher gave one student by name,
   // outside any class (2026-10-07); the server reads it as that filter.
@@ -419,6 +324,30 @@ export default function SubmissionsPanel() {
     () => [{ id: '', name: 'All classes' }, { id: 'individual', name: 'Individual students' }, ...classes],
     [classes],
   )
+
+  const columns = useMemo(() => [
+    { key: 'student', header: <QueueHeader>Student</QueueHeader>,
+      cellClassName: 'px-3 py-2 text-sm text-gray-900', cell: (s) => s.student?.name },
+    { key: 'task', header: <QueueHeader>Task</QueueHeader>,
+      cellClassName: 'px-3 py-2 text-sm text-gray-700 max-w-[220px] truncate', cell: (s) => s.task?.title },
+    { key: 'quest', header: <QueueHeader className="hidden md:table-cell">Quest</QueueHeader>,
+      cellClassName: 'hidden md:table-cell px-3 py-2 text-sm text-gray-500 max-w-[160px] truncate',
+      cell: (s) => s.quest_title },
+    { key: 'class', header: <QueueHeader className="hidden md:table-cell">Class</QueueHeader>,
+      cellClassName: 'hidden md:table-cell px-3 py-2 text-sm text-gray-500 max-w-[160px] truncate',
+      cell: (s) => s.class_name || '-' },
+    { key: 'xp', header: <QueueHeader className="hidden sm:table-cell">XP</QueueHeader>,
+      cellClassName: 'hidden sm:table-cell px-3 py-2 text-sm font-medium text-gray-900',
+      cell: (s) => s.task?.xp_value ?? 0 },
+    { key: 'evidence', header: <QueueHeader className="hidden lg:table-cell">Evidence</QueueHeader>,
+      cellClassName: 'hidden lg:table-cell px-3 py-2 text-xs text-gray-500',
+      cell: (s) => (s.evidence_blocks || []).length },
+    { key: 'status', header: <QueueHeader>Status</QueueHeader>,
+      cellClassName: 'px-3 py-2', cell: (s) => <StatusChip review={s.review} /> },
+    { key: 'date', header: <QueueHeader className="hidden sm:table-cell">Submitted</QueueHeader>,
+      cellClassName: 'hidden sm:table-cell px-3 py-2 text-xs text-gray-400',
+      cell: (s) => timeAgo(s.completed_at) },
+  ], [])
 
   const scopeTab = (key, label) => (
     <button
@@ -428,7 +357,7 @@ export default function SubmissionsPanel() {
       className={`rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
         scope === key
           ? 'bg-gradient-primary text-white'
-          : 'bg-white border border-gray-200 text-neutral-600 hover:border-optio-purple/50'
+          : 'bg-white border border-gray-200 text-gray-600 hover:border-optio-purple/50'
       }`}
     >
       {label} ({counts[key] ?? 0})
@@ -445,7 +374,7 @@ export default function SubmissionsPanel() {
       {cameFromClassId && (
         <Link
           to={`/my-classes/${cameFromClassId}?tab=progress`}
-          className="inline-flex items-center gap-1 text-sm text-neutral-500 hover:text-optio-purple mb-2"
+          className="inline-flex items-center gap-1 text-sm text-gray-500 hover:text-optio-purple mb-2"
         >
           <ArrowLeftIcon className="w-4 h-4" /> Back to student progress
         </Link>
@@ -454,7 +383,7 @@ export default function SubmissionsPanel() {
         {scopeTab('new', 'New')}
         {scopeTab('reviewed', 'Reviewed')}
         {classesOn && <SearchSelect
-          className="w-64"
+          className="w-full sm:w-64"
           value={classId}
           onChange={setClassId}
           options={classOptions}
@@ -468,22 +397,40 @@ export default function SubmissionsPanel() {
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Search student, task or quest…"
           aria-label="Search submissions"
-          className="w-64 rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-optio-purple"
+          className="w-full sm:w-64 rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-optio-purple/20 focus:border-optio-purple"
         />
+        <div className="flex items-center gap-2 sm:ml-auto">
+          {submissions.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setOpenId(submissions[0].completion_id)}
+              className="btn-primary"
+            >
+              Start reviewing
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => setShowShortcuts(true)}
+            className="btn-quiet px-2.5 text-gray-500 hidden md:inline-flex"
+            title="Keyboard shortcuts (?)"
+            aria-label="Keyboard shortcuts"
+          >
+            ?
+          </button>
+        </div>
       </div>
 
-      {loading && <p className="text-neutral-500">Loading…</p>}
-
-      {!loading && submissions.length === 0 && (
+      {!loading && submissions.length === 0 ? (
         <div className="bg-white rounded-xl border border-gray-200 p-10 text-center">
           {search ? (
-            <p className="text-lg font-semibold text-neutral-800">
+            <p className="text-lg font-semibold text-gray-900">
               {`No ${scope === 'new' ? 'new' : 'reviewed'} submissions match "${search}".`}
             </p>
           ) : (
             <>
-              <p className="text-lg font-semibold text-neutral-800">You're all caught up.</p>
-              <p className="text-sm text-neutral-500 mt-1">
+              <p className="text-lg font-semibold text-gray-900">You're all caught up.</p>
+              <p className="text-sm text-gray-500 mt-1">
                 {scope === 'new'
                   ? 'No new submissions from your classes.'
                   : 'Nothing has been reviewed yet.'}
@@ -491,171 +438,71 @@ export default function SubmissionsPanel() {
             </>
           )}
         </div>
+      ) : (
+        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+          <div className="overflow-x-auto">
+            <ReviewQueueTable
+              items={submissions}
+              columns={columns}
+              rowLabel={(s) => `${s.student?.name || 'student'}: ${s.task?.title || 'task'}`}
+              selectedIds={checked}
+              onToggleSelection={(id) => setChecked((ids) => (
+                ids.includes(id) ? ids.filter((x) => x !== id) : [...ids, id]))}
+              onSelectAll={setChecked}
+              onRowClick={(s) => setOpenId(s.completion_id)}
+              loading={loading}
+              emptyText="No submissions"
+            />
+          </div>
+          {!loading && submissions.length < total && (
+            <button
+              type="button"
+              onClick={loadMore}
+              disabled={loadingMore}
+              className="block w-full border-t border-gray-200 px-4 py-3 text-sm font-medium text-optio-purple hover:bg-optio-purple/5 disabled:opacity-50"
+            >
+              {loadingMore ? 'Loading…' : `Load more (${total - submissions.length} more)`}
+            </button>
+          )}
+        </div>
       )}
 
-      {!loading && submissions.length > 0 && (
-        <div className="flex flex-col md:flex-row gap-4">
-          {/* Left rail: queue */}
-          <div className="md:w-80 shrink-0 bg-white rounded-xl border border-gray-200 overflow-hidden md:max-h-[70vh] md:overflow-y-auto">
-            {submissions.map((s) => (
-              <button
-                key={s.completion_id}
-                type="button"
-                onClick={() => setSelectedId(s.completion_id)}
-                className={`block w-full text-left px-4 py-3 border-b border-gray-100 transition-colors ${
-                  s.completion_id === selectedId
-                    ? 'bg-optio-purple/5 border-l-4 border-l-optio-purple'
-                    : 'hover:bg-neutral-50'
-                }`}
-              >
-                <div className="text-sm font-semibold text-neutral-900 truncate">{s.student?.name}</div>
-                <div className="text-sm text-neutral-600 truncate">{s.task?.title}</div>
-                <div className="text-xs text-neutral-400 mt-0.5">
-                  {[s.class_name, timeAgo(s.completed_at)].filter(Boolean).join(' · ')}
-                </div>
-              </button>
-            ))}
-            {submissions.length < total && (
-              <button
-                type="button"
-                onClick={loadMore}
-                disabled={loadingMore}
-                className="block w-full px-4 py-3 text-sm font-medium text-optio-purple hover:bg-neutral-50 disabled:opacity-50"
-              >
-                {loadingMore ? 'Loading…' : `Load more (${total - submissions.length} more)`}
-              </button>
-            )}
-          </div>
+      {/* The bulk bar. Accept only: sending work back needs a note written for
+          that one student, so it is done one at a time in the grader. */}
+      {!open && checked.length > 0 && (
+        <FloatingActionBar count={checked.length} onDeselectAll={() => setChecked([])}>
+          <button
+            type="button"
+            onClick={bulkAccept}
+            disabled={bulkBusy}
+            className="px-3 py-1.5 text-sm bg-green-600 rounded-lg hover:bg-green-700 disabled:opacity-50"
+          >
+            {bulkBusy ? 'Accepting…' : 'Accept all'}
+          </button>
+        </FloatingActionBar>
+      )}
 
-          {/* Main pane: selected submission.
-              min-w-0 is load-bearing — a flex item defaults to min-width:auto,
-              so one wide child (a long URL, a big table pasted into text) grows
-              this pane past the viewport and takes Accept with it. */}
-          <div className="flex-1 min-w-0 bg-white rounded-xl border border-gray-200 p-5">
-            {!selected ? (
-              <p className="text-neutral-500">Select a submission from the list.</p>
-            ) : (
-              <div className="space-y-5">
-                {/* Student header + prev/next */}
-                <div className="flex items-start justify-between gap-3 flex-wrap">
-                  <div className="flex items-center gap-3">
-                    {selected.student?.avatar_url ? (
-                      <img src={selected.student.avatar_url} alt="" className="w-10 h-10 rounded-full object-cover" />
-                    ) : (
-                      <div className="w-10 h-10 rounded-full bg-gradient-primary text-white flex items-center justify-center text-sm font-semibold">
-                        {(selected.student?.name || '?').slice(0, 1)}
-                      </div>
-                    )}
-                    <div>
-                      <div className="font-semibold text-neutral-900">{selected.student?.name}</div>
-                      <div className="text-xs text-neutral-500">
-                        Submitted {timeAgo(selected.completed_at)}
-                      </div>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => move(-1)}
-                      disabled={selectedIndex <= 0}
-                      className="rounded-lg border border-gray-200 px-3 py-1.5 text-sm text-neutral-600 hover:border-optio-purple/50 disabled:opacity-40"
-                    >
-                      Prev
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => move(1)}
-                      disabled={selectedIndex >= submissions.length - 1}
-                      className="rounded-lg border border-gray-200 px-3 py-1.5 text-sm text-neutral-600 hover:border-optio-purple/50 disabled:opacity-40"
-                    >
-                      Next
-                    </button>
-                    {/* What this submission IS, not which list it was fetched
-                        from. The last accept in a queue leaves its submission on
-                        screen (see accept), and an Accept button on something
-                        already accepted is the state not changing. */}
-                    {scope === 'new' && !selected.review ? (
-                      <button
-                        type="button"
-                        onClick={() => accept(selected)}
-                        className="rounded-lg bg-green-600 hover:bg-green-700 px-4 py-1.5 text-sm font-semibold text-white"
-                      >
-                        Accept
-                      </button>
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={() => unreview(selected)}
-                        className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-1.5 text-sm font-medium text-amber-700 hover:bg-amber-100"
-                      >
-                        Move back to New
-                      </button>
-                    )}
-                  </div>
-                </div>
+      {/* The grader covers everything, app chrome included. */}
+      {open && (
+        <SubmissionGrader
+          sub={open}
+          orgId={orgId}
+          index={openIndex}
+          total={submissions.length}
+          onPrev={() => move(-1)}
+          onNext={() => move(1)}
+          onExit={() => setOpenId(null)}
+          onShowShortcuts={() => setShowShortcuts(true)}
+          onDecide={decide}
+          onUnreview={unreview}
+          onXpChanged={setXp}
+          decisionRef={decisionRef}
+        />
+      )}
 
-                {/* Context: class / quest / task */}
-                <div>
-                  <div className="text-xs text-neutral-400 uppercase tracking-wide font-semibold mb-1">
-                    {[selected.class_name, selected.quest_title].filter(Boolean).join(' · ')}
-                  </div>
-                  <h2 className="text-lg font-semibold text-neutral-900">{selected.task?.title}</h2>
-                  {selected.task?.description && (
-                    <p className="text-sm text-neutral-600 mt-1 whitespace-pre-line">{selected.task.description}</p>
-                  )}
-                  <div className="mt-2 flex items-center gap-3 flex-wrap">
-                    {/* Named the way the learner sees it. Printing the raw
-                        column turned a legacy key like stem_logic into
-                        "stem logic", which is not a pillar at all. */}
-                    {selected.task?.pillar && (
-                      <span className="text-xs rounded-full bg-optio-purple/10 text-optio-purple px-2 py-0.5">
-                        {getPillarName(selected.task.pillar)}
-                      </span>
-                    )}
-                    <XpAdjust
-                      completionId={selected.completion_id}
-                      orgId={orgId}
-                      xpValue={selected.task?.xp_value}
-                      onChanged={(xp) => setXp(selected.completion_id, xp)}
-                    />
-                  </div>
-                </div>
-
-                {selected.review && (
-                  <div className="text-xs text-neutral-500 bg-neutral-50 rounded-lg px-3 py-2">
-                    Reviewed by {selected.review.reviewed_by_name || 'staff'}
-                    {selected.review.reviewed_at ? ` on ${new Date(selected.review.reviewed_at).toLocaleDateString()}` : ''}
-                  </div>
-                )}
-
-                {/* Evidence */}
-                <div>
-                  <h3 className="text-sm font-medium text-gray-700 mb-2">
-                    Evidence ({(selected.evidence_blocks || []).length} block{(selected.evidence_blocks || []).length === 1 ? '' : 's'})
-                  </h3>
-                  {(selected.evidence_blocks || []).length === 0 ? (
-                    <p className="text-sm text-gray-400 italic">No evidence submitted</p>
-                  ) : (
-                    <div className="space-y-3">
-                      {selected.evidence_blocks.map((b, i) => (
-                        <div key={b.id || i} className="border border-gray-200 rounded-lg p-3">
-                          <EvidenceBlock block={b} />
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-                {/* Two-way feedback thread with the student */}
-                <CreditFeedbackThread completionId={selected.completion_id} />
-
-                <p className="text-xs text-neutral-300">Tip: j / k move through the queue.</p>
-              </div>
-            )}
-          </div>
-        </div>
+      {showShortcuts && (
+        <ShortcutHelp shortcuts={SHORTCUTS} onClose={() => setShowShortcuts(false)} />
       )}
     </div>
   )
 }
-

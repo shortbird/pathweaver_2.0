@@ -131,7 +131,9 @@ export default function StudentQuestCard({ orgId, student, quest: q, onChanged, 
                   </span>
                   <span className="sr-only">{t.done ? 'Done:' : 'Not done:'}</span>
                   {t.done && t.completion_id ? (
-                    <Link to={`/classes?tab=submissions&completion_id=${t.completion_id}`}
+                    // /submissions: Classes or Students, wherever this school
+                    // keeps the inbox (ticket bc68a12e).
+                    <Link to={`/submissions?completion_id=${t.completion_id}`}
                       className="text-neutral-500 line-through hover:text-optio-purple hover:no-underline"
                       title="See the submission">
                       {t.title}

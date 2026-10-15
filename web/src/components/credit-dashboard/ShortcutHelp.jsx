@@ -1,6 +1,7 @@
 import React from 'react'
 
-const shortcuts = [
+// The credit grader's keys. The SIS Submissions review passes its own list.
+const CREDIT_SHORTCUTS = [
   { key: 'j', description: 'Next item (opens the grader from the queue)' },
   { key: 'k', description: 'Previous item' },
   { key: 'a', description: 'Approve, with the note and XP as shown' },
@@ -11,7 +12,7 @@ const shortcuts = [
   { key: '?', description: 'Toggle this help overlay' },
 ]
 
-const ShortcutHelp = ({ onClose }) => {
+const ShortcutHelp = ({ onClose, shortcuts = CREDIT_SHORTCUTS }) => {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={onClose}>
       <div className="bg-white rounded-xl shadow-2xl max-w-md w-full mx-4 p-6" onClick={e => e.stopPropagation()}>

@@ -32,3 +32,31 @@ def platform_verified_fields(source_label: str, *, at: Optional[str] = None) -> 
         'verified_by_advisor_id': None,
         'verification_notes': f'Verified by {source_label.strip()}',
     }
+
+
+def verified_by_platform(completion: Dict[str, Any], source_label: str) -> bool:
+    """Did the named platform verify this completion, by the columns
+    platform_verified_fields wrote? Needs subject_verified_at,
+    verified_by_advisor_id and verification_notes on the row.
+
+    All three must agree: a teacher who approves a row writes their own id and
+    note over these, and from then on it is the teacher's verification.
+    """
+    if not isinstance(completion, dict) or not (source_label or '').strip():
+        return False
+    return (bool(completion.get('subject_verified_at'))
+            and not completion.get('verified_by_advisor_id')
+            and completion.get('verification_notes') == f'Verified by {source_label.strip()}')
+
+
+#: feature_flags.sis_settings key: leave work Bloomy already verified out of
+#: the SIS Submissions inbox (ticket bc68a12e, Apogee Cache Valley: "Bloomy
+#: submissions are the only ones that I'd prefer not to review"). Off unless
+#: a school turns it on, so every other school's inbox is unchanged.
+SKIP_BLOOMY_IN_INBOX_KEY = 'skip_bloomy_in_inbox'
+
+
+def skips_bloomy_in_inbox(flags: Optional[Dict[str, Any]]) -> bool:
+    """Is the school's skip switch on? Only a stored True counts."""
+    sis = (flags or {}).get('sis_settings') if isinstance(flags, dict) else None
+    return isinstance(sis, dict) and sis.get(SKIP_BLOOMY_IN_INBOX_KEY) is True

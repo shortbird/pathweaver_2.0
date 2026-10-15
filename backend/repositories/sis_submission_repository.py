@@ -26,6 +26,13 @@ def _like_pattern(needle: str) -> str:
     return f'%{escaped}%'
 
 
+#: The completion columns the inbox reads. The verification three let a school
+#: leave out work an outside platform already verified (Bloomy, ticket
+#: bc68a12e; services.external_learning_verification.verified_by_platform).
+INBOX_COMPLETION_COLUMNS = ('id, user_id, quest_id, user_quest_task_id, completed_at, '
+                            'subject_verified_at, verified_by_advisor_id, verification_notes')
+
+
 class SisSubmissionRepository:
 
     def __init__(self, client):
@@ -40,7 +47,7 @@ class SisSubmissionRepository:
         students, quests = list(student_ids), list(quest_ids)
         return fetch_all_rows(lambda: (
             self.client.table('quest_task_completions')
-            .select('id, user_id, quest_id, user_quest_task_id, completed_at')
+            .select(INBOX_COMPLETION_COLUMNS)
             .in_('user_id', students)
             .in_('quest_id', quests)
         ))
@@ -51,7 +58,7 @@ class SisSubmissionRepository:
         students = list(student_ids)
         return fetch_all_rows(lambda: (
             self.client.table('quest_task_completions')
-            .select('id, user_id, quest_id, user_quest_task_id, completed_at')
+            .select(INBOX_COMPLETION_COLUMNS)
             .in_('user_id', students)
         ))
 
@@ -62,6 +69,46 @@ class SisSubmissionRepository:
             .select('id, completion_id, reviewed_by, action, reviewed_at')
             .eq('organization_id', org_id)
         ))
+
+    # ── review writes (accept, grow this, bulk accept) ───────────────────────
+
+    def completions_by_ids(self, completion_ids: Iterable[str]) -> List[Dict[str, Any]]:
+        """These completions, for a scope check. Bounded by the caller's
+        selection (the bulk route caps it)."""
+        ids = [i for i in dict.fromkeys(completion_ids) if i]
+        if not ids:
+            return []
+        return (self.client.table('quest_task_completions')
+                .select('id, user_id, quest_id, user_quest_task_id, completed_at')
+                .in_('id', ids).execute()).data or []
+
+    def reviews_for(self, completion_ids: Iterable[str]) -> List[Dict[str, Any]]:
+        """The review rows of these completions (completion_id is UNIQUE)."""
+        ids = [i for i in dict.fromkeys(completion_ids) if i]
+        if not ids:
+            return []
+        return (self.client.table('sis_submission_reviews')
+                .select('completion_id, action')
+                .in_('completion_id', ids).execute()).data or []
+
+    def save_reviews(self, rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """Upsert review rows on completion_id; returns what was written."""
+        if not rows:
+            return []
+        return (self.client.table('sis_submission_reviews')
+                .upsert(rows, on_conflict='completion_id').execute()).data or []
+
+    def post_thread_note(self, completion_id: str, author_id: str, author_role: str,
+                         body: str) -> Optional[Dict[str, Any]]:
+        """A teacher's note on the task's feedback thread (credit_review_messages,
+        the thread CreditFeedbackThread shows the student and the reviewer)."""
+        rows = (self.client.table('credit_review_messages').insert({
+            'completion_id': completion_id,
+            'author_id': author_id,
+            'author_role': author_role,
+            'body': body,
+        }).execute()).data or []
+        return rows[0] if rows else None
 
     # ── search (ticket 0e6cb0fc) ─────────────────────────────────────────────
 

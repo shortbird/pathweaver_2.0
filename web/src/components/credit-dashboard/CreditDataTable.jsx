@@ -5,6 +5,7 @@ import StatusPill from './StatusPill'
 import { aiItemSummary } from './aiReview'
 import { XpInflationBadge } from './taskOrigin'
 import SortHeader from '../ui/SortHeader'
+import ReviewQueueTable, { QueueHeader } from './ReviewQueueTable'
 
 /**
  * The queue as a table. Clicking a row opens it in the grader; the checkboxes
@@ -35,107 +36,55 @@ const CreditDataTable = ({
     return sortDir === 'asc' ? cmp : -cmp
   })
 
-  const allSelected = items.length > 0 && items.every(i => selectedItems.includes(i.completion_id))
-
   const sortState = { key: sortKey, dir: sortDir }
+  const th = 'px-3 py-2 text-left text-xs text-gray-500 uppercase tracking-wider'
+  const sortable = (label, col) => (
+    <SortHeader label={label} col={col} sort={sortState} onSort={toggleSort} className={th} />
+  )
+  const columns = [
+    { key: 'student', header: sortable('Student', 'student_name'),
+      cellClassName: 'px-3 py-2 text-sm text-gray-900', cell: item => item.student_name },
+    { key: 'task', header: sortable('Task', 'task_title'),
+      cellClassName: 'px-3 py-2 text-sm text-gray-700 max-w-[200px] truncate', cell: item => item.task_title },
+    { key: 'quest', header: sortable('Quest', 'quest_title'),
+      cellClassName: 'px-3 py-2 text-sm text-gray-500 max-w-[150px] truncate', cell: item => item.quest_title },
+    { key: 'subjects', header: sortable('Subjects', 'pillar'),
+      cellClassName: 'px-3 py-2 text-xs text-gray-500',
+      cell: item => Object.keys(item.suggested_subjects || {}).map(s => s.replace(/_/g, ' ')).join(', ') || '-' },
+    { key: 'xp', header: sortable('XP', 'xp_value'),
+      cellClassName: 'px-3 py-2 text-sm font-medium text-gray-900',
+      cell: item => (
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <span>{item.xp_value}</span>
+          <XpInflationBadge xpValue={item.xp_value} aiSuggestedXp={item.ai_suggested_xp} />
+        </div>
+      ) },
+    { key: 'evidence', header: <QueueHeader>Evidence</QueueHeader>,
+      cellClassName: 'px-3 py-2 text-xs text-gray-500', cell: item => item.evidence_block_count ?? '-' },
+    { key: 'status', header: sortable('Status', 'diploma_status'),
+      cellClassName: 'px-3 py-2', cell: item => <StatusPill status={item.diploma_status} /> },
+    ...(showAi ? [{ key: 'ai', header: sortable('AI', 'ai_recommendation'),
+      cellClassName: 'px-3 py-2', cell: item => <AiBadge size="xs" {...aiItemSummary(item)} /> }] : []),
+    { key: 'date', header: sortable('Date', 'submitted_at'),
+      cellClassName: 'px-3 py-2 text-xs text-gray-400',
+      cell: item => (item.submitted_at ? new Date(item.submitted_at).toLocaleDateString() : '-') },
+  ]
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
       <FilterBar filters={filters} onFiltersChange={onFiltersChange} showAiFilter={showAi} layout="row" />
 
       <div className="flex-1 overflow-auto">
-        <table className="min-w-full divide-y divide-gray-200">
-          <thead className="bg-gray-50 sticky top-0">
-            <tr>
-              <th className="px-3 py-2 w-8">
-                <input
-                  type="checkbox"
-                  checked={allSelected}
-                  onChange={() => {
-                    if (allSelected) onSelectAll([])
-                    else onSelectAll(items.map(i => i.completion_id))
-                  }}
-                  className="rounded border-gray-300 text-optio-purple focus:ring-optio-purple"
-                />
-              </th>
-              <SortHeader label="Student" col="student_name" sort={sortState} onSort={toggleSort}
-                className="px-3 py-2 text-left text-xs text-gray-500 uppercase tracking-wider" />
-              <SortHeader label="Task" col="task_title" sort={sortState} onSort={toggleSort}
-                className="px-3 py-2 text-left text-xs text-gray-500 uppercase tracking-wider" />
-              <SortHeader label="Quest" col="quest_title" sort={sortState} onSort={toggleSort}
-                className="px-3 py-2 text-left text-xs text-gray-500 uppercase tracking-wider" />
-              <SortHeader label="Subjects" col="pillar" sort={sortState} onSort={toggleSort}
-                className="px-3 py-2 text-left text-xs text-gray-500 uppercase tracking-wider" />
-              <SortHeader label="XP" col="xp_value" sort={sortState} onSort={toggleSort}
-                className="px-3 py-2 text-left text-xs text-gray-500 uppercase tracking-wider" />
-              <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Evidence
-              </th>
-              <SortHeader label="Status" col="diploma_status" sort={sortState} onSort={toggleSort}
-                className="px-3 py-2 text-left text-xs text-gray-500 uppercase tracking-wider" />
-              {showAi && <SortHeader label="AI" col="ai_recommendation" sort={sortState} onSort={toggleSort}
-                className="px-3 py-2 text-left text-xs text-gray-500 uppercase tracking-wider" />}
-              <SortHeader label="Date" col="submitted_at" sort={sortState} onSort={toggleSort}
-                className="px-3 py-2 text-left text-xs text-gray-500 uppercase tracking-wider" />
-            </tr>
-          </thead>
-          <tbody className="bg-white divide-y divide-gray-200">
-            {loading ? (
-              <tr>
-                <td colSpan={showAi ? 10 : 9} className="text-center py-12">
-                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-optio-purple mx-auto" />
-                </td>
-              </tr>
-            ) : sorted.length === 0 ? (
-              <tr>
-                <td colSpan={showAi ? 10 : 9} className="text-center py-12 text-gray-500 text-sm">
-                  No items found
-                </td>
-              </tr>
-            ) : sorted.map(item => (
-              <tr
-                key={item.completion_id}
-                onClick={() => onRowClick(item)}
-                className="hover:bg-gray-50 cursor-pointer"
-              >
-                <td className="px-3 py-2" onClick={e => e.stopPropagation()}>
-                  <input
-                    type="checkbox"
-                    checked={selectedItems.includes(item.completion_id)}
-                    onChange={() => onToggleSelection(item.completion_id)}
-                    className="rounded border-gray-300 text-optio-purple focus:ring-optio-purple"
-                  />
-                </td>
-                <td className="px-3 py-2 text-sm text-gray-900">{item.student_name}</td>
-                <td className="px-3 py-2 text-sm text-gray-700 max-w-[200px] truncate">{item.task_title}</td>
-                <td className="px-3 py-2 text-sm text-gray-500 max-w-[150px] truncate">{item.quest_title}</td>
-                <td className="px-3 py-2 text-xs text-gray-500">
-                  {Object.keys(item.suggested_subjects || {}).map(s => s.replace(/_/g, ' ')).join(', ') || '-'}
-                </td>
-                <td className="px-3 py-2 text-sm font-medium text-gray-900">
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    <span>{item.xp_value}</span>
-                    <XpInflationBadge xpValue={item.xp_value} aiSuggestedXp={item.ai_suggested_xp} />
-                  </div>
-                </td>
-                <td className="px-3 py-2 text-xs text-gray-500">
-                  {item.evidence_block_count ?? '-'}
-                </td>
-                <td className="px-3 py-2">
-                  <StatusPill status={item.diploma_status} />
-                </td>
-                {showAi && (
-                  <td className="px-3 py-2">
-                    <AiBadge size="xs" {...aiItemSummary(item)} />
-                  </td>
-                )}
-                <td className="px-3 py-2 text-xs text-gray-400">
-                  {item.submitted_at ? new Date(item.submitted_at).toLocaleDateString() : '-'}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <ReviewQueueTable
+          items={sorted}
+          columns={columns}
+          rowLabel={item => `${item.student_name || 'student'}: ${item.task_title || 'task'}`}
+          selectedIds={selectedItems}
+          onToggleSelection={onToggleSelection}
+          onSelectAll={onSelectAll}
+          onRowClick={onRowClick}
+          loading={loading}
+        />
       </div>
 
       {/* Pagination */}

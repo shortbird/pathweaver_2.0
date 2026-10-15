@@ -64,6 +64,10 @@ vi.mock('../../services/api', () => ({ default: api }))
 
 import SubmissionsPanel from './classesPage/SubmissionsPanel'
 
+// The queue is a table, as on the credit dashboard; a submission is read and
+// decided in the grader that opens over it (2026-10-15).
+const openGrader = async () => fireEvent.click(await screen.findByText('Start reviewing'))
+
 beforeEach(() => {
   authState = { user: { id: 'u1', role: 'org_admin' } }
   // An SIS school, so classes (default on, under sis) is on.
@@ -105,6 +109,7 @@ describe('SubmissionsPage', () => {
 
   it('loads the queue with scope counts and shows the first submission', async () => {
     render(<SubmissionsPanel />)
+    await openGrader()
     expect(await screen.findByText('New (2)')).toBeInTheDocument()
     expect(screen.getByText('Reviewed (1)')).toBeInTheDocument()
     // Alice appears in the rail and in the detail header
@@ -116,6 +121,7 @@ describe('SubmissionsPage', () => {
 
   it('shows class, quest, and task context for the selected submission', async () => {
     render(<SubmissionsPanel />)
+    await openGrader()
     expect(await screen.findByText('Biology · Cells Quest')).toBeInTheDocument()
     expect(screen.getAllByText('Build a cell model').length).toBeGreaterThan(0)
     expect(screen.getByText('100 XP')).toBeInTheDocument()
@@ -125,11 +131,13 @@ describe('SubmissionsPage', () => {
     // Task descriptions are stored with their line breaks; the reviewer should
     // see them as the author typed them.
     render(<SubmissionsPanel />)
+    await openGrader()
     expect(await screen.findByText('Model a cell')).toHaveClass('whitespace-pre-line')
   })
 
   it('accepts a submission and auto-advances to the next one', async () => {
     render(<SubmissionsPanel />)
+    await openGrader()
     await screen.findByText('My cell essay evidence')
     fireEvent.click(screen.getByText('Accept'))
     await waitFor(() =>
@@ -171,6 +179,7 @@ describe('SubmissionsPage', () => {
 
   it('adjusts XP with a required reason via the gradebook endpoint', async () => {
     render(<SubmissionsPanel />)
+    await openGrader()
     await screen.findByText('100 XP')
     fireEvent.click(screen.getByText('Adjust XP'))
     fireEvent.change(screen.getByLabelText('New XP value'), { target: { value: '75' } })
@@ -186,6 +195,7 @@ describe('SubmissionsPage', () => {
   it('hides the XP control when the endpoint does not exist (404)', async () => {
     api.put.mockRejectedValueOnce({ response: { status: 404 } })
     render(<SubmissionsPanel />)
+    await openGrader()
     await screen.findByText('100 XP')
     fireEvent.click(screen.getByText('Adjust XP'))
     fireEvent.change(screen.getByLabelText('Reason for XP change'), { target: { value: 'Try' } })
@@ -211,6 +221,7 @@ describe('SubmissionsPage', () => {
             }] } })
         : Promise.resolve(apiData(u)))
     render(<SubmissionsPanel />)
+    await openGrader()
     const img = await screen.findByRole('img', { name: 'IMG_20260827_123518.jpg' })
     expect(img).toHaveAttribute('src', url)
     // The raw URL is never printed as link text.
@@ -235,6 +246,7 @@ describe('SubmissionsPage', () => {
             }] } })
         : Promise.resolve(apiData(u)))
     render(<SubmissionsPanel />)
+    await openGrader()
     expect(await screen.findByText('pass_checker.txt')).toBeInTheDocument()
     expect(screen.queryByText(url)).not.toBeInTheDocument()
   })
@@ -300,6 +312,7 @@ describe('accepting the last submission in the queue', () => {
   it('keeps it on screen instead of leaving a blank pane', async () => {
     onlyOne()
     render(<SubmissionsPanel />)
+    await openGrader()
     await screen.findByText('The only evidence')
     fireEvent.click(screen.getByText('Accept'))
     await waitFor(() => expect(api.post).toHaveBeenCalled())
@@ -309,6 +322,7 @@ describe('accepting the last submission in the queue', () => {
   it('shows it as reviewed without a page refresh', async () => {
     onlyOne()
     render(<SubmissionsPanel />)
+    await openGrader()
     await screen.findByText('The only evidence')
     fireEvent.click(screen.getByText('Accept'))
     expect(await screen.findByText(/Reviewed by Nicole/)).toBeInTheDocument()
@@ -317,6 +331,7 @@ describe('accepting the last submission in the queue', () => {
   it('stops offering Accept on something already accepted', async () => {
     onlyOne()
     render(<SubmissionsPanel />)
+    await openGrader()
     await screen.findByText('The only evidence')
     fireEvent.click(screen.getByText('Accept'))
     await waitFor(() => expect(screen.queryByText('Accept')).not.toBeInTheDocument())
@@ -326,6 +341,7 @@ describe('accepting the last submission in the queue', () => {
   it('undoes an accidental accept in place', async () => {
     onlyOne()
     render(<SubmissionsPanel />)
+    await openGrader()
     await screen.findByText('The only evidence')
     fireEvent.click(screen.getByText('Accept'))
     fireEvent.click(await screen.findByText('Move back to New'))
@@ -417,5 +433,110 @@ describe('search and Load more', () => {
     render(<SubmissionsPanel />)
     await screen.findByText('New (2)')
     expect(screen.queryByText(/Load more/)).not.toBeInTheDocument()
+  })
+})
+
+/**
+ * Tanner, 2026-10-15: review submissions "like the credit-review process".
+ * The credit grader's Grow This (send back with a note), its bulk accept from
+ * ticked rows, and its keys -- on /api/sis/submissions, never the credit
+ * endpoints.
+ */
+describe('reviewing like credit review', () => {
+  const postedTo = (path) => api.post.mock.calls.filter((c) => c[0] === path)
+
+  it('Grow This sends the work back with the note and moves to the next one', async () => {
+    render(<SubmissionsPanel />)
+    await openGrader()
+    await screen.findByText('My cell essay evidence')
+    fireEvent.change(screen.getByLabelText('Note to student'),
+      { target: { value: 'Label the organelles, please.' } })
+    fireEvent.click(screen.getByText('Grow This'))
+    await waitFor(() =>
+      expect(api.post).toHaveBeenCalledWith('/api/sis/submissions/c1/review', {
+        action: 'grow_this', feedback: 'Label the organelles, please.', organization_id: 'org-1',
+      }))
+    expect(await screen.findByText('Write a mitosis report', { selector: 'h2' })).toBeInTheDocument()
+    expect(api.post.mock.calls.some((c) => c[0].includes('/api/credit-dashboard'))).toBe(false)
+  })
+
+  it('Grow This without a note sends nothing and puts the cursor in the note', async () => {
+    render(<SubmissionsPanel />)
+    await openGrader()
+    await screen.findByText('My cell essay evidence')
+    fireEvent.click(screen.getByText('Grow This'))
+    expect(screen.getByLabelText('Note to student')).toHaveFocus()
+    expect(api.post).not.toHaveBeenCalled()
+  })
+
+  it('a sent-back submission that was the last one shows as sent back', async () => {
+    api.get.mockImplementation((url) => (url.includes('/api/sis/submissions')
+      ? Promise.resolve({ data: { success: true, counts: { new: 1, reviewed: 0 }, total: 1,
+          submissions: [{ completion_id: 'c5', completed_at: '2026-09-04T10:00:00Z',
+            student: { id: 's5', name: 'Grace Hopper', avatar_url: null },
+            class_id: 'cl1', class_name: 'Biology', quest_id: 'q1', quest_title: 'Cells Quest',
+            task: { id: 't5', title: 'Last one', xp_value: 25 }, evidence_blocks: [], review: null }] } })
+      : Promise.resolve(apiData(url))))
+    api.post.mockImplementation(() => Promise.resolve({ data: { success: true,
+      review: { action: 'grow_this', reviewed_by_name: 'Nicole' } } }))
+    render(<SubmissionsPanel />)
+    await openGrader()
+    fireEvent.change(await screen.findByLabelText('Note to student'), { target: { value: 'More' } })
+    fireEvent.click(screen.getByText('Grow This'))
+    expect(await screen.findByText('Sent back to grow', { selector: 'span.font-semibold' }))
+      .toBeInTheDocument()
+    expect(screen.getByText('Move back to New')).toBeInTheDocument()
+  })
+
+  it('accepts every ticked row in one request and reads the list again', async () => {
+    api.post.mockImplementation(() => Promise.resolve({ data: { success: true,
+      reviewed: ['c1', 'c2'], skipped: [] } }))
+    render(<SubmissionsPanel />)
+    await screen.findByText('New (2)')
+    fireEvent.click(screen.getByLabelText('Select Alice Student: Build a cell model'))
+    fireEvent.click(screen.getByLabelText('Select Bob Builder: Write a mitosis report'))
+    expect(screen.getByText('2 selected')).toBeInTheDocument()
+    const loads = () => api.get.mock.calls.filter((c) => c[0].includes('/api/sis/submissions?')).length
+    const before = loads()
+    fireEvent.click(screen.getByText('Accept all'))
+    await waitFor(() => expect(postedTo('/api/sis/submissions/bulk-review')).toEqual([[
+      '/api/sis/submissions/bulk-review',
+      { completion_ids: ['c1', 'c2'], action: 'accepted', organization_id: 'org-1' },
+    ]]))
+    await waitFor(() => expect(loads()).toBe(before + 1))
+    expect(screen.queryByText('2 selected')).not.toBeInTheDocument()
+  })
+
+  it('select all ticks every row on screen', async () => {
+    render(<SubmissionsPanel />)
+    await screen.findByText('New (2)')
+    fireEvent.click(screen.getByLabelText('Select all'))
+    expect(screen.getByText('2 selected')).toBeInTheDocument()
+  })
+
+  it('j opens the queue, j/k move, a accepts, Escape goes back', async () => {
+    render(<SubmissionsPanel />)
+    await screen.findByText('New (2)')
+    fireEvent.keyDown(document.body, { key: 'j' })
+    expect(await screen.findByText('Build a cell model', { selector: 'h2' })).toBeInTheDocument()
+    fireEvent.keyDown(document.body, { key: 'j' })
+    expect(await screen.findByText('Write a mitosis report', { selector: 'h2' })).toBeInTheDocument()
+    fireEvent.keyDown(document.body, { key: 'k' })
+    expect(await screen.findByText('Build a cell model', { selector: 'h2' })).toBeInTheDocument()
+    fireEvent.keyDown(document.body, { key: 'a' })
+    await waitFor(() => expect(api.post).toHaveBeenCalledWith('/api/sis/submissions/c1/review',
+      expect.objectContaining({ action: 'accepted' })))
+    fireEvent.keyDown(document.body, { key: 'Escape' })
+    await waitFor(() => expect(screen.queryByRole('region', { name: 'Submission grader' }))
+      .not.toBeInTheDocument())
+  })
+
+  it('a link to one submission opens it in the grader', async () => {
+    rtlRender(
+      <MemoryRouter initialEntries={['/submissions?completion_id=c2']}>
+        <SubmissionsPanel />
+      </MemoryRouter>,
+    )
+    expect(await screen.findByText('Write a mitosis report', { selector: 'h2' })).toBeInTheDocument()
   })
 })

@@ -127,6 +127,13 @@ def _school_students(org_id):
     return sis_service.current_student_ids(org_id)
 
 
+def _skips_bloomy(org_id):
+    """Has the school turned on "Skip work Bloomy already verified"?"""
+    from modules.enabled import org_flags
+    from services.external_learning_verification import skips_bloomy_in_inbox
+    return skips_bloomy_in_inbox(org_flags(org_id))
+
+
 def _match_class(completion, class_ids, enrolled, attached):
     """First class where the student is enrolled AND the quest is attached."""
     for cid in class_ids:
@@ -136,33 +143,43 @@ def _match_class(completion, class_ids, enrolled, attached):
     return None
 
 
-def _completion_in_scope(user_id, org_id, completion_id):
-    """(completion, error_response). Verifies the completion's student+quest sit
-    inside one of the caller's classes; otherwise a scope-safe 404."""
+def _scope_test(user_id, org_id):
+    """A predicate completion -> bool: does this submission sit in the caller's
+    inbox (one of their classes, a quest they gave by name, or -- at a school
+    that reviews all its students' work -- any current student's)? None when
+    nothing at all is in scope. Built once, so bulk review checks a whole
+    selection against one read of the caller's classes."""
     classes = _scope_classes(user_id, org_id)
     individual = _individual_pairs(user_id, org_id)
     school = _school_students(org_id)
     if not classes and not individual and not school:
-        return None, (jsonify({'success': False, 'error': 'Submission not found'}), 404)
-    # admin client justified: reads another student's quest_task_completions row, then verifies it sits inside one of the caller's scoped classes (404 otherwise)
-    admin = get_supabase_admin_client()
-    rows = (
-        admin.table('quest_task_completions')
-        .select('id, user_id, quest_id, user_quest_task_id, completed_at')
-        .eq('id', completion_id).limit(1).execute()
-    ).data or []
-    if not rows:
-        return None, (jsonify({'success': False, 'error': 'Submission not found'}), 404)
-    completion = rows[0]
-    if (completion['user_id'], completion.get('quest_id')) in individual:
-        return completion, None
-    if school and completion['user_id'] in school:
-        return completion, None
+        return None
     class_ids = list(classes.keys())
     enrolled, attached = _class_maps(class_ids) if class_ids else ({}, {})
-    if _match_class(completion, class_ids, enrolled, attached) is None:
-        return None, (jsonify({'success': False, 'error': 'Submission not found'}), 404)
-    return completion, None
+
+    def in_scope(completion):
+        if (completion['user_id'], completion.get('quest_id')) in individual:
+            return True
+        if school and completion['user_id'] in school:
+            return True
+        return _match_class(completion, class_ids, enrolled, attached) is not None
+
+    return in_scope
+
+
+def _completion_in_scope(user_id, org_id, completion_id):
+    """(completion, error_response). Verifies the completion's student+quest sit
+    inside one of the caller's classes; otherwise a scope-safe 404."""
+    not_found = (jsonify({'success': False, 'error': 'Submission not found'}), 404)
+    in_scope = _scope_test(user_id, org_id)
+    if in_scope is None:
+        return None, not_found
+    # admin client justified: reads another student's quest_task_completions row, then verifies it sits inside one of the caller's scoped classes (404 otherwise)
+    admin = get_supabase_admin_client()
+    rows = SisSubmissionRepository(admin).completions_by_ids([completion_id])
+    if not rows or not in_scope(rows[0]):
+        return None, not_found
+    return rows[0], None
 
 
 def _inbox(user_id, org_id, class_filter=None, student_filter=None):
@@ -213,6 +230,14 @@ def _inbox(user_id, org_id, class_filter=None, student_filter=None):
         all_quests = {c['quest_id'] for c in completions if c.get('quest_id')}
     else:
         completions = submissions_repo.completions_for(all_students, all_quests)
+    # A school may leave out work Bloomy already verified (ticket bc68a12e,
+    # Apogee Cache Valley): Bloomy only marks a skill mastered after its own
+    # assessment, so there is nothing left to review. Off by default; with it
+    # off this list is exactly what it was.
+    if _skips_bloomy(org_id):
+        from services.bloomy_sync_service import SOURCE_LABEL as BLOOMY_LABEL
+        from services.external_learning_verification import verified_by_platform
+        completions = [c for c in completions if not verified_by_platform(c, BLOOMY_LABEL)]
     # Oldest first, undated last (PostgREST's own default); id breaks ties so
     # the order, and so each page, is stable between loads.
     completions.sort(key=lambda c: (c.get('completed_at') is None,
@@ -430,34 +455,127 @@ def _search_pool(repo, pool, needle, student_ids, quest_ids):
             or c.get('quest_id') in matching_quests
             or c.get('user_quest_task_id') in matching_tasks]
 
+#: What a teacher can decide about a submission. 'grow_this' sends the work
+#: back with a note, the credit review's word for it (2026-10-15: the
+#: Submissions tab now reviews "like the credit-review process"). It is a
+#: review like an accept, so the submission leaves New; the student is told
+#: to revise and the note lands in the task's feedback thread.
+REVIEW_ACTIONS = ('accepted', 'grow_this')
+GROW_THIS = 'grow_this'
+#: The feedback thread's own limit (routes/credit_messages.py).
+MAX_NOTE_LENGTH = 4000
+#: One bulk accept at most: two pages of the queue the screen loads.
+BULK_REVIEW_LIMIT = 100
+
+
+def _review_row(org_id, completion_id, user_id, action):
+    return {
+        'organization_id': org_id,
+        'completion_id': completion_id,
+        'reviewed_by': user_id,
+        'action': action,
+        'reviewed_at': datetime.now(timezone.utc).isoformat(),
+    }
+
+
 @bp.route('/submissions/<completion_id>/review', methods=['POST'])
 @require_role(*STAFF_ROLES)
 def review_submission(user_id, completion_id):
-    """Mark a submission reviewed ({action}, default 'accepted'). Idempotent:
+    """Review a submission: {action: 'accepted'} (the default) or
+    {action: 'grow_this', feedback: '...'} to send it back with a note, which
+    is required and is posted to the task's feedback thread. Idempotent:
     re-reviewing updates the existing row (completion_id is UNIQUE)."""
     org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
+    body = request.get_json(silent=True) or {}
+    action = (body.get('action') or 'accepted').strip()
+    if action not in REVIEW_ACTIONS:
+        return jsonify({'success': False,
+                        'error': "action must be 'accepted' or 'grow_this'"}), 400
+    note = (body.get('feedback') or '').strip()
+    if action == GROW_THIS and not note:
+        return jsonify({'success': False,
+                        'error': 'Write the student a note to send the work back'}), 400
+    if len(note) > MAX_NOTE_LENGTH:
+        return jsonify({'success': False, 'error': 'The note is too long'}), 400
     completion, err = _completion_in_scope(user_id, org_id, completion_id)
     if err:
         return err
-    action = ((request.get_json(silent=True) or {}).get('action') or 'accepted').strip()
-    # admin client justified: upsert into staff-only sis_submission_reviews after _completion_in_scope verified the submission is in the caller's classes
+    # admin client justified: writes staff-only sis_submission_reviews (and the thread note) after _completion_in_scope verified the submission is in the caller's classes
     admin = get_supabase_admin_client()
+    repo = SisSubmissionRepository(admin)
     try:
-        saved = admin.table('sis_submission_reviews').upsert({
-            'organization_id': org_id,
-            'completion_id': completion_id,
-            'reviewed_by': user_id,
-            'action': action,
-            'reviewed_at': datetime.now(timezone.utc).isoformat(),
-        }, on_conflict='completion_id').execute()
+        # The note first: a send-back the student cannot read is worse than
+        # none, so a failed note leaves the submission in New.
+        if note:
+            from repositories.user_repository import UserRepository
+            from utils.roles import get_effective_role
+            reviewer = UserRepository(client=admin).find_by_id(user_id) or {}
+            repo.post_thread_note(completion_id, user_id,
+                                  get_effective_role(reviewer) or 'advisor', note)
+        saved = repo.save_reviews([_review_row(org_id, completion_id, user_id, action)])
     except Exception as e:
         logger.error(f"Error reviewing submission {completion_id}: {e}")
         return jsonify({'success': False, 'error': 'Failed to save review'}), 500
-    review = (saved.data or [None])[0]
+    review = (saved or [None])[0]
     _notify_reviewed(admin, completion, action, org_id)
     return jsonify({'success': True, 'review': review}), 201
+
+
+@bp.route('/submissions/bulk-review', methods=['POST'])
+@require_role(*STAFF_ROLES)
+def bulk_review_submissions(user_id):
+    """Accept several submissions at once: {completion_ids: [...]}.
+
+    Accept only. Sending work back needs a note written for that one student,
+    which is the credit review's rule too (its bulk bar approves, never
+    returns). Every id is checked against the caller's own inbox; one outside
+    it is skipped, never written, and comes back in `skipped` with ids that do
+    not exist, so the answer does not say which is which. One already
+    accepted is skipped as well, so the student is not told twice.
+    """
+    org_id, err = sis_service.org_or_error(user_id)
+    if err:
+        return err
+    body = request.get_json(silent=True) or {}
+    raw = body.get('completion_ids')
+    if not isinstance(raw, list) or not raw:
+        return jsonify({'success': False, 'error': 'completion_ids must be a non-empty list'}), 400
+    ids = list(dict.fromkeys(str(i) for i in raw if i))
+    if len(ids) > BULK_REVIEW_LIMIT:
+        return jsonify({'success': False,
+                        'error': f'Accept at most {BULK_REVIEW_LIMIT} at a time'}), 400
+    action = (body.get('action') or 'accepted').strip()
+    if action != 'accepted':
+        return jsonify({'success': False,
+                        'error': 'Bulk review only accepts; send work back one at a time'}), 400
+
+    in_scope = _scope_test(user_id, org_id)
+    if in_scope is None:
+        return jsonify({'success': True, 'reviewed': [], 'skipped': ids, 'reviews': []})
+    # admin client justified: reads the selected completions and writes staff-only sis_submission_reviews, each one checked against the caller's inbox scope first
+    admin = get_supabase_admin_client()
+    repo = SisSubmissionRepository(admin)
+    completions = [c for c in repo.completions_by_ids(ids) if in_scope(c)]
+    already = {r['completion_id'] for r in repo.reviews_for(c['id'] for c in completions)
+               if r.get('action') == 'accepted'}
+    to_review = [c for c in completions if c['id'] not in already]
+    if not to_review:
+        return jsonify({'success': True, 'reviewed': [], 'skipped': ids, 'reviews': []})
+    try:
+        saved = repo.save_reviews(
+            [_review_row(org_id, c['id'], user_id, action) for c in to_review])
+    except Exception as e:
+        logger.error(f"Error bulk-reviewing {len(to_review)} submissions: {e}")
+        return jsonify({'success': False, 'error': 'Failed to save reviews'}), 500
+    for c in to_review:
+        _notify_reviewed(admin, c, action, org_id)
+    reviewed = [c['id'] for c in to_review]
+    done = set(reviewed)
+    return jsonify({'success': True, 'reviewed': reviewed,
+                    'skipped': [i for i in ids if i not in done],
+                    'reviews': saved or []}), 201
 
 
 def _notify_reviewed(admin, completion, action, org_id):
