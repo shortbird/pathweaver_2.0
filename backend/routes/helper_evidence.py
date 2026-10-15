@@ -28,6 +28,7 @@ from repositories import (
 )
 from services.portfolio_service import PortfolioService
 from utils.logger import get_logger
+from utils.retry_handler import is_retryable_error
 from utils.storage_urls import canonical_stored_url
 
 logger = get_logger(__name__)
@@ -254,6 +255,11 @@ def upload_evidence_for_student(user_id):
     except NotFoundError as e:
         return jsonify({'success': False, 'error': str(e)}), 404
     except Exception as e:
+        if is_retryable_error(e):
+            # A Supabase blip: let the global handler answer 503 + Retry-After
+            # with a warning (e6e32e154). Answering 500 here filed a Sentry
+            # error for an outage (ticket 79e84902).
+            raise
         logger.error(f"Error uploading helper evidence: {str(e)}")
         return jsonify({'success': False, 'error': 'Failed to upload evidence'}), 500
 
@@ -375,6 +381,11 @@ def upload_evidence_batch(user_id):
     except NotFoundError as e:
         return jsonify({'success': False, 'error': str(e)}), 404
     except Exception as e:
+        if is_retryable_error(e):
+            # A Supabase blip: let the global handler answer 503 + Retry-After
+            # with a warning (e6e32e154). Answering 500 here filed a Sentry
+            # error for an outage (ticket 79e84902).
+            raise
         logger.error(f"Error uploading helper evidence batch: {str(e)}")
         return jsonify({'success': False, 'error': 'Failed to upload evidence'}), 500
 
@@ -530,6 +541,11 @@ def delete_helper_evidence_block(user_id, block_id):
     except NotFoundError as e:
         return jsonify({'success': False, 'error': str(e)}), 404
     except Exception as e:
+        if is_retryable_error(e):
+            # A Supabase blip: let the global handler answer 503 + Retry-After
+            # with a warning (e6e32e154). Answering 500 here filed a Sentry
+            # error for an outage (ticket 79e84902).
+            raise
         logger.error(f"Error deleting helper evidence block: {str(e)}")
         return jsonify({'success': False, 'error': 'Failed to remove evidence'}), 500
 
@@ -617,6 +633,11 @@ def get_student_tasks_for_evidence(user_id, student_id):
     except NotFoundError as e:
         return jsonify({'success': False, 'error': str(e)}), 404
     except Exception as e:
+        if is_retryable_error(e):
+            # A Supabase blip: let the global handler answer 503 + Retry-After
+            # with a warning (e6e32e154). Answering 500 here filed a Sentry
+            # error for an outage (ticket 79e84902).
+            raise
         logger.error(f"Error getting student tasks: {str(e)}")
         return jsonify({'success': False, 'error': 'Failed to get student tasks'}), 500
 
@@ -704,6 +725,11 @@ def helper_signed_upload_init(user_id):
     except NotFoundError as e:
         return jsonify({'success': False, 'error': str(e)}), 404
     except Exception as e:
+        if is_retryable_error(e):
+            # A Supabase blip: let the global handler answer 503 + Retry-After
+            # with a warning (e6e32e154). Answering 500 here filed a Sentry
+            # error for an outage (ticket 79e84902).
+            raise
         logger.error(f"Error in helper_signed_upload_init: {str(e)}")
         return jsonify({'success': False, 'error': 'Failed to create upload session'}), 500
 
@@ -777,5 +803,10 @@ def helper_signed_upload_finalize(user_id):
     except NotFoundError as e:
         return jsonify({'success': False, 'error': str(e)}), 404
     except Exception as e:
+        if is_retryable_error(e):
+            # A Supabase blip: let the global handler answer 503 + Retry-After
+            # with a warning (e6e32e154). Answering 500 here filed a Sentry
+            # error for an outage (ticket 79e84902).
+            raise
         logger.error(f"Error in helper_signed_upload_finalize: {str(e)}")
         return jsonify({'success': False, 'error': 'Failed to finalize upload'}), 500

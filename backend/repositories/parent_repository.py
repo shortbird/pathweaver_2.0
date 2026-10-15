@@ -13,6 +13,7 @@ from typing import Dict, Optional, Any
 from repositories.base_repository import BaseRepository, NotFoundError
 from utils.logger import get_logger
 from utils.pagination import fetch_page
+from utils.retry_handler import is_retryable_error
 
 logger = get_logger(__name__)
 
@@ -60,6 +61,14 @@ class ParentRepository(BaseRepository):
             from utils.portfolio_access import is_parent_of
             return is_parent_of(parent_id, student_id)
         except Exception as e:
+            # A Supabase gateway blip is not a "no". Answering False turned a
+            # PostgREST 502 ('JSON could not be generated') into a 403 "You do
+            # not have access" for a parent deleting her own upload (ticket
+            # 79e84902, a missed case of e6e32e154). Re-raise it so the global
+            # handler answers 503 + Retry-After and logs a warning.
+            if is_retryable_error(e):
+                logger.warning(f"Transient error checking parent-student link: {e}")
+                raise
             logger.error(f"Error checking parent-student link: {e}")
             return False
 
@@ -254,5 +263,10 @@ class ParentRepository(BaseRepository):
 
             return bool(result.data)
         except Exception as e:
+            # Same shape as is_linked (ticket 79e84902): an outage is not "no
+            # link", so a retryable error is re-raised instead of answered False.
+            if is_retryable_error(e):
+                logger.warning(f"Transient error checking link existence: {e}")
+                raise
             logger.error(f"Error checking link existence: {e}")
             return False
