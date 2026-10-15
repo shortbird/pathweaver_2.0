@@ -556,3 +556,69 @@ class TestCreatingAGroupInAnotherOrg:
         ]
         svc.create_group('kate', 'Book club')
         assert table.insert.call_args_list[0][0][0]['audience'] == 'staff'
+
+
+def _require_role_views(module):
+    """Every view in a route module with the @require_role(...) line above it,
+    as {view_name: decorator_line}. Read off the source so a route added later
+    is checked without anyone remembering to list it here."""
+    import inspect
+    lines = inspect.getsource(module).split('\n')
+    views = {}
+    for i, line in enumerate(lines):
+        if line.startswith('def '):
+            name = line[4:line.index('(')]
+            for back in range(i - 1, max(0, i - 5), -1):
+                if 'require_role' in lines[back]:
+                    views[name] = lines[back]
+                    break
+    return views
+
+
+@pytest.mark.unit
+class TestTheBountyBoardAdmitsCoordinators:
+    """Tickets b6f8897f / 1f05134c (Sentry, Apogee Cache Valley): a campus
+    coordinator opening /bounties got 403 from GET /api/bounties and
+    GET /api/bounties/my-posted. Every @require_role list in routes/bounties.py
+    named org_admin but not campus_coordinator, though bounty_service already
+    treats a coordinator as staff (_is_staff_user, can_manage) and the SIS
+    Bounties page sends coordinators to create, view and edit. A coordinator is
+    an org admin minus the finances; bounties are not finances.
+    """
+
+    def test_every_bounty_view_that_admits_org_admin_admits_a_coordinator(self):
+        from routes import bounties
+        views = _require_role_views(bounties)
+        org_admin_views = [v for v, line in views.items() if "'org_admin'" in line]
+        # Guard the scan itself: if it finds nothing, the assert below is vacuous.
+        assert {'list_bounties', 'get_my_posted'} <= set(org_admin_views)
+        missing = [v for v in org_admin_views if not _admits_coordinator(bounties, v)]
+        assert missing == []
+
+    def test_moderation_stays_superadmin_only(self):
+        from routes import bounties
+        assert not _admits_coordinator(bounties, 'moderate_bounty')
+        assert _require_role_line(bounties, 'moderate_bounty').strip() == "@require_role('superadmin')"
+
+    def test_a_coordinator_can_list_the_board(self):
+        """The request the ticket reported, end to end through the decorator."""
+        from flask import Flask
+        from routes.bounties import bounties_bp
+
+        app = Flask(__name__)
+        app.register_blueprint(bounties_bp)
+        users = Mock()
+        users.table.return_value.select.return_value.eq.return_value.execute.return_value = Mock(
+            data=[{'role': 'org_managed', 'org_role': 'campus_coordinator',
+                   'org_roles': ['campus_coordinator']}])
+        service = Mock()
+        service.list_bounties.return_value = [{'id': 'b-1'}]
+        with patch('utils.auth.decorators.session_manager') as sm, \
+             patch('database.get_supabase_admin_client', return_value=users), \
+             patch('utils.auth.decorators.apply_role_view', side_effect=lambda u, user_id=None: u), \
+             patch('routes.bounties.BountyService', return_value=service):
+            sm.get_effective_user_id.return_value = 'coord-1'
+            resp = app.test_client().get('/api/bounties')
+        assert resp.status_code == 200
+        assert resp.get_json()['bounties'] == [{'id': 'b-1'}]
+        service.list_bounties.assert_called_once_with(user_id='coord-1', pillar=None, bounty_type=None)

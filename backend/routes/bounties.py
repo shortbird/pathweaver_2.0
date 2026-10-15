@@ -19,7 +19,7 @@ bounties_bp = Blueprint('bounties', __name__)
 
 
 @bounties_bp.route('/api/bounties', methods=['POST', 'OPTIONS'])
-@require_role('parent', 'advisor', 'org_admin', 'observer', 'superadmin')
+@require_role('parent', 'advisor', 'org_admin', 'campus_coordinator', 'observer', 'superadmin')
 @rate_limit(limit=30, per=3600, per_user=True)
 def create_bounty(user_id):
     """Create a new bounty with deliverables."""
@@ -41,7 +41,7 @@ def create_bounty(user_id):
 
 
 @bounties_bp.route('/api/bounties/ai-draft', methods=['POST', 'OPTIONS'])
-@require_role('parent', 'advisor', 'org_admin', 'observer', 'superadmin')
+@require_role('parent', 'advisor', 'org_admin', 'campus_coordinator', 'observer', 'superadmin')
 @rate_limit(limit=20, per=3600, per_user=True)
 def draft_bounty_ideas(user_id):
     """AI-draft bounty ideas from a poster's plain-language intent.
@@ -87,7 +87,7 @@ def draft_bounty_ideas(user_id):
 
 
 @bounties_bp.route('/api/bounties', methods=['GET', 'OPTIONS'])
-@require_role('student', 'parent', 'advisor', 'org_admin', 'observer', 'superadmin')
+@require_role('student', 'parent', 'advisor', 'org_admin', 'campus_coordinator', 'observer', 'superadmin')
 def list_bounties(user_id):
     """List active bounties with optional filters."""
     try:
@@ -105,7 +105,7 @@ def list_bounties(user_id):
 
 
 @bounties_bp.route('/api/bounties/<bounty_id>', methods=['GET', 'OPTIONS'])
-@require_role('student', 'parent', 'advisor', 'org_admin', 'observer', 'superadmin')
+@require_role('student', 'parent', 'advisor', 'org_admin', 'campus_coordinator', 'observer', 'superadmin')
 def get_bounty(user_id, bounty_id):
     """Get bounty details with claims (if poster). Visibility-checked: a
     bounty the viewer couldn't see on their board 404s here too."""
@@ -122,7 +122,7 @@ def get_bounty(user_id, bounty_id):
 
 
 @bounties_bp.route('/api/bounties/<bounty_id>', methods=['DELETE', 'OPTIONS'])
-@require_role('parent', 'advisor', 'org_admin', 'observer', 'superadmin')
+@require_role('parent', 'advisor', 'org_admin', 'campus_coordinator', 'observer', 'superadmin')
 @rate_limit(limit=60, per=3600, per_user=True)
 def delete_bounty(user_id, bounty_id):
     """Delete a bounty (poster or superadmin only). Students with live claims
@@ -142,7 +142,7 @@ def delete_bounty(user_id, bounty_id):
 
 
 @bounties_bp.route('/api/bounties/<bounty_id>', methods=['PUT', 'OPTIONS'])
-@require_role('parent', 'advisor', 'org_admin', 'observer', 'superadmin')
+@require_role('parent', 'advisor', 'org_admin', 'campus_coordinator', 'observer', 'superadmin')
 @rate_limit(limit=60, per=3600, per_user=True)
 def update_bounty(user_id, bounty_id):
     """Update a bounty (poster only)."""
@@ -166,7 +166,7 @@ def update_bounty(user_id, bounty_id):
 
 
 @bounties_bp.route('/api/bounties/<bounty_id>/claim', methods=['POST', 'OPTIONS'])
-@require_role('student', 'advisor', 'org_admin', 'superadmin')
+@require_role('student', 'advisor', 'org_admin', 'campus_coordinator', 'superadmin')
 @rate_limit(limit=60, per=3600, per_user=True)
 def claim_bounty(user_id, bounty_id):
     """Claim a bounty."""
@@ -186,7 +186,7 @@ def claim_bounty(user_id, bounty_id):
 
 
 @bounties_bp.route('/api/bounties/<bounty_id>/claims/<claim_id>/deliverables', methods=['PUT', 'OPTIONS'])
-@require_role('student', 'advisor', 'org_admin', 'superadmin')
+@require_role('student', 'advisor', 'org_admin', 'campus_coordinator', 'superadmin')
 @rate_limit(limit=240, per=3600, per_user=True)
 def toggle_deliverable(user_id, bounty_id, claim_id):
     """Toggle a deliverable as completed/uncompleted with evidence. The student
@@ -218,7 +218,7 @@ def toggle_deliverable(user_id, bounty_id, claim_id):
 
 
 @bounties_bp.route('/api/bounties/<bounty_id>/claims/<claim_id>/turn-in', methods=['POST', 'OPTIONS'])
-@require_role('student', 'advisor', 'org_admin', 'superadmin')
+@require_role('student', 'advisor', 'org_admin', 'campus_coordinator', 'superadmin')
 @rate_limit(limit=60, per=3600, per_user=True)
 def turn_in_bounty(user_id, bounty_id, claim_id):
     """Student turns in a bounty for review."""
@@ -242,7 +242,7 @@ def turn_in_bounty(user_id, bounty_id, claim_id):
 
 
 @bounties_bp.route('/api/bounties/<bounty_id>/claims/<claim_id>', methods=['DELETE', 'OPTIONS'])
-@require_role('student', 'advisor', 'org_admin', 'superadmin')
+@require_role('student', 'advisor', 'org_admin', 'campus_coordinator', 'superadmin')
 @rate_limit(limit=60, per=3600, per_user=True)
 def abandon_claim(user_id, bounty_id, claim_id):
     """Student drops a bounty they claimed (before turning it in)."""
@@ -260,7 +260,7 @@ def abandon_claim(user_id, bounty_id, claim_id):
 
 
 @bounties_bp.route('/api/bounties/<bounty_id>/claims/<claim_id>/evidence/<deliverable_id>/<int:evidence_index>', methods=['DELETE', 'OPTIONS'])
-@require_role('student', 'advisor', 'org_admin', 'superadmin')
+@require_role('student', 'advisor', 'org_admin', 'campus_coordinator', 'superadmin')
 @rate_limit(limit=120, per=3600, per_user=True)
 def delete_deliverable_evidence(user_id, bounty_id, claim_id, deliverable_id, evidence_index):
     """Delete a specific evidence item from a deliverable."""
@@ -285,7 +285,7 @@ def delete_deliverable_evidence(user_id, bounty_id, claim_id, deliverable_id, ev
 
 
 @bounties_bp.route('/api/bounties/<bounty_id>/review/<claim_id>', methods=['POST', 'OPTIONS'])
-@require_role('parent', 'advisor', 'org_admin', 'observer', 'superadmin')
+@require_role('parent', 'advisor', 'org_admin', 'campus_coordinator', 'observer', 'superadmin')
 @rate_limit(limit=60, per=3600, per_user=True)
 def review_submission(user_id, bounty_id, claim_id):
     """Review a bounty submission."""
@@ -314,7 +314,7 @@ def review_submission(user_id, bounty_id, claim_id):
 
 
 @bounties_bp.route('/api/bounties/my-posted', methods=['GET', 'OPTIONS'])
-@require_role('parent', 'advisor', 'org_admin', 'observer', 'superadmin')
+@require_role('parent', 'advisor', 'org_admin', 'campus_coordinator', 'observer', 'superadmin')
 def get_my_posted(user_id):
     """Get bounties posted by the current user, with claims.
 
@@ -334,7 +334,7 @@ def get_my_posted(user_id):
 
 
 @bounties_bp.route('/api/bounties/my-claims', methods=['GET', 'OPTIONS'])
-@require_role('student', 'advisor', 'org_admin', 'superadmin')
+@require_role('student', 'advisor', 'org_admin', 'campus_coordinator', 'superadmin')
 def get_my_claims(user_id):
     """Get bounties claimed by current user, enriched with bounty data."""
     try:
