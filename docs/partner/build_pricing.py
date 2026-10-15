@@ -3,7 +3,7 @@
 Usage:
     python3 build_pricing.py
 
-Writes Optio_Microschool_Pricing.pdf to the Desktop, and the HTML it prints
+Writes Optio_Microschool_Pricing.pdf to ~/Desktop/Optio Docs, and the HTML it prints
 from plus page previews (PNG) to a temp directory for a visual check. Prices
 live in PRICES; the worked examples are computed from them, so a price change
 is one edit.
@@ -15,7 +15,7 @@ import tempfile
 
 REPO = "/Users/optio/pathweaver_2.0"
 CHROME = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
-OUT_DIR = os.path.expanduser("~/Desktop")
+OUT_DIR = os.path.expanduser("~/Desktop/Optio Docs")
 
 # Every price comes from Optio's price list, shared/data/pricing.json, the same
 # list the website, the agreement and the app read (2026-10-13). This sheet
@@ -34,6 +34,8 @@ PRICES = {
     "credit_school": _P["licensed"]["creditCents"] // 100,
     "credit_accelerated": _P["accelerated"]["creditCents"] // 100,  # never discounted
     "license_year": _P["licensed"]["licensePerStudentYearCents"] // 100,
+    # One price for every student, private or licensed (2026-10-14).
+    "transfer_unaccredited": _P["transfer"]["unaccreditedCreditCents"] // 100,
     "diploma_credits": _C["totalCreditsRequired"],
     "max_transfer": _P["transfer"]["maxTransferCredits"],
 }
@@ -71,11 +73,9 @@ def values():
         "SCHOOL_CREDITS_DIPLOMA": money(p["credit_school"] * p["diploma_credits"]),
         "SCHOOL_DIPLOMA": money(school_year * years),
         "SAVE_DIPLOMA": money((private_year - school_year) * years),
-        "EX_PRIVATE_EXTRA": money(p["credit_accelerated"] * 2),
-        "EX_SCHOOL_EXTRA": money(p["credit_accelerated"] * 2),
         "CREDIT_ACCELERATED": money(p["credit_accelerated"]),
-        "EX_PRIVATE_REVIEW": money(p["credit_private"] * 5),
-        "EX_SCHOOL_REVIEW": money(p["credit_school"] * 5),
+        "TRANSFER_UNACCREDITED": money(p["transfer_unaccredited"]),
+        "TRANSFER_UNACCREDITED_HALF": money(p["transfer_unaccredited"] / 2),
     }
 
 
@@ -159,15 +159,15 @@ PAGE = """<!doctype html>
     <tr><td>Credits earned at Optio</td><td class="num">{{CREDIT_PRIVATE}} a credit</td><td class="num school">{{CREDIT_SCHOOL}} a credit</td></tr>
     <tr><td>Extra credits, to finish faster</td><td class="num">{{CREDIT_ACCELERATED}} a credit</td><td class="num school">{{CREDIT_ACCELERATED}} a credit</td></tr>
     <tr><td>Transfer from an accredited school</td><td class="num">Free</td><td class="num school">Free</td></tr>
-    <tr><td>Transfer from a school that is not accredited</td><td class="num">{{CREDIT_PRIVATE}} a credit</td><td class="num school">{{CREDIT_SCHOOL}} a credit</td></tr>
+    <tr><td>Transfer from a school that is not accredited</td><td class="num">{{TRANSFER_UNACCREDITED}} a credit</td><td class="num school">{{TRANSFER_UNACCREDITED}} a credit</td></tr>
   </tbody>
 </table>
-<p>A licensed student in your program pays half the private pay price for credits earned through Optio and for transfer credit Optio Academy reviews. Extra credits, to finish faster, are the same price for every student.</p>
+<p>A licensed student in your program pays half the private pay price for credits earned through Optio. Extra credits, to finish faster, and transfer credit Optio Academy reviews are the same price for every student. Transfer credit is billed by the half credit ({{TRANSFER_UNACCREDITED_HALF}} each).</p>
 
 <div class="keep">
 <h2>Credit transfers</h2>
-<p><strong>From an accredited school.</strong> Upload the student's transcript in Optio. Optio Academy adds the credits to the student's transcript. There is no charge.</p>
-<p><strong>From a school that is not accredited.</strong> This includes homeschool, co-ops, online programs and microschools without accreditation. Upload the transcript or progress reports, a short description of each class (what the student studied, about how many hours, and how the work was graded), and any samples of the student's work. An Optio Academy teacher reviews each class and decides how much credit it is worth. Approved credits go on the student's Optio Academy transcript as accredited credit.</p>
+<p><strong>From an accredited school.</strong> The family uploads the transcript on the Prior Learning page in Optio. Optio Academy adds the credits to the student's transcript. There is no charge.</p>
+<p><strong>From a school that is not accredited.</strong> This includes homeschool, co-ops, online programs and microschools without accreditation. The family uploads the transcript or progress reports on the same page, with a short description of each class (what the student studied, about how many hours, and how the work was graded), and any samples of the student's work. An Optio Academy teacher reviews each class and decides how much credit it is worth. Approved credits go on the student's Optio Academy transcript as accredited credit.</p>
 <p>Transfers from both kinds of school count toward the same limit: {{MAX_TRANSFER}} credits at most, so at least {{MIN_OPTIO}} of the {{DIPLOMA_CREDITS}} credits are earned through Optio.</p>
 </div>
 
@@ -186,17 +186,6 @@ PAGE = """<!doctype html>
 <div class="callout"><p>Your licensed student saves <strong>{{SAVE_YEAR}} a year</strong> and <strong>{{SAVE_DIPLOMA}} over a full diploma</strong>, and that total includes the Optio license. The license also gives the student the full Optio app for the year.</p></div>
 </div>
 
-<div class="keep">
-<h2>Two more examples</h2>
-<table>
-  <thead><tr><th style="width:40%"></th><th class="num" style="width:24%">Private pay family</th><th class="num" style="width:36%">Student on your school's license</th></tr></thead>
-  <tbody>
-    <tr><td>2 extra credits in one year, to finish early</td><td class="num">{{EX_PRIVATE_EXTRA}}</td><td class="num school">{{EX_SCHOOL_EXTRA}}</td></tr>
-    <tr><td>5 credits transferred from a school that is not accredited</td><td class="num">{{EX_PRIVATE_REVIEW}}</td><td class="num school">{{EX_SCHOOL_REVIEW}}</td></tr>
-    <tr><td>5 credits transferred from an accredited school</td><td class="num">Free</td><td class="num school">Free</td></tr>
-  </tbody>
-</table>
-</div>
 
 <div class="footer">
   Optio Academy is accredited by the Accrediting Commission for Schools, Western Association of Schools and Colleges, 533 Airport Blvd., Suite 200, Burlingame, CA 94010, www.acswasc.org.
