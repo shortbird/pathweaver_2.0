@@ -27,6 +27,22 @@ VALID_INVITATION_ROLES = ['student', 'parent', 'advisor', 'org_admin', 'observer
 STANDING_LINK_ROLES = ['student', 'parent', 'advisor']
 
 
+def _other_org(current_org_id, is_superadmin, org_id):
+    """A 404 when the URL names an org that is not the caller's, else None.
+
+    The decorators authorize the caller's ROLE and pass their real org in
+    `current_org_id`; every handler here then scoped its queries on the URL's
+    `org_id`, which the caller chooses. Until 2026-10-15 nothing compared the
+    two, so an admin of one school could list another school's pending
+    invitations and standing join links -- or invite themselves into it as an
+    org_admin. Same check, same 404, as org_connections._guard_org.
+    """
+    if is_superadmin or str(current_org_id) == str(org_id):
+        return None
+    logger.warning(f"Cross-org invitation access blocked: caller org={current_org_id} attempted org={org_id}")
+    return jsonify({'error': 'Organization not found'}), 404
+
+
 def get_role_with_article(role):
     """Return role with correct article (a/an)."""
     vowel_roles = ['advisor', 'observer', 'org_admin']
@@ -57,6 +73,10 @@ def get_org_invitations(current_user_id, current_org_id, is_superadmin, org_id):
     Query params:
         status: Filter by status (pending, accepted, expired, cancelled)
     """
+    guard = _other_org(current_org_id, is_superadmin, org_id)
+    if guard:
+        return guard
+
     try:
         # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
         supabase = get_supabase_admin_client()
@@ -102,225 +122,6 @@ def get_org_invitations(current_user_id, current_org_id, is_superadmin, org_id):
         return jsonify({'error': 'Failed to fetch invitations'}), 500
 
 
-@bp.route('/<org_id>/invitations/parent', methods=['POST'])
-@require_org_admin
-@rate_limit(max_requests=20, window_seconds=300)  # 20 invitations per 5 minutes
-def create_parent_invitation(current_user_id, current_org_id, is_superadmin, org_id):
-    """
-    Create and send a parent invitation with student links
-
-    Body:
-        email: Email address to invite
-        name: Name of the person being invited (optional)
-        student_ids: List of student UUIDs to auto-link upon acceptance
-        send_email: Whether to send email (default: true)
-    """
-    try:
-        data = request.json
-        user_id = current_user_id
-
-        # Validate required fields
-        email = data.get('email', '').strip().lower()
-        if not email:
-            return jsonify({'error': 'Email is required'}), 400
-
-        if not validate_email(email):
-            return jsonify({'error': 'Invalid email format'}), 400
-
-        student_ids = data.get('student_ids', [])
-        if not student_ids or not isinstance(student_ids, list):
-            return jsonify({'error': 'At least one student must be selected'}), 400
-
-        invited_name = sanitize_input(data.get('name', ''))
-        send_email = data.get('send_email', True)
-
-        # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
-        supabase = get_supabase_admin_client()
-
-        # Validate student_ids belong to org and have student role
-        students_result = supabase.table('users') \
-            .select('id, first_name, last_name, org_role') \
-            .eq('organization_id', org_id) \
-            .in_('id', student_ids) \
-            .execute()
-
-        valid_students = [s for s in students_result.data if s.get('org_role') == 'student']
-        if len(valid_students) != len(student_ids):
-            return jsonify({'error': 'One or more students are invalid or not in this organization'}), 400
-
-        # Check if user already exists in this organization
-        existing_in_org = supabase.table('users') \
-            .select('id, email') \
-            .eq('email', email) \
-            .eq('organization_id', org_id) \
-            .execute()
-
-        if existing_in_org.data:
-            return jsonify({'error': 'User is already a member of this organization'}), 409
-
-        # Check if user has an Optio account (but not in this org)
-        # If so, add them directly without sending invitation email
-        existing_user = supabase.table('users') \
-            .select('id, email, first_name, last_name') \
-            .eq('email', email) \
-            .execute()
-
-        if existing_user.data:
-            # User already has an account - add them to org and link to students directly
-            user = existing_user.data[0]
-            user_id = user['id']
-
-            # Update user's organization and role
-            supabase.table('users') \
-                .update({
-                    'organization_id': org_id,
-                    'role': 'org_managed',
-                    'org_role': 'parent'
-                }) \
-                .eq('id', user_id) \
-                .execute()
-
-            # Create parent-student links
-            linked_students = _create_parent_student_links(
-                supabase, user_id, student_ids, org_id
-            )
-
-            logger.info(f"Added existing user {email} to org {org_id} as parent and linked to {len(linked_students)} students")
-
-            return jsonify({
-                'success': True,
-                'existing_user': True,
-                'user_added': True,
-                'linked_students': linked_students,
-                'message': f'{user["first_name"]} {user["last_name"]} has been added to your organization and connected to their student(s).'
-            }), 200
-
-        # Check for existing pending invitation
-        existing_invitation = supabase.table('org_invitations') \
-            .select('id, status, expires_at') \
-            .eq('organization_id', org_id) \
-            .eq('email', email) \
-            .eq('status', 'pending') \
-            .execute()
-
-        # A pending invitation for this email is replaced, not refused: the
-        # new one gets a fresh code and seven more days, and the email goes
-        # out again. It used to answer 409 "A pending invitation already
-        # exists" until the old one ran out, and students and parents had no
-        # Resend button, so a lost email meant waiting a week (2026-10-06).
-        # The old code stops working; only the newest link is live.
-        replaced = False
-        for inv in existing_invitation.data or []:
-            supabase.table('org_invitations') \
-                .update({'status': 'expired'}) \
-                .eq('id', inv['id']) \
-                .execute()
-            replaced = True
-
-        # Get organization details
-        org_result = supabase.table('organizations') \
-            .select('name, slug') \
-            .eq('id', org_id) \
-            .single() \
-            .execute()
-
-        if not org_result.data:
-            return jsonify({'error': 'Organization not found'}), 404
-
-        org_name = org_result.data['name']
-
-        # Get inviter name
-        inviter_result = supabase.table('users') \
-            .select('display_name, first_name, last_name') \
-            .eq('id', user_id) \
-            .single() \
-            .execute()
-
-        inviter_name = 'The team'
-        if inviter_result.data:
-            user_data = inviter_result.data
-            inviter_name = user_data.get('display_name') or \
-                          f"{user_data.get('first_name', '')} {user_data.get('last_name', '')}".strip() or \
-                          'The team'
-
-        # Generate invitation code and expiration
-        invitation_code = generate_invitation_code()
-        expires_at = datetime.utcnow() + timedelta(days=7)
-
-        # Build student names for email
-        student_names = [f"{s['first_name']} {s['last_name']}" for s in valid_students]
-        student_names_str = ', '.join(student_names[:-1]) + (' and ' if len(student_names) > 1 else '') + student_names[-1] if len(student_names) > 1 else student_names[0]
-
-        # Create invitation record with metadata
-        invitation_data = {
-            'organization_id': org_id,
-            'email': email,
-            'invited_name': invited_name,
-            'role': 'parent',
-            'invitation_code': invitation_code,
-            'invited_by': user_id,
-            'status': 'pending',
-            'expires_at': expires_at.isoformat(),
-            'metadata': {
-                'invitation_type': 'parent',
-                'student_ids': student_ids
-            }
-        }
-
-        result = supabase.table('org_invitations').insert(invitation_data).execute()
-
-        if not result.data:
-            return jsonify({'error': 'Failed to create invitation'}), 500
-
-        invitation = result.data[0]
-
-        # Send email if requested
-        email_sent = False
-        if send_email:
-            try:
-                from app_config import Config
-                frontend_url = Config.FRONTEND_URL
-                invitation_link = f"{frontend_url}/invitation/{invitation_code}"
-
-                from services.email_service import EmailService
-                email_service = EmailService()
-
-                # Use the org_parent_invitation template
-                email_sent = email_service.send_templated_email(
-                    to_email=email,
-                    subject=f"{org_name} invites you to connect with {student_names_str} on Optio",
-                    template_name='org_parent_invitation',
-                    context={
-                        'invited_name': invited_name or 'there',
-                        'inviter_name': inviter_name,
-                        'org_name': org_name,
-                        'student_names': student_names_str,
-                        'student_count': len(valid_students),
-                        'invitation_link': invitation_link,
-                        'expires_days': 7
-                    }
-                )
-
-                if not email_sent:
-                    logger.warning(f"Failed to send parent invitation email to {email}")
-
-            except Exception as e:
-                logger.error(f"Error sending parent invitation email: {e}")
-
-        return jsonify({
-            'success': True,
-            'invitation': invitation,
-            'email_sent': email_sent,
-            'students': valid_students,
-            'replaced': replaced,
-            'message': 'Invitation sent again' if replaced else 'Parent invitation created successfully'
-        }), 201
-
-    except Exception as e:
-        logger.error(f"Failed to create parent invitation for org {org_id}: {e}")
-        return jsonify({'error': 'Failed to create parent invitation'}), 500
-
-
 @bp.route('/<org_id>/invitations', methods=['POST'])
 @require_org_front_office
 @rate_limit(max_requests=20, window_seconds=300)  # 20 invitations per 5 minutes
@@ -334,6 +135,10 @@ def create_invitation(current_user_id, current_org_id, is_superadmin, org_id):
         role: Role to assign (student, parent, advisor, org_admin, observer)
         send_email: Whether to send email (default: true)
     """
+    guard = _other_org(current_org_id, is_superadmin, org_id)
+    if guard:
+        return guard
+
     try:
         data = request.json
         user_id = current_user_id
@@ -494,6 +299,10 @@ def resend_invitation(current_user_id, current_org_id, is_superadmin, org_id, in
     """
     Resend an invitation email and optionally extend expiration
     """
+    guard = _other_org(current_org_id, is_superadmin, org_id)
+    if guard:
+        return guard
+
     try:
         # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
         supabase = get_supabase_admin_client()
@@ -606,6 +415,10 @@ def generate_invitation_link(current_user_id, current_org_id, is_superadmin, org
     Returns:
         201: Invitation link created with shareable_link
     """
+    guard = _other_org(current_org_id, is_superadmin, org_id)
+    if guard:
+        return guard
+
     try:
         data = request.json or {}
         user_id = current_user_id
@@ -703,6 +516,10 @@ def get_standing_invitation_links(current_user_id, current_org_id, is_superadmin
     'pending' with a far-future expiry instead of minting a new code, so links
     already shared with families keep working.
     """
+    guard = _other_org(current_org_id, is_superadmin, org_id)
+    if guard:
+        return guard
+
     try:
         # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
         supabase = get_supabase_admin_client()
@@ -785,6 +602,10 @@ def cancel_invitation(current_user_id, current_org_id, is_superadmin, org_id, in
     """
     Cancel a pending invitation
     """
+    guard = _other_org(current_org_id, is_superadmin, org_id)
+    if guard:
+        return guard
+
     try:
         # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
         supabase = get_supabase_admin_client()
@@ -990,55 +811,10 @@ def validate_invitation_code(invitation_code):
         return jsonify({'valid': False, 'error': 'Failed to validate invitation'}), 500
 
 
-@bp.route('/invitations/check-email', methods=['POST'])
-# Keyed per IP: a family on shared school/carrier wifi shares one bucket, and the
-# debounced email field fires a check per pause — 10/min starved real signups.
-@rate_limit(max_requests=30, window_seconds=60)
-def check_email_exists():
-    """
-    Check if an email already has an Optio account.
-    Used by AcceptInvitationPage to determine if user needs full registration or just password.
-
-    Body:
-        email: Email to check
-        invitation_code: The invitation code (for context/logging)
-
-    Returns:
-        exists: boolean - whether account exists
-        has_name: boolean - whether we have first/last name on file
-    """
-    try:
-        data = request.json
-        email = data.get('email', '').strip().lower()
-
-        if not email or not validate_email(email):
-            return jsonify({'error': 'Valid email is required'}), 400
-
-        # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
-        supabase = get_supabase_admin_client()
-
-        # Check if user exists
-        result = supabase.table('users') \
-            .select('id, first_name, last_name') \
-            .eq('email', email) \
-            .execute()
-
-        if result.data:
-            user = result.data[0]
-            has_name = bool(user.get('first_name') and user.get('last_name'))
-            return jsonify({
-                'exists': True,
-                'has_name': has_name
-            }), 200
-
-        return jsonify({
-            'exists': False,
-            'has_name': False
-        }), 200
-
-    except Exception as e:
-        logger.error(f"Failed to check email: {e}")
-        return jsonify({'error': 'Failed to check email'}), 500
+# POST /invitations/check-email was removed (ticket 93b118fa). It told any
+# signed-out caller whether an email had an Optio account — and accounts can
+# belong to children. The invite page now always shows the name fields;
+# accept_invitation ignores them for an existing account.
 
 
 @bp.route('/invitations/accept/<invitation_code>', methods=['POST'])

@@ -125,3 +125,60 @@ class TestAcceptInvitationGuards:
         }, admin)
         assert resp.status_code == 409
         assert 'another school' in resp.get_json()['error']
+
+
+@pytest.mark.unit
+class TestNoEmailExistenceOracle:
+    """Ticket 93b118fa: POST /invitations/check-email told any signed-out
+    caller whether an email had an Optio account (accounts can be children's).
+    It is gone; the invite page always shows the name fields and the accept
+    route ignores them for an existing account."""
+
+    def test_check_email_route_is_gone(self, client):
+        resp = client.post('/api/admin/organizations/invitations/check-email',
+                           json={'email': 'someone@example.com', 'invitation_code': 'x'})
+        assert resp.status_code in (404, 405)
+
+    def test_existing_account_accepts_with_blank_names(self, client):
+        admin = _admin(_invite('parent'), user_rows_by_call=[
+            [],  # existing_in_org check
+            [{'id': 'u-1', 'organization_id': None,
+              'first_name': 'Pat', 'last_name': 'Parent',
+              'org_role': None, 'org_roles': None}],
+        ])
+        admin.auth.sign_in_with_password.return_value = Mock(user=Mock())
+        resp = _post(client, 'code', {
+            'email': 'pat@example.com', 'password': 'password123',
+            'first_name': '', 'last_name': '',
+        }, admin)
+        assert resp.status_code == 200
+        assert resp.get_json()['existing_user'] is True
+        admin.auth.sign_in_with_password.assert_called_once_with(
+            {'email': 'pat@example.com', 'password': 'password123'})
+        # Blank names must not overwrite the names on file.
+        for call in admin.table.return_value.update.call_args_list:
+            payload = call.args[0]
+            assert 'first_name' not in payload and 'last_name' not in payload
+
+    def test_existing_account_wrong_password_is_refused(self, client):
+        admin = _admin(_invite('parent'), user_rows_by_call=[
+            [],
+            [{'id': 'u-1', 'organization_id': None,
+              'first_name': 'Pat', 'last_name': 'Parent'}],
+        ])
+        admin.auth.sign_in_with_password.side_effect = Exception('Invalid login credentials')
+        resp = _post(client, 'code', {
+            'email': 'pat@example.com', 'password': 'wrongpass1',
+        }, admin)
+        assert resp.status_code == 401
+
+    def test_new_account_without_names_is_400(self, client):
+        # Pins current behaviour: a brand-new account still needs a name.
+        admin = _admin(_invite('parent'), user_rows_by_call=[[], []])
+        resp = _post(client, 'code', {
+            'email': 'new@example.com', 'password': 'password123',
+            'first_name': '', 'last_name': '',
+        }, admin)
+        assert resp.status_code == 400
+        assert resp.get_json()['error'] == 'First name and last name are required'
+        admin.auth.admin.create_user.assert_not_called()

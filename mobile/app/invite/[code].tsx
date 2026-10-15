@@ -58,9 +58,10 @@ export default function AcceptInvitationScreen() {
   const [showPassword, setShowPassword] = useState(false);
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
 
-  // Email check state
+  // Set from the accept response (existing_user), only to pick the success
+  // message. The screen never asks the server whether an email has an account
+  // before submit: that endpoint was an account-existence oracle (93b118fa).
   const [existingAccount, setExistingAccount] = useState(false);
-  const [emailChecked, setEmailChecked] = useState(false);
 
   // Validate invitation on mount
   useEffect(() => {
@@ -88,34 +89,16 @@ export default function AcceptInvitationScreen() {
     })();
   }, [code]);
 
-  // Debounced email check for link-based invitations
-  useEffect(() => {
-    if (!invitation?.is_link_based || !email) return;
-    const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailPattern.test(email)) return;
-
-    const timer = setTimeout(async () => {
-      try {
-        const { data } = await api.post('/api/admin/organizations/invitations/check-email', {
-          email, invitation_code: code,
-        });
-        setExistingAccount(data.exists);
-        setEmailChecked(true);
-      } catch { /* non-critical */ }
-    }, 500);
-
-    return () => clearTimeout(timer);
-  }, [email, invitation?.is_link_based, code]);
-
   const validate = () => {
     const errors: Record<string, string> = {};
     if (invitation?.is_link_based && !email.trim()) errors.email = 'Email is required';
     if (invitation?.is_link_based && email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) errors.email = 'Invalid email';
-    if (!existingAccount && !firstName.trim()) errors.firstName = 'First name is required';
-    if (!existingAccount && !lastName.trim()) errors.lastName = 'Last name is required';
+    // Names are not checked here: an existing account may leave them blank,
+    // and the screen cannot know which kind of account it is. The server
+    // requires them for a new account and ignores them for an existing one.
     if (!password) errors.password = 'Password is required';
     else if (password.length < 8) errors.password = 'Password must be at least 8 characters';
-    if (!existingAccount && password !== confirmPassword) errors.confirmPassword = 'Passwords do not match';
+    if (password !== confirmPassword) errors.confirmPassword = 'Passwords do not match';
     setFormErrors(errors);
     return Object.keys(errors).length === 0;
   };
@@ -133,6 +116,7 @@ export default function AcceptInvitationScreen() {
         date_of_birth: dob || null,
       });
       if (data.success) {
+        setExistingAccount(Boolean(data.existing_user));
         setSuccess(true);
       } else {
         setError(apiErrorBodyMessage(data, 'Failed to accept invitation'));
@@ -292,7 +276,7 @@ export default function AcceptInvitationScreen() {
                 </Heading>
                 <UIText size="sm" className="text-typo-400 dark:text-dark-typo-400 text-center">
                   You've been invited as {ROLE_LABELS[invitation?.role || ''] || invitation?.role}.
-                  {existingAccount ? ' Enter your password to join.' : ' Create your account below.'}
+                  {' New to Optio? Create your account below. Already have one? Use the same email and password.'}
                 </UIText>
               </VStack>
 
@@ -323,45 +307,45 @@ export default function AcceptInvitationScreen() {
                   />
                 </Input>
                 {formErrors.email ? <UIText size="xs" className="text-red-600">{formErrors.email}</UIText> : null}
-                {emailChecked && existingAccount && (
-                  <UIText size="xs" className="text-green-600">Account found -- just enter your password to join.</UIText>
-                )}
               </VStack>
 
-              {/* Name fields (skip for existing accounts) */}
-              {!existingAccount && (
+              {/* Name fields - always shown. The screen does not look the email
+                  up before submit (93b118fa); the server needs the names only
+                  for a new account and ignores them for an existing one. */}
+              <VStack space="xs">
                 <HStack className="gap-3">
                   <VStack space="xs" className="flex-1">
                     <UIText size="sm" className="font-poppins-medium">First name</UIText>
-                    <Input variant="outline" size="lg" isInvalid={!!formErrors.firstName}>
+                    <Input variant="outline" size="lg">
                       <InputField
                         placeholder="First name"
                         value={firstName}
-                        onChangeText={(t: string) => { setFirstName(t); setFormErrors(p => ({ ...p, firstName: '' })); }}
+                        onChangeText={setFirstName}
                       />
                     </Input>
-                    {formErrors.firstName ? <UIText size="xs" className="text-red-600">{formErrors.firstName}</UIText> : null}
                   </VStack>
                   <VStack space="xs" className="flex-1">
                     <UIText size="sm" className="font-poppins-medium">Last name</UIText>
-                    <Input variant="outline" size="lg" isInvalid={!!formErrors.lastName}>
+                    <Input variant="outline" size="lg">
                       <InputField
                         placeholder="Last name"
                         value={lastName}
-                        onChangeText={(t: string) => { setLastName(t); setFormErrors(p => ({ ...p, lastName: '' })); }}
+                        onChangeText={setLastName}
                       />
                     </Input>
-                    {formErrors.lastName ? <UIText size="xs" className="text-red-600">{formErrors.lastName}</UIText> : null}
                   </VStack>
                 </HStack>
-              )}
+                <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">
+                  Already have an Optio account? You can leave your name blank.
+                </UIText>
+              </VStack>
 
               {/* Password */}
               <VStack space="xs">
                 <UIText size="sm" className="font-poppins-medium">Password</UIText>
                 <Input variant="outline" size="lg" isInvalid={!!formErrors.password}>
                   <InputField
-                    placeholder={existingAccount ? 'Your existing password' : 'Create a password'}
+                    placeholder="Password"
                     value={password}
                     onChangeText={(t: string) => { setPassword(t); setFormErrors(p => ({ ...p, password: '' })); }}
                     secureTextEntry={!showPassword}
@@ -375,39 +359,35 @@ export default function AcceptInvitationScreen() {
                 {formErrors.password ? <UIText size="xs" className="text-red-600">{formErrors.password}</UIText> : null}
               </VStack>
 
-              {/* Confirm password (new accounts only) */}
-              {!existingAccount && (
-                <VStack space="xs">
-                  <UIText size="sm" className="font-poppins-medium">Confirm password</UIText>
-                  <Input variant="outline" size="lg" isInvalid={!!formErrors.confirmPassword}>
-                    <InputField
-                      placeholder="Confirm your password"
-                      value={confirmPassword}
-                      onChangeText={(t: string) => { setConfirmPassword(t); setFormErrors(p => ({ ...p, confirmPassword: '' })); }}
-                      secureTextEntry={!showPassword}
-                    />
-                  </Input>
-                  {formErrors.confirmPassword ? <UIText size="xs" className="text-red-600">{formErrors.confirmPassword}</UIText> : null}
-                </VStack>
-              )}
+              {/* Confirm password */}
+              <VStack space="xs">
+                <UIText size="sm" className="font-poppins-medium">Confirm password</UIText>
+                <Input variant="outline" size="lg" isInvalid={!!formErrors.confirmPassword}>
+                  <InputField
+                    placeholder="Confirm your password"
+                    value={confirmPassword}
+                    onChangeText={(t: string) => { setConfirmPassword(t); setFormErrors(p => ({ ...p, confirmPassword: '' })); }}
+                    secureTextEntry={!showPassword}
+                  />
+                </Input>
+                {formErrors.confirmPassword ? <UIText size="xs" className="text-red-600">{formErrors.confirmPassword}</UIText> : null}
+              </VStack>
 
-              {/* Date of birth (new accounts only) */}
-              {!existingAccount && (
-                <VStack space="xs">
-                  <UIText size="sm" className="font-poppins-medium">Date of birth <UIText size="xs" className="text-typo-300 dark:text-dark-typo-300">(optional)</UIText></UIText>
-                  <Input variant="outline" size="lg">
-                    <InputField
-                      placeholder="YYYY-MM-DD"
-                      value={dob}
-                      onChangeText={setDob}
-                    />
-                  </Input>
-                </VStack>
-              )}
+              {/* Date of birth */}
+              <VStack space="xs">
+                <UIText size="sm" className="font-poppins-medium">Date of birth <UIText size="xs" className="text-typo-300 dark:text-dark-typo-300">(optional)</UIText></UIText>
+                <Input variant="outline" size="lg">
+                  <InputField
+                    placeholder="YYYY-MM-DD"
+                    value={dob}
+                    onChangeText={setDob}
+                  />
+                </Input>
+              </VStack>
 
               {/* Submit */}
               <Button size="lg" onPress={handleSubmit} isDisabled={submitting} className="bg-optio-purple">
-                <ButtonText>{submitting ? 'Creating account...' : existingAccount ? 'Join Organization' : 'Create Account'}</ButtonText>
+                <ButtonText>{submitting ? 'Joining...' : 'Join'}</ButtonText>
               </Button>
 
               {/* Login link */}

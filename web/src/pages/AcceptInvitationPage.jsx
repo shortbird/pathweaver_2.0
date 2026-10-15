@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import api from '../services/api';
 import authService from '../services/authService';
@@ -21,10 +21,10 @@ export default function AcceptInvitationPage() {
   const [currentUser, setCurrentUser] = useState(null);
   const [checkingAuth, setCheckingAuth] = useState(true);
 
-  // Email check state for link-based invitations
-  const [emailChecked, setEmailChecked] = useState(false);
+  // Set from the accept response (existing_user), only to pick the success
+  // message. The page never asks the server whether an email has an account
+  // before submit: that endpoint was an account-existence oracle (93b118fa).
   const [existingAccount, setExistingAccount] = useState(false);
-  const [checkingEmail, setCheckingEmail] = useState(false);
 
   const [formData, setFormData] = useState({
     email: '',
@@ -117,44 +117,6 @@ export default function AcceptInvitationPage() {
     };
   }, [code]);
 
-  // Check if email has an existing account (for link-based invitations)
-  const checkEmailExists = useCallback(async (email) => {
-    if (!email || !invitation?.is_link_based) return;
-
-    const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailPattern.test(email)) return;
-
-    setCheckingEmail(true);
-    try {
-      const response = await api.post('/api/admin/organizations/invitations/check-email', {
-        email,
-        invitation_code: code
-      });
-      setExistingAccount(response.data.exists);
-      setEmailChecked(true);
-
-      // If existing account has name on file, we don't need name fields
-      if (response.data.exists && response.data.has_name) {
-        setFormData(prev => ({ ...prev, first_name: '', last_name: '' }));
-      }
-    } catch (err) {
-      console.error('Failed to check email:', err);
-    } finally {
-      setCheckingEmail(false);
-    }
-  }, [code, invitation?.is_link_based]);
-
-  // Debounce email check
-  useEffect(() => {
-    if (!invitation?.is_link_based || !formData.email) return;
-
-    const timer = setTimeout(() => {
-      checkEmailExists(formData.email);
-    }, 500);
-
-    return () => clearTimeout(timer);
-  }, [formData.email, checkEmailExists, invitation?.is_link_based]);
-
   const validateForm = () => {
     const errors = {};
 
@@ -167,16 +129,9 @@ export default function AcceptInvitationPage() {
       }
     }
 
-    // Only require name for new accounts
-    if (!existingAccount) {
-      if (!formData.first_name.trim()) {
-        errors.first_name = 'First name is required';
-      }
-
-      if (!formData.last_name.trim()) {
-        errors.last_name = 'Last name is required';
-      }
-    }
+    // Names are not checked here: an existing account may leave them blank,
+    // and the page cannot know which kind of account it is. The server
+    // requires them for a new account and ignores them for an existing one.
 
     if (!formData.password) {
       errors.password = 'Password is required';
@@ -184,15 +139,14 @@ export default function AcceptInvitationPage() {
       errors.password = 'Password must be at least 8 characters';
     }
 
-    // Only require confirm password for new accounts
-    if (!existingAccount && formData.password !== formData.confirmPassword) {
+    if (formData.password !== formData.confirmPassword) {
       errors.confirmPassword = 'Passwords do not match';
     }
 
     // Student links are shared broadly, so they must not become an under-13
     // signup path: those accounts are parent-created (COPPA dependent flow).
     // The backend enforces the same rule.
-    if (!existingAccount && invitation?.is_link_based && invitation?.role === 'student') {
+    if (invitation?.is_link_based && invitation?.role === 'student') {
       if (!formData.date_of_birth) {
         errors.date_of_birth = 'Date of birth is required';
       } else {
@@ -237,6 +191,7 @@ export default function AcceptInvitationPage() {
           // the code-entry page, which verifies and logs them straight in.
           navigate('/email-verification', { state: { email: formData.email } });
         } else {
+          setExistingAccount(Boolean(response.data.existing_user));
           setSuccess(true);
         }
       } else {
@@ -573,35 +528,21 @@ export default function AcceptInvitationPage() {
               </label>
               {invitation?.is_link_based ? (
                 <>
-                  <div className="relative">
-                    <input
-                      type="email"
-                      value={formData.email}
-                      onChange={(e) => {
-                        setFormData({ ...formData, email: e.target.value });
-                        setEmailChecked(false);
-                        setExistingAccount(false);
-                      }}
-                      className={`input-field px-3 py-2 ${
-                        formErrors.email ? 'border-red-300' : ''
-                      }`}
-                      placeholder="your@email.com"
-                    />
-                    {checkingEmail && (
-                      <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-optio-purple"></div>
-                      </div>
-                    )}
-                  </div>
+                  <input
+                    type="email"
+                    value={formData.email}
+                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                    className={`input-field px-3 py-2 ${
+                      formErrors.email ? 'border-red-300' : ''
+                    }`}
+                    placeholder="your@email.com"
+                  />
                   {formErrors.email && (
                     <p className="text-xs text-red-600 mt-1">{formErrors.email}</p>
                   )}
-                  {emailChecked && existingAccount && (
-                    <p className="text-xs text-green-600 mt-1">Account found - enter your password to join</p>
-                  )}
-                  {!emailChecked && !existingAccount && (
-                    <p className="text-xs text-gray-500 mt-1">Enter your email to create your account</p>
-                  )}
+                  <p className="text-xs text-gray-500 mt-1">
+                    Already have an Optio account? Use the same email and password.
+                  </p>
                 </>
               ) : (
                 <>
@@ -616,45 +557,42 @@ export default function AcceptInvitationPage() {
               )}
             </div>
 
-            {/* Name fields - only show for new accounts */}
-            {!existingAccount && (
+            {/* Name fields - always shown. The page does not look the email
+                up before submit (93b118fa); the server needs the names only
+                for a new account and ignores them for an existing one. */}
+            <div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    First Name <span className="text-red-500">*</span>
+                  <label htmlFor="invite-first-name" className="block text-sm font-medium text-gray-700 mb-1">
+                    First Name
                   </label>
                   <input
+                    id="invite-first-name"
                     type="text"
                     value={formData.first_name}
                     onChange={(e) => setFormData({ ...formData, first_name: e.target.value })}
-                    className={`input-field px-3 py-2 ${
-                      formErrors.first_name ? 'border-red-300' : ''
-                    }`}
+                    className="input-field px-3 py-2"
                     placeholder="John"
                   />
-                  {formErrors.first_name && (
-                    <p className="text-xs text-red-600 mt-1">{formErrors.first_name}</p>
-                  )}
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Last Name <span className="text-red-500">*</span>
+                  <label htmlFor="invite-last-name" className="block text-sm font-medium text-gray-700 mb-1">
+                    Last Name
                   </label>
                   <input
+                    id="invite-last-name"
                     type="text"
                     value={formData.last_name}
                     onChange={(e) => setFormData({ ...formData, last_name: e.target.value })}
-                    className={`input-field px-3 py-2 ${
-                      formErrors.last_name ? 'border-red-300' : ''
-                    }`}
+                    className="input-field px-3 py-2"
                     placeholder="Doe"
                   />
-                  {formErrors.last_name && (
-                    <p className="text-xs text-red-600 mt-1">{formErrors.last_name}</p>
-                  )}
                 </div>
               </div>
-            )}
+              <p className="text-xs text-gray-500 mt-1">
+                Already have an Optio account? You can leave your name blank.
+              </p>
+            </div>
 
             {/* Password */}
             <div>
@@ -669,7 +607,7 @@ export default function AcceptInvitationPage() {
                   className={`input-field px-3 py-2 pr-10 ${
                     formErrors.password ? 'border-red-300' : ''
                   }`}
-                  placeholder={existingAccount ? 'Enter your password' : 'At least 8 characters'}
+                  placeholder="At least 8 characters"
                 />
                 <button
                   type="button"
@@ -693,66 +631,62 @@ export default function AcceptInvitationPage() {
               )}
             </div>
 
-            {/* Confirm Password - only for new accounts */}
-            {!existingAccount && (
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Confirm Password <span className="text-red-500">*</span>
-                </label>
-                <div className="relative">
-                  <input
-                    type={showConfirmPassword ? 'text' : 'password'}
-                    value={formData.confirmPassword}
-                    onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
-                    className={`input-field px-3 py-2 pr-10 ${
-                      formErrors.confirmPassword ? 'border-red-300' : ''
-                    }`}
-                    placeholder="Confirm your password"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                  >
-                    {showConfirmPassword ? (
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
-                      </svg>
-                    ) : (
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                      </svg>
-                    )}
-                  </button>
-                </div>
-                {formErrors.confirmPassword && (
-                  <p className="text-xs text-red-600 mt-1">{formErrors.confirmPassword}</p>
-                )}
-              </div>
-            )}
-
-            {/* Date of Birth - only for new accounts; required on shared student
-                links so under-13s are routed to the parent-created path */}
-            {!existingAccount && (
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Date of Birth{' '}
-                  {invitation?.is_link_based && invitation?.role === 'student'
-                    ? <span className="text-red-500">*</span>
-                    : <span className="text-gray-400">(optional)</span>}
-                </label>
+            {/* Confirm Password */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Confirm Password <span className="text-red-500">*</span>
+              </label>
+              <div className="relative">
                 <input
-                  type="date"
-                  value={formData.date_of_birth}
-                  onChange={(e) => setFormData({ ...formData, date_of_birth: e.target.value })}
-                  className={`input-field px-3 py-2 ${formErrors.date_of_birth ? 'border-red-300' : ''}`}
+                  type={showConfirmPassword ? 'text' : 'password'}
+                  value={formData.confirmPassword}
+                  onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
+                  className={`input-field px-3 py-2 pr-10 ${
+                    formErrors.confirmPassword ? 'border-red-300' : ''
+                  }`}
+                  placeholder="Confirm your password"
                 />
-                {formErrors.date_of_birth && (
-                  <p className="text-xs text-red-600 mt-1">{formErrors.date_of_birth}</p>
-                )}
+                <button
+                  type="button"
+                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                >
+                  {showConfirmPassword ? (
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
+                    </svg>
+                  ) : (
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                    </svg>
+                  )}
+                </button>
               </div>
-            )}
+              {formErrors.confirmPassword && (
+                <p className="text-xs text-red-600 mt-1">{formErrors.confirmPassword}</p>
+              )}
+            </div>
+
+            {/* Date of Birth - required on shared student links so under-13s
+                are routed to the parent-created path */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Date of Birth{' '}
+                {invitation?.is_link_based && invitation?.role === 'student'
+                  ? <span className="text-red-500">*</span>
+                  : <span className="text-gray-400">(optional)</span>}
+              </label>
+              <input
+                type="date"
+                value={formData.date_of_birth}
+                onChange={(e) => setFormData({ ...formData, date_of_birth: e.target.value })}
+                className={`input-field px-3 py-2 ${formErrors.date_of_birth ? 'border-red-300' : ''}`}
+              />
+              {formErrors.date_of_birth && (
+                <p className="text-xs text-red-600 mt-1">{formErrors.date_of_birth}</p>
+              )}
+            </div>
 
             {/* Error message */}
             {error && (
@@ -767,10 +701,7 @@ export default function AcceptInvitationPage() {
               disabled={submitting}
               className="w-full btn-primary"
             >
-              {submitting
-                ? (existingAccount ? 'Joining...' : 'Creating Account...')
-                : (existingAccount ? 'Log In & Join' : 'Create Account & Join')
-              }
+              {submitting ? 'Joining...' : 'Join'}
             </button>
 
             {/* Divider */}
