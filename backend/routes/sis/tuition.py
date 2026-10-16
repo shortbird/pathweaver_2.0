@@ -181,7 +181,7 @@ def create_recurring_tuition(user_id):
         org_id, student_id, monthly_cents=data.get('monthly_cents'), actor_id=user_id,
         description=data.get('description'), day_of_month=data.get('day_of_month', 1))
     if result.get('error'):
-        # 409: the student already pays by a monthly payment plan (bc9010f4).
+        # 409: the student already pays by a payment plan, any cadence (bc9010f4).
         code = (404 if result['error'] == 'Student not found'
                 else 409 if result.get('conflict') else 400)
         return jsonify({'success': False, 'error': result['error']}), code

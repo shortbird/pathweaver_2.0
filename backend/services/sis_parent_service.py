@@ -1499,8 +1499,12 @@ def org_events(user_id: str, org_id: str, from_iso: Optional[str] = None,
     # see the first one.
     from services import sis_events_service as events
     # Families only ever see school-wide events: the 'family' viewer.
-    return events.list_events(org_id, 'family', from_iso=from_iso, to_iso=to_iso,
+    rows = events.list_events(org_id, 'family', from_iso=from_iso, to_iso=to_iso,
                               columns=events.FAMILY_COLUMNS)
+    # Spots left, "Full", and this family's own reply, so the list view can
+    # say "Signed up" or "Full" on every excursion without opening each one.
+    from services import sis_event_rsvp_service
+    return sis_event_rsvp_service.annotate_for_family(org_id, user_id, rows)
 
 
 def calendar_feed_url(user_id: str, org_id: str, base_url: str) -> Optional[str]:

@@ -1,13 +1,29 @@
 // Funnel step 1: create an Optio account, or sign into an existing one.
 // Google/Apple come first -- an account made with either has no password, so a
 // parent who starts by typing one hits a dead end in both modes.
-import React from 'react'
-import { field, Section, PasswordInput, PrimaryButton } from '../../components/registration/funnelUi'
+import React, { useState } from 'react'
+import { field, Section, PasswordInput, PrimaryButton, JoinWaitlistCard } from '../../components/registration/funnelUi'
 import GoogleButton from '../../components/auth/GoogleButton'
 import AppleButton from '../../components/auth/AppleButton'
+import InterestListForm from './InterestListForm'
 
-const AccountStep = ({ account, accountNotice, code, mode, org, previewMode, setAccount, setAccountNotice, setMode, submitCreate, submitSignin, submitting }) => (
+// The waitlist form replaces this step's card while it is open; it is not a
+// funnel step, so the page's stepper does not change.
+const AccountStep = (props) => {
+  const { code, interestList, org, previewMode } = props
+  const [joining, setJoining] = useState(false)
+  if (joining) {
+    return (
+      <InterestListForm code={code} org={org} listLabel={interestList?.label}
+        previewMode={previewMode} onBack={() => setJoining(false)} />
+    )
+  }
+  return <AccountCard {...props} onJoinWaitlist={interestList?.enabled ? () => setJoining(true) : null} />
+}
+
+const AccountCard = ({ account, accountNotice, code, interestList, mode, onJoinWaitlist, org, previewMode, setAccount, setAccountNotice, setMode, submitCreate, submitSignin, submitting }) => (
   <div className="space-y-6">
+    {onJoinWaitlist && <JoinWaitlistCard interestList={interestList} onJoinWaitlist={onJoinWaitlist} />}
     <Section title="Your account" subtitle="Registration starts with your parent account.">
       {accountNotice && (
         <div className="mb-5 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">

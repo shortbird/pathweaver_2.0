@@ -92,8 +92,12 @@ class SisPaymentPlanRepository(BaseRepository):
         """Every plan on the invoice, whatever its status."""
         return self.find_all(filters={'invoice_id': invoice_id})
 
-    def _active_monthly_query(self, org_id: str):
-        """Active monthly plans for one org. sis_payment_plans has no
+    def _active_query(self, org_id: str):
+        """Active plans of every cadence for one org: monthly, semester and
+        pay in full. Not monthly only since 2026-10-16, when staff could put an
+        invoice on a semester plan from the console: such a plan bills the
+        student just as surely, so it must block monthly tuition and be listed
+        beside it the same way. sis_payment_plans has no
         organization_id; the org lives on the invoice, so the read embeds it
         (one FK, sis_payment_plans_invoice_id_fkey, so the embed is unambiguous)."""
         return (self.client.table(self.table_name)
@@ -101,22 +105,22 @@ class SisPaymentPlanRepository(BaseRepository):
                         'saved_payment_method_id, '
                         'sis_invoices!inner(id, organization_id, household_id, '
                         'student_user_id, total_cents)')
-                .eq('status', 'active').eq('cadence', 'monthly')
+                .eq('status', 'active')
                 .eq('sis_invoices.organization_id', org_id))
 
-    def active_monthly_for_org(self, org_id: str) -> List[Dict[str, Any]]:
-        """Every active monthly plan in the org, paged past the 1,000-row cap."""
-        return fetch_all_rows(lambda: self._active_monthly_query(org_id))
+    def active_for_org(self, org_id: str) -> List[Dict[str, Any]]:
+        """Every active plan in the org, paged past the 1,000-row cap."""
+        return fetch_all_rows(lambda: self._active_query(org_id))
 
-    def active_monthly_for_student(self, org_id: str, student_id: str) -> List[Dict[str, Any]]:
+    def active_for_student(self, org_id: str, student_id: str) -> List[Dict[str, Any]]:
         """Plans whose invoice is this student's own. Bounded by one student."""
-        return (self._active_monthly_query(org_id)
+        return (self._active_query(org_id)
                 .eq('sis_invoices.student_user_id', student_id)
                 .limit(1).execute()).data or []
 
-    def active_monthly_for_household(self, org_id: str, household_id: str) -> List[Dict[str, Any]]:
+    def active_for_household(self, org_id: str, household_id: str) -> List[Dict[str, Any]]:
         """Plans on the family's invoices. Bounded by one household."""
-        return (self._active_monthly_query(org_id)
+        return (self._active_query(org_id)
                 .eq('sis_invoices.household_id', household_id)
                 .execute()).data or []
 

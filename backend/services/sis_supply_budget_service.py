@@ -6,6 +6,10 @@ The number iCreate described:
     budget = (supply fee x enrolled students)              # what families paid
            + (materials allowance x enrolled students)     # funded from tuition
 
+A student whose class is included with another of their classes (a bundled
+program, org_classes.included_with_class_ids) paid no supply fee for it, so
+they count toward the allowance but not the fee part.
+
 Both parts are per student per YEAR. The allowance defaults to the org-wide
 `feature_flags.sis_settings.supply_budget_per_student` and can be overridden per
 class (`org_classes.supply_budget_per_student`), because some classes need more
@@ -80,6 +84,35 @@ def _enrolled_counts(class_ids: List[str]) -> Dict[str, int]:
         if (r.get('status') or 'active') != 'active':
             continue
         counts[r['class_id']] = counts.get(r['class_id'], 0) + 1
+    return counts
+
+
+def _included_counts(classes: List[Dict[str, Any]]) -> Dict[str, int]:
+    """{class_id: active students who pay no supply fee for it} because a
+    class it is included with (a bundled program) pays for them, by the one
+    rule (sis_tuition_service.included_with). Reads nothing for a school
+    with no "Included with" set, which is most of them."""
+    from services.sis_tuition_service import included_with
+    from repositories.sis_class_repository import SisClassRepository
+    # The caller hands whole org_classes rows; a row without the column (a
+    # database it has not reached yet) is included with nothing.
+    targets = {c['id']: c for c in classes if c.get('included_with_class_ids')}
+    if not targets:
+        return {}
+    repo = SisClassRepository(client=_admin())
+    payer_ids = {str(k) for c in targets.values() for k in c['included_with_class_ids'] if k}
+    rows = repo.pricing_rows(payer_ids - set(targets))
+    rows.update(targets)
+    by_student: Dict[str, List[Dict[str, Any]]] = {}
+    for cid, students in repo.active_students_by_class(sorted(rows)).items():
+        for sid in students:
+            if cid in rows:
+                by_student.setdefault(sid, []).append(rows[cid])
+    counts: Dict[str, int] = {}
+    for student_classes in by_student.values():
+        for cid in included_with(student_classes):
+            if cid in targets:
+                counts[cid] = counts.get(cid, 0) + 1
     return counts
 
 
@@ -177,6 +210,7 @@ def budget_for_classes(org_id: str, classes: List[Dict[str, Any]]) -> Dict[str, 
     frozen = bool(first_day and date.today() >= first_day)
 
     counts = _enrolled_counts([c['id'] for c in classes])
+    included = _included_counts(classes)
     spend = _spend_by_class(org_id, [c['id'] for c in classes])
     logged = _logged_by_class(org_id, [c['id'] for c in classes])
     out = {}
@@ -185,13 +219,20 @@ def budget_for_classes(org_id: str, classes: List[Dict[str, Any]]) -> Dict[str, 
         fee = _as_money(c.get('supply_fee') or 0)
         override = c.get('supply_budget_per_student')
         allowance = _as_money(override) if override is not None else org_allowance
+        # A student whose bundled program pays for this class paid no supply
+        # fee for it, so the fee part counts only the students who did. The
+        # allowance still counts them: it is funded from tuition, and their
+        # program's tuition paid for their seat here.
+        fee_students = max(0, students - included.get(c['id'], 0))
         out[c['id']] = {
             'students': students,
+            'fee_students': fee_students,
+            'included_students': students - fee_students,
             'supply_fee_per_student': fee,
             'allowance_per_student': allowance,
-            'from_fees': round(fee * students, 2),
+            'from_fees': round(fee * fee_students, 2),
             'from_allowance': round(allowance * students, 2),
-            'total': round((fee + allowance) * students, 2),
+            'total': round(fee * fee_students + allowance * students, 2),
             'frozen': frozen,
             'as_of': first_day.isoformat() if frozen and first_day else date.today().isoformat(),
         }

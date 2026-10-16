@@ -126,8 +126,11 @@ def _post(client, status, alert=None):
                return_value={'household_id': 'hh1', 'refused': {}}), \
          patch('services.sis_enrollment_waitlist_service.gates_for_org', return_value=[]), \
          patch('routes.registration_funnel.notify_registration_started',
-               side_effect=alert) as spy:
+               side_effect=alert) as spy, \
+         patch('routes.registration_funnel.mark_interest_list_registered',
+               return_value=0) as interest_spy:
         resp = client.post('/api/registration/registrations/reg1/family', json=_BODY)
+    spy.interest_spy = interest_spy
     return resp, spy
 
 
@@ -149,12 +152,21 @@ class TestStartAlert:
         assert [k['name'] for k in reg['kids']] == ['Casey Sample']
         assert reg['fee_cents'] == 2500
 
+    def test_first_submission_closes_the_familys_interest_list_entry(self, client):
+        """A family who joined the waitlist before registering is registered
+        now (services/sis_interest_list_service.mark_registered), matched by
+        the parent's account email."""
+        resp, spy = _post(client, 'family')
+        assert resp.status_code == 200
+        spy.interest_spy.assert_called_once_with('org1', 'pat@example.com')
+
     @pytest.mark.parametrize('status', ['details', 'paperwork', 'fee'])
     def test_back_edit_is_silent(self, client, status):
         """The family already generated an email on their way in."""
         resp, spy = _post(client, status)
         assert resp.status_code == 200
         assert spy.call_count == 0
+        assert spy.interest_spy.call_count == 0
 
     def test_an_unsent_alert_does_not_fail_the_registration(self, client):
         """The children's user rows exist by now. Losing the email is the

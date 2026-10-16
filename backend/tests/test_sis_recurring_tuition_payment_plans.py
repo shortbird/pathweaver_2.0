@@ -186,14 +186,23 @@ class TestListMonthlyPaymentPlans:
         assert 'saved_payment_method_id' not in row
         assert not any(k.startswith('card') for k in row)
 
-    def test_leaves_out_cancelled_and_non_monthly_plans(self):
+    def test_leaves_out_cancelled_and_completed_plans(self):
         with _db(sis_invoices=[_invoice('inv1', 's1', 'hh-rose'),
-                               _invoice('inv2', 's2', 'hh-larson'),
                                _invoice('inv3', 's3', 'hh-larson')],
                  sis_payment_plans=[_plan('p1', 'inv1', status='cancelled', auto=False),
-                                    _plan('p2', 'inv2', cadence='quarterly'),
                                     _plan('p3', 'inv3', status='completed')]):
             assert recurring.list_monthly_payment_plans(ORG) == []
+
+    @pytest.mark.parametrize('cadence', ['semester', 'full'])
+    def test_lists_a_school_set_plan_of_any_cadence(self, cadence):
+        # 2026-10-16: staff can put an invoice on a semester or pay-in-full
+        # plan from the console, with no card. It bills the student all the
+        # same, so it is listed beside monthly tuition like a monthly one.
+        with _db(sis_invoices=[_invoice('inv1', 's1', 'hh-rose')],
+                 sis_payment_plans=[_plan('p1', 'inv1', cadence=cadence, auto=False, pm=None)],
+                 sis_installments=[_inst('i1', 'p1', '2027-01-15', 150000)]):
+            rows = recurring.list_monthly_payment_plans(ORG)
+        assert [(r['plan_id'], r['cadence'], r['auto_charge']) for r in rows] == [('p1', cadence, False)]
 
     def test_leaves_out_another_school_s_plans(self):
         with _db(sis_invoices=[_invoice('inv1', 's1', 'hh-rose', org='org-other')],
@@ -234,7 +243,7 @@ class TestCreateRefusesAPlanStudent:
                               sis_payment_plans=[_plan('p1', 'inv1')]) as db:
             result = recurring.create(ORG, 's1', 50000, actor_id='admin-1')
         assert result['conflict'] is True
-        assert result['error'] == ('Robin Rose already pays by a monthly payment plan. '
+        assert result['error'] == ('Robin Rose already pays by a payment plan. '
                                    'Adding monthly tuition would charge them twice.')
         assert db.writes == []
 
@@ -252,6 +261,16 @@ class TestCreateRefusesAPlanStudent:
             result = recurring.create(ORG, 's3', 50000, actor_id='admin-1')
         assert 'error' not in result
         assert [w[:2] for w in db.writes] == [('sis_recurring_tuition', 'insert')]
+
+    @pytest.mark.parametrize('cadence', ['semester', 'full'])
+    def test_refuses_a_student_on_a_school_set_plan_without_a_card(self, cadence):
+        with self._create_env(sis_invoices=[_invoice('inv1', 's1', 'hh-rose')],
+                              sis_payment_plans=[_plan('p1', 'inv1', cadence=cadence,
+                                                       auto=False, pm=None)]) as db:
+            result = recurring.create(ORG, 's1', 50000, actor_id='admin-1')
+        assert result.get('conflict') is True
+        assert 'already pays by a payment plan' in result['error']
+        assert db.writes == []
 
     def test_allows_a_student_whose_plan_was_cancelled(self):
         with self._create_env(sis_invoices=[_invoice('inv1', 's1', 'hh-rose')],
@@ -324,7 +343,7 @@ class TestRoutes:
 
     def test_create_on_a_plan_is_409_with_the_message(
             self, client, auth_headers, mock_verify_token):
-        msg = ('Robin Rose already pays by a monthly payment plan. '
+        msg = ('Robin Rose already pays by a payment plan. '
                'Adding monthly tuition would charge them twice.')
         with staff(), patch('services.sis_recurring_tuition_service.create',
                             return_value={'error': msg, 'conflict': True}):

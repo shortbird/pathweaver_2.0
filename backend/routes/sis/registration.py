@@ -14,6 +14,7 @@ from services import sis_service
 from services import sis_registration_service as regs
 from services import sis_exception_service as exceptions
 from services import sis_enrollment_waitlist_service as enrollment_waitlist
+from services import sis_interest_list_service as interest_list
 # Admin tier: this whole module is org management, not teacher-facing.
 from utils.sis_roles import ADMIN_ROLES
 
@@ -263,6 +264,49 @@ def release_enrollment_waitlist_band(user_id):
     result = enrollment_waitlist.release_band(
         org_id, data.get('band_min_age'), data.get('band_max_age'), released_by=user_id)
     return jsonify({'success': True, **result})
+
+
+# ── Interest list (families waiting BEFORE they register or pay) ──────────────
+# Joined from "Join the waitlist" on the public registration link
+# (routes/registration_interest.py). Not the age-group enrollment waitlist
+# above: these families have no account yet. See
+# services/sis_interest_list_service.py.
+@bp.route('/interest-list', methods=['GET'])
+@require_role(*ADMIN_ROLES)
+def list_interest_list(user_id):
+    org_id, err = sis_service.org_or_error(user_id)
+    if err:
+        return err
+    return jsonify({'success': True, 'entries': interest_list.list_entries(org_id)})
+
+
+@bp.route('/interest-list/<entry_id>/invite', methods=['POST'])
+@require_role(*ADMIN_ROLES)
+def invite_interest_list_entry(user_id, entry_id):
+    """Email the family the school's registration link and mark them invited."""
+    org_id, err = sis_service.org_or_error(user_id)
+    if err:
+        return err
+    try:
+        result = interest_list.invite(org_id, entry_id, by=user_id)
+    except interest_list.InterestListError as e:
+        return jsonify({'success': False, 'error': e.message}), e.status
+    return jsonify({'success': True, **result})
+
+
+@bp.route('/interest-list/<entry_id>/status', methods=['POST'])
+@require_role(*ADMIN_ROLES)
+def set_interest_list_status(user_id, entry_id):
+    """Remove a family from the list ('removed') or put them back ('waiting')."""
+    org_id, err = sis_service.org_or_error(user_id)
+    if err:
+        return err
+    data = request.get_json(silent=True) or {}
+    try:
+        entry = interest_list.set_status(org_id, entry_id, data.get('status'), by=user_id)
+    except interest_list.InterestListError as e:
+        return jsonify({'success': False, 'error': e.message}), e.status
+    return jsonify({'success': True, 'entry': entry})
 
 
 @bp.route('/classes/<class_id>/eligibility', methods=['GET'])

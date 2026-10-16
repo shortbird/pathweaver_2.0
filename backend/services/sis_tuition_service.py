@@ -91,6 +91,7 @@ def quote_classes(classes: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         else int(c.get('supply_fee_cents') or 0),
         'meetings': c.get('meetings') or [],
         'billing_blocks': c.get('billing_blocks'),
+        'included_with_class_ids': c.get('included_with_class_ids') or [],
     } for c in classes or []]
 
 
@@ -160,6 +161,7 @@ def _enrolled_classes(org_id: str, student_id: str,
             'supply_fee_cents': supply_fee_cents(c.get('supply_fee')),
             'meetings': c.get('meetings') or [],
             'billing_blocks': c.get('billing_blocks'),
+            'included_with_class_ids': c.get('included_with_class_ids') or [],
             'primary_instructor': pi.get('name') if isinstance(pi, dict) else None,
         })
     out.sort(key=lambda c: (c['name'] or '').lower())
@@ -232,6 +234,118 @@ def supply_line_items(classes: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
                     'amount_cents': fee,
                     'kind': 'supply'})
     return out
+
+
+# -- "Included with" another class ----------------------------------------------
+#
+# A bundled program (Apogee NoCo's Hybrid Program) carries the price of classes
+# that are also sold on their own (SPARK Friday Excursions, Life Skills). A
+# Hybrid student is enrolled in all three -- that is what puts them on the
+# rosters, the roll and the class chats -- and was billed all three. A class
+# names the classes it is included with (org_classes.included_with_class_ids);
+# a student enrolled in both pays nothing for it, tuition or supplies, and a
+# student who takes it alone pays its price. This is the one copy of that rule:
+# the quote, the invoice seed, the reprice, the registration cart and the
+# supply budget all ask here.
+
+INCLUDED_LINE_MARKER = ' (included with '
+
+
+def _included_ids(cls: Dict[str, Any]) -> List[str]:
+    raw = cls.get('included_with_class_ids') or []
+    return [str(x) for x in raw if x] if isinstance(raw, (list, tuple)) else []
+
+
+def included_with(classes: List[Dict[str, Any]]) -> Dict[str, Dict[str, Any]]:
+    """PURE. Which of one student's classes are paid for by another of them.
+
+    `classes` are the student's enrolled classes, each with `class_id` (or `id`),
+    `name` and `included_with_class_ids`. Returns {included class_id: the class
+    that pays for it}. When several of the student's classes include it, the
+    first by name is the one named on the bill.
+
+    Saving refuses a cycle (validate_included_with), but rows can predate a
+    check, so a cycle is read safely: a class is never covered by a class that
+    it covers itself, directly or down a chain. A cycle bills in full rather
+    than billing nothing.
+    """
+    by_id = {}
+    for c in classes or []:
+        cid = c.get('class_id') or c.get('id')
+        if cid:
+            by_id[str(cid)] = c
+
+    def covers_chain(start: str) -> set:
+        """Every class `start` is included with, followed down the chain, among
+        this student's classes."""
+        seen, stack = set(), [start]
+        while stack:
+            for k in _included_ids(by_id.get(stack.pop()) or {}):
+                if k in by_id and k not in seen:
+                    seen.add(k)
+                    stack.append(k)
+        return seen
+
+    out: Dict[str, Dict[str, Any]] = {}
+    for cid, c in by_id.items():
+        payers = [by_id[k] for k in _included_ids(c)
+                  if k in by_id and k != cid and cid not in covers_chain(k)]
+        if payers:
+            out[cid] = sorted(payers, key=lambda p: (p.get('name') or '').lower())[0]
+    return out
+
+
+def included_line(cls: Dict[str, Any], payer: Dict[str, Any]) -> Dict[str, Any]:
+    """PURE. The zero-amount invoice line for a class another class pays for.
+
+    A zero line, not a missing one. The family sees every class their child is in
+    and why one costs nothing, a reimbursement claim can list it, and the
+    reprice matches lines on class_id, so a class with no line would read as
+    "not billed yet" and be added at full price on the next class change.
+    """
+    return {'class_id': cls.get('class_id') or cls.get('id'),
+            'description': f"{class_label(cls)}{INCLUDED_LINE_MARKER}{payer.get('name') or 'another class'})",
+            'amount_cents': 0, 'kind': 'tuition'}
+
+
+def is_included_line(li: Dict[str, Any]) -> bool:
+    """PURE. A line included_line() wrote: zero tuition naming what pays for it."""
+    return (li.get('kind') in ('tuition', None) and int(li.get('amount_cents') or 0) == 0
+            and INCLUDED_LINE_MARKER in (li.get('description') or ''))
+
+
+def validate_included_with(class_id: Optional[str], included_ids: Any,
+                           org_classes: List[Dict[str, Any]]) -> Optional[str]:
+    """PURE. An error for a class's "Included with" list, or None.
+
+    The classes must be other classes of the same school (org_classes is that
+    school's catalog), and the list must not make a loop: Hybrid included with
+    SPARK and SPARK included with Hybrid would make each one free.
+    """
+    if included_ids is None:
+        return None
+    if not isinstance(included_ids, list) or any(not isinstance(x, str) for x in included_ids):
+        return 'included_with_class_ids must be a list of class ids'
+    by_id = {str(c['id']): c for c in org_classes or [] if c.get('id')}
+    for k in included_ids:
+        if class_id and k == str(class_id):
+            return 'A class cannot be included with itself'
+        if k not in by_id:
+            return 'Included with: that class is not in this school'
+    if not class_id:
+        return None  # a new class: nothing can point at it yet, so no loop
+    graph = {cid: _included_ids(c) for cid, c in by_id.items()}
+    graph[str(class_id)] = list(included_ids)
+    seen, stack = set(), list(included_ids)
+    while stack:
+        k = stack.pop()
+        if k == str(class_id):
+            return 'Included with: those classes are already included with this one'
+        if k in seen:
+            continue
+        seen.add(k)
+        stack.extend(graph.get(k) or [])
+    return None
 
 
 # -- The one tuition quote -------------------------------------------------------
@@ -327,9 +441,18 @@ def schedule_quote(classes: List[Dict[str, Any]], *, time_blocks: Optional[List[
       'ufa': None | {'year_cents', 'min_blocks', 'shortfall', 'program_days',
                      'included_days', 'campus_days', 'total_days',
                      'extra': None | {'days', 'class_names', 'amount_cents'}},
+      'included': [{'class_id', 'included_with_class_id', 'included_with_name'}],
     }
+
+    A class another of the student's classes includes (included_with) is
+    priced as if it were not there -- no tuition, no blocks toward a tier, no
+    extra day, no supplies -- and gets a zero line saying what pays for it.
+    `included` lists them so the builder can leave their supplies off its
+    per-day totals.
     """
-    classes = list(classes or [])
+    all_classes = list(classes or [])
+    covered = included_with(all_classes)
+    classes = [c for c in all_classes if str(c.get('class_id') or c.get('id')) not in covered]
     pricing = block_pricing if isinstance(block_pricing, dict) else {}
     per_class = sum(int(c.get('price_cents') or 0) for c in classes)
     blocks = sum(class_blocks(c, time_blocks) for c in classes)
@@ -390,6 +513,14 @@ def schedule_quote(classes: List[Dict[str, Any]], *, time_blocks: Optional[List[
         note = None
         lines.extend({'class_id': c.get('class_id'), 'description': class_label(c),
                       'amount_cents': int(c.get('price_cents') or 0), 'kind': 'tuition'} for c in classes)
+    included = []
+    for c in all_classes:
+        payer = covered.get(str(c.get('class_id') or c.get('id')))
+        if payer:
+            lines.append(included_line(c, payer))
+            included.append({'class_id': c.get('class_id') or c.get('id'),
+                             'included_with_class_id': payer.get('class_id') or payer.get('id'),
+                             'included_with_name': payer.get('name')})
     lines.extend(supply_line_items(classes))
 
     total = tuition_cents + supply + extra_cents
@@ -405,8 +536,8 @@ def schedule_quote(classes: List[Dict[str, Any]], *, time_blocks: Optional[List[
     return {
         'lines': lines,
         'tuition_cents': tuition_cents, 'supply_cents': supply, 'extra_cents': extra_cents,
-        'total_cents': total, 'note': note, 'blocks': blocks, 'class_count': len(classes),
-        'tier': tier, 'installments': installments, 'ufa': ufa,
+        'total_cents': total, 'note': note, 'blocks': blocks, 'class_count': len(all_classes),
+        'tier': tier, 'installments': installments, 'ufa': ufa, 'included': included,
     }
 
 
@@ -601,7 +732,8 @@ def tuition_queue(org_id: str) -> Dict[str, Any]:
                 'price_cents': (by_id.get(cid) or {}).get('price_cents'),
                 'supply_fee_cents': supply_fee_cents((by_id.get(cid) or {}).get('supply_fee')),
                 'meetings': (by_id.get(cid) or {}).get('meetings') or [],
-                'billing_blocks': (by_id.get(cid) or {}).get('billing_blocks')}
+                'billing_blocks': (by_id.get(cid) or {}).get('billing_blocks'),
+                'included_with_class_ids': (by_id.get(cid) or {}).get('included_with_class_ids') or []}
                for cid in classes_by_student.get(sid, []) if by_id.get(cid)]
         cls.sort(key=lambda c: (c['name'] or '').lower())
         seeds = seed_line_items(cls, u.get('sis_tuition_plan'), block_pricing, school_name,

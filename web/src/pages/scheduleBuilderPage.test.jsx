@@ -714,4 +714,26 @@ describe('a school without the classes module', () => {
     await waitFor(() => expect(api.get).toHaveBeenCalledWith(
       '/api/sis/parent/students/s1/schedule?organization_id=org1'))
   })
+
+  // Apogee NoCo, 2026-10-16: a class the student's bundled program pays for
+  // (SPARK, included with the Hybrid Program) costs nothing. The server quote
+  // says so; the page tells the family why and leaves its supplies off the
+  // daily totals.
+  it('says which class is included with another, and leaves its supplies off the day', async () => {
+    const HYBRID = { ...POTTERY, id: 'c-hybrid', name: 'Hybrid Program', supply_fee: 500,
+      meetings: [{ day_of_week: 2, start_time: '09:00', end_time: '10:30' }] }
+    const SPARK = { ...POTTERY, id: 'c-spark', name: 'SPARK Friday Excursions', supply_fee: 150,
+      meetings: [{ day_of_week: 5, start_time: '09:00', end_time: '10:30' }] }
+    api.get.mockImplementation(mockApi({ schedule: {
+      classes: [HYBRID, SPARK],
+      tuition_quote: { total_cents: 545000, tuition_cents: 495000, supply_cents: 50000, blocks: 0,
+        included: [{ class_id: 'c-spark', included_with_class_id: 'c-hybrid', included_with_name: 'Hybrid Program' }] },
+    } }))
+    render(<ScheduleBuilderPage />)
+    expect(await screen.findByText(
+      'SPARK Friday Excursions is included with Hybrid Program, so there is no charge for it.')).toBeInTheDocument()
+    const days = screen.getAllByText(/Supplies:/).map((el) => el.textContent)
+    expect(days).toHaveLength(1)  // Tuesday's Hybrid supplies; no Friday line for SPARK
+    expect(days[0]).toMatch(/\$500/)
+  })
 })

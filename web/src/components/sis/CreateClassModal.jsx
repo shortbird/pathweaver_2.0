@@ -22,7 +22,7 @@ export {
 
 const OPTIO_ICON_URL = 'https://auth.optioeducation.com/storage/v1/object/public/site-assets/logos/gradient_fav.svg'
 
-export default function CreateClassModal({ onClose, onSubmit, initial = null, staff = [], timeBlocks = [], rooms = [], roomOccupancy = {}, org = null }) {
+export default function CreateClassModal({ onClose, onSubmit, initial = null, staff = [], timeBlocks = [], rooms = [], roomOccupancy = {}, org = null, classOptions = [] }) {
   const isEdit = Boolean(initial)
   // The school's own logo when it has one, Optio's mark otherwise.
   const schoolLogo = org?.branding_config?.logo_url || org?.logo_url || null
@@ -41,7 +41,8 @@ export default function CreateClassModal({ onClose, onSubmit, initial = null, st
           </button>
         </div>
         <ClassForm onCancel={onClose} onSubmit={onSubmit} initial={initial} staff={staff}
-          timeBlocks={timeBlocks} rooms={rooms} roomOccupancy={roomOccupancy} org={org} />
+          timeBlocks={timeBlocks} rooms={rooms} roomOccupancy={roomOccupancy} org={org}
+          classOptions={classOptions} />
       </div>
     </ModalOverlay>
   )

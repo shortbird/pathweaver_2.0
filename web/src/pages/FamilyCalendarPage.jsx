@@ -1,4 +1,5 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { toast } from 'react-hot-toast'
 import api from '../services/api'
 import ModalOverlay from '../components/ui/ModalOverlay'
@@ -8,11 +9,17 @@ import AnnouncementBody from '../components/announcements/AnnouncementBody'
 import EventRsvp from '../components/school/EventRsvp'
 import { XMarkIcon, ClockIcon, MapPinIcon } from '@heroicons/react/24/outline'
 import { splitEventStamp, compact12h, fmtDateOnly } from '../utils/timeFormat'
+import { rsvpStatus } from '@shared/eventRsvp'
 
 /**
  * School Calendar — the school's events (field trips, showcases, closures).
  * Read-only; staff manage events in the SIS. Shown as a month grid (families
  * asked for a calendar, not a list); tap a day or event for details.
+ *
+ * And as a List (Apogee NoCo, 2026-10-16): every upcoming event in date order,
+ * with when, where and the family's sign-up state on each row, filtered by
+ * category. "SPARK" on that list is the semester's excursions, and
+ * ?view=list&category=SPARK is a link the school can send as "the SPARK page".
  *
  * Reached from a card on /school, and open to everyone in the school —
  * students most of all, since these are the days that change their week.
@@ -50,6 +57,16 @@ export const fmtWhen = (e) => {
   return span ? `${span} · ${times}` : times
 }
 
+const eventCats = (e) => (e.categories && e.categories.length ? e.categories : [e.category]).filter(Boolean)
+
+const STATUS_TONE = {
+  in: 'bg-green-100 text-green-800',
+  full: 'bg-amber-100 text-amber-800',
+  closed: 'bg-gray-100 text-gray-500',
+  out: 'bg-gray-100 text-gray-600',
+  open: 'bg-optio-purple/10 text-optio-purple',
+}
+
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June',
   'July', 'August', 'September', 'October', 'November', 'December']
 const DOW = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
@@ -67,7 +84,20 @@ const FamilyCalendarPage = () => {
   )
   const [orgId, setOrgId] = useState(null)
   const [events, setEvents] = useState(null)
+  const [upcoming, setUpcoming] = useState(null) // the List view's events, from today on
   const [openDay, setOpenDay] = useState(null) // 'YYYY-MM-DD' whose events are shown
+  const [openEventId, setOpenEventId] = useState(null) // one event, opened from the List
+  // The view and the category ride in the URL, so a filtered list is a link
+  // the school can share. A link that names a category opens on the list.
+  const [params, setParams] = useSearchParams()
+  const category = params.get('category') || null
+  const view = params.get('view') === 'list' || (category && params.get('view') !== 'month') ? 'list' : 'month'
+  const setParam = (key, value) => {
+    const next = new URLSearchParams(params)
+    if (value) next.set(key, value)
+    else next.delete(key)
+    setParams(next, { replace: true })
+  }
   const [subscribeUrl, setSubscribeUrl] = useState(null) // the .ics feed; null = modal closed
 
   const now = new Date()
@@ -81,13 +111,36 @@ const FamilyCalendarPage = () => {
     if (orgs?.length && !orgId) setOrgId(orgs[0].organization_id)
   }, [orgs, orgId])
 
-  useEffect(() => {
+  // One read of the family events for both views: the month window, or from
+  // today with no end.
+  const getEvents = useCallback(
+    (window) => api.get(`/api/sis/parent/events?organization_id=${orgId}${window}`),
+    [orgId],
+  )
+
+  const loadMonth = useCallback(() => {
     if (!orgId) return
-    setEvents(null)
-    api.get(`/api/sis/parent/events?organization_id=${orgId}&from=${monthStart}&to=${nextMonth}`)
+    getEvents(`&from=${monthStart}&to=${nextMonth}`)
       .then((r) => setEvents(r.data?.events || []))
       .catch(() => { toast.error('Could not load the calendar'); setEvents([]) })
-  }, [orgId, monthStart, nextMonth])
+  }, [orgId, getEvents, monthStart, nextMonth])
+
+  useEffect(() => { setEvents(null); loadMonth() }, [loadMonth])
+
+  // The List reads from today with no end: a semester of excursions is one
+  // list, not a month at a time.
+  const todayYmd = ymd(new Date())
+  const loadUpcoming = useCallback(() => {
+    if (!orgId) return
+    getEvents(`&from=${todayYmd}`)
+      .then((r) => setUpcoming(r.data?.events || []))
+      .catch(() => { toast.error('Could not load the events'); setUpcoming([]) })
+  }, [orgId, getEvents, todayYmd])
+
+  useEffect(() => { if (view === 'list') { setUpcoming(null); loadUpcoming() } }, [view, loadUpcoming])
+
+  // After a sign-up changes, the row's "Signed up" / "Full" must change too.
+  const refreshAfterRsvp = () => { loadMonth(); if (view === 'list') loadUpcoming() }
 
   const shift = (delta) => {
     const d = new Date(year, month + delta, 1)
@@ -119,10 +172,19 @@ const FamilyCalendarPage = () => {
     }
   }
 
+  // The category chips: every category on the events loaded, in name order.
+  const categories = useMemo(() => {
+    const set = new Set()
+    for (const e of [...(events || []), ...(upcoming || [])]) eventCats(e).forEach((c) => set.add(c))
+    if (category) set.add(category)
+    return [...set].sort((a, b) => a.localeCompare(b))
+  }, [events, upcoming, category])
+  const inCategory = useCallback((e) => !category || eventCats(e).includes(category), [category])
+
   // Multi-day events appear on every day they span.
   const byDate = useMemo(() => {
     const map = {}
-    for (const e of (events || [])) {
+    for (const e of (events || []).filter(inCategory)) {
       const start = splitStamp(e.start_at).date
       const end = e.end_at ? splitStamp(e.end_at).date : start
       let day = start
@@ -132,7 +194,10 @@ const FamilyCalendarPage = () => {
       }
     }
     return map
-  }, [events])
+  }, [events, inCategory])
+
+  const listed = useMemo(() => (upcoming || []).filter(inCategory)
+    .sort((a, b) => String(a.start_at).localeCompare(String(b.start_at))), [upcoming, inCategory])
 
   const weeks = useMemo(() => {
     const first = new Date(year, month, 1)
@@ -148,7 +213,22 @@ const FamilyCalendarPage = () => {
 
   const today = ymd(new Date())
   const org = orgs?.find((o) => o.organization_id === orgId)
-  const openDayEvents = openDay ? (byDate[openDay] || []) : []
+  const openEvent = openEventId
+    ? [...(upcoming || []), ...(events || [])].find((e) => e.id === openEventId) : null
+  const modalEvents = openEvent ? [openEvent] : openDay ? (byDate[openDay] || []) : []
+  const modalDay = openEvent ? splitStamp(openEvent.start_at).date : openDay
+  const closeModal = () => { setOpenDay(null); setOpenEventId(null) }
+
+  const copyListLink = async () => {
+    const url = new URL(window.location.href)
+    url.searchParams.set('view', 'list')
+    try {
+      await navigator.clipboard.writeText(url.toString())
+      toast.success('Link copied')
+    } catch {
+      toast.error('Could not copy the link')
+    }
+  }
 
   // A tab of the school page (pages/school/SchoolShell): the shell carries
   // the letterhead and the rail, this is the panel.
@@ -174,6 +254,62 @@ const FamilyCalendarPage = () => {
 
       {orgId && (
         <>
+          <div className="flex flex-wrap items-center gap-2 mb-3">
+            <div role="tablist" aria-label="Calendar view" className="inline-flex rounded-lg border border-gray-300 p-0.5">
+              {[['month', 'Month'], ['list', 'List']].map(([key, label]) => (
+                <button key={key} role="tab" aria-selected={view === key}
+                  onClick={() => { closeModal(); setParam('view', key === 'month' ? (category ? 'month' : null) : 'list') }}
+                  className={`px-3 py-1 rounded-md text-sm font-medium transition-colors ${view === key
+                    ? 'bg-optio-purple text-white' : 'text-gray-600 hover:text-optio-purple'}`}>
+                  {label}
+                </button>
+              ))}
+            </div>
+            {categories.length > 0 && (
+              <div className="flex flex-wrap items-center gap-1.5" aria-label="Filter by category">
+                <button onClick={() => setParam('category', null)} aria-pressed={!category}
+                  className={`text-xs font-medium rounded-full px-2.5 py-1 transition-colors ${!category
+                    ? 'bg-optio-purple text-white' : 'bg-neutral-100 text-neutral-600 hover:bg-neutral-200'}`}>
+                  All
+                </button>
+                {categories.map((c) => (
+                  <button key={c} onClick={() => setParam('category', category === c ? null : c)}
+                    aria-pressed={category === c}
+                    className={`text-xs font-medium rounded-full px-2.5 py-1 transition-colors ${category === c
+                      ? 'bg-optio-purple text-white' : 'bg-neutral-100 text-neutral-600 hover:bg-neutral-200'}`}>
+                    {c}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {view === 'list' ? (
+            <>
+              <div className="flex items-center gap-3 mb-4">
+                <span className="text-lg font-semibold text-gray-900">
+                  {category ? `Upcoming: ${category}` : 'Upcoming events'}
+                </span>
+                {upcoming === null && <span className="text-sm text-gray-400">Loading…</span>}
+                {category && (
+                  <button onClick={copyListLink} className="text-sm text-optio-purple hover:underline">
+                    Copy link to this list
+                  </button>
+                )}
+                <button onClick={openSubscribe}
+                  className="ml-auto px-3 py-1.5 rounded-lg border border-gray-300 text-sm font-medium text-gray-700 hover:border-optio-purple hover:text-optio-purple transition-colors">
+                  Add to my calendar
+                </button>
+              </div>
+              <EventList events={listed} onOpen={(e) => setOpenEventId(e.id)} />
+              {upcoming && listed.length === 0 && (
+                <p className="mt-3 text-sm text-gray-400">
+                  {category ? `No upcoming ${category} events.` : 'No upcoming events.'}
+                </p>
+              )}
+            </>
+          ) : (
+          <>
           <div className="flex items-center gap-3 mb-4">
             <button onClick={() => shift(-1)} aria-label="Previous month"
               className="px-2.5 py-1.5 rounded-lg border border-gray-300 text-gray-600 hover:border-optio-purple hover:text-optio-purple text-sm">←</button>
@@ -237,6 +373,8 @@ const FamilyCalendarPage = () => {
           {events?.length === 0 && (
             <p className="mt-3 text-sm text-gray-400">No events on the calendar this month.</p>
           )}
+          </>
+          )}
         </>
       )}
 
@@ -275,23 +413,23 @@ const FamilyCalendarPage = () => {
         </ModalOverlay>
       )}
 
-      {openDay && (
-        <ModalOverlay onClose={() => setOpenDay(null)} className="items-end sm:items-center">
+      {modalDay && modalEvents.length > 0 && (
+        <ModalOverlay onClose={closeModal} className="items-end sm:items-center">
           <div
             className="bg-white rounded-2xl shadow-xl max-w-lg w-full max-h-[85vh] flex flex-col"
             role="dialog" aria-modal="true" aria-labelledby="calendar-day-title"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
-              <h2 id="calendar-day-title" className="text-base font-semibold text-gray-900">{fmtDayLong(openDay)}</h2>
-              <button type="button" onClick={() => setOpenDay(null)} aria-label="Close"
+              <h2 id="calendar-day-title" className="text-base font-semibold text-gray-900">{fmtDayLong(modalDay)}</h2>
+              <button type="button" onClick={closeModal} aria-label="Close"
                 className="-mr-1 p-1 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors">
                 <XMarkIcon className="w-5 h-5" />
               </button>
             </div>
             <div className="p-5 space-y-4 overflow-y-auto">
-              {openDayEvents.map((e) => {
-                const categories = (e.categories && e.categories.length ? e.categories : [e.category]).filter(Boolean)
+              {modalEvents.map((e) => {
+                const categories = eventCats(e)
                 return (
                   <article key={e.id} className="rounded-xl border border-gray-200 p-4">
                     <div className="flex items-start justify-between gap-3">
@@ -334,7 +472,7 @@ const FamilyCalendarPage = () => {
                         payments to the calendar events would be good"
                         (iCreate, 2026-08-28 — 9cf78e9a). Renders nothing on an
                         event the office did not open for replies. */}
-                    <EventRsvp event={e} orgId={orgId} />
+                    <EventRsvp event={e} orgId={orgId} onChange={refreshAfterRsvp} />
                   </article>
                 )
               })}
@@ -343,6 +481,50 @@ const FamilyCalendarPage = () => {
         </ModalOverlay>
       )}
     </div>
+  )
+}
+
+/**
+ * Upcoming events in date order, one row each: the date, the title, when,
+ * where, and this family's sign-up state. A row opens the event, where the
+ * sign-up button is.
+ */
+export function EventList({ events, onOpen }) {
+  if (!events?.length) return null
+  return (
+    <ul className="bg-white rounded-xl border border-gray-200 divide-y divide-gray-100" aria-label="Upcoming events">
+      {events.map((e) => {
+        const day = splitStamp(e.start_at).date
+        const [, m, d] = day.split('-').map(Number)
+        const status = rsvpStatus(e)
+        return (
+          <li key={e.id}>
+            <button type="button" onClick={() => onOpen(e)}
+              className="w-full text-left flex items-start gap-4 px-4 py-3 hover:bg-optio-purple/5 transition-colors">
+              <span className="flex-shrink-0 w-12 text-center">
+                <span className="block text-[11px] font-semibold uppercase text-optio-purple">{MONTHS[m - 1].slice(0, 3)}</span>
+                <span className="block text-xl font-bold leading-tight text-gray-900">{d}</span>
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block text-sm font-semibold text-gray-900">{e.title}</span>
+                <span className="block text-xs text-gray-500">{fmtDayLong(day)} · {fmtWhen(e)}</span>
+                {e.location && (
+                  <span className="flex items-center gap-1 text-xs text-gray-500 mt-0.5">
+                    <MapPinIcon className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" aria-hidden="true" />
+                    <span className="truncate">{e.location}</span>
+                  </span>
+                )}
+              </span>
+              {status && (
+                <span className={`flex-shrink-0 text-[11px] font-semibold rounded-full px-2 py-0.5 ${STATUS_TONE[status.tone]}`}>
+                  {status.label}
+                </span>
+              )}
+            </button>
+          </li>
+        )
+      })}
+    </ul>
   )
 }
 

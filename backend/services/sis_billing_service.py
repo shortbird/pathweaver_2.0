@@ -66,18 +66,27 @@ from config.constants import GUARDIAN_RELATIONSHIPS
 from utils.money import format_cents
 
 
-# ── Processing fees ──────────────────────────────────────────────────────────
-# Default is Stripe's standard US card rate, from Optio's price list
-# (shared/data/pricing.json, cardProcessing). Orgs can override in
-# branding_config.processing_fee = {"percent": ..., "flat_cents": ...}. Applied to
-# any payment method that costs the school a fee (card / e-check / ACH-with-fee).
-from generated.pricing import PRICING as _PRICING  # noqa: E402
-_DEFAULT_PROCESSING_FEE = {'percent': _PRICING['cardProcessing']['percent'],
-                           'flat_cents': _PRICING['cardProcessing']['flatCents']}
+# ── Card processing fees: Optio adds none ────────────────────────────────────
+# Optio never adds a card processing fee to a payment (Tanner, 2026-10-16:
+# "optio should simply just not add a card processing fee - let that be
+# handled by stripe settings"). A school that passes card costs on to families
+# does it in its own Stripe account, where Stripe adds the fee itself.
+#
+# Until then Optio added its own "Card processing fee" line (2.9% + $0.30 by
+# default) to every Checkout and card autopay charge. iCreate families were
+# charged the fee twice: once by Optio's line and once by Stripe's own
+# surcharge setting on the school's account. tests/test_sis_no_card_fee.py
+# fails if a fee line comes back on any Checkout or charge.
+#
+# What survives is READ-ONLY history: invoices paid before the change carry a
+# fee line (and processing_fee_cents), and a Checkout opened before the deploy
+# but paid after it carries fee_cents in its metadata. Both are recorded and
+# displayed exactly as the family was charged.
 
 
 def _processing_fee_settings(org_id: str) -> Dict[str, Any]:
-    """branding_config.processing_fee as stored, or {}."""
+    """branding_config.processing_fee as stored, or {}. Only autopay_bank_free
+    is read from it now; the percent/flat_cents keys are ignored."""
     try:
         row = (_admin().table('organizations').select('branding_config')
                .eq('id', org_id).limit(1).execute()).data
@@ -88,57 +97,17 @@ def _processing_fee_settings(org_id: str) -> Dict[str, Any]:
     return {}
 
 
-def _processing_fee_config(org_id: str) -> Dict[str, Any]:
-    try:
-        cfg = _processing_fee_settings(org_id)
-        if cfg:
-            return {'percent': float(cfg.get('percent', _DEFAULT_PROCESSING_FEE['percent'])),
-                    'flat_cents': int(cfg.get('flat_cents', _DEFAULT_PROCESSING_FEE['flat_cents']))}
-    except Exception as _exc:  # noqa: BLE001
-        logger.debug("org branding lookup failed: %s", _exc, exc_info=True)
-    return dict(_DEFAULT_PROCESSING_FEE)
-
-
 # ── Bank-first autopay ───────────────────────────────────────────────────────
-# Optio Academy, 2026-10-05: monthly tuition set up from now on offers a US bank
-# account (ACH) with no fee, or a card with the processing fee added to every
-# charge. Turned on per school in branding_config.processing_fee.autopay_bank_free;
-# a school without it keeps card-only setup with no fee, as before.
-#
-# A saved method that predates the switch (card_fee_exempt) keeps its old
-# terms. Saving any new method clears the exemption: a family that replaces its
-# card chooses again between bank and card-with-fee.
+# Optio Academy, 2026-10-05: monthly tuition setup offers a US bank account
+# (ACH) as well as a card. Turned on per school in
+# branding_config.processing_fee.autopay_bank_free (the key name is historical:
+# it once also meant "and cards pay a fee", which ended 2026-10-16); a school
+# without it keeps card-only setup.
 BANK_METHOD = 'us_bank_account'
 
 
 def autopay_bank_free(org_id: str) -> bool:
     return bool(_processing_fee_settings(org_id).get('autopay_bank_free'))
-
-
-def card_fee_terms(org_id: str) -> str:
-    """The card fee in words, for the parent who is choosing: "2.9% + $0.30"."""
-    cfg = _processing_fee_config(org_id)
-    pct = f"{cfg['percent']:g}%"
-    return f"{pct} + {format_cents(cfg['flat_cents'])}" if cfg['flat_cents'] else pct
-
-
-def charges_card_fee(org_id: str, saved_pm: Dict[str, Any]) -> bool:
-    """True when an autopay charge on this saved method carries the card fee."""
-    if (saved_pm.get('method_type') or 'card') == BANK_METHOD:
-        return False
-    if saved_pm.get('card_fee_exempt'):
-        return False
-    return autopay_bank_free(org_id)
-
-
-def compute_processing_fee(org_id: str, base_cents: int) -> int:
-    """The processing fee on a base amount, per the org's configured rate.
-    Rounded to whole cents; never negative."""
-    if not base_cents or base_cents <= 0:
-        return 0
-    cfg = _processing_fee_config(org_id)
-    fee = round(base_cents * (cfg['percent'] / 100.0)) + cfg['flat_cents']
-    return max(0, int(fee))
 
 
 # The fee is a LINE ITEM on the invoice, inside subtotal_cents and total_cents.
@@ -153,7 +122,9 @@ def compute_processing_fee(org_id: str, base_cents: int) -> int:
 # it. A line item cannot be forgotten by a surface that renders line items.
 #
 # processing_fee_cents survives as "how much of this total is fee" -- for the
-# record, and for the staff waive/override. It is never added to a total again.
+# record. It is never added to a total again. Since 2026-10-16 no new fee is
+# ever computed; the line is only written when a payment made on an old
+# Checkout (one that charged the fee) is recorded.
 PROCESSING_FEE_DESCRIPTION = 'Card processing fee'
 
 
@@ -161,10 +132,11 @@ def _apply_processing_fee(org_id: str, invoice_id: str, fee_cents: int) -> Dict[
     """Put `fee_cents` on the invoice as its card-fee line and fold it into the
     totals. Returns the updated invoice row.
 
-    Replaces the fee line already there rather than adding to it, so the three
-    paths a card payment arrives from (portal return, emailed pay link, nightly
-    sweep) can all call this for the same payment and the family is charged the
-    fee once. 0 removes the line -- that is the staff waive.
+    Only reached when recording a payment on a Checkout opened before
+    2026-10-16, whose metadata says the family was charged a fee: the invoice
+    has to show what they paid. Replaces the fee line already there rather
+    than adding to it, so the three paths a card payment arrives from (portal
+    return, emailed pay link, nightly sweep) record the fee once.
     """
     fee = max(0, int(fee_cents or 0))
     (_admin().table('sis_invoice_line_items').delete()
@@ -295,6 +267,20 @@ def _registration_items(reg_id: str) -> List[Dict[str, Any]]:
     ).data or []
 
 
+def _registration_included(reg: Dict[str, Any], items: List[Dict[str, Any]]) -> Dict[str, Dict[str, Any]]:
+    """{class_id: the class that pays for it} for a registration's classes.
+    What pays can be another class in the same cart or one the student is
+    already enrolled in (sis_tuition_service.included_with)."""
+    ids = {it['class_id'] for it in items if it.get('class_id')}
+    if not ids:
+        return {}
+    sid = reg.get('student_user_id')
+    if sid:
+        from repositories.sis_class_repository import SisClassRepository
+        ids |= SisClassRepository(client=_admin()).student_active_class_ids(sid)
+    return _included_for(ids)
+
+
 # ── Quote / invoice ──────────────────────────────────────────────────────────
 def quote_for_registration(org_id: str, reg_id: str,
                            promo_code: Optional[str] = None,
@@ -303,7 +289,9 @@ def quote_for_registration(org_id: str, reg_id: str,
     if not reg:
         return {'error': 'Registration not found'}
     items = _registration_items(reg_id)
-    prices = [it.get('price_snapshot_cents') or 0 for it in items]
+    included = _registration_included(reg, items)
+    prices = [0 if it.get('class_id') in included else (it.get('price_snapshot_cents') or 0)
+              for it in items]
     rules = list_discount_rules(org_id)
     context = {
         'sibling_count': _household_student_count(reg.get('household_id')),
@@ -326,6 +314,8 @@ def create_invoice_from_registration(org_id: str, reg_id: str,
     if not items:
         return {'error': 'Registration has no classes to invoice'}
     quote = quote_for_registration(org_id, reg_id, promo_code, manual_rule_ids)
+    included = _registration_included(reg, items)
+    from services.sis_tuition_service import included_line
 
     # class names for line descriptions
     class_ids = [it['class_id'] for it in items]
@@ -336,7 +326,10 @@ def create_invoice_from_registration(org_id: str, reg_id: str,
         ).data or []}
     invoice = write_invoice(
         org_id, household_id=reg.get('household_id'), student_user_id=reg.get('student_user_id'),
-        lines=[{'description': names.get(it['class_id'], 'Class'), 'class_id': it['class_id'],
+        lines=[included_line({'id': it['class_id'], 'name': names.get(it['class_id'], 'Class')},
+                             included[it['class_id']])
+               if it['class_id'] in included else
+               {'description': names.get(it['class_id'], 'Class'), 'class_id': it['class_id'],
                 'amount_cents': it.get('price_snapshot_cents') or 0, 'kind': 'tuition'} for it in items],
         discount_cents=quote['discount_cents'], registration_id=reg_id)
     enqueue_qbo(org_id, 'invoice', invoice['id'])
@@ -818,11 +811,22 @@ def reprice_for_class_change(org_id: str, student_user_id: str,
             break
     lines = lines or []
 
-    if (inv.get('amount_paid_cents') or 0) > 0:
-        return _reprice_paid_invoice(org_id, inv, lines, class_ids, actor_user_id)
+    # A class another of the student's classes pays for (a bundled program)
+    # bills as a zero line, never at its price (sis_tuition_service.included_with).
+    from services.sis_tuition_service import included_line, is_included_line
+    included = _included_for(class_ids)
 
-    billed = {li['class_id'] for li in lines if li.get('class_id')}
-    added, removed = class_ids - billed, billed - class_ids
+    if (inv.get('amount_paid_cents') or 0) > 0:
+        return _reprice_paid_invoice(org_id, inv, lines, class_ids, actor_user_id,
+                                     included=included)
+
+    # Billed in full vs billed as included: a class moves between the two when
+    # the program that pays for it is added or dropped.
+    full_ids = class_ids - set(included)
+    billed = {li['class_id'] for li in lines if li.get('class_id') and not is_included_line(li)}
+    billed_inc = {li['class_id'] for li in lines if li.get('class_id') and is_included_line(li)}
+    added = (full_ids - billed) | (set(included) - billed_inc)
+    removed = (billed - full_ids) | (billed_inc - set(included))
     if not added and not removed:
         return {'changed': False, 'reason': 'already matches'}
 
@@ -833,7 +837,8 @@ def reprice_for_class_change(org_id: str, student_user_id: str,
             .in_('id', sorted(added)).execute()).data or []}
 
     # Nothing paid: rewrite the invoice itself.
-    keep = [li for li in lines if not li.get('class_id') or li['class_id'] in class_ids]
+    keep = [li for li in lines if not li.get('class_id')
+            or (li['class_id'] in included if is_included_line(li) else li['class_id'] in full_ids)]
     new_lines = [{'description': li.get('description'), 'class_id': li.get('class_id'),
                   'amount_cents': li.get('amount_cents') or 0,
                   'quantity': li.get('quantity') or 1, 'kind': li.get('kind')}
@@ -841,6 +846,9 @@ def reprice_for_class_change(org_id: str, student_user_id: str,
     for cid in sorted(added):
         c = priced.get(cid)
         if not c:
+            continue
+        if cid in included:
+            new_lines.append({**included_line(c, included[cid]), 'quantity': 1})
             continue
         # What the class costs a family: tuition plus its supply fee.
         new_lines.append({'description': c.get('name') or 'Class', 'class_id': cid,
@@ -853,6 +861,16 @@ def reprice_for_class_change(org_id: str, student_user_id: str,
         'added': sorted(added), 'removed': sorted(removed),
     })
     return {'changed': True, 'repriced': True, 'invoice': result.get('invoice')}
+
+
+def _included_for(class_ids: set) -> Dict[str, Dict[str, Any]]:
+    """{class_id: the class that pays for it} among one student's classes."""
+    if not class_ids:
+        return {}
+    from repositories.sis_class_repository import SisClassRepository
+    from services.sis_tuition_service import included_with
+    rows = SisClassRepository(client=_admin()).pricing_rows(class_ids)
+    return included_with(list(rows.values()))
 
 
 def _supply_fee_cents(c: Dict[str, Any]) -> int:
@@ -872,17 +890,27 @@ def _is_class_tuition_line(li: Dict[str, Any]) -> bool:
 
 
 def _reprice_paid_invoice(org_id: str, inv: Dict[str, Any], lines: List[Dict[str, Any]],
-                          class_ids: set, actor_user_id: Optional[str]) -> Dict[str, Any]:
+                          class_ids: set, actor_user_id: Optional[str],
+                          included: Optional[Dict[str, Dict[str, Any]]] = None) -> Dict[str, Any]:
     """The part/fully paid half of reprice_for_class_change (policy of
     2026-09-28, in its docstring). Everything lands on the one invoice through
     update_invoice, which recomputes the status, re-spreads an active plan,
     audits the edit, queues QuickBooks and tells the family in the app."""
+    from services.sis_tuition_service import included_line, is_included_line
+    included = included or {}
     paid = int(inv.get('amount_paid_cents') or 0)
-    tuition_ids = {li['class_id'] for li in lines if _is_class_tuition_line(li)}
+    tuition_ids = {li['class_id'] for li in lines
+                   if _is_class_tuition_line(li) and not is_included_line(li)}
     supply_ids = {li['class_id'] for li in lines
                   if li.get('class_id') and li.get('kind') == 'supply'}
-    added, removed = class_ids - tuition_ids, tuition_ids - class_ids
-    if not added and not removed:
+    # A class another enrolled class pays for is billed as a zero line. One that
+    # becomes included (its program was added) has its tuition come off like a
+    # dropped class; one that stops being included is added at its price.
+    full_ids = class_ids - set(included)
+    added, removed = full_ids - tuition_ids, tuition_ids - full_ids
+    inc_ids = {li['class_id'] for li in lines if li.get('class_id') and is_included_line(li)}
+    inc_add, inc_drop = set(included) - inc_ids, inc_ids - set(included)
+    if not added and not removed and not inc_add and not inc_drop:
         return {'changed': False, 'reason': 'already matches'}
 
     # A tuition line that names no class means the invoice is not priced class
@@ -896,8 +924,8 @@ def _reprice_paid_invoice(org_id: str, inv: Dict[str, Any], lines: List[Dict[str
 
     classes = {c['id']: c for c in (
         _admin().table('org_classes').select('id, name, price_cents, supply_fee')
-        .in_('id', sorted(added | removed)).execute()).data or []}
-    if not removed and not any(cid in classes for cid in added):
+        .in_('id', sorted(added | removed | inc_add)).execute()).data or []}
+    if not removed and not inc_drop and not any(cid in classes for cid in added | inc_add):
         return {'changed': False, 'reason': 'nothing further to bill'}
 
     from services.sis_tuition_service import SUPPLY_LINE_SUFFIX
@@ -909,6 +937,8 @@ def _reprice_paid_invoice(org_id: str, inv: Dict[str, Any], lines: List[Dict[str
     new_lines: List[Dict[str, Any]] = []
     for li in lines:
         cid = li.get('class_id')
+        if is_included_line(li) and cid in inc_drop:
+            continue
         if _is_class_tuition_line(li) and cid in removed:
             # The tuition comes off. A line written by the pre-2026-09-28
             # reprice carried tuition AND supply fee as one amount; the supply
@@ -937,6 +967,10 @@ def _reprice_paid_invoice(org_id: str, inv: Dict[str, Any], lines: List[Dict[str
         # does not buy the supplies twice.
         if fee > 0 and cid not in supply_ids:
             new_lines.append(_supply_line(cid, c, fee))
+    for cid in sorted(inc_add):
+        c = classes.get(cid)
+        if c:
+            new_lines.append({**included_line(c, included[cid]), 'quantity': 1})
 
     from_discount = int(inv.get('discount_cents') or 0)
     subtotal = sum(li['amount_cents'] for li in new_lines)
@@ -1087,8 +1121,8 @@ def split_invoice(org_id: str, invoice_id: str, actor_user_id: Optional[str],
 
     Refused, with nothing written, when the invoice is void, paid, or has any
     payment ever recorded on it (a refund included); when it has a payment
-    plan with installments; when a card fee is on it (the fee is worked out
-    again when each half is paid); or when the first amount is not strictly
+    plan with installments; when an old card fee line is on it (staff remove
+    that line in Edit first); or when the first amount is not strictly
     between 0 and the balance.
 
     Autopay: autopay is a payment plan on the invoice, and the charge sweep
@@ -1132,8 +1166,8 @@ def split_invoice(org_id: str, invoice_id: str, actor_user_id: Optional[str],
     if (inv.get('processing_fee_cents') or 0) > 0 or any(
             li.get('kind') == 'fee' and li.get('description') == PROCESSING_FEE_DESCRIPTION
             for li in lines):
-        return {'error': 'This invoice has a card processing fee on it. Waive the fee first; '
-                         'it is added again when each part is paid.'}
+        return {'error': 'This invoice has a card processing fee line on it. Remove that '
+                         'line in Edit first, then split the invoice.'}
 
     total = int(inv.get('total_cents') or 0)
     balance = amount_due_cents(inv)
@@ -1345,6 +1379,28 @@ def autopay_summary(invoice: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         'remaining_count': len(pending),
         'remaining_cents': sum(int(i.get('amount_cents') or 0) for i in pending),
         'next_due_date': pending[0].get('due_date') if pending else None,
+    }
+
+
+def active_plan_summary(invoice: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """PURE. The plan the invoice is on now, for the console's Payment plan
+    dialog and schedule: cadence, whether a card is charged, and every
+    installment (paid ones too, so the schedule reads whole). None when no
+    plan is active. `invoice` is get_invoice()'s shape."""
+    plan = next((p for p in (invoice.get('payment_plans') or [])
+                 if p.get('status') == 'active'), None)
+    if not plan:
+        return None
+    return {
+        'id': plan.get('id'),
+        'cadence': plan.get('cadence'),
+        'installment_count': plan.get('installment_count'),
+        'auto_charge': bool(plan.get('auto_charge')),
+        'installments': sorted(
+            ({'id': i.get('id'), 'due_date': i.get('due_date'),
+              'amount_cents': i.get('amount_cents'), 'status': i.get('status')}
+             for i in (plan.get('installments') or [])),
+            key=lambda i: str(i.get('due_date') or '')),
     }
 
 
@@ -1594,16 +1650,80 @@ def billing_ledger(org_id: str, month: Optional[str] = None) -> List[Dict[str, A
 
 
 # ── Payment plans ────────────────────────────────────────────────────────────
+# Staff put an invoice on a plan from the console (EditInvoiceModal, "Payment
+# plan"); a family can also start one themselves by turning on autopay, which is
+# monthly. Either way the plan is sis_payment_plans + one sis_installments row
+# per payment. A plan with no card on it (auto_charge false) is a schedule: it
+# tells the family what is due when, and the office records the payments. A
+# plan with a card on it is charged by charge_due_installments on each due date.
+# A family who turns on autopay for an invoice the school already put on a plan
+# gets the school's schedule (_attach_card_to_plan), not a monthly one of their
+# own.
+PLAN_COUNT_LIMITS = {'monthly': (2, 24), 'semester': (2, 4), 'full': (1, 1)}
+
+
+def plan_schedule(balance_cents: int, cadence: str, installment_count: Any,
+                  start_date: Any) -> Dict[str, Any]:
+    """PURE. The installments a plan would have: {'schedule': [...]} or
+    {'error'}. One function so the preview the office reads and the plan that
+    is saved cannot differ."""
+    if cadence not in CADENCES:
+        return {'error': 'Choose monthly, semester, or pay in full'}
+    if balance_cents <= 0:
+        return {'error': 'This invoice has no balance to put on a plan'}
+    lo, hi = PLAN_COUNT_LIMITS[cadence]
+    if cadence == 'full':
+        count = 1
+    else:
+        if isinstance(installment_count, bool) or not isinstance(installment_count, int):
+            return {'error': 'Enter how many payments'}
+        if not lo <= installment_count <= hi:
+            return {'error': f'Choose between {lo} and {hi} payments'}
+        count = installment_count
+    start = _valid_iso_date(start_date) if start_date not in (None, '') else date.today().isoformat()
+    if not start:
+        return {'error': 'Enter a valid first payment date'}
+    return {'schedule': pricing.build_schedule(balance_cents, cadence, count, start)}
+
+
 def create_payment_plan(org_id: str, invoice_id: str, cadence: str,
-                        installment_count: int, start_date: Any) -> Dict[str, Any]:
-    inv = (
-        _admin().table('sis_invoices').select('*')
-        .eq('id', invoice_id).eq('organization_id', org_id).limit(1).execute()
-    ).data
+                        installment_count: Any, start_date: Any,
+                        actor_user_id: Optional[str] = None,
+                        dry_run: bool = False) -> Dict[str, Any]:
+    """Staff put an invoice on a payment plan, or change the plan it is on.
+
+    The plan covers what is still owed (total less paid), not the original
+    total: money already paid is not scheduled again. `dry_run` returns the
+    schedule without writing anything, for the preview.
+
+    An invoice already on a plan with no card has that plan replaced: its
+    unpaid installments are waived and the new schedule takes over. An
+    invoice on autopay is refused. The family agreed to those charges on that
+    card, so the office stops autopay first and the family sets it up again.
+
+    Returns {'plan': {..., 'installments'}} (or {'schedule'} on a dry run), or
+    {'error', 'code'}: 404 not found, 409 autopay is on, 400 anything else.
+    """
+    if not _is_uuid(invoice_id):
+        return {'error': 'Invoice not found', 'code': 404}
+    inv = SisInvoiceRepository(client=_admin()).for_org(org_id, invoice_id)
     if not inv:
-        return {'error': 'Invoice not found'}
-    inv = inv[0]
-    schedule = pricing.build_schedule(inv['total_cents'], cadence, installment_count, start_date)
+        return {'error': 'Invoice not found', 'code': 404}
+    if inv.get('status') in ('void', 'paid'):
+        return {'error': f"This invoice is {inv['status']} and cannot go on a plan", 'code': 400}
+    built = plan_schedule(amount_due_cents(inv), cadence, installment_count, start_date)
+    if built.get('error'):
+        return {**built, 'code': 400}
+    schedule = built['schedule']
+    active = SisPaymentPlanRepository(client=_admin()).active_for_invoice(invoice_id)
+    if any(p.get('auto_charge') for p in active):
+        return {'error': 'This invoice is on autopay. Stop autopay first, then change the plan.',
+                'code': 409}
+    if dry_run:
+        return {'schedule': schedule}
+    if active:
+        _cancel_plans_for_invoice(org_id, invoice_id, actor_user_id,
+                                  why='replaced by a new payment plan')
     plan = (
         _admin().table('sis_payment_plans').insert({
             'invoice_id': invoice_id,
@@ -1617,9 +1737,11 @@ def create_payment_plan(org_id: str, invoice_id: str, cadence: str,
         'amount_cents': s['amount_cents'],
         'status': 'scheduled',
     } for s in schedule]
-    if rows:
-        _admin().table('sis_installments').insert(rows).execute()
-    plan['installments'] = rows
+    plan['installments'] = (_admin().table('sis_installments').insert(rows).execute()).data or rows
+    _audit(org_id, invoice_id, actor_user_id, 'payment_plan_set', {
+        'cadence': cadence, 'installment_count': len(schedule),
+        'balance_cents': amount_due_cents(inv), 'first_due_date': schedule[0]['due_date'],
+        'replaced': len(active)})
     return {'plan': plan}
 
 
@@ -1662,6 +1784,19 @@ def _recompute_invoice_status(invoice_id: str) -> Dict[str, Any]:
         .update({'amount_paid_cents': paid, 'status': status, 'updated_at': _now()})
         .eq('id', invoice_id).execute()
     )
+    if status == 'paid':
+        # A paid bill has nothing left to schedule. Every path that pays an
+        # invoice comes through here (the office's record_payment, a Checkout,
+        # an autopay charge, an edit down to what was paid), so this is where
+        # its plan closes: completed, with the installments not yet paid
+        # waived. Before 2026-10-16 only the autopay sweep closed a plan, so a
+        # plan with no card stayed active on a paid invoice and its "scheduled"
+        # installments were later marked late and given late fees. Voiding
+        # closes the plan in void_invoice. A refund that reopens the balance
+        # does not reopen the plan; the office sets a new one if needed.
+        # _cancel_plans_for_invoice does nothing when no plan is active.
+        _cancel_plans_for_invoice(inv['organization_id'], invoice_id, None,
+                                  why='invoice paid', final_status='completed')
     return resp.data[0]
 
 
@@ -1837,24 +1972,6 @@ def update_payment_record(org_id: str, payment_id: str, fields: Dict[str, Any],
     return {'payment': record}
 
 
-def set_processing_fee(org_id: str, invoice_id: str, processing_fee_cents: int,
-                       actor_user_id: str) -> Dict[str, Any]:
-    """Admin override of an invoice's processing fee (e.g. waive it, or set it to
-    the card rate). Recomputes status and audits the change."""
-    inv = (_admin().table('sis_invoices').select('id, processing_fee_cents')
-           .eq('id', invoice_id).eq('organization_id', org_id).limit(1).execute()).data
-    if not inv:
-        return {'error': 'Invoice not found'}
-    fee = max(0, int(processing_fee_cents or 0))
-    # Writes the fee LINE, which is what the family's invoice shows and what
-    # the totals are built from. 0 waives it by removing the line.
-    _apply_processing_fee(org_id, invoice_id, fee)
-    invoice = _recompute_invoice_status(invoice_id)
-    _audit(org_id, invoice_id, actor_user_id, 'processing_fee_set',
-           {'from_cents': inv[0].get('processing_fee_cents') or 0, 'to_cents': fee})
-    return {'invoice': invoice}
-
-
 def _maybe_autocomplete_registration(org_id: str, invoice: Dict[str, Any],
                                      actor_id: str) -> Optional[Dict[str, Any]]:
     """When an invoice is fully paid, auto-complete its registration so the student
@@ -1979,8 +2096,7 @@ def household_billing_summary(org_id: str, household_id: str) -> Dict[str, Any]:
                     if reg.get('stripe_subscription_id') else None)
 
     saved = household_saved_card(org_id, household_id)
-    card = ({**_card_public(saved), 'card_fee': charges_card_fee(org_id, saved)}
-            if saved else None)
+    card = _card_public(saved) if saved else None
 
     return {
         **base,
@@ -2104,9 +2220,15 @@ def _hydrate_invoices(invoices: List[Dict[str, Any]]) -> None:
         lines_by_inv.setdefault(li['invoice_id'], []).append(li)
     plans = fetch_all_rows(lambda: (
         _admin().table('sis_payment_plans')
-        .select('id, invoice_id, cadence, installment_count')
+        .select('id, invoice_id, cadence, installment_count, status, auto_charge')
         .in_('invoice_id', ids)))
     plan_invoice = {p['id']: p['invoice_id'] for p in plans}
+    # The plan the invoice is on now, so the family portal can tell a schedule
+    # the school set (offer autopay on it) from autopay already running.
+    active_plan = {p['invoice_id']: {'id': p['id'], 'cadence': p.get('cadence'),
+                                     'installment_count': p.get('installment_count'),
+                                     'auto_charge': bool(p.get('auto_charge'))}
+                   for p in plans if p.get('status') == 'active'}
     inst_by_inv: Dict[str, List] = {}
     if plans:
         for inst in fetch_all_rows(lambda: (
@@ -2128,6 +2250,7 @@ def _hydrate_invoices(invoices: List[Dict[str, Any]]) -> None:
     for inv in invoices:
         inv['line_items'] = lines_by_inv.get(inv['id'], [])
         inv['installments'] = inst_by_inv.get(inv['id'], [])
+        inv['payment_plan'] = active_plan.get(inv['id'])
         inv['payments'] = pays_by_inv.get(inv['id'], [])
 
 
@@ -2389,8 +2512,8 @@ def _household_funding_source(household_id: Optional[str]) -> Optional[str]:
 # ── Branded invoice document (staff preview + guardian view) ─────────────────
 def invoice_document(org_id: str, invoice_id: str) -> Dict[str, Any]:
     """A branded, itemized invoice payload for printing/PDF: org identity block,
-    invoice number, family + students, line items, discount, processing fee,
-    funding source, totals, and amount due. Rendered to PDF by the frontend
+    invoice number, family + students, line items, discount, funding source,
+    totals, amount due, and the payment plan it is on. Rendered to PDF by the frontend
     (browser print), so no server-side PDF dependency is needed."""
     inv = get_invoice(org_id, invoice_id)
     if not inv:
@@ -2430,6 +2553,7 @@ def invoice_document(org_id: str, invoice_id: str) -> Dict[str, Any]:
         'amount_paid_cents': paid,
         'payments': inv.get('payments', []),
         'autopay': autopay_summary(inv),
+        'payment_plan': active_plan_summary(inv),
     }}
 
 
@@ -2526,19 +2650,6 @@ def is_complete_of_kind(kind: str):
     return lambda sess: (sess.get('metadata') or {}).get('kind') == kind and sess.get('status') == 'complete'
 
 
-def _fee_to_add(org_id: str, invoice: Dict[str, Any], balance_cents: int) -> int:
-    """The card fee to add to a Checkout for `balance_cents`.
-
-    Zero when the invoice already carries a fee line: that fee is inside the
-    balance being charged, and a fee computed on it would be a fee on a fee.
-    An unpaid invoice only carries one when staff set it by hand, and their
-    number is the one that stands.
-    """
-    if (invoice.get('processing_fee_cents') or 0) > 0:
-        return 0
-    return compute_processing_fee(org_id, balance_cents)
-
-
 def _guardian_invoice(user_id: str, invoice_id: str) -> Optional[Dict[str, Any]]:
     """Load an invoice only if `user_id` guards its household."""
     inv = (_admin().table('sis_invoices').select('*').eq('id', invoice_id).limit(1).execute()).data
@@ -2552,8 +2663,9 @@ def _guardian_invoice(user_id: str, invoice_id: str) -> Optional[Dict[str, Any]]
 
 
 def create_invoice_checkout(user_id: str, invoice_id: str, return_url: str) -> Dict[str, Any]:
-    """Guardian pays an invoice online. Charges the remaining tuition balance plus
-    a card processing fee on the school's Stripe account. Returns a hosted URL."""
+    """Guardian pays an invoice online. Charges the remaining balance, and only
+    that, on the school's Stripe account (Optio adds no card fee; see the top
+    of this file). Returns a hosted URL."""
     inv = _guardian_invoice(user_id, invoice_id)
     if not inv:
         return {'error': 'Invoice not found'}
@@ -2568,7 +2680,6 @@ def create_invoice_checkout(user_id: str, invoice_id: str, return_url: str) -> D
     balance = amount_due_cents(inv)
     if balance <= 0:
         return {'error': 'This invoice has no balance due'}
-    fee = _fee_to_add(org_id, inv, balance)
     org = _org_branding([org_id]).get(org_id) or {}
     org_name = org.get('name') or 'School'
     guardian = _users_map([user_id]).get(user_id) or {}
@@ -2580,17 +2691,10 @@ def create_invoice_checkout(user_id: str, invoice_id: str, return_url: str) -> D
                            'unit_amount': balance},
             'quantity': 1,
         }]
-        if fee > 0:
-            line_items.append({
-                'price_data': {'currency': 'usd',
-                               'product_data': {'name': 'Card processing fee'},
-                               'unit_amount': fee},
-                'quantity': 1,
-            })
         session = start_checkout(
             secret, kind='invoice', org_id=org_id, ref_id=invoice_id, line_items=line_items,
             customer_email=guardian.get('email') or None,
-            metadata={'invoice_id': invoice_id, 'base_cents': balance, 'fee_cents': fee},
+            metadata={'invoice_id': invoice_id, 'base_cents': balance},
             success_url=f'{return_url}{sep}payment=return',
             cancel_url=f'{return_url}{sep}payment=canceled',
         )
@@ -2639,6 +2743,9 @@ def settle_invoice_from_stripe(invoice: Dict[str, Any],
         if already:
             return {'paid': True, 'already_recorded': True}
         base = int((sess.get('metadata') or {}).get('base_cents') or 0)
+        # fee_cents is only on a Checkout opened before 2026-10-16, when Optio
+        # still added a card fee. A family who paid one was charged it, so the
+        # invoice records it; new Checkouts carry no fee.
         fee = int((sess.get('metadata') or {}).get('fee_cents') or 0)
         amount_total = int(sess.get('amount_total') or (base + fee))
         if fee > 0:
@@ -2663,8 +2770,8 @@ def settle_invoice_from_stripe(invoice: Dict[str, Any],
 def checkout_for_pay_link(invoice_id: str, return_url: str) -> Dict[str, Any]:
     """Start a Checkout for the emailed pay link — no signed-in guardian.
 
-    Same money as create_invoice_checkout (remaining balance + the school's
-    processing fee, on the school's own Stripe account); what differs is only
+    Same money as create_invoice_checkout (the remaining balance, no card fee,
+    on the school's own Stripe account); what differs is only
     that authorization came from the signed token rather than from a session,
     so there is no guardian to prefill the email from.
 
@@ -2687,7 +2794,6 @@ def checkout_for_pay_link(invoice_id: str, return_url: str) -> Dict[str, Any]:
         return {'error': 'Online card payment is not set up for this school',
                 'reason': 'not_configured'}
 
-    fee = _fee_to_add(org_id, inv, balance)
     org = _org_branding([org_id]).get(org_id) or {}
     org_name = org.get('name') or 'School'
     try:
@@ -2697,17 +2803,9 @@ def checkout_for_pay_link(invoice_id: str, return_url: str) -> Dict[str, Any]:
                            'unit_amount': balance},
             'quantity': 1,
         }]
-        if fee > 0:
-            line_items.append({
-                'price_data': {'currency': 'usd',
-                               'product_data': {'name': 'Card processing fee'},
-                               'unit_amount': fee},
-                'quantity': 1,
-            })
         session = start_checkout(
             secret, kind='pay_link', org_id=org_id, ref_id=invoice_id, line_items=line_items,
-            metadata={'invoice_id': invoice_id, 'base_cents': balance, 'fee_cents': fee,
-                      'source': 'pay_link'},
+            metadata={'invoice_id': invoice_id, 'base_cents': balance, 'source': 'pay_link'},
             success_url=f'{return_url}?payment=return',
             cancel_url=f'{return_url}?payment=canceled',
         )
@@ -2783,7 +2881,7 @@ def _household_open_invoices(org_id: str, household_id: str) -> List[Dict[str, A
 
 def create_family_checkout(user_id: str, household_id: str, return_url: str) -> Dict[str, Any]:
     """One Stripe Checkout covering every open invoice in the family, on the
-    school's own account (one line per kid + a single card processing fee).
+    school's own account (one line per kid; Optio adds no card fee).
     Returns a hosted URL. Verified on return by confirm_family_payment."""
     hh = next((h for h in _guardian_household_rows(user_id) if h['id'] == household_id), None)
     if not hh:
@@ -2799,12 +2897,6 @@ def create_family_checkout(user_id: str, household_id: str, return_url: str) -> 
     base_total = sum(b for b in balances.values() if b > 0)
     if base_total <= 0:
         return {'error': 'This family has no balance due'}
-    # An invoice already carrying a fee has it inside its balance; charging on
-    # that would be a fee on a fee, so it is out of the base and out of the
-    # allocation on the way back (confirm_family_payment).
-    fee_base = sum(b for i, b in ((i, balances[i['id']]) for i in invoices)
-                   if b > 0 and not (i.get('processing_fee_cents') or 0))
-    fee = compute_processing_fee(org_id, fee_base)
     org = _org_branding([org_id]).get(org_id) or {}
     org_name = org.get('name') or 'School'
     guardian = _users_map([user_id]).get(user_id) or {}
@@ -2830,17 +2922,10 @@ def create_family_checkout(user_id: str, household_id: str, return_url: str) -> 
                                'product_data': {'name': f"{org_name} tuition · {who}"},
                                'unit_amount': bal},
                 'quantity': 1})
-        if fee > 0:
-            line_items.append({
-                'price_data': {'currency': 'usd',
-                               'product_data': {'name': 'Card processing fee'}, 'unit_amount': fee},
-                'quantity': 1})
         session = start_checkout(
             secret, kind='family', org_id=org_id, ref_id=household_id, line_items=line_items,
             customer_email=guardian.get('email') or None,
-            metadata={'household_id': household_id,
-                      'fee_cents': fee, 'base_total_cents': base_total,
-                      'fee_base_cents': fee_base},
+            metadata={'household_id': household_id, 'base_total_cents': base_total},
             success_url=f'{return_url}{sep}payment=return',
             cancel_url=f'{return_url}{sep}payment=canceled')
     except Exception as e:  # noqa: BLE001
@@ -2859,8 +2944,11 @@ def create_family_checkout(user_id: str, household_id: str, return_url: str) -> 
 
 def confirm_family_payment(user_id: str, household_id: str) -> Dict[str, Any]:
     """After the family returns from a whole-family Checkout, find the paid
-    session and record a payment against each covered invoice (idempotent),
-    allocating the card fee proportionally so each invoice reads as paid."""
+    session and record a payment against each covered invoice (idempotent).
+
+    A Checkout opened before 2026-10-16 may still carry a card fee in its
+    metadata; that fee is allocated proportionally so each invoice reads as
+    paid. New Checkouts carry none, and fee_total is 0."""
     hh = next((h for h in _guardian_household_rows(user_id) if h['id'] == household_id), None)
     if not hh:
         return {'error': 'Family not found'}
@@ -2935,13 +3023,13 @@ def _upsert_saved_pm(org_id: str, guardian_user_id: str, household_id: Optional[
     guardian per org (re-saving replaces it).
 
     For a bank account, brand is the bank's name and last4 the account's last
-    four. Every save clears card_fee_exempt (see autopay_bank_free)."""
+    four."""
     return (_admin().table('sis_saved_payment_methods').upsert({
         'organization_id': org_id, 'guardian_user_id': guardian_user_id,
         'household_id': household_id, 'stripe_customer_id': customer_id,
         'stripe_payment_method_id': pm_id, 'card_brand': brand, 'card_last4': last4,
         'card_exp_month': exp_month, 'card_exp_year': exp_year,
-        'method_type': method_type, 'card_fee_exempt': False, 'updated_at': _now(),
+        'method_type': method_type, 'updated_at': _now(),
     }, on_conflict='organization_id,guardian_user_id').execute()).data[0]
 
 
@@ -3140,8 +3228,15 @@ def _confirm_autopay(inv: Dict[str, Any], guardian_user_id: str,
                 .eq('invoice_id', invoice_id).eq('auto_charge', True).limit(1).execute()).data
     if existing:
         return {'ready': True, 'already': True, 'plan': existing[0], 'saved_card': _card_public(saved)}
-    count = int(meta.get('installment_count') or installment_count or 10)
-    result = _create_autopay_plan(org_id, inv, saved, count, start_date, secret)
+    # The school already put this invoice on a plan: the card goes on THAT
+    # schedule. Building the family a monthly x10 plan beside it would leave two
+    # active plans on one bill and charge the family on both.
+    school_plans = SisPaymentPlanRepository(client=_admin()).active_for_invoice(invoice_id)
+    if school_plans:
+        result = _attach_card_to_plan(org_id, inv, school_plans[0], saved, secret)
+    else:
+        count = int(meta.get('installment_count') or installment_count or 10)
+        result = _create_autopay_plan(org_id, inv, saved, count, start_date, secret)
     if not result.get('error'):
         # Both autopay paths — the emailed link and the signed-in portal — land
         # here, so this is the one place that has to tell the office.
@@ -3205,6 +3300,38 @@ def _create_autopay_plan(org_id: str, inv: Dict[str, Any], saved_pm: Dict[str, A
                                            recorded_by=saved_pm.get('guardian_user_id'),
                                            invoice=inv)
     return {'plan': plan, 'first_charge': first_charge}
+
+
+def _attach_card_to_plan(org_id: str, inv: Dict[str, Any], plan: Dict[str, Any],
+                         saved_pm: Dict[str, Any], secret: str) -> Dict[str, Any]:
+    """A family turns on autopay for an invoice the school put on a plan.
+
+    The school's schedule stands: same cadence, same dates, same amounts. The
+    saved card goes on the plan and charge_due_installments charges each
+    installment on its due date. An installment already due today or earlier
+    is charged now, as the monthly setup charges its first payment now;
+    otherwise nothing is charged until the first due date. Capped at what the
+    bill still says, like the sweep.
+    """
+    (_admin().table('sis_payment_plans')
+     .update({'auto_charge': True, 'saved_payment_method_id': saved_pm['id']})
+     .eq('id', plan['id']).execute())
+    plan = {**plan, 'auto_charge': True, 'saved_payment_method_id': saved_pm['id']}
+    pending = SisInstallmentRepository(client=_admin()).for_plans([plan['id']], ['scheduled', 'due'])
+    plan['installments'] = pending
+    _audit(org_id, inv['id'], saved_pm.get('guardian_user_id'), 'autopay_attached_to_plan',
+           {'plan_id': plan['id'], 'cadence': plan.get('cadence'),
+            'installment_count': len(pending)})
+    first_charge = None
+    first = pending[0] if pending else None
+    if first and str(first.get('due_date') or '')[:10] <= date.today().isoformat():
+        amount = min(int(first.get('amount_cents') or 0), amount_due_cents(inv))
+        if amount > 0:
+            first_charge = _charge_installment(org_id, plan, dict(first, amount_cents=amount),
+                                               saved_pm, secret,
+                                               recorded_by=saved_pm.get('guardian_user_id'),
+                                               invoice=inv)
+    return {'plan': plan, 'first_charge': first_charge, 'attached': True}
 
 
 # Stripe's list view shows amount, customer and description. Metadata only
@@ -3853,9 +3980,6 @@ def start_card_setup_for_household(org_id: str, household_id: str,
                     'verification_method': 'instant',
                     'financial_connections': {'permissions': ['payment_method']},
                 }},
-                'custom_text': {'submit': {'message': (
-                    f'Bank account: no fee. Card: a {card_fee_terms(org_id)} processing '
-                    f'fee is added to each monthly payment.')}},
             }
         session = start_checkout(
             secret, kind='recurring_card_setup', org_id=org_id, ref_id=household_id,
@@ -3907,8 +4031,9 @@ def save_card_from_setup_session(org_id: str, household_id: str,
         import stripe
         pm = stripe.PaymentMethod.retrieve(pm_id, api_key=secret)
     except Exception as e:  # noqa: BLE001
-        # Not best-effort any more: the type decides whether the card fee is
-        # charged, so a method we could not read is not saved under a guess.
+        # Not best-effort: the type decides whether the charge goes out as a
+        # card or a bank debit, so a method we could not read is not saved
+        # under a guess.
         logger.warning(f'[SIS billing] payment method lookup failed for {pm_id}: {e}')
         return {'ready': False}
     if pm.get('type') == BANK_METHOD:
@@ -3940,16 +4065,9 @@ def charge_invoice_off_session(org_id: str, invoice: Dict[str, Any],
     if amount <= 0:
         return {'status': 'failed', 'error': 'Nothing due on this invoice'}
     is_bank = (saved_pm.get('method_type') or 'card') == BANK_METHOD
-    fee = _fee_to_add(org_id, invoice, amount) if charges_card_fee(org_id, saved_pm) else 0
-    if fee:
-        invoice = _apply_processing_fee(org_id, invoice['id'], fee) or invoice
-        amount = amount_due_cents(invoice)
+    # The balance and nothing else: Optio adds no card fee (top of this file).
 
     def _failed(error: str) -> Dict[str, Any]:
-        if fee:
-            # The family may pay this invoice by check or bank instead; a card
-            # fee for a card charge that never happened is not theirs to owe.
-            _apply_processing_fee(org_id, invoice['id'], 0)
         return {'status': 'failed', 'error': error}
     try:
         import stripe

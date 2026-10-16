@@ -48,7 +48,8 @@ _VISIBLE = {
 
 FAMILY_COLUMNS = ('id, title, description, location, start_at, end_at, all_day, '
                   'category, categories, audience, '
-                  'rsvp_enabled, rsvp_fee_cents, rsvp_closes_at')
+                  'rsvp_enabled, rsvp_fee_cents, rsvp_closes_at, '
+                  'rsvp_mode, rsvp_capacity, series_id')
 
 
 def viewer_for_roles(roles) -> str:
@@ -121,10 +122,15 @@ def get_event(org_id: str, event_id: str) -> Optional[Dict[str, Any]]:
     return rows[0] if rows else None
 
 
+def _insert(payload) -> List[Dict[str, Any]]:
+    """The one insert into sis_events: one event (a dict, as it always was), or
+    every date of a series in a single statement (a list). The caller pins the
+    org and the author on every row."""
+    return (_admin().table('sis_events').insert(payload).execute()).data or []
+
+
 def create_event(org_id: str, user_id: str, fields: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-    row = (_admin().table('sis_events')
-           .insert({**fields, 'organization_id': org_id, 'created_by': user_id})
-           .execute()).data
+    row = _insert({**fields, 'organization_id': org_id, 'created_by': user_id})
     return row[0] if row else None
 
 
@@ -141,5 +147,173 @@ def delete_event(org_id: str, event_id: str) -> bool:
     """Delete, or False when the event is not this org's."""
     if not get_event(org_id, event_id):
         return False
-    _admin().table('sis_events').delete().eq('id', event_id).execute()
+    _delete(org_id, id=event_id)
     return True
+
+
+def _delete(org_id: str, since: Optional[str] = None, **match) -> List[Dict[str, Any]]:
+    """The one delete from sis_events, always inside one org. `since` keeps
+    only rows starting at or after that stamp ("this and following")."""
+    q = _admin().table('sis_events').delete().eq('organization_id', org_id)
+    for col, val in match.items():
+        q = q.eq(col, val)
+    if since:
+        q = q.gte('start_at', since)
+    return (q.execute()).data or []
+
+
+# ── Repeating events ─────────────────────────────────────────────────────────
+# A repeating event is one ROW PER OCCURRENCE sharing a series_id, not a rule
+# expanded at read time. Each Friday excursion has its own location, its own
+# RSVP list and its own "Full"; a rule would make every one of those an
+# exception to the rule. The cost is that changing the time of all of them is
+# an edit per row, which is the rarer job.
+#
+# Repeats, as the office picks them in Add event:
+#   'weekly'   every 7 days            } until a date or for a count
+#   '2weeks'   every 14 days           }
+#   'monthly'  the same weekday of the month as the first date ("3rd Friday";
+#              a 5th weekday means the last one), until a date or for a count
+#   'dates'    exactly the dates picked -- the answer to "two chosen Fridays a
+#              month" (Apogee NoCo's SPARK excursions): the 1st and 3rd
+#              Friday drift from every-2-weeks in a 5-Friday month, and holidays
+#              move them anyway, so the office lists the days.
+
+MAX_OCCURRENCES = 60
+REPEATS = ('weekly', '2weeks', 'monthly', 'dates')
+
+
+class RepeatError(ValueError):
+    """A repeat the office asked for that cannot be built; the message is shown."""
+
+
+def _nth_weekday(year: int, month: int, weekday: int, nth: int):
+    """The nth (1-4) weekday of a month, or the last one when nth is 5."""
+    import calendar
+    from datetime import date
+    days = [d for d in range(1, calendar.monthrange(year, month)[1] + 1)
+            if date(year, month, d).weekday() == weekday]
+    return date(year, month, days[min(nth, len(days)) - 1])
+
+
+def occurrence_dates(first, repeat: Dict[str, Any]):
+    """Every date the event happens on, first date included, at most
+    MAX_OCCURRENCES. `first` is a datetime.date."""
+    from datetime import date, timedelta
+    every = (repeat or {}).get('every')
+    if every not in REPEATS:
+        raise RepeatError('Pick how often the event repeats')
+
+    if every == 'dates':
+        picked = set()
+        for raw in (repeat.get('dates') or []):
+            try:
+                picked.add(date.fromisoformat(str(raw)[:10]))
+            except ValueError:
+                raise RepeatError(f'{raw} is not a date')
+        picked.add(first)
+        out = sorted(picked)
+        if len(out) > MAX_OCCURRENCES:
+            raise RepeatError(f'An event can repeat at most {MAX_OCCURRENCES} times')
+        return out
+
+    until = None
+    if repeat.get('until'):
+        try:
+            until = date.fromisoformat(str(repeat['until'])[:10])
+        except ValueError:
+            raise RepeatError('The end date for the repeat is not a date')
+        if until < first:
+            raise RepeatError('The repeat cannot end before the first date')
+    count = None
+    if repeat.get('count') not in (None, ''):
+        try:
+            count = int(repeat['count'])
+        except (TypeError, ValueError):
+            raise RepeatError('How many times must be a number')
+        if count < 1:
+            raise RepeatError('How many times must be at least 1')
+    if until is None and count is None:
+        raise RepeatError('Say when the repeat ends: an end date or how many times')
+    limit = min(count or MAX_OCCURRENCES, MAX_OCCURRENCES)
+    if count and count > MAX_OCCURRENCES:
+        raise RepeatError(f'An event can repeat at most {MAX_OCCURRENCES} times')
+
+    out = []
+    if every in ('weekly', '2weeks'):
+        step = timedelta(days=7 if every == 'weekly' else 14)
+        d = first
+        while len(out) < limit and (until is None or d <= until):
+            out.append(d)
+            d += step
+    else:  # monthly, on the same weekday of the month
+        nth = (first.day - 1) // 7 + 1
+        y, m = first.year, first.month
+        while len(out) < limit:
+            d = _nth_weekday(y, m, first.weekday(), nth)
+            if until is not None and d > until:
+                break
+            out.append(d)
+            m += 1
+            if m > 12:
+                y, m = y + 1, 1
+    if until is not None and count is None and len(out) == MAX_OCCURRENCES:
+        # The cap cut the series short of the end date the office asked for.
+        nxt = out[-1] + timedelta(days=1)
+        if nxt <= until:
+            raise RepeatError(f'An event can repeat at most {MAX_OCCURRENCES} times. '
+                              'Pick an earlier end date.')
+    return out
+
+
+def _shift_stamp(stamp: Optional[str], days: int) -> Optional[str]:
+    """Move a wall-clock stamp ('2026-10-02T09:00:00Z') by whole days, keeping
+    the time exactly as typed -- no timezone math, the same rule as the rest of
+    this module."""
+    if not stamp:
+        return stamp
+    from datetime import date, timedelta
+    s = str(stamp)
+    return (date.fromisoformat(s[:10]) + timedelta(days=days)).isoformat() + s[10:]
+
+
+def create_series(org_id: str, user_id: str, fields: Dict[str, Any],
+                  repeat: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """Create one row per occurrence, linked by a new series_id. The end time
+    and "replies close" move with each occurrence, so every Friday closes its
+    own replies the same number of days ahead."""
+    import uuid
+    from datetime import date
+    first = date.fromisoformat(str(fields['start_at'])[:10])
+    dates = occurrence_dates(first, repeat)
+    if len(dates) == 1:
+        row = create_event(org_id, user_id, fields)
+        return [row] if row else []
+    series_id = str(uuid.uuid4())
+    rows = []
+    for d in dates:
+        shift = (d - first).days
+        rows.append({
+            **fields,
+            'start_at': _shift_stamp(fields.get('start_at'), shift),
+            'end_at': _shift_stamp(fields.get('end_at'), shift),
+            'rsvp_closes_at': _shift_stamp(fields.get('rsvp_closes_at'), shift),
+            'series_id': series_id,
+            'organization_id': org_id,
+            'created_by': user_id,
+        })
+    return _insert(rows)
+
+
+def delete_following(org_id: str, event_id: str) -> int:
+    """Delete this occurrence and every later one in its series. Returns how
+    many went; 0 when the event is not this org's. An event outside a series
+    deletes alone."""
+    ev = get_event(org_id, event_id)
+    if not ev:
+        return 0
+    if not ev.get('series_id'):
+        delete_event(org_id, event_id)
+        return 1
+    gone = _delete(org_id, since=ev['start_at'], series_id=ev['series_id'])
+    return len(gone) or 1

@@ -48,7 +48,7 @@ BASELINE = {
     'backend/services/prior_learning_report_pdf.py': 1,
     'backend/services/registration_pricing.py': 3,
     'backend/services/sis_billing_service.py': 7,
-    'backend/services/sis_recurring_tuition_service.py': 2,
+    'backend/services/sis_recurring_tuition_service.py': 1,
     'backend/services/sis_reports_service.py': 1,
     'backend/services/sis_schedule_ai_service.py': 4,
     'backend/services/sis_service.py': 3,

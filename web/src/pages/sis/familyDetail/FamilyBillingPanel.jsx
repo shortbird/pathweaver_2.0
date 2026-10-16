@@ -73,7 +73,7 @@ const FamilyBillingPanel = ({ householdId, orgId }) => {
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-neutral-500">
         <span>
           {card?.type === 'us_bank_account' ? 'Bank account' : 'Card'} on file:{' '}
-          {card ? <span className="text-neutral-700">{card.brand || (card.type === 'us_bank_account' ? 'bank' : 'card')} ending {card.last4}{card.card_fee ? ' (card fee added to autopay)' : ''}</span> : 'none'}
+          {card ? <span className="text-neutral-700">{card.brand || (card.type === 'us_bank_account' ? 'bank' : 'card')} ending {card.last4}</span> : 'none'}
         </span>
         {data?.funding_source && <span>Funding: <span className="text-neutral-700">{data.funding_source}</span></span>}
         {data?.sbs_pay_url && (

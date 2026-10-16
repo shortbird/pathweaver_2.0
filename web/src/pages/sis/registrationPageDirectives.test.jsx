@@ -6,6 +6,9 @@ import { withConfirm } from '../../tests/confirmTestUtils'
 // The prepaid / no-charge list is on the Registration page's Queues tab.
 const render = (ui) => rtlRender(<MemoryRouter initialEntries={['/registration?tab=queues']}>{withConfirm(ui)}</MemoryRouter>)
 
+// The interest list card reads through react-query and has its own test
+// (components/sis/interestListCard.test.jsx); this file is about another card.
+vi.mock('../../components/sis/InterestListCard', () => ({ default: () => null }))
 vi.mock('react-hot-toast', () => ({
   toast: { success: vi.fn(), error: vi.fn() },
   default: { success: vi.fn(), error: vi.fn() },

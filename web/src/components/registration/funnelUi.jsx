@@ -262,3 +262,23 @@ export const PrimaryButton = ({ onClick, disabled, children }) => (
     {children}
   </button>
 )
+
+// The school's waitlist, when it is on: the door for a family who is not
+// ready to register or pay (InterestListForm). Above the account card so a
+// parent who only wants a place in line never starts making an account.
+export const JoinWaitlistCard = ({ interestList, onJoinWaitlist }) => (
+  <div className="rounded-xl border border-optio-purple/20 bg-optio-purple/5 px-5 py-4 flex flex-wrap items-center justify-between gap-3">
+    <div className="min-w-0">
+      <p className="text-sm font-semibold text-neutral-900">
+        Not ready to register yet?
+      </p>
+      <p className="text-sm text-neutral-600">
+        Join the waitlist{interestList?.label ? ` for ${interestList.label}` : ''}. No account or payment needed.
+      </p>
+    </div>
+    <button onClick={onJoinWaitlist}
+      className="shrink-0 rounded-full border border-optio-purple px-4 py-2 text-sm font-semibold text-optio-purple hover:bg-optio-purple hover:text-white transition-colors">
+      Join the waitlist
+    </button>
+  </div>
+)

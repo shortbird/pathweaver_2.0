@@ -1,17 +1,27 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
-import { MemoryRouter } from 'react-router-dom'
+import { MemoryRouter as Router } from 'react-router-dom'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { RecordDoorsContext, CLOSED_DOORS } from '../../components/sis/recordDoorsContext'
+
+// The Edit dialog saves through hooks/api, so the list needs a QueryClient.
+const MemoryRouter = ({ children }) => (
+  <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+    <Router>{children}</Router>
+  </QueryClientProvider>
+)
 
 vi.mock('react-hot-toast', () => ({
   toast: Object.assign(vi.fn(), { success: vi.fn(), error: vi.fn() }),
   default: { success: vi.fn(), error: vi.fn() },
 }))
 
-const { api } = vi.hoisted(() => ({ api: { get: vi.fn(), post: vi.fn() } }))
+const { api } = vi.hoisted(() => ({ api: { get: vi.fn(), post: vi.fn(), patch: vi.fn() } }))
 vi.mock('../../services/api', () => ({ default: api }))
 
-import RecurringTuitionList, { groupByFamily, MonthlyPaymentPlanList } from './RecurringTuitionList'
+import RecurringTuitionList, {
+  groupByFamily, MonthlyPaymentPlanList, whenItApplies,
+} from './RecurringTuitionList'
 
 const CONTACT = { name: 'Paige Hanna', email: 'paige@example.com' }
 
@@ -38,6 +48,8 @@ beforeEach(() => {
   api.get.mockClear()
   api.post.mockClear()
   api.post.mockResolvedValue({ data: { success: true, emailed: 1, sent_to: ['Paige Hanna'] } })
+  api.patch.mockReset()
+  api.patch.mockResolvedValue({ data: { success: true } })
 })
 
 describe('RecurringTuitionList', () => {
@@ -110,6 +122,58 @@ describe('RecurringTuitionList', () => {
   })
 })
 
+// Billing > Monthly tuition had Pause, Resume and End but no way to change an
+// amount (2026-10-16). Edit sends the PATCH the backend already had.
+describe('Editing a monthly amount', () => {
+  const CHARGING = HANNA.map((s) => ({ ...s, card: { brand: 'visa', last4: '4242' },
+    next_charge_on: '2026-11-05', description: 'Full time' }))
+
+  it('changes one child’s amount and description, and nothing else', async () => {
+    const onChanged = vi.fn()
+    render(<MemoryRouter><RecurringTuitionList orgId="org-1" schedules={CHARGING}
+      onChanged={onChanged} /></MemoryRouter>)
+    fireEvent.click(await screen.findByRole('button', { name: 'Edit Conrad Hanna' }))
+    const amount = screen.getByLabelText('Amount each month')
+    expect(amount).toHaveValue('1000.00')
+    fireEvent.change(amount, { target: { value: '850' } })
+    fireEvent.change(screen.getByLabelText(/Description/), { target: { value: ' Part time ' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    await waitFor(() => expect(api.patch).toHaveBeenCalledTimes(1))
+    expect(api.patch.mock.calls[0][0]).toContain('/api/sis/tuition/recurring/r2')
+    expect(api.patch.mock.calls[0][1]).toEqual({ monthly_cents: 85000, description: 'Part time' })
+    await waitFor(() => expect(onChanged).toHaveBeenCalled())
+  })
+
+  it('says the new amount starts at the next charge and leaves sent invoices alone', async () => {
+    show(CHARGING)
+    fireEvent.click(await screen.findByRole('button', { name: 'Edit Banks Hanna' }))
+    expect(screen.getByText(/used from the next monthly charge, on/)).toBeInTheDocument()
+    expect(screen.getByText(/Invoices already sent do not change/)).toBeInTheDocument()
+  })
+
+  it('will not save an amount of zero or an unchanged form', async () => {
+    show(CHARGING)
+    fireEvent.click(await screen.findByRole('button', { name: 'Edit Banks Hanna' }))
+    expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled()
+    fireEvent.change(screen.getByLabelText('Amount each month'), { target: { value: '0' } })
+    expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled()
+  })
+
+  it('shows the server’s refusal in the form', async () => {
+    api.patch.mockRejectedValueOnce({ response: { data: { error: 'Enter a monthly amount greater than zero' } } })
+    show(CHARGING)
+    fireEvent.click(await screen.findByRole('button', { name: 'Edit Banks Hanna' }))
+    fireEvent.change(screen.getByLabelText('Amount each month'), { target: { value: '12' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('greater than zero')
+  })
+
+  it('words the timing for a paused child and for one not yet billing', () => {
+    expect(whenItApplies({ status: 'paused', next_charge_on: '2026-11-05' })).toMatch(/after you resume/)
+    expect(whenItApplies({ status: 'active', next_charge_on: null })).toMatch(/when the family sets up payment/)
+  })
+})
+
 describe('groupByFamily', () => {
   it('folds a household’s children into one payer', () => {
     const [fam] = groupByFamily(HANNA)
@@ -174,6 +238,15 @@ describe('MonthlyPaymentPlanList', () => {
     )
     fireEvent.click(screen.getByText('$154.00/month'))
     expect(openFamily).toHaveBeenCalledWith('hh3', expect.objectContaining({ tab: 'billing' }))
+  })
+
+  it('says what a semester or pay-in-full payment is, not "/month"', () => {
+    showPlans([{ ...PLAN, plan_id: 'p2', cadence: 'semester', monthly_cents: 125000 },
+      { ...PLAN, plan_id: 'p3', cadence: 'full', monthly_cents: 250000 }])
+    expect(screen.getByRole('region', { name: 'On a payment plan' })).toBeInTheDocument()
+    expect(screen.getByText('$1,250.00 every 5 months')).toBeInTheDocument()
+    expect(screen.getByText('$2,500.00 in one payment')).toBeInTheDocument()
+    expect(screen.queryByText(/\/month/)).not.toBeInTheDocument()
   })
 
   it('a plan with no family is a plain row, not a button', () => {

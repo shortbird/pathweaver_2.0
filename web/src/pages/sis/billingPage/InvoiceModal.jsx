@@ -11,6 +11,7 @@ import { withOrg } from '../useSisOrg'
 import EditPaymentModal from './EditPaymentModal'
 import EditInvoiceModal from './EditInvoiceModal'
 import SplitInvoiceModal from './SplitInvoiceModal'
+import PaymentPlanModal, { cadenceWords } from './PaymentPlanModal'
 import money from './money'
 import METHOD_LABEL from './METHOD_LABEL'
 import payLabel from './payLabel'
@@ -26,6 +27,7 @@ const InvoiceModal = ({ invoiceId, orgId, onClose, onPrint, onChanged }) => {
   const [correcting, setCorrecting] = useState(null)
   const [confirmStop, setConfirmStop] = useState(false)
   const [splitting, setSplitting] = useState(false)
+  const [planning, setPlanning] = useState(false)
 
   const load = useCallback(() => {
     api.get(withOrg(`/api/sis/invoices/${invoiceId}/document`, orgId))
@@ -47,6 +49,14 @@ const InvoiceModal = ({ invoiceId, orgId, onClose, onPrint, onChanged }) => {
   // 15th, because nothing on this card could stop the plan. This can.
   const autopay = doc?.autopay || null
   const autopayRunning = autopay?.status === 'active'
+  // A plan the school set, with no card on it: a schedule, not autopay. It is
+  // removed with the same cancel, but nothing about it is "automatic".
+  const plan = doc?.payment_plan || null
+  const scheduleOnly = autopayRunning && !autopay.auto_charge
+  // Monthly / Semester / Pay in full. Not while autopay is charging a card:
+  // the family agreed to that schedule on that card (the server refuses too).
+  const plannable = doc && !['void', 'paid'].includes(doc.status)
+    && (doc.amount_due_cents ?? 0) > 0 && !(autopayRunning && autopay.auto_charge)
   // Ticket eacb3356: "half now and half in January", for a family reimbursed
   // per bill. Offered only where the server will allow it: unpaid, no payment
   // ever recorded, no payment plan or autopay. The server checks again.
@@ -73,7 +83,7 @@ const InvoiceModal = ({ invoiceId, orgId, onClose, onPrint, onChanged }) => {
       toast.error(e?.response?.data?.error || 'Could not stop the automatic payments')
       throw e
     }
-    toast.success('Automatic payments stopped')
+    toast.success(scheduleOnly ? 'Payment plan removed' : 'Automatic payments stopped')
     setDoc(null); load(); onChanged?.()
   }
 
@@ -93,6 +103,16 @@ const InvoiceModal = ({ invoiceId, orgId, onClose, onPrint, onChanged }) => {
         invoiceId={invoiceId} orgId={orgId} doc={doc}
         onCancel={() => setEditing(false)}
         onSaved={() => { setEditing(false); setDoc(null); load(); onChanged?.() }}
+      />
+    )
+  }
+
+  if (planning && doc) {
+    return (
+      <PaymentPlanModal
+        invoiceId={invoiceId} orgId={orgId} doc={doc}
+        onCancel={() => setPlanning(false)}
+        onSaved={() => { setPlanning(false); setDoc(null); load(); onChanged?.() }}
       />
     )
   }
@@ -196,7 +216,27 @@ const InvoiceModal = ({ invoiceId, orgId, onClose, onPrint, onChanged }) => {
               </div>
             )}
 
-            {autopay && (
+            {scheduleOnly && plan && (
+              <div className="border-t border-gray-100 pt-2 text-xs text-neutral-600 space-y-1"
+                data-testid="invoice-plan">
+                <div>
+                  <span className="uppercase tracking-wide text-neutral-400">Payment plan</span>
+                  {' · '}{cadenceWords(plan.cadence)}, no autopay. The family pays each one, or turns
+                  on autopay to have their card charged on each date.
+                </div>
+                {(plan.installments || []).map((i) => (
+                  <div key={i.id} className="flex justify-between gap-3">
+                    <span>{String(i.due_date).slice(0, 10)}</span>
+                    <span className="flex items-center gap-2">
+                      <span className="capitalize text-neutral-500">{i.status}</span>
+                      <span>{money(i.amount_cents)}</span>
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {autopay && !scheduleOnly && (
               <div className="border-t border-gray-100 pt-2 text-xs text-neutral-600 no-print"
                 data-testid="invoice-autopay">
                 <span className="uppercase tracking-wide text-neutral-400">Automatic payments</span>
@@ -234,8 +274,11 @@ const InvoiceModal = ({ invoiceId, orgId, onClose, onPrint, onChanged }) => {
       <div className="flex flex-wrap justify-end gap-2 pt-4 no-print">
         {autopayRunning && (
           <Button size="sm" variant="secondary" onClick={() => setConfirmStop(true)}>
-            Stop autopay
+            {scheduleOnly ? 'Remove plan' : 'Stop autopay'}
           </Button>
+        )}
+        {plannable && (
+          <Button size="sm" variant="secondary" onClick={() => setPlanning(true)}>Payment plan</Button>
         )}
         {voidable && (
           <Button size="sm" variant="secondary" onClick={voidInvoice}>Void</Button>
@@ -252,14 +295,14 @@ const InvoiceModal = ({ invoiceId, orgId, onClose, onPrint, onChanged }) => {
       <ConfirmDialog
         isOpen={confirmStop}
         onClose={() => setConfirmStop(false)}
-        title="Stop automatic payments?"
-        confirmLabel="Stop autopay"
+        title={scheduleOnly ? 'Remove the payment plan?' : 'Stop automatic payments?'}
+        confirmLabel={scheduleOnly ? 'Remove plan' : 'Stop autopay'}
         destructive
         onConfirm={stopAutopay}
       >
         <p>
           {autopay?.remaining_count || 0} scheduled payment{autopay?.remaining_count === 1 ? '' : 's'}
-          {' '}({money(autopay?.remaining_cents || 0)}) will not be charged.
+          {' '}({money(autopay?.remaining_cents || 0)}) {scheduleOnly ? 'will be taken off the schedule' : 'will not be charged'}.
         </p>
         <p>
           The invoice keeps its balance. Edit it, or record a refund, if the family no longer owes it.

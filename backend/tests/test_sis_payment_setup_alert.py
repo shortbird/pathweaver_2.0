@@ -187,6 +187,17 @@ class TestAutopayPlanCreated:
         assert '10 monthly payments of $250.00' in body
         assert '$250.00 paid' in body
 
+    def test_a_school_set_semester_plan_is_not_called_monthly(self):
+        result = {'attached': True, 'first_charge': None,
+                  'plan': {'id': 'p2', 'cadence': 'semester',
+                           'installments': [{'amount_cents': 125000, 'due_date': '2027-01-15'}] * 2}}
+        with _school() as sent:
+            alerts.notify_autopay_plan_created(ORG, self.INVOICE, CARD, result)
+        body = _body(sent)
+        assert '2 payments of $1,250.00, 5 months apart (the school set this plan)' in body
+        assert 'monthly payments' not in body
+        assert 'Charged on 2027-01-15' in body
+
     def test_a_declined_first_installment_is_flagged(self):
         with _school() as sent:
             alerts.notify_autopay_plan_created(

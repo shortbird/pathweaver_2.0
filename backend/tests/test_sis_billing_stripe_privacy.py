@@ -83,7 +83,6 @@ def _family_checkout(guardian_row, student_row=None):
                       return_value=[{'id': HOUSEHOLD, 'organization_id': ORG}]), \
          patch.object(billing, '_org_stripe_secret', return_value='sk_test_x'), \
          patch.object(billing, '_household_open_invoices', return_value=[dict(INVOICE)]), \
-         patch.object(billing, 'compute_processing_fee', return_value=0), \
          patch.object(billing, '_org_branding', return_value={ORG: {'name': 'iCreate'}}), \
          patch.object(billing, '_users_map',
                       side_effect=lambda ids: {i: users[i] for i in ids if i in users}), \

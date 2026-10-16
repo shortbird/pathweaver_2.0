@@ -1,8 +1,16 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render as rtlRender, screen, fireEvent, waitFor, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 
-const render = (ui) => rtlRender(<MemoryRouter>{ui}</MemoryRouter>)
+// The payment-plan dialog and the monthly-tuition edit read through
+// hooks/api, so the page needs a QueryClient. A fresh one per render keeps one
+// test's cache out of the next.
+const render = (ui) => rtlRender(
+  <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+    <MemoryRouter>{ui}</MemoryRouter>
+  </QueryClientProvider>,
+)
 
 let authState = { user: { id: 'u1', role: 'org_admin' } }
 let orgState = { organization: { id: 'org-1', name: 'Org' } }
@@ -16,7 +24,7 @@ vi.mock('react-hot-toast', () => ({
 
 const { api, docState, recurringState } = vi.hoisted(() => {
   // The autopay summary the invoice document carries for inv1 in a test, if any.
-  const docState = { autopay: null }
+  const docState = { autopay: null, payment_plan: null }
   // A test's own /tuition/recurring response, if any (ticket bc9010f4).
   const recurringState = { body: null }
   const apiData = (url) => {
@@ -62,6 +70,7 @@ const { api, docState, recurringState } = vi.hoisted(() => {
                        external_ref: null, recorded_at: '2026-08-10T00:00:00Z' }],
         } : {}),
         ...(url.includes('inv1') && docState.autopay ? { autopay: docState.autopay } : {}),
+        ...(url.includes('inv1') && docState.payment_plan ? { payment_plan: docState.payment_plan } : {}),
       } } }
     }
     if (url.includes('/api/sis/billing/detail')) {
@@ -139,6 +148,7 @@ beforeEach(() => {
   authState = { user: { id: 'u1', role: 'org_admin' } }
   orgState = { organization: { id: 'org-1', name: 'Org' } }
   docState.autopay = null
+  docState.payment_plan = null
   recurringState.body = null
   vi.clearAllMocks()
 })
@@ -569,6 +579,101 @@ describe('automatic payments on an invoice', () => {
   })
 })
 
+// 2026-10-16: POST /invoices/<id>/payment-plan had no screen. The invoice now
+// has "Payment plan": Monthly, Semester (5 months apart) or Pay in full, with
+// the server's own schedule shown before the save.
+describe('putting an invoice on a payment plan', () => {
+  const previewFor = (body) => (body.cadence === 'semester'
+    ? [{ due_date: '2026-08-01', amount_cents: 18250 }, { due_date: '2027-01-01', amount_cents: 18250 }]
+    : body.cadence === 'full'
+      ? [{ due_date: '2026-08-01', amount_cents: 36500 }]
+      : Array.from({ length: body.installment_count || 0 }, (_, i) => ({
+        due_date: `2026-${String(8 + i).padStart(2, '0')}-01`, amount_cents: 3650 })))
+
+  // clearAllMocks keeps an implementation, so put the shared one back after.
+  let shared
+  beforeEach(() => {
+    shared = api.post.getMockImplementation()
+    api.post.mockImplementation((url, body) => Promise.resolve(url.includes('/payment-plan')
+      ? { data: body.preview ? { success: true, schedule: previewFor(body) }
+        : { success: true, plan: { id: 'pp1' } } }
+      : { data: { success: true } }))
+  })
+  afterEach(() => { api.post.mockImplementation(shared) })
+
+  const openPlan = async () => {
+    render(<BillingPage />)
+    fireEvent.click(await screen.findByText('Fall tuition'))
+    fireEvent.click(await screen.findByRole('button', { name: 'Payment plan' }))
+  }
+
+  it('previews the server’s schedule, then saves the same terms', async () => {
+    await openPlan()
+    const preview = await screen.findByTestId('plan-preview')
+    await waitFor(() => expect(within(preview).getAllByText('$36.50')).toHaveLength(10))
+    expect(api.post).toHaveBeenCalledWith('/api/sis/invoices/inv1/payment-plan',
+      expect.objectContaining({ cadence: 'monthly', installment_count: 10, preview: true }))
+    fireEvent.click(screen.getByRole('button', { name: 'Save plan' }))
+    await waitFor(() => expect(api.post).toHaveBeenCalledWith('/api/sis/invoices/inv1/payment-plan',
+      { organization_id: 'org-1', cadence: 'monthly', installment_count: 10, start_date: '2026-08-01' }))
+  })
+
+  it('a semester plan is two payments five months apart', async () => {
+    await openPlan()
+    fireEvent.click(screen.getByLabelText('Semester'))
+    expect(screen.getByLabelText('Number of payments')).toHaveValue(2)
+    expect(screen.getByText(/5 months apart/)).toBeInTheDocument()
+    const preview = await screen.findByTestId('plan-preview')
+    expect(await within(preview).findByText('2027-01-01')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Save plan' }))
+    await waitFor(() => expect(api.post).toHaveBeenCalledWith('/api/sis/invoices/inv1/payment-plan',
+      expect.objectContaining({ cadence: 'semester', installment_count: 2 })))
+  })
+
+  it('pay in full asks for no count', async () => {
+    await openPlan()
+    fireEvent.click(screen.getByLabelText('Pay in full'))
+    expect(screen.queryByLabelText('Number of payments')).toBeNull()
+    const preview = await screen.findByTestId('plan-preview')
+    expect(await within(preview).findByText('$365.00')).toBeInTheDocument()
+  })
+
+  it('shows the server’s refusal and will not save', async () => {
+    api.post.mockImplementation((url) => (url.includes('/payment-plan')
+      ? Promise.reject({ response: { data: { error: 'Choose between 2 and 24 payments' } } })
+      : Promise.resolve({ data: {} })))
+    await openPlan()
+    expect(await screen.findByRole('alert')).toHaveTextContent('between 2 and 24')
+    expect(screen.getByRole('button', { name: 'Save plan' })).toBeDisabled()
+  })
+
+  it('shows a school plan without autopay as a schedule the office can remove', async () => {
+    docState.autopay = { status: 'active', auto_charge: false, has_card: false, installment_count: 2,
+                         remaining_count: 2, remaining_cents: 36500, next_due_date: '2026-08-01' }
+    docState.payment_plan = { id: 'pp1', cadence: 'semester', installment_count: 2, auto_charge: false,
+      installments: [{ id: 'a', due_date: '2026-08-01', amount_cents: 18250, status: 'scheduled' },
+                     { id: 'b', due_date: '2027-01-01', amount_cents: 18250, status: 'scheduled' }] }
+    render(<BillingPage />)
+    fireEvent.click(await screen.findByText('Fall tuition'))
+    const block = await screen.findByTestId('invoice-plan')
+    expect(block.textContent).toContain('Semester (every 5 months), no autopay')
+    expect(block.textContent).toContain('2027-01-01')
+    expect(screen.queryByTestId('invoice-autopay')).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Stop autopay' })).toBeNull()
+    expect(screen.getByRole('button', { name: 'Remove plan' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Payment plan' })).toBeInTheDocument()
+  })
+
+  it('is not offered while autopay is charging a card', async () => {
+    docState.autopay = { status: 'active', auto_charge: true, has_card: true, installment_count: 10,
+                         remaining_count: 8, remaining_cents: 58400, next_due_date: '2026-10-15' }
+    render(<BillingPage />)
+    fireEvent.click(await screen.findByText('Fall tuition'))
+    await screen.findByRole('button', { name: 'Stop autopay' })
+    expect(screen.queryByRole('button', { name: 'Payment plan' })).toBeNull()
+  })
+})
+
 /**
  * iCreate, 2026-08-19: "with payments coming in from UFA, it is hard to decipher
  * on the UFA end of things what they are paying for."
@@ -721,7 +826,7 @@ describe('charge detail', () => {
         recurringState.body = { schedules: [], active_monthly_cents: 0, payment_plans: [PLAN] }
         render(<BillingPage />)
         fireEvent.click(await screen.findByRole('tab', { name: /Monthly tuition/ }))
-        const section = await screen.findByRole('region', { name: 'On a monthly payment plan' })
+        const section = await screen.findByRole('region', { name: 'On a payment plan' })
         expect(within(section).getByRole('button', { name: 'Open Rose Family billing' })).toBeInTheDocument()
         expect(within(section).getByText('Robin Rose')).toBeInTheDocument()
         expect(within(section).getByText('$154.00/month')).toBeInTheDocument()
@@ -729,7 +834,7 @@ describe('charge detail', () => {
         expect(within(section).getByText('Autopay on')).toBeInTheDocument()
         // Read-only: nothing here pauses, ends, or emails.
         expect(within(section).queryByRole('button', { name: /pause|end|setup link/i })).not.toBeInTheDocument()
-        expect(screen.getByText(/No student is on monthly tuition here\. Families paying by a monthly payment plan are listed below/))
+        expect(screen.getByText(/No student is on monthly tuition here\. Families paying by a payment plan are listed below/))
           .toBeInTheDocument()
         expect(screen.queryByText(/No student is on a monthly rate yet/)).not.toBeInTheDocument()
       })
@@ -739,7 +844,7 @@ describe('charge detail', () => {
         render(<BillingPage />)
         fireEvent.click(await screen.findByRole('tab', { name: /Monthly tuition/ }))
         expect(await screen.findByText(/No student is on a monthly rate yet/)).toBeInTheDocument()
-        expect(screen.queryByRole('region', { name: 'On a monthly payment plan' })).not.toBeInTheDocument()
+        expect(screen.queryByRole('region', { name: 'On a payment plan' })).not.toBeInTheDocument()
       })
 
       it('copes with a server that does not send the key', async () => {

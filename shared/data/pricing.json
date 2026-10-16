@@ -67,10 +67,5 @@
 
   "optioCourseForSchools": {
     "perStudentCents": 5000
-  },
-
-  "cardProcessing": {
-    "percent": 2.9,
-    "flatCents": 30
   }
 }

@@ -158,6 +158,16 @@ export interface SchoolEvent {
   all_day: boolean;
   category?: string | null;
   categories?: string[] | null;
+  // Sign-ups (sis_event_rsvp_service.annotate_for_family). Absent on reads
+  // that do not carry them, so every one is optional.
+  rsvp_enabled?: boolean | null;
+  rsvp_mode?: 'count' | 'children' | null;
+  rsvp_fee_cents?: number | null;
+  rsvp_closes_at?: string | null;
+  rsvp_capacity?: number | null;
+  rsvp_spots_left?: number | null;
+  rsvp_full?: boolean | null;
+  my_rsvp?: { attending: boolean; party_size?: number; student_ids?: string[] } | null;
 }
 
 export interface LostFoundItem {

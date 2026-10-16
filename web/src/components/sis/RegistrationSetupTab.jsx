@@ -454,7 +454,7 @@ const RegistrationSetupTab = ({ orgId, orgData, onUpdate }) => {
   // fee step), fall to the finish step rather than a blank pane.
   const activeStep = editorSteps.includes(step) ? step : 'done'
   const stepBody = {
-    account: <AccountStepPreview org={org} />,
+    account: <AccountStepPreview org={org} orgId={orgId} onUpdate={onUpdate} openZones={openZones} toggleZone={toggleZone} />,
     family: (
       <FamilyStepPreview
         askHealth={askHealth} setAskHealth={setAskHealth}
@@ -606,7 +606,7 @@ const RegistrationSetupTab = ({ orgId, orgData, onUpdate }) => {
         <div className="bg-white rounded-xl border border-gray-200 shadow-lg px-4 py-3 flex items-center justify-between gap-3">
           <p className="text-xs text-neutral-500">
             {editorLabels[activeStep]} step — changes to questions, paperwork, fees, and next steps
-            save together. Waitlist ages and first day of school save on their own.
+            save together. Waitlist sign-up, waitlist ages and first day of school save on their own.
           </p>
           <button onClick={save} disabled={saving}
             className="shrink-0 px-5 py-2 rounded-lg bg-gradient-primary text-white font-medium hover:opacity-90 disabled:opacity-50">

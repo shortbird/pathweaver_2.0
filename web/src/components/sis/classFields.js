@@ -122,6 +122,8 @@ export const toDraft = (c = {}) => {
     attendance_optional: !!c.attendance_optional,
     // The class XP goal (org_classes.xp_threshold, NOT NULL, default 100).
     xp_threshold: c.xp_threshold != null ? String(c.xp_threshold) : '',
+    // The classes whose price covers this one (a bundled program).
+    included_with_class_ids: c.included_with_class_ids || [],
   }
 }
 
@@ -163,4 +165,5 @@ export const draftToPayload = (d) => ({
   // takes its default (100) and an edit keeps what it had.
   xp_threshold: d.xp_threshold === '' || d.xp_threshold == null
     ? undefined : Math.max(0, Math.round(Number(d.xp_threshold))),
+  included_with_class_ids: (d.included_with_class_ids || []).filter(Boolean),
 })

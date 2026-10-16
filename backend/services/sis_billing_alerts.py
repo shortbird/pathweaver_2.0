@@ -268,12 +268,21 @@ def notify_autopay_plan_created(org_id: str, invoice: Dict[str, Any],
         if number:
             facts.append(('Invoice', number))
         if installments:
-            facts.append(('Plan', f"{len(installments)} monthly payments of "
-                                  f"{format_cents(first.get('amount_cents'))}"))
+            # A school-set plan can be semester (every 5 months), not monthly,
+            # and a family who turns on autopay for it keeps that schedule.
+            n, each = len(installments), format_cents(first.get('amount_cents'))
+            noun = 'payment' if n == 1 else 'payments'
+            words = (f"{n} {noun} of {each}, 5 months apart" if plan.get('cadence') == 'semester'
+                     else f"{n} {noun} of {each}" if plan.get('cadence') == 'full'
+                     else f"{n} monthly {noun} of {each}")
+            facts.append(('Plan', words + (' (the school set this plan)'
+                                           if result.get('attached') else '')))
         if first_charge.get('status') == 'charged':
             facts.append(('First payment', f"{format_cents(first.get('amount_cents'))} paid"))
         elif first_charge.get('status') == 'failed':
             facts.append(('First payment', 'Declined — it is marked late and needs following up'))
+        elif first.get('due_date'):
+            facts.append(('First payment', f"Charged on {first['due_date']}"))
 
         return _send(
             org_id,
