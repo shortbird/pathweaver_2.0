@@ -25,6 +25,7 @@ existing one) BEFORE seeing the rest of the form.
     POST /api/registration/start                        -> create parent account, email a 6-digit code
     POST /api/registration/verify                       -> confirm the code -> issues the funnel access_token
     POST /api/registration/resend-code                  -> re-email a fresh code
+    POST /api/registration/interest-list                -> join the school's waitlist, no account or fee (registration_interest.py)
     POST /api/registration/login                        -> existing Optio account (password) -> attach to the org
     POST /api/registration/attach                       -> existing Optio account (live session) -> attach to the org
     POST /api/registration/registrations/<id>/family    -> phone/address + kids -> creates accounts + household
@@ -193,6 +194,9 @@ def _public_config(org, cfg, paperwork_urls=None):
             if isinstance(g, dict) and g.get('mode') == 'waitlist'
         ],
         'first_day_of_school': sis_settings.get('first_day_of_school'),
+        # "Join the waitlist" on the first screen: {enabled, label}, for families
+        # not ready to register or pay (services/sis_interest_list_service).
+        'interest_list': interest_list_settings(org.get('feature_flags')),
         # What the completion email + final page point the family at:
         # 'schedule' (default) = Schedule Builder + CLP appointment (iCreate);
         # 'goals' = the family goals page (/family/goals).
@@ -299,6 +303,10 @@ from services.registration_funnel_service import (  # noqa: E402
     org_funnel_config as _org_config,
 )
 from services.registration_alerts import notify_registration_started  # noqa: E402
+from services.sis_interest_list_service import (  # noqa: E402
+    mark_registered as mark_interest_list_registered,
+    settings_from_flags as interest_list_settings,
+)
 
 
 
@@ -889,6 +897,9 @@ def submit_family(reg_id):
         notify_registration_started(
             {**reg, 'kids': created_kids, 'fee_cents': fee_cents, 'monthly_cents': monthly_cents},
             cfg, None, parent, {'phone': phone, 'address': address})
+        # A family who joined the school's waitlist before registering is
+        # registered now: close their interest-list entry. Never raises.
+        mark_interest_list_registered(org_id, parent.get('email'))
 
     return jsonify({'success': True, 'status': 'details', 'kids': created_kids,
                     'fee_cents': fee_cents, 'fee_deferred': fee_deferred,
@@ -1343,6 +1354,7 @@ def upload_photo(reg_id):
 # endpoint names like `registration.create_checkout`, so a second blueprint
 # would rename them out of it and 403 every parent who reached the payment step
 # with a session -- the 2026-07-21 outage, again.
-from routes import registration_entry, registration_payments  # noqa: E402
+from routes import registration_entry, registration_interest, registration_payments  # noqa: E402
 registration_entry.register_routes(bp)
+registration_interest.register_routes(bp)
 registration_payments.register_routes(bp)

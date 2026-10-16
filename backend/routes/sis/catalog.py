@@ -124,6 +124,30 @@ def _validate_class_fields(data):
     return None
 
 
+def _invalid_included_with(org_id, class_id, data):
+    """An error for the class's "Included with" list, else None. The rule and
+    its checks (same school, not itself, no loop) live in
+    sis_tuition_service; this only hands it the school's catalog. Dedupes the
+    list in place so a double pick does not store twice."""
+    if 'included_with_class_ids' not in data:
+        return None
+    ids = data.get('included_with_class_ids')
+    if ids is None:
+        data['included_with_class_ids'] = ids = []
+    if isinstance(ids, list):
+        data['included_with_class_ids'] = ids = list(dict.fromkeys(ids))
+    if not ids:
+        return None
+    from services import sis_tuition_service as tuition
+    # admin client justified: reads this org's own catalog to check the ids
+    #   named belong to it; the route's role+org gate is the authorization
+    repo = SisClassRepository(client=get_supabase_admin_client())
+    # Archived classes count as this school's: a list that still names one
+    # (archiving does not edit other classes) must not block an unrelated save.
+    return tuition.validate_included_with(class_id, ids,
+                                          repo.list_for_org(org_id, include_archived=True))
+
+
 @bp.route('/classes', methods=['POST'])
 @require_role(*ADMIN_ROLES)
 def create_class(user_id):
@@ -142,9 +166,16 @@ def create_class(user_id):
     bad_assistant = _invalid_assistant(org_id, data.get('assistant_instructor_ids'))
     if bad_assistant:
         return jsonify({'success': False, 'error': bad_assistant}), 400
+    bad_included = _invalid_included_with(org_id, None, data)
+    if bad_included:
+        return jsonify({'success': False, 'error': bad_included}), 400
     # admin client justified: org-wide org_classes create gated by @require_role(ADMIN_ROLES); org pinned via sis_service.resolve_org_id
     repo = SisClassRepository(client=get_supabase_admin_client())
     fields = {**data, 'name': name}
+    # Empty is the column default; leaving it out keeps a create working on a
+    # database the column has not reached yet.
+    if not fields.get('included_with_class_ids'):
+        fields.pop('included_with_class_ids', None)
     cls = repo.create_for_org(org_id, created_by=user_id, fields=fields)
     return jsonify({'success': True, 'class': cls}), 201
 
@@ -179,11 +210,18 @@ def update_class(user_id, class_id):
     bad_assistant = _invalid_assistant(org_id, data.get('assistant_instructor_ids'))
     if bad_assistant:
         return jsonify({'success': False, 'error': bad_assistant}), 400
+    bad_included = _invalid_included_with(org_id, class_id, data)
+    if bad_included:
+        return jsonify({'success': False, 'error': bad_included}), 400
     # admin client justified: org_classes SIS-field update gated by @require_role(ADMIN_ROLES) + class-belongs-to-org check below
     repo = SisClassRepository(client=get_supabase_admin_client())
     existing = repo.find_by_id(class_id)
     if not existing or existing.get('organization_id') != org_id:
         return jsonify({'success': False, 'error': 'Class not found'}), 404
+    # The editor sends every field. On a database without the column yet (the
+    # row has no such key), an empty list is a no-op, not a failed save.
+    if 'included_with_class_ids' not in existing and not data.get('included_with_class_ids'):
+        data.pop('included_with_class_ids', None)
     updated = repo.update_sis_fields(class_id, data)
     # class_advisors rows are a THIRD teacher link (class_membership unions
     # them with the two org_classes columns for announcement targeting and

@@ -520,19 +520,6 @@ class TestProcessingFeeIsALineItem:
 
 
 @pytest.mark.unit
-class TestNoFeeOnAFee:
-    """A fee already on the invoice is inside the balance being charged."""
-
-    def test_an_invoice_carrying_a_fee_adds_none(self):
-        with patch('services.sis_billing_service.compute_processing_fee', return_value=999):
-            assert billing._fee_to_add('org1', {'processing_fee_cents': 8832}, 312332) == 0
-
-    def test_a_plain_invoice_gets_the_rate(self):
-        with patch('services.sis_billing_service.compute_processing_fee', return_value=8832):
-            assert billing._fee_to_add('org1', {'processing_fee_cents': 0}, 303500) == 8832
-
-
-@pytest.mark.unit
 class TestTheFamilyIsToldWhereToLook:
     def test_the_notice_links_the_familys_billing_page_not_the_offices(self):
         """'/billing' is the console's page. A parent who followed it landed on

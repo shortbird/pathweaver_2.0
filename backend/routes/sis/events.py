@@ -26,7 +26,10 @@ EVENT_FIELDS = ('title', 'description', 'location', 'start_at', 'end_at', 'all_d
                 'category', 'categories', 'audience',
                 # RSVP: whether families are asked to reply, what it costs, and
                 # when replies close (9cf78e9a).
-                'rsvp_enabled', 'rsvp_fee_cents', 'rsvp_closes_at')
+                'rsvp_enabled', 'rsvp_fee_cents', 'rsvp_closes_at',
+                # How families reply (a headcount, or which children) and how
+                # many spots there are (Apogee NoCo, SPARK excursions).
+                'rsvp_mode', 'rsvp_capacity')
 # The calendar's audience words live with the board's and the send's in
 # services/sis_audiences.py (M12); this name is kept for the readers of it.
 AUDIENCES = sis_audiences.EVENT_AUDIENCES
@@ -50,6 +53,17 @@ def _clean(data):
             except (TypeError, ValueError):
                 cents = None
             fields[k] = cents if cents and cents > 0 else None
+        elif k == 'rsvp_capacity':
+            # NULL is "no limit". Zero spots is not an event anybody can come
+            # to, so it is read as no limit too rather than as "full".
+            try:
+                n = int(v) if v not in (None, '') else None
+            except (TypeError, ValueError):
+                n = None
+            fields[k] = n if n and n > 0 else None
+        elif k == 'rsvp_mode':
+            from services.sis_event_rsvp_service import RSVP_MODES
+            fields[k] = v if v in RSVP_MODES else 'count'
         elif k == 'audience':
             fields[k] = sis_audiences.event_audience(v)
         elif k == 'categories':
@@ -91,15 +105,19 @@ def list_event_rsvps(user_id, event_id):
     if err:
         return err
     from services import sis_event_rsvp_service as rsvps
-    if not rsvps.get_event(org_id, event_id):
+    event = rsvps.get_event(org_id, event_id)
+    if not event:
         return jsonify({'success': False, 'error': 'Event not found'}), 404
     rows = rsvps.rsvps_for(org_id, event_id)
     coming = [r for r in rows if r.get('attending')]
+    people = sum(r.get('party_size') or 1 for r in coming)
     return jsonify({
         'success': True,
         'rsvps': rows,
         'families': len(coming),
-        'people': sum(r.get('party_size') or 1 for r in coming),
+        'people': people,
+        'capacity': event.get('rsvp_capacity'),
+        'spots_left': rsvps.spots_left(event, people),
     })
 
 
@@ -157,6 +175,19 @@ def create_event(user_id):
         return jsonify({'success': False, 'error': 'A title is required'}), 400
     if not fields.get('start_at'):
         return jsonify({'success': False, 'error': 'A start date/time is required'}), 400
+    # "Repeats": one row per occurrence, linked by a series id (see
+    # sis_events_service.create_series). Absent or 'none' is a one-off event.
+    repeat = (request.json or {}).get('repeat')
+    if isinstance(repeat, dict) and repeat.get('every') not in (None, '', 'none'):
+        try:
+            rows = events.create_series(org_id, user_id, fields, repeat)
+        except events.RepeatError as e:
+            return jsonify({'success': False, 'error': str(e)}), 400
+        except Exception as e:  # noqa: BLE001
+            logger.error(f'sis_events: series create failed: {e}')
+            return jsonify({'success': False, 'error': 'Could not create the events — check the dates'}), 400
+        return jsonify({'success': True, 'event': rows[0] if rows else None,
+                        'events': rows, 'count': len(rows)}), 201
     try:
         row = events.create_event(org_id, user_id, fields)
     except Exception as e:  # noqa: BLE001
@@ -192,9 +223,16 @@ def delete_event(user_id, event_id):
     org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
+    # ?scope=following removes this occurrence of a repeating event and every
+    # later one; the earlier ones (and their replies) stay.
+    if request.args.get('scope') == 'following':
+        n = events.delete_following(org_id, event_id)
+        if not n:
+            return jsonify({'success': False, 'error': 'Event not found'}), 404
+        return jsonify({'success': True, 'deleted': n})
     if not events.delete_event(org_id, event_id):
         return jsonify({'success': False, 'error': 'Event not found'}), 404
-    return jsonify({'success': True})
+    return jsonify({'success': True, 'deleted': 1})
 
 
 # ── ICS feed — subscribe from Google Calendar / Outlook / iPhone ─────────────

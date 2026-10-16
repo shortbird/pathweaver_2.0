@@ -355,6 +355,52 @@ describe('FamilyBillingPage', () => {
         expect.objectContaining({ installment_count: 10 })))
   })
 
+  // 2026-10-16: the school can put an invoice on a semester plan. The family
+  // sees that schedule and can put autopay on it; they are not offered a
+  // monthly x10 plan beside it.
+  const schoolPlanHousehold = (plan) => ({ data: { households: [{
+    household_id: 'hh3', household_name: 'Lee Family',
+    organization: { id: 'org-1', name: 'iCreate', online_pay_enabled: true },
+    pay_through_ufa: false,
+    invoices: [{ id: 'inv3', status: 'sent', total_cents: 250000, amount_paid_cents: 0,
+      student_name: 'Ann', line_items: [], payments: [], payment_plan: plan,
+      installments: [
+        { id: 'i1', due_date: '2026-08-15', amount_cents: 125000, status: 'scheduled' },
+        { id: 'i2', due_date: '2027-01-15', amount_cents: 125000, status: 'scheduled' },
+      ] }],
+    payments: [], totals: { invoiced_cents: 250000, paid_cents: 0, balance_cents: 250000 },
+  }] } })
+
+  it('offers autopay on the school’s semester schedule instead of a 10-payment plan', async () => {
+    api.get.mockImplementationOnce(() => Promise.resolve(schoolPlanHousehold(
+      { id: 'p1', cadence: 'semester', installment_count: 2, auto_charge: false })))
+    render(<FamilyBillingPage />)
+    fireEvent.click(await screen.findByText('Pay this schedule automatically'))
+    expect(screen.queryByText('Set up 10-payment plan')).not.toBeInTheDocument()
+    await waitFor(() =>
+      expect(api.post).toHaveBeenCalledWith('/api/sis/parent/billing/invoices/inv3/autopay-setup',
+        expect.anything()))
+    fireEvent.click(screen.getByRole('button', { name: /Ann invoice/ }))
+    expect(screen.getByText(/Payment schedule · every 5 months/)).toBeInTheDocument()
+  })
+
+  it('offers nothing more once autopay is on the schedule', async () => {
+    api.get.mockImplementationOnce(() => Promise.resolve(schoolPlanHousehold(
+      { id: 'p1', cadence: 'semester', installment_count: 2, auto_charge: true })))
+    render(<FamilyBillingPage />)
+    await screen.findByText(/Pay \$2,500\.00 online/)
+    expect(screen.queryByText('Pay this schedule automatically')).not.toBeInTheDocument()
+    expect(screen.queryByText('Set up 10-payment plan')).not.toBeInTheDocument()
+  })
+
+  it('says nothing about a card fee being added', async () => {
+    api.get.mockImplementationOnce(() => Promise.resolve(schoolPlanHousehold(null)))
+    render(<FamilyBillingPage />)
+    await screen.findByText(/Pay \$2,500\.00 online/)
+    expect(screen.queryByText(/processing fee/i)).not.toBeInTheDocument()
+    expect(screen.queryByText(/card fee/i)).not.toBeInTheDocument()
+  })
+
   it('allows the family to select a payment plan preference', async () => {
     api.get.mockImplementationOnce(() => Promise.resolve({ data: { households: [{
       household_id: 'hh1', household_name: 'Bowman Family',

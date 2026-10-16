@@ -5,6 +5,7 @@ import api from '../../services/api'
 import { useSisOrg, withOrg } from './useSisOrg'
 import AgeExceptionRequestsCard from '../../components/sis/AgeExceptionRequestsCard'
 import AddToWaitlistModal from '../../components/sis/AddToWaitlistModal'
+import InterestListCard from '../../components/sis/InterestListCard'
 import RegistrationSetupTab from '../../components/sis/RegistrationSetupTab'
 import { useAuth } from '../../contexts/AuthContext'
 import { isSisAdmin } from './sisRole'
@@ -21,12 +22,19 @@ import { useRecordDoors } from '../../components/sis/RecordDoors'
  *            it (the shared funnel components) with the configurable parts
  *            editable in place, plus the standing registration link.
  *   Queues — the day-to-day enrollment operations: age-exception requests, the
+ *            interest list (families waiting before they register), the
  *            enrollment waitlist, and the prepaid/hold family list.
  *
  * Setup is the default tab: clicking "Registration" should show the full
  * registration process (iCreate filed the old config-lives-in-Settings split
  * as a bug, and it kept confusing everyone since).
  */
+// Whether "Join the waitlist" is on (feature_flags.registration.interest_list).
+const interestListOn = (org) => {
+  const flags = org?.feature_flags || {}
+  return (flags.registration || flags.icreate_registration || {}).interest_list?.enabled === true
+}
+
 const TABS = [
   { key: 'setup', label: 'Registration form' },
   { key: 'queues', label: 'Enrollment queues' },
@@ -65,6 +73,8 @@ const RegistrationPage = () => {
         <div className="grid gap-6">
           {/* key remounts the uncontrolled forms when the superadmin switches orgs */}
           <AgeExceptionRequestsCard key={`aex-${orgId}`} orgId={orgId} />
+          <InterestListCard key={`il-${orgId}`} orgId={orgId}
+            enabled={interestListOn(orgData.organization)} />
           <EnrollmentWaitlistCard key={`ewl-${orgId}`} orgId={orgId} org={orgData.organization} />
           <FamilyDirectivesCard key={`dir-${orgId}`} orgId={orgId} />
         </div>
@@ -236,7 +246,7 @@ const EnrollmentWaitlistCard = ({ orgId, org }) => {
         "Not accepted" refunds that child's registration fee. Children with an accepted older sibling
         are tagged <span className="font-semibold text-optio-purple">sibling priority</span> and move
         up the line, the oldest sibling first — hover the tag to see the sibling's age. Add or reopen
-        waitlisted age groups in Settings → Registration &amp; enrollment.
+        waitlisted age groups in Registration form, on the Your family step.
       </p>
 
       {loading ? (
@@ -245,8 +255,8 @@ const EnrollmentWaitlistCard = ({ orgId, org }) => {
         <div className="rounded-lg border border-dashed border-gray-300 bg-gray-50 px-4 py-6 text-center">
           <p className="text-sm font-medium text-neutral-600">No age groups are waitlisted.</p>
           <p className="text-sm text-neutral-400 mt-1">
-            Add a waitlisted age group in Settings → Registration &amp; enrollment and students in that
-            age will queue here as families register.
+            Add a waitlisted age group in Registration form, on the Your family step, and students
+            in that age will queue here as families register.
           </p>
         </div>
       ) : (

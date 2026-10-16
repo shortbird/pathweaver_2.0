@@ -2,9 +2,12 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { toast } from 'react-hot-toast'
 import api from '../../services/api'
 import Button from '../../components/ui/Button'
+import { Modal } from '../../components/ui/Modal'
+import { INPUT_CLASS } from '../../components/ui/Input'
 import { withOrg } from './useSisOrg'
 import { formatCents as money } from '../../utils/money'
 import { useRecordDoors } from '../../components/sis/RecordDoors'
+import { useUpdateRecurringTuition } from '../../hooks/api/useSisBillingPlans'
 
 /**
  * The school's monthly tuition — who is being billed a set amount every month,
@@ -107,9 +110,19 @@ const shortDate = (iso) => {
   return Number.isNaN(d.getTime()) ? null : d.toLocaleDateString()
 }
 
+/** What one plan payment is, in the row: the amount "/month", "every 5
+ *  months", or "in one payment". */
+export const planAmountText = (p) => (p.cadence === 'semester'
+  ? `${money(p.monthly_cents)} every 5 months`
+  : p.cadence === 'full' ? `${money(p.monthly_cents)} in one payment`
+    : `${money(p.monthly_cents)}/month`)
+
 /**
- * Families who pay monthly by an autopay PAYMENT PLAN — one term invoice split
- * into monthly installments — rather than by monthly tuition.
+ * Families who pay by a PAYMENT PLAN — one term invoice split into
+ * installments — rather than by monthly tuition. Every cadence since
+ * 2026-10-16: a semester or pay-in-full plan the school set from the invoice
+ * bills the family as surely as a monthly one, and the server refuses monthly
+ * tuition for any of them.
  *
  * Ticket bc9010f4 (Marika, iCreate, 2026-10-02): "It is saying there is no
  * student on a monthly rate, yet I know there are at least a couple who are.
@@ -122,10 +135,10 @@ export const MonthlyPaymentPlanList = ({ plans, onChanged }) => {
   const { openFamily } = useRecordDoors()
   if (!plans?.length) return null
   return (
-    <section aria-label="On a monthly payment plan" className="mt-8">
-      <h2 className="text-sm font-semibold text-neutral-800">On a monthly payment plan</h2>
+    <section aria-label="On a payment plan" className="mt-8">
+      <h2 className="text-sm font-semibold text-neutral-800">On a payment plan</h2>
       <p className="mt-1 mb-3 text-sm text-neutral-500 max-w-2xl">
-        These families pay a term bill in monthly installments. Their plan bills them, so do
+        These families pay a term bill in installments. Their plan bills them, so do
         not add them as monthly tuition above. Open a family to change the plan.
       </p>
       <div className="rounded-lg border border-gray-200 bg-white divide-y divide-gray-100">
@@ -150,7 +163,7 @@ export const MonthlyPaymentPlanList = ({ plans, onChanged }) => {
                 {p.student_name && (
                   <span className="text-sm text-neutral-600">{p.student_name}</span>
                 )}
-                <span className="text-xs text-neutral-500">{money(p.monthly_cents)}/month</span>
+                <span className="text-xs text-neutral-500">{planAmountText(p)}</span>
                 {next && <span className="text-xs text-neutral-500">next {next}</span>}
                 {p.remaining_count > 0 && (
                   <span className="text-xs text-neutral-500">
@@ -170,9 +183,109 @@ export const MonthlyPaymentPlanList = ({ plans, onChanged }) => {
   )
 }
 
+const toCents = (str) => {
+  const n = parseFloat(str)
+  return Number.isFinite(n) ? Math.round(n * 100) : 0
+}
+
+/** When a changed amount is first charged, in the office's words.
+ *
+ * Monthly tuition is not a Stripe subscription. Each month the sweep makes a
+ * new invoice from the amount on the schedule and charges the card on file for
+ * that invoice (sis_recurring_tuition_service.bill_household). So a new amount
+ * changes nothing in Stripe and nothing already sent: it is simply the amount
+ * the next month's invoice is made with. */
+export const whenItApplies = (row) => {
+  const next = shortDate(row?.next_charge_on)
+  if (row?.status === 'paused') {
+    return 'The new amount is used for the first charge after you resume. Invoices already sent do not change.'
+  }
+  if (next) {
+    return `The new amount is used from the next monthly charge, on ${next}. Invoices already sent do not change.`
+  }
+  return 'The new amount is used for the first charge, when the family sets up payment.'
+}
+
+/** Change one child's monthly amount or its description. The PATCH also takes
+ *  day_of_month, but it is not offered: the billing day is the day the family
+ *  set up payment (owner, 2026-10-05), and the PATCH does not move
+ *  next_charge_on, so a changed day would not change when they are charged. */
+export const EditRecurringTuitionModal = ({ row, orgId, onClose, onSaved }) => {
+  // Mounted per row (keyed by its id), so the form starts from that row.
+  const [monthlyStr, setMonthlyStr] = useState(() => ((row?.monthly_cents || 0) / 100).toFixed(2))
+  const [description, setDescription] = useState(() => row?.description || '')
+  const [error, setError] = useState(null)
+  const update = useUpdateRecurringTuition(orgId)
+  const saving = update.isPending
+
+  const monthlyCents = toCents(monthlyStr)
+  const changed = !!row && (monthlyCents !== row.monthly_cents
+    || description.trim() !== (row.description || ''))
+  const canSave = !!row && monthlyCents > 0 && changed && !saving
+
+  const save = async () => {
+    if (!canSave) return
+    setError(null)
+    try {
+      await update.mutateAsync({
+        id: row.id,
+        monthly_cents: monthlyCents,
+        // '' clears it; the server stores an empty description as none.
+        description: description.trim(),
+      })
+      toast.success('Monthly tuition updated')
+      onSaved?.()
+      onClose()
+    } catch (e) {
+      setError(e?.response?.data?.error || 'Could not update monthly tuition')
+    }
+  }
+
+  return (
+    <Modal
+      isOpen={!!row}
+      onClose={onClose}
+      title={row ? `Edit monthly tuition: ${row.student_name}` : 'Edit monthly tuition'}
+      footer={(
+        <div className="flex items-center justify-end w-full gap-3">
+          <Button variant="secondary" onClick={onClose}>Cancel</Button>
+          <Button onClick={save} disabled={!canSave}>{saving ? 'Saving…' : 'Save'}</Button>
+        </div>
+      )}
+    >
+      {row && (
+        <div className="space-y-4">
+          <div>
+            <label htmlFor="edit-monthly-amount" className="block text-xs font-medium text-neutral-600 mb-1">
+              Amount each month
+            </label>
+            <div className="relative">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-neutral-500">$</span>
+              <input id="edit-monthly-amount" type="text" inputMode="decimal"
+                className={`${INPUT_CLASS} pl-6`} value={monthlyStr}
+                onChange={(e) => setMonthlyStr(e.target.value)} />
+            </div>
+          </div>
+          <div>
+            <label htmlFor="edit-monthly-description" className="block text-xs font-medium text-neutral-600 mb-1">
+              Description <span className="text-neutral-400">(optional)</span>
+            </label>
+            <input id="edit-monthly-description" type="text" className={INPUT_CLASS}
+              placeholder="Monthly tuition" value={description}
+              onChange={(e) => setDescription(e.target.value)} />
+          </div>
+          <p className="text-sm text-neutral-600">{whenItApplies(row)}</p>
+          {error && <p role="alert" className="text-sm text-red-700">{error}</p>}
+        </div>
+      )}
+    </Modal>
+  )
+}
+
 const RecurringTuitionList = ({ orgId, schedules, onChanged, emptyHint }) => {
   const { openFamily } = useRecordDoors()
   const [busyId, setBusyId] = useState(null)
+  const [editing, setEditing] = useState(null)
   const families = useMemo(() => groupByFamily(schedules), [schedules])
 
   const setStatus = async (row, status) => {
@@ -233,7 +346,6 @@ const RecurringTuitionList = ({ orgId, schedules, onChanged, emptyHint }) => {
                   {fam.card
                     ? <span>
                         {fam.card.type === 'us_bank_account' ? 'bank' : 'card'} {fam.card.brand} ····{fam.card.last4}
-                        {fam.card.card_fee && ' · card fee added'}
                       </span>
                     : <span className={state.tone}>{state.label}</span>}
                   {!fam.card && !!fam.contact && (
@@ -267,6 +379,11 @@ const RecurringTuitionList = ({ orgId, schedules, onChanged, emptyHint }) => {
                     )}
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
+                    {s.status !== 'canceled' && (
+                      <Button size="sm" variant="secondary" disabled={busyId === s.id}
+                        aria-label={`Edit ${s.student_name}`}
+                        onClick={() => setEditing(s)}>Edit</Button>
+                    )}
                     {s.status === 'active' ? (
                       <Button size="sm" variant="secondary" disabled={busyId === s.id}
                         onClick={() => setStatus(s, 'paused')}>Pause</Button>
@@ -283,6 +400,10 @@ const RecurringTuitionList = ({ orgId, schedules, onChanged, emptyHint }) => {
           </div>
         )
       })}
+      {editing && (
+        <EditRecurringTuitionModal key={editing.id} row={editing} orgId={orgId}
+          onClose={() => setEditing(null)} onSaved={onChanged} />
+      )}
     </div>
   )
 }

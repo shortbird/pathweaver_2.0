@@ -123,7 +123,7 @@
     },
     {
       "id": "tuition_quote",
-      "means": "A student's tuition for the year from their schedule: block tiers, the UFA flat plan and its 4th-day charge, supplies, the payment plan. The parent's Schedule Builder priced the week in the browser while the office's invoice seeded per class, so an invoice once billed a number the family was never shown.",
+      "means": "A student's tuition for the year from their schedule: block tiers, the UFA flat plan and its 4th-day charge, supplies, the payment plan, and a class \"included with\" another (a bundled program: sis_tuition_service.included_with is the one rule, also asked by the reprice, the registration cart and the supply budget). The parent's Schedule Builder priced the week in the browser while the office's invoice seeded per class, so an invoice once billed a number the family was never shown.",
       "owner": { "backend": ["services/sis_tuition_service.py"] },
       "forbid": {
         "web": {
@@ -1144,6 +1144,28 @@
       "measured": "2026-10-12",
       "lowered_by": "new concept (activity dashboards, 2026-10-12)",
       "use_instead": "activity_metrics_service (queries in ActivityMetricsRepository): org_activity(days) and platform_pipelines(days) for the superadmin home, school_activity(org_id, days) for one school, sign_in_trouble(org_id=None) for who cannot sign in. A new number goes into the SQL function and out through the service."
+    },
+    {
+      "id": "interest_list",
+      "means": "A family waiting BEFORE they register or pay: no account, just a parent's contact details and each child's first name and birthday, joined from \"Join the waitlist\" on the registration link (Apogee NoCo, 2026-10-16). Families call it the waitlist; staff see it as the Interest list. Not the age-group enrollment waitlist (a registered student, sis_enrollment_waitlist_service) and not the class waitlist (an enrolled student, sis_waitlist_service).",
+      "owner": {
+        "backend": ["services/sis_interest_list_service.py", "repositories/sis_interest_list_repository.py"],
+        "web": ["hooks/api/useSisInterestList.js"]
+      },
+      "forbid": {
+        "backend": {
+          "pattern": "table\\(\\s*['\"]sis_interest_list_entries['\"]\\s*\\)",
+          "dirs": ["routes", "services", "repositories", "utils", "jobs"]
+        },
+        "web": {
+          "pattern": "/api/(sis|registration)/interest-list",
+          "dirs": ["pages", "components", "hooks"]
+        }
+      },
+      "baseline": { "backend": 0, "web": 0 },
+      "measured": "2026-10-16",
+      "lowered_by": "new concept (interest list, 2026-10-16)",
+      "use_instead": "sis_interest_list_service: join(org, body) for the public form, list_entries / invite / set_status for staff, mark_registered(org_id, email) when a family registers, settings_from_flags(flags) for feature_flags.registration.interest_list. On the web, hooks/api/useSisInterestList (useSisInterestList, useInviteInterestListEntry, useSetInterestListStatus, joinInterestList) owns the endpoints; <InterestListCard> and <InterestListForm> draw them. A family-before-registration list for another purpose is this list with a label, not a new table."
     }
   ]
 }

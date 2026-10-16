@@ -27,8 +27,9 @@ const EditInvoiceModal = ({ invoiceId, orgId, doc, onCancel, onSaved }) => {
   }
   const subtotal = lines.reduce((s, l) => s + toCents(l.amountStr), 0)
   const discount = Math.max(0, Math.min(toCents(discountStr), subtotal))
-  // The card processing fee is one of the lines above — waiving it is deleting
-  // that line, not typing into a separate box that the total forgot to include.
+  // An old card processing fee (Optio stopped adding one on 2026-10-16) is one
+  // of the lines above — removing it is deleting that line, not typing into a
+  // separate box that the total forgot to include.
   const total = subtotal - discount
 
   const setLine = (i, patch) => setLines((ls) => ls.map((l, idx) => (idx === i ? { ...l, ...patch } : l)))

@@ -40,10 +40,6 @@ PRICING: Dict[str, Any] = {
     'optioCourseForSchools': {
         'perStudentCents': 5000,
     },
-    'cardProcessing': {
-        'percent': 2.9,
-        'flatCents': 30,
-    },
 }
 
 PRICE_TEXT: Dict[str, str] = {
@@ -71,7 +67,6 @@ PRICE_TEXT: Dict[str, str] = {
     'openEdPriorLearningWindowDays': '90',
     'openEdPriorLearningHalfCredit': '$30',
     'optioCourseForSchools': '$50',
-    'cardProcessingFee': '2.9% + $0.30',
     'diplomaCredits': '24',
     'diplomaYears': '4',
 }

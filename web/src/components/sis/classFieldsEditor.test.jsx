@@ -512,3 +512,58 @@ describe('a class can meet outside the school blocks', () => {
     expect(onChange).toHaveBeenLastCalledWith({ start_time: '12:30' })
   })
 })
+
+/**
+ * Apogee NoCo, 2026-10-16: the Hybrid Program includes SPARK Friday Excursions
+ * and Life Skills, and a Hybrid student was billed all three. A class names the
+ * classes whose price covers it; the backend's sis_tuition_service.included_with
+ * applies it to every bill.
+ */
+describe('"Included with" another class', () => {
+  const SPARK = { id: 'c-spark', name: 'SPARK Friday Excursions', price_cents: 145000, supply_fee: 150 }
+  const OPTIONS = [
+    SPARK,
+    { id: 'c-hybrid', name: 'Hybrid Program' },
+    { id: 'c-old', name: 'Old Program', status: 'archived' },
+  ]
+
+  it('sits with the money fields and says what it does in plain words', () => {
+    render(<ClassFieldsEditor draft={toDraft(SPARK)} onChange={() => {}} classOptions={OPTIONS} />)
+    const band = screen.getByText('Enrollment & money').closest('section')
+    expect(within(band).getByLabelText('Included with')).toBeInTheDocument()
+    expect(within(band).getByText(/Students in these classes are not charged for this one/)).toBeInTheDocument()
+  })
+
+  it('offers the other live classes, never the class itself or an archived one', () => {
+    render(<ClassFieldsEditor draft={toDraft(SPARK)} onChange={() => {}} classOptions={OPTIONS} />)
+    const names = [...screen.getByLabelText('Included with').querySelectorAll('option')].map((o) => o.textContent)
+    expect(names).toContain('Hybrid Program')
+    expect(names).not.toContain('SPARK Friday Excursions')
+    expect(names).not.toContain('Old Program')
+  })
+
+  it('adds and removes a class', () => {
+    const onChange = vi.fn()
+    const { rerender } = render(
+      <ClassFieldsEditor draft={toDraft(SPARK)} onChange={onChange} classOptions={OPTIONS} />)
+    fireEvent.change(screen.getByLabelText('Included with'), { target: { value: 'c-hybrid' } })
+    expect(onChange).toHaveBeenCalledWith({ included_with_class_ids: ['c-hybrid'] })
+
+    rerender(<ClassFieldsEditor draft={toDraft({ ...SPARK, included_with_class_ids: ['c-hybrid'] })}
+      onChange={onChange} classOptions={OPTIONS} />)
+    fireEvent.click(screen.getByLabelText('Remove Hybrid Program'))
+    expect(onChange).toHaveBeenLastCalledWith({ included_with_class_ids: [] })
+  })
+
+  it('is written back on save, and empty for a class that has none', () => {
+    expect(draftToPayload(toDraft({ ...SPARK, included_with_class_ids: ['c-hybrid'] })).included_with_class_ids)
+      .toEqual(['c-hybrid'])
+    expect(draftToPayload(toDraft(SPARK)).included_with_class_ids).toEqual([])
+  })
+
+  it('stays out of the way of a school that does not bill through Optio', () => {
+    render(<ClassFieldsEditor draft={toDraft(SPARK)} onChange={() => {}} classOptions={OPTIONS}
+      org={{ feature_flags: { modules: { billing: false } } }} />)
+    expect(screen.queryByLabelText('Included with')).not.toBeInTheDocument()
+  })
+})

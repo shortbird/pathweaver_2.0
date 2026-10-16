@@ -115,8 +115,13 @@ export const queryKeys = {
     // Points helpers (ticket 0f401a62): the staff list, and a helper's screen.
     pointsHelpers: (orgId) => [...queryKeys.sis.all, 'points', orgId, 'helpers'],
     pointsHelper: ['sis', 'points', 'helper'],
+    // The schedule a payment plan would create on an invoice, before it is
+    // saved (Billing > invoice > Payment plan). The terms are in the key.
+    paymentPlanPreview: (invoiceId, terms) => [...queryKeys.sis.all, 'paymentPlanPreview', invoiceId, terms],
     staff: (orgId) => [...queryKeys.sis.all, 'staff', orgId],
     households: (orgId) => [...queryKeys.sis.all, 'households', orgId],
+    // Families waiting before they register (Registration > Enrollment queues).
+    interestList: (orgId) => [...queryKeys.sis.all, 'interestList', orgId],
     teacherClassRoster: (orgId, classId) => [...queryKeys.sis.all, 'teacherClassRoster', orgId, classId],
     // The catalog varies by two flags as well as by org: archived classes are a
     // different list, and a teacher is served a smaller payload than an admin.

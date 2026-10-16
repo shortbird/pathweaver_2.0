@@ -129,6 +129,11 @@ CSRF_EXEMPT_ENDPOINTS = frozenset({
     'registration.registration_quote',
     'registration.public_quote',
     'registration.schedule_preview_quote',
+    # "Join the waitlist" (2026-10-16): a public form keyed by the invitation
+    # code, with no session behind it. A parent already signed in to Optio
+    # carries cookies here, the same trap as the funnel above. Forging it
+    # cross-site gains nothing the public endpoint does not already allow.
+    'registration.join_interest_list',
     # CRM public/internal endpoints, each with its own proof: unsubscribe is
     # gated by the opaque per-lead token (and must work for a recipient whose
     # browser happens to carry auth cookies — same trap as the iCreate funnel

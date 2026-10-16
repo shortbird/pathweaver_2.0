@@ -914,6 +914,7 @@ const RegisterFunnelPage = () => {
             account={account} setAccount={setAccount}
             accountNotice={accountNotice} setAccountNotice={setAccountNotice}
             code={code} mode={mode} setMode={setMode} org={org}
+            interestList={config.interest_list}
             previewMode={previewMode} submitting={submitting}
             submitCreate={submitCreate} submitSignin={submitSignin}
           />

@@ -128,7 +128,7 @@ def get_invoice(user_id, invoice_id):
 @require_role(*FINANCE_ROLES)
 def invoice_document(user_id, invoice_id):
     """Branded, itemized invoice payload for print/PDF (org identity, number,
-    family, line items, discount, processing fee, funding source, amount due)."""
+    family, line items, discount, funding source, amount due)."""
     org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
@@ -148,8 +148,10 @@ def update_invoice(user_id, invoice_id):
     replaces the whole list. Sending a second invoice was the only previous way
     to fix a wrong amount, which left the family with two.
 
-    The card processing fee is one of the line items (kind 'fee', description
-    'Card processing fee'), so it is edited and waived like any other line.
+    An old card processing fee (kind 'fee', description 'Card processing fee',
+    from before Optio stopped adding one on 2026-10-16) is one of the line
+    items, so it is edited and removed like any other line. There is no
+    separate fee endpoint any more.
     """
     org_id, err = sis_service.org_or_error(user_id)
     if err:
@@ -290,26 +292,6 @@ def invoice_audit(user_id, invoice_id):
     return jsonify({'success': True, 'audit': billing.invoice_audit(org_id, invoice_id)})
 
 
-@bp.route('/invoices/<invoice_id>/processing-fee', methods=['PATCH'])
-@require_role(*FINANCE_ROLES)
-def set_processing_fee(user_id, invoice_id):
-    """Admin override of an invoice's processing fee (waive it or set the card rate).
-
-    Writes the fee LINE on the invoice, so the family's copy shows what changed.
-    """
-    org_id, err = sis_service.org_or_error(user_id)
-    if err:
-        return err
-    data = request.json or {}
-    fee = data.get('processing_fee_cents')
-    if not isinstance(fee, int) or fee < 0:
-        return jsonify({'success': False, 'error': 'processing_fee_cents must be a non-negative integer'}), 400
-    result = billing.set_processing_fee(org_id, invoice_id, fee, actor_user_id=user_id)
-    if result.get('error'):
-        return jsonify({'success': False, 'error': result['error']}), 404
-    return jsonify({'success': True, **result})
-
-
 # ── Record-only charges + ledger (Gryffin microschool model) ─────────────────
 @bp.route('/billing/charges', methods=['POST'])
 @require_role(*FINANCE_ROLES)
@@ -354,6 +336,13 @@ def billing_ledger(user_id):
 @bp.route('/invoices/<invoice_id>/payment-plan', methods=['POST'])
 @require_role(*FINANCE_ROLES)
 def create_plan(user_id, invoice_id):
+    """Put the invoice on a payment plan, or replace the plan it is on.
+
+    Body: {cadence: 'monthly'|'semester'|'full', installment_count, start_date?
+    (YYYY-MM-DD, default today), preview?}. The plan spreads what is still owed.
+    preview: true returns {schedule} and writes nothing, so the dialog shows
+    the exact installments the save would create.
+    """
     org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
@@ -361,14 +350,16 @@ def create_plan(user_id, invoice_id):
     cadence = data.get('cadence')
     if cadence not in billing.CADENCES:
         return jsonify({'success': False, 'error': 'Invalid cadence'}), 400
+    preview = data.get('preview') is True
     result = billing.create_payment_plan(
         org_id, invoice_id, cadence,
-        installment_count=int(data.get('installment_count') or 1),
+        installment_count=data.get('installment_count'),
         start_date=data.get('start_date'),
+        actor_user_id=user_id, dry_run=preview,
     )
     if result.get('error'):
-        return jsonify({'success': False, 'error': result['error']}), 404
-    return jsonify({'success': True, **result}), 201
+        return jsonify({'success': False, 'error': result['error']}), result.get('code', 400)
+    return jsonify({'success': True, **result}), 200 if preview else 201
 
 
 @bp.route('/invoices/<invoice_id>/payments', methods=['POST'])

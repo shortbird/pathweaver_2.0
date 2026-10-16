@@ -11,6 +11,7 @@ import { splitEventStamp, compact12h, fmtEventWhen } from '../../utils/timeForma
 import { INPUT_CLASS } from '../../components/ui/Input'
 import { useAuth } from '../../contexts/AuthContext'
 import { isSisAdmin } from './sisRole'
+import { spotsLeftText } from '@shared/eventRsvp'
 
 const field = INPUT_CLASS
 /**
@@ -90,6 +91,7 @@ const CalendarPage = () => {
   const [loading, setLoading] = useState(true)
   const [modal, setModal] = useState(null) // { event } edit | { date } create | { copy } duplicate
   const [showSubscribe, setShowSubscribe] = useState(false)
+  const [view, setView] = useState('month') // 'month' grid | 'list' of the month's events
 
   const monthStart = `${year}-${pad(month + 1)}-01`
   const nextMonth = month === 11 ? `${year + 1}-01-01` : `${year}-${pad(month + 2)}-01`
@@ -167,6 +169,15 @@ const CalendarPage = () => {
           className="px-2.5 py-1.5 rounded-lg border border-gray-300 text-neutral-600 hover:border-optio-purple hover:text-optio-purple text-sm">→</button>
         <button onClick={() => { setYear(now.getFullYear()); setMonth(now.getMonth()) }}
           className="text-sm text-optio-purple hover:underline">Today</button>
+        <span role="tablist" aria-label="Calendar view" className="inline-flex rounded-lg border border-gray-300 p-0.5">
+          {[['month', 'Month'], ['list', 'List']].map(([key, label]) => (
+            <button key={key} role="tab" aria-selected={view === key} onClick={() => setView(key)}
+              className={`px-2.5 py-0.5 rounded-md text-xs font-medium transition-colors ${view === key
+                ? 'bg-optio-purple text-white' : 'text-neutral-600 hover:text-optio-purple'}`}>
+              {label}
+            </button>
+          ))}
+        </span>
         {categories.length > 0 && (
           <span className="flex items-center gap-1.5 ml-2 flex-wrap">
             <FilterChip label="All" active={!filter} onClick={() => setFilter(null)} />
@@ -179,6 +190,9 @@ const CalendarPage = () => {
         {loading && <span className="text-sm text-neutral-400">Loading…</span>}
       </div>
 
+      {view === 'list' ? (
+        <StaffEventList events={visible} categories={categories} onOpen={(e) => setModal({ event: e })} />
+      ) : (
       <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
         <div className="grid grid-cols-7 border-b border-gray-100">
           {DOW.map((d) => (
@@ -244,6 +258,7 @@ const CalendarPage = () => {
           </div>
         ))}
       </div>
+      )}
 
       {!loading && !events.length && (
         <p className="mt-3 text-sm text-neutral-400">
@@ -273,6 +288,55 @@ const CalendarPage = () => {
 
       {showSubscribe && <SubscribeModal orgId={orgId} onClose={() => setShowSubscribe(false)} />}
     </div>
+  )
+}
+
+/**
+ * The month's events as a list, soonest first: date, title, when, where, and
+ * the sign-ups so far against the spots. The office reads "who signed up this
+ * week" from here without opening each event.
+ */
+export const StaffEventList = ({ events, categories, onOpen }) => {
+  const sorted = [...events].sort((a, b) => String(a.start_at).localeCompare(String(b.start_at)))
+  if (!sorted.length) return null
+  return (
+    <ul className="bg-white rounded-xl border border-gray-200 divide-y divide-gray-100" aria-label="Events this month">
+      {sorted.map((e) => {
+        const cats = eventCategories(e)
+        const going = e.rsvp_summary?.people || 0
+        const unit = e.rsvp_mode === 'children' ? (going === 1 ? 'child' : 'children') : 'going'
+        return (
+          <li key={e.id}>
+            <button type="button" onClick={() => onOpen(e)}
+              className="w-full text-left flex items-start gap-3 px-4 py-3 hover:bg-optio-purple/5 transition-colors">
+              <span className="min-w-0 flex-1">
+                <span className="block text-sm font-semibold text-neutral-900">{e.title}</span>
+                <span className="block text-xs text-neutral-500">{fmtEventWhen(e)}</span>
+                {e.location && <span className="block text-xs text-neutral-500 truncate">{e.location}</span>}
+                {cats.length > 0 && (
+                  <span className="flex flex-wrap gap-1 mt-1">
+                    {cats.map((c) => (
+                      <span key={c} className={`text-[10px] font-semibold rounded-full px-2 py-0.5 ${colorFor(c, categories)}`}>{c}</span>
+                    ))}
+                  </span>
+                )}
+              </span>
+              {e.rsvp_enabled && (
+                <span className="flex-shrink-0 text-xs text-neutral-600 text-right">
+                  {e.rsvp_mode === 'children' ? `${going} ${unit}` : `${going} going`}
+                  {e.rsvp_capacity ? ` / ${e.rsvp_capacity}` : ''}
+                  {e.rsvp_capacity && going >= e.rsvp_capacity && (
+                    <span className="block font-semibold text-amber-700">
+                      {spotsLeftText({ rsvp_spots_left: 0 })}
+                    </span>
+                  )}
+                </span>
+              )}
+            </button>
+          </li>
+        )
+      })}
+    </ul>
   )
 }
 
@@ -338,6 +402,15 @@ const EventModal = ({ orgId, event, copyFrom, defaultDate, categories, onDuplica
     rsvp_enabled: seed ? !!seed.rsvp_enabled : false,
     rsvp_fee: seed?.rsvp_fee_cents ? String(seed.rsvp_fee_cents / 100) : '',
     rsvp_closes_at: seed?.rsvp_closes_at ? String(seed.rsvp_closes_at).slice(0, 10) : '',
+    // How families reply, and how many spots (Apogee NoCo, SPARK excursions).
+    rsvp_mode: seed?.rsvp_mode === 'children' ? 'children' : 'count',
+    rsvp_capacity: seed?.rsvp_capacity ? String(seed.rsvp_capacity) : '',
+    // Repeats: only when adding. Each occurrence is saved as its own event, so
+    // an existing one is edited alone.
+    repeat: 'none',
+    repeat_until: '',
+    repeat_count: '',
+    repeat_dates: [''],
   })
   const [busy, setBusy] = useState(false)
 
@@ -381,24 +454,48 @@ const EventModal = ({ orgId, event, copyFrom, defaultDate, categories, onDuplica
         ? Math.round(Number(form.rsvp_fee) * 100) : null,
       rsvp_closes_at: form.rsvp_enabled && form.rsvp_closes_at
         ? joinStamp(form.rsvp_closes_at, '23:59') : null,
+      rsvp_mode: form.rsvp_mode,
+      rsvp_capacity: form.rsvp_enabled && form.rsvp_capacity ? Number(form.rsvp_capacity) : null,
+    }
+    if (!event && form.repeat !== 'none') {
+      if (form.repeat === 'dates') {
+        const dates = form.repeat_dates.filter(Boolean)
+        if (!dates.length) return toast.error('Pick at least one more date')
+        payload.repeat = { every: 'dates', dates }
+      } else {
+        if (!form.repeat_until && !form.repeat_count) {
+          return toast.error('Say when it stops repeating: an end date or how many times')
+        }
+        payload.repeat = {
+          every: form.repeat,
+          until: form.repeat_until || null,
+          count: form.repeat_count ? Number(form.repeat_count) : null,
+        }
+      }
     }
     setBusy(true)
     try {
-      if (event) await api.patch(`/api/sis/events/${event.id}`, payload)
-      else await api.post('/api/sis/events', payload)
-      toast.success(event ? 'Event updated' : 'Event added')
+      let res
+      if (event) res = await api.patch(`/api/sis/events/${event.id}`, payload)
+      else res = await api.post('/api/sis/events', payload)
+      const n = res?.data?.count
+      toast.success(event ? 'Event updated' : n > 1 ? `${n} events added` : 'Event added')
       onSaved()
     } catch (e) {
       toast.error(e.response?.data?.error || 'Could not save the event')
     } finally { setBusy(false) }
   }
 
-  const remove = async () => {
-    if (!(await confirm(`Delete "${event.title}"?`))) return
+  const remove = async (following = false) => {
+    const ask = following
+      ? `Delete "${event.title}" on this date and every later date in the series? Earlier dates stay.`
+      : `Delete "${event.title}"?`
+    if (!(await confirm(ask))) return
     setBusy(true)
     try {
-      await api.delete(`/api/sis/events/${event.id}?organization_id=${orgId}`)
-      toast.success('Event deleted')
+      const { data } = await api.delete(
+        `/api/sis/events/${event.id}?organization_id=${orgId}${following ? '&scope=following' : ''}`)
+      toast.success(data?.deleted > 1 ? `${data.deleted} events deleted` : 'Event deleted')
       onSaved()
     } catch (e) {
       toast.error(e.response?.data?.error || 'Could not delete the event')
@@ -448,6 +545,12 @@ const EventModal = ({ orgId, event, copyFrom, defaultDate, categories, onDuplica
               </div>
             </div>
           )}
+          {!event && <RepeatFields form={form} set={set} />}
+          {event?.series_id && (
+            <p className="text-[11px] text-neutral-400">
+              Part of a repeating series. Changes here apply to this date only.
+            </p>
+          )}
           <div>
             <label className="block text-xs font-medium text-neutral-500 mb-1">Who can see this</label>
             <select className={field} value={form.audience} onChange={(e) => set({ audience: e.target.value })}>
@@ -470,12 +573,42 @@ const EventModal = ({ orgId, event, copyFrom, defaultDate, categories, onDuplica
                 <span>
                   <span className="block text-sm font-medium text-neutral-700">Ask families to RSVP</span>
                   <span className="block text-xs text-neutral-500">
-                    They say whether they are coming and how many of them.
+                    {form.rsvp_mode === 'children'
+                      ? 'They pick which of their children are coming.'
+                      : 'They say whether they are coming and how many of them.'}
                   </span>
                 </span>
               </label>
               {form.rsvp_enabled && (
+                <div className="mt-2 ml-6 space-y-1">
+                  <span className="block text-xs font-medium text-neutral-500">How families reply</span>
+                  {[['count', 'Count people', 'How many are coming (parents and children).'],
+                    ['children', 'Pick which children are coming', 'Each child is listed by name in the replies.']].map(([value, label, hint]) => (
+                    <label key={value} className="flex items-start gap-2 cursor-pointer">
+                      <input type="radio" name="rsvp_mode" value={value} checked={form.rsvp_mode === value}
+                        onChange={() => set({ rsvp_mode: value })}
+                        className="mt-0.5 h-4 w-4 border-gray-300 text-optio-purple focus:ring-optio-purple" />
+                      <span>
+                        <span className="block text-sm text-neutral-700">{label}</span>
+                        <span className="block text-[11px] text-neutral-500">{hint}</span>
+                      </span>
+                    </label>
+                  ))}
+                </div>
+              )}
+              {form.rsvp_enabled && (
                 <div className="grid grid-cols-2 gap-3 mt-2 ml-6">
+                  <label className="block text-xs font-medium text-neutral-500">
+                    Spots available (optional)
+                    <input type="number" min="1" step="1" value={form.rsvp_capacity}
+                      onChange={(e) => set({ rsvp_capacity: e.target.value })}
+                      aria-label="Spots available" placeholder="No limit"
+                      className={`${field} mt-1`} />
+                    <span className="block mt-0.5 text-[11px] font-normal text-neutral-400">
+                      {form.rsvp_mode === 'children' ? 'Counts children.' : 'Counts people.'} When full, new sign-ups are turned away.
+                    </span>
+                  </label>
+                  <span />
                   <label className="block text-xs font-medium text-neutral-500">
                     Cost per family (optional)
                     <input type="number" min="0" step="0.01" value={form.rsvp_fee}
@@ -543,7 +676,13 @@ const EventModal = ({ orgId, event, copyFrom, defaultDate, categories, onDuplica
         <div className="flex items-center justify-between gap-3 p-4 border-t border-gray-100">
           {event ? (
             <span className="flex items-center gap-3">
-              <button onClick={remove} disabled={busy} className="text-sm text-red-500 hover:underline disabled:opacity-50">Delete</button>
+              <button onClick={() => remove(false)} disabled={busy} className="text-sm text-red-500 hover:underline disabled:opacity-50">
+                {event.series_id ? 'Delete this date' : 'Delete'}
+              </button>
+              {event.series_id && (
+                <button onClick={() => remove(true)} disabled={busy}
+                  className="text-sm text-red-500 hover:underline disabled:opacity-50">This and following</button>
+              )}
               <button onClick={() => onDuplicate(event)} disabled={busy}
                 className="text-sm text-optio-purple hover:underline disabled:opacity-50">Duplicate</button>
             </span>
@@ -555,6 +694,83 @@ const EventModal = ({ orgId, event, copyFrom, defaultDate, categories, onDuplica
         </div>
       </div>
     </ModalOverlay>
+  )
+}
+
+const ORDINALS = ['1st', '2nd', '3rd', '4th', 'last']
+const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+
+/** "3rd Friday" for a 'YYYY-MM-DD'. A 5th weekday is called "last", which is
+ *  what the backend repeats it as (sis_events_service.occurrence_dates). */
+export const nthWeekdayLabel = (dateStr) => {
+  if (!dateStr) return ''
+  const [y, m, d] = dateStr.split('-').map(Number)
+  const weekday = WEEKDAYS[new Date(y, m - 1, d).getDay()]
+  return `${ORDINALS[Math.min(Math.ceil(d / 7), 5) - 1]} ${weekday}`
+}
+
+/**
+ * "Repeats" on Add event. Every occurrence becomes its own event, with its own
+ * replies, so one date can be moved, filled or cancelled alone.
+ *
+ * "On dates I pick" is the answer to "two chosen Fridays a month" (Apogee
+ * NoCo's SPARK excursions): the 1st and 3rd Friday drift away from every two
+ * weeks in a month with five Fridays, and a holiday moves them anyway, so the
+ * office lists the days. Capped at 60 events by the backend.
+ */
+export const RepeatFields = ({ form, set }) => {
+  const dates = form.repeat_dates
+  return (
+    <div>
+      <label className="block text-xs font-medium text-neutral-500 mb-1" htmlFor="event-repeat">Repeats</label>
+      <select id="event-repeat" className={field} value={form.repeat}
+        onChange={(e) => set({ repeat: e.target.value })}>
+        <option value="none">Does not repeat</option>
+        <option value="weekly">Every week</option>
+        <option value="2weeks">Every 2 weeks</option>
+        <option value="monthly">Every month on the {nthWeekdayLabel(form.date) || 'same weekday'}</option>
+        <option value="dates">On dates I pick</option>
+      </select>
+      {['weekly', '2weeks', 'monthly'].includes(form.repeat) && (
+        <div className="grid grid-cols-2 gap-3 mt-2">
+          <label className="block text-xs font-medium text-neutral-500">
+            Until
+            <input type="date" min={form.date} value={form.repeat_until}
+              onChange={(e) => set({ repeat_until: e.target.value })}
+              aria-label="Repeat until" className={`${field} mt-1`} />
+          </label>
+          <label className="block text-xs font-medium text-neutral-500">
+            Or how many times
+            <input type="number" min="1" max="60" value={form.repeat_count}
+              onChange={(e) => set({ repeat_count: e.target.value })}
+              aria-label="How many times" placeholder="e.g. 8" className={`${field} mt-1`} />
+          </label>
+        </div>
+      )}
+      {form.repeat === 'dates' && (
+        <div className="mt-2 space-y-1.5">
+          <p className="text-[11px] text-neutral-500">
+            The date above is the first one. Add the others; each gets its own sign-up list.
+          </p>
+          {dates.map((d, i) => (
+            <div key={i} className="flex items-center gap-2">
+              <input type="date" value={d} aria-label={`Date ${i + 2}`}
+                onChange={(e) => set({ repeat_dates: dates.map((x, j) => (j === i ? e.target.value : x)) })}
+                className={field} />
+              {dates.length > 1 && (
+                <button type="button" aria-label={`Remove date ${i + 2}`}
+                  onClick={() => set({ repeat_dates: dates.filter((_, j) => j !== i) })}
+                  className="text-neutral-400 hover:text-red-500 text-lg leading-none">×</button>
+              )}
+            </div>
+          ))}
+          {dates.length < 59 && (
+            <button type="button" onClick={() => set({ repeat_dates: [...dates, ''] })}
+              className="text-xs font-medium text-optio-purple hover:underline">+ Add another date</button>
+          )}
+        </div>
+      )}
+    </div>
   )
 }
 
@@ -589,16 +805,22 @@ const EventRsvpList = ({ orgId, event }) => {
   const fee = event.rsvp_fee_cents
   const closes = event.rsvp_closes_at ? String(event.rsvp_closes_at).slice(0, 10) : null
 
+  const childMode = event.rsvp_mode === 'children'
+  const childNames = (r) => (r.children || []).map((c) => c.name).join(', ')
+
   const download = () => {
-    const header = ['Family', 'Coming', 'People', 'Note']
+    const header = ['Family', 'Coming', childMode ? 'Children' : 'People']
+    if (childMode) header.push('Names')
+    header.push('Note')
     if (fee) header.push('Payment')
     const csv = toCsv(header, rows.map((r) => {
       const line = [
         r.household_name || 'Unnamed family',
         r.attending ? 'Yes' : 'No',
         r.attending ? (r.party_size || 1) : 0,
-        r.note || '',
       ]
+      if (childMode) line.push(r.attending ? childNames(r) : '')
+      line.push(r.note || '')
       if (fee) line.push(payLabel(r, fee))
       return line
     }))
@@ -627,7 +849,11 @@ const EventRsvpList = ({ orgId, event }) => {
         <>
           <p className="mt-0.5 text-xs text-neutral-500">
             {state.families} {state.families === 1 ? 'family' : 'families'} coming
-            {' · '}{state.people} {state.people === 1 ? 'person' : 'people'}
+            {' · '}{state.people} {childMode
+              ? (state.people === 1 ? 'child' : 'children')
+              : (state.people === 1 ? 'person' : 'people')}
+            {state.capacity ? ` of ${state.capacity} spots` : ''}
+            {state.capacity && state.spots_left === 0 ? ' · Full' : ''}
             {rows.length > state.families && ` · ${rows.length - state.families} said no`}
           </p>
           <ul className="mt-2 divide-y divide-gray-200 max-h-56 overflow-y-auto">
@@ -638,11 +864,18 @@ const EventRsvpList = ({ orgId, event }) => {
                     ? 'text-neutral-800' : 'text-neutral-400 line-through'}`}>
                     {r.household_name || 'Unnamed family'}
                   </span>
+                  {childMode && r.attending && r.children?.length > 0 && (
+                    <span className="block text-xs text-neutral-700">{childNames(r)}</span>
+                  )}
                   {r.note && <span className="block text-xs text-neutral-500">{r.note}</span>}
                 </span>
                 <span className="flex-shrink-0 text-xs text-right">
                   <span className="text-neutral-600">
-                    {r.attending ? `${r.party_size || 1} ${(r.party_size || 1) === 1 ? 'person' : 'people'}` : 'Not coming'}
+                    {r.attending
+                      ? `${r.party_size || 1} ${childMode
+                        ? ((r.party_size || 1) === 1 ? 'child' : 'children')
+                        : ((r.party_size || 1) === 1 ? 'person' : 'people')}`
+                      : 'Not coming'}
                   </span>
                   {fee > 0 && r.attending && (
                     <span className={`block ${r.invoice_status === 'paid'

@@ -355,7 +355,6 @@ function priceText() {
   const l = pricing.licensed;
   const o = pricing.openEd;
   const t = pricing.transfer;
-  const c = pricing.cardProcessing;
   const years = credits.totalCreditsRequired / a.creditsIncludedPerYear;
   return {
     academyTuitionMonthly: usd(a.tuitionMonthlyCents),
@@ -387,7 +386,6 @@ function priceText() {
     // OpenEd's fee.
     openEdPriorLearningHalfCredit: usd(t.unaccreditedCreditCents / 2 + o.marketplaceFeeHalfCreditCents),
     optioCourseForSchools: usd(pricing.optioCourseForSchools.perStudentCents),
-    cardProcessingFee: `${c.percent}% + ${usd(c.flatCents)}`,
     diplomaCredits: String(credits.totalCreditsRequired),
     diplomaYears: String(years),
   };

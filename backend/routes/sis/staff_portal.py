@@ -104,9 +104,11 @@ def class_roster(user_id, class_id):
     # attendance, the substitute sheet), not tabs that would answer 404.
     covering = scope is not None and class_id not in (sis_service.class_scope(user_id, org_id) or [])
     # admin client justified: org_classes ownership check for a roster read; gated by @require_role(STAFF_ROLES) + class_scope filter above, views access-logged
+    # The whole row: the supply budget reads included_with_class_ids, and `*`
+    # keeps this page working on a database that column has not reached yet.
+    # Only the keys named in the response below leave this function.
     cls = (get_supabase_admin_client().table('org_classes')
-           .select('id, name, organization_id, supply_fee, supply_budget_per_student, '
-                   'attendance_optional')
+           .select('*')
            .eq('id', class_id).limit(1).execute()).data
     if not cls or cls[0].get('organization_id') != org_id:
         return jsonify({'success': False, 'error': 'Class not found'}), 404

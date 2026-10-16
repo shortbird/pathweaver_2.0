@@ -15,7 +15,7 @@ import GlassTabBar from '../../../components/ui/GlassTabBar'
 import { moduleKnownOff } from '../../../modules/moduleEnabled'
 import ClassInviteLink from '../../../components/classes/ClassInviteLink'
 
-const ClassDetailModal = ({ cls, staff, timeBlocks = [], rooms = [], roomOccupancy = {}, orgId, initialTab = 'details', onClose, onSubmit, onToggleRegistration, onArchive, onRestore, onRosterChanged, org = null }) => {
+const ClassDetailModal = ({ cls, staff, timeBlocks = [], rooms = [], roomOccupancy = {}, orgId, initialTab = 'details', onClose, onSubmit, onToggleRegistration, onArchive, onRestore, onRosterChanged, org = null, classOptions = [] }) => {
   // Without the registration module there is no open/closed switch and no
   // waitlist to work (docs/MICROSCHOOL_FIRST_PLAN.md part 2).
   const showRegistration = !moduleKnownOff(org, 'registration')
@@ -90,7 +90,8 @@ const ClassDetailModal = ({ cls, staff, timeBlocks = [], rooms = [], roomOccupan
               </div>
 
               <ClassForm inline initial={cls} staff={staff} timeBlocks={timeBlocks} rooms={rooms}
-                roomOccupancy={roomOccupancy} onSubmit={onSubmit} org={org} />
+                roomOccupancy={roomOccupancy} onSubmit={onSubmit} org={org}
+                classOptions={classOptions} />
 
               <div className="pt-1">
                 {isArchived ? (

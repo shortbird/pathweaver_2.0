@@ -287,6 +287,14 @@ const InvoiceCard = ({ invoice, expanded, onToggle, onPay, paying, canPayOnline,
   const amountDue = (invoice.total_cents || 0) - (invoice.amount_paid_cents || 0)
   const payable = canPayOnline && amountDue > 0 && !['paid', 'void', 'draft'].includes(invoice.status)
   const hasPlan = !!(invoice.installments || []).length
+  // The plan the invoice is on now. A plan the school set with no card on it
+  // is a schedule the family can put autopay on; their card then pays the
+  // school's dates. It is never swapped for a monthly x10 plan of their own.
+  const activePlan = invoice.payment_plan || null
+  const schoolSchedule = !!activePlan && !activePlan.auto_charge
+  const cadenceLabel = activePlan && {
+    monthly: 'monthly', semester: 'every 5 months', full: 'one payment',
+  }[activePlan.cadence]
   const title = invoice.student_name || 'Invoice'
   const meta = [
     invoice.invoice_number,
@@ -330,7 +338,11 @@ const InvoiceCard = ({ invoice, expanded, onToggle, onPay, paying, canPayOnline,
             Set up 10-payment plan
           </Button>
         )}
-        <span className="text-xs text-gray-400">A card processing fee is added at checkout.</span>
+        {hasPlan && schoolSchedule && (
+          <Button size="sm" variant="secondary" onClick={() => onSetupPlan(invoice)} loading={planning}>
+            Pay this schedule automatically
+          </Button>
+        )}
       </div>
     )}
     {expanded && (
@@ -375,7 +387,10 @@ const InvoiceCard = ({ invoice, expanded, onToggle, onPay, paying, canPayOnline,
         </table>
         {hasPlan && (
           <div className="mt-4">
-            <div className="text-xs uppercase tracking-wide text-gray-400 mb-1">Payment schedule</div>
+            <div className="text-xs uppercase tracking-wide text-gray-400 mb-1">
+              Payment schedule{cadenceLabel ? ` · ${cadenceLabel}` : ''}
+              {activePlan?.auto_charge ? ' · autopay on' : ''}
+            </div>
             <table className="w-full">
               <tbody className="divide-y divide-gray-100">
                 {invoice.installments.map((i) => (
@@ -512,7 +527,10 @@ const FamilyBillingPage = () => {
     } else if (setupInvoiceId && autopay === 'return') {
       api.post(`/api/sis/parent/billing/invoices/${setupInvoiceId}/autopay-confirm`, { installment_count: 10 })
         .then((r) => {
-          if (r.data?.ready) toast.success('Payment plan started — your card is saved and the first payment was made.')
+          if (r.data?.ready && r.data?.attached && !r.data?.first_charge) {
+            // The school's schedule, with nothing due yet: no payment was taken.
+            toast.success('Autopay is on. Your card will be charged on each payment date.')
+          } else if (r.data?.ready) toast.success('Payment plan started — your card is saved and the first payment was made.')
           else toast('We could not finish setting up the plan yet. It may take a moment.')
           loadBilling()
         })
@@ -683,7 +701,7 @@ const FamilyBillingPage = () => {
                     : hh.pay_through_ufa
                     ? 'Paid through UFA. The school records it here once it is received.'
                     : hh.organization?.online_pay_enabled
-                      ? 'Pays every open invoice at once. A card processing fee is added at checkout.'
+                      ? 'Pays every open invoice at once.'
                       : 'Pay by Zelle or through your scholarship program; the school records it here.'}
                 </div>
               </div>

@@ -43,12 +43,7 @@ def test_the_copy_rules_hold():
 
 
 def test_what_charges_money_reads_the_list():
-    from services import sis_billing_service
     from services.registration_pricing import monthly_plan
-    assert sis_billing_service._DEFAULT_PROCESSING_FEE == {
-        'percent': PRICING['cardProcessing']['percent'],
-        'flat_cents': PRICING['cardProcessing']['flatCents'],
-    }
     plan = monthly_plan({'monthly': {'pricing': 'optio_academy', 'add_ons': []}})
     assert plan['per_student_cents'] == PRICING['academy']['tuitionMonthlyCents']
 

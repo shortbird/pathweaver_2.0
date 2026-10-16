@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render as rtlRender, screen, fireEvent, within } from '@testing-library/react'
 import { MemoryRouter, Routes, Route, useLocation } from 'react-router-dom'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 
 import BillingPage from './BillingPage'
 
@@ -23,12 +24,15 @@ const Where = () => {
   return <div data-testid="where">{loc.pathname}{loc.search}</div>
 }
 
+// The Monthly tab's edit saves through hooks/api, so it needs a QueryClient.
 const render = (entry = '/billing') => rtlRender(
-  <MemoryRouter initialEntries={[entry]}>
-    <Routes>
-      <Route path="/billing" element={<><BillingPage /><Where /></>} />
-    </Routes>
-  </MemoryRouter>,
+  <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+    <MemoryRouter initialEntries={[entry]}>
+      <Routes>
+        <Route path="/billing" element={<><BillingPage /><Where /></>} />
+      </Routes>
+    </MemoryRouter>
+  </QueryClientProvider>,
 )
 
 beforeEach(() => { recurring = [] })

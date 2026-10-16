@@ -19,6 +19,8 @@ import { moduleKnownOff } from '../../modules/moduleEnabled'
 //   onSave     async (cls, payload) -> bool — persists a row draft
 //   onToggleRegistration (cls)
 //   onOpen     (cls) — open the full card editor (image, waitlist, archive, preview)
+//   catalog    every class of the school, for the "Included with" picker
+//              (`classes` may be filtered). Falls back to `classes`.
 //   org        the active org: without the registration module the Ages column,
 //              the waitlist count, the Closed chip and the registration switch
 //              go (docs/MICROSCHOOL_FIRST_PLAN.md part 2). Null shows them all.
@@ -67,7 +69,7 @@ const SORT_LABELS = {
 // you can freeze one column and keep sorting within it (day, then time, ...).
 // ui/SortHeader shows the level as a small number.
 
-const ClassesTable = ({ classes, staff, timeBlocks = [], rooms = [], roomOccupancy = {}, onSave, onToggleRegistration, onOpen, onDuplicate, onRoster, onArchive, onRestore, onOfferSeat, org = null }) => {
+const ClassesTable = ({ classes, staff, timeBlocks = [], rooms = [], roomOccupancy = {}, onSave, onToggleRegistration, onOpen, onDuplicate, onRoster, onArchive, onRestore, onOfferSeat, org = null, catalog = null }) => {
   const showRegistration = !moduleKnownOff(org, 'registration')
   const [drafts, setDrafts] = useState({})   // class_id -> draft (kept when collapsed)
   // Picked-but-not-yet-uploaded images, by class. The file rides along with the
@@ -313,6 +315,7 @@ const ClassesTable = ({ classes, staff, timeBlocks = [], rooms = [], roomOccupan
                         onImageRemove={() => clearImage(c)}
                         onTimeErrorChange={(msg) => reportTimeError(c.id, msg)}
                         org={org}
+                        classOptions={catalog || classes}
                         headerAside={showRegistration && (
                           /* On the heading line, not a bar of its own. It still
                              says "saves now", because it is the one control here

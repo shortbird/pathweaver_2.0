@@ -13,9 +13,13 @@
  *
  * The current month opens on today (2026-09-18): the days already gone sit
  * behind one "earlier this month" tap instead of above the fold.
+ *
+ * Category chips narrow the agenda (Apogee NoCo, 2026-10-16: "SPARK" is the
+ * Friday excursions), and an event that asks for replies carries its sign-up
+ * line and button (EventRsvp), the same as the web calendar.
  */
 
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { View, Pressable, ScrollView, ActivityIndicator, RefreshControl } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Card, HStack, LinkedText, UIText, VStack } from '@/src/components/ui';
@@ -27,6 +31,10 @@ import {
 // reads them as the wall clock the office typed. This screen once had its own
 // copy of the time label without that rule and showed a 6:30 event at 12:30.
 import { fmtDayHeading, fmtTimeRange } from './format';
+import { EventRsvp } from './EventRsvp';
+
+const eventCats = (e: { category?: string | null; categories?: string[] | null }) =>
+  ((e.categories && e.categories.length ? e.categories : [e.category]).filter(Boolean) as string[]);
 
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June',
   'July', 'August', 'September', 'October', 'November', 'December'];
@@ -36,7 +44,9 @@ const monthLabel = (month: string) => {
   return `${MONTHS[m - 1]} ${y}`;
 };
 
-function DayCard({ day, isToday }: { day: CalendarDay; isToday: boolean }) {
+function DayCard({ day, isToday, organizationId, onChange }: {
+  day: CalendarDay; isToday: boolean; organizationId?: string; onChange?: () => void;
+}) {
   return (
     <Card className="mb-3 bg-white dark:bg-dark-surface-100" testID={isToday ? 'cal-today' : undefined}>
       <UIText size="xs"
@@ -69,6 +79,7 @@ function DayCard({ day, isToday }: { day: CalendarDay; isToday: boolean }) {
                 {e.description}
               </LinkedText>
             ) : null}
+            <EventRsvp event={e} organizationId={organizationId} onChange={onChange} />
           </View>
         ))}
       </VStack>
@@ -80,14 +91,25 @@ export function CalendarTab({ organizationId }: { organizationId?: string }) {
   const c = useThemeColors();
   const { month, setMonth, days, loading, error, reload } = useSchoolCalendar(organizationId);
   const [showPast, setShowPast] = useState(false);
+  const [category, setCategory] = useState<string | null>(null);
+
+  const categories = useMemo(() => {
+    const set = new Set<string>();
+    for (const d of days || []) for (const e of d.events) eventCats(e).forEach((x) => set.add(x));
+    return [...set].sort((a, b) => a.localeCompare(b));
+  }, [days]);
+  const filtered = useMemo(() => (category
+    ? (days || []).map((d) => ({ ...d, events: d.events.filter((e) => eventCats(e).includes(category)) }))
+      .filter((d) => d.events.length > 0)
+    : days), [days, category]);
 
   const today = todayIso();
   const isThisMonth = month === thisMonth();
   const { past, upcoming } = isThisMonth
-    ? splitAtToday(days || [], today)
-    : { past: [], upcoming: days || [] };
+    ? splitAtToday(filtered || [], today)
+    : { past: [], upcoming: filtered || [] };
   const hidden = isThisMonth && !showPast ? past : [];
-  const shown = isThisMonth && !showPast ? upcoming : days || [];
+  const shown = isThisMonth && !showPast ? upcoming : filtered || [];
   const todayHasEvents = shown.some((d) => d.date === today);
 
   return (
@@ -105,6 +127,25 @@ export function CalendarTab({ organizationId }: { organizationId?: string }) {
           <Ionicons name="chevron-forward" size={20} color={c.brand} />
         </Pressable>
       </HStack>
+
+      {categories.length > 0 && (
+        <ScrollView horizontal showsHorizontalScrollIndicator={false}
+          className="flex-grow-0" contentContainerClassName="px-4 pb-2 gap-2" testID="cal-categories">
+          {[null, ...categories].map((cat) => {
+            const on = category === cat;
+            return (
+              <Pressable key={cat || 'all'} onPress={() => setCategory(cat)}
+                accessibilityRole="button" accessibilityState={{ selected: on }}
+                testID={`cal-cat-${cat || 'all'}`}
+                className={`rounded-full px-3 py-1 ${on ? 'bg-optio-purple' : 'bg-surface-100 dark:bg-dark-surface-200'}`}>
+                <UIText size="xs" className={on ? 'text-white font-poppins-medium' : 'text-typo-500 dark:text-dark-typo-500'}>
+                  {cat || 'All'}
+                </UIText>
+              </Pressable>
+            );
+          })}
+        </ScrollView>
+      )}
 
       <ScrollView
         className="flex-1"
@@ -155,7 +196,8 @@ export function CalendarTab({ organizationId }: { organizationId?: string }) {
         )}
 
         {!loading && !error && shown.map((day) => (
-          <DayCard key={day.date} day={day} isToday={day.date === today} />
+          <DayCard key={day.date} day={day} isToday={day.date === today}
+            organizationId={organizationId} onChange={reload} />
         ))}
 
         {!loading && !error && isThisMonth && upcoming.length === 0 && (days || []).length > 0 && !showPast && (

@@ -50,6 +50,11 @@ SIS_CLASS_FIELDS = (
     # (class_service.calculate_student_class_progress). 0 = never auto-completes.
     # The organization console wrote it; the SIS console does since 2026-10-15.
     'xp_threshold',
+    # The classes whose price already covers this one (a bundled program).
+    # A student in both pays nothing for this class: sis_tuition_service.
+    # included_with is the rule, and the route validates the list with
+    # validate_included_with (same school, not itself, no loop).
+    'included_with_class_ids',
 )
 
 
@@ -83,6 +88,20 @@ class SisClassRepository(BaseRepository):
                     .in_('id', ids[i:i + 100]).execute()).data or []
             out.update(r['id'] for r in rows
                        if r.get('attendance_optional') and r.get('id') in ids)
+        return out
+
+    def pricing_rows(self, class_ids) -> Dict[str, Dict[str, Any]]:
+        """{class_id: row} for `class_ids`, every column, 100 per request.
+
+        `*` rather than a column list so a reader of included_with_class_ids
+        keeps working on a database the column has not reached yet: the rule
+        then reads every class as included with nothing."""
+        ids = sorted({c for c in (class_ids or []) if c})
+        out: Dict[str, Dict[str, Any]] = {}
+        for i in range(0, len(ids), 100):
+            rows = (self.client.table(self.table_name).select('*')
+                    .in_('id', ids[i:i + 100]).execute()).data or []
+            out.update({r['id']: r for r in rows if r.get('id') in ids})
         return out
 
     def names_in_org(self, organization_id: str, class_ids: List[str]) -> Dict[str, str]:
@@ -236,6 +255,34 @@ class SisClassRepository(BaseRepository):
         for row in rows:
             counts[row['class_id']] = counts.get(row['class_id'], 0) + 1
         return counts
+
+    def active_students_by_class(self, class_ids) -> Dict[str, Set[str]]:
+        """{class_id: student ids actively enrolled}. Paged, like the counts:
+        the "Included with" tally pairs students across classes, and a
+        truncated read would bill or budget the tail wrong without a sign."""
+        ids = sorted({c for c in (class_ids or []) if c})
+        if not ids:
+            return {}
+        rows = fetch_all_rows(lambda: (
+            self.client.table('class_enrollments')
+            .select('id, class_id, student_id')
+            .in_('class_id', ids)
+            .eq('status', 'active')
+        ))
+        out: Dict[str, Set[str]] = {}
+        for row in rows:
+            if row.get('student_id'):
+                out.setdefault(row['class_id'], set()).add(row['student_id'])
+        return out
+
+    def student_active_class_ids(self, student_id: str) -> Set[str]:
+        """The classes one student is actively enrolled in."""
+        if not student_id:
+            return set()
+        rows = (self.client.table('class_enrollments').select('class_id')
+                .eq('student_id', student_id).eq('status', 'active')
+                .execute()).data or []
+        return {r['class_id'] for r in rows if r.get('class_id')}
 
     def waitlist_counts_for_classes(self, class_ids: List[str]) -> Dict[str, int]:
         """waiting/offered waitlist entries per class_id. Paged for the same

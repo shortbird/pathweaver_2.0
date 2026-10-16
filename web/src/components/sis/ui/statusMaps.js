@@ -89,6 +89,13 @@ export const STATUS_MAPS = {
     archived: { label: 'Archived', tone: 'bg-gray-100 text-neutral-500' },
     hold: { label: 'Registration hold', tone: 'bg-amber-100 text-amber-800' },
   },
+  /** A family on the interest list, before they register (InterestListCard). */
+  interest_list: {
+    waiting: { label: 'Waiting', tone: 'bg-amber-100 text-amber-800' },
+    invited: { label: 'Invited', tone: 'bg-blue-100 text-blue-700' },
+    registered: { label: 'Registered', tone: 'bg-green-100 text-green-700' },
+    removed: { label: 'Removed', tone: NEUTRAL },
+  },
 }
 
 const humanise = (status) => {

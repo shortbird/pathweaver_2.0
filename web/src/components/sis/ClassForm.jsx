@@ -13,7 +13,7 @@ import { moduleKnownOff } from '../../modules/moduleEnabled'
 
 // `org` hides the fields of a module the school has off (ClassFieldsEditor's
 // header). The draft still carries them, so a save keeps their saved values.
-export default function ClassForm({ onCancel = null, onSubmit, initial = null, staff = [], timeBlocks = [], rooms = [], roomOccupancy = {}, inline = false, org = null }) {
+export default function ClassForm({ onCancel = null, onSubmit, initial = null, staff = [], timeBlocks = [], rooms = [], roomOccupancy = {}, inline = false, org = null, classOptions = [] }) {
   const isEdit = Boolean(initial)
 
   const [draft, setDraft] = useState(() => toDraft(initial || {}))
@@ -118,6 +118,7 @@ export default function ClassForm({ onCancel = null, onSubmit, initial = null, s
           onImageRemove={removeImage}
           onTimeErrorChange={setTimeError}
           org={org}
+          classOptions={classOptions}
           collapseExtras={!isEdit}
           extrasLead={registrationChoice}
         />

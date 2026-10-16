@@ -114,6 +114,9 @@ export default function ClassFieldsEditor({
   onTimeErrorChange = null,
   // The org whose modules decide which fields show (see the header).
   org = null,
+  // The school's other classes, [{id, name, status?}], for "Included with".
+  // Empty leaves the field out: there is nothing to pick.
+  classOptions = [],
   // Fold the secondary fields under "Additional options" (see the header).
   collapseExtras = false,
   // Rendered first inside "Additional options" (the create form's
@@ -396,6 +399,45 @@ export default function ClassFieldsEditor({
     </Field>
   )
 
+  // A bundled program pays for this class (Apogee NoCo: Hybrid Program
+  // includes SPARK Friday Excursions). A student in both is not billed for
+  // this one, tuition or supplies; a student who takes it alone pays its
+  // price. The backend owns the rule (sis_tuition_service.included_with).
+  const includedIds = d.included_with_class_ids || []
+  const nameOf = (id) => (classOptions.find((c) => c.id === id) || {}).name || 'Another class'
+  const includedWithField = showBilling && classOptions.some((c) => c.id !== d.id) && (
+    // A row of its own: it is a sentence-length choice, and squeezed into one
+    // column of the five it would leave the band's last row half empty.
+    <Field label="Included with" className="sm:col-span-2 lg:col-span-5">
+      {includedIds.length > 0 && (
+        <div className="flex flex-wrap gap-1 mb-1">
+          {includedIds.map((id) => (
+            <span key={id}
+              className="inline-flex items-center gap-1 rounded-full bg-optio-purple/10 px-2 py-0.5 text-xs text-optio-purple">
+              {nameOf(id)}
+              <button type="button" aria-label={`Remove ${nameOf(id)}`}
+                onClick={() => set({ included_with_class_ids: includedIds.filter((x) => x !== id) })}
+                className="text-optio-purple/60 hover:text-red-600">×</button>
+            </span>
+          ))}
+        </div>
+      )}
+      <select className={`${cell} max-w-md`} value="" aria-label="Included with"
+        onChange={(e) => {
+          const id = e.target.value
+          if (id && !includedIds.includes(id)) set({ included_with_class_ids: [...includedIds, id] })
+        }}>
+        <option value="">{includedIds.length ? 'Add another class…' : 'Not included with another class'}</option>
+        {classOptions
+          .filter((c) => c.id !== d.id && c.status !== 'archived' && !includedIds.includes(c.id))
+          .map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+      </select>
+      <p className="mt-0.5 text-[10px] text-neutral-400 leading-tight">
+        Students in these classes are not charged for this one. Others pay its price.
+      </p>
+    </Field>
+  )
+
   // Who can take it, what it costs, how it completes, and the staff notes.
   const secondaryBands = (
     <>
@@ -438,6 +480,8 @@ export default function ClassFieldsEditor({
             Per student/year. Blank = school default.
           </p>
         </Field>
+
+        {includedWithField}
         </>
         )}
       </Band>

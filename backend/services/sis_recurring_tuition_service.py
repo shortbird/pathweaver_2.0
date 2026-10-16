@@ -161,8 +161,7 @@ def _hydrate(rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         if hh not in cards:
             saved = billing.household_saved_card(oid, hh)
             cards[hh] = ({'type': saved.get('method_type') or 'card',
-                          'brand': saved.get('card_brand'), 'last4': saved.get('card_last4'),
-                          'card_fee': billing.charges_card_fee(oid, saved)}
+                          'brand': saved.get('card_brand'), 'last4': saved.get('card_last4')}
                          if saved else None)
         if hh not in contacts:
             g = billing_contact(hh)
@@ -201,7 +200,11 @@ def list_for_org(org_id: str) -> Dict[str, Any]:
 # monthly through plans read "nobody is on a monthly rate".
 #
 # These plans are listed read-only beside the schedules, and create() refuses a
-# schedule for a student a plan already bills.
+# schedule for a student a plan already bills. Every cadence counts since
+# 2026-10-16: a semester or pay-in-full plan the school set from the console
+# bills the student as surely as a monthly one, so it blocks monthly tuition
+# and is listed the same way. The function names still say "monthly"; the
+# plans they cover are not only monthly.
 
 PENDING_INSTALLMENT_STATUSES = ('scheduled', 'due', 'late')
 
@@ -212,17 +215,18 @@ def _plans():
 
 
 def list_monthly_payment_plans(org_id: str) -> List[Dict[str, Any]]:
-    """One row per active monthly payment plan in the org, for the
-    Monthly tab's read-only "On a monthly payment plan" section (ticket
-    bc9010f4, Marika at iCreate).
+    """One row per active payment plan in the org, any cadence, for the
+    Monthly tab's read-only "On a payment plan" section (ticket bc9010f4,
+    Marika at iCreate).
 
     Each row: plan_id, invoice_id, household_id/household_name,
-    student_user_id/student_name, monthly_cents (the next unpaid installment,
-    else the last one), next_due_date, remaining_count, installment_count,
+    student_user_id/student_name, cadence, monthly_cents (the next unpaid
+    installment, else the last one -- per payment, not per month, for a
+    semester plan), next_due_date, remaining_count, installment_count,
     auto_charge and has_card. No card details: whether a card is on the plan is
     all this screen needs, and the family's Billing tab carries the rest.
     """
-    plans = _plans().active_monthly_for_org(org_id)
+    plans = _plans().active_for_org(org_id)
     if not plans:
         return []
     plan_ids = [p['id'] for p in plans]
@@ -255,6 +259,7 @@ def list_monthly_payment_plans(org_id: str) -> List[Dict[str, Any]]:
             'household_name': (households.get(hh) or {}).get('name') if hh else None,
             'student_user_id': sid,
             'student_name': person_name.full_name(users[sid], 'Unknown') if sid in users else None,
+            'cadence': p.get('cadence'),
             'monthly_cents': int((basis or {}).get('amount_cents') or 0),
             'next_due_date': pending[0].get('due_date') if pending else None,
             'remaining_count': len(pending),
@@ -269,7 +274,7 @@ def list_monthly_payment_plans(org_id: str) -> List[Dict[str, Any]]:
 
 def student_monthly_plan(org_id: str, student_id: str,
                          household_id: Optional[str]) -> Optional[Dict[str, Any]]:
-    """The active monthly payment plan that already bills this student, or None.
+    """The active payment plan (any cadence) that already bills this student, or None.
 
     A plan attaches to a student through its invoice: sis_invoices
     .student_user_id when the invoice is the student's own (every iCreate plan
@@ -278,12 +283,12 @@ def student_monthly_plan(org_id: str, student_id: str,
     schedule for any of them. Both reads are bounded by one student or one
     household, so a plain read is safe here.
     """
-    by_student = _plans().active_monthly_for_student(org_id, student_id)
+    by_student = _plans().active_for_student(org_id, student_id)
     if by_student:
         return by_student[0]
     if not household_id:
         return None
-    by_household = _plans().active_monthly_for_household(org_id, household_id)
+    by_household = _plans().active_for_household(org_id, household_id)
     for p in by_household:
         if not (p.get('sis_invoices') or {}).get('student_user_id'):
             return p
@@ -330,10 +335,10 @@ def create(org_id: str, student_id: str, monthly_cents: int, actor_id: str,
     household_id = _student_household_id(org_id, student_id)
     if not household_id:
         return {'error': 'This student is not in a family yet, so there is nobody to bill'}
-    # Ticket bc9010f4 (Marika, iCreate): a student whose monthly payment plan
-    # already charges them would be charged twice. Refused before any write.
+    # Ticket bc9010f4 (Marika, iCreate): a student whose payment plan already
+    # bills them would be charged twice. Refused before any write.
     if student_monthly_plan(org_id, student_id, household_id):
-        return {'error': f'{_student_name(student_id)} already pays by a monthly payment '
+        return {'error': f'{_student_name(student_id)} already pays by a payment '
                          'plan. Adding monthly tuition would charge them twice.',
                 'conflict': True}
     existing = (_admin().table('sis_recurring_tuition').select('id, status')
@@ -602,7 +607,7 @@ def household_org_id(household_id: str) -> Optional[str]:
 
 
 def setup_email_bodies(org_name: str, students: List[Dict[str, Any]],
-                       link: str, card_fee_terms: Optional[str] = None) -> Dict[str, str]:
+                       link: str, bank_or_card: bool = False) -> Dict[str, str]:
     """PURE. The card-setup email a family receives: {subject, text, html}.
 
     Separate from the send so the exact message can be rendered without one —
@@ -610,13 +615,12 @@ def setup_email_bodies(org_name: str, students: List[Dict[str, Any]],
     without mailing a real parent to find out.
 
     `students` are hydrated schedule rows: student_name and monthly_cents.
-    `card_fee_terms` ("2.9% + $0.30") is set when the school offers a bank
-    account free and charges cards the fee (billing.autopay_bank_free); the
-    family reads the choice here, before Stripe's page asks them to make it.
+    `bank_or_card` is set when the school offers a bank account as well as a
+    card (billing.autopay_bank_free); the family reads the choice here, before
+    Stripe's page asks them to make it. No fee is named: Optio adds none, and
+    any card fee is the school's own Stripe setting, shown by Stripe.
     """
-    choice = (f"You can pay from a bank account with no fee, or by card with a "
-              f"{card_fee_terms} processing fee added to each payment."
-              if card_fee_terms else '')
+    choice = "You can pay from a bank account or by card." if bank_or_card else ''
     total = sum(r['monthly_cents'] for r in students)
     breakdown = '\n'.join(
         f"  {r['student_name']}: {format_cents(r['monthly_cents'])}" for r in students)
@@ -629,7 +633,7 @@ def setup_email_bodies(org_name: str, students: List[Dict[str, Any]],
             f"Hello,\n\n{org_name} has set up monthly tuition for your family:\n\n"
             f"{breakdown}\n\n"
             f"Total: {format_cents(total)} per month.\n\n"
-            f"Save a {'payment method' if card_fee_terms else 'card'} here and the first payment is "
+            f"Save a {'payment method' if bank_or_card else 'card'} here and the first payment is "
             f"taken right away; after that it is charged automatically each month until the "
             f"school stops it:\n{link}\n\n"
             + (f"{choice}\n\n" if choice else '') +
@@ -665,7 +669,7 @@ def send_setup_link(org_id: str, household_id: str) -> Dict[str, Any]:
     org_name = (org[0]['name'] if org else None) or 'Your school'
     bodies = setup_email_bodies(
         org_name, hydrated, setup_url(household_id),
-        card_fee_terms=billing.card_fee_terms(org_id) if billing.autopay_bank_free(org_id) else None)
+        bank_or_card=billing.autopay_bank_free(org_id))
     subject, text, html = bodies['subject'], bodies['text'], bodies['html']
 
     # ONE email, to the parent who will hold the card. Two parents receiving two

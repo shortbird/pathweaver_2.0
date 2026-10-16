@@ -768,6 +768,7 @@ export default function CatalogPanel({ section = 'classes', onCounts = null }) {
       {!loading && tab === 'classes' && view === 'table' && (
         <ClassesTable
           classes={tableClasses}
+          catalog={classes}
           staff={staff}
           timeBlocks={timeBlocks}
           rooms={rooms} roomOccupancy={roomOccupancy}
@@ -824,7 +825,7 @@ export default function CatalogPanel({ section = 'classes', onCounts = null }) {
       {creating && (
         <CreateClassModal staff={staff} timeBlocks={timeBlocks} rooms={rooms}
           roomOccupancy={roomOccupancy} onClose={() => setCreating(false)} onSubmit={handleCreate}
-          org={activeOrg} />
+          org={activeOrg} classOptions={classes} />
       )}
       {openClass && (
         <ClassDetailModal
@@ -841,6 +842,7 @@ export default function CatalogPanel({ section = 'classes', onCounts = null }) {
           onRestore={() => restoreClass(classes.find((c) => c.id === openClass.id) || openClass)}
           onRosterChanged={() => reload()}
           org={activeOrg}
+          classOptions={classes}
         />
       )}
       {viewingCourse && (

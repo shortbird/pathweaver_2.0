@@ -272,3 +272,31 @@ def notify_registration_completed(reg: Dict[str, Any], cfg: Dict[str, Any], org:
     except Exception as e:  # noqa: BLE001 -- the registration is already complete; never fail it for mail
         logger.warning(f"[registration alert] failed for registration {reg.get('id')}: {e}")
         return False
+
+
+def notify_interest_list_joined(org: Dict[str, Any], entry: Dict[str, Any]) -> bool:
+    """Email the school that a family joined its waitlist from the registration
+    link (services/sis_interest_list_service). Nothing is owed and no account
+    exists; the office reads it as a family to invite later. Never raises."""
+    try:
+        from services.sis_interest_list_service import office_alert_lines
+        org_name = _school_name(org, entry.get('organization_id'))
+        parent_name = f"{entry.get('parent_first_name', '')} {entry.get('parent_last_name', '')}".strip() or 'A parent'
+        reach = ', '.join(v for v in (entry.get('email'), entry.get('phone')) if v)
+        children, details = office_alert_lines(entry)
+        n = len(children)
+        subject = f"{org_name}: {parent_name} joined the waitlist with {n} child{'' if n == 1 else 'ren'}"
+        sections = [
+            ('Parent', [parent_name + (f' ({reach})' if reach else '')]),
+            ('Children', children or ['None recorded']),
+            ('Details', details),
+            ('Status', ['Not registered and nothing paid. Invite them from',
+                        'Registration > Enrollment queues > Interest list when you have room.']),
+        ]
+        return _send({'organization_id': entry.get('organization_id'), 'id': entry.get('id')},
+                     subject, 'Waitlist', f'{parent_name} joined the {org_name} waitlist',
+                     sections, f'{SIS_URL}/registration?tab=queues', 'Open the interest list',
+                     'interest list join')
+    except Exception as e:  # noqa: BLE001 -- the family is on the list; never fail them for mail
+        logger.warning(f"[registration alert] interest list alert failed for {entry.get('id')}: {e}")
+        return False

@@ -902,8 +902,16 @@ def my_event_rsvp(user_id, event_id):
         return jsonify({'success': False, 'error': 'organization_id is required'}), 400
     from services import sis_event_rsvp_service as rsvps
     household_id = rsvps.household_of(user_id, org_id)
-    return jsonify({'success': True,
-                    'rsvp': rsvps.my_rsvp(org_id, event_id, household_id)})
+    event = rsvps.get_event(org_id, event_id)
+    out = {'success': True, 'rsvp': rsvps.my_rsvp(org_id, event_id, household_id)}
+    if event and event.get('rsvp_enabled'):
+        # What the reply form needs: the children to tick (in "which children"
+        # mode) and how many spots are left. Only this family's own children;
+        # the other families' replies stay a number.
+        if event.get('rsvp_mode') == 'children':
+            out['children'] = rsvps.children_for(user_id, org_id)
+        out['spots_left'] = rsvps.spots_left(event, rsvps.taken_for(org_id, event_id))
+    return jsonify(out)
 
 
 @bp.route('/events/<event_id>/rsvp', methods=['POST'])
@@ -927,10 +935,13 @@ def respond_to_event(user_id, event_id):
         org_id, event_id, user_id, household_id,
         attending=bool(data.get('attending', True)),
         party_size=data.get('party_size', 1),
-        note=data.get('note'))
+        note=data.get('note'),
+        student_ids=data.get('student_ids') if isinstance(data.get('student_ids'), list) else None)
     if result.get('error'):
-        status = 404 if result['error'] == 'Event not found' else 400
-        return jsonify({'success': False, 'error': result['error']}), status
+        status = (404 if result['error'] == 'Event not found'
+                  else 409 if result.get('full') else 400)
+        return jsonify({'success': False, 'error': result['error'],
+                        'full': bool(result.get('full'))}), status
     return jsonify({'success': True, **result})
 
 

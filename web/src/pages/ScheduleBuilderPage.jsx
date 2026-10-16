@@ -282,10 +282,15 @@ const ScheduleBuilderPage = () => {
   }).filter((g) => g.open > 0)
 
   // Daily supply-fee totals under the calendar — each class counted once per
-  // day it meets, matching the CLP schedule grid.
+  // day it meets, matching the CLP schedule grid. A class another of the
+  // student's classes includes costs nothing, so the quote names it and its
+  // supplies stay off the total.
+  const includedIds = useMemo(
+    () => new Set((quote?.included || []).map((i) => i.class_id)), [quote])
   const supplyFooters = useMemo(() => {
     const byDay = {}
     for (const c of enrolled) {
+      if (includedIds.has(c.id)) continue
       const fee = Number(c.supply_fee) || 0
       if (!fee) continue
       for (const d of new Set((c.meetings || []).map((m) => m.day_of_week))) {
@@ -302,7 +307,7 @@ const ScheduleBuilderPage = () => {
       )
     }
     return out
-  }, [enrolled])
+  }, [enrolled, includedIds])
 
   // An empty teaching block BETWEEN two classes on the same day isn't allowed —
   // students on campus must be in a class every block. Flag the slot + banner.
@@ -589,6 +594,13 @@ const ScheduleBuilderPage = () => {
                 {perPaymentCents != null ? `${supplyCents > 0 ? ' ' : ''}The payment plan includes a ${feePct}% convenience fee.` : ''}
               </p>
             )}
+            {/* A class the student's program already pays for: no charge, and
+                the family should see why rather than wonder at the total. */}
+            {(quote?.included || []).map((i) => (
+              <p key={i.class_id} className="text-xs text-gray-400 mt-0.5" data-included-class>
+                {(enrolled.find((c) => c.id === i.class_id) || {}).name || 'A class'} is included with {i.included_with_name || 'another class'}, so there is no charge for it.
+              </p>
+            ))}
           </div>
         )}
       </div>

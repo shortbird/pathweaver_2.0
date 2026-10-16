@@ -362,7 +362,7 @@ const LedgerPanel = ({ view, recurring, paymentPlans, loadRecurring }) => {
             emptyHint={paymentPlans?.length
               // Ticket bc9010f4 (Marika, iCreate): "no student on a monthly
               // rate" was false for a school billing monthly through plans.
-              ? 'No student is on monthly tuition here. Families paying by a monthly payment plan are listed below and are billed by their plan.'
+              ? 'No student is on monthly tuition here. Families paying by a payment plan are listed below and are billed by their plan.'
               : 'No student is on a monthly rate yet. Add one to get started.'}
           />
           {!!recurring?.length && (
