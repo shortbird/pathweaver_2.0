@@ -69,7 +69,7 @@ const TITLES = {
 }
 
 export default function AddPeopleWizard({
-  orgId, orgName, placeholders = [], initialPath = null, onClose, onChanged, onOpenFamily,
+  orgId, orgName, org = null, placeholders = [], initialPath = null, onClose, onChanged, onOpenFamily,
 }) {
   const [path, setPath] = useState(initialPath)
   const back = () => setPath(null)
@@ -81,7 +81,7 @@ export default function AddPeopleWizard({
   // own (a placeholder teacher, an account that already exists).
   if (path === 'staff') {
     return (
-      <TeacherModal orgId={orgId} placeholders={placeholders} onBack={back} onClose={onClose}
+      <TeacherModal orgId={orgId} org={org} placeholders={placeholders} onBack={back} onClose={onClose}
         onSaved={() => { onChanged?.(); onClose() }} />
     )
   }

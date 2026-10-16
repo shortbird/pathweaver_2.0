@@ -15,6 +15,9 @@ A teacher working with one student, outside any class.
   POST   /api/sis/student-work/students/<sid>/quests/<qid>/tasks
                                                             write a task for this student
   DELETE /api/sis/student-work/students/<sid>/tasks/<tid>   take back an added task
+  POST   /api/sis/student-work/students/<sid>/tasks/<tid>/capture
+                                                            add their work (photos, a
+                                                            note), and maybe mark it done
 
 Microschools teach one child at a time as often as a class, and the console
 only knew the class (2026-10-07). The rules live in
@@ -29,6 +32,7 @@ to -- an id from another school is a 404, never a cross-school write.
 
 from flask import Blueprint, jsonify, request
 
+from middleware.rate_limiter import rate_limit
 from services import sis_service
 from services import student_quest_assignments as assignments
 from services.student_quest_assignments import AssignmentError
@@ -318,6 +322,37 @@ def add_task(user_id, student_id, quest_id):
         raise RuntimeError(f'Task insert returned nothing for student {student_id}')
     logger.info(f'Staff {user_id[:8]} added a task for {student_id[:8]} on quest {quest_id[:8]}')
     return jsonify({'success': True, 'task': inserted}), 201
+
+
+@bp.route('/students/<student_id>/tasks/<task_id>/capture', methods=['POST'])
+# Keyed by user: a teacher walking a room of thirty is thirty captures, and
+# every teacher on a campus shares one address (see helper_evidence.py).
+@rate_limit(limit=240, per=3600, per_user=True)
+@require_role(*STAFF_ROLES)
+@require_relationship_to('student_id', allow=('org_staff',))
+def capture_work(user_id, student_id, task_id):
+    """A teacher adds the student's work to a task, and may mark it done.
+
+    Multipart: `files` (photos or videos, up to 10), `note` (optional text),
+    `mark_done` ('true' completes the task for the student, verified and
+    accepted). Ticket 77637c3a; the rules are services/staff_task_capture.py.
+    """
+    org_id, _student, err = _student_or_error(user_id, student_id)
+    if err:
+        return err
+    if _bad_uuid(task_id):
+        return jsonify({'success': False, 'error': 'Task not found'}), 404
+    from services.staff_task_capture import CaptureError, capture
+    try:
+        result = capture(
+            _admin(), staff_id=user_id, org_id=org_id, student_id=student_id, task_id=task_id,
+            files=request.files.getlist('files'),
+            note=request.form.get('note', ''),
+            mark_done=(request.form.get('mark_done') or '').lower() == 'true',
+        )
+    except CaptureError as e:
+        return jsonify({'success': False, 'error': e.message}), e.status
+    return jsonify({'success': True, **result}), 201
 
 
 @bp.route('/students/<student_id>/tasks/<task_id>', methods=['DELETE'])

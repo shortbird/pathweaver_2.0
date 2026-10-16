@@ -29,7 +29,6 @@ from repositories import (
 from services.portfolio_service import PortfolioService
 from utils.logger import get_logger
 from utils.retry_handler import is_retryable_error
-from utils.storage_urls import canonical_stored_url
 
 logger = get_logger(__name__)
 
@@ -392,68 +391,12 @@ def upload_evidence_batch(user_id):
 
 def _create_helper_learning_event(supabase, student_id, uploader_id, uploader_role,
                                    quest_id, task_id, task_title, block_type, content):
-    """
-    Create a learning_events entry so helper evidence appears in the student's
-    learning journal (grouped under the quest topic) and activity feed.
-
-    `attached_task_id` is set so the observer feed's "skip task-attached
-    learning_events" filter (feed.py — `is_('attached_task_id', 'null')`)
-    actually catches it. Without this, every helper-evidence upload would
-    surface as TWO feed items: one from the evidence_document_blocks path,
-    plus a duplicate from this learning_event.
-    """
-    source_type = 'parent_captured' if uploader_role == 'parent' else 'advisor_captured'
-
-    # Build a description from the evidence content
-    if block_type == 'text':
-        description = content.get('text', 'Evidence uploaded')
-    else:
-        description = f"Evidence uploaded for task: {task_title}"
-
-    # Create learning event
-    event_data = {
-        'user_id': student_id,
-        'captured_by_user_id': uploader_id,
-        'description': description,
-        'source_type': source_type,
-        'quest_id': quest_id,
-        'attached_task_id': task_id,
-        'pillars': []
-    }
-
-    event_response = supabase.table('learning_events').insert(event_data).execute()
-    if not event_response.data:
-        return
-
-    event_id = event_response.data[0]['id']
-
-    # Link to quest via junction table
-    try:
-        supabase.table('learning_event_topics').insert({
-            'learning_event_id': event_id,
-            'topic_type': 'quest',
-            'topic_id': quest_id
-        }).execute()
-    except Exception:
-        logger.debug("intentional swallow", exc_info=True)  # Duplicate or constraint error, non-fatal
-
-    # Create evidence block on the learning event
-    block_data = {
-        'learning_event_id': event_id,
-        'block_type': block_type,
-        'content': content,
-        'order_index': 0
-    }
-
-    # Add file_url if present in content. Callers reduce `content` to canonical
-    # pointers before this runs; reduce again here so the mirrored column can
-    # never diverge from the block it copies.
-    if content.get('url') and block_type in ('image', 'document'):
-        block_data['file_url'] = canonical_stored_url(content['url'])
-
-    supabase.table('learning_event_evidence_blocks').insert(block_data).execute()
-
-    logger.info(f"Created learning event {event_id} for helper evidence (quest={quest_id}, student={student_id})")
+    """A journal entry for helper evidence. The writer lives in
+    repositories/helper_evidence_repository.py, shared with the staff capture
+    service (ticket 77637c3a)."""
+    from repositories.helper_evidence_repository import HelperEvidenceRepository
+    HelperEvidenceRepository(supabase).create_learning_event(
+        student_id, uploader_id, uploader_role, quest_id, task_id, task_title, block_type, content)
 
 
 @bp.route('/blocks/<block_id>', methods=['DELETE'])

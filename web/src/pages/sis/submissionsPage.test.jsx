@@ -192,6 +192,18 @@ describe('SubmissionsPage', () => {
     expect(await screen.findByText('75 XP')).toBeInTheDocument()
   })
 
+  // The XP route is on the engagement blueprint (module 'classes'). Apogee
+  // Central Florida reviews on Students with classes off, and a save was a
+  // ModuleGate "would block": the XP shows, the Adjust control does not.
+  it('shows XP but offers no adjustment at a school with classes off', async () => {
+    orgState = { organization: { id: 'org-1', name: 'Org',
+      feature_flags: { modules: { classes: false } } } }
+    render(<SubmissionsPanel />)
+    await openGrader()
+    expect(await screen.findByText('100 XP')).toBeInTheDocument()
+    expect(screen.queryByText('Adjust XP')).not.toBeInTheDocument()
+  })
+
   it('hides the XP control when the endpoint does not exist (404)', async () => {
     api.put.mockRejectedValueOnce({ response: { status: 404 } })
     render(<SubmissionsPanel />)

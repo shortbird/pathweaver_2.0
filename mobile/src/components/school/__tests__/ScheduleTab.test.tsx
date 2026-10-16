@@ -22,9 +22,10 @@ jest.mock('@/src/hooks/useClassSchedule', () => ({
 const mockSelectStudents = jest.fn();
 const mockCancel = jest.fn();
 let mockAbsences: any;
+let mockUseAbsencesArgs: unknown[] = [];
 jest.mock('@/src/hooks/useSchool', () => ({
   ...jest.requireActual('@/src/hooks/useSchool'),
-  useSchoolAbsences: () => mockAbsences,
+  useSchoolAbsences: (...args: unknown[]) => { mockUseAbsencesArgs = args; return mockAbsences; },
 }));
 
 jest.mock('@/src/components/school/AbsenceReportSheet', () => ({
@@ -186,5 +187,36 @@ describe('absences, under the week they interrupt', () => {
     withSchedules([{ student_id: 'me', student_name: 'My schedule', classes: MADELEINE.classes }]);
     render(<ScheduleTab organizationId="org-1" />);
     expect(screen.queryByTestId('schedule-absences')).toBeNull();
+  });
+});
+
+// The tab shows for a school running classes OR attendance; the module it does
+// not run is never read (backend/modules/gate.py 404s it once enforcement is
+// on). The hub passes its context row's modules down.
+describe('a school that runs only half of the tab', () => {
+  it('passes the attendance answer to the absence hook and the classes answer to the schedule', () => {
+    withSchedules([MADELEINE]);
+    render(<ScheduleTab organizationId="org-1" modules={['classes']} />);
+    expect(mockUseClassSchedule).toHaveBeenCalledWith('org-1', { classesOff: false });
+    expect(mockUseAbsencesArgs).toEqual(['org-1', { attendanceOff: true }]);
+  });
+
+  it('cannot say either is off without a modules list', () => {
+    withSchedules([MADELEINE]);
+    render(<ScheduleTab organizationId="org-1" />);
+    expect(mockUseClassSchedule).toHaveBeenCalledWith('org-1', { classesOff: false });
+    expect(mockUseAbsencesArgs).toEqual(['org-1', { attendanceOff: false }]);
+  });
+
+  it('an attendance-only school still lists the children and offers the report', () => {
+    withSchedules([]);
+    render(<ScheduleTab organizationId="org-1" modules={['attendance']} />);
+    expect(mockUseClassSchedule).toHaveBeenCalledWith('org-1', { classesOff: true });
+    expect(screen.getByTestId('schedule-child-kid-1')).toBeTruthy();
+    expect(screen.getByTestId('schedule-child-kid-3')).toBeTruthy();
+    expect(screen.getByTestId('schedule-report-absence')).toBeTruthy();
+    // No week to show, and no claim that the child has no classes.
+    expect(screen.queryByTestId('schedule-no-classes')).toBeNull();
+    expect(screen.queryByTestId('schedule-empty')).toBeNull();
   });
 });

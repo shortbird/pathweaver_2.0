@@ -13,8 +13,11 @@ import api from '../services/api'
  * that the page actually renders it.
  */
 
+let organization = null
 vi.mock('../contexts/OrganizationContext', () => ({
-  useOrganization: () => ({ school: { id: 'org-1', name: 'iCreate', homepage: true }, loading: false }),
+  useOrganization: () => ({
+    school: { id: 'org-1', name: 'iCreate', homepage: true }, organization, loading: false,
+  }),
 }))
 vi.mock('../contexts/AuthContext', () => ({
   useAuth: () => ({ user: { id: 'u1' }, effectiveRole: 'student' }),
@@ -42,6 +45,7 @@ const archive = { data: { success: true, announcements: [], total: 0, limit: 20,
 describe('SchoolPage and the student training card', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    organization = null
   })
 
   it('shows the school\'s student training links', async () => {
@@ -61,5 +65,44 @@ describe('SchoolPage and the student training card', () => {
     renderPage()
     await waitFor(() => expect(api.get).toHaveBeenCalledWith('/api/sis/student/training'))
     expect(screen.queryByRole('region', { name: 'Watch or read' })).not.toBeInTheDocument()
+  })
+
+  describe('a school with the training module off', () => {
+    // Sentry: ModuleGate warnings for /api/sis/student/training from Optio
+    // Academy, which has training off. The card is not mounted there.
+    const respond = (schoolOrg) => api.get.mockImplementation((url) => {
+      if (url === '/api/sis/school/context') {
+        return Promise.resolve({ data: { success: true, orgs: [schoolOrg] } })
+      }
+      if (url === '/api/sis/student/training') {
+        return Promise.resolve({ data: { success: true, training: [] } })
+      }
+      return Promise.resolve(archive)
+    })
+    const SCHOOL_ORG = { organization_id: 'org-1', organization_name: 'iCreate', is_guardian: false }
+
+    it("does not ask when the school context's module list leaves it out", async () => {
+      respond({ ...SCHOOL_ORG, modules: ['calendar', 'community'] })
+      renderPage()
+      // The board read goes out once the context has answered, so by then the
+      // training read would have too.
+      await waitFor(() => expect(api.get).toHaveBeenCalledWith('/api/sis/community/feed', undefined))
+      expect(api.get).not.toHaveBeenCalledWith('/api/sis/student/training')
+      expect(api.get).not.toHaveBeenCalledWith('/api/sis/student/materials')
+    })
+
+    it("does not ask when the student's own org payload says it is off", async () => {
+      organization = { id: 'org-1', effective_modules: ['sis', 'classes'] }
+      respond({ ...SCHOOL_ORG, modules: null })
+      renderPage()
+      await waitFor(() => expect(api.get).toHaveBeenCalledWith('/api/sis/student/materials'))
+      expect(api.get).not.toHaveBeenCalledWith('/api/sis/student/training')
+    })
+
+    it('still asks when the school runs training', async () => {
+      respond({ ...SCHOOL_ORG, modules: ['training'] })
+      renderPage()
+      await waitFor(() => expect(api.get).toHaveBeenCalledWith('/api/sis/student/training'))
+    })
   })
 })

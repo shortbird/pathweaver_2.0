@@ -5,6 +5,7 @@ import { useSisOrg, withOrg } from './useSisOrg'
 import { useAuth } from '../../contexts/AuthContext'
 import { canSeeHr, isSisAdmin } from './sisRole'
 import { getPreviewTeacher } from './teacherPreview'
+import { moduleKnownOff } from '../../modules/moduleEnabled'
 import BackToDashboard from '../../components/sis/BackToDashboard'
 import MyTaskInbox from '../../components/sis/tasks/MyTaskInbox'
 import AssignComposer from '../../components/sis/tasks/AssignComposer'
@@ -48,11 +49,16 @@ const MOVED = { documents: 'mine', secure: 'secure' }
 
 const TasksPage = () => {
   const { user } = useAuth()
-  const { orgId } = useSisOrg()
+  const { orgId, activeOrg } = useSisOrg()
   const [searchParams, setSearchParams] = useSearchParams()
   const [preview] = useState(() => getPreviewTeacher())
   const admin = isSisAdmin(user)
-  const hr = canSeeHr(user)
+  // The HR view of signature requests lives on the secure_documents
+  // blueprint. A school with that module off (Apogee NoCo) has no HR store, so
+  // an HR-role admin works the campus twin under staff-admin, which the tasks
+  // module serves -- the HR route was a ModuleGate "would block" on every
+  // Assigned visit.
+  const hr = canSeeHr(user) && !moduleKnownOff(activeOrg, 'secure_documents')
   const TABS = [...OWN_TABS, ...(admin ? OFFICE_TABS : [])]
   const rawTab = searchParams.get('tab')
   // An unknown ?tab= (a bookmark to Requests, an office tab reached by

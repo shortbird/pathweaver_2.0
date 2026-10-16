@@ -35,16 +35,23 @@ jest.mock('@/src/hooks/useFamilyVolunteerHours', () => ({
 }));
 
 let mockResources: any[] = [];
+let mockResourcesOrgId: string | null | undefined;
 jest.mock('@/src/hooks/useSchoolResources', () => ({
-  useSchoolResources: () => ({ resources: mockResources, loading: false, refresh: jest.fn() }),
+  useSchoolResources: (orgId?: string | null) => {
+    mockResourcesOrgId = orgId;
+    // The hook reads nothing without an org, so it has nothing to list.
+    return { resources: orgId ? mockResources : [], loading: false, refresh: jest.fn() };
+  },
 }));
 
 // The tab bodies are tested on their own; here they only need to be
 // recognisable.
+let mockScheduleModules: unknown;
 jest.mock('@/src/components/school/ScheduleTab', () => ({
-  ScheduleTab: ({ initialStudentId }: { initialStudentId?: string | null }) => {
+  ScheduleTab: ({ initialStudentId, modules }: { initialStudentId?: string | null; modules?: unknown }) => {
     // eslint-disable-next-line @typescript-eslint/no-var-requires
     const { Text } = require('react-native');
+    mockScheduleModules = modules;
     return <Text testID="school-tab-schedule">schedule:{initialStudentId || ''}</Text>;
   },
 }));
@@ -277,5 +284,36 @@ describe('the Feed tab', () => {
       params: expect.objectContaining({ path: '/family/goals' }),
     }));
     expect(screen.queryByText('Goal Setting', { exact: false })).toBeTruthy();
+  });
+});
+
+// The module gate (backend/modules/gate.py) 404s a module's endpoints for a
+// school that does not run it once enforcement is on; the hub reads nothing
+// it would not show (Optio Academy runs no resources, 2026-10-15).
+describe('modules the school does not run', () => {
+  it('reads no Library for a school with resources off, so there is no Library tab', () => {
+    mockHub = guardianHub({ org: { ...guardianHub().org, modules: ['classes', 'attendance', 'community', 'calendar', 'tasks'] } });
+    render(<SchoolScreen />);
+    expect(mockResourcesOrgId).toBeNull();
+    expect(screen.queryByTestId('school-tab-documents-button')).toBeNull();
+  });
+
+  it('reads the Library when the school runs it, or when its modules are unknown', () => {
+    mockHub = guardianHub({ org: { ...guardianHub().org, modules: ['resources'] } });
+    const { unmount } = render(<SchoolScreen />);
+    expect(mockResourcesOrgId).toBe('org-1');
+    unmount();
+    mockHub = guardianHub();
+    render(<SchoolScreen />);
+    expect(mockResourcesOrgId).toBe('org-1');
+    expect(screen.getByTestId('school-tab-documents-button')).toBeTruthy();
+  });
+
+  it('hands the school\'s modules to the Schedule tab', () => {
+    mockHub = guardianHub({ org: { ...guardianHub().org, modules: ['classes'] } });
+    mockParams = { tab: 'schedule' };
+    render(<SchoolScreen />);
+    expect(screen.getByTestId('school-tab-schedule')).toBeTruthy();
+    expect(mockScheduleModules).toEqual(['classes']);
   });
 });

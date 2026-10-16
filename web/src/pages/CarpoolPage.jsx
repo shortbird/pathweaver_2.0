@@ -2,6 +2,8 @@ import React, { useCallback, useEffect, useState } from 'react'
 import api from '../services/api'
 import { useAuth } from '../contexts/AuthContext'
 import { useSisOrg } from './sis/useSisOrg'
+import { useSchoolContext } from '../hooks/api/useSchoolContext'
+import { familyModuleKnownOff } from '../modules/moduleEnabled'
 import BackToSchool from '../components/navigation/BackToSchool'
 import CarpoolBoard from '../components/announcements/CarpoolBoard'
 
@@ -14,16 +16,30 @@ import CarpoolBoard from '../components/announcements/CarpoolBoard'
  * Superadmins have no membership for the feed to resolve, so their reads name
  * the previewed org (the shared SIS selection, same as /school) and render
  * the parent view.
+ *
+ * The board is the community feed, gated on the `community` module, so a
+ * school without it is not asked (Sentry: ModuleGate warnings from Apogee
+ * NoCo, community off). The school is the one the school context names first,
+ * the same entry /school renders its rail from; for a superadmin, the
+ * previewed org.
  */
 export default function CarpoolPage() {
   const { effectiveRole } = useAuth()
   const isSuperadmin = effectiveRole === 'superadmin'
-  const { orgId: previewOrgId } = useSisOrg()
+  const { orgId: previewOrgId, activeOrg } = useSisOrg()
+  const { orgs: schoolOrgs, loading: schoolLoading } = useSchoolContext({ enabled: !isSuperadmin })
+  // null while the answer is not in yet; then whether the board is known not
+  // to exist. A failed context read cannot answer, so it asks, as before.
+  const communityOff = isSuperadmin
+    ? familyModuleKnownOff(activeOrg, 'community')
+    : (schoolLoading ? null : familyModuleKnownOff(schoolOrgs?.[0], 'community'))
   const [feed, setFeed] = useState(null)
   const [perms, setPerms] = useState({ canPost: false, canModerate: false })
   const [loading, setLoading] = useState(true)
 
   const load = useCallback(async () => {
+    if (communityOff === null) return
+    if (communityOff) { setFeed(null); setLoading(false); return }
     try {
       const params = isSuperadmin && previewOrgId
         ? { organization_id: previewOrgId, view_as: 'parent' }
@@ -41,7 +57,7 @@ export default function CarpoolPage() {
     } finally {
       setLoading(false)
     }
-  }, [isSuperadmin, previewOrgId])
+  }, [isSuperadmin, previewOrgId, communityOff])
 
   useEffect(() => { load() }, [load])
 

@@ -1,5 +1,5 @@
 import React from 'react'
-import { AcademicCapIcon, XMarkIcon } from '@heroicons/react/24/outline'
+import { XMarkIcon } from '@heroicons/react/24/outline'
 import ModalOverlay from '../ui/ModalOverlay'
 import ClassForm from './ClassForm'
 
@@ -20,16 +20,19 @@ export {
   blockEndOptions, meetingsToForm,
 } from './classFields'
 
+const OPTIO_ICON_URL = 'https://auth.optioeducation.com/storage/v1/object/public/site-assets/logos/gradient_fav.svg'
+
 export default function CreateClassModal({ onClose, onSubmit, initial = null, staff = [], timeBlocks = [], rooms = [], roomOccupancy = {}, org = null }) {
   const isEdit = Boolean(initial)
+  // The school's own logo when it has one, Optio's mark otherwise.
+  const schoolLogo = org?.branding_config?.logo_url || org?.logo_url || null
   return (
     <ModalOverlay onClose={onClose}>
       <div className="bg-white rounded-xl shadow-xl max-w-2xl w-full max-h-[90vh] flex flex-col">
         <div className="flex items-center justify-between p-4 border-b border-gray-200 shrink-0">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-gradient-primary flex items-center justify-center">
-              <AcademicCapIcon className="w-6 h-6 text-white" />
-            </div>
+            <img src={schoolLogo || OPTIO_ICON_URL} alt={schoolLogo ? `${org?.name || 'School'} logo` : 'Optio'}
+              className="h-10 w-auto max-w-[120px] object-contain shrink-0" />
             <h2 className="text-lg font-semibold text-gray-900">{isEdit ? 'Edit Class' : 'Create Class'}</h2>
           </div>
           <button type="button" onClick={onClose}

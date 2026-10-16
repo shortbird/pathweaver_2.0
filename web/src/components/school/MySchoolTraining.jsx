@@ -17,7 +17,8 @@ import api from '../../services/api'
  * Reads the self-scoped /api/sis/student/training: the server answers an empty
  * list for anybody who is not a student, so the card renders nothing on a
  * teacher's or a parent's page -- the same rule as MyClassMaterials. A school
- * with the training module off answers 404, which also renders nothing.
+ * with the training module off would answer 404, so SchoolPage does not mount
+ * this there at all (the request itself was a ModuleGate warning).
  */
 const MySchoolTraining = () => {
   const [links, setLinks] = useState([])

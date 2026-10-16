@@ -32,3 +32,35 @@ export function orgHasModule(org: OrgLike, key: string): boolean {
 export function userInSisOrg(user: Pick<User, 'organization'> | null | undefined): boolean {
   return orgHasModule((user as any)?.organization, 'sis');
 }
+
+/**
+ * Is this module KNOWN to be off for the org? False when we cannot tell.
+ *
+ * For skipping a request the backend module gate would 404 (MODULE_ENFORCEMENT,
+ * backend/modules/gate.py). Mirrors web moduleKnownOff: it is not
+ * orgHasModule() negated. A payload without `effective_modules` answers false
+ * here, because hiding a live feature is far worse than the speculative
+ * request this exists to avoid; only a list that genuinely omits the key
+ * suppresses the call.
+ */
+export function moduleKnownOff(org: OrgLike, key: string): boolean {
+  return Boolean(org && Array.isArray(org.effective_modules) && !org.effective_modules.includes(key));
+}
+
+/**
+ * The same question, asked of a school hub row (/api/sis/school/context).
+ *
+ * A parent usually has no `organization` of their own (they belong to the
+ * school through their children), so the hub row's `modules` is the only
+ * module list that reaches them. It is the FAMILY-surface slice of the org's
+ * modules (sis_parent_service._hub_org_entry), so ask it only about family
+ * keys (community, calendar, resources, attendance, classes, ...): a console
+ * key is missing from it whether it is on or not. Null `modules` (the server
+ * could not read the org) and a null row both mean "cannot tell".
+ */
+export function schoolModuleKnownOff(
+  org: { modules?: string[] | null } | null | undefined,
+  key: string,
+): boolean {
+  return Boolean(org && Array.isArray(org.modules) && !org.modules.includes(key));
+}

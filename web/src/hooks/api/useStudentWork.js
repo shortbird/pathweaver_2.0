@@ -70,6 +70,20 @@ export const studentWorkApi = {
     return res.data?.task
   },
 
+  /** A teacher adds the student's work to a task (ticket 77637c3a): photos
+   * and/or a note, and markDone completes it for them, already reviewed. */
+  async capture(orgId, studentId, taskId, { files = [], note = '', markDone = false }) {
+    const form = new FormData()
+    files.forEach((f) => form.append('files', f))
+    if (note.trim()) form.append('note', note.trim())
+    form.append('mark_done', markDone ? 'true' : 'false')
+    if (orgId) form.append('organization_id', orgId)
+    const res = await api.post(withOrg(`${base(studentId)}/tasks/${taskId}/capture`, orgId), form, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    })
+    return res.data
+  },
+
   async removeTask(orgId, studentId, taskId) {
     const res = await api.delete(withOrg(`${base(studentId)}/tasks/${taskId}`, orgId))
     return res.data

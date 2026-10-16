@@ -120,3 +120,27 @@ describe('TeacherModal email-only add', () => {
     expect(screen.queryByLabelText(/already on the staff list/i)).not.toBeInTheDocument()
   })
 })
+
+/**
+ * The checklist templates sit behind tasks OR onboarding. With both off there
+ * is nothing to assign, and asking was a ModuleGate "would block" each time the
+ * add form opened (Apogee Cache Valley): no request, no picker.
+ */
+describe('TeacherModal onboarding picker and the task modules', () => {
+  const templateCalls = () => api.get.mock.calls.filter(([url]) => url.includes('/onboarding/templates'))
+
+  it('neither asks for templates nor shows the picker when tasks and onboarding are off', async () => {
+    const org = { id: 'org-1', effective_modules: ['sis', 'attendance'] }
+    render(<TeacherModal orgId="org-1" org={org} onClose={vi.fn()} onSaved={vi.fn()} />)
+    await screen.findByLabelText(/^email/i)
+    expect(screen.queryByText('Onboarding checklist')).toBeNull()
+    expect(templateCalls()).toHaveLength(0)
+  })
+
+  it('asks when either module is on', async () => {
+    const org = { id: 'org-1', effective_modules: ['sis', 'onboarding'] }
+    render(<TeacherModal orgId="org-1" org={org} onClose={vi.fn()} onSaved={vi.fn()} />)
+    await screen.findByText('Employee onboarding (employee)')
+    expect(templateCalls()).toHaveLength(1)
+  })
+})

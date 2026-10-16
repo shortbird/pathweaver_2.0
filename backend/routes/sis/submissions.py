@@ -18,6 +18,9 @@ for every staff member (the Students page's rule: at a microschool every coach
 works with every child). Without it a teacher reviewing one child at a time
 never saw most of what the child did. Those rows carry class_id and
 class_name None unless a class or a by-name assignment claims them first.
+A teacher who has classes reviews only the students on their rosters
+(2026-10-15, campus scoping); an admin, or a coach with no classes, still
+reviews every student.
 
 NEW, additive (/api/sis), staff-gated, org-scoped. Advisors are limited to
 their own classes via sis_service.class_scope; org admins see the whole org.
@@ -118,17 +121,32 @@ def _individual_pairs(user_id, org_id):
     return {(r['student_id'], r['quest_id']) for r in rows}
 
 
-def _school_students(org_id):
-    """Every current student of a school that runs individual students, or
-    None when the school does not (its inbox stays classes + by-name quests).
+def _school_students(user_id, org_id):
+    """The current students whose every quest the caller reviews, at a school
+    that runs individual students; None when the school does not (its inbox
+    stays classes + by-name quests).
+
+    An org admin, or a coach with no classes, reviews every current student.
+    A teacher with classes reviews the students on those rosters, whatever
+    quest the work is on. Arete Academy, 2026-10-15: two campuses, students
+    pick their own quests, and a campus's guides are the advisors of that
+    campus's classes; without the roster cut every guide saw both campuses,
+    and with the quest cut no guide saw anything.
 
     A school that holds XP for a teacher's accept (ticket 536a3018) reviews
     every student's work the same way: held work outside any class would
-    otherwise have no reviewer, and its XP would never arrive."""
+    otherwise have no reviewer, and its XP would never arrive.
+    """
     from modules.enabled import module_enabled
     if not (module_enabled(org_id, 'individual_work') or _requires_acceptance(org_id)):
         return None
-    return sis_service.current_student_ids(org_id)
+    students = sis_service.current_student_ids(org_id)
+    scope = sis_service.class_scope(user_id, org_id)
+    if not scope:  # None = admin; [] = a coach who works with every child
+        return students
+    enrolled, _ = _class_maps(scope)
+    roster = set().union(*enrolled.values()) if enrolled else set()
+    return students & roster
 
 
 def _requires_acceptance(org_id):
@@ -161,7 +179,7 @@ def _scope_test(user_id, org_id):
     selection against one read of the caller's classes."""
     classes = _scope_classes(user_id, org_id)
     individual = _individual_pairs(user_id, org_id)
-    school = _school_students(org_id)
+    school = _school_students(user_id, org_id)
     if not classes and not individual and not school:
         return None
     class_ids = list(classes.keys())
@@ -200,7 +218,7 @@ def _inbox(user_id, org_id, class_filter=None, student_filter=None):
     count different things."""
     classes = _scope_classes(user_id, org_id)
     individual = _individual_pairs(user_id, org_id)
-    school = _school_students(org_id)
+    school = _school_students(user_id, org_id)
     if class_filter == INDIVIDUAL:
         classes = {}
         school = None

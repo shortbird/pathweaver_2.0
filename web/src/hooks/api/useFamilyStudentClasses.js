@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import api from '../../services/api'
 import { queryKeys } from '../../utils/queryKeys'
 import { useFamilyStudentOrg } from './useFamilyStudentOrg'
+import { familyModuleKnownOff } from '../../modules/moduleEnabled'
 
 /**
  * A student's classes, each with the handouts that belong to it.
@@ -19,7 +20,9 @@ import { useFamilyStudentOrg } from './useFamilyStudentOrg'
  * keeps one source of truth for each half.
  *
  * Returns [] rather than an error for a student outside a SIS school: that is
- * most students platform-wide, not a fault.
+ * most students platform-wide, not a fault. The same for a school without the
+ * `classes` module, which is not asked at all: both reads are gated on it
+ * (Sentry: ModuleGate warnings from Optio Academy, classes off).
  */
 export const useFamilyStudentClasses = (studentId, options = {}) => {
   const { data: org, isPending: orgPending } = useFamilyStudentOrg(studentId)
@@ -30,8 +33,8 @@ export const useFamilyStudentClasses = (studentId, options = {}) => {
       const [schedule, materials] = await Promise.all([
         api.get(`/api/sis/parent/students/${studentId}/schedule`,
           { params: { organization_id: org.organizationId } }),
-        // Handouts are a bonus, not a precondition: a school with the classes
-        // module off 404s here, and the class list is still worth showing.
+        // Handouts are a bonus, not a precondition: a failure here still
+        // leaves the class list worth showing.
         api.get(`/api/sis/parent/students/${studentId}/materials`).catch(() => null),
       ])
 
@@ -43,7 +46,7 @@ export const useFamilyStudentClasses = (studentId, options = {}) => {
         materials: byClass.get(c.id) || [],
       }))
     },
-    enabled: !!studentId && !!org?.organizationId,
+    enabled: !!studentId && !!org?.organizationId && !familyModuleKnownOff(org.org, 'classes'),
     retry: false,
     staleTime: 5 * 60 * 1000,
     ...options,

@@ -53,6 +53,10 @@ const { api, HOUSEHOLD } = vi.hoisted(() => {
   }
 })
 vi.mock('../services/api', () => ({ default: api }))
+// The family's schools, from the shared guardian-context read: whether any of
+// them runs billing decides whether the ledger is asked for at all.
+let familyCtx = { orgs: [{ organization_id: 'org-1', effective_modules: ['sis', 'billing'] }], loading: false }
+vi.mock('../hooks/api/useSchoolContext', () => ({ useSisParentContext: () => familyCtx }))
 
 import FamilyBillingPage from './FamilyBillingPage'
 
@@ -66,6 +70,7 @@ const stubLocation = () => {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  familyCtx = { orgs: [{ organization_id: 'org-1', effective_modules: ['sis', 'billing'] }], loading: false }
   window.print = vi.fn()
   stubLocation()
 })
@@ -364,5 +369,40 @@ describe('FamilyBillingPage', () => {
       expect(api.post).toHaveBeenCalledWith('/api/sis/parent/billing/payment-plan-preference', {
         household_id: 'hh1', payment_plan_preference: 'monthly',
       }))
+  })
+
+  describe('the billing module', () => {
+    // Arete Academy has billing off; the ledger read logged a ModuleGate
+    // warning per visit. It names no school, so only a family whose every
+    // school has billing off goes unasked.
+    const billingCalls = () => api.get.mock.calls.filter(([url]) => url === '/api/sis/parent/billing')
+
+    it('does not ask when no school of the family runs billing', async () => {
+      familyCtx = { orgs: [{ organization_id: 'org-a', effective_modules: ['sis'] }], loading: false }
+      render(<FamilyBillingPage />)
+      expect(await screen.findByText(/No billing history yet/)).toBeInTheDocument()
+      expect(billingCalls()).toHaveLength(0)
+    })
+
+    it('still asks when one of two schools runs billing', async () => {
+      familyCtx = { orgs: [
+        { organization_id: 'org-a', effective_modules: ['sis'] },
+        { organization_id: 'org-b', effective_modules: ['sis', 'billing'] },
+      ], loading: false }
+      render(<FamilyBillingPage />)
+      await waitFor(() => expect(billingCalls()).toHaveLength(1))
+    })
+
+    it('waits for the family context before asking', () => {
+      familyCtx = { orgs: null, loading: true }
+      render(<FamilyBillingPage />)
+      expect(billingCalls()).toHaveLength(0)
+    })
+
+    it('asks a platform family with no school in the context, as before', async () => {
+      familyCtx = { orgs: [], loading: false }
+      render(<FamilyBillingPage />)
+      await waitFor(() => expect(billingCalls()).toHaveLength(1))
+    })
   })
 })

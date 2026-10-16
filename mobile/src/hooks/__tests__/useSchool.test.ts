@@ -221,6 +221,64 @@ describe('useSchoolHub', () => {
     expect((api.post as jest.Mock).mock.calls.filter(([u]) => String(u).includes('mark-read')))
       .toHaveLength(0);
   });
+
+  // The module gate (backend/modules/gate.py) 404s the feed for a school with
+  // the community module off once enforcement is on; Apogee NoCo hit it.
+  const communityOffContext = {
+    data: {
+      ...contextPayload.data,
+      orgs: [{ ...contextPayload.data.orgs[0], modules: ['classes', 'attendance'] }],
+    },
+  };
+  const feedCalls = () => (api.get as jest.Mock).mock.calls
+    .filter(([u]) => String(u).startsWith('/api/sis/community/feed'));
+
+  it('never reads the feed for a school with the community module off', async () => {
+    (api.get as jest.Mock).mockImplementation((url: string) => {
+      if (url.startsWith('/api/sis/school/context')) return Promise.resolve(communityOffContext);
+      if (url.startsWith('/api/sis/community/feed')) return Promise.resolve(feedPayload);
+      if (url.startsWith('/api/announcements/archive')) return Promise.resolve(archivePayload);
+      return Promise.resolve({ data: {} });
+    });
+    const { result } = renderHook(() => useSchoolHub());
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    expect(feedCalls()).toHaveLength(0);
+    // No board, but the sent messages still fill the hub.
+    expect(result.current.feed).toBeNull();
+    expect(result.current.messages).toHaveLength(2);
+  });
+
+  it('still reads the feed when the context cannot say (no modules list, or no context)', async () => {
+    primeGets();
+    const { result, unmount } = renderHook(() => useSchoolHub());
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    expect(feedCalls()).toHaveLength(1);
+    unmount();
+
+    jest.clearAllMocks();
+    (api.get as jest.Mock).mockImplementation((url: string) => {
+      if (url.startsWith('/api/sis/school/context')) return Promise.reject(new Error('down'));
+      if (url.startsWith('/api/sis/community/feed')) return Promise.resolve(feedPayload);
+      return Promise.resolve(archivePayload);
+    });
+    const second = renderHook(() => useSchoolHub());
+    await waitFor(() => expect(second.result.current.loading).toBe(false));
+    expect(feedCalls()).toHaveLength(1);
+    expect(second.result.current.feed?.announcements).toHaveLength(1);
+  });
+
+  it('superadmin preview of a community-off school reads no feed either', async () => {
+    setUser({ id: 'sa', role: 'superadmin', school: null });
+    (api.get as jest.Mock).mockImplementation((url: string) => {
+      if (url.startsWith('/api/sis/school/context')) return Promise.resolve(communityOffContext);
+      if (url.startsWith('/api/announcements/archive')) return Promise.resolve(archivePayload);
+      return Promise.resolve(feedPayload);
+    });
+    const { result } = renderHook(() => useSchoolHub());
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    expect(feedCalls()).toHaveLength(0);
+    expect(result.current.feed).toBeNull();
+  });
 });
 
 describe('useSchoolArchive', () => {
@@ -344,6 +402,17 @@ describe('useSchoolAbsences', () => {
     expect(api.get).toHaveBeenCalledWith(
       '/api/sis/parent/absences?organization_id=org-1&student_user_id=s2',
     );
+  });
+
+  it('reads nothing at a school with the attendance module off', async () => {
+    // Optio Academy runs no attendance; the module gate 404s every absence
+    // read there once enforcement is on.
+    primeGets();
+    const { result } = renderHook(() => useSchoolAbsences('org-1', { attendanceOff: true }));
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    expect(api.get).not.toHaveBeenCalled();
+    expect(result.current.students).toEqual([]);
+    expect(result.current.error).toBeNull();
   });
 
   it('is empty (not an error) for a non-guardian', async () => {

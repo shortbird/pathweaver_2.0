@@ -8,6 +8,7 @@ import api from '../../../services/api'
 import { useSisOrg, withOrg } from '../useSisOrg'
 import { useAuth } from '../../../contexts/AuthContext'
 import { isSisAdmin } from '../sisRole'
+import { moduleKnownOff } from '../../../modules/moduleEnabled'
 import CurriculumFields, { curriculumFieldsOf } from '../../../components/sis/CurriculumFields'
 import CurriculumResources from '../../../components/sis/CurriculumResources'
 import { useConfirm } from '../../../contexts/ConfirmContext'
@@ -28,7 +29,7 @@ import SortHeader from '../../../components/ui/SortHeader'
  * class page; students never see it — that's what class materials are for.
  */
 
-const CurriculumEditor = ({ orgId, entry, classes, onSaved, onCancel, onResourcesChanged }) => {
+const CurriculumEditor = ({ orgId, entry, classes, classesOff = false, onSaved, onCancel, onResourcesChanged }) => {
   const [f, setF] = useState(() => (entry ? {
     ...curriculumFieldsOf(entry),
     class_ids: (entry.classes || []).map((c) => c.class_id),
@@ -58,7 +59,8 @@ const CurriculumEditor = ({ orgId, entry, classes, onSaved, onCancel, onResource
       const id = entry?.id
         ? (await api.patch(`/api/sis/curriculum/${entry.id}`, body), entry.id)
         : (await api.post('/api/sis/curriculum', body)).data?.curriculum?.id
-      if (id) {
+      // No class picker without the classes module, so nothing to attach.
+      if (id && !classesOff) {
         await api.put(`/api/sis/curriculum/${id}/classes`, {
           organization_id: orgId, class_ids: f.class_ids,
         })
@@ -76,30 +78,32 @@ const CurriculumEditor = ({ orgId, entry, classes, onSaved, onCancel, onResource
     <div className="border border-optio-purple/30 rounded-xl p-4 space-y-3 bg-optio-purple/5">
       <CurriculumFields f={f} set={set} />
 
-      <div className="rounded-lg border border-gray-200 bg-white p-3">
-        <p className="text-xs font-semibold uppercase tracking-wide text-neutral-500 mb-1">
-          Classes using this curriculum
-        </p>
-        <p className="text-xs text-neutral-400 mb-2">
-          Attach it to every section that uses it — teachers see it on those classes.
-          Leave empty for curriculum you aren't teaching right now.
-        </p>
-        {!classes.length ? (
-          <p className="text-sm text-neutral-400">No classes yet.</p>
-        ) : (
-          <div className="max-h-48 overflow-y-auto divide-y divide-gray-50">
-            {classes.map((c) => (
-              <label key={c.id} className="flex items-center gap-2 py-1.5 text-sm cursor-pointer">
-                <input type="checkbox" checked={f.class_ids.includes(c.id)}
-                  onChange={() => toggleClass(c.id)}
-                  className="h-4 w-4 rounded border-gray-300 text-optio-purple focus:ring-optio-purple" />
-                <span className="text-neutral-800">{c.name}</span>
-                {c.instructor_name && <span className="text-xs text-neutral-400">{c.instructor_name}</span>}
-              </label>
-            ))}
-          </div>
-        )}
-      </div>
+      {!classesOff && (
+        <div className="rounded-lg border border-gray-200 bg-white p-3">
+          <p className="text-xs font-semibold uppercase tracking-wide text-neutral-500 mb-1">
+            Classes using this curriculum
+          </p>
+          <p className="text-xs text-neutral-400 mb-2">
+            Attach it to every section that uses it — teachers see it on those classes.
+            Leave empty for curriculum you aren't teaching right now.
+          </p>
+          {!classes.length ? (
+            <p className="text-sm text-neutral-400">No classes yet.</p>
+          ) : (
+            <div className="max-h-48 overflow-y-auto divide-y divide-gray-50">
+              {classes.map((c) => (
+                <label key={c.id} className="flex items-center gap-2 py-1.5 text-sm cursor-pointer">
+                  <input type="checkbox" checked={f.class_ids.includes(c.id)}
+                    onChange={() => toggleClass(c.id)}
+                    className="h-4 w-4 rounded border-gray-300 text-optio-purple focus:ring-optio-purple" />
+                  <span className="text-neutral-800">{c.name}</span>
+                  {c.instructor_name && <span className="text-xs text-neutral-400">{c.instructor_name}</span>}
+                </label>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* iCreate, 2026-08-12: "you have to click on the curriculum name [to find
           the quests/courses] — shouldn't that be in edit?" The quick view behind
@@ -160,8 +164,12 @@ const carriesText = (e) => [
 const CurriculumPanel = () => {
   const confirm = useConfirm()
   const { user } = useAuth()
-  const { orgId } = useSisOrg()
+  const { orgId, activeOrg } = useSisOrg()
   const admin = isSisAdmin(user)
+  // The class list is the classes module's. A school that runs curriculum with
+  // classes off (Apogee Cache Valley) has no class to attach an entry to, and
+  // the request was a ModuleGate "would block" on every Library visit.
+  const classesOff = moduleKnownOff(activeOrg, 'classes')
   const [entries, setEntries] = useState([])
   const [classes, setClasses] = useState([])
   const [loading, setLoading] = useState(true)
@@ -189,10 +197,14 @@ const CurriculumPanel = () => {
       .then((r) => setEntries(r.data?.curriculum || []))
       .catch(() => toast.error('Failed to load the curriculum library'))
       .finally(() => setLoading(false))
-    api.get(withOrg('/api/sis/classes', orgId))
-      .then((r) => setClasses(r.data?.classes || []))
-      .catch(() => setClasses([]))
-  }, [orgId])
+    if (classesOff) {
+      setClasses([])
+    } else {
+      api.get(withOrg('/api/sis/classes', orgId))
+        .then((r) => setClasses(r.data?.classes || []))
+        .catch(() => setClasses([]))
+    }
+  }, [orgId, classesOff])
 
   useEffect(() => { load() }, [load])
 
@@ -272,6 +284,7 @@ const CurriculumPanel = () => {
             orgId={orgId}
             entry={editing === 'new' ? null : editing}
             classes={classes}
+            classesOff={classesOff}
             onSaved={(id) => {
               // A just-created entry opens straight onto its quests/courses —
               // attaching them is the natural next step of adding curriculum.

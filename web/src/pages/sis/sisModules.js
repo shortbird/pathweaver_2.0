@@ -51,6 +51,8 @@ export const SIS_MODULE_BY_PATH = {
   // module's own page since 2026-10-08 (it was a tab on Classes).
   '/students': 'individual_work',
   '/student-work': 'individual_work',
+  // Capture work: the Students page's API on a phone (ticket 77637c3a).
+  '/capture': 'individual_work',
   '/registration': 'registration',
   '/community': 'community',
   '/prior-learning': 'prior_learning',

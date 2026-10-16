@@ -53,6 +53,9 @@ const TranscriptSection = ({ studentId }) => {
   // One builder for every transcript screen (utils/transcriptRows). No
   // planned credit is on an official transcript (ticket 9200a103, item 1).
   const rows = buildTranscriptRows(data, overrides);
+  // What the transcript prints, which rounds Optio credit down to quarters,
+  // rather than the unrounded total the API reports.
+  const printedCredits = rows.reduce((sum, row) => sum + row.credits, 0);
 
   const studentName = field('student_name', `${student.last_name}, ${student.first_name}`);
 
@@ -75,7 +78,7 @@ const TranscriptSection = ({ studentId }) => {
 
       {/* Credit summary bar */}
       <div className="px-6 py-2 border-b border-gray-100 flex gap-6 text-xs text-gray-600">
-        <span>Completed: <strong className="text-gray-900">{totals.total_completed.toFixed(1)}</strong></span>
+        <span>Credits: <strong className="text-gray-900">{printedCredits.toFixed(2)}</strong></span>
         {totals.gpa != null && (
           <span>GPA: <strong className="text-gray-900">{field('gpa', totals.gpa.toFixed(2))}</strong></span>
         )}

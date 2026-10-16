@@ -95,10 +95,13 @@ describe('ClassForm keeps a hidden field\'s saved value on save', () => {
   })
 
   it('offers "Open for registration" on create only with registration on', () => {
+    // It lives under "Additional options" on create.
     const { unmount } = render(<ClassForm onSubmit={vi.fn()} org={ALL_ON} />)
+    fireEvent.click(screen.getByRole('button', { name: /Additional options/ }))
     expect(screen.getByText('Open for registration')).toBeInTheDocument()
     unmount()
     render(<ClassForm onSubmit={vi.fn()} org={OFFICE_OFF} />)
+    fireEvent.click(screen.getByRole('button', { name: /Additional options/ }))
     expect(screen.queryByText('Open for registration')).not.toBeInTheDocument()
   })
 })

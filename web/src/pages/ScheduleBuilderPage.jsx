@@ -8,6 +8,7 @@ import { Spinner } from '../components/ui'
 import { useConfirm } from '../contexts/ConfirmContext'
 import { useFamilyScope } from '../contexts/FamilyScopeContext'
 import StudentClasses from '../components/parent/StudentClasses'
+import { familyModuleKnownOff } from '../modules/moduleEnabled'
 
 // Family Schedule Builder — the weekly calendar IS the interface:
 //   - enrolled classes show as colored blocks; click one for details / drop
@@ -112,7 +113,11 @@ const ScheduleBuilderPage = () => {
     }
     api.get('/api/sis/parent/context')
       .then((r) => {
-        const orgs = r.data?.orgs || []
+        // Only the schools that run the `classes` module: every read and
+        // write here is gated on it, and a school without it has no
+        // schedule to build (Sentry: ModuleGate warnings from Optio Academy,
+        // classes off). None left is the empty state below.
+        const orgs = (r.data?.orgs || []).filter((o) => !familyModuleKnownOff(o, 'classes'))
         setCtx({ orgs })
         setMyAvatar(r.data?.my_avatar_url || null)
         if (orgs.length) {

@@ -245,3 +245,32 @@ describe('AbsenceReportingPage multi-child selection', () => {
     expect(toast.error).toHaveBeenCalledWith('Linus: This absence has already been reported')
   })
 })
+
+describe('a school without the attendance module', () => {
+  // Absences are the `attendance` module's; Optio Academy has it off, and
+  // every visit read /parent/absences anyway (a ModuleGate warning each).
+  const withModules = (effective_modules) => api.get.mockImplementation((url) => {
+    if (url.includes('/parent/context')) {
+      return Promise.resolve({ data: { orgs: [{ ...CONTEXT.data.orgs[0], effective_modules }] } })
+    }
+    if (url.includes('/parent/absences')) {
+      const sid = url.split('student_user_id=')[1]
+      return Promise.resolve({ data: BY_STUDENT[sid] })
+    }
+    return Promise.resolve({ data: {} })
+  })
+
+  it('does not ask, and says the school takes no absence reports here', async () => {
+    withModules(['sis', 'billing'])
+    render(<AbsenceReportingPage />)
+    expect(await screen.findByText(/Optio Academy doesn.t take absence reports here/)).toBeInTheDocument()
+    expect(api.get.mock.calls.some(([url]) => url.includes('/parent/absences'))).toBe(false)
+    expect(screen.queryByRole('button', { name: 'Ada' })).not.toBeInTheDocument()
+  })
+
+  it('still asks when the school runs attendance', async () => {
+    withModules(['sis', 'attendance'])
+    render(<AbsenceReportingPage />)
+    await waitFor(() => expect(api.get.mock.calls.some(([url]) => url.includes('/parent/absences'))).toBe(true))
+  })
+})

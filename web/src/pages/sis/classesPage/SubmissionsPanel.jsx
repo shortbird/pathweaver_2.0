@@ -505,6 +505,7 @@ export default function SubmissionsPanel() {
           onXpChanged={setXp}
           decisionRef={decisionRef}
           requiresAcceptance={requiresAcceptance}
+          xpAdjustable={classesOn}
         />
       )}
 

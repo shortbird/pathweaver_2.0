@@ -9,6 +9,7 @@ import PersonPhoto from '../../components/sis/PersonPhoto'
 import { classLabel, byDayAndTime } from '../../components/sis/classLabel'
 import { switchSurfaceInApp } from '../../utils/appSurface'
 import { useSisOrg } from './useSisOrg'
+import { moduleKnownOff } from '../../modules/moduleEnabled'
 import { AuthContext } from '../../contexts/AuthContext'
 import { canGrantAdmin, canEditRolesOf, isSisAdmin } from './sisRole'
 import { useConfirm } from '../../contexts/ConfirmContext'
@@ -54,6 +55,11 @@ const StudentDetailModal = ({ student, orgId, onClose, onSaved }) => {
   const viewer = useContext(AuthContext)?.user
   const schoolName = activeOrg?.branding_config?.private_school_name || 'Private School'
   const isStudent = student.is_student !== false
+  // Schedule is classes and the enroll picker over the classes module's list
+  // (/api/sis/classes). A school with classes off has neither, and opening the
+  // tab was a ModuleGate "would block" (Apogee Cache Valley), so it is not
+  // offered.
+  const scheduleOff = moduleKnownOff(activeOrg, 'classes')
   const [tab, setTab] = useState('profile')
   const [form, setForm] = useState({
     // A person can hold several roles at once (teacher who is also a parent).
@@ -129,6 +135,7 @@ const StudentDetailModal = ({ student, orgId, onClose, onSaved }) => {
           <GlassTabBar
             align="start" aria-label="Student sections"
             tabs={TABS.filter((t) => !STUDENT_ONLY_TABS.includes(t.key) || isStudent)
+              .filter((t) => t.key !== 'schedule' || !scheduleOff)
               .map((t) => ({ id: t.key, label: t.label }))}
             active={tab} onSelect={setTab}
           />
@@ -153,7 +160,7 @@ const StudentDetailModal = ({ student, orgId, onClose, onSaved }) => {
           )}
           {tab === 'record' && isStudent && <RecordPanel student={student} orgId={orgId} />}
           {tab === 'materials' && isStudent && <MaterialsPanel student={student} orgId={orgId} />}
-          {tab === 'schedule' && isStudent && <SchedulePanel student={student} orgId={orgId} />}
+          {tab === 'schedule' && isStudent && !scheduleOff && <SchedulePanel student={student} orgId={orgId} />}
           {tab === 'credits' && isStudent && <SisStudentCredits studentId={student.student_id} />}
           {tab === 'message' && <MessagePanel student={student} orgId={orgId} />}
         </div>

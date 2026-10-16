@@ -39,6 +39,14 @@ const { classService, api, state } = vi.hoisted(() => {
 })
 vi.mock('../../services/classService', () => ({ default: classService }))
 vi.mock('../../services/api', () => ({ default: api }))
+// The handouts read waits on the module answer (organization for a student,
+// the guardian context in family scope); neither can say "off" here.
+vi.mock('../../contexts/OrganizationContext', () => ({
+  useOrganization: () => ({ organization: null, loading: false }),
+}))
+vi.mock('../../hooks/api/useSchoolContext', () => ({
+  useSisParentContext: () => ({ orgs: [], loading: false }),
+}))
 vi.mock('react-hot-toast', () => ({
   toast: { success: vi.fn(), error: vi.fn() },
   default: { success: vi.fn(), error: vi.fn() },

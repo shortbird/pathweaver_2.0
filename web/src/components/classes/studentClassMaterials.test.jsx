@@ -23,6 +23,10 @@ const { classService, api, state, defaultGet } = vi.hoisted(() => {
     scopedStudentId: null,
     // What the guardian route answers: handouts grouped by class.
     guardianClasses: [],
+    // The signed-in member's org payload (useOrganization) and the guardian
+    // context's org entries (useSisParentContext): the module answer.
+    organization: null,
+    guardianOrgs: [],
   }
   const defaultGet = (url) => {
     if (url.includes('/parent/students/')) {
@@ -57,6 +61,13 @@ vi.mock('../../contexts/AuthContext', () => ({
   useAuth: () => ({ user: { id: 'u1', organization_id: 'org-1' } }),
 }))
 
+vi.mock('../../contexts/OrganizationContext', () => ({
+  useOrganization: () => ({ organization: state.organization, loading: false }),
+}))
+vi.mock('../../hooks/api/useSchoolContext', () => ({
+  useSisParentContext: () => ({ orgs: state.guardianOrgs, loading: false }),
+}))
+
 vi.mock('../../hooks/useStudentScope', () => ({
   useStudentScope: () => ({ studentId: state.scopedStudentId }),
 }))
@@ -85,6 +96,8 @@ describe('class materials on the student class page', () => {
     state.materials = []
     state.scopedStudentId = null
     state.guardianClasses = []
+    state.organization = null
+    state.guardianOrgs = []
   })
 
   it('shows a document shared with the class, linked straight to it', async () => {
@@ -164,6 +177,41 @@ describe('class materials on the student class page', () => {
       await openTheClass()
       await screen.findByText('Class Quests')
       expect(screen.queryByText('Class Materials')).not.toBeInTheDocument()
+    })
+
+    it("does not ask when the child's school has the classes module off", async () => {
+      // Sentry: ModuleGate warnings from Optio Academy, classes off.
+      state.guardianOrgs = [{ organization_id: 'org-1', effective_modules: ['sis', 'billing'] }]
+      await openTheClass()
+      await screen.findByText('Class Quests')
+      expect(api.get.mock.calls.some(([url]) => url.includes('/materials'))).toBe(false)
+    })
+
+    it("still asks when the child's school runs classes", async () => {
+      state.guardianOrgs = [{ organization_id: 'org-1', effective_modules: ['sis', 'classes'] }]
+      await openTheClass()
+      await waitFor(() => expect(api.get).toHaveBeenCalledWith(
+        '/api/sis/parent/students/kid-1/materials', { expect403: true }))
+    })
+  })
+
+  describe('the classes module', () => {
+    // A school without the SIS classes module has no handouts, and asking
+    // logged a ModuleGate warning per class opened (Sentry: Apogee Central
+    // Florida and Optio Academy, classes off).
+    it("does not ask when the student's own org has it off", async () => {
+      state.organization = { id: 'org-1', effective_modules: ['sis'] }
+      await openTheClass()
+      await screen.findByText('Class Quests')
+      expect(api.get).not.toHaveBeenCalledWith('/api/sis/classes/c1/materials')
+    })
+
+    it('asks when the org payload cannot answer', async () => {
+      // OrganizationContext's degraded { id } when /me could not load the org.
+      state.organization = { id: 'org-1' }
+      await openTheClass()
+      await waitFor(() => expect(api.get)
+        .toHaveBeenCalledWith('/api/sis/classes/c1/materials'))
     })
   })
 })

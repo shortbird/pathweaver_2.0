@@ -90,6 +90,9 @@ export const NAV_SECTIONS = [
       // goals and notes (individual_work). Its own item since 2026-10-08, for
       // a school that works with each child rather than in classes.
       { name: 'Students', path: '/students', d: ICONS.person, keywords: ['individual', 'one on one', 'submissions', 'assign quest', 'student work'] },
+      // A teacher walks the room with a phone: student, task, photo, done
+      // (ticket 77637c3a). Same module and gate as Students.
+      { name: 'Capture work', path: '/capture', d: ICONS.camera, keywords: ['photo', 'camera', 'upload for student', 'evidence', 'mark done', 'progress'] },
       { name: 'CLP', path: '/clp', adminOnly: true, d: ICONS.doc, keywords: ['customized learning plan', 'learning plan'] },
       { name: 'Calendar', path: '/calendar', d: ICONS.calendar, keywords: ['events', 'schedule', 'dates', 'holidays'] },
       // Prior Learning — opt-in per org (Optio Academy today).

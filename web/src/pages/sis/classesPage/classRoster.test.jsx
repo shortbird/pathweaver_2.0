@@ -50,3 +50,22 @@ describe('ClassRoster', () => {
     expect(doors.openStudent).toHaveBeenCalledWith('s1', expect.objectContaining({ onSaved: expect.any(Function) }))
   })
 })
+
+// Sibling sections come from the waitlist blueprint (module 'registration').
+// Arete Academy has registration off, and the roster's request for them was a
+// ModuleGate "would block": ClassDetailModal passes siblingSections={false}.
+describe('ClassRoster sibling sections and the registration module', () => {
+  const siblingCalls = () => api.get.mock.calls.filter(([url]) => url.includes('/sibling-sections'))
+
+  it('does not ask for other sections when registration is off', async () => {
+    render(<ClassRoster classId="c1" className="Art" orgId="org-1" siblingSections={false} />)
+    await screen.findByRole('button', { name: /Ada Ant/ })
+    expect(siblingCalls()).toHaveLength(0)
+  })
+
+  it('asks by default', async () => {
+    render(<ClassRoster classId="c1" className="Art" orgId="org-1" />)
+    await screen.findByRole('button', { name: /Ada Ant/ })
+    expect(siblingCalls()).toHaveLength(1)
+  })
+})

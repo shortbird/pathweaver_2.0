@@ -203,14 +203,16 @@ def _sweep_org(org_id: str) -> int:
         return 0
 
     # Task completions for these (student, quest) pairs — activity + "untouched" checks.
+    # Paged: one (student, quest) pair carries a row per task, so a 100x100
+    # chunk passes PostgREST's 1,000-row cap long before the chunk is large.
     completions: List[Dict[str, Any]] = []
     for s_chunk in _chunks(all_students):
         for q_chunk in _chunks(all_quest_ids):
-            completions.extend((
+            completions.extend(fetch_all_rows(lambda s=s_chunk, q=q_chunk: (
                 admin.table('quest_task_completions')
-                .select('user_id, quest_id, completed_at')
-                .in_('user_id', s_chunk).in_('quest_id', q_chunk).execute()
-            ).data or [])
+                .select('id, user_id, quest_id, completed_at')
+                .in_('user_id', s).in_('quest_id', q)
+            )))
     touched = set()  # (student, quest) with >= 1 task completion
     last_activity: Dict[str, Optional[datetime]] = {}  # student -> latest completion in any class quest
     quest_ids_set = set(all_quest_ids)
@@ -226,19 +228,21 @@ def _sweep_org(org_id: str) -> int:
     quest_completed = set()  # (student, quest)
     for s_chunk in _chunks(all_students):
         for q_chunk in _chunks(all_quest_ids):
-            rows = (
-                admin.table('user_quests').select('user_id, quest_id, completed_at')
-                .in_('user_id', s_chunk).in_('quest_id', q_chunk)
-                .not_.is_('completed_at', 'null').execute()
-            ).data or []
+            rows = fetch_all_rows(lambda s=s_chunk, q=q_chunk: (
+                admin.table('user_quests').select('id, user_id, quest_id, completed_at')
+                .in_('user_id', s).in_('quest_id', q)
+                .not_.is_('completed_at', 'null')
+            ))
             quest_completed.update((r['user_id'], r['quest_id']) for r in rows)
 
     # Existing OPEN alerts, to avoid re-inserting (the unique index also protects us).
-    open_alerts = (
+    # Paged: iCreate alone held 1,180 open alerts (2026-10-15), and every one
+    # past the cap was retried as an insert the unique index then refused.
+    open_alerts = fetch_all_rows(lambda: (
         admin.table('sis_engagement_alerts')
-        .select('student_user_id, quest_id, alert_type')
-        .eq('organization_id', org_id).is_('resolved_at', 'null').execute()
-    ).data or []
+        .select('id, student_user_id, quest_id, alert_type')
+        .eq('organization_id', org_id).is_('resolved_at', 'null')
+    ))
     open_keys = {(a['student_user_id'], a.get('quest_id'), a['alert_type']) for a in open_alerts}
 
     quest_titles: Dict[str, str] = {}
@@ -369,18 +373,23 @@ def list_open_alerts(org_id: str, class_ids: Optional[List[str]] = None) -> List
     """Open alerts for an org (optionally scoped to an advisor's classes) with
     student / class / quest names hydrated."""
     admin = _admin()
-    query = (
-        admin.table('sis_engagement_alerts').select('*')
-        .eq('organization_id', org_id).is_('resolved_at', 'null')
-        .order('created_at', desc=True)
-    )
-    if class_ids is not None:
-        if not class_ids:
-            return []
-        query = query.in_('class_id', class_ids)
-    alerts = query.execute().data or []
+    if class_ids is not None and not class_ids:
+        return []
+
+    def build():
+        query = (
+            admin.table('sis_engagement_alerts').select('*')
+            .eq('organization_id', org_id).is_('resolved_at', 'null')
+        )
+        return query.in_('class_id', class_ids) if class_ids is not None else query
+
+    # Paged, then sorted newest first here: an org can hold more open alerts
+    # than PostgREST returns in one response, and the Needs attention list
+    # silently stopped at 1,000 of iCreate's 1,180 (2026-10-15).
+    alerts = fetch_all_rows(build)
     if not alerts:
         return []
+    alerts.sort(key=lambda a: a.get('created_at') or '', reverse=True)
 
     student_ids = sorted({a['student_user_id'] for a in alerts if a.get('student_user_id')})
     cls_ids = sorted({a['class_id'] for a in alerts if a.get('class_id')})

@@ -210,8 +210,9 @@ const TranscriptGeneratorPage = () => {
 
   // Start splitting a subject's credit into named courses. Transfer credit
   // keeps its breakdown on the transfer record; Optio credit (earned plus
-  // class) keeps it in the overrides, and its remainder prints under the
-  // subject's name, so it may total less than the subject (ticket 9200a103).
+  // class) keeps it in the overrides, and its remainder prints as numbered
+  // courses, so it may total less than the subject (ticket 9200a103;
+  // utils/transcriptRows).
   const startSplit = (row) => {
     if (row.type !== 'transfer') {
       const existing = optioBreakdown(overrides, row.subjectKey);

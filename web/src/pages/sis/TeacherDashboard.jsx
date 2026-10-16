@@ -6,6 +6,7 @@ import api from '../../services/api'
 import { withOrg, useSisOrg } from './useSisOrg'
 import { withPreview } from './teacherPreview'
 import { getHiddenModules } from './sisModules'
+import { moduleKnownOff } from '../../modules/moduleEnabled'
 import DashboardCard from '../../components/sis/DashboardCard'
 import ReportIncidentButton from '../../components/sis/incidents/ReportIncidentButton'
 
@@ -51,6 +52,10 @@ const PhonePrompt = () => (
 const TeacherDashboard = ({ orgId, userName, preview = null }) => {
   const { activeOrg } = useSisOrg()
   const hidden = getHiddenModules(activeOrg)
+  // Engagement alerts are served by the classes blueprint (ModuleGate key
+  // 'classes'). A school with classes off has no class to raise one on, and the
+  // request was a "would block" hit for every visit (Apogee Cache Valley).
+  const alertsOff = moduleKnownOff(activeOrg, 'classes')
   const [data, setData] = useState(null)
   const [groups, setGroups] = useState([])
   const [loading, setLoading] = useState(true)
@@ -79,13 +84,17 @@ const TeacherDashboard = ({ orgId, userName, preview = null }) => {
     // person teaching a class is often also an admin, and the ordinary role
     // scope would hand them every student in the school here while every other
     // card on the page stayed scoped to their classes.
-    const alertsUrl = withPreview(withOrg('/api/sis/engagement-alerts', orgId), preview)
-    api.get(`${alertsUrl}${alertsUrl.includes('?') ? '&' : '?'}scope=mine`)
-      .then((r) => setAlerts(r.data?.alerts || []))
-      .catch(() => setAlerts([]))
+    if (alertsOff) {
+      setAlerts([])
+    } else {
+      const alertsUrl = withPreview(withOrg('/api/sis/engagement-alerts', orgId), preview)
+      api.get(`${alertsUrl}${alertsUrl.includes('?') ? '&' : '?'}scope=mine`)
+        .then((r) => setAlerts(r.data?.alerts || []))
+        .catch(() => setAlerts([]))
+    }
     // preview?.id (not the object) so a re-created preview object can't loop the effect
      
-  }, [orgId, preview?.id])
+  }, [orgId, preview?.id, alertsOff])
 
   useEffect(() => { load() }, [load])
 

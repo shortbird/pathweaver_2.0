@@ -24,6 +24,7 @@ from typing import Dict, Any, Optional, List
 from app_config import Config
 from utils.logger import get_logger
 from utils.retry_handler import with_connection_retry
+from utils.local_file_path import LOCAL_FILE_PATH_MESSAGE, link_block_urls, new_local_paths
 from utils.url_metadata import fetch_url_metadata
 
 logger = get_logger(__name__)
@@ -259,6 +260,31 @@ def save_evidence_document(user_id: str, task_id: str):
             .execute(),
             operation_name='save_evidence_document_document_lookup',
         )
+
+        # A path to a file on the student's own computer is not evidence: the
+        # file never left the device (ticket d0cc8d45, a Chromebook's
+        # file:///home/chronos/... screenshots). The editors refuse it; this
+        # catches an old cached bundle or app build. One already saved on this
+        # document stays, so the document can still be edited.
+        if any(isinstance(b, dict) and b.get('type') == 'link' for b in blocks):
+            already_saved = set()
+            if document_response.data:
+                stored = with_connection_retry(
+                    lambda: admin_supabase.table('evidence_document_blocks')
+                    .select('content')
+                    .eq('document_id', document_response.data[0]['id'])
+                    .eq('block_type', 'link')
+                    .execute(),
+                    operation_name='save_evidence_document_stored_links',
+                )
+                for row in stored.data or []:
+                    already_saved.update(link_block_urls(row.get('content')))
+            if new_local_paths(blocks, already_saved):
+                return jsonify({
+                    'success': False,
+                    'error': LOCAL_FILE_PATH_MESSAGE,
+                    'code': 'local_file_path',
+                }), 400
 
         if document_response.data:
             # Update existing document

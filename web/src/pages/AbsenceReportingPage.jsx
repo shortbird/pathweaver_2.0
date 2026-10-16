@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { toast } from 'react-hot-toast'
 import api from '../services/api'
 import { useFamilyOrgSelection } from '../hooks/api/useSchoolContext'
+import { familyModuleKnownOff } from '../modules/moduleEnabled'
 
 /**
  * Parent/guardian absence reporting (web platform).
@@ -109,6 +110,10 @@ const AbsenceReportingPage = () => {
   const [scope, setScope] = useState('day')
   const [classesByStudent, setClassesByStudent] = useState({})
   const [busy, setBusy] = useState(false)
+  // Absences are the `attendance` module's (routes/sis/parent.py). A school
+  // without it has nothing behind this page, and reading it anyway logged a
+  // ModuleGate warning per visit (Optio Academy, attendance off).
+  const attendanceOff = familyModuleKnownOff(org, 'attendance')
 
   const studentName = useCallback(
     (sid) => students.find((s) => s.student_id === sid)?.name || 'A student',
@@ -130,7 +135,7 @@ const AbsenceReportingPage = () => {
   }, [students, scopedStudentId])
 
   const loadAbsences = useCallback(() => {
-    if (!orgId || !students.length) { setByStudent({}); return }
+    if (!orgId || !students.length || attendanceOff) { setByStudent({}); return }
     Promise.all(students.map((s) =>
       api.get(`/api/sis/parent/absences?organization_id=${orgId}&student_user_id=${s.student_id}`)
         .then((r) => [s.student_id, {
@@ -140,7 +145,7 @@ const AbsenceReportingPage = () => {
     ))
       .then((entries) => setByStudent(Object.fromEntries(entries)))
       .catch(() => toast.error('Could not load absences'))
-  }, [orgId, students])
+  }, [orgId, students, attendanceOff])
 
   useEffect(() => { loadAbsences() }, [loadAbsences])
 
@@ -257,6 +262,23 @@ const AbsenceReportingPage = () => {
         <p className="text-gray-500">
           Absence reporting isn’t available for your family yet. If your school uses Optio to
           manage attendance, ask them to add your family.
+        </p>
+      </div>
+    )
+  }
+
+  if (attendanceOff) {
+    // A family at two schools keeps the picker: the other may take reports.
+    return (
+      <div className="max-w-2xl mx-auto py-16 text-center">
+        {orgs.length > 1 && (
+          <select value={orgId} onChange={(e) => setOrgId(e.target.value)} aria-label="School"
+            className="mb-5 rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-optio-purple">
+            {orgs.map((o) => <option key={o.organization_id} value={o.organization_id}>{o.organization_name || 'School'}</option>)}
+          </select>
+        )}
+        <p className="text-gray-500">
+          {org?.organization_name || 'Your school'} doesn’t take absence reports here.
         </p>
       </div>
     )

@@ -15,7 +15,11 @@ import { fmt12ap } from '../../../components/sis/classFields'
 import StudentRow from '../../../components/sis/StudentRow'
 import { useRecordDoors } from '../../../components/sis/RecordDoors'
 
-const ClassRoster = ({ classId, className, orgId, onChanged }) => {
+// `siblingSections` is false where registration is off: other sections with
+// room come from the waitlist blueprint (module 'registration'), and asking a
+// school without it was a ModuleGate "would block" (Arete Academy). The roster
+// then simply offers no Move.
+const ClassRoster = ({ classId, className, orgId, onChanged, siblingSections = true }) => {
   const confirm = useConfirm()
   const { openStudent } = useRecordDoors()
   const [roster, setRoster] = useState(null)
@@ -39,10 +43,11 @@ const ClassRoster = ({ classId, className, orgId, onChanged }) => {
     api.get(withOrg('/api/sis/roster', orgId))
       .then((r) => setPeople((r.data?.roster || []).filter((p) => p.is_student)))
       .catch(() => setPeople([]))
+    if (!siblingSections) { setSections([]); return }
     api.get(withOrg(`/api/sis/classes/${classId}/sibling-sections`, orgId))
       .then((r) => setSections(r.data?.sections || []))
       .catch(() => setSections([]))
-  }, [classId, orgId])
+  }, [classId, orgId, siblingSections])
 
   const drop = async (s) => {
     if (!(await confirm(`Drop ${s.name} from this class?`))) return

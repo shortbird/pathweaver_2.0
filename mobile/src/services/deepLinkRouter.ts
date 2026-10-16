@@ -102,6 +102,10 @@ const SIS_ONLY_PREFIXES = [
   '/billing',
   '/bloomy',
   '/calendar',
+  // Capture work: a teacher photographs a student's work onto a task (ticket
+  // 77637c3a). The app's own (tabs)/capture is a placeholder the tab bar
+  // intercepts to open a sheet, not a screen a link can land on.
+  '/capture',
   '/classes',
   '/clp',
   '/community',

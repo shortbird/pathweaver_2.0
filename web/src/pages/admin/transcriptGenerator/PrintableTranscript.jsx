@@ -10,14 +10,15 @@ import {
 import { EditableField, DatePickerField } from './EditableFields';
 import { SUBJECT_OPTIONS } from './subjectOptions';
 
-// A course goes on the official transcript only when it is finished: Optio
-// awards only an A, so an unfinished course has no grade to print (ticket
-// 9200a103, item 1). A planned credit is never finished -- a finished course
-// comes from a class, a quest or a transfer -- so no planned row prints,
-// whatever its status. The editor still lists them, because this is where they
-// are managed, but each carries no-print, which hides it from the browser print
-// stylesheet and from the PDF (Download and Transfer to School both strip
-// .no-print in onclone).
+// A planned credit never prints (ticket 9200a103, item 1): a course on the
+// transcript comes from a class, a quest or a transfer. The editor still lists
+// planned rows, because this is where they are managed, but each carries
+// no-print, which hides it from the browser print stylesheet and from the PDF
+// (Download and Transfer to School both strip .no-print in onclone).
+//
+// Optio credit that has not yet filled its numbered course does print, with
+// its credit so far and In Progress where the grade goes (Tanner, 2026-10-15;
+// utils/transcriptRows). Optio awards only an A, and only on a full course.
 const isOnOfficialTranscript = (row) => row.type !== 'planned';
 
 const PrintableTranscript = ({
@@ -109,7 +110,7 @@ const PrintableTranscript = ({
                 key={`${row.type}-${row.subject}-${i}`}
                 data-testid="transcript-row"
                 title={isOnOfficialTranscript(row) ? undefined : 'Planned credits are not on the printed transcript'}
-                className={`border-b border-gray-200 ${isOnOfficialTranscript(row) ? '' : 'no-print'} ${row.status === 'In Progress' ? 'bg-amber-50' : ''} ${row.status === 'Dropped' ? 'text-gray-400 line-through' : ''}`}
+                className={`border-b border-gray-200 ${isOnOfficialTranscript(row) ? '' : 'no-print'} ${row.type === 'planned' && row.status === 'In Progress' ? 'bg-amber-50' : ''} ${row.status === 'Dropped' ? 'text-gray-400 line-through' : ''}`}
               >
                 <td className="py-2 text-gray-900">{row.subject}</td>
                 <td className="py-2 text-gray-700">
@@ -138,7 +139,9 @@ const PrintableTranscript = ({
                 </td>
                 <td className="py-2 text-center font-medium text-gray-900">{row.credits.toFixed(2)}</td>
                 <td className="py-2 text-center">
-                  {isOnOfficialTranscript(row) ? (
+                  {row.status === 'In Progress' && isOnOfficialTranscript(row) ? (
+                    <span className="text-xs italic text-gray-600">In Progress</span>
+                  ) : isOnOfficialTranscript(row) ? (
                     <span className="font-bold text-gray-900">{row.grade || 'A'}</span>
                   ) : (
                     <span className={`text-xs font-medium px-2 py-0.5 rounded ${
@@ -183,7 +186,7 @@ const PrintableTranscript = ({
                   )}
                   {/* Optio credit (earned and class) splits into named
                       courses like transfer credit (ticket 9200a103). */}
-                  {['earned', 'class'].includes(row.type) && (
+                  {(['earned', 'class'].includes(row.type) || (row.type === 'optio' && !row.hasCourseBreakdown)) && (
                     <button
                       onClick={() => startSplit(row)}
                       className="text-gray-400 hover:text-emerald-600"
@@ -195,7 +198,7 @@ const PrintableTranscript = ({
                       </svg>
                     </button>
                   )}
-                  {row.type === 'optio' && (
+                  {row.type === 'optio' && row.hasCourseBreakdown && (
                     <button
                       onClick={() => startSplit(row)}
                       className="text-emerald-500 hover:text-emerald-700"
