@@ -14,6 +14,7 @@ import json
 
 from utils.logger import get_logger
 from utils.db_fetch import fetch_all_rows
+from utils.retry_handler import is_retryable_error
 
 logger = get_logger(__name__)
 
@@ -334,7 +335,11 @@ class XPService(BaseService):
                     .eq('id', user_id)\
                     .execute()
             except Exception as sync_err:
-                logger.error(f"Failed to sync users.total_xp for {user_id}: {sync_err}")
+                # A Supabase blip only leaves the cache stale until the next
+                # award recomputes it, so it warns rather than pages (ticket
+                # 50e507a2, the same 55a039981 rule).
+                log = logger.warning if is_retryable_error(sync_err) else logger.error
+                log(f"Failed to sync users.total_xp for {user_id}: {sync_err}")
 
             # Simple level calculation (or remove if not needed)
             mastery_level = 1
@@ -369,7 +374,12 @@ class XPService(BaseService):
             return mastery_level
             
         except Exception as e:
-            logger.error(f"Error updating user mastery: {str(e)}")
+            # The award itself is already committed when this runs; a PostgREST
+            # 502 here ("JSON could not be generated", ticket 50e507a2) only
+            # leaves the cached totals stale until the next award, so a
+            # transient error warns instead of filing a Sentry error.
+            log = logger.warning if is_retryable_error(e) else logger.error
+            log(f"Error updating user mastery: {str(e)}")
             return None
     
     def _create_xp_audit_log(self, 

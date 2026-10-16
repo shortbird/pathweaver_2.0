@@ -38,6 +38,7 @@ from database import get_supabase_admin_singleton
 from utils.auth.decorators import require_role
 from utils.api_response_v1 import success_response, error_response
 from utils.roles import get_effective_role
+from utils.retry_handler import is_retryable_error
 from utils.sis_roles import STAFF_ROLES
 from datetime import datetime
 
@@ -240,6 +241,11 @@ def org_approve_credit(user_id: str, completion_id: str):
         })
 
     except Exception as e:
+        if is_retryable_error(e):
+            # A Supabase blip: let the global handler answer 503 + Retry-After
+            # with a warning (55a039981). Answering 500 here filed a Sentry
+            # error for a dropped connection (tickets bab53dea, f46f581d).
+            raise
         logger.error(f"Error in org-approve for credit {completion_id}: {str(e)}")
         return error_response(code='ORG_APPROVE_ERROR', message='Failed to approve credit', status=500)
 
@@ -304,7 +310,6 @@ def org_grow_this(user_id: str, completion_id: str):
                 'org_reviewed_at': now
             }).eq('id', latest_round.data[0]['id']).execute()
 
-        # Remove pending subject XP
         task_result = admin_supabase.table('user_quest_tasks') \
             .select('title, diploma_subjects, subject_xp_distribution, xp_value') \
             .eq('id', completion.data['user_quest_task_id']) \
@@ -314,18 +319,28 @@ def org_grow_this(user_id: str, completion_id: str):
         task_data = task_result.data or {}
         xp_value = task_data.get('xp_value', 0)
 
+        # Move the status first, and only from pending_org_approval, then take
+        # the pending subject XP back only when this request made the move.
+        # The old order took the XP first, so a dropped connection between the
+        # two ("Server disconnected", ticket bab53dea) could leave the request
+        # pending with its XP gone, and the reviewer's retry would take it twice.
+        moved = admin_supabase.table('quest_task_completions').update({
+            'diploma_status': 'grow_this',
+            'org_reviewer_id': user_id
+        }).eq('id', completion_id).eq('diploma_status', 'pending_org_approval').execute()
+        if not moved.data:
+            return error_response(
+                code='INVALID_STATE',
+                message='This request was already reviewed',
+                status=400
+            )
+
         from routes.tasks import get_subject_xp_distribution, remove_pending_subject_xp
         subjects = get_subject_xp_distribution(task_data, xp_value)
         try:
             remove_pending_subject_xp(admin_supabase, student_id, subjects)
         except Exception as xp_err:
             logger.error(f"Failed to remove pending XP on org grow-this: {xp_err}")
-
-        # Update completion
-        admin_supabase.table('quest_task_completions').update({
-            'diploma_status': 'grow_this',
-            'org_reviewer_id': user_id
-        }).eq('id', completion_id).execute()
 
         # Update task with feedback
         if completion.data.get('user_quest_task_id'):
@@ -374,5 +389,10 @@ def org_grow_this(user_id: str, completion_id: str):
         })
 
     except Exception as e:
+        if is_retryable_error(e):
+            # A Supabase blip: let the global handler answer 503 + Retry-After
+            # with a warning (55a039981). Answering 500 here filed a Sentry
+            # error for a dropped connection (tickets bab53dea, f46f581d).
+            raise
         logger.error(f"Error in org grow-this for credit {completion_id}: {str(e)}")
         return error_response(code='ORG_GROW_THIS_ERROR', message='Failed to return work for revision', status=500)
