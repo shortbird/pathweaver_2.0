@@ -17,6 +17,7 @@ import GiveStudentsMyTasksCard from '../components/quest/GiveStudentsMyTasksCard
 import QuestResourceList from '../components/quest/QuestResourceList';
 import ClassCurriculum from '../components/discussion/ClassCurriculum';
 import toast from 'react-hot-toast';
+import { XP_PENDING_REVIEW_MESSAGE } from '@shared/xpReview';
 import logger from '../utils/logger';
 import { useActivityTracking } from '../hooks/useActivityTracking';
 import { useArchiveEnrollment } from '../hooks/api/useQuests';
@@ -433,6 +434,11 @@ const QuestDetail = () => {
 
     setQuestAutoEnded(Boolean(completionData?.quest_auto_ended));
 
+    // The school holds this task's XP until a teacher accepts it (ticket
+    // 536a3018): tell the student, and do not count the XP as earned.
+    const xpPending = completionData?.xp_pending_review === true;
+    if (xpPending) toast(XP_PENDING_REVIEW_MESSAGE);
+
     if (selectedTask) {
       logger.debug('[QUEST_DETAIL] About to call flushSync for state + cache update');
 
@@ -460,7 +466,7 @@ const QuestDetail = () => {
           const updatedTasks = oldData.quest_tasks?.map(task => {
             if (task.id === selectedTask.id) {
               logger.debug('[QUEST_DETAIL] Found matching task, marking is_completed=true');
-              return { ...task, is_completed: true };
+              return { ...task, is_completed: true, ...(xpPending ? { xp_pending_review: true } : {}) };
             }
             return task;
           }) || [];

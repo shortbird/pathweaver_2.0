@@ -127,6 +127,16 @@ def request_diploma_credit(user_id: str, task_id: str):
 
         completion_data = completion.data[0]
 
+        # Work a teacher has not accepted yet (a school that holds XP for the
+        # accept, ticket 536a3018) has no XP to credit. Ask again after.
+        from services.teacher_acceptance import is_held
+        if is_held(admin_supabase, completion_data['id']):
+            return error_response(
+                code='AWAITING_TEACHER_ACCEPTANCE',
+                message='Your teacher has not accepted this work yet. You can request credit after they accept it.',
+                status=400
+            )
+
         # Verify eligible status
         if completion_data['diploma_status'] not in ('none', 'grow_this'):
             if completion_data['diploma_status'] in ('pending_review', 'pending_org_approval'):

@@ -120,11 +120,21 @@ def _individual_pairs(user_id, org_id):
 
 def _school_students(org_id):
     """Every current student of a school that runs individual students, or
-    None when the school does not (its inbox stays classes + by-name quests)."""
+    None when the school does not (its inbox stays classes + by-name quests).
+
+    A school that holds XP for a teacher's accept (ticket 536a3018) reviews
+    every student's work the same way: held work outside any class would
+    otherwise have no reviewer, and its XP would never arrive."""
     from modules.enabled import module_enabled
-    if not module_enabled(org_id, 'individual_work'):
+    if not (module_enabled(org_id, 'individual_work') or _requires_acceptance(org_id)):
         return None
     return sis_service.current_student_ids(org_id)
+
+
+def _requires_acceptance(org_id):
+    """Has the school turned on "XP and portfolio wait for a teacher"?"""
+    from services.teacher_acceptance import org_requires_acceptance
+    return org_requires_acceptance(org_id)
 
 
 def _skips_bloomy(org_id):
@@ -308,10 +318,14 @@ def list_submissions(user_id):
     except (TypeError, ValueError):
         return jsonify({'success': False, 'error': 'limit and offset must be integers'}), 400
 
+    # Tells the screen to say that accepting awards the XP (ticket 536a3018).
+    requires_acceptance = _requires_acceptance(org_id)
+
     def empty():
         return jsonify({'success': True, 'submissions': [],
                         'counts': {'new': 0, 'reviewed': 0},
-                        'total': 0, 'limit': limit, 'offset': offset})
+                        'total': 0, 'limit': limit, 'offset': offset,
+                        'requires_acceptance': requires_acceptance})
 
     search = (request.args.get('q') or '').strip().lower()[:100]
     # One student's work, for their individual page (2026-10-08). It narrows
@@ -430,7 +444,8 @@ def list_submissions(user_id):
     PortfolioService().sign_evidence_blocks_on(items, key='evidence_blocks')
 
     return jsonify({'success': True, 'submissions': items, 'counts': counts,
-                    'total': total, 'limit': limit, 'offset': offset})
+                    'total': total, 'limit': limit, 'offset': offset,
+                    'requires_acceptance': requires_acceptance})
 
 
 def _search_pool(repo, pool, needle, student_ids, quest_ids):
@@ -519,8 +534,33 @@ def review_submission(user_id, completion_id):
         logger.error(f"Error reviewing submission {completion_id}: {e}")
         return jsonify({'success': False, 'error': 'Failed to save review'}), 500
     review = (saved or [None])[0]
+    xp_awarded = _settle_xp(admin, org_id, completion_id, action)
     _notify_reviewed(admin, completion, action, org_id)
-    return jsonify({'success': True, 'review': review}), 201
+    return jsonify({'success': True, 'review': review, 'xp_awarded': xp_awarded}), 201
+
+
+def _settle_xp(admin, org_id, completion_id, action):
+    """The XP side of a review, for work a school holds until a teacher
+    accepts it (ticket 536a3018, Arete Academy: "have the xp not be awarded
+    until it's approved").
+
+    accepted: award the held XP once (a repeat accept awards nothing).
+    grow_this: held work stays held; work an accept had released is taken
+        back and held again, at a school with the switch on.
+    None (un-review): the same take-back as grow_this.
+    Work that was never held -- every school without the switch, and work
+    finished before a school turned it on -- is untouched. Returns the XP
+    awarded. Best-effort: the review is already saved.
+    """
+    from services.teacher_acceptance import release_held_xp, rehold_released_xp
+    try:
+        if action == 'accepted':
+            return release_held_xp(admin, completion_id)
+        if _requires_acceptance(org_id):
+            rehold_released_xp(admin, completion_id)
+    except Exception as e:  # noqa: BLE001
+        logger.error(f"XP settle failed for submission {completion_id} ({action}): {e}")
+    return 0
 
 
 @bp.route('/submissions/bulk-review', methods=['POST'])
@@ -570,6 +610,7 @@ def bulk_review_submissions(user_id):
         logger.error(f"Error bulk-reviewing {len(to_review)} submissions: {e}")
         return jsonify({'success': False, 'error': 'Failed to save reviews'}), 500
     for c in to_review:
+        _settle_xp(admin, org_id, c['id'], action)
         _notify_reviewed(admin, c, action, org_id)
     reviewed = [c['id'] for c in to_review]
     done = set(reviewed)
@@ -653,4 +694,6 @@ def unreview_submission(user_id, completion_id):
     except Exception as e:
         logger.error(f"Error un-reviewing submission {completion_id}: {e}")
         return jsonify({'success': False, 'error': 'Failed to remove review'}), 500
+    # An accept undone at a school that holds XP takes the XP back too.
+    _settle_xp(admin, org_id, completion_id, None)
     return jsonify({'success': True})

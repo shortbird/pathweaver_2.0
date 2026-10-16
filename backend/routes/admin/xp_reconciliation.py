@@ -63,16 +63,27 @@ def calculate_expected_xp(supabase, user_id: str) -> dict:
     """
     expected_xp = {pillar: 0 for pillar in PILLAR_KEYS}
 
-    # Get all completed tasks with their XP values and pillars
+    # Get all completed tasks with their XP values and pillars. There is no
+    # xp_awarded column on quest_task_completions (utils/xp_reversal): asking
+    # for one made PostgREST refuse this read outright, so XP comes from the
+    # task's xp_value.
     completed_tasks = supabase.table('quest_task_completions')\
-        .select('user_quest_task_id, xp_awarded, user_quest_tasks(pillar, xp_value)')\
+        .select('id, user_quest_task_id, user_quest_tasks(pillar, xp_value)')\
         .eq('user_id', user_id)\
         .execute()
 
     if not completed_tasks.data:
         return expected_xp
 
+    # Work a teacher has not accepted yet was never awarded, so it is not
+    # owed either: counting it would make a reconcile award the XP the
+    # school is holding (ticket 536a3018, services/teacher_acceptance).
+    from services.teacher_acceptance import held_completions
+    held = held_completions(supabase, user_id)
+
     for completion in completed_tasks.data:
+        if completion.get('id') in held:
+            continue
         task = completion.get('user_quest_tasks') or {}
         raw_pillar = task.get('pillar', 'stem')
 

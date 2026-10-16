@@ -24,6 +24,7 @@ import MobileTaskPicker from './taskWorkspace/MobileTaskPicker';
 import TaskListPanel from './taskWorkspace/TaskListPanel';
 import TaskDetailsSection from './taskWorkspace/TaskDetailsSection';
 import TaskEvidenceSection from './taskWorkspace/TaskEvidenceSection';
+import { XP_PENDING_REVIEW_MESSAGE, xpPendingReview } from '@shared/xpReview';
 
 /** A refusal from the upload safety check (backend upload_safety_service).
  * Its sentence stands alone: SAFETY_CONTACT says what to cover, SAFETY_HELD
@@ -711,10 +712,16 @@ const TaskWorkspace = ({
         }, 250);
 
         if (onTaskComplete) {
+          // A school may hold the XP until a teacher accepts the work
+          // (ticket 536a3018). Then nothing is earned yet, and the toast says so.
+          const pending = xpPendingReview(result);
           onTaskComplete({
             task,
-            xp_awarded: result.xp_awarded || task.xp_amount,
-            message: `Task completed! You earned ${result.xp_awarded || task.xp_amount} XP`
+            xp_awarded: pending ? 0 : (result.xp_awarded || task.xp_amount),
+            xp_pending_review: pending,
+            message: pending
+              ? XP_PENDING_REVIEW_MESSAGE
+              : `Task completed! You earned ${result.xp_awarded || task.xp_amount} XP`
           });
         }
       } else {

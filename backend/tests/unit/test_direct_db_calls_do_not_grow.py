@@ -259,7 +259,9 @@ BASELINES = {
     # 2026-10-02: 2203 -> 2176, measured on HEAD plus that change alone. The
     # Hearthwood/OEA program was retired: routes/oea.py (20 calls) deleted with
     # it. The other 7 had already fallen on HEAD without the ceiling following.
-    'routes': 2176,
+    # 2026-10-16: 2176 -> 2172, the four reverse_task_xp calls that moved to
+    # utils/xp_reversal (ticket 536a3018).
+    'routes': 2172,
     # 2026-09-09: 1828 -> 1830. The deletion sweep's reactivation guard, in
     # account_deletion_service: one read for dependents added after the request,
     # one write to rescind it. The sweep is a cron entrypoint that already owns
@@ -392,7 +394,12 @@ BASELINES = {
     # (41a29c4f), and utils/personalization_helpers.get_or_create_enrollment
     # reopens a finished enrollment when a task is added (8a0beab1); utils/ may
     # not import the repository that owns either write.
-    'utils': 147,
+    # 2026-10-16: 147 -> 151, ticket 536a3018 (teachers accept work first).
+    # reverse_task_xp moved from routes/family_quests.py into utils/xp_reversal
+    # beside reverse_quest_xp, so the parent's un-complete and the teacher's
+    # re-hold take XP back through one function. Four calls changed layer;
+    # routes/ is lowered by the same four below.
+    'utils': 151,
     'jobs': 7,
     'middleware': 2,
     'modules': 1,
@@ -438,7 +445,7 @@ def test_direct_db_calls_do_not_grow(layer):
 
 #: routes/ + services/ combined. A call may move DOWN a layer; the total may not
 #: grow. Keep this equal to BASELINES['routes'] + BASELINES['services'].
-UPPER_TOTAL_BASELINE = 2176 + 1786
+UPPER_TOTAL_BASELINE = 2172 + 1786
 
 
 def test_the_upper_layers_do_not_grow_in_total():

@@ -33,6 +33,10 @@ export const timeAgo = (iso) => {
 }
 
 /** How a review reads on the queue and in the grader. */
+/** Shown where a school holds XP until a teacher accepts the work
+ *  (sis_settings.require_teacher_acceptance, ticket 536a3018). */
+export const ACCEPT_AWARDS_XP = 'Accepting gives the student the XP and puts the work on their portfolio.'
+
 export const REVIEW_LABEL = {
   accepted: 'Accepted',
   grow_this: 'Sent back to grow',
@@ -141,7 +145,7 @@ const XpAdjust = ({ completionId, orgId, xpValue, onChanged }) => {
  * student. Registers accept / growThis on `decisionRef` so the a and g keys
  * and the buttons go through one code path, as in the credit grader.
  */
-const SubmissionDecision = ({ sub, orgId, onDecide, onUnreview, onXpChanged, decisionRef }) => {
+const SubmissionDecision = ({ sub, orgId, onDecide, onUnreview, onXpChanged, decisionRef, requiresAcceptance = false }) => {
   const [note, setNote] = useState('')
   const [busy, setBusy] = useState(false)
   const noteRef = useRef(null)
@@ -203,6 +207,10 @@ const SubmissionDecision = ({ sub, orgId, onDecide, onUnreview, onXpChanged, dec
             xpValue={sub.task?.xp_value}
             onChanged={(xp) => onXpChanged(sub.completion_id, xp)}
           />
+          {/* The school holds XP for the accept (ticket 536a3018). */}
+          {requiresAcceptance && (
+            <p className="text-xs text-gray-500 -mt-2">{ACCEPT_AWARDS_XP}</p>
+          )}
 
           <div>
             <label htmlFor="submission-feedback" className="block text-sm font-medium text-gray-700 mb-1.5">
@@ -250,7 +258,7 @@ const SubmissionDecision = ({ sub, orgId, onDecide, onUnreview, onXpChanged, dec
 
 const SubmissionGrader = ({
   sub, orgId, index, total, onPrev, onNext, onExit, onShowShortcuts,
-  onDecide, onUnreview, onXpChanged, decisionRef,
+  onDecide, onUnreview, onXpChanged, decisionRef, requiresAcceptance = false,
 }) => {
   const context = [sub.class_name, sub.quest_title].filter(Boolean).join(' · ')
   return (
@@ -321,6 +329,7 @@ const SubmissionGrader = ({
           key={sub.completion_id}
           sub={sub}
           orgId={orgId}
+          requiresAcceptance={requiresAcceptance}
           onDecide={onDecide}
           onUnreview={onUnreview}
           onXpChanged={onXpChanged}

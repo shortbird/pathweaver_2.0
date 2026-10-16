@@ -67,6 +67,7 @@ import { useThemeColors } from '@/src/hooks/useThemeColors';
 import { showAlert, confirmAlert } from '@/src/utils/alerts';
 import { askSaveForLater, archiveBody, markDoneRule, type SaveForLaterAnswer } from '@/src/components/quests/questExit';
 import { useIsParent } from '@/src/hooks/useStartSomething';
+import { XP_PENDING_REVIEW_MESSAGE, earnedTaskXp } from '@shared/xpReview';
 import {
   VStack, HStack, Heading, UIText, Card, Button, ButtonText,
   Badge, BadgeText, Divider, Skeleton, BottomSheet,
@@ -730,6 +731,14 @@ function TaskItem({
                   accepted it, for the parents to see?"). */}
               {task.is_completed && <TaskReviewChip review={task.review} />}
 
+              {/* The school holds this XP until a teacher accepts the work
+                  (ticket 536a3018, Arete Academy). */}
+              {task.is_completed && task.xp_pending_review && (
+                <UIText size="xs" className="text-typo-500 dark:text-dark-typo-500">
+                  {XP_PENDING_REVIEW_MESSAGE}
+                </UIText>
+              )}
+
               {/* The teacher's notes and the student's replies (Horizon,
                   ticket 4ea811d6). On any task a teacher wrote on, finished
                   or not; opening it marks unread notes read. */}
@@ -1048,13 +1057,14 @@ export function QuestDetailView({ questId: id, studentId = null, autoOpenTaskWiz
   const tasks = quest.quest_tasks || [];
   const completedCount = tasks.filter((t) => t.is_completed).length;
   const totalXP = tasks.reduce((sum, t) => sum + (t.xp_value || t.xp_amount || 0), 0);
-  const earnedXP = tasks.filter((t) => t.is_completed).reduce((sum, t) => sum + (t.xp_value || t.xp_amount || 0), 0);
+  // XP a teacher has not accepted yet is not earned (ticket 536a3018).
+  const earnedXP = earnedTaskXp(tasks);
   const allComplete = tasks.length > 0 && completedCount === tasks.length;
   const imageUrl = quest.header_image_url || quest.image_url;
 
   // XP by pillar
   const pillarXP = tasks.reduce((acc, t) => {
-    if (t.is_completed && t.pillar) {
+    if (t.is_completed && !t.xp_pending_review && t.pillar) {
       acc[t.pillar] = (acc[t.pillar] || 0) + (t.xp_value || t.xp_amount || 0);
     }
     return acc;

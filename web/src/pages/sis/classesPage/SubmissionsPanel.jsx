@@ -11,7 +11,7 @@ import ReviewQueueTable, { QueueHeader } from '../../../components/credit-dashbo
 import FloatingActionBar from '../../../components/credit-dashboard/FloatingActionBar'
 import ShortcutHelp from '../../../components/credit-dashboard/ShortcutHelp'
 import useKeyboardShortcuts from '../../../hooks/useKeyboardShortcuts'
-import SubmissionGrader, { REVIEW_LABEL, timeAgo } from './SubmissionGrader'
+import SubmissionGrader, { ACCEPT_AWARDS_XP, REVIEW_LABEL, timeAgo } from './SubmissionGrader'
 
 // The evidence picture and its device-only rule moved into the credit
 // grader's shared evidence card (ticket d0cc8d45); re-exported here for the
@@ -88,6 +88,8 @@ export default function SubmissionsPanel() {
   const [classes, setClasses] = useState([])
   const [submissions, setSubmissions] = useState([])
   const [counts, setCounts] = useState({ new: 0, reviewed: 0 })
+  // The school holds XP until a teacher accepts the work (ticket 536a3018).
+  const [requiresAcceptance, setRequiresAcceptance] = useState(false)
   // Size of the list being paged (after the search), for Load more.
   const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(false)
@@ -130,6 +132,7 @@ export default function SubmissionsPanel() {
         const list = r.data?.submissions || []
         setSubmissions(list)
         setCounts(r.data?.counts || { new: 0, reviewed: 0 })
+        setRequiresAcceptance(r.data?.requires_acceptance === true)
         setTotal(r.data?.total ?? list.length)
         const have = new Set(list.map((s) => s.completion_id))
         setChecked((ids) => ids.filter((id) => have.has(id)))
@@ -421,6 +424,10 @@ export default function SubmissionsPanel() {
         </div>
       </div>
 
+      {requiresAcceptance && (
+        <p className="text-sm text-gray-500 -mt-2 mb-4">{ACCEPT_AWARDS_XP}</p>
+      )}
+
       {!loading && submissions.length === 0 ? (
         <div className="bg-white rounded-xl border border-gray-200 p-10 text-center">
           {search ? (
@@ -497,6 +504,7 @@ export default function SubmissionsPanel() {
           onUnreview={unreview}
           onXpChanged={setXp}
           decisionRef={decisionRef}
+          requiresAcceptance={requiresAcceptance}
         />
       )}
 

@@ -15,6 +15,7 @@ import api from '../services/api';
 import { extractApiError } from '../services/apiError';
 import { useAuthStore } from '../stores/authStore';
 import { pillars as pillarConfig } from '../config/pillars';
+import { xpPendingReview } from '@shared/xpReview';
 
 /** A block as the evidence editors hand it over: `type` on the way in,
  *  `block_type` on the way back out of the database. */
@@ -63,6 +64,9 @@ export interface QuestTask {
   evidence_url?: string;
   evidence_blocks?: any[];
   completed_at?: string;
+  /** The school holds this task's XP until a teacher accepts the work
+   *  (ticket 536a3018). Done, but its XP is not earned yet. */
+  xp_pending_review?: boolean;
   /** A teacher's review of this task's submission, or null when nobody has
    *  reviewed it (ticket 650aa9b9). Absent on a backend that predates it. */
   review?: TaskReview | null;
@@ -298,13 +302,18 @@ export function useQuestDetail(questId: string | null, options?: UseQuestDetailO
         status: 'completed',
       }));
     }
-    // Update local state immediately
+    // Update local state immediately. A school that holds XP for a
+    // teacher's accept (ticket 536a3018) answers xp_pending_review: the task
+    // is done, and its XP is not earned until the teacher accepts it.
+    const pending = xpPendingReview(data);
     setQuest((prev) => {
       if (!prev) return prev;
       return {
         ...prev,
         quest_tasks: prev.quest_tasks.map((t) =>
-          t.id === taskId ? { ...t, is_completed: true } : t
+          t.id === taskId
+            ? { ...t, is_completed: true, ...(pending ? { xp_pending_review: true } : {}) }
+            : t
         ),
       };
     });

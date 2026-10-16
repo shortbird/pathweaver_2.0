@@ -540,3 +540,30 @@ describe('reviewing like credit review', () => {
     expect(await screen.findByText('Write a mitosis report', { selector: 'h2' })).toBeInTheDocument()
   })
 })
+
+// Ticket 536a3018, Jackie Hill (Arete Academy): "have the xp not be awarded
+// until it's approved". Where the school holds XP for the accept, the queue
+// and the grader say that accepting gives the XP; everywhere else they say
+// nothing new.
+describe('a school that holds XP until a teacher accepts', () => {
+  const LINE = 'Accepting gives the student the XP and puts the work on their portfolio.'
+
+  it('says so on the queue and in the grader', async () => {
+    api.get.mockImplementation((url) => {
+      const r = apiData(url)
+      return Promise.resolve(url.includes('/api/sis/submissions')
+        ? { data: { ...r.data, requires_acceptance: true } } : r)
+    })
+    render(<SubmissionsPanel />)
+    expect(await screen.findByText(LINE)).toBeInTheDocument()
+    await openGrader()
+    await waitFor(() => expect(screen.getAllByText(LINE).length).toBe(2))
+  })
+
+  it('says nothing where the school does not hold XP', async () => {
+    render(<SubmissionsPanel />)
+    await screen.findByText('New (2)')
+    await openGrader()
+    expect(screen.queryByText(LINE)).not.toBeInTheDocument()
+  })
+})

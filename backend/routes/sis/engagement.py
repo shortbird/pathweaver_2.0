@@ -101,6 +101,10 @@ def adjust_completion_xp(user_id, completion_id):
     # their class answers to a different check than a superadmin trimming a
     # credit request, and only the arithmetic is common.
     from services.xp_adjustment_service import XPAdjustmentError, adjust_task_xp
+    # Work whose XP waits for a teacher's accept (ticket 536a3018) has none
+    # in the student's totals yet: change the value, and the accept awards it.
+    from services.teacher_acceptance import is_held
+    xp_held = is_held(admin, completion_id)
     try:
         result = adjust_task_xp(
             admin,
@@ -117,6 +121,7 @@ def adjust_completion_xp(user_id, completion_id):
             # mistake. The platform floor applies to what a task may be WORTH,
             # not to a correction.
             min_xp=0,
+            xp_held=xp_held,
         )
     except XPAdjustmentError as e:
         return jsonify({'success': False, 'error': str(e)}), 400

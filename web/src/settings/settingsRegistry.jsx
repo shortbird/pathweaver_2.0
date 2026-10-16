@@ -17,6 +17,7 @@ import FeaturesCard from './cards/FeaturesCard'
 import TaskXpFloorCard from './cards/TaskXpFloorCard'
 import AttendanceSettingsCard from './cards/AttendanceSettingsCard'
 import BloomyInboxCard from './cards/BloomyInboxCard'
+import TeacherAcceptanceCard from './cards/TeacherAcceptanceCard'
 import { moduleEnabled } from '../modules/moduleEnabled'
 
 /**
@@ -93,6 +94,11 @@ export const SETTINGS_CARDS = [
   // bc68a12e, Apogee Cache Valley). Console only, where the inbox is; only
   // where Bloomy is on, since the switch means nothing anywhere else.
   { key: 'bloomy-inbox', module: 'bloomy', surfaces: ['console'], Component: BloomyInboxCard },
+  // Hold a task's XP, and keep the work off the portfolio, until a teacher
+  // accepts it in Submissions (ticket 536a3018, Arete Academy). Only where
+  // Submissions is on: the accept happens there, and the backend holds
+  // nothing without it.
+  { key: 'teacher-acceptance', module: 'submissions', surfaces: ['console'], Component: TeacherAcceptanceCard },
 ]
 
 export function settingsCardsFor({ surface, org, seesFinance }) {

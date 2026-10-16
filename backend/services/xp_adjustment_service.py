@@ -55,7 +55,8 @@ def adjust_task_xp(admin, *, task: Dict[str, Any], student_id: str, new_xp: int,
                    source: str = 'manual',
                    completion_id: Optional[str] = None,
                    quest_id: Optional[str] = None,
-                   min_xp: int = MIN_TASK_XP) -> XPAdjustmentResult:
+                   min_xp: int = MIN_TASK_XP,
+                   xp_held: bool = False) -> XPAdjustmentResult:
     """Set a completed task's XP to ``new_xp`` and reconcile everything it fed.
 
     Args:
@@ -75,6 +76,10 @@ def adjust_task_xp(admin, *, task: Dict[str, Any], student_id: str, new_xp: int,
             teacher to zero out a task entered by mistake, and taking that away
             while extracting shared arithmetic would be a behaviour change
             smuggled in as a refactor.
+        xp_held: the completion's XP is held until a teacher accepts it
+            (services/teacher_acceptance, ticket 536a3018). Nothing sits in
+            user_skill_xp yet, so only the task's value changes; the accept
+            then awards the new value.
 
     Raises:
         XPAdjustmentError: the value is not an integer at or above ``min_xp``.
@@ -108,7 +113,7 @@ def adjust_task_xp(admin, *, task: Dict[str, Any], student_id: str, new_xp: int,
         update['subject_xp_distribution'] = subjects_after
     admin.table('user_quest_tasks').update(update).eq('id', task_id).execute()
 
-    if delta:
+    if delta and not xp_held:
         result.pillar, result.pillar_delta = _apply_pillar_delta(
             admin, student_id, task.get('pillar'), delta)
 

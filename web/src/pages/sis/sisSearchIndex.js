@@ -119,6 +119,7 @@ export const SUB_ENTRIES = [
   // settings moved over.
   { under: '/settings', ...settingsCard('pillars', 'Pillars', ['pillars', 'hide pillars', 'five pillars', 'learning pillars']) },
   { under: '/settings', ...settingsCard('bloomy-inbox', 'Bloomy work in the inbox', ['bloomy', 'skip bloomy', 'bloomy submissions', 'already verified']) },
+  { under: '/settings', path: '/submissions', ...settingsCard('teacher-acceptance', 'Teachers accept work first', ['approve before xp', 'hold xp', 'accept work', 'portfolio approval', 'approve submissions']) },
   { under: '/settings', path: '/attendance', ...settingsCard('attendance', 'Attendance', ['daily roll', 'pickup', 'picked up', 'check out', 'school days', 'attendance statuses']) },
 ]
 

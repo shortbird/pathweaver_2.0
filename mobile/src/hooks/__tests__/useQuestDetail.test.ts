@@ -306,6 +306,37 @@ describe('completeTask', () => {
   });
 });
 
+// Ticket 536a3018, Jackie Hill (Arete Academy): "have the xp not be awarded
+// until it's approved". The completion answers xp_pending_review when the
+// school holds the XP; the task is done, its XP not yet earned.
+describe('completeTask when the school holds the XP for a teacher', () => {
+  it('marks the task done with its XP pending review', async () => {
+    (api.get as jest.Mock).mockResolvedValueOnce({ data: { quest: mockQuest } });
+    (api.post as jest.Mock).mockResolvedValueOnce({
+      data: { success: true, xp_awarded: 0, xp_pending_review: true },
+    });
+    const { result } = renderHook(() => useQuestDetail('quest-1'));
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    await act(async () => {
+      await result.current.completeTask('task-1', [{ type: 'text', content: { text: 'x' } }]);
+    });
+    expect(result.current.quest?.quest_tasks[0].is_completed).toBe(true);
+    expect(result.current.quest?.quest_tasks[0].xp_pending_review).toBe(true);
+  });
+
+  it('without a hold marks it done and nothing more, as before', async () => {
+    (api.get as jest.Mock).mockResolvedValueOnce({ data: { quest: mockQuest } });
+    (api.post as jest.Mock).mockResolvedValueOnce({ data: { success: true, xp_awarded: 50 } });
+    const { result } = renderHook(() => useQuestDetail('quest-1'));
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    await act(async () => {
+      await result.current.completeTask('task-1', [{ type: 'text', content: { text: 'x' } }]);
+    });
+    expect(result.current.quest?.quest_tasks[0].is_completed).toBe(true);
+    expect(result.current.quest?.quest_tasks[0].xp_pending_review).toBeUndefined();
+  });
+});
+
 describe('deleteTask', () => {
   it('calls DELETE /api/tasks/{id} and removes from local state', async () => {
     (api.get as jest.Mock).mockResolvedValueOnce({ data: { quest: mockQuest } });

@@ -329,8 +329,18 @@ def save_evidence_document(user_id: str, task_id: str):
         from services.credit_ai_review.trigger import evidence_changed
         evidence_changed(user_id=user_id, task_id=task_id, admin=admin_supabase)
 
+        # Work a teacher sent back (Grow This) and the student has now saved
+        # again goes back to New in SIS Submissions, at a school that holds XP
+        # for a teacher's accept (ticket 536a3018). Elsewhere a no-op.
+        from services.teacher_acceptance import (
+            PENDING_REVIEW_MESSAGE, award_task_completion_xp, hold_completion,
+            reopen_sent_back_review, student_requires_acceptance,
+        )
+        reopen_sent_back_review(admin_supabase, user_id, task_id)
+
         # If completing the task, award XP
         xp_awarded = 0
+        xp_pending_review = False
         quest_completed = False
 
         if status == 'completed':
@@ -400,16 +410,19 @@ def save_evidence_document(user_id: str, task_id: str):
                 if completion.data:
                     # Award XP to user (this will be handled by existing XP service)
                     task_pillar = task_data.get('pillar', 'creativity')
-                    xp_awarded = final_xp
 
-                    logger.info(f"[EVIDENCE_DOC] Awarding {final_xp} XP for pillar '{task_pillar}'")
-
-                    xp_service.award_xp(
-                        user_id,
-                        task_pillar,
-                        final_xp,
-                        f'task_completion:{task_id}'
-                    )
+                    # Held for a teacher's accept at a school that asks for
+                    # it (ticket 536a3018); a hold that cannot be written
+                    # falls back to awarding now.
+                    xp_pending_review = bool(
+                        student_requires_acceptance(admin_supabase, user_id)
+                        and hold_completion(admin_supabase, (completion.data[0] or {}).get('id')))
+                    if xp_pending_review:
+                        logger.info(f"[EVIDENCE_DOC] XP held until a teacher accepts task {task_id[:8]}")
+                    else:
+                        xp_awarded = final_xp
+                        logger.info(f"[EVIDENCE_DOC] Awarding {final_xp} XP for pillar '{task_pillar}'")
+                        award_task_completion_xp(xp_service, user_id, task_pillar, final_xp, task_id)
 
                     # Check if quest is now completed
                     quest_completed = check_quest_completion(admin_supabase, user_id, quest_id)
@@ -429,7 +442,7 @@ def save_evidence_document(user_id: str, task_id: str):
             operation_name='save_evidence_document_saved_blocks',
         )
 
-        return jsonify({
+        payload = {
             'success': True,
             'message': 'Evidence document saved successfully',
             'document_id': document_id,
@@ -437,7 +450,10 @@ def save_evidence_document(user_id: str, task_id: str):
             'xp_awarded': xp_awarded,
             'quest_completed': quest_completed,
             'blocks': saved_blocks_response.data or []
-        })
+        }
+        if xp_pending_review:
+            payload.update({'message': PENDING_REVIEW_MESSAGE, 'xp_pending_review': True})
+        return jsonify(payload)
 
     except Exception as e:
         logger.error(f"Error saving evidence document: {str(e)}")
@@ -517,6 +533,7 @@ def process_evidence_completion(user_id: str, task_id: str, blocks: List[Dict], 
 
         # If completing the task, award XP
         xp_awarded = 0
+        xp_pending_review = False
         quest_completed = False
 
         if status == 'completed':
@@ -566,19 +583,24 @@ def process_evidence_completion(user_id: str, task_id: str, blocks: List[Dict], 
                 if completion.data:
                     # Award XP to user
                     task_pillar = task_data.get('pillar', 'creativity')
-                    xp_awarded = final_xp
 
-                    xp_service.award_xp(
-                        user_id,
-                        task_pillar,
-                        final_xp,
-                        f'task_completion:{task_id}'
+                    # Same hold as save_evidence_document (ticket 536a3018).
+                    # This path writes no quest_task_completions row, so there
+                    # is nothing to stamp: at a school that holds XP it awards
+                    # nothing, rather than award what no teacher has seen.
+                    from services.teacher_acceptance import (
+                        award_task_completion_xp, student_requires_acceptance,
                     )
+                    if student_requires_acceptance(admin_supabase, user_id):
+                        xp_pending_review = True
+                    else:
+                        xp_awarded = final_xp
+                        award_task_completion_xp(xp_service, user_id, task_pillar, final_xp, task_id)
 
                     # Check if quest is now completed
                     quest_completed = check_quest_completion(admin_supabase, user_id, quest_id)
 
-        return {
+        result = {
             'success': True,
             'message': 'Task completed successfully',
             'document_id': document_id,
@@ -586,6 +608,10 @@ def process_evidence_completion(user_id: str, task_id: str, blocks: List[Dict], 
             'xp_awarded': xp_awarded,
             'quest_completed': quest_completed
         }
+        if xp_pending_review:
+            from services.teacher_acceptance import PENDING_REVIEW_MESSAGE
+            result.update({'message': PENDING_REVIEW_MESSAGE, 'xp_pending_review': True})
+        return result
 
     except Exception as e:
         logger.error(f"Error processing evidence completion: {str(e)}")

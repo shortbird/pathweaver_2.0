@@ -8,12 +8,66 @@ only ever incremented on completion. Any path that deletes completions must
 therefore reverse the aggregates first, or the XP leaks (a user keeps XP for
 work whose completion record is gone).
 
-Use `reverse_quest_xp` before deleting a quest's completions.
+Use `reverse_quest_xp` before deleting a quest's completions, and
+`reverse_task_xp` to take back one task's XP (a parent un-completing a task,
+or a teacher re-holding work they had accepted -- services/teacher_acceptance).
 """
 
 import logging
+from typing import Any, Dict, Optional
 
 logger = logging.getLogger(__name__)
+
+
+def reverse_task_xp(admin_supabase, user_id: str, task_id: str,
+                    task: Optional[Dict[str, Any]]) -> int:
+    """
+    Reverse one task's XP for one user: its pillar in user_skill_xp and
+    users.total_xp, each clamped at 0. The completion row is the caller's.
+
+    Extracted from routes/family_quests.py (parent un-completes a task) so
+    the teacher-acceptance re-hold takes XP back the same way.
+
+    Args:
+        admin_supabase: an admin (service-role) Supabase client
+        user_id: whose XP to reduce
+        task_id: the user_quest_tasks id whose xp_value is reversed
+        task: the task row (pillar, xp_value); the caller reads it
+
+    Returns:
+        The task's xp_value (the amount reversed), 0 for no task.
+    """
+    task = task or {}
+    pillar = task.get('pillar')
+    xp_to_remove = task.get('xp_value', 0) or 0
+
+    if xp_to_remove > 0 and pillar:
+        try:
+            current_pillar = admin_supabase.table('user_skill_xp').select('id, xp_amount').eq(
+                'user_id', user_id
+            ).eq('pillar', pillar).execute()
+
+            if current_pillar.data:
+                current_xp = current_pillar.data[0].get('xp_amount', 0)
+                new_xp = max(0, current_xp - xp_to_remove)
+                admin_supabase.table('user_skill_xp').update({
+                    'xp_amount': new_xp
+                }).eq('id', current_pillar.data[0]['id']).execute()
+        except Exception as xp_err:
+            logger.warning(f"Could not reverse pillar XP for {pillar}: {xp_err}")
+
+        try:
+            user_data = admin_supabase.table('users').select('total_xp').eq('id', user_id).single().execute()
+            if user_data.data:
+                current_total = user_data.data.get('total_xp', 0)
+                new_total = max(0, current_total - xp_to_remove)
+                admin_supabase.table('users').update({
+                    'total_xp': new_total
+                }).eq('id', user_id).execute()
+        except Exception as total_err:
+            logger.warning(f"Could not reverse total XP: {total_err}")
+
+    return xp_to_remove
 
 
 def reverse_quest_xp(admin_supabase, quest_id: str) -> int:
@@ -30,11 +84,15 @@ def reverse_quest_xp(admin_supabase, quest_id: str) -> int:
     Returns:
         Total XP reversed across all affected users (for logging).
     """
+    # '*' rather than named columns so the read carries xp_held_at where the
+    # column exists, and still works where it does not yet.
     completions = admin_supabase.table('quest_task_completions') \
-        .select('user_id, user_quest_task_id') \
+        .select('*') \
         .eq('quest_id', quest_id) \
         .execute()
-    rows = completions.data or []
+    # Work a teacher has not accepted yet never had its XP awarded
+    # (services/teacher_acceptance, ticket 536a3018): nothing to take back.
+    rows = [r for r in (completions.data or []) if not r.get('xp_held_at')]
     if not rows:
         return 0
 

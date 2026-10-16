@@ -193,18 +193,37 @@ class PortfolioService:
             diploma_subjects
         ''').eq('user_id', user_id).eq('approval_status', 'approved'))
 
-    def get_task_completions(self, user_id: str) -> List[Dict[str, Any]]:
-        """Get task completions with associated task info (legacy evidence source)."""
+    def held_work(self, user_id: str) -> Dict[str, Optional[str]]:
+        """{completion_id: task_id} of work a teacher has not accepted yet.
+
+        Ticket 536a3018, Jackie Hill (Arete Academy): "Can you also make it so
+        the evidence submissions are not on their portfolios until I approve
+        it?" A school that holds XP for a teacher's accept also keeps that
+        work off the portfolio and the diploma until the accept. Empty for
+        every other school (services/teacher_acceptance).
+        """
+        from services.teacher_acceptance import held_completions
+        return held_completions(self.client, user_id)
+
+    def get_task_completions(self, user_id: str,
+                             held: Optional[Dict[str, Optional[str]]] = None) -> List[Dict[str, Any]]:
+        """Get task completions with associated task info (legacy evidence source).
+        Work waiting on a teacher's accept is left out (held_work)."""
         result = self.client.table('quest_task_completions').select('''
             *,
             user_quest_tasks!inner(title, pillar, quest_id, user_quest_id, xp_value)
         ''').eq('user_id', user_id).execute()
-        return result.data or []
+        held = self.held_work(user_id) if held is None else held
+        return [tc for tc in (result.data or [])
+                if not tc.get('xp_held_at') and tc.get('id') not in held]
 
-    def get_curated_completions(self, user_id: str) -> List[Dict[str, Any]]:
+    def get_curated_completions(self, user_id: str,
+                                held: Optional[Dict[str, Optional[str]]] = None) -> List[Dict[str, Any]]:
         """Completions the student (or their parent) marked "include in portfolio"
         (quest_task_completions.in_portfolio). Additive: consumed as the 'curated'
-        list in the portfolio payloads; existing consumers are unaffected."""
+        list in the portfolio payloads; existing consumers are unaffected.
+        Work waiting on a teacher's accept is left out (held_work)."""
+        held = self.held_work(user_id) if held is None else held
         try:
             result = self.client.table('quest_task_completions').select('''
                 id,
@@ -222,6 +241,8 @@ class PortfolioService:
 
         curated = []
         for row in (result.data or []):
+            if row.get('id') in held:
+                continue
             task = row.get('user_quest_tasks') or {}
             quest = row.get('quests') or {}
             snippet = None
@@ -416,13 +437,17 @@ class PortfolioService:
     # EVIDENCE HANDLING
     # =========================================================================
 
-    def get_evidence_documents(self, user_id: str) -> List[Dict[str, Any]]:
+    def get_evidence_documents(self, user_id: str,
+                               held: Optional[Dict[str, Optional[str]]] = None) -> List[Dict[str, Any]]:
         """
-        Get all completed evidence documents with blocks for a user.
+        Get all completed evidence documents with blocks for a user. The
+        evidence of work waiting on a teacher's accept is left out (held_work).
 
         Returns:
             List of evidence document records with nested blocks
         """
+        held = self.held_work(user_id) if held is None else held
+        held_tasks = {t for t in held.values() if t}
         result = self.client.table('user_task_evidence_documents').select('''
             id,
             task_id,
@@ -439,7 +464,7 @@ class PortfolioService:
                 is_private
             )
         ''').eq('user_id', user_id).execute()
-        return result.data or []
+        return [d for d in (result.data or []) if d.get('task_id') not in held_tasks]
 
     @staticmethod
     def _block_url_holders(block: Dict) -> List[Tuple[Dict, Tuple[str, ...]]]:
@@ -1125,9 +1150,14 @@ class PortfolioService:
         # Fetch all data
         completed_quests = self.get_completed_quests(user_id)
         in_progress_quests = self.get_in_progress_quests(user_id)
-        approved_tasks = self.get_approved_tasks(user_id)
-        task_completions = self.get_task_completions(user_id)
-        evidence_documents = self.get_evidence_documents(user_id)
+        # Work a teacher has not accepted yet stays off the diploma, its
+        # evidence and its XP (ticket 536a3018). Read once for every list.
+        held = self.held_work(user_id)
+        held_tasks = {t for t in held.values() if t}
+        approved_tasks = [t for t in self.get_approved_tasks(user_id)
+                          if t.get('id') not in held_tasks]
+        task_completions = self.get_task_completions(user_id, held=held)
+        evidence_documents = self.get_evidence_documents(user_id, held=held)
 
         # Build maps
         evidence_map = self.build_evidence_map(evidence_documents, filter_private=True)
@@ -1174,7 +1204,7 @@ class PortfolioService:
             'transfer_credits': transfer_credits,
             # Accepted prior learning with its non-private documents.
             'prior_learning': self._prior_learning(user_id),
-            'curated': self.get_curated_completions(user_id),
+            'curated': self.get_curated_completions(user_id, held=held),
             'public_consent_info': self._public_consent_info(diploma, is_public, user_id),
         }
 

@@ -695,36 +695,14 @@ def uncomplete_task_for_dependent(user_id, quest_id, task_id):
         if not task.data:
             return jsonify({'success': False, 'error': 'Task not found'}), 404
 
-        pillar = task.data['pillar']
-        xp_to_remove = task.data.get('xp_value', 0)
-
-        # Reverse pillar XP from user_skill_xp
-        if xp_to_remove > 0 and pillar:
-            try:
-                current_pillar = supabase.table('user_skill_xp').select('id, xp_amount').eq(
-                    'user_id', child_id
-                ).eq('pillar', pillar).execute()
-
-                if current_pillar.data:
-                    current_xp = current_pillar.data[0].get('xp_amount', 0)
-                    new_xp = max(0, current_xp - xp_to_remove)
-                    supabase.table('user_skill_xp').update({
-                        'xp_amount': new_xp
-                    }).eq('id', current_pillar.data[0]['id']).execute()
-            except Exception as xp_err:
-                logger.warning(f"Could not reverse pillar XP for {pillar}: {xp_err}")
-
-            # Subtract from user's total_xp
-            try:
-                user_data = supabase.table('users').select('total_xp').eq('id', child_id).single().execute()
-                if user_data.data:
-                    current_total = user_data.data.get('total_xp', 0)
-                    new_total = max(0, current_total - xp_to_remove)
-                    supabase.table('users').update({
-                        'total_xp': new_total
-                    }).eq('id', child_id).execute()
-            except Exception as total_err:
-                logger.warning(f"Could not reverse total XP: {total_err}")
+        # Work still waiting on a teacher's accept never had its XP awarded
+        # (services/teacher_acceptance, ticket 536a3018): nothing to take back.
+        from services.teacher_acceptance import is_held
+        from utils.xp_reversal import reverse_task_xp
+        if is_held(supabase, completion_id):
+            xp_to_remove = 0
+        else:
+            xp_to_remove = reverse_task_xp(supabase, child_id, task_id, task=task.data)
 
         # Delete the completion record
         from repositories.task_repository import TaskCompletionRepository

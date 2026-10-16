@@ -282,11 +282,22 @@ def get_quest_detail(user_id: str, quest_id: str):
             # Create a mapping of task_id to completion data for easy lookup
             completion_data_map = {t['user_quest_task_id']: t for t in current_completions}
 
+            # Work waiting on a teacher's accept at a school that holds XP for
+            # it (ticket 536a3018): still done, still the student's to see,
+            # but its XP is not earned yet. The apps say so and leave it out
+            # of earned XP. Empty for every other school.
+            held_task_ids = set()
+            if current_completions:
+                from services.teacher_acceptance import held_completions
+                held_task_ids = {t for t in held_completions(supabase, user_id).values() if t}
+
             # Mark tasks as completed and map field names for frontend compatibility
             quest_tasks = user_tasks.data or []
             for task in quest_tasks:
                 task_is_completed = task['id'] in completed_task_ids
                 task['is_completed'] = task_is_completed
+                if task['id'] in held_task_ids:
+                    task['xp_pending_review'] = True
 
                 # Add evidence data if task is completed
                 if task['id'] in completion_data_map:

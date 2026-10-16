@@ -70,8 +70,9 @@ export const useQuestDetailData = (questId) => {
 
     const tasks = quest.quest_tasks;
     const baseXP = tasks.reduce((sum, task) => sum + (task.xp_amount || 0), 0);
+    // XP a teacher has not accepted yet is not earned (ticket 536a3018).
     const earnedXP = tasks
-      .filter(task => task.is_completed)
+      .filter(task => task.is_completed && !task.xp_pending_review)
       .reduce((sum, task) => sum + (task.xp_amount || 0), 0);
 
     return { baseXP, totalXP: baseXP, earnedXP };

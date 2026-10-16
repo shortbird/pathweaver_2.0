@@ -265,12 +265,25 @@ def complete_task(user_id: str, task_id: str):
 
         # Award XP using XP service
         task_pillar = task_data.get('pillar', 'stem')  # Default to 'stem' (valid current pillar)
-        xp_awarded = xp_service.award_xp(
-            effective_user_id,
-            task_pillar,
-            final_xp,
-            f'task_completion:{task_id}'
+
+        # A school may hold the XP until a teacher accepts the work in SIS
+        # Submissions (ticket 536a3018, Arete Academy: "have the xp not be
+        # awarded until it's approved"). Off unless the school turned it on;
+        # platform students are never held. A hold that cannot be written
+        # falls back to awarding now, so XP is never skipped without a marker.
+        from services.teacher_acceptance import (
+            PENDING_REVIEW_MESSAGE, award_task_completion_xp, hold_completion,
+            student_requires_acceptance,
         )
+        xp_pending_review = bool(
+            student_requires_acceptance(admin_supabase, effective_user_id)
+            and hold_completion(admin_supabase, (completion_data or {}).get('id')))
+        if xp_pending_review:
+            logger.info(f"XP for task {task_id} held until a teacher accepts it")
+            xp_awarded = True
+        else:
+            xp_awarded = award_task_completion_xp(
+                xp_service, effective_user_id, task_pillar, final_xp, task_id)
 
         xp_award_pending = False
         if not xp_awarded:
@@ -361,7 +374,7 @@ def complete_task(user_id: str, task_id: str):
                     'task_id': task_id,
                     'quest_id': quest_id,
                     'task_title': task_data.get('title', 'Unknown Task'),
-                    'xp_awarded': final_xp,
+                    'xp_awarded': 0 if xp_pending_review else final_xp,
                     'xp_award_pending': xp_award_pending,
                     'pillar': task_pillar,
                     'completed_at': datetime.utcnow().isoformat() + 'Z'
@@ -398,16 +411,18 @@ def complete_task(user_id: str, task_id: str):
                 completion_payload['evidence_url'], 'quest-evidence'
             )
 
-        return success_response(
-            data={
-                'message': f'Task completed! Earned {final_xp} XP',
-                'xp_awarded': final_xp,
-                'xp_award_pending': xp_award_pending,
-                'quest_completed': quest_completed,
-                'quest_auto_ended': quest_auto_ended,
-                'completion': completion_payload
-            }
-        )
+        data = {
+            'message': f'Task completed! Earned {final_xp} XP',
+            'xp_awarded': final_xp,
+            'xp_award_pending': xp_award_pending,
+            'quest_completed': quest_completed,
+            'quest_auto_ended': quest_auto_ended,
+            'completion': completion_payload
+        }
+        if xp_pending_review:
+            data.update({'message': PENDING_REVIEW_MESSAGE, 'xp_awarded': 0,
+                         'xp_pending_review': True})
+        return success_response(data=data)
 
     except Exception as e:
         logger.error(f"Error completing task: {str(e)}")

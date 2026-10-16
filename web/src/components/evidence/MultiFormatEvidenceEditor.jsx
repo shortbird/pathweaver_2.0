@@ -15,6 +15,7 @@ import { EvidenceToolbar, ConnectedSaveStatus } from './EvidenceToolbar';
 import { EvidenceMediaHandlers } from './EvidenceMediaHandlers';
 import InlineBlockAdder from './InlineBlockAdder';
 import { isLocalFilePath, LOCAL_FILE_PATH_MESSAGE } from '../../utils/localFilePath';
+import { XP_PENDING_REVIEW_MESSAGE, xpPendingReview } from '@shared/xpReview';
 
 // Sortable Block Wrapper Component
 const SortableBlock = ({ block, children }) => {
@@ -286,14 +287,20 @@ const MultiFormatEvidenceEditorInner = forwardRef(({ hideHeader = false }, ref) 
         logger.debug('[EVIDENCE] State updated - task marked as completed');
 
         if (onComplete) {
+          // A school may hold the XP until a teacher accepts the work
+          // (ticket 536a3018). Then nothing is earned yet, and the toast says so.
+          const pending = xpPendingReview(completeResponse);
           onComplete({
-            xp_awarded: completeResponse.xp_awarded || 0,
+            xp_awarded: pending ? 0 : (completeResponse.xp_awarded || 0),
+            xp_pending_review: pending,
             has_collaboration_bonus: completeResponse.has_collaboration_bonus || false,
             quest_completed: completeResponse.quest_completed || false,
             quest_auto_ended: completeResponse.quest_auto_ended || false,
-            message: completeResponse.xp_awarded
-              ? `Task completed! You earned ${completeResponse.xp_awarded} XP`
-              : 'Task completed successfully!'
+            message: pending
+              ? XP_PENDING_REVIEW_MESSAGE
+              : completeResponse.xp_awarded
+                ? `Task completed! You earned ${completeResponse.xp_awarded} XP`
+                : 'Task completed successfully!'
           });
         }
       } else {

@@ -29,6 +29,7 @@ from typing import Any, Dict, Optional, Tuple
 from repositories import organization_repository
 from utils.org_finance_flags import guard_org_flags_write
 from services.external_learning_verification import SKIP_BLOOMY_IN_INBOX_KEY
+from services.teacher_acceptance import REQUIRE_TEACHER_ACCEPTANCE_KEY
 from utils.org_task_xp import SETTING_KEY as MIN_TASK_XP_KEY, invalid_min_task_xp
 from utils.org_secrets import (
     STRIPE_SECRET_KEY,
@@ -124,6 +125,15 @@ def clean_feature_flags(
             and skip != _sis_value(stored, SKIP_BLOOMY_IN_INBOX_KEY):
         raise FlagsRejected(400, {'error': 'Skip work Bloomy already verified must be on or off.',
                                   'fields': ['sis_settings.' + SKIP_BLOOMY_IN_INBOX_KEY]})
+
+    # "XP and portfolio wait for a teacher" (ticket 536a3018, Arete Academy)
+    # holds students' XP, so only a real true/false may be stored. Checked
+    # only when it changes, like the switch above.
+    accept = _sis_value(flags, REQUIRE_TEACHER_ACCEPTANCE_KEY)
+    if accept is not None and not isinstance(accept, bool) \
+            and accept != _sis_value(stored, REQUIRE_TEACHER_ACCEPTANCE_KEY):
+        raise FlagsRejected(400, {'error': 'Teachers accept work first must be on or off.',
+                                  'fields': ['sis_settings.' + REQUIRE_TEACHER_ACCEPTANCE_KEY]})
 
     # The Stripe secret key is submitted through the same feature_flags blob
     # the settings UI round-trips, but it must never be STORED there:
