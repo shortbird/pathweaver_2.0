@@ -210,7 +210,7 @@ def occurrence_dates(first, repeat: Dict[str, Any]):
             try:
                 picked.add(date.fromisoformat(str(raw)[:10]))
             except ValueError:
-                raise RepeatError(f'{raw} is not a date')
+                raise RepeatError(f'{raw} is not a date') from None
         picked.add(first)
         out = sorted(picked)
         if len(out) > MAX_OCCURRENCES:
@@ -222,7 +222,7 @@ def occurrence_dates(first, repeat: Dict[str, Any]):
         try:
             until = date.fromisoformat(str(repeat['until'])[:10])
         except ValueError:
-            raise RepeatError('The end date for the repeat is not a date')
+            raise RepeatError('The end date for the repeat is not a date') from None
         if until < first:
             raise RepeatError('The repeat cannot end before the first date')
     count = None
@@ -230,7 +230,7 @@ def occurrence_dates(first, repeat: Dict[str, Any]):
         try:
             count = int(repeat['count'])
         except (TypeError, ValueError):
-            raise RepeatError('How many times must be a number')
+            raise RepeatError('How many times must be a number') from None
         if count < 1:
             raise RepeatError('How many times must be at least 1')
     if until is None and count is None:
