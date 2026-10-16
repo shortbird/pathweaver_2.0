@@ -347,10 +347,10 @@ def annotate_for_family(org_id: str, user_id: str,
 
     The other families' replies are never sent, only the count left.
     """
-    asked = [e for e in events if e.get('rsvp_enabled')]
+    asked = [ev for ev in events if ev.get('rsvp_enabled')]
     if not asked:
         return events
-    ids = [e['id'] for e in asked]
+    ids = [ev['id'] for ev in asked]
     household_id = None
     try:
         household_id = household_of(user_id, org_id)
@@ -369,9 +369,9 @@ def annotate_for_family(org_id: str, user_id: str,
                 'party_size': r.get('party_size') or 1,
                 'student_ids': r.get('student_ids') or [],
             }
-    for e in asked:
-        left = spots_left(e, taken.get(e['id'], 0))
-        e['rsvp_spots_left'] = left
-        e['rsvp_full'] = left == 0
-        e['my_rsvp'] = mine.get(e['id'])
+    for ev in asked:
+        left = spots_left(ev, taken.get(ev['id'], 0))
+        ev['rsvp_spots_left'] = left
+        ev['rsvp_full'] = left == 0
+        ev['my_rsvp'] = mine.get(ev['id'])
     return events

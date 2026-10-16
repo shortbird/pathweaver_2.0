@@ -58,6 +58,14 @@ DEFAULT_PILLAR = 'stem'
 
 # ── the setting ──────────────────────────────────────────────────────────────
 
+def with_pending_review(payload: Dict[str, Any], pending: bool) -> Dict[str, Any]:
+    """A task-completion response, told that its XP waits for a teacher when
+    it does. Both evidence completion paths answer with it."""
+    if pending:
+        payload.update({'message': PENDING_REVIEW_MESSAGE, 'xp_pending_review': True})
+    return payload
+
+
 def requires_teacher_acceptance(flags: Optional[Dict[str, Any]]) -> bool:
     """Is the school's switch on? Only a stored True counts."""
     sis = (flags or {}).get('sis_settings') if isinstance(flags, dict) else None

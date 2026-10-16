@@ -620,10 +620,13 @@ class TestInboxScope:
     ])
     def test_held_work_always_has_a_reviewer(self, individual, flags, expected):
         from routes.sis import submissions
+        # An org admin (class_scope None) reviews the whole school; a teacher's
+        # roster cut is covered by test_sis_submissions_roster_scope.
         with patch('modules.enabled.module_enabled', return_value=individual), \
              patch.object(submissions.sis_service, 'current_student_ids', return_value={'s1'}), \
+             patch.object(submissions.sis_service, 'class_scope', return_value=None), \
              _flags(flags):
-            assert submissions._school_students(ORG) == expected
+            assert submissions._school_students('admin-1', ORG) == expected
 
 
 # ── the portfolio and the diploma ────────────────────────────────────────────

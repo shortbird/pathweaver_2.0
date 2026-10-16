@@ -359,8 +359,8 @@ def save_evidence_document(user_id: str, task_id: str):
         # again goes back to New in SIS Submissions, at a school that holds XP
         # for a teacher's accept (ticket 536a3018). Elsewhere a no-op.
         from services.teacher_acceptance import (
-            PENDING_REVIEW_MESSAGE, award_task_completion_xp, hold_completion,
-            reopen_sent_back_review, student_requires_acceptance,
+            award_task_completion_xp, hold_completion, reopen_sent_back_review,
+            student_requires_acceptance, with_pending_review,
         )
         reopen_sent_back_review(admin_supabase, user_id, task_id)
 
@@ -477,9 +477,7 @@ def save_evidence_document(user_id: str, task_id: str):
             'quest_completed': quest_completed,
             'blocks': saved_blocks_response.data or []
         }
-        if xp_pending_review:
-            payload.update({'message': PENDING_REVIEW_MESSAGE, 'xp_pending_review': True})
-        return jsonify(payload)
+        return jsonify(with_pending_review(payload, xp_pending_review))
 
     except Exception as e:
         logger.error(f"Error saving evidence document: {str(e)}")
@@ -615,8 +613,7 @@ def process_evidence_completion(user_id: str, task_id: str, blocks: List[Dict], 
                     # is nothing to stamp: at a school that holds XP it awards
                     # nothing, rather than award what no teacher has seen.
                     from services.teacher_acceptance import (
-                        award_task_completion_xp, student_requires_acceptance,
-                    )
+                        award_task_completion_xp, student_requires_acceptance, with_pending_review)
                     if student_requires_acceptance(admin_supabase, user_id):
                         xp_pending_review = True
                     else:
@@ -634,10 +631,7 @@ def process_evidence_completion(user_id: str, task_id: str, blocks: List[Dict], 
             'xp_awarded': xp_awarded,
             'quest_completed': quest_completed
         }
-        if xp_pending_review:
-            from services.teacher_acceptance import PENDING_REVIEW_MESSAGE
-            result.update({'message': PENDING_REVIEW_MESSAGE, 'xp_pending_review': True})
-        return result
+        return with_pending_review(result, xp_pending_review)
 
     except Exception as e:
         logger.error(f"Error processing evidence completion: {str(e)}")

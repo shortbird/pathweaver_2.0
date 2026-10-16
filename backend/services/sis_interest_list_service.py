@@ -128,7 +128,7 @@ def _clean_children(raw: Any) -> List[Dict[str, Any]]:
         dob = _coerce_date(dob_raw)
         if dob is None:
             raise InterestListError(f"Enter {first}'s date of birth.")
-        if dob > today or age_on(dob, today) > 20:
+        if dob > today or (age_on(dob, today) or 0) > 20:
             raise InterestListError(f"Check {first}'s date of birth.")
         children.append({'first_name': first, 'dob': dob.isoformat()})
     if not children:
