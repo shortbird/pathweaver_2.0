@@ -5,7 +5,10 @@ import { useAuth } from '../../contexts/AuthContext'
 import { useOrganization } from '../../contexts/OrganizationContext'
 import { useFamilyScope, userHasFamily, worksThroughFamily } from '../../contexts/FamilyScopeContext'
 import ProfileSwitcher from '../parent/ProfileSwitcher'
-import { switchSurfaceInApp } from '../../utils/appSurface'
+import { switchSurfaceInApp, goToSisSurface } from '../../utils/appSurface'
+import { exitRoleView } from '../sis/RoleViewSwitcher'
+import { roleViewHidesStaff } from '../../pages/sis/sisRole'
+import { roleViewLabel } from '../../utils/roleViewExitGuard'
 import MasqueradeBanner from '../admin/MasqueradeBanner'
 import { getMasqueradeState, exitMasquerade } from '../../services/masqueradeService'
 import api from '../../services/api'
@@ -635,7 +638,11 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, isPinned, onTogglePin, isHovere
   // org is flagged into the SIS beta. Campus coordinators run the console (minus
   // finance), so they count as staff here.
   const isCampusCoordinator = userHasRole('campus_coordinator')
-  const showSisLauncher = user?.role === 'superadmin' || (sisEnabled && (hasOrgAdminAccess || isAdvisor || isCampusCoordinator))
+  // An admin in "Parent (my own family)" view is narrowed to parent, so the
+  // role checks above say no; the launcher still shows, because the click
+  // below ends the view first (tickets 0f573318, 43fee34b).
+  const staffBehindRoleView = roleViewHidesStaff(user)
+  const showSisLauncher = user?.role === 'superadmin' || staffBehindRoleView || (sisEnabled && (hasOrgAdminAccess || isAdvisor || isCampusCoordinator))
 
   // Optio Academy invitation for platform students: no school, so their quests
   // earn XP but no transcript credit. Dependents are left out -- they are under
@@ -646,6 +653,24 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, isPinned, onTogglePin, isHovere
   const handleNavClick = () => {
     if (onClose) {
       onClose()
+    }
+  }
+
+  // "School Admin". Under a role view that hides a staff role, hopping to the
+  // console as-is only bounced back: the narrowed user is not staff, SisLayout
+  // sends them to '/', and '/' is /family (Arete, 0f573318: "now the school
+  // admin button keeps going back to family"). End the view, then make a full
+  // navigation so /me re-reads with the real roles.
+  const openSchoolAdmin = async () => {
+    handleNavClick()
+    if (!staffBehindRoleView) {
+      switchSurfaceInApp('sis', '/')
+      return
+    }
+    try {
+      await exitRoleView(() => goToSisSurface('/'))
+    } catch (err) {
+      toast.error(err?.response?.data?.error || 'Could not leave the parent view')
     }
   }
 
@@ -690,7 +715,7 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, isPinned, onTogglePin, isHovere
                 First item so it's always visible, even on short windows. */}
             {showSisLauncher && (
               <button
-                onClick={() => { switchSurfaceInApp('sis', '/'); handleNavClick() }}
+                onClick={openSchoolAdmin}
                 title={!isExpanded ? 'School Admin' : undefined}
                 className="w-full flex items-center rounded-lg relative font-poppins font-medium transition-colors duration-200 min-h-[44px] touch-manipulation px-3 py-3 text-white bg-gradient-primary hover:opacity-90"
               >
@@ -866,7 +891,23 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, isPinned, onTogglePin, isHovere
 
         {/* Logout Button (Bottom of Sidebar - Mobile Only) */}
         {isAuthenticated && (
-          <div className="lg:hidden border-t border-gray-200 p-4">
+          <div className="lg:hidden border-t border-gray-200 p-4 space-y-2">
+            {/* The way out of a role view on a phone. TopNavbar's account menu
+                holds the same item, but that menu is `hidden sm:block`, so
+                below 640px there was no exit at all (Treehouse, 43fee34b, a
+                320px Android: "Can't toggle back to my admin account after I
+                switch to parent mode"). Same label as the navbar's. */}
+            {user?.role_view?.active_role && (
+              <button
+                onClick={async () => {
+                  handleNavClick()
+                  try { await exitRoleView() } catch { /* reload anyway */ window.location.href = '/' }
+                }}
+                className="w-full flex items-center justify-center p-3 rounded-lg font-poppins text-sm font-medium text-optio-purple hover:bg-neutral-100 transition-colors duration-200 min-h-[44px] touch-manipulation"
+              >
+                Exit “{roleViewLabel(user.role_view.active_role)}” view
+              </button>
+            )}
             <button
               onClick={handleLogout}
               className="w-full flex items-center justify-center p-3 rounded-lg text-neutral-700 hover:bg-neutral-100 transition-colors duration-200 min-h-[44px] min-w-[44px] touch-manipulation"

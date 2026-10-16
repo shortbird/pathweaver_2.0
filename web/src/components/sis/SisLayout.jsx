@@ -6,7 +6,9 @@ import { goToLearningSurface } from '../../utils/appSurface'
 import SisSidebar from './SisSidebar'
 import SisSearch from './SisSearch'
 import NotificationBell from '../notifications/NotificationBell'
-import { isSisAdmin, isSisStaff } from '../../pages/sis/sisRole'
+import { isSisAdmin, isSisStaff, roleViewHidesStaff } from '../../pages/sis/sisRole'
+import { exitRoleView } from './RoleViewSwitcher'
+import { runRoleViewExitOnce } from '../../utils/roleViewExitGuard'
 import { navContextFor } from '../../pages/sis/sisNavVisibility'
 import { useSisOrg } from '../../pages/sis/useSisOrg'
 import SisOrgPicker from '../../pages/sis/SisOrgPicker'
@@ -93,6 +95,17 @@ const SisLayout = () => {
   // those teachers out of the console the sidebar had just offered them.
   const isStaff = isSisStaff(user)
   if (!isStaff) {
+    // Staff narrowed by "Parent (my own family)" are not parents who wandered
+    // in: they came back to their console. Bouncing them to '/' landed them on
+    // /family, and the School Admin button brought them right back here, in a
+    // loop (Arete, 0f573318: "now the school admin button keeps going back to
+    // family"). End the view and reload the console instead. The guard allows
+    // one automatic exit per window; if the exit fails or already ran, fall
+    // back to the old bounce rather than reload forever.
+    if (roleViewHidesStaff(user)
+        && runRoleViewExitOnce(() => exitRoleView(), () => goToLearningSurface('/'))) {
+      return <Spinner />
+    }
     goToLearningSurface('/')
     return <Spinner />
   }

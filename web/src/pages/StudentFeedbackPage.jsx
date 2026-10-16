@@ -44,6 +44,11 @@ export default function StudentFeedbackPage() {
   const [linkGenerating, setLinkGenerating] = useState(false);
   const [copied, setCopied] = useState(false);
   const [removingId, setRemovingId] = useState(null);
+  // Minors cannot hand out invite links; their parent does (ticket ecc20c83).
+  // False until my-observers says otherwise, so the button never flashes up
+  // for a student who would only get a 403 from it.
+  const [canInvite, setCanInvite] = useState(false);
+  const [approverName, setApproverName] = useState(null);
 
   useEffect(() => {
     if (user?.id) {
@@ -88,6 +93,8 @@ export default function StudentFeedbackPage() {
     try {
       const res = await observerAPI.getMyObservers().catch(() => ({ data: { viewers: [] } }));
       setViewers(res.data.viewers || []);
+      setCanInvite(res.data.can_invite === true);
+      setApproverName(res.data.approver_name || null);
     } catch (err) {
       console.error('Failed to fetch observer data:', err);
     } finally {
@@ -104,7 +111,7 @@ export default function StudentFeedbackPage() {
         expiresAt: response.data.expires_at
       });
     } catch (err) {
-      const msg = err.response?.data?.error || 'Failed to generate invitation link';
+      const msg = err.response?.data?.message || err.response?.data?.error || 'Failed to generate invitation link';
       toast.error(msg);
     } finally {
       setLinkGenerating(false);
@@ -179,7 +186,12 @@ export default function StudentFeedbackPage() {
       {showObserverPanel && (
         <div className="border-t border-gray-100 px-4 py-3 space-y-3">
           {/* Generate Link / Show Link */}
-          {!generatedLink ? (
+          {/* A minor sees who to ask in place of the button (ticket ecc20c83). */}
+          {observersLoading ? null : !canInvite ? (
+            <p className="text-sm text-gray-600" data-testid="observer-invite-ask-parent">
+              Ask {approverName || 'a parent or guardian'} to invite someone to follow your learning.
+            </p>
+          ) : !generatedLink ? (
             <button
               onClick={handleGenerateLink}
               disabled={linkGenerating}

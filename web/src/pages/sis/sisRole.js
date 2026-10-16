@@ -138,3 +138,23 @@ export const schoolReviewsCredit = (org) => !org?.feature_flags?.credit_review_b
  * partner offerings card.
  */
 export const isOrgAdminTier = (user) => isSisAdmin(user) && !isCampusCoordinator(user)
+
+/**
+ * True when a "view as" role view is the ONLY reason this user is not staff:
+ * the view is active and the roles the account really holds
+ * (`role_view.available_roles`, from /api/auth/me) include a staff role.
+ *
+ * An org admin who picks "Parent (my own family)" is narrowed to ['parent'],
+ * so isSisStaff says no, and every door back into the console used to bounce
+ * them to /family instead (Arete, ticket 0f573318: "I was on the school admin
+ * version and then switched to family and now the school admin button keeps
+ * going back to family"; Treehouse, ticket 43fee34b: "Can't toggle back to my
+ * admin account after I switch to parent mode"). Callers that see this end the
+ * view rather than bounce.
+ */
+export const roleViewHidesStaff = (user) => {
+  const view = user?.role_view
+  if (!view?.active_role) return false
+  const real = Array.isArray(view.available_roles) ? view.available_roles : []
+  return real.some((r) => STAFF_ROLES.includes(r))
+}

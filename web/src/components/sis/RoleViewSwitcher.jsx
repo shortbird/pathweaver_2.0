@@ -53,9 +53,13 @@ export const startRoleView = async (role, orgId = null, landing = '/') => {
   window.location.href = landing
 }
 
-export const exitRoleView = async () => {
+// `go` is where to land once the view is gone. Default: '/' on this surface.
+// The learning sidebar's "School Admin" passes a hop to the SIS console, so an
+// admin in "parent" view lands back in the console in one click (0f573318).
+export const exitRoleView = async (go = null) => {
   await api.post('/api/role-view/exit', {})
-  window.location.href = '/'
+  if (go) go()
+  else window.location.href = '/'
 }
 
 // Where a masqueraded session should open: staff on the console home,

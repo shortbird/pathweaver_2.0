@@ -7,6 +7,7 @@ import NotificationBell from '../notifications/NotificationBell'
 import BackButton from './BackButton'
 import { getPostLoginPath } from '../../utils/postLoginPath'
 import { exitRoleView } from '../sis/RoleViewSwitcher'
+import { roleViewLabel } from '../../utils/roleViewExitGuard'
 
 const TopNavbar = ({ onMenuClick, siteSettings }) => {
   const navRef = useRef(null)
@@ -232,7 +233,7 @@ const TopNavbar = ({ onMenuClick, siteSettings }) => {
                           }}
                           className="w-full text-left px-4 py-2 text-sm font-poppins text-optio-purple hover:bg-neutral-50 transition-colors"
                         >
-                          Exit “{user.role_view.active_role === 'advisor' ? 'teacher' : user.role_view.active_role.replace('_', ' ')}” view
+                          Exit “{roleViewLabel(user.role_view.active_role)}” view
                         </button>
                       )}
                       <button

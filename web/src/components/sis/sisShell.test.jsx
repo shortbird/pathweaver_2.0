@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, fireEvent } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { MemoryRouter, Routes, Route } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 
@@ -36,6 +36,8 @@ vi.mock('../../utils/appSurface', () => nav)
 import SisLayout from './SisLayout'
 import SisSidebar from './SisSidebar'
 import { setPreviewTeacher, clearPreviewTeacher } from '../../pages/sis/teacherPreview'
+import api from '../../services/api'
+import { resetRoleViewExitGuard } from '../../utils/roleViewExitGuard'
 
 // The badge polls two unread endpoints through react-query; these tests render
 // the sidebar without a QueryClientProvider and only care about the nav items.
@@ -113,6 +115,62 @@ describe('SisLayout gate', () => {
     renderLayout()
     expect(nav.goToLearningSurface).toHaveBeenCalledWith('/')
     expect(screen.queryByText('CHILD CONTENT')).not.toBeInTheDocument()
+  })
+
+  // Ticket 0f573318 (Arete org_admin): "I was on the school admin version and
+  // then switched to family and now the school admin button keeps going back
+  // to family". The narrowed admin is not staff, so this gate bounced them to
+  // '/', which is /family. Now it ends the view and stays on the console.
+  it('ends a parent role view that hides a staff role, instead of bouncing', async () => {
+    resetRoleViewExitGuard()
+    authState = {
+      isAuthenticated: true,
+      effectiveRole: 'parent',
+      user: {
+        id: 'u3', role: 'org_managed', org_role: 'parent', org_roles: ['parent'], is_org_admin: false,
+        role_view: { active_role: 'parent', available_roles: ['org_admin', 'parent'] },
+      },
+      loading: false,
+    }
+    renderLayout()
+    await waitFor(() => expect(api.post).toHaveBeenCalledWith('/api/role-view/exit', {}))
+    expect(nav.goToLearningSurface).not.toHaveBeenCalled()
+    expect(screen.queryByText('CHILD CONTENT')).not.toBeInTheDocument()
+    resetRoleViewExitGuard()
+  })
+
+  it('falls back to the bounce when an automatic exit already ran (no reload loop)', () => {
+    resetRoleViewExitGuard()
+    sessionStorage.setItem('optio_role_view_auto_exit_at', String(Date.now()))
+    authState = {
+      isAuthenticated: true,
+      effectiveRole: 'parent',
+      user: {
+        id: 'u3', role: 'org_managed', org_role: 'parent', org_roles: ['parent'],
+        role_view: { active_role: 'parent', available_roles: ['org_admin', 'parent'] },
+      },
+      loading: false,
+    }
+    renderLayout()
+    expect(api.post).not.toHaveBeenCalled()
+    expect(nav.goToLearningSurface).toHaveBeenCalledWith('/')
+    resetRoleViewExitGuard()
+  })
+
+  it('still bounces a real parent (no staff role behind the view)', () => {
+    resetRoleViewExitGuard()
+    authState = {
+      isAuthenticated: true,
+      effectiveRole: 'parent',
+      user: {
+        id: 'u4', role: 'org_managed', org_role: 'parent', org_roles: ['parent'],
+        role_view: { active_role: null, available_roles: ['parent'] },
+      },
+      loading: false,
+    }
+    renderLayout()
+    expect(api.post).not.toHaveBeenCalled()
+    expect(nav.goToLearningSurface).toHaveBeenCalledWith('/')
   })
 
   it('lets a teacher in when their primary role is parent', () => {

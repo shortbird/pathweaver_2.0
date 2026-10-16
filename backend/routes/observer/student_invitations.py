@@ -17,6 +17,32 @@ from .helpers import get_frontend_url
 logger = logging.getLogger(__name__)
 
 
+def invite_gate(user_id):
+    """May this student hand out an observer invite link, and if not, who should?
+
+    One answer for two routes: generate-link refuses with it, and my-observers
+    reports it so the page can show "Ask {approver_name} ..." instead of a
+    button that can only ever 403 (ticket ecc20c83 -- an Apogee student clicked
+    it on /feedback and got a bare "parent_required" toast).
+
+    is_minor_by_id fails closed on a missing date of birth, so an unknown age
+    is a minor here too.
+
+    Returns {'can_invite', 'approver_name', 'approver_kind'}; the last two are
+    None for an adult.
+    """
+    from utils.portfolio_access import is_minor_by_id, find_approver
+
+    if not is_minor_by_id(user_id):
+        return {'can_invite': True, 'approver_name': None, 'approver_kind': None}
+    approver = find_approver(user_id)
+    return {
+        'can_invite': False,
+        'approver_name': approver['first_name'] if approver else 'a parent or guardian',
+        'approver_kind': (approver or {}).get('kind'),
+    }
+
+
 def register_routes(bp):
     """Register student invitation routes on the blueprint."""
 
@@ -43,16 +69,14 @@ def register_routes(bp):
             429: Rate limit exceeded
         """
         try:
-            from utils.portfolio_access import is_minor_by_id, find_approver
-
-            if is_minor_by_id(user_id):
-                approver = find_approver(user_id)
-                who = approver['first_name'] if approver else 'a parent or guardian'
+            gate = invite_gate(user_id)
+            if not gate['can_invite']:
+                who = gate['approver_name']
                 return jsonify({
                     'error': 'parent_required',
                     'message': f'Ask {who} to send this invitation. They can invite '
                                'someone to follow your learning from their account.',
-                    'approver_kind': (approver or {}).get('kind'),
+                    'approver_kind': gate['approver_kind'],
                 }), 403
 
             # admin client justified: student-side observer-invite mgmt; verifies caller is the student and writes observer_invitations / observer_invitation_students scoped to self
@@ -207,6 +231,8 @@ def register_routes(bp):
             200: { observers: [...], viewers: [...] }
                  observers = observer_student_links (removable by student)
                  viewers = all people who can see the feed (for display)
+                 can_invite = False for a minor (or unknown age); then
+                 approver_name says who to ask instead
         """
         try:
             # admin client justified: student-side observer-invite mgmt; verifies caller is the student and writes observer_invitations / observer_invitation_students scoped to self
@@ -344,10 +370,18 @@ def register_routes(bp):
                     'removable': True
                 })
 
-            return jsonify({
+            # Adults may invite; a minor is pointed at the person who can
+            # (ticket ecc20c83). Same rule generate-link enforces.
+            gate = invite_gate(user_id)
+            payload = {
                 'observers': observers_data,
-                'viewers': viewers
-            }), 200
+                'viewers': viewers,
+                'can_invite': gate['can_invite'],
+            }
+            if not gate['can_invite']:
+                payload['approver_name'] = gate['approver_name']
+
+            return jsonify(payload), 200
 
         except Exception as e:
             logger.error(f"Failed to fetch observers: {str(e)}", exc_info=True)

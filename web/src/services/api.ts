@@ -6,6 +6,8 @@ import { isPublicPath } from '../utils/publicPaths'
 import { isAIDisabledRefusal } from '../utils/aiAccessErrors'
 import { captureException } from './sentry'
 import { isMasqueradeActiveOrPending } from './masqueradeGate'
+import { getAppSurface } from '../utils/appSurface'
+import { runRoleViewExitOnce } from '../utils/roleViewExitGuard'
 import { postRefreshWithRetry, isUnrecoverableAuthFailure } from './sessionRecovery'
 import type {
   ApiErrorBody, CsrfTokenResponse, CsrfTokenStore, RefreshResponse, TokenStore,
@@ -262,6 +264,29 @@ api.interceptors.response.use(
       const here = window.location?.pathname
       if (here && here !== '/verify-phone') {
         window.location.assign('/verify-phone')
+      }
+      return Promise.reject(error)
+    }
+
+    // A "view as" role view narrowed away a role this account really holds
+    // (backend utils/auth/decorators.py, code 'role_view_active'). Apogee
+    // Central Florida's org admin hit this five times on
+    // sis.optioeducation.com: a console tab still held the admin /me while the
+    // cookie, set from another tab by "Parent (my own family)", said parent,
+    // so the dashboard, resources and staff reads all 403'd and the page said
+    // "Failed to load dashboard". The console is never meant to run inside a
+    // role view (SisLayout ends one on load), so on the SIS surface end the
+    // view and reload once: the admin is back in their admin view. On the
+    // learning app the view is the admin's choice and stays; the refusal is
+    // expected there. Either way it is not a regression, so it returns before
+    // reportApiFailure and Sentry never hears of it.
+    if (error.response?.status === 403
+        && (error.response?.data?.error_detail?.code === 'role_view_active'
+            || error.response?.data?.code === 'role_view_active')) {
+      if (getAppSurface() === 'sis') {
+        runRoleViewExitOnce(
+          () => api.post('/api/role-view/exit', {}).then(() => window.location.reload()),
+        )
       }
       return Promise.reject(error)
     }
@@ -538,9 +563,11 @@ export const observerAPI = {
   // Get list of linked observers for current student
   getMyObservers: () => api.get('/api/observers/my-observers'),
 
-  // Generate shareable invite link (student-initiated, link-based)
+  // Generate shareable invite link (student-initiated, link-based).
+  // expect403: a minor gets 403 parent_required, which is an answer (ticket
+  // ecc20c83), not a failure to report.
   generateInviteLink: () =>
-    api.post('/api/observers/generate-link', {}),
+    api.post('/api/observers/generate-link', {}, { expect403: true }),
 
   // Accept an observer invitation (creates observer-student link)
   acceptInvitation: (invitationCode: string, data = {}) =>

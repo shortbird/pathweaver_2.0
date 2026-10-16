@@ -87,6 +87,48 @@ def _log_masquerade_denial(check: str, user_id: str) -> None:
             f"this is what that user sees")
 
 
+class RoleViewActiveError(AuthorizationError):
+    """A 403 that a "view as" role view caused, for an account that really
+    holds the role.
+
+    Same message and shape as the AuthorizationError it replaces; only the
+    code differs ('role_view_active' instead of 'AUTHORIZATION_ERROR'), so the
+    client can tell "you may not" from "you chose a view that may not". An org
+    admin who picked "Parent (my own family)" in one tab got bare 403s from
+    every console read in another (Apogee Central Florida, five Sentry issues
+    on /api/sis/dashboard, /resources, /staff, partner-offerings and
+    setup-status) and saw only "Failed to load dashboard". With the code,
+    services/api.ts ends the view and reloads the console once.
+    """
+
+    def __init__(self, message='Insufficient permissions'):
+        super().__init__(message)
+        self.error_code = 'role_view_active'
+
+
+def _refuse(message: str, raw: dict, narrowed: dict, would_allow) -> None:
+    """Raise the 403 for a failed role check.
+
+    `raw` is the user row as stored, `narrowed` is what apply_role_view made of
+    it (the same object when no view applies). When the view narrowed the row
+    and the stored row would have passed `would_allow`, the refusal is the
+    view's doing: raise RoleViewActiveError. Otherwise the plain error, exactly
+    as before -- a real parent learns nothing new.
+    """
+    if narrowed is not raw:
+        try:
+            # Without 'id', has_any_role's own apply_role_view leaves the row
+            # alone, so this really asks about the stored roles.
+            stored = {k: v for k, v in raw.items() if k != 'id'}
+            if would_allow(stored):
+                raise RoleViewActiveError(message)
+        except RoleViewActiveError:
+            raise
+        except Exception as _exc:
+            logger.debug("role-view refusal check failed: %s", _exc, exc_info=True)
+    raise AuthorizationError(message)
+
+
 def caller_is_superadmin(supabase, effective_user_id: str) -> bool:
     """True if the request is from a superadmin.
 
@@ -282,17 +324,18 @@ def require_role(*allowed_roles):
                     if not user.data or len(user.data) == 0:
                         raise AuthorizationError('User not found')
 
-                    user_data = apply_role_view(user.data[0], user_id=user_id)
+                    raw_user = user.data[0]
+                    user_data = apply_role_view(raw_user, user_id=user_id)
 
-                    # Superadmin has access to everything
-                    if user_data.get('role') == 'superadmin':
+                    def _passes(u):
+                        # Superadmin has access to everything; otherwise ANY of
+                        # the allowed roles (supports multiple roles)
+                        return u.get('role') == 'superadmin' or has_any_role(u, list(allowed_roles))
+
+                    if _passes(user_data):
                         break
 
-                    # Check if user has ANY of the allowed roles (supports multiple roles)
-                    if has_any_role(user_data, list(allowed_roles)):
-                        break
-
-                    raise AuthorizationError(f'Required role: {", ".join(allowed_roles)}')
+                    _refuse(f'Required role: {", ".join(allowed_roles)}', raw_user, user_data, _passes)
 
                 except (AuthenticationError, AuthorizationError):
                     raise
@@ -443,7 +486,8 @@ def require_advisor(f):
             if not user.data or len(user.data) == 0:
                 raise AuthorizationError('User not found')
 
-            user_data = apply_role_view(user.data[0], user_id=actual_user_id)
+            raw_user = user.data[0]
+            user_data = apply_role_view(raw_user, user_id=actual_user_id)
             is_org_admin_flag = user_data.get('is_org_admin', False)
 
             # Debug logging for advisor access issues
@@ -458,7 +502,9 @@ def require_advisor(f):
                 logger.info(f"require_advisor - user {actual_user_id} has_role_access={has_role_access}, checking assignments: {has_assignments}")
                 if not has_assignments:
                     _log_masquerade_denial('advisor', actual_user_id)
-                    raise AuthorizationError('Advisor access required')
+                    _refuse('Advisor access required', raw_user, user_data,
+                            lambda u: has_any_role(u, ['advisor', 'org_admin', 'superadmin'])
+                            or u.get('is_org_admin', False))
 
             # The identity that was authorized above is the identity the route
             # operates as. There used to be a second lookup here that swapped in
@@ -528,7 +574,8 @@ def require_advisor_for_student(f):
             if not user.data or len(user.data) == 0:
                 raise AuthorizationError('User not found')
 
-            user_data = apply_role_view(user.data[0], user_id=user_id)
+            raw_user = user.data[0]
+            user_data = apply_role_view(raw_user, user_id=user_id)
 
             # Superadmin always has access; advisors/org_admins need an active
             # assignment to this student
@@ -536,7 +583,9 @@ def require_advisor_for_student(f):
                 if not has_any_role(user_data, ['advisor', 'org_admin']):
                     # Other roles don't have access
                     _log_masquerade_denial('advisor-for-student', user_id)
-                    raise AuthorizationError('Advisor or admin access required')
+                    _refuse('Advisor or admin access required', raw_user, user_data,
+                            lambda u: u.get('role') == 'superadmin'
+                            or has_any_role(u, ['advisor', 'org_admin']))
 
                 assignment = supabase.table('advisor_student_assignments')\
                     .select('id')\
@@ -649,13 +698,17 @@ def require_school_admin(f):
             if not user.data or len(user.data) == 0:
                 raise AuthorizationError('User not found')
 
-            user_data = apply_role_view(user.data[0], user_id=user_id)
-            is_org_admin_flag = user_data.get('is_org_admin', False)
+            raw_user = user.data[0]
+            user_data = apply_role_view(raw_user, user_id=user_id)
 
-            # Check if superadmin, has org_admin role, or is_org_admin flag
-            if user_data.get('role') != 'superadmin' and not has_any_role(user_data, ['org_admin']) and not is_org_admin_flag:
+            def _passes(u):
+                # superadmin, has org_admin role, or is_org_admin flag
+                return (u.get('role') == 'superadmin' or has_any_role(u, ['org_admin'])
+                        or u.get('is_org_admin', False))
+
+            if not _passes(user_data):
                 _log_masquerade_denial('org-admin', user_id)
-                raise AuthorizationError('Organization admin access required')
+                _refuse('Organization admin access required', raw_user, user_data, _passes)
 
         except (AuthenticationError, AuthorizationError):
             raise
@@ -715,18 +768,20 @@ def require_org_admin(f):
             if not user.data:
                 raise AuthorizationError('User not found')
 
-            user_data = apply_role_view(user.data, user_id=user_id)
+            raw_user = user.data
+            user_data = apply_role_view(raw_user, user_id=user_id)
 
             # Check if superadmin
             is_superadmin = user_data.get('role') == 'superadmin'
 
             # Check if org admin (has org_admin role or flag) - supports multiple roles
-            is_org_admin_flag = user_data.get('is_org_admin', False)
-            has_org_admin_access = is_superadmin or has_any_role(user_data, ['org_admin']) or is_org_admin_flag
+            def _passes(u):
+                return (u.get('role') == 'superadmin' or has_any_role(u, ['org_admin'])
+                        or u.get('is_org_admin', False))
 
-            if not has_org_admin_access:
+            if not _passes(user_data):
                 _log_masquerade_denial('org-admin', user_id)
-                raise AuthorizationError('Organization admin access required')
+                _refuse('Organization admin access required', raw_user, user_data, _passes)
 
             # Scope comes from the same row that was just authorized, so the
             # org and the role context can no longer belong to two people.
@@ -792,16 +847,20 @@ def require_org_front_office(f):
             if not user.data:
                 raise AuthorizationError('User not found')
 
-            user_data = apply_role_view(user.data, user_id=user_id)
+            raw_user = user.data
+            user_data = apply_role_view(raw_user, user_id=user_id)
             is_superadmin = user_data.get('role') == 'superadmin'
-            has_access = (
-                is_superadmin
-                or has_any_role(user_data, ['org_admin', CAMPUS_COORDINATOR])
-                or user_data.get('is_org_admin', False)
-            )
-            if not has_access:
+
+            def _passes(u):
+                return (
+                    u.get('role') == 'superadmin'
+                    or has_any_role(u, ['org_admin', CAMPUS_COORDINATOR])
+                    or u.get('is_org_admin', False)
+                )
+
+            if not _passes(user_data):
                 _log_masquerade_denial('org-front-office', user_id)
-                raise AuthorizationError('Organization admin access required')
+                _refuse('Organization admin access required', raw_user, user_data, _passes)
 
             organization_id = user_data['organization_id']
 
